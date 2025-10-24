@@ -14,7 +14,7 @@ namespace Diary.UtilTests
             var temp = FsTools.GetTemporaryDirectory();
             var module = FsTools.GetModulePath();
 
-            Console.Write($"{bin} {appdata} {appcfg} {temp} {module}");
+            Console.WriteLine($"{bin} {appdata} {appcfg} {temp} {module}");
             // Assert.IsTrue(true);
         }
     }
