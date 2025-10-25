@@ -1,4 +1,5 @@
 namespace Diary.Utils;
+
 public static class IOUtils
 {
     static public string ReadAllText(string path)
@@ -9,7 +10,7 @@ public static class IOUtils
         }
         return "";
     }
-    
+
     static public bool WriteAllText(string path, string text)
     {
         if (!string.IsNullOrEmpty(text))

@@ -1,4 +1,5 @@
 namespace Diary.Utils;
+
 public static class TimeTools
 {
     public enum AdjustPart
