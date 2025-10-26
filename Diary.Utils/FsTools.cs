@@ -1,22 +1,21 @@
 using System.Reflection;
-using System.IO;
 
 namespace Diary.Utils;
 
 public static class FsTools
 {
-    private static readonly Dictionary<string, string> _knownDirectories = new();
+    private static readonly Dictionary<string, string> KnownDirectories = new();
 
     public static string GetBinaryDirectory()
     {
-        lock (_knownDirectories)
+        lock (KnownDirectories)
         {
-            if (!_knownDirectories.TryGetValue("AppBinDir", out string? value))
+            if (!KnownDirectories.TryGetValue("AppBinDir", out string? value))
             {
                 var assembly = Assembly.GetEntryAssembly();
                 var path = assembly!.Location;
                 value = Path.GetDirectoryName(path)!;
-                _knownDirectories.Add("AppBinDir", value);
+                KnownDirectories.Add("AppBinDir", value);
             }
             return value;
         }
@@ -24,28 +23,27 @@ public static class FsTools
 
     private static string GetApplicationName()
     {
-        if (!_knownDirectories.TryGetValue("AppName", out string? value))
+        if (!KnownDirectories.TryGetValue("AppName", out string? value))
         {
             var assembly = Assembly.GetEntryAssembly();
             var name = Path.GetFileNameWithoutExtension(assembly!.Location);
             value = name;
-            Directory.CreateDirectory(value);
-            _knownDirectories.Add("AppName", value);
+            KnownDirectories.Add("AppName", value);
         }
         return value;
     }
 
     public static string GetApplicationConfigDirectory()
     {
-        lock (_knownDirectories)
+        lock (KnownDirectories)
         {
-            if (!_knownDirectories.TryGetValue("AppCfgDir", out string? value))
+            if (!KnownDirectories.TryGetValue("AppCfgDir", out string? value))
             {
                 var appdata = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
                 appdata = Path.Combine(appdata, GetApplicationName());
                 value = appdata;
                 Directory.CreateDirectory(value);
-                _knownDirectories.Add("AppCfgDir", value);
+                KnownDirectories.Add("AppCfgDir", value);
             }
             return value;
         }
@@ -53,15 +51,15 @@ public static class FsTools
 
     public static string GetApplicationDataDirectory()
     {
-        lock (_knownDirectories)
+        lock (KnownDirectories)
         {
-            if (!_knownDirectories.TryGetValue("AppDataDir", out string? value))
+            if (!KnownDirectories.TryGetValue("AppDataDir", out string? value))
             {
                 var appdata = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
                 appdata = Path.Combine(appdata, GetApplicationName());
                 value = appdata;
                 Directory.CreateDirectory(value);
-                _knownDirectories.Add("AppDataDir", value);
+                KnownDirectories.Add("AppDataDir", value);
             }
             return value;
         }
@@ -70,15 +68,15 @@ public static class FsTools
 
     public static string GetTemporaryDirectory()
     {
-        lock (_knownDirectories)
+        lock (KnownDirectories)
         {
-            if (!_knownDirectories.TryGetValue("AppTempDir", out string? value))
+            if (!KnownDirectories.TryGetValue("AppTempDir", out string? value))
             {
                 var path = Path.GetTempPath();
                 path = Path.Combine(path, GetApplicationName());
                 value = path;
                 Directory.CreateDirectory(value);
-                _knownDirectories.Add("AppTempDir", value);
+                KnownDirectories.Add("AppTempDir", value);
             }
             return value;
         }
@@ -86,7 +84,7 @@ public static class FsTools
 
     public static string GetModulePath()
     {
-        Assembly caller = Assembly.GetCallingAssembly();
-        return caller.Location!;
+        var caller = Assembly.GetCallingAssembly();
+        return caller.Location;
     }
 }
