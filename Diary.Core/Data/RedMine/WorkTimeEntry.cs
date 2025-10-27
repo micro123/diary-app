@@ -6,5 +6,5 @@ public class WorkTimeEntry
     public int EntryId {get; set;}
     public int ActivityId {get; set;}
     public int IssueId {get; set;}
-    public bool IsUploaded {get; set;}
+    public bool IsUploaded => EntryId != 0;
 }
