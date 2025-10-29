@@ -2,6 +2,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Diary.Database\Diary.Database.csproj" />
     <ProjectReference Include="..\Diary.Utils\Diary.Utils.csproj" />
+    <ProjectReference Include="..\Diary.Core\Diary.Core.csproj" />
   </ItemGroup>
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
