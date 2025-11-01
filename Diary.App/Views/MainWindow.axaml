@@ -1,20 +1,54 @@
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="using:Diary.App.ViewModels"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-        x:Class="Diary.App.Views.MainWindow"
-        x:DataType="vm:MainWindowViewModel"
-        Icon="/Assets/avalonia-logo.ico"
-        Title="Diary.App">
-
+<u:UrsaWindow xmlns="https://github.com/avaloniaui"
+              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+              xmlns:vm="using:Diary.App.ViewModels"
+              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+              xmlns:u="https://irihi.tech/ursa"
+              xmlns:app="using:Diary.App"
+              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+              x:Class="Diary.App.Views.MainWindow"
+              x:DataType="vm:MainWindowViewModel"
+              WindowStartupLocation="CenterScreen"
+              TitleBarMargin="0"
+              MinWidth="1024"
+              MinHeight="768"
+              Width="1280"
+              Height="800">
     <Design.DataContext>
-        <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
-        <vm:MainWindowViewModel/>
+        <vm:MainWindowViewModel />
     </Design.DataContext>
-
-    <TextBlock Text="{Binding Greeting}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-
-</Window>
+    <u:UrsaWindow.TitleBarContent>
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto" Height="32" Margin="4 0" ColumnSpacing="8">
+            <Image Grid.Column="0" Source="/Assets/diary-app.ico" Width="32" Height="32" IsHitTestVisible="False" />
+            <TextBlock Grid.Column="1" Text="Diary Tools NG" FontSize="26" TextAlignment="Left"
+                       VerticalAlignment="Center" IsHitTestVisible="False" />
+            <Button Grid.Column="2" Classes="Success" Theme="{DynamicResource BorderlessButton}"
+                    Content="{Binding VersionString}"
+                    ToolTip.Tip="点击复制" Command="{Binding CopyVersion}" />
+            <u:ThemeToggleButton Grid.Column="3" IsThreeState="False" Mode="Controller" />
+        </Grid>
+    </u:UrsaWindow.TitleBarContent>
+    <Grid ColumnDefinitions="Auto,*">
+        <Border Theme="{DynamicResource CarBorder}"
+                Padding="8 32 8 8" VerticalAlignment="Stretch">
+            <u:SelectionList ItemsSource="{Binding Pages}"
+                             HorizontalAlignment="Stretch">
+                <u:SelectionList.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+                            <Image Source="/Assets/diary-app.ico" Width="48" Height="48"/>
+                            <TextBlock FontSize="12" Text="{Binding Name}"
+                                       MaxWidth="48" TextAlignment="Center"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </u:SelectionList.ItemTemplate>
+            </u:SelectionList>
+        </Border>
+        <ContentControl Grid.Column="1" Content="{Binding ContentViewModel}"
+                        Margin="0 32 8 8" Background="White">
+            <ContentControl.ContentTemplate>
+                <app:ViewLocator />
+            </ContentControl.ContentTemplate>
+        </ContentControl>
+    </Grid>
+</u:UrsaWindow>

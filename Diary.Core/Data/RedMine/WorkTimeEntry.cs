@@ -8,3 +8,4 @@ public class WorkTimeEntry
     public int IssueId {get; set;}
     public bool IsUploaded => EntryId != 0;
 }
+
