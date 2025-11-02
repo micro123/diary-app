@@ -18,11 +18,25 @@ namespace Diary.App.ViewModels
 
         [ObservableProperty] private ObservableCollection<NavigateInfo> _pages =
         [
-            new NavigateInfo("日记", "", null ),
-            new NavigateInfo("RedMine", "", null ),
-            new NavigateInfo("统计", "", null ),
-            new NavigateInfo("调查", "", null ),
-            new NavigateInfo("设置", "", null ),
+            new NavigateInfo("日记", "mdi-notebook", null ),
+            new NavigateInfo("RedMine", "fa-cloud", null ),
+            new NavigateInfo("统计", "fa-chart-pie", null ),
+            new NavigateInfo("调查", "mdi-chat-processing-outline", null ),
+            new NavigateInfo("设置", "mdi-cog-outline", null ),
         ];
+
+        [ObservableProperty] private NavigateInfo? _selectedPage = null;
+
+        partial void OnSelectedPageChanged(NavigateInfo? value)
+        {
+            CurrentPageModel = value?.ViewModel;
+        }
+        
+        [ObservableProperty] private ViewModelBase? _currentPageModel = null;
+
+        public MainWindowViewModel()
+        {
+            SelectedPage = Pages[0];
+        }
     }
 }
