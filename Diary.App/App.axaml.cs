@@ -1,4 +1,6 @@
+using System;
 using System.Linq;
+using System.Reflection;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core;
@@ -6,14 +8,35 @@ using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
 using Diary.App.ViewModels;
 using Diary.App.Views;
+using Diary.Utils;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Diary.App
 {
-    public partial class App : Application
+    public sealed partial class App : Application
     {
+        public App()
+        {
+            Services = ConfigureServices();
+        }
+        
         public override void Initialize()
         {
             AvaloniaXamlLoader.Load(this);
+        }
+        
+        public new static App Current => (Application.Current as App)!;
+        
+        public IServiceProvider Services { get; set; }
+
+        private static IServiceProvider ConfigureServices()
+        {
+            IServiceCollection services = new ServiceCollection();
+            
+            services.AddTypesFromAssembly(Assembly.GetExecutingAssembly());
+            
+            return services.BuildServiceProvider();
         }
 
         public override void OnFrameworkInitializationCompleted()
@@ -25,7 +48,7 @@ namespace Diary.App
                 DisableAvaloniaDataAnnotationValidation();
                 desktop.MainWindow = new MainWindow
                 {
-                    DataContext = new MainWindowViewModel(),
+                    DataContext = Services.GetRequiredService<MainWindowViewModel>(),
                 };
             }
 
