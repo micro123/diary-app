@@ -16,15 +16,29 @@
               Width="1280"
               Height="800">
     <u:UrsaWindow.Styles>
+        <!-- <Style Selector="#TitleBar"> -->
+        <!--     <Setter Property="Backgroud" Value="Yellow"/> -->
+        <!-- </Style> -->
+        <!-- 底部展开折叠按钮 -->
         <Style Selector="ToggleButton#PanelOpen">
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextControlForeground}"></Setter>
+            <Setter Property="Foreground" Value="{DynamicResource TextControlForeground}"/>
+            <Style Selector="^:checked i|Icon">
+                <Setter Property="Value" Value="mdi-arrow-left-thin-circle-outline" />
+            </Style>
+            <Style Selector="^:unchecked i|Icon">
+                <Setter Property="Value" Value="mdi-arrow-right-thin-circle-outline" />
+            </Style>
         </Style>
-        <Style Selector="#PanelOpen:checked i|Icon">
-            <Setter Property="Value" Value="mdi-arrow-left-thin-circle-outline" />
-        </Style>
-        <Style Selector="#PanelOpen:unchecked i|Icon">
-            <Setter Property="Value" Value="mdi-arrow-right-thin-circle-outline" />
+        <!-- 列表项 -->
+        <Style Selector="#ViewList u|SelectionListItem">
+            <Setter Property="Padding" Value="8 2" />
+            <Style Selector="^:selected i|Icon">
+                <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}"/>
+            </Style>
+            <Style Selector="^:selected TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}"/>
+            </Style>
         </Style>
     </u:UrsaWindow.Styles>
     <Design.DataContext>
@@ -34,19 +48,19 @@
         <Grid ColumnDefinitions="Auto,*,Auto,Auto" Height="32" Margin="4 0" ColumnSpacing="8">
             <Image Grid.Column="0" Source="/Assets/diary-app.ico" Width="32" Height="32" IsHitTestVisible="False" />
             <TextBlock Grid.Column="1" Text="Diary Tools NG" FontSize="26" TextAlignment="Left"
-                       VerticalAlignment="Center" IsHitTestVisible="False" />
+                       VerticalAlignment="Center" IsHitTestVisible="False" FontWeight="Bold" />
             <Button Grid.Column="2" Classes="Success" Theme="{DynamicResource BorderlessButton}"
                     Content="{Binding VersionString}"
                     ToolTip.Tip="点击复制" Command="{Binding CopyVersion}" />
             <u:ThemeToggleButton Grid.Column="3" IsThreeState="False" Mode="Controller" />
         </Grid>
     </u:UrsaWindow.TitleBarContent>
-    <SplitView Padding="4" DisplayMode="CompactOverlay" OpenPaneLength="320" CompactPaneLength="64"
+    <SplitView Padding="4" DisplayMode="CompactOverlay" OpenPaneLength="220" CompactPaneLength="64"
                IsPaneOpen="{Binding #PanelOpen.IsChecked, Mode=TwoWay}"
                Margin="0 32 0 0" PanePlacement="Left">
         <SplitView.Pane>
             <Grid RowDefinitions="*,Auto">
-                <u:SelectionList ItemsSource="{Binding Pages}"
+                <u:SelectionList Name="ViewList" ItemsSource="{Binding Pages}"
                                  HorizontalAlignment="Stretch" SelectedItem="{Binding SelectedPage}">
                     <u:SelectionList.ItemTemplate>
                         <DataTemplate>
