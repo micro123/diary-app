@@ -45,3 +45,5 @@ public class ConfigureChoiceAttribute(string caption, IEnumerable<string> option
     public IEnumerable<string> Choices { get; } = options;
 }
 
+public class ConfigureGroupAttribute(string caption): ConfigureAttribute(ConfigureItemType.Group, caption) {}
+

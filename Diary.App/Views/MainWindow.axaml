@@ -14,15 +14,19 @@
               MinWidth="1024"
               MinHeight="768"
               Width="1280"
-              Height="800">
+              Height="800"
+              Icon="/Assets/Icons/diary-app.ico"
+              Title="Diary Tools NG">
     <u:UrsaWindow.Styles>
-        <!-- <Style Selector="#TitleBar"> -->
-        <!--     <Setter Property="Backgroud" Value="Yellow"/> -->
-        <!-- </Style> -->
         <!-- 底部展开折叠按钮 -->
         <Style Selector="ToggleButton#PanelOpen">
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextControlForeground}"/>
+            <Style Selector="^ i|Icon">
+                <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}" />
+            </Style>
+            <Style Selector="^:checked i|Icon">
+                <Setter Property="Foreground" Value="{DynamicResource ButtonSolidForeground}" />
+            </Style>
             <Style Selector="^:checked i|Icon">
                 <Setter Property="Value" Value="mdi-arrow-left-thin-circle-outline" />
             </Style>
@@ -46,7 +50,7 @@
     </Design.DataContext>
     <u:UrsaWindow.TitleBarContent>
         <Grid ColumnDefinitions="Auto,*,Auto,Auto" Height="32" Margin="4 0" ColumnSpacing="8">
-            <Image Grid.Column="0" Source="/Assets/diary-app.ico" Width="32" Height="32" IsHitTestVisible="False" />
+            <Image Grid.Column="0" Source="/Assets/Icons/diary-app.ico" Width="32" Height="32" IsHitTestVisible="False" />
             <TextBlock Grid.Column="1" Text="Diary Tools NG" FontSize="26" TextAlignment="Left"
                        VerticalAlignment="Center" IsHitTestVisible="False" FontWeight="Bold" />
             <Button Grid.Column="2" Classes="Success" Theme="{DynamicResource BorderlessButton}"
