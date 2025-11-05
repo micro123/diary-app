@@ -33,6 +33,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Diary.Core\Diary.Core.csproj" />
+    <ProjectReference Include="..\Diary.Database\Diary.Database.csproj" />
+    <ProjectReference Include="..\Diary.RedMine\Diary.RedMine.csproj" />
     <ProjectReference Include="..\Diary.Utils\Diary.Utils.csproj" />
   </ItemGroup>
 </Project>

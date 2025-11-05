@@ -13,9 +13,10 @@ public abstract class ConfigureAttribute(
 }
 
 
-public class ConfigureTextAttribute(string caption)
+public class ConfigureTextAttribute(string caption, bool password = false)
     : ConfigureAttribute(ConfigureItemType.Text, caption)
 {
+    public bool IsPassword { get; } = password;
 }
 
 public class ConfigureIntegralAttribute<T>(string caption, T min, T max)

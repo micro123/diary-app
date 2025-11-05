@@ -8,6 +8,8 @@ using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
 using Diary.App.ViewModels;
 using Diary.App.Views;
+using Diary.Core.Data.AppConfig;
+using Diary.Core.Utils;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -18,11 +20,13 @@ namespace Diary.App
     {
         public App()
         {
+            Name = "Diary App NG";
             Services = ConfigureServices();
         }
         
         public override void Initialize()
         {
+            LoadConfigurations();
             AvaloniaXamlLoader.Load(this);
         }
         
@@ -30,15 +34,21 @@ namespace Diary.App
         
         public IServiceProvider Services { get; set; }
 
+        public AllConfig AppConfig { get; } = new();
+
         private static IServiceProvider ConfigureServices()
         {
             IServiceCollection services = new ServiceCollection();
             
             services.AddTypesFromAssembly(Assembly.GetExecutingAssembly());
             
+            // TODO: Add More
+            
             return services.BuildServiceProvider();
         }
 
+        
+        
         public override void OnFrameworkInitializationCompleted()
         {
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
@@ -50,9 +60,20 @@ namespace Diary.App
                 {
                     DataContext = Services.GetRequiredService<MainWindowViewModel>(),
                 };
+                desktop.ShutdownRequested += (_, _) => SaveConfigurations();
             }
 
             base.OnFrameworkInitializationCompleted();
+        }
+
+        private void SaveConfigurations()
+        {
+            EasySaveLoad.Save(AppConfig);
+        }
+
+        private void LoadConfigurations()
+        {
+            EasySaveLoad.Load(AppConfig);
         }
 
         private void DisableAvaloniaDataAnnotationValidation()

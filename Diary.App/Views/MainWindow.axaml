@@ -17,6 +17,8 @@
               Height="800"
               Icon="/Assets/Icons/diary-app.ico"
               Title="Diary Tools NG">
+    
+    <!-- 控件样式覆盖 -->
     <u:UrsaWindow.Styles>
         <!-- 底部展开折叠按钮 -->
         <Style Selector="ToggleButton#PanelOpen">
@@ -45,9 +47,13 @@
             </Style>
         </Style>
     </u:UrsaWindow.Styles>
+    
+    <!-- IDE预览 -->
     <Design.DataContext>
         <vm:MainWindowViewModel />
     </Design.DataContext>
+    
+    <!-- 标题栏 -->
     <u:UrsaWindow.TitleBarContent>
         <Grid ColumnDefinitions="Auto,*,Auto,Auto" Height="32" Margin="4 0" ColumnSpacing="8">
             <Image Grid.Column="0" Source="/Assets/Icons/diary-app.ico" Width="32" Height="32" IsHitTestVisible="False" />
