@@ -1,5 +1,6 @@
 ﻿using System;
 using Avalonia;
+using Avalonia.Logging;
 using Avalonia.Media;
 using Projektanker.Icons.Avalonia;
 using Projektanker.Icons.Avalonia.FontAwesome;
@@ -24,16 +25,16 @@ namespace Diary.App
                 .Register<MaterialDesignIconProvider>();
             return AppBuilder.Configure<App>()
                 .UsePlatformDetect()
-                .WithInterFont()
+                // .WithInterFont()
                 .With(new FontManagerOptions
                 {
-                    DefaultFamilyName = "avares://Assets/Fonts/NotoSans.ttf#Noto Sans",
-                    FontFallbacks = new[]
-                    {
-                        new FontFallback { FontFamily = "avares://Assets/Fonts/OpenMoji.ttf#OpenMoji Color", }
-                    }
+                    DefaultFamilyName = "avares://Diary.App/Assets/Fonts#Zhuque Fangsong",
+                    FontFallbacks =
+                    [
+                        new FontFallback { FontFamily = "avares://Diary.App/Assets/Fonts#OpenMoji", }
+                    ]
                 })
-                .LogToTrace();
+                .LogToTrace(LogEventLevel.Debug);
         }
     }
 }

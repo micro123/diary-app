@@ -26,8 +26,6 @@
             </Style>
             <Style Selector="^:checked i|Icon">
                 <Setter Property="Foreground" Value="{DynamicResource ButtonSolidForeground}" />
-            </Style>
-            <Style Selector="^:checked i|Icon">
                 <Setter Property="Value" Value="mdi-arrow-left-thin-circle-outline" />
             </Style>
             <Style Selector="^:unchecked i|Icon">
@@ -36,12 +34,14 @@
         </Style>
         <!-- 列表项 -->
         <Style Selector="#ViewList u|SelectionListItem">
-            <Setter Property="Padding" Value="8 2" />
             <Style Selector="^:selected i|Icon">
                 <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}"/>
             </Style>
             <Style Selector="^:selected TextBlock">
                 <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}"/>
+            </Style>
+            <Style Selector="^:pointerover">
+                <Setter Property="Background" Value="{DynamicResource ListBoxItemPointeroverBackground}" />
             </Style>
         </Style>
     </u:UrsaWindow.Styles>
@@ -77,6 +77,9 @@
                             </StackPanel>
                         </DataTemplate>
                     </u:SelectionList.ItemTemplate>
+                    <u:SelectionList.Indicator>
+                        <x:Null />
+                    </u:SelectionList.Indicator>
                 </u:SelectionList>
                 <ToggleButton Name="PanelOpen" Grid.Row="1" HorizontalAlignment="Stretch"
                               BorderThickness="0" Padding="0">
