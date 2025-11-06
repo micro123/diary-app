@@ -28,13 +28,13 @@ namespace Diary.App
                 // .WithInterFont()
                 .With(new FontManagerOptions
                 {
-                    DefaultFamilyName = "avares://Diary.App/Assets/Fonts#Zhuque Fangsong",
+                    DefaultFamilyName = "avares://Diary.App/Assets/Fonts#Noto Sans",
                     FontFallbacks =
                     [
                         new FontFallback { FontFamily = "avares://Diary.App/Assets/Fonts#OpenMoji", }
                     ]
                 })
-                .LogToTrace(LogEventLevel.Debug);
+                .LogToTrace();
         }
     }
 }

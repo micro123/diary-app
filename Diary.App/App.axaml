@@ -4,7 +4,7 @@
              xmlns:semi="https://irihi.tech/semi"
              x:Class="Diary.App.App"
              xmlns:local="using:Diary.App"
-             RequestedThemeVariant="Light">
+             RequestedThemeVariant="Dark">
              <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 
     <Application.DataTemplates>
