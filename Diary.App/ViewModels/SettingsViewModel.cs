@@ -3,6 +3,8 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Diary.App.Models;
 using Diary.Core.Configure;
 using Diary.Utils;
 
@@ -11,7 +13,7 @@ namespace Diary.App.ViewModels;
 [DiAutoRegister]
 public partial class SettingsViewModel : ViewModelBase
 {
-    [ObservableProperty] private ObservableCollection<object> _settingsTree = new();
+    [ObservableProperty] private ObservableCollection<SettingItemModel> _settingsTree = new();
 
     public SettingsViewModel()
     {
@@ -24,7 +26,7 @@ public partial class SettingsViewModel : ViewModelBase
         BuildTree(SettingsTree, config);
     }
 
-    private void BuildTree(ObservableCollection<object> tree, object o)
+    private void BuildTree(Collection<SettingItemModel> tree, object o)
     {
         var type = o.GetType();
         var properties = type.GetProperties();
@@ -34,23 +36,52 @@ public partial class SettingsViewModel : ViewModelBase
             var cfg = property.GetCustomAttribute<ConfigureAttribute>(false);
             if (cfg == null)
                 continue;
-            switch (cfg.Type)
+            
+            SettingItemModel? item = null;
+            switch(cfg)
             {
-                case ConfigureItemType.Text:
+                case ConfigureGroupAttribute g:
+                    var group = new SettingGroup(g.Caption);
+                    BuildTree(group.Children, property.GetValue(o)!);
+                    item = group;
                     break;
-                case ConfigureItemType.Integral:
+                case ConfigureTextAttribute t:
+                    item = new SettingText(t.Caption, t.IsPassword, o, property);
                     break;
-                case ConfigureItemType.Real:
+                case ConfigureIntegralAttribute i:
+                    item = new SettingInteger(i.Caption, i.Min, i.Max, o, property);
                     break;
-                case ConfigureItemType.Switch:
+                case ConfigureRealAttribute r:
+                    item = new SettingReal(r.Caption, r.Min, r.Max, o, property);
                     break;
-                case ConfigureItemType.Choice:
+                case ConfigureSwitchAttribute s:
+                    item = new SettingSwitch(s.Caption, s.OnValue, s.OffValue, o, property);
                     break;
-                case ConfigureItemType.Group:
+                case ConfigureChoiceAttribute c:
+                    item = new SettingChoice(c.Caption, c.Choices, o, property);
                     break;
-                default:
-                    throw new ArgumentOutOfRangeException();
+                default: break;
             }
+            if (item != null)
+                tree.Add(item);
+        }
+    }
+
+    [RelayCommand]
+    private void Save()
+    {
+        foreach (var item in SettingsTree)
+        {
+            item.Save();
+        }
+    }
+
+    [RelayCommand]
+    private void Load()
+    {
+        foreach (var item in SettingsTree)
+        {
+            item.Load();
         }
     }
 }

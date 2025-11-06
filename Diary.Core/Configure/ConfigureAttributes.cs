@@ -19,18 +19,18 @@ public class ConfigureTextAttribute(string caption, bool password = false)
     public bool IsPassword { get; } = password;
 }
 
-public class ConfigureIntegralAttribute<T>(string caption, T min, T max)
-    : ConfigureAttribute(ConfigureItemType.Integral, caption) where T: INumber<T>
+public class ConfigureIntegralAttribute(string caption, long min, long max)
+    : ConfigureAttribute(ConfigureItemType.Integral, caption)
 {
-    public T Max { get; } = max;
-    public T Min { get; } = min;
+    public long Max { get; } = max;
+    public long Min { get; } = min;
 }
 
-public class ConfigureRealAttribute<T>(string caption, T min, T max)
-    : ConfigureAttribute(ConfigureItemType.Integral, caption) where T : IFloatingPoint<T>
+public class ConfigureRealAttribute(string caption, double min, double max)
+    : ConfigureAttribute(ConfigureItemType.Real, caption)
 {
-    public T Max { get; } = max;
-    public T Min { get; } = min;
+    public double Max { get; } = max;
+    public double Min { get; } = min;
 }
 
 public class ConfigureSwitchAttribute(string caption, string onValue = "on", string offValue = "off")

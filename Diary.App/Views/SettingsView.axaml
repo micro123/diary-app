@@ -1,25 +1,86 @@
 <u:UrsaView xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-             xmlns:u="https://irihi.tech/ursa"
-             x:Class="Diary.App.Views.SettingsView"
-             Padding="16">
-    <u:UrsaView.Resources>
+            xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+            xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+            xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+            mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+            xmlns:u="https://irihi.tech/ursa"
+            xmlns:m="clr-namespace:Diary.App.Models"
+            x:Class="Diary.App.Views.SettingsView"
+            Padding="8">
+    <u:UrsaView.DataTemplates>
         <!-- 模板 -->
-        
-    </u:UrsaView.Resources>
-    
+        <DataTemplate DataType="{x:Type m:SettingGroup}">
+            <Expander IsExpanded="True">
+                <Expander.Header>
+                    <TextBlock Classes="SectionHeader" Text="{Binding Title}" FontSize="28" />
+                </Expander.Header>
+                <ItemsControl ItemsSource="{Binding Children}" />
+            </Expander>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type m:SettingText}">
+            <Grid ColumnDefinitions="Auto,*" Margin="8 4" VerticalAlignment="Center"
+                  ColumnSpacing="16">
+                <TextBlock Classes="SettingLineCaption" />
+                <TextBox Grid.Column="1" Text="{Binding Value}" />
+            </Grid>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type m:SettingInteger}">
+            <Grid ColumnDefinitions="Auto,*" Margin="8 4" VerticalAlignment="Center"
+                  ColumnSpacing="16">
+                <TextBlock Classes="SettingLineCaption" />
+                <u:NumericLongUpDown Grid.Column="1" Value="{Binding Value}"
+                                     Minimum="{Binding MinValue}"
+                                     Maximum="{Binding MaxValue}" />
+            </Grid>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type m:SettingReal}">
+            <Grid ColumnDefinitions="Auto,*" Margin="8 4" VerticalAlignment="Center"
+                  ColumnSpacing="16">
+                <TextBlock Classes="SettingLineCaption" />
+                <u:NumericDoubleUpDown Grid.Column="1" Value="{Binding Value}"
+                                       Minimum="{Binding MinValue}"
+                                       Maximum="{Binding MaxValue}" />
+            </Grid>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type m:SettingSwitch}">
+            <Grid ColumnDefinitions="Auto,*" Margin="8 4" VerticalAlignment="Center"
+                  ColumnSpacing="16">
+                <TextBlock Classes="SettingLineCaption" />
+                <CheckBox Grid.Column="1" IsChecked="{Binding Value}" />
+            </Grid>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type m:SettingChoice}">
+            <Grid ColumnDefinitions="Auto,*" Margin="8 4" VerticalAlignment="Center"
+                  ColumnSpacing="16">
+                <TextBlock Classes="SettingLineCaption" />
+                <ComboBox Grid.Column="1" SelectedIndex="{Binding SelectedIndex}"
+                          ItemsSource="{Binding Options}" />
+            </Grid>
+        </DataTemplate>
+    </u:UrsaView.DataTemplates>
+
+    <u:UrsaView.Styles>
+        <Style Selector="TextBlock.SettingLineCaption">
+            <Setter Property="Width" Value="220" />
+            <Setter Property="FontSize" Value="22" />
+            <Setter Property="TextAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Text" Value="{Binding Title, StringFormat='{}: '}" />
+        </Style>
+        <Style Selector="Expander:expanded TextBlock.SectionHeader">
+            <Setter Property="Foreground" Value="{DynamicResource ToggleSwitchContainerCheckedDefaultBackground}" />
+        </Style>
+    </u:UrsaView.Styles>
+
     <Grid RowDefinitions="*,Auto">
-        <ListBox ItemsSource="{Binding SettingsTree}" />
-        <Border Grid.Row="1" BorderThickness="0 2 0 0"
+        <ItemsControl ItemsSource="{Binding SettingsTree}" />
+        <Border Grid.Row="1" BorderThickness="0 4 0 0"
                 BorderBrush="{DynamicResource GridSplitterBackground}">
             <StackPanel Orientation="Horizontal"
                         HorizontalAlignment="Center" Spacing="16"
-                        Margin="32 8">
-                <Button Classes="Large Danger" Content="重置为默认值" />
-                <Button Classes="Large Primary" Content="保存配置" />
+                        Margin="32  8 32 0">
+                <Button Classes="Large Danger" Content="还原配置" Command="{Binding LoadCommand}" />
+                <Button Classes="Large Primary" Content="保存配置" Command="{Binding SaveCommand}" />
             </StackPanel>
         </Border>
     </Grid>
