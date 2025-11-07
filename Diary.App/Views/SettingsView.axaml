@@ -7,8 +7,15 @@
             xmlns:m="clr-namespace:Diary.App.Models"
             x:Class="Diary.App.Views.SettingsView"
             Padding="8">
+    <!-- 一些事件 -->
+    <Interaction.Behaviors>
+        <EventTriggerBehavior EventName="Loaded">
+            <InvokeCommandAction Command="{Binding ForceLoadCommand}" />
+        </EventTriggerBehavior>
+    </Interaction.Behaviors>
+
+    <!-- 模板 -->
     <u:UrsaView.DataTemplates>
-        <!-- 模板 -->
         <DataTemplate DataType="{x:Type m:SettingGroup}">
             <Expander IsExpanded="True">
                 <Expander.Header>
@@ -46,7 +53,8 @@
             <Grid ColumnDefinitions="Auto,*" Margin="8 4" VerticalAlignment="Center"
                   ColumnSpacing="16">
                 <TextBlock Classes="SettingLineCaption" />
-                <CheckBox Grid.Column="1" IsChecked="{Binding Value}" />
+                <CheckBox Grid.Column="1" IsChecked="{Binding Value}"
+                          VerticalAlignment="Center"/>
             </Grid>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingChoice}">
@@ -59,6 +67,7 @@
         </DataTemplate>
     </u:UrsaView.DataTemplates>
 
+    <!-- 样式 -->
     <u:UrsaView.Styles>
         <Style Selector="TextBlock.SettingLineCaption">
             <Setter Property="Width" Value="220" />
@@ -72,8 +81,9 @@
         </Style>
     </u:UrsaView.Styles>
 
+    <!-- 内容 -->
     <Grid RowDefinitions="*,Auto">
-        <ItemsControl ItemsSource="{Binding SettingsTree}" />
+        <ItemsControl ItemsSource="{Binding SettingsTree.Children}" />
         <Border Grid.Row="1" BorderThickness="0 4 0 0"
                 BorderBrush="{DynamicResource GridSplitterBackground}">
             <StackPanel Orientation="Horizontal"

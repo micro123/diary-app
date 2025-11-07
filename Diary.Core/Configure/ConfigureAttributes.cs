@@ -5,13 +5,12 @@ namespace Diary.Core.Configure;
 [AttributeUsage(AttributeTargets.Property, AllowMultiple = false)]
 public abstract class ConfigureAttribute(
     ConfigureItemType type,
-    string caption) 
+    string caption)
     : Attribute
 {
     public ConfigureItemType Type { get; } = type;
     public string Caption { get; } = caption;
 }
-
 
 public class ConfigureTextAttribute(string caption, bool password = false)
     : ConfigureAttribute(ConfigureItemType.Text, caption)
@@ -33,11 +32,9 @@ public class ConfigureRealAttribute(string caption, double min, double max)
     public double Min { get; } = min;
 }
 
-public class ConfigureSwitchAttribute(string caption, string onValue = "on", string offValue = "off")
+public class ConfigureSwitchAttribute(string caption)
     : ConfigureAttribute(ConfigureItemType.Switch, caption)
 {
-    public string OnValue { get; } = onValue;
-    public string OffValue { get; } = offValue;
 }
 
 public class ConfigureChoiceAttribute(string caption, IEnumerable<string> options)
@@ -46,5 +43,6 @@ public class ConfigureChoiceAttribute(string caption, IEnumerable<string> option
     public IEnumerable<string> Choices { get; } = options;
 }
 
-public class ConfigureGroupAttribute(string caption): ConfigureAttribute(ConfigureItemType.Group, caption) {}
-
+public class ConfigureGroupAttribute(string caption) : ConfigureAttribute(ConfigureItemType.Group, caption)
+{
+}

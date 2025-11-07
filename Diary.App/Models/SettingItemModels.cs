@@ -6,7 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Diary.App.Models;
 
-public abstract partial class SettingItemModel(string title) : ObservableObject
+public abstract class SettingItemModel(string title) : ObservableObject
 {
     public string Title { get; } = title;
 
@@ -50,62 +50,138 @@ public sealed partial class SettingGroup(string title) : SettingItemModel(title)
     }
 }
 
-public class EditableItemModel(string title, object o, MemberInfo p) : SettingItemModel(title)
+public class EditableItemModel : SettingItemModel
 {
-    protected readonly object Obj = o;
-    protected readonly MemberInfo Prop = p;
+    protected readonly object Obj;
+    protected readonly PropertyInfo Prop;
+
+    public EditableItemModel(string title, object o, PropertyInfo p, Func<Type,bool> check) : base(title)
+    {
+        Obj = o;
+        Prop = p;
+        if (!check(Prop.PropertyType))
+        {
+            throw new ArgumentException($"not a expected type: {Prop.PropertyType}");
+        }
+    }
+
+    protected static bool EnsureString(Type type)
+    {
+        return type == typeof(string);
+    }
+
+    protected static bool EnsureBoolean(Type type)
+    {
+        return type == typeof(bool);
+    }
+    
+    protected static bool EnsureInteger(Type type)
+    {
+        var code = Type.GetTypeCode(type);
+        return code is >= TypeCode.SByte and <= TypeCode.UInt64;
+    }
+    
+    protected static bool EnsureFloatOrDouble(Type type)
+    {
+        var code = Type.GetTypeCode(type);
+        return code is TypeCode.Single or TypeCode.Double;
+    }
 }
 
-public sealed partial class SettingText(string title, bool password, object o, MemberInfo p)
-    : EditableItemModel(title, o, p)
+public sealed partial class SettingText(string title, bool password, object o, PropertyInfo p)
+    : EditableItemModel(title, o, p, EnsureString)
 {
     private readonly object _o = o;
-    private readonly MemberInfo _p = p;
+    private readonly PropertyInfo _p = p;
 
     [ObservableProperty] private string _value = "";
     public bool IsPassword { get; } = password;
 
     // TODO: save and load
+    protected override void LoadAction()
+    {
+        Value = (string)Prop.GetValue(Obj)!;
+    }
+
+    protected override void SaveAction()
+    {
+        Prop.SetValue(Obj, Value);
+    }
 }
 
-public sealed partial class SettingInteger(string title, long min, long max, object o, MemberInfo p)
-    : EditableItemModel(title, o, p)
+public sealed partial class SettingInteger(string title, long min, long max, object o, PropertyInfo p)
+    : EditableItemModel(title, o, p, EnsureInteger)
 {
-    [ObservableProperty] private long _value = 0;
+    [ObservableProperty] private long _value;
 
     public long MinValue { get; } = min;
     public long MaxValue { get; } = max;
 
     // TODO: save and load
+    protected override void LoadAction()
+    {
+        Value = (long)Prop.GetValue(Obj)!;
+    }
+
+    protected override void SaveAction()
+    {
+        Prop.SetValue(Obj, Value);
+    }
 }
 
-public sealed partial class SettingReal(string title, double min, double max, object o, MemberInfo p)
-    : EditableItemModel(title, o, p)
+public sealed partial class SettingReal(string title, double min, double max, object o, PropertyInfo p)
+    : EditableItemModel(title, o, p, EnsureFloatOrDouble)
 {
-    [ObservableProperty] private double _value = 0;
+    [ObservableProperty] private double _value;
 
     public double MinValue { get; } = min;
     public double MaxValue { get; } = max;
 
     // TODO: save and load
+    protected override void LoadAction()
+    {
+        Value = (double)Prop.GetValue(Obj)!;
+    }
+
+    protected override void SaveAction()
+    {
+        Prop.SetValue(Obj, Value);
+    }
 }
 
-public sealed partial class SettingSwitch(string title, string onValue, string offValue, object o, MemberInfo p)
-    : EditableItemModel(title, o, p)
+public sealed partial class SettingSwitch(string title, object o, PropertyInfo p)
+    : EditableItemModel(title, o, p, EnsureBoolean)
 {
-    private readonly string _onValue = onValue;
-    private readonly string _offValue = offValue;
-    [ObservableProperty] private bool _value = false;
-
-
+    [ObservableProperty] private bool _value;
+    
     // TODO: save and load
+    protected override void LoadAction()
+    {
+        Value = (bool)Prop.GetValue(Obj)!;
+    }
+
+    protected override void SaveAction()
+    {
+        Prop.SetValue(Obj, Value);
+    }
 }
 
-public sealed partial class SettingChoice(string title, IEnumerable<string> options, object o, MemberInfo p)
-    : EditableItemModel(title, o, p)
+public sealed partial class SettingChoice(string title, IEnumerable<string> options, object o, PropertyInfo p)
+    : EditableItemModel(title, o, p, EnsureString)
 {
-    [ObservableProperty] private int _selectedIndex = 0;
-    [ObservableProperty] private ObservableCollection<string> _options = new(options);
+    [ObservableProperty] private int _selectedIndex;
+    public readonly List<string> Options = [..options];
 
     // TODO: save and load
+    protected override void LoadAction()
+    {
+        var value = Prop.GetValue(Obj) as string;
+        SelectedIndex = Options.IndexOf(value!);
+    }
+
+    protected override void SaveAction()
+    {
+        if (SelectedIndex >= 0 && SelectedIndex < Options.Count)
+            Prop.SetValue(Obj, Options[SelectedIndex]);
+    }
 }

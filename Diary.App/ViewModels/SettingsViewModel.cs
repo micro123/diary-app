@@ -2,18 +2,20 @@ using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
 using Diary.Core.Configure;
 using Diary.Utils;
+using Ursa.Controls;
 
 namespace Diary.App.ViewModels;
 
 [DiAutoRegister]
 public partial class SettingsViewModel : ViewModelBase
 {
-    [ObservableProperty] private ObservableCollection<SettingItemModel> _settingsTree = new();
+    [ObservableProperty] private SettingGroup _settingsTree = new("Root");
 
     public SettingsViewModel()
     {
@@ -23,7 +25,7 @@ public partial class SettingsViewModel : ViewModelBase
     private void BuildTree()
     {
         var config = App.Current.AppConfig;
-        BuildTree(SettingsTree, config);
+        BuildTree(SettingsTree.Children, config);
     }
 
     private void BuildTree(Collection<SettingItemModel> tree, object o)
@@ -55,7 +57,7 @@ public partial class SettingsViewModel : ViewModelBase
                     item = new SettingReal(r.Caption, r.Min, r.Max, o, property);
                     break;
                 case ConfigureSwitchAttribute s:
-                    item = new SettingSwitch(s.Caption, s.OnValue, s.OffValue, o, property);
+                    item = new SettingSwitch(s.Caption, o, property);
                     break;
                 case ConfigureChoiceAttribute c:
                     item = new SettingChoice(c.Caption, c.Choices, o, property);
@@ -70,18 +72,28 @@ public partial class SettingsViewModel : ViewModelBase
     [RelayCommand]
     private void Save()
     {
-        foreach (var item in SettingsTree)
-        {
-            item.Save();
-        }
+        SettingsTree.Save();
     }
 
     [RelayCommand]
-    private void Load()
+    private async Task Load()
     {
-        foreach (var item in SettingsTree)
-        {
-            item.Load();
-        }
+        var confirm = await MessageBox.ShowOverlayAsync(
+            message: "Are you sure?",
+            title: "Confirm",
+            icon: MessageBoxIcon.Question,
+            button: MessageBoxButton.YesNo
+        );
+        
+        if (confirm != MessageBoxResult.Yes)
+            return;
+        
+        ForceLoad();
+    }
+
+    [RelayCommand]
+    private void ForceLoad()
+    {
+        SettingsTree.Load();
     }
 }

@@ -18,9 +18,6 @@ public static class EasySaveLoad
         /// </summary>
         public static byte[] AlignWithPkcs7(byte[] data)
         {
-            if (data == null) 
-                data = new byte[0];
-
             int blockSize = 32;
             int paddingNeeded = blockSize - (data.Length % blockSize);
         
@@ -47,10 +44,10 @@ public static class EasySaveLoad
         /// </summary>
         public static byte[] RemovePkcs7Padding(byte[] data)
         {
-            if (data == null || data.Length == 0)
+            if (data.Length == 0)
                 return data;
 
-            int paddingLength = data[data.Length - 1];
+            int paddingLength = data[^1];
         
             // 验证填充有效性
             if (paddingLength > data.Length || paddingLength == 0)
@@ -68,13 +65,13 @@ public static class EasySaveLoad
         }
     }
 
-    private static readonly byte[] IV = Encoding.UTF8.GetBytes("1478523690zzzqqq");
+    private static readonly byte[] Iv = Encoding.UTF8.GetBytes("1478523690zzzqqq");
 
     private static byte[] AesEncrypt(string text, string key)
     {
         using var aes = Aes.Create();
         aes.KeySize = 256;
-        aes.IV = IV;
+        aes.IV = Iv;
         aes.Mode = CipherMode.CBC;
         aes.Padding = PaddingMode.PKCS7;
         aes.Key = Pkcs7Alignment.AlignWithPkcs7(Encoding.UTF8.GetBytes(key));
@@ -97,7 +94,7 @@ public static class EasySaveLoad
     private static string AesDecrypt(byte[] dat, string key)
     {
         using var aesAlg = Aes.Create();
-        aesAlg.IV = IV;
+        aesAlg.IV = Iv;
         aesAlg.KeySize = 256;
         aesAlg.Mode = CipherMode.CBC;
         aesAlg.Padding = PaddingMode.PKCS7;
@@ -175,7 +172,7 @@ public static class EasySaveLoad
 
                 if (!string.IsNullOrEmpty(content))
                 {
-                    obj = JsonConvert.DeserializeObject(content, obj.GetType())!;
+                    JsonConvert.PopulateObject(content, obj);
                     return true;
                 }
             }

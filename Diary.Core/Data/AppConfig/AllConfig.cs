@@ -1,13 +1,19 @@
 using Diary.Core.Configure;
+using Diary.Utils;
 
 namespace Diary.Core.Data.AppConfig;
 
 [StorageFile("app_settings.json", "diary.core.data")]
-public class AllConfig
+public class AllConfig: SingletonBase<AllConfig>
 {
-    [ConfigureGroup("View Setting")]
-    public ViewConfig ViewSettings { get; } = new ViewConfig();
+    private AllConfig()
+    {
+        
+    }
     
-    [ConfigureGroup("RedMine Setting")]
-    public RedMineConfig RedMineSettings { get; } = new RedMineConfig();
+    [ConfigureGroup("视图设置")]
+    public ViewConfig ViewSettings { get; } = new();
+    
+    [ConfigureGroup("RedMine设置")]
+    public RedMineConfig RedMineSettings { get; } = new();
 }

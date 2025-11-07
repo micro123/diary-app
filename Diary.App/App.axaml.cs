@@ -32,9 +32,8 @@ namespace Diary.App
         
         public new static App Current => (Application.Current as App)!;
         
-        public IServiceProvider Services { get; set; }
-
-        public AllConfig AppConfig { get; } = new();
+        public IServiceProvider Services { get; }
+        public AllConfig AppConfig => AllConfig.Instance;
 
         private static IServiceProvider ConfigureServices()
         {
@@ -68,12 +67,12 @@ namespace Diary.App
 
         private void SaveConfigurations()
         {
-            EasySaveLoad.Save(AppConfig);
+            EasySaveLoad.Save(AllConfig.Instance);
         }
 
         private void LoadConfigurations()
         {
-            EasySaveLoad.Load(AppConfig);
+            EasySaveLoad.Load(AllConfig.Instance);
         }
 
         private void DisableAvaloniaDataAnnotationValidation()

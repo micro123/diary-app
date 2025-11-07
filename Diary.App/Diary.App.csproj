@@ -30,6 +30,8 @@
     <PackageReference Include="Projektanker.Icons.Avalonia.MaterialDesign" Version="9.6.2" />
     <PackageReference Include="Semi.Avalonia" Version="11.3.7" />
     <PackageReference Include="Semi.Avalonia.ColorPicker" Version="11.3.7" />
+    <PackageReference Include="Xaml.Behaviors.Avalonia" Version="11.3.6.6" />
+    <PackageReference Include="Xaml.Behaviors.Interactivity" Version="11.3.6.6" />
   </ItemGroup>
 
   <ItemGroup>

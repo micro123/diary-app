@@ -4,9 +4,9 @@ namespace Diary.Core.Data.AppConfig;
 
 public class RedMineConfig
 {
-    [ConfigureText("RedMine Server Url")]
+    [ConfigureText("服务地址")]
     public string RedMineServerUrl { get; set; } = "";
     
-    [ConfigureText("RedMine Api Key", true)]
+    [ConfigureText("Api Key", true)]
     public string RedMineApiKey { get; set; } = "";
 }
