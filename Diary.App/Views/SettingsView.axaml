@@ -25,43 +25,44 @@
             </Expander>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingText}">
-            <Grid ColumnDefinitions="Auto,*" Margin="8 4" VerticalAlignment="Center"
+            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,*" Margin="8 4" VerticalAlignment="Center"
                   ColumnSpacing="16">
                 <TextBlock Classes="SettingLineCaption" />
-                <TextBox Grid.Column="1" Text="{Binding Value}" />
+                <TextBox Classes="SLV" Grid.Column="1" Text="{Binding Value}" />
             </Grid>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingInteger}">
-            <Grid ColumnDefinitions="Auto,*" Margin="8 4" VerticalAlignment="Center"
+            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,*" Margin="8 4" VerticalAlignment="Center"
                   ColumnSpacing="16">
                 <TextBlock Classes="SettingLineCaption" />
-                <u:NumericLongUpDown Grid.Column="1" Value="{Binding Value}"
+                <u:NumericLongUpDown Grid.Column="1" Classes="SLV" Value="{Binding Value}"
                                      Minimum="{Binding MinValue}"
                                      Maximum="{Binding MaxValue}" />
             </Grid>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingReal}">
-            <Grid ColumnDefinitions="Auto,*" Margin="8 4" VerticalAlignment="Center"
+            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,*" Margin="8 4" VerticalAlignment="Center"
                   ColumnSpacing="16">
                 <TextBlock Classes="SettingLineCaption" />
-                <u:NumericDoubleUpDown Grid.Column="1" Value="{Binding Value}"
+                <u:NumericDoubleUpDown Grid.Column="1" Classes="SLV" Value="{Binding Value}"
                                        Minimum="{Binding MinValue}"
                                        Maximum="{Binding MaxValue}" />
             </Grid>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingSwitch}">
-            <Grid ColumnDefinitions="Auto,*" Margin="8 4" VerticalAlignment="Center"
+            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,*" Margin="8 4" VerticalAlignment="Center"
                   ColumnSpacing="16">
                 <TextBlock Classes="SettingLineCaption" />
-                <CheckBox Grid.Column="1" IsChecked="{Binding Value}"
-                          VerticalAlignment="Center"/>
+                <ToggleSwitch Grid.Column="1" Classes="SLV" IsChecked="{Binding Value}"
+                          VerticalAlignment="Center" OnContent="" OffContent=""
+                          HorizontalContentAlignment="Left" />
             </Grid>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingChoice}">
-            <Grid ColumnDefinitions="Auto,*" Margin="8 4" VerticalAlignment="Center"
+            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,*" Margin="8 4" VerticalAlignment="Center"
                   ColumnSpacing="16">
                 <TextBlock Classes="SettingLineCaption" />
-                <ComboBox Grid.Column="1" SelectedIndex="{Binding SelectedIndex}"
+                <ComboBox Grid.Column="1" Classes="SLV Bordered" SelectedIndex="{Binding SelectedIndex}"
                           ItemsSource="{Binding Options}" />
             </Grid>
         </DataTemplate>
@@ -69,21 +70,34 @@
 
     <!-- 样式 -->
     <u:UrsaView.Styles>
+        <Style Selector="Grid.SettingLineBox">
+            <Setter Property="MinWidth" Value="450" />
+        </Style>
         <Style Selector="TextBlock.SettingLineCaption">
-            <Setter Property="Width" Value="220" />
+            <Setter Property="Width" Value="160" />
             <Setter Property="FontSize" Value="22" />
             <Setter Property="TextAlignment" Value="Right" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Text" Value="{Binding Title, StringFormat='{}: '}" />
         </Style>
-        <Style Selector="Expander:expanded TextBlock.SectionHeader">
-            <Setter Property="Foreground" Value="{DynamicResource ToggleSwitchContainerCheckedDefaultBackground}" />
+        <Style Selector="Expander">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Style Selector="^ TextBlock.SectionHeader">
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="Foreground" Value="{DynamicResource ToggleSwitchContainerCheckedDefaultBackground}" />
+            </Style>
+        </Style>
+        <Style Selector="TextBox.SLV, ToggleSwitch.SLV, ComboBox.SLV">
+            <Setter Property="Width" Value="240" />
+        </Style>
+        <Style Selector="u|NumericLongUpDown, u|NumericDoubleUpDown">
+            <Setter Property="Width" Value="240" />
         </Style>
     </u:UrsaView.Styles>
 
     <!-- 内容 -->
     <Grid RowDefinitions="*,Auto">
-        <ItemsControl ItemsSource="{Binding SettingsTree.Children}" />
+        <ItemsControl ItemsSource="{Binding SettingsTree.Children}"/>
         <Border Grid.Row="1" BorderThickness="0 4 0 0"
                 BorderBrush="{DynamicResource GridSplitterBackground}">
             <StackPanel Orientation="Horizontal"
