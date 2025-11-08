@@ -5,7 +5,7 @@
              x:Class="Diary.App.App"
              xmlns:local="using:Diary.App"
              xmlns:m="clr-namespace:Diary.App.Models"
-             RequestedThemeVariant="Dark">
+             RequestedThemeVariant="Default">
              <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 
     <Application.DataTemplates>

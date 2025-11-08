@@ -5,7 +5,7 @@ using Ursa.Controls;
 
 namespace Diary.App.Views;
 
-public partial class SettingsView : UrsaView
+public partial class SettingsView : UserControl
 {
     public SettingsView()
     {

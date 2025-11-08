@@ -14,7 +14,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public string VersionString { get; } = "1.0.5";
 
     [RelayCommand]
-    public void CopyVersion()
+    private void CopyVersion()
     {
         Console.WriteLine("Copy Version");
     }
@@ -42,5 +42,6 @@ public partial class MainWindowViewModel : ViewModelBase
         ];
 
         SelectedPage = Pages[4];
+        // SelectedPage = Pages[0];
     }
 }

@@ -5,7 +5,7 @@ using Ursa.Controls;
 
 namespace Diary.App.Views;
 
-public partial class SurveyView : UrsaView
+public partial class SurveyView : UserControl
 {
     public SurveyView()
     {

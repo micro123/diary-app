@@ -3,7 +3,7 @@ using Ursa.Controls;
 
 namespace Diary.App.Views;
 
-public partial class DiaryEditorView : UrsaView
+public partial class DiaryEditorView : UserControl
 {
     public DiaryEditorView()
     {

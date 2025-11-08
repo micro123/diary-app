@@ -1,12 +1,12 @@
-<u:UrsaView xmlns="https://github.com/avaloniaui"
-            xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-            xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-            xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-            mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-            xmlns:u="https://irihi.tech/ursa"
-            xmlns:m="clr-namespace:Diary.App.Models"
-            x:Class="Diary.App.Views.SettingsView"
-            Padding="8">
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             xmlns:u="https://irihi.tech/ursa"
+             xmlns:m="clr-namespace:Diary.App.Models"
+             x:Class="Diary.App.Views.SettingsView"
+             Padding="8">
     <!-- 一些事件 -->
     <Interaction.Behaviors>
         <EventTriggerBehavior EventName="Loaded">
@@ -15,7 +15,7 @@
     </Interaction.Behaviors>
 
     <!-- 模板 -->
-    <u:UrsaView.DataTemplates>
+    <UserControl.DataTemplates>
         <DataTemplate DataType="{x:Type m:SettingGroup}">
             <Expander IsExpanded="True">
                 <Expander.Header>
@@ -66,10 +66,10 @@
                           ItemsSource="{Binding Options}" />
             </Grid>
         </DataTemplate>
-    </u:UrsaView.DataTemplates>
+    </UserControl.DataTemplates>
 
     <!-- 样式 -->
-    <u:UrsaView.Styles>
+    <UserControl.Styles>
         <Style Selector="Grid.SettingLineBox">
             <Setter Property="MinWidth" Value="450" />
         </Style>
@@ -90,10 +90,10 @@
         <Style Selector="TextBox.SLV, ToggleSwitch.SLV, ComboBox.SLV">
             <Setter Property="Width" Value="240" />
         </Style>
-        <Style Selector="u|NumericLongUpDown, u|NumericDoubleUpDown">
+        <Style Selector="u|NumericUpDown.SLV">
             <Setter Property="Width" Value="240" />
         </Style>
-    </u:UrsaView.Styles>
+    </UserControl.Styles>
 
     <!-- 内容 -->
     <Grid RowDefinitions="*,Auto">
@@ -108,4 +108,4 @@
             </StackPanel>
         </Border>
     </Grid>
-</u:UrsaView>
+</UserControl>

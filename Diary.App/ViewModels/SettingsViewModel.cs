@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -84,7 +85,7 @@ public partial class SettingsViewModel : ViewModelBase
             icon: MessageBoxIcon.Question,
             button: MessageBoxButton.YesNo
         );
-        
+        Debug.WriteLine($"Result: {confirm}");
         if (confirm != MessageBoxResult.Yes)
             return;
         
