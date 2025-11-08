@@ -28,7 +28,9 @@
             <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,*" Margin="8 4" VerticalAlignment="Center"
                   ColumnSpacing="16">
                 <TextBlock Classes="SettingLineCaption" />
-                <TextBox Classes="SLV" Grid.Column="1" Text="{Binding Value}" />
+                <TextBox Classes="SLV ClearButton" Classes.RevealPasswordButton="{Binding Password}"
+                         Grid.Column="1" Text="{Binding Value}"
+                         PasswordChar="{Binding MaskChar}"/>
             </Grid>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingInteger}">
@@ -99,7 +101,7 @@
             <Setter Property="BorderThickness" Value="0 0 0 2" />
         </Style>
         <Style Selector="Expander:down:expanded /template/ Border#ExpanderContent">
-            <Setter Property="BorderBrush" Value="{DynamicResource ToggleSwitchContainerCheckedDefaultBackground}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ButtonDefaultDangerForeground}" />
         </Style>
     </UserControl.Styles>
 

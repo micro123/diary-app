@@ -14,6 +14,9 @@ public class AllConfig: SingletonBase<AllConfig>
     [ConfigureGroup("视图设置")]
     public ViewConfig ViewSettings { get; } = new();
     
+    [ConfigureGroup("工作设置")]
+    public WorkConfig WorkSettings { get; } = new();
+    
     [ConfigureGroup("RedMine设置")]
     public RedMineConfig RedMineSettings { get; } = new();
 }

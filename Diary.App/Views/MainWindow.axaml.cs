@@ -1,5 +1,6 @@
 using System;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
 using Ursa.Controls;
@@ -15,7 +16,17 @@ namespace Diary.App.Views
             InitializeComponent();
         }
 
-        private void StyledElement_OnActualThemeVariantChanged(object? sender, EventArgs e)
+        private void OnActualThemeVariantChanged(object? sender, EventArgs e)
+        {
+            SyncTitleBarTheme();
+        }
+
+        private void OnLoaded(object sender, RoutedEventArgs e)
+        {
+            SyncTitleBarTheme();
+        }
+
+        private void SyncTitleBarTheme()
         {
             var s = _titleBarScope ??= this.FindDescendantOfType<ThemeVariantScope>();
             s!.RequestedThemeVariant = ActualThemeVariant == ThemeVariant.Dark ? ThemeVariant.Light : ThemeVariant.Dark;

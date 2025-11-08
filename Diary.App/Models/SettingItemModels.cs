@@ -95,7 +95,8 @@ public sealed partial class SettingText(string title, bool password, object o, P
     private readonly PropertyInfo _p = p;
 
     [ObservableProperty] private string _value = "";
-    public bool IsPassword { get; } = password;
+    public bool Password { get; } = password;
+    public char MaskChar { get; } = password ? '*' : '\0';
 
     // TODO: save and load
     protected override void LoadAction()
@@ -170,7 +171,7 @@ public sealed partial class SettingChoice(string title, IEnumerable<string> opti
     : EditableItemModel(title, o, p, EnsureString)
 {
     [ObservableProperty] private int _selectedIndex;
-    public readonly List<string> Options = [..options];
+    public ObservableCollection<string> Options { get; } = [..options];
 
     // TODO: save and load
     protected override void LoadAction()

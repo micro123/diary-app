@@ -37,7 +37,7 @@ public class ConfigureSwitchAttribute(string caption)
 {
 }
 
-public class ConfigureChoiceAttribute(string caption, IEnumerable<string> options)
+public class ConfigureChoiceAttribute(string caption, params string[] options)
     : ConfigureAttribute(ConfigureItemType.Choice, caption)
 {
     public IEnumerable<string> Choices { get; } = options;

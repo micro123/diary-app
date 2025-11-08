@@ -6,6 +6,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
+using Avalonia.Styling;
 using Diary.App.ViewModels;
 using Diary.App.Views;
 using Diary.Core.Data.AppConfig;
@@ -13,6 +14,7 @@ using Diary.Core.Utils;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace Diary.App
 {
@@ -23,31 +25,47 @@ namespace Diary.App
             Name = "Diary App NG";
             Services = ConfigureServices();
         }
-        
+
         public override void Initialize()
         {
             LoadConfigurations();
             AvaloniaXamlLoader.Load(this);
+            
+            // 同步主题设置
+            SyncTheme();
         }
-        
+
         public new static App Current => (Application.Current as App)!;
-        
+
         public IServiceProvider Services { get; }
         public AllConfig AppConfig => AllConfig.Instance;
 
-        private static IServiceProvider ConfigureServices()
+        public ILogger Logger => Logging.Logger;
+
+        private IServiceProvider ConfigureServices()
         {
+            Logger.LogInformation("Configuring services");
             IServiceCollection services = new ServiceCollection();
-            
+
             services.AddTypesFromAssembly(Assembly.GetExecutingAssembly());
-            
+
             // TODO: Add More
-            
+
             return services.BuildServiceProvider();
         }
 
-        
-        
+        private void SyncTheme()
+        {
+            switch (AppConfig.ViewSettings.DefaultColorTheme)
+            {
+                case "Light": RequestedThemeVariant = ThemeVariant.Light; break;
+                case "Dark": RequestedThemeVariant = ThemeVariant.Dark; break;
+                case "Auto": RequestedThemeVariant = ThemeVariant.Default; break;
+                default: throw new ArgumentOutOfRangeException(nameof(AppConfig.ViewSettings.DefaultColorTheme));
+            }
+            Logger.LogDebug($"Theme: {ActualThemeVariant}");
+        }
+
         public override void OnFrameworkInitializationCompleted()
         {
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
@@ -67,12 +85,12 @@ namespace Diary.App
 
         private void SaveConfigurations()
         {
-            EasySaveLoad.Save(AllConfig.Instance);
+            EasySaveLoad.Save(AppConfig);
         }
 
         private void LoadConfigurations()
         {
-            EasySaveLoad.Load(AllConfig.Instance);
+            EasySaveLoad.Load(AppConfig);
         }
 
         private void DisableAvaloniaDataAnnotationValidation()

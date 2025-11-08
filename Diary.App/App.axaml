@@ -3,10 +3,7 @@
              xmlns:u-semi="https://irihi.tech/ursa/themes/semi"
              xmlns:semi="https://irihi.tech/semi"
              x:Class="Diary.App.App"
-             xmlns:local="using:Diary.App"
-             xmlns:m="clr-namespace:Diary.App.Models"
-             RequestedThemeVariant="Default">
-             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+             xmlns:local="using:Diary.App">
 
     <Application.DataTemplates>
         <local:ViewLocator/>

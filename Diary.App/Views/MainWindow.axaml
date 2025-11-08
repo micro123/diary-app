@@ -16,8 +16,9 @@
               Width="1280"
               Height="800"
               Icon="/Assets/Icons/diary-app.ico"
-              Title="Diary Tools NG" ActualThemeVariantChanged="StyledElement_OnActualThemeVariantChanged">
-    
+              Title="Diary Tools NG"
+              ActualThemeVariantChanged="OnActualThemeVariantChanged"
+              Loaded="OnLoaded">
     <!-- 控件样式覆盖 -->
     <u:UrsaWindow.Styles>
         <!-- 底部展开折叠按钮 -->
@@ -34,7 +35,8 @@
                 <Setter Property="Value" Value="mdi-arrow-right-thin-circle-outline" />
             </Style>
         </Style>
-        <!-- 列表项 -->
+        
+        <!-- 左侧列表项 -->
         <Style Selector="#ViewList u|SelectionListItem">
             <Style Selector="^:selected i|Icon">
                 <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}"/>
@@ -46,6 +48,8 @@
                 <Setter Property="Background" Value="{DynamicResource ListBoxItemPointeroverBackground}" />
             </Style>
         </Style>
+        
+        <!-- 标题栏 -->
         <Style Selector="u|TitleBar">
             <Setter Property="Template">
                 <ControlTemplate>
@@ -75,11 +79,11 @@
     <u:UrsaWindow.TitleBarContent>
         <Grid ColumnDefinitions="Auto,*,Auto,Auto" Height="32" Margin="4 0" ColumnSpacing="8">
             <Image Grid.Column="0" Source="/Assets/Icons/diary-app.ico" Width="32" Height="32" IsHitTestVisible="False" />
-            <TextBlock Grid.Column="1" Text="Diary Tools NG" FontSize="26" TextAlignment="Left"
+            <TextBlock Grid.Column="1" Text="{Binding $parent[u:UrsaWindow].Title}" FontSize="26" TextAlignment="Left"
                        VerticalAlignment="Center" IsHitTestVisible="False" FontWeight="Bold" />
             <SelectableTextBlock Grid.Column="2" Text="{Binding VersionString}" IsEnabled="True"
                                  VerticalAlignment="Center" ToolTip.Tip="点击复制版本号" Padding="16 4" />
-            <u:ThemeToggleButton Grid.Column="3" IsThreeState="True" Mode="Controller" />
+            <u:ThemeToggleButton Grid.Column="3" IsThreeState="False" Mode="Indicator" />
         </Grid>
     </u:UrsaWindow.TitleBarContent>
     

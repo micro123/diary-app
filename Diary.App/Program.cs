@@ -25,7 +25,6 @@ namespace Diary.App
                 .Register<MaterialDesignIconProvider>();
             return AppBuilder.Configure<App>()
                 .UsePlatformDetect()
-                // .WithInterFont()
                 .With(new FontManagerOptions
                 {
                     DefaultFamilyName = "avares://Diary.App/Assets/Fonts#Noto Sans",

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Console;
 
 namespace Diary.Utils;
 
@@ -10,9 +11,14 @@ public static class Logging
     {
         var loggerFactory = LoggerFactory.Create(b =>
         {
-            b.AddConsole();
+#if DEBUG
+            b.AddFilter((_) => true);
+#else
+            b.AddFilter((level) => level >= LogLevel.Information);
+#endif
+            b.AddSimpleConsole();
         });
-        var result = loggerFactory.CreateLogger("Program");
+        var result = loggerFactory.CreateLogger("Main");
         result.LogInformation("Log Initialized");
         return result;
     }
