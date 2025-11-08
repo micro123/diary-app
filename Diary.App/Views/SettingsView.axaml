@@ -80,10 +80,12 @@
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Text" Value="{Binding Title, StringFormat='{}: '}" />
         </Style>
-        <Style Selector="Expander">
+        <Style Selector="Expander:down">
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Style Selector="^ TextBlock.SectionHeader">
                 <Setter Property="HorizontalAlignment" Value="Stretch" />
+            </Style>
+            <Style Selector="^:expanded TextBlock.SectionHeader">
                 <Setter Property="Foreground" Value="{DynamicResource ToggleSwitchContainerCheckedDefaultBackground}" />
             </Style>
         </Style>
@@ -92,6 +94,12 @@
         </Style>
         <Style Selector="u|NumericUpDown.SLV">
             <Setter Property="Width" Value="240" />
+        </Style>
+        <Style Selector="Expander:down /template/ Border#ExpanderContent">
+            <Setter Property="BorderThickness" Value="0 0 0 2" />
+        </Style>
+        <Style Selector="Expander:down:expanded /template/ Border#ExpanderContent">
+            <Setter Property="BorderBrush" Value="{DynamicResource ToggleSwitchContainerCheckedDefaultBackground}" />
         </Style>
     </UserControl.Styles>
 

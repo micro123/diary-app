@@ -16,7 +16,7 @@
               Width="1280"
               Height="800"
               Icon="/Assets/Icons/diary-app.ico"
-              Title="Diary Tools NG">
+              Title="Diary Tools NG" ActualThemeVariantChanged="StyledElement_OnActualThemeVariantChanged">
     
     <!-- 控件样式覆盖 -->
     <u:UrsaWindow.Styles>
@@ -46,6 +46,24 @@
                 <Setter Property="Background" Value="{DynamicResource ListBoxItemPointeroverBackground}" />
             </Style>
         </Style>
+        <Style Selector="u|TitleBar">
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <ThemeVariantScope x:Name="TitleBarThemeScope">
+                        <Panel Background="{DynamicResource WindowDefaultBackground}">
+                            <u:WindowThumb Background="{TemplateBinding Background}"/>
+                            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                                <ContentPresenter Grid.Column="0" Content="{TemplateBinding LeftContent}"/>
+                                <ContentPresenter Grid.Column="1" IsHitTestVisible="{TemplateBinding IsHitTestVisible}"
+                                                  Content="{TemplateBinding Content}"/>
+                                <ContentPresenter Grid.Column="2" Content="{TemplateBinding RightContent}"/>
+                                <u:CaptionButtons Grid.Column="3" Name="PART_CaptionButtons" />
+                            </Grid>
+                        </Panel>
+                    </ThemeVariantScope>
+                </ControlTemplate>
+            </Setter>
+        </Style>
     </u:UrsaWindow.Styles>
     
     <!-- IDE预览 -->
@@ -61,12 +79,12 @@
                        VerticalAlignment="Center" IsHitTestVisible="False" FontWeight="Bold" />
             <SelectableTextBlock Grid.Column="2" Text="{Binding VersionString}" IsEnabled="True"
                                  VerticalAlignment="Center" ToolTip.Tip="点击复制版本号" Padding="16 4" />
-            <u:ThemeToggleButton Grid.Column="3" IsThreeState="False" Mode="Controller" />
+            <u:ThemeToggleButton Grid.Column="3" IsThreeState="True" Mode="Controller" />
         </Grid>
     </u:UrsaWindow.TitleBarContent>
     
     <!-- 主内容 -->
-    <SplitView Padding="4" DisplayMode="CompactOverlay" OpenPaneLength="220" CompactPaneLength="64"
+    <SplitView Padding="4" DisplayMode="CompactOverlay" UseLightDismissOverlayMode="True" OpenPaneLength="220" CompactPaneLength="64"
                IsPaneOpen="{Binding #PanelOpen.IsChecked, Mode=TwoWay}"
                Margin="0 32 0 0" PanePlacement="Left">
         <SplitView.Pane>
