@@ -5,5 +5,14 @@
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              xmlns:u="https://irihi.tech/ursa"
              x:Class="Diary.App.Views.DiaryEditorView">
-    <TextBlock Text="日记☀️" FontSize="64" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+    
+    <Grid ColumnDefinitions="Auto,*">
+        <!-- 左侧是日期展示 -->
+        <StackPanel Orientation="Vertical">
+            
+        </StackPanel>
+        
+        <!-- 右侧是编辑区 -->
+        
+    </Grid>
 </UserControl>

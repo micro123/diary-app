@@ -41,7 +41,6 @@ public partial class MainWindowViewModel : ViewModelBase
             new NavigateInfo("设置", "mdi-cog-outline", serviceProvider.GetService<SettingsViewModel>())
         ];
 
-        SelectedPage = Pages[4];
-        // SelectedPage = Pages[0];
+        SelectedPage = Pages[0];
     }
 }

@@ -78,7 +78,21 @@
     <!-- 标题栏 -->
     <u:UrsaWindow.TitleBarContent>
         <Grid ColumnDefinitions="Auto,*,Auto,Auto" Height="32" Margin="4 0" ColumnSpacing="8">
-            <Image Grid.Column="0" Source="/Assets/Icons/diary-app.ico" Width="32" Height="32" IsHitTestVisible="False" />
+            <Button Grid.Column="0" Margin="0" Padding="0" BorderThickness="0"
+                    Background="Transparent">
+                <Button.Content>
+                    <Image Source="/Assets/Icons/diary-app.ico" Width="32" Height="32" />
+                </Button.Content>
+                <Button.Flyout>
+                    <MenuFlyout>
+                        <MenuItem Header="1" />
+                        <MenuItem Header="1" />
+                        <MenuItem Header="1" />
+                        <Separator/>
+                        <MenuItem Header="1"/>
+                    </MenuFlyout>
+                </Button.Flyout>
+            </Button>
             <TextBlock Grid.Column="1" Text="{Binding $parent[u:UrsaWindow].Title}" FontSize="26" TextAlignment="Left"
                        VerticalAlignment="Center" IsHitTestVisible="False" FontWeight="Bold" />
             <SelectableTextBlock Grid.Column="2" Text="{Binding VersionString}" IsEnabled="True"
@@ -88,7 +102,7 @@
     </u:UrsaWindow.TitleBarContent>
     
     <!-- 主内容 -->
-    <SplitView Padding="4" DisplayMode="CompactOverlay" UseLightDismissOverlayMode="True" OpenPaneLength="220" CompactPaneLength="64"
+    <SplitView Padding="4" DisplayMode="CompactOverlay" OpenPaneLength="220" CompactPaneLength="64"
                IsPaneOpen="{Binding #PanelOpen.IsChecked, Mode=TwoWay}"
                Margin="0 32 0 0" PanePlacement="Left">
         <SplitView.Pane>
