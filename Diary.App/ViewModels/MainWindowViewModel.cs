@@ -11,7 +11,7 @@ namespace Diary.App.ViewModels;
 [DiAutoRegister]
 public partial class MainWindowViewModel : ViewModelBase
 {
-    public string VersionString { get; } = "1.0.5";
+    public string VersionString { get; } = $"{BuildInfo.GitHash}";
 
     [RelayCommand]
     private void CopyVersion()

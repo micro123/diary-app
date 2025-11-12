@@ -31,6 +31,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Integrations", "Integration
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Diary.RedMine", "Diary.RedMine\Diary.RedMine.csproj", "{702E1E6C-8107-4BF7-8ACE-CEEFEB93AD24}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Diary.BuildTasks", "Diary.BuildTasks\Diary.BuildTasks.csproj", "{87DAF70D-6017-4B5D-9D59-5FA5BA1F6C18}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -69,6 +71,10 @@ Global
 		{702E1E6C-8107-4BF7-8ACE-CEEFEB93AD24}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{702E1E6C-8107-4BF7-8ACE-CEEFEB93AD24}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{702E1E6C-8107-4BF7-8ACE-CEEFEB93AD24}.Release|Any CPU.Build.0 = Release|Any CPU
+		{87DAF70D-6017-4B5D-9D59-5FA5BA1F6C18}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{87DAF70D-6017-4B5D-9D59-5FA5BA1F6C18}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{87DAF70D-6017-4B5D-9D59-5FA5BA1F6C18}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{87DAF70D-6017-4B5D-9D59-5FA5BA1F6C18}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -82,6 +88,7 @@ Global
 		{E5B7A075-D71B-4B6C-99BF-46A77460A9D5} = {1804F179-190B-4746-8E45-117A952CC6B1}
 		{1E048780-B931-47FF-B24C-BBC6E274F26D} = {5ADD1E3F-4C5C-4BE4-94D2-995B89DD88C7}
 		{702E1E6C-8107-4BF7-8ACE-CEEFEB93AD24} = {4958D7D8-4791-2CCE-6FFA-082B65933577}
+		{87DAF70D-6017-4B5D-9D59-5FA5BA1F6C18} = {5ADD1E3F-4C5C-4BE4-94D2-995B89DD88C7}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {DAFD6FD6-29C1-41F3-8D76-F39BD486EFD3}

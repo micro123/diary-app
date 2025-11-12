@@ -132,7 +132,8 @@
                 </ToggleButton>
             </Grid>
         </SplitView.Pane>
-        <ContentControl Grid.Column="1" Content="{Binding CurrentPageModel}">
+        <ContentControl Grid.Column="1" Content="{Binding CurrentPageModel}"
+                        Padding="8">
             <ContentControl.ContentTemplate>
                 <app:ViewLocator />
             </ContentControl.ContentTemplate>

@@ -40,4 +40,19 @@
     <ProjectReference Include="..\Diary.RedMine\Diary.RedMine.csproj" />
     <ProjectReference Include="..\Diary.Utils\Diary.Utils.csproj" />
   </ItemGroup>
+  
+  <ItemGroup>
+    <ProjectReference Include="..\Diary.BuildTasks\Diary.BuildTasks.csproj"
+                      ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
+  </ItemGroup>
+  
+  <UsingTask TaskName="Diary.BuildTasks.GenInfoTask"
+             AssemblyFile="$(MSBuildThisFileDirectory)..\Diary.BuildTasks\bin\$(Configuration)\$(TargetFramework)\Diary.BuildTasks.dll" />
+  
+  <Target Name="GenVersionInfo" BeforeTargets="BeforeBuild">
+    <GenInfoTask Project="$(MSBuildProjectName)" OutputFile="$(IntermediateOutputPath)VersionInfo.generated.cs"/>
+    <ItemGroup>
+      <Compile Include="$(IntermediateOutputPath)VersionInfo.generated.cs" />
+    </ItemGroup>
+  </Target>
 </Project>
