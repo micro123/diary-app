@@ -6,25 +6,30 @@
              xmlns:u="https://irihi.tech/ursa"
              xmlns:viewModels="clr-namespace:Diary.App.ViewModels"
              x:Class="Diary.App.Views.DiaryEditorView">
-    
+
     <Design.DataContext>
-        <viewModels:DiaryEditorViewModel/>
+        <viewModels:DiaryEditorViewModel />
     </Design.DataContext>
-    
+
     <Grid ColumnDefinitions="Auto,*">
         <!-- 左侧是日期和项目列表展示 -->
         <Border Grid.Column="0" BorderThickness="0 0 4 0" Padding="0 0 8 0"
                 CornerRadius="0" BorderBrush="{DynamicResource GridSplitterBackground}">
             <Grid RowDefinitions="Auto,Auto,*" ColumnDefinitions="Auto,*" ColumnSpacing="0" RowSpacing="16">
-                <TextBlock Text="日期选择" VerticalAlignment="Center"/>
+                <TextBlock Text="日期选择" VerticalAlignment="Center" />
                 <Button Grid.Row="0" Grid.Column="1" Content="回到今天" HorizontalAlignment="Right"
-                        Command="{Binding SelectTodayCommand}"/>
+                        Command="{Binding SelectTodayCommand}" />
                 <Calendar Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2" FirstDayOfWeek="Sunday"
-                          IsTodayHighlighted="True" SelectionMode="SingleDate" SelectedDatesChanged="Calendar_OnSelectedDatesChanged"
-                          SelectedDate="{Binding SelectedDate, UpdateSourceTrigger=PropertyChanged}"/>
-                <ItemsControl Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="2"
-                              ItemsSource="{Binding DailyItems}" VerticalAlignment="Stretch"/>
-                <!-- TODO: template -->
+                          IsTodayHighlighted="True" SelectionMode="SingleDate"
+                          DisplayDate="{Binding CurrentDate}"
+                          SelectedDate="{Binding SelectedDate}" />
+                <Border Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="2"
+                        BorderThickness="0 4 0 0" CornerRadius="0"
+                        Padding="0 8 0 0"
+                        BorderBrush="{DynamicResource GridSplitterBackground}">
+                    <ListBox ItemsSource="{Binding DailyItems}"
+                             VerticalAlignment="Stretch" Name="DailyItemList" />
+                </Border>
             </Grid>
         </Border>
         <!-- 右侧是编辑区 -->

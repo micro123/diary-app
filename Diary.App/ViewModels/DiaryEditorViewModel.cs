@@ -13,14 +13,16 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private DateTime _selectedDate;
 
     private DateTime _currentDate;
-    private DateTime CurrentDate => _currentDate;
+    private DateTime CurrentDate {get => _currentDate; set => SetProperty(ref _currentDate, value);}
 
     [ObservableProperty] private ObservableCollection<string> _dailyItems = new();
     
     [RelayCommand(CanExecute = nameof(CanGoToday))]
     void SelectToday()
     {
-        SelectedDate = DateTime.Today;
+        var today = DateTime.Today;
+        SetProperty(ref _currentDate, today, nameof(CurrentDate));
+        SelectedDate = today;
     }
 
     private bool CanGoToday()
@@ -30,8 +32,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     partial void OnSelectedDateChanged(DateTime value)
     {
-        SetProperty(ref _currentDate, value, nameof(CurrentDate));
-        
+        _currentDate = value;
         ObservableCollection<string> now = new();
         for (int i = 0; i < 10; ++i)
         {
