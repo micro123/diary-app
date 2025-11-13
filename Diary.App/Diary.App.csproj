@@ -42,7 +42,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Diary.BuildTasks\Diary.BuildTasks.csproj"
+        <ProjectReference Include="$(MSBuildThisFileDirectory)..\Diary.BuildTasks\Diary.BuildTasks.csproj"
                           ReferenceOutputAssembly="false" OutputItemType="Analyzer"/>
     </ItemGroup>
 
