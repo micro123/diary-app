@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections.ObjectModel;
+using System.Threading.Tasks;
+using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
+using Diary.Core;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -11,12 +14,30 @@ namespace Diary.App.ViewModels;
 [DiAutoRegister]
 public partial class MainWindowViewModel : ViewModelBase
 {
-    public string VersionString { get; } = $"{BuildInfo.GitHash}";
+    public string VersionString { get; } = $"{DataVersion.VersionString}.{VersionInfo.CommitCount}";
+
+    public string VersionDetails { get; } = $"""
+                                             数据版本：{DataVersion.VersionString} ({DataVersion.VersionCode:X8})
+                                             编译增量：{VersionInfo.CommitCount}
+                                             Git分支：{VersionInfo.CommitCount}
+                                             Git提交：{VersionInfo.GitVersionFull}
+                                             提交消息：{VersionInfo.LastCommitMessage}
+                                             提交时间：{VersionInfo.LastCommitDate}
+                                             编译时间：{VersionInfo.BuildTime}
+                                             编译主机：{VersionInfo.HostName}
+                                             """;
 
     [RelayCommand]
-    private void CopyVersion()
+    private async Task CopyVersion(bool simple)
     {
-        Console.WriteLine("Copy Version");
+        var toplevel = TopLevel.GetTopLevel(View);
+        if (toplevel != null)
+        {
+            if (simple)
+                await toplevel.Clipboard?.SetTextAsync(VersionString)!;
+            else
+                await toplevel.Clipboard?.SetTextAsync(VersionDetails)!;
+        }
     }
 
     [ObservableProperty] private ObservableCollection<NavigateInfo> _pages;

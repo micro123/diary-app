@@ -7,30 +7,39 @@ namespace Diary.BuildTasks;
 
 public class GenInfoTask : Task
 {
-    [Required] public required string OutputFile { get; set; }
+    [Required] public required string OutputDir { get; set; }
+    [Required] public required string FileName { get; set; }
     [Required] public required string Project { get; set; }
 
     public override bool Execute()
     {
-        string? rootDir = CheckOutput("git", "rev-parse --show-toplevel");
+        var rootDir = CheckOutput("git", "rev-parse --show-toplevel");
         if (rootDir == null)
         {
             Console.WriteLine($"Not a git repo? ${Environment.CurrentDirectory}");
             return false;
         }
 
-        Console.WriteLine($"repo is {rootDir}");
-        string hash = CheckOutput("git", "rev-parse HEAD")!;
-        string hashShort = CheckOutput("git", "rev-parse --short HEAD")!;
-        string count = CheckOutput("git", "rev-list HEAD --count --no-merges")!;
-        string branch = CheckOutput("git", "rev-parse --abbrev-ref HEAD")!;
-        string last = CheckOutput("git", "log -1 --pretty=format:%s")!;
+        var hash = CheckOutput("git", "rev-parse HEAD")!;
+        var hashShort = CheckOutput("git", "rev-parse --short HEAD")!;
+        var count = CheckOutput("git", "rev-list HEAD --count --no-merges")!;
+        var branch = CheckOutput("git", "rev-parse --abbrev-ref HEAD")!;
+        var last = CheckOutput("git", "log -1 --pretty=format:%s")!;
+        var date = CheckOutput("git", "log -1 --pretty=format:%cd --date=format:%y%m%d")!;
+        var clean = CheckOutput("git", "status --untracked-files=no --porcelain")!;
 
-        return WriteOutputFile(hash, hashShort, count, branch, last, Environment.MachineName);
+        if (!string.IsNullOrEmpty(clean))
+        {
+            Console.WriteLine("WARNING: repo was not clean!!");
+            hash = $"{hash}-dirty";
+            hashShort = $"{hashShort}-dirty";
+        }
+
+        return WriteOutputFile(hash, hashShort, count, branch, last, date, Environment.MachineName);
     }
 
     private bool WriteOutputFile(string gitHash, string gitShortHash, string gitCommitCount,
-        string branch, string lastMsg, string hostName)
+        string branch, string lastMsg, string commitDate, string hostName)
     {
         var content =
             $$"""
@@ -38,20 +47,23 @@ public class GenInfoTask : Task
 
               namespace {{Project}};
 
-              internal static class BuildInfo
+              internal static class VersionInfo
               {
                   public static readonly string BuildTime = "{{DateTime.Now:yyyy-MM-dd HH:mm:ss}}";
-                  public static readonly string GitHash = "{{gitHash}}";
-                  public static readonly string GitHashShort = "{{gitShortHash}}";
+                  public static readonly string GitVersionFull = "{{gitHash}}";
+                  public static readonly string GitVersionShort = "{{gitShortHash}}";
                   public static readonly string CommitCount = "{{gitCommitCount}}";
                   public static readonly string Branch = "{{branch}}";
                   public static readonly string LastCommitMessage = "{{lastMsg}}";
+                  public static readonly string LastCommitDate = "{{commitDate}}";
                   public static readonly string HostName = "{{hostName}}";
               }
 
               """;
 
-        File.WriteAllText(OutputFile, content);
+        if (!Directory.Exists(OutputDir))
+            Directory.CreateDirectory(OutputDir);
+        File.WriteAllText(Path.Combine(OutputDir, FileName), content);
         return true;
     }
 

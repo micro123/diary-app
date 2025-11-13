@@ -20,8 +20,8 @@
                 <Button Grid.Row="0" Grid.Column="1" Content="回到今天" HorizontalAlignment="Right"
                         Command="{Binding SelectTodayCommand}"/>
                 <Calendar Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2" FirstDayOfWeek="Sunday"
-                          IsTodayHighlighted="True" SelectionMode="SingleDate"
-                          SelectedDate="{Binding SelectedDate}"/>
+                          IsTodayHighlighted="True" SelectionMode="SingleDate" SelectedDatesChanged="Calendar_OnSelectedDatesChanged"
+                          SelectedDate="{Binding SelectedDate, UpdateSourceTrigger=PropertyChanged}"/>
                 <ItemsControl Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="2"
                               ItemsSource="{Binding DailyItems}" VerticalAlignment="Stretch"/>
                 <!-- TODO: template -->

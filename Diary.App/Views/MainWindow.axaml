@@ -68,6 +68,16 @@
                 </ControlTemplate>
             </Setter>
         </Style>
+        
+        <Style Selector="Button#Version">
+            <Setter Property="Background" Value="Transparent"/>
+            <Style Selector="^:pointerover">
+                <Setter Property="Background" Value="Transparent"/>
+            </Style>
+            <Style Selector="^:pressed">
+                <Setter Property="Background" Value="Transparent"/>
+            </Style>
+        </Style>
     </u:UrsaWindow.Styles>
     
     <!-- IDE预览 -->
@@ -95,8 +105,18 @@
             </Button>
             <TextBlock Grid.Column="1" Text="{Binding $parent[u:UrsaWindow].Title}" FontSize="26" TextAlignment="Left"
                        VerticalAlignment="Center" IsHitTestVisible="False" FontWeight="Bold" />
-            <SelectableTextBlock Grid.Column="2" Text="{Binding VersionString}" IsEnabled="True"
-                                 VerticalAlignment="Center" ToolTip.Tip="点击复制版本号" Padding="16 4" />
+            <Button Grid.Column="2" Content="{Binding VersionString}" IsEnabled="True"
+                                 VerticalAlignment="Center" ToolTip.Tip="{Binding VersionDetails}"
+                                 Padding="16 4" ToolTip.ShowDelay="250" Classes="Flat Success" Name="Version">
+                <Button.Flyout>
+                    <MenuFlyout>
+                        <MenuItem Header="复制版本号" Command="{Binding CopyVersionCommand}"
+                                  CommandParameter="{x:True}"/>
+                        <MenuItem Header="复制详细信息" Command="{Binding CopyVersionCommand}"
+                                  CommandParameter="{x:False}"/>
+                    </MenuFlyout>
+                </Button.Flyout>
+            </Button>
             <u:ThemeToggleButton Grid.Column="3" IsThreeState="False" Mode="Indicator" />
         </Grid>
     </u:UrsaWindow.TitleBarContent>

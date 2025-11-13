@@ -18,7 +18,10 @@ namespace Diary.App
 
             if (type != null)
             {
-                return (Control)Activator.CreateInstance(type)!;
+                var control = (Control)Activator.CreateInstance(type)!;
+                var vm = param as ViewModelBase;
+                vm!.View = control;
+                return control;
             }
 
             return new TextBlock { Text = "Not Found: " + name };

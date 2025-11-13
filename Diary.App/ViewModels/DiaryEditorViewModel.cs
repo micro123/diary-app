@@ -9,9 +9,11 @@ namespace Diary.App.ViewModels;
 [DiAutoRegister]
 public partial class DiaryEditorViewModel : ViewModelBase
 {
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SelectTodayCommand))]
-    private DateTime _selectedDate = DateTime.Today;
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(SelectTodayCommand))]
+    private DateTime _selectedDate;
+
+    private DateTime _currentDate;
+    private DateTime CurrentDate => _currentDate;
 
     [ObservableProperty] private ObservableCollection<string> _dailyItems = new();
     
@@ -28,11 +30,18 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     partial void OnSelectedDateChanged(DateTime value)
     {
+        SetProperty(ref _currentDate, value, nameof(CurrentDate));
+        
         ObservableCollection<string> now = new();
         for (int i = 0; i < 10; ++i)
         {
             now.Add($"daily item #{i} for {value}");
         }
         DailyItems = now;
+    }
+
+    public DiaryEditorViewModel()
+    {
+        SelectedDate = DateTime.Today;
     }
 }
