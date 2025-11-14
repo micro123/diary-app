@@ -2,6 +2,7 @@
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
@@ -30,14 +31,8 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task CopyVersion(bool simple)
     {
-        var toplevel = TopLevel.GetTopLevel(View);
-        if (toplevel != null)
-        {
-            if (simple)
-                await toplevel.Clipboard?.SetTextAsync(VersionString)!;
-            else
-                await toplevel.Clipboard?.SetTextAsync(VersionDetails)!;
-        }
+        await CopyStringToClipboardAsync(simple ? VersionString : VersionDetails);
+        NotificationManager?.Show("已复制", NotificationType.Success);
     }
 
     [ObservableProperty] private ObservableCollection<NavigateInfo> _pages;

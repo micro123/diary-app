@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
+using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
@@ -74,6 +75,7 @@ public partial class SettingsViewModel : ViewModelBase
     private void Save()
     {
         SettingsTree.Save();
+        NotificationManager?.Show("已保存", NotificationType.Success);
     }
 
     [RelayCommand]
@@ -90,6 +92,8 @@ public partial class SettingsViewModel : ViewModelBase
             return;
         
         ForceLoad();
+        
+        NotificationManager?.Show("更改已丢弃", NotificationType.Information);
     }
 
     [RelayCommand]

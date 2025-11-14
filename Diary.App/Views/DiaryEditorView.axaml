@@ -33,6 +33,13 @@
             </Grid>
         </Border>
         <!-- 右侧是编辑区 -->
-        
+        <StackPanel Grid.Column="1" Orientation="Vertical">
+            <Menu>
+                <MenuItem Header="1" />
+                <MenuItem Header="2" />
+                <MenuItem Header="3" />
+                <MenuItem Header="4" />
+            </Menu>
+        </StackPanel>
     </Grid>
 </UserControl>
