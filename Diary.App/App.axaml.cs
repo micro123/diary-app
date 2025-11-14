@@ -51,6 +51,7 @@ namespace Diary.App
             services.AddTypesFromAssembly(Assembly.GetExecutingAssembly());
 
             // TODO: Add More
+            services.AddSingleton(Logging.Logger);
 
             return services.BuildServiceProvider();
         }

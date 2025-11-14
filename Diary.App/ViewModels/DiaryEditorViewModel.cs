@@ -1,21 +1,31 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Diary.App.Models;
+using Diary.Core.Data.Base;
 using Diary.Utils;
+using Microsoft.Extensions.Logging;
 
 namespace Diary.App.ViewModels;
 
 [DiAutoRegister]
 public partial class DiaryEditorViewModel : ViewModelBase
 {
+    private readonly ILogger _logger;
+
     [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(SelectTodayCommand))]
     private DateTime _selectedDate;
 
     private DateTime _currentDate;
     private DateTime CurrentDate {get => _currentDate; set => SetProperty(ref _currentDate, value);}
 
-    [ObservableProperty] private ObservableCollection<string> _dailyItems = new();
+    [RelayCommand]
+    void Test(object parameter)
+    {
+        _logger.LogInformation($"Test with parameter {parameter}");
+    }
     
     [RelayCommand(CanExecute = nameof(CanGoToday))]
     void SelectToday()
@@ -33,16 +43,25 @@ public partial class DiaryEditorViewModel : ViewModelBase
     partial void OnSelectedDateChanged(DateTime value)
     {
         _currentDate = value;
-        ObservableCollection<string> now = new();
-        for (int i = 0; i < 10; ++i)
+        // TODO: fetch db
+        ObservableCollection<EditorWorkItem> dailyWorks = new();
+        foreach (var i in Enumerable.Range(1, 10))
         {
-            now.Add($"daily item #{i} for {value}");
+            dailyWorks.Add(new EditorWorkItem());
         }
-        DailyItems = now;
+        DailyWorks = dailyWorks;
     }
 
-    public DiaryEditorViewModel()
+    public DiaryEditorViewModel(ILogger logger)
     {
+        _logger = logger;
         SelectedDate = DateTime.Today;
     }
+
+    #region 编辑器数据
+
+    [ObservableProperty] private ObservableCollection<EditorWorkItem> _dailyWorks = new();
+
+
+    #endregion
 }

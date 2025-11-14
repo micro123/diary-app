@@ -5,41 +5,57 @@
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              xmlns:u="https://irihi.tech/ursa"
              xmlns:viewModels="clr-namespace:Diary.App.ViewModels"
+             xmlns:models="clr-namespace:Diary.App.Models"
              x:Class="Diary.App.Views.DiaryEditorView">
 
     <Design.DataContext>
         <viewModels:DiaryEditorViewModel />
     </Design.DataContext>
 
-    <Grid ColumnDefinitions="Auto,*">
+    <UserControl.Styles>
+        <Style Selector="Button.ActionButton">
+            <Setter Property="Command" Value="{Binding TestCommand}" />
+            <Setter Property="CommandParameter" Value="{Binding $self.Content}" />
+            <Setter Property="ToolTip.Tip" Value="{Binding $self.HotKey, StringFormat='快捷键：{0}'}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="4">
         <!-- 左侧是日期和项目列表展示 -->
-        <Border Grid.Column="0" BorderThickness="0 0 4 0" Padding="0 0 8 0"
-                CornerRadius="0" BorderBrush="{DynamicResource GridSplitterBackground}">
-            <Grid RowDefinitions="Auto,Auto,*" ColumnDefinitions="Auto,*" ColumnSpacing="0" RowSpacing="16">
+        <StackPanel Orientation="Vertical" Spacing="8">
+            <Grid ColumnSpacing="8" ColumnDefinitions="Auto,*,Auto" HorizontalAlignment="Stretch">
                 <TextBlock Text="日期选择" VerticalAlignment="Center" />
-                <Button Grid.Row="0" Grid.Column="1" Content="回到今天" HorizontalAlignment="Right"
+                <Button Grid.Column="2" Content="回到今天"
                         Command="{Binding SelectTodayCommand}" />
-                <Calendar Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2" FirstDayOfWeek="Sunday"
-                          IsTodayHighlighted="True" SelectionMode="SingleDate"
-                          DisplayDate="{Binding CurrentDate}"
-                          SelectedDate="{Binding SelectedDate}" />
-                <Border Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="2"
-                        BorderThickness="0 4 0 0" CornerRadius="0"
-                        Padding="0 8 0 0"
-                        BorderBrush="{DynamicResource GridSplitterBackground}">
-                    <ListBox ItemsSource="{Binding DailyItems}"
-                             VerticalAlignment="Stretch" Name="DailyItemList" />
-                </Border>
             </Grid>
-        </Border>
+            <Separator/>
+            <Calendar FirstDayOfWeek="Sunday" FontSize="24"
+                      IsTodayHighlighted="True" SelectionMode="SingleDate"
+                      DisplayDate="{Binding CurrentDate}"
+                      SelectedDate="{Binding SelectedDate}" />
+            <Separator />
+            <ListBox ItemsSource="{Binding DailyWorks}"
+                     VerticalAlignment="Stretch" Name="DailyItemList" >
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="{x:Type models:EditorWorkItem}">
+                        <TextBlock Text="{Binding}" />
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </StackPanel>
+        <Border Grid.Column="1" BorderThickness="1" BorderBrush="{DynamicResource GridSplitterBackground}" 
+                CornerRadius="0"  Margin="0 42 0 0"/>
         <!-- 右侧是编辑区 -->
-        <StackPanel Grid.Column="1" Orientation="Vertical">
-            <Menu>
-                <MenuItem Header="1" />
-                <MenuItem Header="2" />
-                <MenuItem Header="3" />
-                <MenuItem Header="4" />
-            </Menu>
+        <StackPanel Grid.Column="2" Orientation="Vertical">
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0 0 0 8">
+                <Button Classes="ActionButton" Content="新建事项" HotKey="Ctrl+N" />
+                <Button Classes="ActionButton" Content="从模板新建" HotKey="Ctrl+Shift+N" />
+                <Button Classes="ActionButton" Content="保存" HotKey="Ctrl+S" />
+                <Button Classes="ActionButton" Content="重复当前事项" HotKey="Ctrl+D" />
+                <Button Classes="ActionButton" Content="删除当前项" HotKey="Ctrl+Shift+D"/>
+            </StackPanel>
+            <Separator />
+            <ContentControl VerticalAlignment="Stretch" />
         </StackPanel>
     </Grid>
 </UserControl>

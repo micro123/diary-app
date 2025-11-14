@@ -7,4 +7,5 @@ public class WorkItem
     public required string Comment { get; set; }
     public required string Notes { get; set; }
     public double Time { get; set; }
+    public WorkPriorities Priority { get; set; }
 }

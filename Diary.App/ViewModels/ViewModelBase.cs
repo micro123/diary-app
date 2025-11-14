@@ -16,18 +16,18 @@ public class ViewModelBase : ObservableObject
             ? _notificationManager
             : _notificationManager = new WindowNotificationManager(TopLevel.GetTopLevel(View)));
 
-    protected TopLevel? TopLevel =>
+    private TopLevel? TopLevel =>
         _topLevel ??= TopLevel.GetTopLevel(View);
     
     protected async Task<bool> CopyStringToClipboardAsync(string text)
     {
         if (string.IsNullOrWhiteSpace(text))
             return false;
-        if (TopLevel == null)
+        if (TopLevel?.Clipboard == null)
         {
             return false;
         }
-        await TopLevel.Clipboard!.SetTextAsync(text);
+        await TopLevel.Clipboard.SetTextAsync(text);
         return true;
     }
 }
