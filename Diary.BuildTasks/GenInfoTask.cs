@@ -99,7 +99,6 @@ public class GenInfoTask : Task
             Log.LogMessage(MessageImportance.High, "execute {0} {1} => {2}", cmd, arg, output);
             return output;
         }
-        Log.LogError("command {0} exited with exit code {1}, error {2}", cmd, proc.ExitCode, error);
         return null;
     }
 }

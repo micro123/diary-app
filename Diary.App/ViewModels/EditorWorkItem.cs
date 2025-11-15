@@ -2,9 +2,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Diary.Core.Data.Base;
 using Diary.Utils;
 
-namespace Diary.App.Models;
+namespace Diary.App.ViewModels;
 
-public partial class EditorWorkItem: ObservableObject
+public partial class WorkEditorViewModel: ViewModelBase
 {
     // db data fields
     private WorkItem? WorkItem { get; set; } // ref to existed db item, may null
@@ -20,9 +20,9 @@ public partial class EditorWorkItem: ObservableObject
     
     // todo: plm?
     
-    public static EditorWorkItem FromWorkItem(WorkItem workItem)
+    public static WorkEditorViewModel FromWorkItem(WorkItem workItem)
     {
-        return new EditorWorkItem
+        return new WorkEditorViewModel
         {
             WorkItem = workItem,
             Date = workItem.Date,
@@ -33,7 +33,7 @@ public partial class EditorWorkItem: ObservableObject
         };
     }
 
-    public EditorWorkItem()
+    public WorkEditorViewModel()
     {
         Date = TimeTools.Today();
         Comment = App.Current.AppConfig.WorkSettings.DefaultTaskTitle;

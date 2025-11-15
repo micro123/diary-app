@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
@@ -24,7 +25,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
     [RelayCommand]
     void Test(object parameter)
     {
-        _logger.LogInformation($"Test with parameter {parameter}");
+        // _logger.LogInformation($"Test with parameter {parameter}");
+        NotificationManager?.Show(parameter, NotificationType.Information);
     }
     
     [RelayCommand(CanExecute = nameof(CanGoToday))]
@@ -44,10 +46,10 @@ public partial class DiaryEditorViewModel : ViewModelBase
     {
         _currentDate = value;
         // TODO: fetch db
-        ObservableCollection<EditorWorkItem> dailyWorks = new();
+        ObservableCollection<WorkEditorViewModel> dailyWorks = new();
         foreach (var i in Enumerable.Range(1, 10))
         {
-            dailyWorks.Add(new EditorWorkItem());
+            dailyWorks.Add(new WorkEditorViewModel());
         }
         DailyWorks = dailyWorks;
     }
@@ -60,8 +62,11 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     #region 编辑器数据
 
-    [ObservableProperty] private ObservableCollection<EditorWorkItem> _dailyWorks = new();
-
+    [ObservableProperty] private ObservableCollection<WorkEditorViewModel> _dailyWorks = new();
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasItem))]
+    private WorkEditorViewModel? _selectedWork;
+    public bool HasItem => SelectedWork != null;
 
     #endregion
 }

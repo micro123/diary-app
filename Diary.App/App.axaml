@@ -3,6 +3,7 @@
              xmlns:u-semi="https://irihi.tech/ursa/themes/semi"
              xmlns:semi="https://irihi.tech/semi"
              xmlns:u="clr-namespace:Ursa.Controls;assembly=Ursa"
+             xmlns:converters="clr-namespace:Diary.App.Converters"
              x:Class="Diary.App.App"
              xmlns:local="using:Diary.App">
 
@@ -17,4 +18,9 @@
             <Setter Property="Position" Value="BottomRight"/>
         </Style>
     </Application.Styles>
+    
+    <Application.Resources>
+        <converters:DateConvert x:Key="DateConvert" />
+        <converters:EnumConvert x:Key="EnumConvert" />
+    </Application.Resources>
 </Application>

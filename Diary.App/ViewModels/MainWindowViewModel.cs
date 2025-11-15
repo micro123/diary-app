@@ -32,7 +32,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private async Task CopyVersion(bool simple)
     {
         await CopyStringToClipboardAsync(simple ? VersionString : VersionDetails);
-        NotificationManager?.Show("已复制", NotificationType.Success);
+        ToastManager?.Show("已复制", NotificationType.Success);
     }
 
     [ObservableProperty] private ObservableCollection<NavigateInfo> _pages;
