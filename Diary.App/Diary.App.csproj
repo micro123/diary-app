@@ -46,11 +46,11 @@
                           ReferenceOutputAssembly="false" OutputItemType="Analyzer"/>
     </ItemGroup>
 
-    <UsingTask TaskName="Diary.BuildTasks.GenInfoTask"
-               AssemblyFile="$(MSBuildThisFileDirectory)..\Diary.BuildTasks\bin\$(Configuration)\$(TargetFramework)\Diary.BuildTasks.dll"/>
-
     <Target Name="GenVersionInfo" BeforeTargets="BeforeBuild">
-        <GenInfoTask Project="$(MSBuildProjectName)" OutputDir="$(IntermediateOutputPath)\Generated" FileName="VersionInfo.cs"/>
+      <Exec Command="pwsh.exe &quot;$(SolutionDir)Scripts\gen_version.ps1&quot; $(MSBuildProjectName) &quot;$(IntermediateOutputPath)\Generated&quot; VersionInfo.cs"
+            Condition="'$(OS)' == 'Windows_NT'" />
+      <Exec Command="bash &quot;$(SolutionDir)Scripts\gen_version.sh&quot; $(MSBuildProjectName) &quot;$(IntermediateOutputPath)\Generated&quot; VersionInfo.cs"
+            Condition="'$(OS)' != 'Windows_NT'" />
         <ItemGroup>
             <Compile Include="$(IntermediateOutputPath)\Generated\*.cs"/>
         </ItemGroup>
