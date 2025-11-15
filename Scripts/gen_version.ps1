@@ -91,6 +91,6 @@ internal static class VersionInfo
     public static readonly string HostName = "${hostname}";
 }
 "@
-
+Write-Output $content
 Write-Output $content | Out-File -FilePath (Join-Path $output_dir $file_name) -Encoding UTF8 -Force
 exit 0

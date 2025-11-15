@@ -62,7 +62,7 @@ mkdir -p "$output_dir"
 
 output_path="$output_dir/$file_name"
 
-cat > "$output_path" <<EOF
+cat <<EOF
 namespace ${project};
 
 internal static class VersionInfo
@@ -76,7 +76,7 @@ internal static class VersionInfo
 	public static readonly string LastCommitDate = "${commit_date}";
 	public static readonly string HostName = "${hostname}";
 }
-EOF
+EOF | tee "$output_path"
 
 exit 0
 
