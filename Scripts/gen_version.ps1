@@ -70,7 +70,7 @@ if ($repo_dir -ne "") {
     $branch = RunCommand git rev-parse --abbrev-ref HEAD
     $commit_count = RunCommand git rev-list --count HEAD
     $commit_message = RunCommand git log -1 --pretty=%B
-    $commit_date = RunCommand git log -1 --pretty=%cd  --date=format:'%Y-%m-%d %H:%M:%S'
+    $commit_date = RunCommand git log -1 --pretty=%cd  --date=format:'%Y/%m/%d %H:%M:%S'
     if ($dirty_check -ne "") {
         $hash_full += "-dirty"
         $hash_short += "-dirty"

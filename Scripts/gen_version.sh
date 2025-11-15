@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# 简体中文：将 gen_version.ps1 的逻辑翻译为 Bash
 
 set -euo pipefail
 
@@ -43,7 +42,7 @@ if [ -n "$repo_dir" ]; then
 	branch=$(run_command git rev-parse --abbrev-ref HEAD)
 	commit_count=$(run_command git rev-list --count HEAD)
 	commit_message=$(run_command git log -1 --pretty=%B)
-	commit_date=$(run_command git log -1 --pretty=%cd --date=format:'%Y-%m-%d %H:%M:%S')
+	commit_date=$(run_command git log -1 --pretty=%cd --date=format:'%Y/%m/%d %H:%M:%S')
 
 	if [ -n "$dirty_check" ]; then
 		hash_full+="-dirty"
@@ -64,7 +63,7 @@ mkdir -p "$output_dir"
 
 output_path="$output_dir/$file_name"
 
-cat <<EOF
+tee "$output_path" <<EOF
 namespace ${project};
 
 internal static class VersionInfo
@@ -78,7 +77,7 @@ internal static class VersionInfo
 	public static readonly string LastCommitDate = "${commit_date}";
 	public static readonly string HostName = "${hostname}";
 }
-EOF | tee "$output_path"
+EOF
 
 exit 0
 
