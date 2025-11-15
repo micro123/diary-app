@@ -36,13 +36,16 @@ function RunCommand {
             # 如果没有参数，直接执行命令
             $output = & $Command
         }
-        
-        return ($output).Trim()
+        if ($null -eq $output) {
+            $output = ""
+        }
     }
     catch {
         Write-Error "执行命令时出错: $($_.Exception.Message)"
-        return ""
+        $output = ""
     }
+
+    return $output.Trim()
 }
 
 # values
