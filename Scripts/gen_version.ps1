@@ -62,7 +62,7 @@ $hostname = RunCommand hostname
 $repo_dir = RunCommand git rev-parse --show-toplevel
 
 if ($repo_dir -ne "") {
-    Set-Location $repo_dir
+    Push-Location -Path $repo_dir
 
     $dirty_check = RunCommand git status --porcelain
     $hash_full = RunCommand git rev-parse HEAD
@@ -75,6 +75,8 @@ if ($repo_dir -ne "") {
         $hash_full += "-dirty"
         $hash_short += "-dirty"
     }
+
+    Pop-Location
 }
 
 New-Item -Path $output_dir -ItemType Directory -Force | Out-Null
@@ -94,6 +96,8 @@ internal static class VersionInfo
     public static readonly string HostName = "${hostname}";
 }
 "@
+$target_path = Join-Path $output_dir $file_name
 Write-Output $content
-Write-Output $content | Out-File -FilePath (Join-Path $output_dir $file_name) -Encoding UTF8 -Force
+Write-Output $target_path
+Write-Output $content | Out-File -FilePath $target_path -Encoding UTF8 -Force
 exit 0

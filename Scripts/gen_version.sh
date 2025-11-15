@@ -35,7 +35,7 @@ hostname=$(run_command hostname)
 repo_dir=$(run_command git rev-parse --show-toplevel)
 
 if [ -n "$repo_dir" ]; then
-	cd "$repo_dir"
+	pushd "$repo_dir"
 
 	dirty_check=$(run_command git status --porcelain)
 	hash_full=$(run_command git rev-parse HEAD)
@@ -49,6 +49,8 @@ if [ -n "$repo_dir" ]; then
 		hash_full+="-dirty"
 		hash_short+="-dirty"
 	fi
+    
+    popd
 fi
 
 # Escape commit message for embedding in a C# string literal

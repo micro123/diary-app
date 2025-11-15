@@ -20,8 +20,8 @@ public partial class MainWindowViewModel : ViewModelBase
     public string VersionDetails { get; } = $"""
                                              数据版本：{DataVersion.VersionString} ({DataVersion.VersionCode:X8})
                                              编译增量：{VersionInfo.CommitCount}
-                                             Git分支：{VersionInfo.CommitCount}
-                                             Git提交：{VersionInfo.GitVersionFull}
+                                             Git分支：{VersionInfo.Branch}
+                                             Git提交：{VersionInfo.GitVersionShort}
                                              提交消息：{VersionInfo.LastCommitMessage}
                                              提交时间：{VersionInfo.LastCommitDate}
                                              编译时间：{VersionInfo.BuildTime}
