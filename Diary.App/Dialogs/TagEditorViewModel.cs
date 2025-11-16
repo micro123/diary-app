@@ -8,7 +8,7 @@ public class TagEditorViewModel: ViewModelBase, IDialogContext
 {
     public void Close()
     {
-        throw new NotImplementedException();
+        RequestClose?.Invoke(this, null);
     }
 
     public event EventHandler<object?>? RequestClose;

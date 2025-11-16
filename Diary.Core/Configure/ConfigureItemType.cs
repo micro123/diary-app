@@ -7,6 +7,8 @@ public enum ConfigureItemType
     Real,
     Switch,
     Choice,
+    Button,
+    User,
     
     Group,
 }

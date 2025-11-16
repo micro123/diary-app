@@ -43,6 +43,18 @@ public class ConfigureChoiceAttribute(string caption, params string[] options)
     public IEnumerable<string> Choices { get; } = options;
 }
 
+public class ConfigureUserAttribute(string caption, string key) : ConfigureAttribute(ConfigureItemType.User, caption)
+{
+    public string Key { get; } = key;
+}
+
+public class ConfigureButtonAttribute(string caption, string text, string command)
+    : ConfigureAttribute(ConfigureItemType.Button, caption)
+{
+    public string Text { get; } = text;
+    public string Command { get; } = command;
+}
+
 public class ConfigureGroupAttribute(string caption) : ConfigureAttribute(ConfigureItemType.Group, caption)
 {
 }

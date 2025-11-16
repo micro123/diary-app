@@ -1,20 +1,26 @@
 ﻿using System;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
+using Diary.App.Constants;
+using Diary.App.Messages;
 using Diary.App.Models;
 using Diary.Core;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Diary.App.ViewModels;
 
 [DiAutoRegister]
 public partial class MainWindowViewModel : ViewModelBase
 {
+    private readonly ILogger _logger;
     public string VersionString { get; } = $"{DataVersion.VersionString}.{VersionInfo.CommitCount}";
 
     public string VersionDetails { get; } = $"""
@@ -46,17 +52,32 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty] private ViewModelBase? _currentPageModel = null;
 
-    public MainWindowViewModel(IServiceProvider serviceProvider)
+    public MainWindowViewModel(IServiceProvider serviceProvider, ILogger logger)
     {
+        _logger = logger;
         _pages =
         [
-            new NavigateInfo("日记", "mdi-notebook", serviceProvider.GetService<DiaryEditorViewModel>()),
-            new NavigateInfo("RedMine", "fa-cloud", serviceProvider.GetRequiredService<RedMineManageViewModel>()),
-            new NavigateInfo("统计", "fa-chart-pie", serviceProvider.GetRequiredService<StatisticsViewModel>()),
-            new NavigateInfo("调查", "mdi-chat-processing-outline", serviceProvider.GetRequiredService<SurveyViewModel>()),
-            new NavigateInfo("设置", "mdi-cog-outline", serviceProvider.GetService<SettingsViewModel>())
+            new NavigateInfo(PageNames.DiaryEditor, "mdi-notebook", serviceProvider.GetService<DiaryEditorViewModel>()),
+            new NavigateInfo(PageNames.RedMineTool, "fa-cloud", serviceProvider.GetRequiredService<RedMineManageViewModel>()),
+            new NavigateInfo(PageNames.Statistics, "fa-chart-pie", serviceProvider.GetRequiredService<StatisticsViewModel>()),
+            new NavigateInfo(PageNames.SurveyTool, "mdi-chat-processing-outline", serviceProvider.GetRequiredService<SurveyViewModel>()),
+            new NavigateInfo(PageNames.Settings, "mdi-cog-outline", serviceProvider.GetService<SettingsViewModel>())
         ];
 
         SelectedPage = Pages[0];
+        
+        Messenger.Register<PageSwitchEvent>(this, (r, m) =>
+        {
+            var page = Pages.FirstOrDefault(x => x.Name == m.Value);
+            if (page is not null)
+            {
+                SelectedPage = page;
+            }
+        });
+        
+        Messenger.Register<ConfigUpdateEvent>(this, (r, m) =>
+        {
+            _logger.LogInformation("config updated!");
+        });
     }
 }

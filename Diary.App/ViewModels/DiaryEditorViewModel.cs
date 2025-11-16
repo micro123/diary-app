@@ -4,6 +4,9 @@ using System.Linq;
 using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
+using Diary.App.Constants;
+using Diary.App.Messages;
 using Diary.App.Models;
 using Diary.Core.Data.Base;
 using Diary.Utils;
@@ -25,7 +28,6 @@ public partial class DiaryEditorViewModel : ViewModelBase
     [RelayCommand]
     void Test(object parameter)
     {
-        // _logger.LogInformation($"Test with parameter {parameter}");
         NotificationManager?.Show(parameter, NotificationType.Information);
     }
     

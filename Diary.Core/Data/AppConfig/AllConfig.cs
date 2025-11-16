@@ -19,4 +19,7 @@ public class AllConfig: SingletonBase<AllConfig>
     
     [ConfigureGroup("RedMine设置")]
     public RedMineConfig RedMineSettings { get; } = new();
+    
+    [ConfigureGroup("数据库设置")]
+    public DbConfig DbSettings { get; } = new();
 }

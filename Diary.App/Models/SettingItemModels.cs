@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
+using Diary.App.Messages;
 
 namespace Diary.App.Models;
 
@@ -184,5 +187,15 @@ public sealed partial class SettingChoice(string title, IEnumerable<string> opti
     {
         if (SelectedIndex >= 0 && SelectedIndex < Options.Count)
             Prop.SetValue(Obj, Options[SelectedIndex]);
+    }
+}
+
+public sealed partial class SettingButton(string title, string text, string command) : SettingItemModel(title)
+{
+    [ObservableProperty] private string _text = text;
+    [RelayCommand]
+    void Execute()
+    {
+        WeakReferenceMessenger.Default.Send(new RunCommandEvent(command));
     }
 }

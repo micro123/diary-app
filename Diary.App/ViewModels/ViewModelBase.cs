@@ -1,6 +1,8 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Messaging;
 using Ursa.Controls;
 
 namespace Diary.App.ViewModels;
@@ -37,4 +39,6 @@ public class ViewModelBase : ObservableObject
         await TopLevel.Clipboard.SetTextAsync(text);
         return true;
     }
+    
+    protected WeakReferenceMessenger Messenger => WeakReferenceMessenger.Default;
 }

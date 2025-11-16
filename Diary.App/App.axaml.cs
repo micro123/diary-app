@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
@@ -9,6 +10,10 @@ using Avalonia.Data.Core;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
+using CommunityToolkit.Mvvm.Messaging;
+using Diary.App.Constants;
+using Diary.App.Messages;
+using Diary.App.Models;
 using Diary.App.ViewModels;
 using Diary.App.Views;
 using Diary.Core.Data.AppConfig;
@@ -39,13 +44,19 @@ namespace Diary.App
             SyncTheme();
         }
 
+        private bool ConfigureCheck()
+        {
+            return false;
+        }
+
+        private List<IDbFactory> _dbFactories = new();
         private void EnumerateDbProviders()
         {
-            var dbProviders = TypeLoader.GetImplementations<IDbFactory>(FsTools.GetBinaryDirectory(), "Diary.Db.*.dll")
-                .ToArray();
+            var dbProviders = TypeLoader.GetImplementations<IDbFactory>(FsTools.GetBinaryDirectory(), "Diary.Db.*.dll");
             foreach (var dbProvider in dbProviders)
             {
                 Logger.LogInformation($"Db provider: {dbProvider.Name}");
+                _dbFactories.Add(dbProvider);
             }
         }
 
@@ -97,6 +108,12 @@ namespace Diary.App
             }
 
             base.OnFrameworkInitializationCompleted();
+            
+            // check if configure is valid
+            if (!ConfigureCheck())
+            {
+                WeakReferenceMessenger.Default.Send(new PageSwitchEvent(PageNames.Settings));
+            }
         }
 
         private void SaveConfigurations()
@@ -120,6 +137,15 @@ namespace Diary.App
             {
                 BindingPlugins.DataValidators.Remove(plugin);
             }
+        }
+
+        public SettingItemModel CreateFor(string caption, string key, object obj, PropertyInfo property)
+        {
+            return key switch
+            {
+                "DB_DRIVER" => new SettingChoice(caption, _dbFactories.Select(x=>x.Name), obj, property),
+                _ => throw new ArgumentOutOfRangeException(nameof(key), key, null),
+            };
         }
     }
 }

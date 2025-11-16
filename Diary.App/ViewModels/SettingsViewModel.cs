@@ -1,12 +1,12 @@
-using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
+using Diary.App.Messages;
 using Diary.App.Models;
 using Diary.Core.Configure;
 using Diary.Utils;
@@ -33,16 +33,16 @@ public partial class SettingsViewModel : ViewModelBase
     private void BuildTree(Collection<SettingItemModel> tree, object o)
     {
         var type = o.GetType();
-        var properties = type.GetProperties();
+        var properties = type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         foreach (var property in properties)
         {
             // check attribute
             var cfg = property.GetCustomAttribute<ConfigureAttribute>(false);
             if (cfg == null)
                 continue;
-            
+
             SettingItemModel? item = null;
-            switch(cfg)
+            switch (cfg)
             {
                 case ConfigureGroupAttribute g:
                     var group = new SettingGroup(g.Caption);
@@ -64,10 +64,18 @@ public partial class SettingsViewModel : ViewModelBase
                 case ConfigureChoiceAttribute c:
                     item = new SettingChoice(c.Caption, c.Choices, o, property);
                     break;
-                default: break;
+                case ConfigureUserAttribute u:
+                    item = App.Current.CreateFor(u.Caption, u.Key, o, property);
+                    break;
+                case ConfigureButtonAttribute b:
+                    item = new SettingButton(b.Caption, b.Text, b.Command);
+                    break;
+                default:
+                    Debug.Fail($"Unknown property {property.Name}");
+                    break;
             }
-            if (item != null)
-                tree.Add(item);
+
+            tree.Add(item);
         }
     }
 
@@ -76,24 +84,25 @@ public partial class SettingsViewModel : ViewModelBase
     {
         SettingsTree.Save();
         NotificationManager?.Show("已保存", NotificationType.Success);
+        Messenger.Send(new ConfigUpdateEvent());
     }
 
     [RelayCommand]
     private async Task Load()
     {
         var confirm = await MessageBox.ShowOverlayAsync(
-            message: "Are you sure?",
-            title: "Confirm",
-            icon: MessageBoxIcon.Question,
-            button: MessageBoxButton.YesNo
+            message: "所做的所有更改均被丢弃",
+            title: "确认执行吗？",
+            icon: MessageBoxIcon.Warning,
+            button: MessageBoxButton.OKCancel
         );
         Debug.WriteLine($"Result: {confirm}");
-        if (confirm != MessageBoxResult.Yes)
+        if (confirm != MessageBoxResult.OK)
             return;
-        
+
         ForceLoad();
-        
-        NotificationManager?.Show("更改已丢弃", NotificationType.Information);
+
+        NotificationManager?.Show("更改已丢弃!", NotificationType.Information);
     }
 
     [RelayCommand]

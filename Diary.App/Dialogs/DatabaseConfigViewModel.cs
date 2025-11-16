@@ -4,7 +4,7 @@ using Irihi.Avalonia.Shared.Contracts;
 
 namespace Diary.App.Dialogs;
 
-public class TemplateEditorViewModel: ViewModelBase, IDialogContext
+public class DatabaseConfigViewModel: ViewModelBase, IDialogContext
 {
     public void Close()
     {
