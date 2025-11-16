@@ -29,7 +29,7 @@ branch="unknown"
 commit_count="0"
 commit_message="unknown"
 commit_date="unknown"
-hostname=$(run_command hostname)
+hostname=$(run_command hostnamectl hostname)
 
 repo_dir=$(run_command git rev-parse --show-toplevel)
 
