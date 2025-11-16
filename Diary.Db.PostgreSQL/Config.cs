@@ -1,6 +1,6 @@
 using Diary.Core.Configure;
 
-namespace Diary.PostgreSQL;
+namespace Diary.Db.PostgreSQL;
 
 [StorageFile("pgsql_config.dat")]
 public class Config

@@ -1,6 +1,6 @@
 using Diary.Core.Configure;
 
-namespace Diary.SQLite;
+namespace Diary.Db.SQLite;
 
 [StorageFile("sqlite_config.dat")]
 public class Config

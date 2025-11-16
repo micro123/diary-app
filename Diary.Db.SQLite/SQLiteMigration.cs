@@ -1,6 +1,6 @@
 using Diary.Database;
 
-namespace Diary.SQLite;
+namespace Diary.Db.SQLite;
 
 internal class SQLiteMigration : Migration
 {

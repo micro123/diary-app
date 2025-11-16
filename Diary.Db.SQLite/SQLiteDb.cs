@@ -3,17 +3,14 @@ using Diary.Core.Data.RedMine;
 using Diary.Database;
 using Diary.Utils;
 
-namespace Diary.SQLite;
+namespace Diary.Db.SQLite;
 
 public class SQLiteDb : IDbInterface
 {
-
-
-    private readonly SQLite.Config _config = new
-    SQLite.Config {
+    private readonly Config _config = new()
+    {
         FilePath = Path.Combine(FsTools.GetApplicationDataDirectory(), "db.sqlite3"),
     };
-    public string Name => "SQLite";
     public object? Config => _config;
 
     public RedMineActivity AddRedMineActivity(int id, string title)

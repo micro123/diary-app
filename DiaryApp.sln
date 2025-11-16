@@ -17,9 +17,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Diary.Core", "Diary.Core\Di
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Diary.Database", "Diary.Database\Diary.Database.csproj", "{D5EE2246-0A61-4AE6-BA47-D251BD05A89F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Diary.SQLite", "Diary.SQLite\Diary.SQLite.csproj", "{AEF54451-29CD-46E4-9EC3-AC7F45BB63A6}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Diary.Db.SQLite", "Diary.Db.SQLite\Diary.Db.SQLite.csproj", "{AEF54451-29CD-46E4-9EC3-AC7F45BB63A6}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Diary.PostgreSQL", "Diary.PostgreSQL\Diary.PostgreSQL.csproj", "{DA43C49C-17E9-4DF2-8ED7-43BBFC5F4F02}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Diary.Db.PostgreSQL", "Diary.Db.PostgreSQL\Diary.Db.PostgreSQL.csproj", "{DA43C49C-17E9-4DF2-8ED7-43BBFC5F4F02}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Diary.UtilTests", "Diary.UtilTests\Diary.UtilTests.csproj", "{E5B7A075-D71B-4B6C-99BF-46A77460A9D5}"
 EndProject

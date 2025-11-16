@@ -2,12 +2,10 @@ using Diary.Core.Data.Base;
 using Diary.Core.Data.RedMine;
 using Diary.Database;
 
-namespace Diary.PostgreSQL;
+namespace Diary.Db.PostgreSQL;
 
 public class PgDb : IDbInterface
 {
-    public string Name => throw new NotImplementedException();
-
     public object? Config => throw new NotImplementedException();
 
     public RedMineActivity AddRedMineActivity(int id, string title)

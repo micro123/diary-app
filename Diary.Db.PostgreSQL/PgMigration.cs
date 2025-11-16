@@ -1,6 +1,6 @@
 using Diary.Database;
 
-namespace Diary.PostgreSQL;
+namespace Diary.Db.PostgreSQL;
 
 public class PgMigration : Migration
 {

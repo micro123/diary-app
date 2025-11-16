@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using Avalonia;
@@ -12,6 +13,7 @@ using Diary.App.ViewModels;
 using Diary.App.Views;
 using Diary.Core.Data.AppConfig;
 using Diary.Core.Utils;
+using Diary.Database;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -29,11 +31,22 @@ namespace Diary.App
 
         public override void Initialize()
         {
+            EnumerateDbProviders();
             LoadConfigurations();
             AvaloniaXamlLoader.Load(this);
-            
+
             // 同步主题设置
             SyncTheme();
+        }
+
+        private void EnumerateDbProviders()
+        {
+            var dbProviders = TypeLoader.GetImplementations<IDbFactory>(FsTools.GetBinaryDirectory(), "Diary.Db.*.dll")
+                .ToArray();
+            foreach (var dbProvider in dbProviders)
+            {
+                Logger.LogInformation($"Db provider: {dbProvider.Name}");
+            }
         }
 
         public new static App Current => (Application.Current as App)!;
@@ -65,6 +78,7 @@ namespace Diary.App
                 case "Auto": RequestedThemeVariant = ThemeVariant.Default; break;
                 default: throw new ArgumentOutOfRangeException(nameof(AppConfig.ViewSettings.DefaultColorTheme));
             }
+
             Logger.LogDebug($"Theme: {ActualThemeVariant}");
         }
 

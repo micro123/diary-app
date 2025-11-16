@@ -4,9 +4,6 @@ namespace Diary.Database;
 
 public interface IDbInterface
 {
-    // name of the driver
-    string Name { get; }
-    
     // driver config data
     object? Config { get; }
 
@@ -56,3 +53,5 @@ public interface IDbInterface
     WorkTimeEntry CreateWorkTimeEntry(WorkItem work, RedMineActivity activity, RedMineIssue issue);
     bool UpdateWorkTimeEntry(WorkTimeEntry timeEntry);
 }
+
+
