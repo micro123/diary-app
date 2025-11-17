@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
@@ -14,6 +15,7 @@ using Diary.Core;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Ursa.Controls;
 
 namespace Diary.App.ViewModels;
 
@@ -24,7 +26,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public string VersionString { get; } = $"{DataVersion.VersionString}.{VersionInfo.CommitCount}";
 
     public string VersionDetails { get; } = $"""
-                                             数据版本：{DataVersion.VersionString} ({DataVersion.VersionCode:X8})
+                                             数据版本：{DataVersion.VersionString} (0x{DataVersion.VersionCode:X8})
                                              编译增量：{VersionInfo.CommitCount}
                                              Git分支：{VersionInfo.Branch}
                                              Git提交：{VersionInfo.GitVersionShort}
@@ -78,6 +80,22 @@ public partial class MainWindowViewModel : ViewModelBase
         Messenger.Register<ConfigUpdateEvent>(this, (r, m) =>
         {
             _logger.LogInformation("config updated!");
+        });
+        
+        Messenger.Register<NotifyEvent>(this, (r, m) =>
+        {
+            Dispatcher.UIThread.Post(async void () =>
+            {
+                try
+                {
+                    var msg = m.Value;
+                    await MessageBox.ShowOverlayAsync(msg.Body, msg.Body);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, "error");
+                }
+            });
         });
     }
 }

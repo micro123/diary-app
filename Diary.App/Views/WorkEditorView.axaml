@@ -12,6 +12,15 @@
         <viewModels:WorkEditorViewModel />
     </Design.DataContext>
     
+    <UserControl.Styles>
+        <Style Selector="MenuItem">
+            <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}"/>
+            <Style Selector="^:selected">
+                <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}"/>
+            </Style>
+        </Style>
+    </UserControl.Styles>
+    
     <DockPanel>
         <u:Divider DockPanel.Dock="Top" Content="一般信息" HorizontalContentAlignment="Left"/>
         <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,*" RowDefinitions="Auto,Auto,Auto,Auto"

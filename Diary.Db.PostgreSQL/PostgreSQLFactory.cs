@@ -5,8 +5,13 @@ namespace Diary.Db.PostgreSQL;
 public class PostgreSQLFactory: IDbFactory
 {
     public string Name => "PostgreSQL";
-    public IDbInterface Create()
+    public DbInterfaceBase Create()
     {
-        return new PgDb();
+        return new PgDb(this);
+    }
+
+    public Migration? GetMigration(uint version)
+    {
+        throw new NotImplementedException();
     }
 }

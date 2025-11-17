@@ -3,6 +3,9 @@
     <ProjectReference Include="..\Diary.Core\Diary.Core.csproj" />
     <ProjectReference Include="..\Diary.Database\Diary.Database.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Npgsql" Version="9.0.4" />
+  </ItemGroup>
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

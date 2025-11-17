@@ -4,141 +4,141 @@ using Diary.Database;
 
 namespace Diary.Db.PostgreSQL;
 
-public class PgDb : IDbInterface
+public sealed class PgDb(IDbFactory factory) : DbInterfaceBase
 {
-    public object? Config => throw new NotImplementedException();
-
-    public RedMineActivity AddRedMineActivity(int id, string title)
+    private readonly IDbFactory _factory = factory;
+    public override object? Config { get; }
+    public override bool Connect()
     {
         throw new NotImplementedException();
     }
 
-    public RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project)
+    public override bool Initialized()
     {
         throw new NotImplementedException();
     }
 
-    public RedMineProject AddRedMineProject(int id, string title)
+    public override bool KeepAlive()
     {
         throw new NotImplementedException();
     }
 
-    public ICollection<WorkTag> AllWorkTags()
+    public override void Close()
     {
         throw new NotImplementedException();
     }
 
-    public void Close()
+    public override uint GetDataVersion()
     {
         throw new NotImplementedException();
     }
 
-    public bool Connect()
+    public override bool UpdateTables(uint targetVersion)
     {
         throw new NotImplementedException();
     }
 
-    public WorkItem CreateWorkItem(string date, string comment, string note, double time)
+    public override WorkTag CreateWorkTag(string name)
     {
         throw new NotImplementedException();
     }
 
-    public WorkTag CreateWorkTag(string name)
+    public override bool UpdateWorkTag(WorkTag tag)
     {
         throw new NotImplementedException();
     }
 
-    public WorkTimeEntry CreateWorkTimeEntry(WorkItem work, RedMineActivity activity, RedMineIssue issue)
+    public override bool DeleteWorkTag(WorkTag tag)
     {
         throw new NotImplementedException();
     }
 
-    public bool DeleteWorkItem(WorkItem item)
+    public override ICollection<WorkTag> AllWorkTags()
     {
         throw new NotImplementedException();
     }
 
-    public bool DeleteWorkTag(WorkTag tag)
+    public override WorkItem CreateWorkItem(string date, string comment, string note, double time)
     {
         throw new NotImplementedException();
     }
 
-    public int GetDataVersion()
+    public override bool UpdateWorkItem(WorkItem item)
     {
         throw new NotImplementedException();
     }
 
-    public ICollection<RedMineActivity> GetRedMineActivities()
+    public override bool DeleteWorkItem(WorkItem item)
     {
         throw new NotImplementedException();
     }
 
-    public ICollection<RedMineIssue> GetRedMineIssues()
+    public override ICollection<WorkItem> GetWorkItemByDateRange(string beginData, string endData)
     {
         throw new NotImplementedException();
     }
 
-    public ICollection<RedMineIssue> GetRedMineIssues(RedMineProject project)
+    public override bool WorkItemAddTag(WorkItem item, WorkTag tag)
     {
         throw new NotImplementedException();
     }
 
-    public ICollection<RedMineProject> GetRedMineProjects()
+    public override bool WorkItemRemoveTag(WorkItem item, WorkTag tag)
     {
         throw new NotImplementedException();
     }
 
-    public ICollection<WorkItem> GetWorkItemByDateRange(string beginData, string endData)
+    public override bool WorkItemCleanTags(WorkItem item)
     {
         throw new NotImplementedException();
     }
 
-    public ICollection<WorkItemTag> GetWorkItemTags(WorkItem item)
+    public override ICollection<WorkItemTag> GetWorkItemTags(WorkItem item)
     {
         throw new NotImplementedException();
     }
 
-    public bool Initialized()
+    public override RedMineActivity AddRedMineActivity(int id, string title)
     {
         throw new NotImplementedException();
     }
 
-    public bool KeepAlive()
+    public override RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project)
     {
         throw new NotImplementedException();
     }
 
-    public bool UpdateTables(int targetVersion)
+    public override RedMineProject AddRedMineProject(int id, string title)
     {
         throw new NotImplementedException();
     }
 
-    public bool UpdateWorkItem(WorkItem item)
+    public override ICollection<RedMineActivity> GetRedMineActivities()
     {
         throw new NotImplementedException();
     }
 
-    public bool UpdateWorkTag(WorkTag tag)
+    public override ICollection<RedMineIssue> GetRedMineIssues()
     {
         throw new NotImplementedException();
     }
 
-    public bool UpdateWorkTimeEntry(WorkTimeEntry timeEntry)
+    public override ICollection<RedMineIssue> GetRedMineIssues(RedMineProject project)
     {
         throw new NotImplementedException();
     }
 
-    public bool WorkItemAddTag(WorkItem item, WorkTag tag)
+    public override ICollection<RedMineProject> GetRedMineProjects()
     {
         throw new NotImplementedException();
     }
 
-    public bool WorkItemCleanTags(WorkItem item)
+    public override WorkTimeEntry CreateWorkTimeEntry(WorkItem work, RedMineActivity activity, RedMineIssue issue)
     {
         throw new NotImplementedException();
     }
 
-    public bool WorkItemRemoveTag(WorkItem item, WorkTag tag)
+    public override bool UpdateWorkTimeEntry(WorkTimeEntry timeEntry)
     {
         throw new NotImplementedException();
     }

@@ -1,27 +1,26 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using Avalonia;
-using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Data.Core;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.Constants;
 using Diary.App.Messages;
 using Diary.App.Models;
+using Diary.App.Utils;
 using Diary.App.ViewModels;
 using Diary.App.Views;
+using Diary.Core;
 using Diary.Core.Data.AppConfig;
 using Diary.Core.Utils;
 using Diary.Database;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 
 namespace Diary.App
@@ -44,9 +43,48 @@ namespace Diary.App
             SyncTheme();
         }
 
-        private bool ConfigureCheck()
+        private void ConfigureCheck()
         {
-            return false;
+            UseDb?.Close();
+            UseDb = null;
+            
+            // 从配置获取当前的数据库提供程序
+            var factory = _dbFactories.FirstOrDefault(x => x.Name == AppConfig.DbSettings.DatabaseDriver);
+            if (factory == null)
+            {
+                EventDispatcher.RouteToPage(PageNames.Settings);
+                EventDispatcher.Notify("错误", "需要检查数据库设置！");
+            }
+            else
+            {
+                UseDb = factory.Create();
+                // open
+                if (!UseDb.Connect())
+                {
+                    UseDb = null;
+                    EventDispatcher.RouteToPage(PageNames.Settings);
+                    EventDispatcher.Notify("错误", "数据库连接失败！");
+                    return;
+                }
+
+                // init
+                if (!UseDb.Initialized())
+                {
+                    UseDb = null;
+                    EventDispatcher.RouteToPage(PageNames.Settings);
+                    EventDispatcher.Notify("错误", "数据库初始化失败！");
+                    return;
+                }
+                
+                // version check
+                if (UseDb.GetDataVersion() != DataVersion.VersionCode)
+                {
+                    if (!UseDb.UpdateTables(DataVersion.VersionCode))
+                    {
+                        EventDispatcher.Notify("错误", "数据库升级失败了，可能是程序bug！");
+                    }
+                }
+            }
         }
 
         private List<IDbFactory> _dbFactories = new();
@@ -66,6 +104,8 @@ namespace Diary.App
         public AllConfig AppConfig => AllConfig.Instance;
 
         public ILogger Logger => Logging.Logger;
+        
+        public DbInterfaceBase? UseDb { get; private set; }
 
         private IServiceProvider ConfigureServices()
         {
@@ -104,16 +144,38 @@ namespace Diary.App
                 var vm = Services.GetRequiredService<MainWindowViewModel>();
                 vm.View = desktop.MainWindow;
                 desktop.MainWindow.DataContext = vm;
-                desktop.ShutdownRequested += (_, _) => SaveConfigurations();
+                desktop.ShutdownRequested += (_, _) => PreShutdown();
             }
 
             base.OnFrameworkInitializationCompleted();
             
-            // check if configure is valid
-            if (!ConfigureCheck())
+            WeakReferenceMessenger.Default.Register<ConfigUpdateEvent>(this, (r, m) =>
             {
-                WeakReferenceMessenger.Default.Send(new PageSwitchEvent(PageNames.Settings));
-            }
+                Dispatcher.UIThread.Post(ConfigureCheck);
+            });
+            // check if configure is valid
+            ConfigureCheck();
+            
+            // start keep-alive thread
+            StartKeepAliveTimer();
+        }
+
+        private void PreShutdown()
+        {
+            _timer.Stop();
+            SaveConfigurations();
+        }
+
+        private readonly DispatcherTimer _timer = new();
+        private void StartKeepAliveTimer()
+        {
+            _timer.Interval = TimeSpan.FromSeconds(30);
+            _timer.Tick += (_, _) =>
+            {
+                Logger.LogDebug($"DB keep alive...");
+                UseDb?.KeepAlive();
+            };
+            _timer.Start();
         }
 
         private void SaveConfigurations()

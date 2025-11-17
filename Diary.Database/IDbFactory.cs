@@ -4,5 +4,7 @@ public interface IDbFactory
 {
     string Name { get; }
 
-    IDbInterface Create();
+    DbInterfaceBase Create();
+    
+    Migration? GetMigration(uint version);
 }

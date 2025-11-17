@@ -5,8 +5,13 @@ namespace Diary.Db.SQLite;
 public class SQLiteFactory: IDbFactory
 {
     public string Name => "SQLite";
-    public IDbInterface Create()
+    public DbInterfaceBase Create()
     {
-        return new SQLiteDb();
+        return new SQLiteDb(this);
+    }
+
+    public Migration? GetMigration(uint version)
+    {
+        return DbRecords.GetMigration(version);
     }
 }

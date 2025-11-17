@@ -4,25 +4,18 @@ namespace Diary.Db.SQLite;
 
 internal class SQLiteMigration : Migration
 {
-    private readonly ICollection<string> _up;
-    private readonly ICollection<string> _down;
+    private readonly string _up;
 
-    public SQLiteMigration(int from, int to, ICollection<string> upStmts, ICollection<string> downStmts)
+    public SQLiteMigration(uint from, uint to, params string[] upStmts)
         :base(from, to)
     {
-        _up = upStmts;
-        _down = downStmts;
+        _up = string.Join(";\n", upStmts);
     }
 
-    public override bool Down(IDbInterface db)
+    public override bool Up(DbInterfaceBase db)
     {
         var sqlite = db as SQLiteDb;
-        return sqlite!.Exec(_down);
-    }
-
-    public override bool Up(IDbInterface db)
-    {
-        var sqlite = db as SQLiteDb;
-        return sqlite!.Exec(_up);
+        // return sqlite!.Exec(_up);
+        return false;
     }
 }
