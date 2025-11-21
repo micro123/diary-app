@@ -42,89 +42,89 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
 
     public override bool Initialized()
     {
-        var tableInitCmds = """
-                            CREATE TABLE IF NOT EXISTS
-                            	work_tags(
-                            		id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            		tag_name CHAR(64) NOT NULL UNIQUE,
-                            		tag_color INTEGER NOT NULL DEFAULT 0,
-                            		tag_level INTEGER NOT NULL DEFAULT 0,
-                            		is_disabled INTEGER NOT NULL DEFAULT 0
-                            	);
-                            	
-                            CREATE TABLE IF NOT EXISTS
-                            	work_items(
-                            		id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            		create_date CHAR(16) NOT NULL,
-                            		comment CHAR(128) NOT NULL,
-                            		hours REAL DEFAULT 0.0,
-                            		priority INTEGER DEFAULT 0
-                            	);
+        const string tableInitCmd = """
+                                    CREATE TABLE IF NOT EXISTS
+                                    	work_tags(
+                                    		id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    		tag_name CHAR(64) NOT NULL UNIQUE,
+                                    		tag_color INTEGER NOT NULL DEFAULT 0,
+                                    		tag_level INTEGER NOT NULL DEFAULT 0,
+                                    		is_disabled INTEGER NOT NULL DEFAULT 0
+                                    	);
+                                    	
+                                    CREATE TABLE IF NOT EXISTS
+                                    	work_items(
+                                    		id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    		create_date CHAR(16) NOT NULL,
+                                    		comment CHAR(128) NOT NULL,
+                                    		hours REAL DEFAULT 0.0,
+                                    		priority INTEGER DEFAULT 0
+                                    	);
 
-                            CREATE TABLE IF NOT EXISTS
-                            	work_notes(
-                            		id INTEGER PRIMARY KEY
-                            			REFERENCES work_items(id)
-                            			ON DELETE CASCADE,
-                            		note TEXT NOT NULL
-                            	);
+                                    CREATE TABLE IF NOT EXISTS
+                                    	work_notes(
+                                    		id INTEGER PRIMARY KEY
+                                    			REFERENCES work_items(id)
+                                    			ON DELETE CASCADE,
+                                    		note TEXT NOT NULL
+                                    	);
 
-                            	
-                            CREATE TABLE IF NOT EXISTS
-                            	work_item_tags(
-                            		work_id INTEGER REFERENCES work_items(id),
-                            		tag_id INTEGER REFERENCES work_tags(id),
-                            		PRIMARY KEY (work_id,tag_id)
-                            	);
-                            	
-                            CREATE TABLE IF NOT EXISTS
-                            	redmine_projects(
-                            		id INTEGER NOT NULL PRIMARY KEY,
-                            		project_name CHAR(128) NOT NULL,
-                            		project_desc CHAR(1024) DEFAULT '',
-                            		is_closed INTEGER DEFAULT 0
-                            	);
-                            	
-                            CREATE TABLE IF NOT EXISTS
-                            	redmine_activities(
-                            		id INTEGER PRIMARY KEY,
-                            		act_name CHAR(32) NOT NULL
-                            	);
-                            	
-                            CREATE TABLE IF NOT EXISTS
-                            	redmine_issues(
-                            		id INTEGER PRIMARY KEY,
-                            		issue_title CHAR(128) NOT NULL,
-                            		assigned_to CHAR(16) DEFAULT '',
-                            		project_id INTEGER NOT NULL REFERENCES
-                            			redmine_projects(id) ON DELETE CASCADE,
-                            		is_closed INTEGER default 0
-                            	);
-                            	
-                            CREATE TABLE IF NOT EXISTS
-                            	redmine_time_entries(
-                            		work_id INTEGER PRIMARY KEY
-                            			REFERENCES work_items(id) ON DELETE CASCADE,
-                            		id INTEGER DEFAULT 0,
-                            		act_id INTEGER
-                            			REFERENCES redmine_activities(id) ON DELETE SET NULL,
-                            		issue_id INTEGER
-                            			REFERENCES redmine_issues(id) ON DELETE SET NULL
-                            	);
+                                    	
+                                    CREATE TABLE IF NOT EXISTS
+                                    	work_item_tags(
+                                    		work_id INTEGER REFERENCES work_items(id),
+                                    		tag_id INTEGER REFERENCES work_tags(id),
+                                    		PRIMARY KEY (work_id,tag_id)
+                                    	);
+                                    	
+                                    CREATE TABLE IF NOT EXISTS
+                                    	redmine_projects(
+                                    		id INTEGER NOT NULL PRIMARY KEY,
+                                    		project_name CHAR(128) NOT NULL,
+                                    		project_desc CHAR(1024) DEFAULT '',
+                                    		is_closed INTEGER DEFAULT 0
+                                    	);
+                                    	
+                                    CREATE TABLE IF NOT EXISTS
+                                    	redmine_activities(
+                                    		id INTEGER PRIMARY KEY,
+                                    		act_name CHAR(32) NOT NULL
+                                    	);
+                                    	
+                                    CREATE TABLE IF NOT EXISTS
+                                    	redmine_issues(
+                                    		id INTEGER PRIMARY KEY,
+                                    		issue_title CHAR(128) NOT NULL,
+                                    		assigned_to CHAR(16) DEFAULT '',
+                                    		project_id INTEGER NOT NULL REFERENCES
+                                    			redmine_projects(id) ON DELETE CASCADE,
+                                    		is_closed INTEGER default 0
+                                    	);
+                                    	
+                                    CREATE TABLE IF NOT EXISTS
+                                    	redmine_time_entries(
+                                    		work_id INTEGER PRIMARY KEY
+                                    			REFERENCES work_items(id) ON DELETE CASCADE,
+                                    		id INTEGER DEFAULT 0,
+                                    		act_id INTEGER
+                                    			REFERENCES redmine_activities(id) ON DELETE CASCADE,
+                                    		issue_id INTEGER
+                                    			REFERENCES redmine_issues(id) ON DELETE CASCADE
+                                    	);
 
-                            CREATE TABLE IF NOT EXISTS
-                            	data_versions(
-                            		version_code INTEGER PRIMARY KEY
-                            	);
+                                    CREATE TABLE IF NOT EXISTS
+                                    	data_versions(
+                                    		version_code INTEGER PRIMARY KEY
+                                    	);
 
-                            -- default data version is 1.0.0 (0x1000000)
-                            INSERT INTO data_versions VALUES(0x10000) ON CONFLICT DO NOTHING;
-                            """;
+                                    -- default data version is 1.0.0 (0x1000000)
+                                    INSERT INTO data_versions VALUES(0x10000) ON CONFLICT DO NOTHING;
+                                    """;
         using var transaction = _connection!.BeginTransaction();
         try
         {
             var cmd = _connection.CreateCommand();
-            cmd.CommandText = tableInitCmds;
+            cmd.CommandText = tableInitCmd;
             cmd.ExecuteNonQuery();
             transaction.Commit();
         }
@@ -175,7 +175,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
 
     public override WorkTag CreateWorkTag(string name)
     {
-        const string sql = @"INSERT INTO work_tags(tag_name) VALUES ($value) RETURNING id;";
+        const string sql = @"INSERT INTO work_tags(tag_name) VALUES ($value) RETURNING *;";
         var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$value", name);
@@ -192,7 +192,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
             };
         }
 
-        return new WorkTag { Name = name };
+        return new WorkTag();
     }
 
     public override bool UpdateWorkTag(WorkTag tag)
@@ -248,19 +248,57 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         return result;
     }
 
-    public override WorkItem CreateWorkItem(string date, string comment, string note, double time)
+    public override WorkItem CreateWorkItem(string date, string comment)
     {
-        throw new NotImplementedException();
+        const string sql =
+            @"INSERT INTO work_items(create_date, comment) VALUES ($create_date, $comment) RETURNING *;";
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$create_date", date);
+        cmd.Parameters.AddWithValue("$comment", comment);
+        using var reader = cmd.ExecuteReader();
+        if (reader.Read())
+        {
+            return new WorkItem()
+            {
+                Id = reader.GetInt32(0),
+                CreateDate = reader.GetString(1),
+                Comment = reader.GetString(2),
+                Time = reader.GetDouble(3),
+                Priority = (WorkPriorities)reader.GetInt32(4),
+            };
+        }
+
+        return new WorkItem();
     }
 
     public override bool UpdateWorkItem(WorkItem item)
     {
-        throw new NotImplementedException();
+        if (item.Id == 0)
+            return false;
+
+        const string sql =
+            @"UPDATE work_items SET create_date=$create_date, comment=$comment, hours=$time, priority=$priority WHERE id=$id;";
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$id", item.Id);
+        cmd.Parameters.AddWithValue("$create_date", item.CreateDate);
+        cmd.Parameters.AddWithValue("$comment", item.Comment);
+        cmd.Parameters.AddWithValue("$time", item.Time);
+        cmd.Parameters.AddWithValue("$priority", item.Priority);
+        return cmd.ExecuteNonQuery() > 0;
     }
 
     public override bool DeleteWorkItem(WorkItem item)
     {
-        throw new NotImplementedException();
+        if (item.Id == 0)
+            return false;
+        const string sql =
+            @"DELETE FROM work_items WHERE id=$id;";
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$id", item.Id);
+        return cmd.ExecuteNonQuery() > 0;
     }
 
     public override ICollection<WorkItem> GetWorkItemByDateRange(string beginData, string endData)
@@ -268,69 +306,300 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         throw new NotImplementedException();
     }
 
+    public override WorkNote WorkUpdateNote(WorkItem work, string content)
+    {
+        if (work.Id == 0)
+            throw new ArgumentException("work id is required");
+
+        const string sql =
+            @"INSERT INTO work_notes(id, note) VALUES ($id, $note) ON CONFLICT (id) DO UPDATE SET note=@note RETURNING *;";
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$id", work.Id);
+        cmd.Parameters.AddWithValue("$note", content);
+        using var reader = cmd.ExecuteReader();
+        if (reader.Read())
+        {
+            return new WorkNote()
+            {
+                WorkId = reader.GetInt32(0),
+                Notes = reader.GetString(1),
+            };
+        }
+
+        return new WorkNote();
+    }
+
+    public override bool WorkDeleteNote(WorkItem work)
+    {
+        const string sql =
+            @"DELETE FROM work_notes WHERE id=$id;";
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$id", work.Id);
+        return cmd.ExecuteNonQuery() > 0;
+    }
+
     public override bool WorkItemAddTag(WorkItem item, WorkTag tag)
     {
-        throw new NotImplementedException();
+        const string sql =
+            @"INSERT INTO work_item_tags VALUES($work_id, $tag_id) RETURNING *;";
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$work_id", item.Id);
+        cmd.Parameters.AddWithValue("$tag_id", tag.Id);
+        return cmd.ExecuteNonQuery() > 0;
     }
 
     public override bool WorkItemRemoveTag(WorkItem item, WorkTag tag)
     {
-        throw new NotImplementedException();
+        const string sql =
+            @"DELETE from work_item_tags WHERE work_id=$work_id and tag_id=$tag_id;";
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$work_id", item.Id);
+        cmd.Parameters.AddWithValue("$tag_id", tag.Id);
+        return cmd.ExecuteNonQuery() > 0;
     }
 
     public override bool WorkItemCleanTags(WorkItem item)
     {
-        throw new NotImplementedException();
+        const string sql =
+            @"DELETE from work_item_tags WHERE work_id=$work_id;";
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$work_id", item.Id);
+        return cmd.ExecuteNonQuery() > 0;
     }
 
-    public override ICollection<WorkItemTag> GetWorkItemTags(WorkItem item)
+    public override ICollection<WorkTag> GetWorkItemTags(WorkItem item)
     {
         throw new NotImplementedException();
     }
 
     public override RedMineActivity AddRedMineActivity(int id, string title)
     {
-        throw new NotImplementedException();
+        const string sql = @"INSERT INTO redmine_activities VALUES ($id,$title) RETURNING *;";
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.Parameters.AddWithValue("$title", title);
+        using var reader = cmd.ExecuteReader();
+        if (reader.Read())
+        {
+            return new RedMineActivity()
+            {
+                Id = reader.GetInt32(0),
+                Title = reader.GetString(1),
+            };
+        }
+
+        return new RedMineActivity();
     }
 
     public override RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project)
     {
-        throw new NotImplementedException();
+        const string sql =
+            @"INSERT INTO redmine_issues(id, issue_title, assigned_to, project_id) VALUES ($id,$title,$assign,$project) RETURNING *;";
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.Parameters.AddWithValue("$title", title);
+        cmd.Parameters.AddWithValue("$assign", assignedTo);
+        cmd.Parameters.AddWithValue("$project", project);
+        using var reader = cmd.ExecuteReader();
+        if (reader.Read())
+        {
+            return new RedMineIssue()
+            {
+                Id = reader.GetInt32(0),
+                Title = reader.GetString(1),
+                AssignedTo = reader.GetString(2),
+                ProjectId = reader.GetInt32(3),
+                IsClosed = reader.GetInt32(4) != 0,
+            };
+        }
+
+        return new RedMineIssue();
     }
 
-    public override RedMineProject AddRedMineProject(int id, string title)
+    public override void UpdateRedMineIssueStatus(int id, bool closed)
     {
-        throw new NotImplementedException();
+        const string sql =
+            @"UPDATE redmine_issues SET is_closed=@closed WHERE id=$id;";
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.Parameters.AddWithValue("$closed", closed ? 1 : 0);
+        cmd.ExecuteNonQuery();
+    }
+
+    public override RedMineProject AddRedMineProject(int id, string title, string description)
+    {
+        const string sql =
+            @"INSERT INTO redmine_projects(id, project_name, project_desc) VALUES ($id,$title,$desc) RETURNING *;";
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.Parameters.AddWithValue("$title", title);
+        cmd.Parameters.AddWithValue("$desc", description);
+        using var reader = cmd.ExecuteReader();
+        if (reader.Read())
+        {
+            return new RedMineProject()
+            {
+                Id = reader.GetInt32(0),
+                Title = reader.GetString(1),
+                Description = reader.GetString(2),
+                IsClosed = reader.GetInt32(3) != 0,
+            };
+        }
+
+        return new RedMineProject();
+    }
+
+    public override void UpdateRedMineProjectStatus(int id, bool closed)
+    {
+        const string sql =
+            @"UPDATE redmine_projects SET is_closed=@closed WHERE id=$id;";
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.Parameters.AddWithValue("$closed", closed ? 1 : 0);
+        cmd.ExecuteNonQuery();
     }
 
     public override ICollection<RedMineActivity> GetRedMineActivities()
     {
-        throw new NotImplementedException();
+        var sql = @"SELECT * FROM redmine_activities;";
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        using var reader = cmd.ExecuteReader();
+        var activities = new List<RedMineActivity>();
+        while (reader.Read())
+        {
+            activities.Add(new RedMineActivity()
+            {
+                Id = reader.GetInt32(0),
+                Title = reader.GetString(1),
+            });
+        }
+
+        return activities;
     }
 
-    public override ICollection<RedMineIssue> GetRedMineIssues()
+    public override ICollection<RedMineIssue> GetRedMineIssues(RedMineProject? project)
     {
-        throw new NotImplementedException();
-    }
+        if (project == null)
+        {
+            var sql = @"SELECT * FROM redmine_issues;";
+            var cmd = _connection!.CreateCommand();
+            cmd.CommandText = sql;
+            using var reader = cmd.ExecuteReader();
+            var activities = new List<RedMineIssue>();
+            while (reader.Read())
+            {
+                activities.Add(new RedMineIssue()
+                {
+                    Id = reader.GetInt32(0),
+                    Title = reader.GetString(1),
+                    AssignedTo = reader.GetString(2),
+                    ProjectId = reader.GetInt32(3),
+                    IsClosed = reader.GetInt32(4) != 0,
+                });
+            }
 
-    public override ICollection<RedMineIssue> GetRedMineIssues(RedMineProject project)
-    {
-        throw new NotImplementedException();
+            return activities;
+        }
+        else
+        {
+            var sql = @"SELECT * FROM redmine_issues WHERE project_id = @projectId;";
+            var cmd = _connection!.CreateCommand();
+            cmd.CommandText = sql;
+            cmd.Parameters.AddWithValue("projectId", project.Id);
+            using var reader = cmd.ExecuteReader();
+            var activities = new List<RedMineIssue>();
+            while (reader.Read())
+            {
+                activities.Add(new RedMineIssue()
+                {
+                    Id = reader.GetInt32(0),
+                    Title = reader.GetString(1),
+                    AssignedTo = reader.GetString(2),
+                    ProjectId = reader.GetInt32(3),
+                    IsClosed = reader.GetInt32(4) != 0,
+                });
+            }
+
+            return activities;
+        }
     }
 
     public override ICollection<RedMineProject> GetRedMineProjects()
     {
-        throw new NotImplementedException();
+        var sql = @"SELECT * FROM redmine_projects;";
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        using var reader = cmd.ExecuteReader();
+        var activities = new List<RedMineProject>();
+        while (reader.Read())
+        {
+            activities.Add(new RedMineProject()
+            {
+                Id = reader.GetInt32(0),
+                Title = reader.GetString(1),
+                Description = reader.GetString(2),
+                IsClosed = reader.GetInt32(3) != 0,
+            });
+        }
+
+        return activities;
     }
 
     public override WorkTimeEntry CreateWorkTimeEntry(WorkItem work, RedMineActivity activity, RedMineIssue issue)
     {
-        throw new NotImplementedException();
+        if (work.Id == 0)
+        {
+            throw new ArgumentException($"Work ID {work.Id} is invalid");
+        }
+
+        const string sql =
+            "INSERT INTO redmine_time_entries(work_id, act_id, issue_id) VALUES ($workId, $actId, $issueId) ON CONFLICT DO UPDATE SET act_id=$actId, issue_id=$issueId RETURNING *;";
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$workId", work.Id);
+        cmd.Parameters.AddWithValue("$actId", activity.Id);
+        cmd.Parameters.AddWithValue("$issueId", issue.Id);
+        using var reader = cmd.ExecuteReader();
+        if (reader.Read())
+        {
+            return new WorkTimeEntry()
+            {
+                WorkId = reader.GetInt32(0),
+                EntryId = reader.GetInt32(1),
+                ActivityId = reader.GetInt32(2),
+                IssueId = reader.GetInt32(3),
+            };
+        }
+
+        return new WorkTimeEntry();
     }
 
     public override bool UpdateWorkTimeEntry(WorkTimeEntry timeEntry)
     {
-        throw new NotImplementedException();
+        if (timeEntry.WorkId == 0)
+        {
+            throw new ArgumentException($"Work ID {timeEntry.WorkId} is invalid");
+        }
+
+        const string sql =
+            "UPDATE redmine_time_entries SET act_id=$actId, issue_id=$issueId, id=$entryId;";
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$actId", timeEntry.ActivityId);
+        cmd.Parameters.AddWithValue("$issueId", timeEntry.IssueId);
+        cmd.Parameters.AddWithValue("$entryId", timeEntry.EntryId);
+        return cmd.ExecuteNonQuery() > 0;
     }
 
     public void Dispose()

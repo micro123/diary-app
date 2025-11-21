@@ -25,7 +25,7 @@ public partial class WorkEditorViewModel: ViewModelBase
         return new WorkEditorViewModel
         {
             WorkItem = workItem,
-            Date = workItem.Date,
+            Date = workItem.CreateDate,
             Comment = workItem.Comment,
             Time = workItem.Time,
             Priority = workItem.Priority,

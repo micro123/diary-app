@@ -58,7 +58,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase
         throw new NotImplementedException();
     }
 
-    public override WorkItem CreateWorkItem(string date, string comment, string note, double time)
+    public override WorkItem CreateWorkItem(string date, string comment)
     {
         throw new NotImplementedException();
     }
@@ -78,6 +78,16 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase
         throw new NotImplementedException();
     }
 
+    public override WorkNote WorkUpdateNote(WorkItem work, string content)
+    {
+        throw new NotImplementedException();
+    }
+
+    public override bool WorkDeleteNote(WorkItem work)
+    {
+        throw new NotImplementedException();
+    }
+
     public override bool WorkItemAddTag(WorkItem item, WorkTag tag)
     {
         throw new NotImplementedException();
@@ -93,7 +103,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase
         throw new NotImplementedException();
     }
 
-    public override ICollection<WorkItemTag> GetWorkItemTags(WorkItem item)
+    public override ICollection<WorkTag> GetWorkItemTags(WorkItem item)
     {
         throw new NotImplementedException();
     }
@@ -108,7 +118,17 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase
         throw new NotImplementedException();
     }
 
-    public override RedMineProject AddRedMineProject(int id, string title)
+    public override void UpdateRedMineIssueStatus(int id, bool closed)
+    {
+        throw new NotImplementedException();
+    }
+
+    public override RedMineProject AddRedMineProject(int id, string title, string description)
+    {
+        throw new NotImplementedException();
+    }
+
+    public override void UpdateRedMineProjectStatus(int id, bool closed)
     {
         throw new NotImplementedException();
     }
@@ -118,12 +138,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase
         throw new NotImplementedException();
     }
 
-    public override ICollection<RedMineIssue> GetRedMineIssues()
-    {
-        throw new NotImplementedException();
-    }
-
-    public override ICollection<RedMineIssue> GetRedMineIssues(RedMineProject project)
+    public override ICollection<RedMineIssue> GetRedMineIssues(RedMineProject? project)
     {
         throw new NotImplementedException();
     }

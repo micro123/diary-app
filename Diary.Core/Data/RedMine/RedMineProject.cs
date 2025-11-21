@@ -2,8 +2,8 @@ namespace Diary.Core.Data.RedMine;
 
 public class RedMineProject
 {
-    public int Id { get; init; }
-    public required string Title { get; init; }
-    public required string Description { get; init; }
-    public bool IsClosed { get; init; }
+    public int Id { get; init; } = 0;
+    public string Title { get; init; } = string.Empty;
+    public string Description { get; init; } = string.Empty;
+    public bool IsClosed { get; init; } = false;
 }

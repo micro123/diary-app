@@ -28,25 +28,30 @@ public abstract class DbInterfaceBase
     public abstract ICollection<WorkTag> AllWorkTags();
 
     // work item
-    public abstract WorkItem CreateWorkItem(string date, string comment, string note, double time);
+    public abstract WorkItem CreateWorkItem(string date, string comment);
     public abstract bool UpdateWorkItem(WorkItem item);
     public abstract bool DeleteWorkItem(WorkItem item);
     public abstract ICollection<WorkItem> GetWorkItemByDateRange(string beginData, string endData);
 
+    // work note
+    public abstract WorkNote WorkUpdateNote(WorkItem work, string content);
+    public abstract bool WorkDeleteNote(WorkItem work);
+    
     // work item - work tag
     public abstract bool WorkItemAddTag(WorkItem item, WorkTag tag);
     public abstract bool WorkItemRemoveTag(WorkItem item, WorkTag tag);
     public abstract bool WorkItemCleanTags(WorkItem item);
-    public abstract ICollection<WorkItemTag> GetWorkItemTags(WorkItem item);
+    public abstract ICollection<WorkTag> GetWorkItemTags(WorkItem item);
 
-    // redmine project
+    // redmine
     public abstract RedMineActivity AddRedMineActivity(int id, string title);
     public abstract RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project);
-    public abstract RedMineProject AddRedMineProject(int id, string title);
+    public abstract void UpdateRedMineIssueStatus(int id, bool closed);
+    public abstract RedMineProject AddRedMineProject(int id, string title, string description);
+    public abstract void UpdateRedMineProjectStatus(int id, bool closed);
 
     public abstract ICollection<RedMineActivity> GetRedMineActivities();
-    public abstract ICollection<RedMineIssue> GetRedMineIssues();
-    public abstract ICollection<RedMineIssue> GetRedMineIssues(RedMineProject project);
+    public abstract ICollection<RedMineIssue> GetRedMineIssues(RedMineProject? project);
     public abstract ICollection<RedMineProject> GetRedMineProjects();
 
     // time-entries
