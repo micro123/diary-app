@@ -27,6 +27,8 @@ namespace Diary.App.Views
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             SyncTitleBarTheme();
+            var host = this.FindDescendantOfType<OverlayDialogHost>();
+            host?.DialogDataTemplates.Add(new ViewLocator());
         }
 
         private void SyncTitleBarTheme()
