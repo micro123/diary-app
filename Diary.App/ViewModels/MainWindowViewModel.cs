@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.Constants;
+using Diary.App.Dialogs;
 using Diary.App.Messages;
 using Diary.App.Models;
 using Diary.Core;
@@ -22,6 +23,7 @@ namespace Diary.App.ViewModels;
 [DiAutoRegister]
 public partial class MainWindowViewModel : ViewModelBase
 {
+    private readonly IServiceProvider _serviceProvider;
     private readonly ILogger _logger;
     public string VersionString { get; } = $"{DataVersion.VersionString}.{VersionInfo.CommitCount}";
 
@@ -56,18 +58,22 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public MainWindowViewModel(IServiceProvider serviceProvider, ILogger logger)
     {
+        _serviceProvider = serviceProvider;
         _logger = logger;
         _pages =
         [
             new NavigateInfo(PageNames.DiaryEditor, "mdi-notebook", serviceProvider.GetService<DiaryEditorViewModel>()),
-            new NavigateInfo(PageNames.RedMineTool, "fa-cloud", serviceProvider.GetRequiredService<RedMineManageViewModel>()),
-            new NavigateInfo(PageNames.Statistics, "fa-chart-pie", serviceProvider.GetRequiredService<StatisticsViewModel>()),
-            new NavigateInfo(PageNames.SurveyTool, "mdi-chat-processing-outline", serviceProvider.GetRequiredService<SurveyViewModel>()),
+            new NavigateInfo(PageNames.RedMineTool, "fa-cloud",
+                serviceProvider.GetRequiredService<RedMineManageViewModel>()),
+            new NavigateInfo(PageNames.Statistics, "fa-chart-pie",
+                serviceProvider.GetRequiredService<StatisticsViewModel>()),
+            new NavigateInfo(PageNames.SurveyTool, "mdi-chat-processing-outline",
+                serviceProvider.GetRequiredService<SurveyViewModel>()),
             new NavigateInfo(PageNames.Settings, "mdi-cog-outline", serviceProvider.GetService<SettingsViewModel>())
         ];
 
         SelectedPage = Pages[0];
-        
+
         Messenger.Register<PageSwitchEvent>(this, (r, m) =>
         {
             var page = Pages.FirstOrDefault(x => x.Name == m.Value);
@@ -76,12 +82,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 SelectedPage = page;
             }
         });
-        
-        Messenger.Register<ConfigUpdateEvent>(this, (r, m) =>
-        {
-            _logger.LogInformation("config updated!");
-        });
-        
+
+        Messenger.Register<ConfigUpdateEvent>(this, (r, m) => { _logger.LogInformation("config updated!"); });
+
         Messenger.Register<NotifyEvent>(this, (r, m) =>
         {
             Dispatcher.UIThread.Post(async void () =>
@@ -97,5 +100,30 @@ public partial class MainWindowViewModel : ViewModelBase
                 }
             });
         });
+        Messenger.Register<RunCommandEvent>(this, (r, m) => { HandleCommand(m.Value); });
+    }
+
+    private void HandleCommand(string cmd)
+    {
+        if (cmd == "SHOW_DB_SETTINGS")
+        {
+            Dispatcher.UIThread.Post(async () =>
+            {
+                var options = new OverlayDialogOptions()
+                {
+                    Title = "数据库设置",
+                    CanDragMove = false,
+                    CanResize = true,
+                    CanLightDismiss = false,
+                    Mode = DialogMode.None,
+                    IsCloseButtonVisible = true,
+                };
+                OverlayDialog.ShowCustom(_serviceProvider.GetRequiredService<DatabaseConfigViewModel>(),
+                    options: options);
+            });
+            return;
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(cmd));
     }
 }
