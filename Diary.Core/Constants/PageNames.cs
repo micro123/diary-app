@@ -1,4 +1,4 @@
-namespace Diary.App.Constants;
+namespace Diary.Core.Constants;
 
 public static class PageNames
 {

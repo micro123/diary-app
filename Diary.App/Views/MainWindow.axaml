@@ -6,7 +6,7 @@
               xmlns:u="https://irihi.tech/ursa"
               xmlns:app="using:Diary.App"
               xmlns:i="https://github.com/projektanker/icons.avalonia"
-              xmlns:constants="clr-namespace:Diary.App.Constants"
+              xmlns:constants="clr-namespace:Diary.Core.Constants"
               mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
               x:Class="Diary.App.Views.MainWindow"
               x:DataType="vm:MainWindowViewModel"

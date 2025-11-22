@@ -5,7 +5,7 @@ using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
-using Diary.App.Constants;
+using Diary.Core.Constants;
 using Diary.App.Messages;
 using Diary.App.Models;
 using Diary.Core.Data.Base;
@@ -47,6 +47,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
     partial void OnSelectedDateChanged(DateTime value)
     {
         _currentDate = value;
+        _logger.LogDebug("date changed to {0}", _currentDate);
         // TODO: fetch db
         ObservableCollection<WorkEditorViewModel> dailyWorks = new();
         foreach (var i in Enumerable.Range(1, 10))

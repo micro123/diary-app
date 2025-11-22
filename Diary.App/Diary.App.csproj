@@ -9,6 +9,7 @@
 
     <ItemGroup>
         <AvaloniaResource Include="Assets\**" />
+        <AvaloniaResource Remove="Constants\**" />
     </ItemGroup>
 
     <ItemGroup>
@@ -41,6 +42,26 @@
         <ProjectReference Include="..\Diary.RedMine\Diary.RedMine.csproj" />
         <ProjectReference Include="..\Diary.Db.SQLite\Diary.Db.SQLite.csproj" />
         <ProjectReference Include="..\Diary.Utils\Diary.Utils.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <AvaloniaXaml Remove="Constants\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Remove="Constants\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <EmbeddedResource Remove="Constants\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <AdditionalFiles Remove="Constants\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Remove="Constants\**" />
     </ItemGroup>
 
     <Target Name="GenVersionInfo" BeforeTargets="BeforeBuild">

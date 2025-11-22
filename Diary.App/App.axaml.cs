@@ -10,13 +10,13 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.Messaging;
-using Diary.App.Constants;
 using Diary.App.Messages;
 using Diary.App.Models;
 using Diary.App.Utils;
 using Diary.App.ViewModels;
 using Diary.App.Views;
 using Diary.Core;
+using Diary.Core.Constants;
 using Diary.Core.Data.AppConfig;
 using Diary.Core.Utils;
 using Diary.Database;
@@ -86,8 +86,10 @@ namespace Diary.App
                     if (!UseDb.UpdateTables(DataVersion.VersionCode))
                     {
                         EventDispatcher.Notify("错误", "数据库升级失败了，可能是程序bug！");
+                        return;
                     }
                 }
+                EventDispatcher.RouteToPage(PageNames.DiaryEditor);
             }
         }
 

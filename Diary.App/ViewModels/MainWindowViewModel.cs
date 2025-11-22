@@ -8,7 +8,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
-using Diary.App.Constants;
+using Diary.Core.Constants;
 using Diary.App.Dialogs;
 using Diary.App.Messages;
 using Diary.App.Models;
@@ -92,7 +92,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 try
                 {
                     var msg = m.Value;
-                    await MessageBox.ShowOverlayAsync(msg.Body, msg.Body);
+                    await MessageBox.ShowOverlayAsync(msg.Body, msg.Title);
                 }
                 catch (Exception e)
                 {
@@ -105,7 +105,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void HandleCommand(string cmd)
     {
-        if (cmd == "SHOW_DB_SETTINGS")
+        if (cmd == CommandNames.ShowDbSettings)
         {
             Dispatcher.UIThread.Post(async () =>
             {
