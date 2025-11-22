@@ -25,7 +25,7 @@ public partial class MainWindowViewModel : ViewModelBase
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger _logger;
-    public string VersionString { get; } = $"{DataVersion.VersionString}.{VersionInfo.CommitCount}";
+    public string VersionString { get; } = $"{DataVersion.VersionString}.{VersionInfo.CommitCount}-{VersionInfo.GitVersionShort}";
 
     public string VersionDetails { get; } = $"""
                                              数据版本：{DataVersion.VersionString} (0x{DataVersion.VersionCode:X8})
@@ -105,26 +105,83 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void HandleCommand(string cmd)
     {
-        if (cmd == CommandNames.ShowDbSettings)
+        switch (cmd)
         {
-            Dispatcher.UIThread.Post(async () =>
-            {
-                var options = new OverlayDialogOptions()
+            case CommandNames.ShowDbSettings:
+                Dispatcher.UIThread.Post(async () =>
                 {
-                    CanDragMove = false,
-                    CanResize = true,
-                    CanLightDismiss = false,
-                    Mode = DialogMode.None,
-                    IsCloseButtonVisible = false,
-                };
-                var vm = _serviceProvider.GetRequiredService<GenericConfigViewModel>();
-                vm.InitSettings("数据库设置", App.Current.UseDb!.Config);
-                bool result = await OverlayDialog.ShowCustomModal<bool>(vm, options: options);
-                _logger.LogInformation($"db settings updated: {result}");
-            });
-            return;
+                    var options = new OverlayDialogOptions()
+                    {
+                        CanDragMove = false,
+                        CanResize = false,
+                        CanLightDismiss = false,
+                        Mode = DialogMode.None,
+                        IsCloseButtonVisible = false,
+                    };
+                    var vm = _serviceProvider.GetRequiredService<GenericConfigViewModel>();
+                    vm.InitSettings("数据库设置", App.Current.UseDb!.Config);
+                    bool result = await OverlayDialog.ShowCustomModal<bool>(vm, options: options);
+                    _logger.LogInformation($"db settings updated: {result}");
+                });
+                return;
+            case CommandNames.EditWorkTags:
+                Dispatcher.UIThread.Post(async () =>
+                {
+                    var options = new OverlayDialogOptions()
+                    {
+                        CanDragMove = false,
+                        CanResize = false,
+                        CanLightDismiss = false,
+                        Mode = DialogMode.None,
+                        IsCloseButtonVisible = false,
+                    };
+                    var vm = _serviceProvider.GetRequiredService<TagEditorViewModel>();
+                    await OverlayDialog.ShowCustomModal<object>(vm, options: options);
+                });
+                return;
         }
 
         throw new ArgumentOutOfRangeException(nameof(cmd));
+    }
+
+    [RelayCommand]
+    void Quit()
+    {
+        (View as Window)?.Close();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanMinimized))]
+    void Minimized()
+    {
+        if (View is Window window)
+            window.WindowState = WindowState.Minimized;
+    }
+    bool CanMinimized()
+    {
+        return (View as Window)?.WindowState != WindowState.Minimized;
+    }
+    
+    [RelayCommand(CanExecute = nameof(CanMaximized))]
+    void Maximized()
+    {
+        if (View is Window window)
+            window.WindowState = WindowState.Maximized;
+    }
+    bool CanMaximized()
+    {
+        return (View as Window)?.WindowState != WindowState.Maximized;
+    }
+
+    protected override void OnAttachView(Control? view)
+    {
+        Window? window = view as Window;
+        window!.PropertyChanged += (sender, args) =>
+        {
+            if (args.Property == Window.WindowStateProperty)
+            {
+                MinimizedCommand.NotifyCanExecuteChanged();
+                MaximizedCommand.NotifyCanExecuteChanged();
+            }
+        };
     }
 }

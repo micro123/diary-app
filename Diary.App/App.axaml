@@ -6,7 +6,9 @@
              xmlns:converters="clr-namespace:Diary.App.Converters"
              x:Class="Diary.App.App"
              xmlns:local="using:Diary.App"
-             xmlns:m="clr-namespace:Diary.App.Models">
+             xmlns:m="clr-namespace:Diary.App.Models"
+             xmlns:converters1="clr-namespace:Avalonia.Markup.Xaml.Converters;assembly=Avalonia.Markup.Xaml"
+             xmlns:converters2="clr-namespace:Avalonia.Controls.Converters;assembly=Avalonia.Controls.ColorPicker">
 
     <Application.DataTemplates>
         <local:ViewLocator/>
@@ -15,7 +17,7 @@
                 <Expander.Header>
                     <TextBlock Classes="SectionHeader" Text="{Binding Title}" FontSize="{StaticResource SemiFontSizeHeader1}" />
                 </Expander.Header>
-                <ItemsControl ItemsSource="{Binding Children}" />
+                <ItemsControl Classes="Settings" ItemsSource="{Binding Children}" />
             </Expander>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingText}">
@@ -119,7 +121,7 @@
         <Style Selector="Expander:down:expanded /template/ Border#ExpanderContent">
             <Setter Property="BorderBrush" Value="{DynamicResource ButtonDefaultDangerForeground}" />
         </Style>
-        <Style Selector="ItemsControl">
+        <Style Selector="ItemsControl.Settings">
             <Setter Property="Template">
                 <ControlTemplate>
                     <ScrollViewer Padding="{TemplateBinding Padding}">
@@ -128,10 +130,19 @@
                 </ControlTemplate>
             </Setter>
         </Style>
+        <Style Selector="TextBlock.Header">
+            <Setter Property="FontSize" Value="32" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultDangerForeground}" />
+        </Style>
+        <StyleInclude Source="avares://Semi.Avalonia.ColorPicker/Index.axaml" />
     </Application.Styles>
     
     <Application.Resources>
         <converters:DateConvert x:Key="DateConvert" />
         <converters:EnumConvert x:Key="EnumConvert" />
+        <converters1:ColorToBrushConverter x:Key="ColorToBrushConverter" />
+        <converters2:ToBrushConverter x:Key="ToBrushConverter" />
     </Application.Resources>
 </Application>

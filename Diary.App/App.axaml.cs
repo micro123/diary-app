@@ -148,7 +148,7 @@ namespace Diary.App
                 DisableAvaloniaDataAnnotationValidation();
                 desktop.MainWindow = new MainWindow();
                 var vm = Services.GetRequiredService<MainWindowViewModel>();
-                vm.View = desktop.MainWindow;
+                vm.SetView(desktop.MainWindow);
                 desktop.MainWindow.DataContext = vm;
                 desktop.ShutdownRequested += (_, _) => PreShutdown();
             }

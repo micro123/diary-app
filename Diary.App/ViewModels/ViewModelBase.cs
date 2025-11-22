@@ -9,7 +9,7 @@ namespace Diary.App.ViewModels;
 
 public class ViewModelBase : ObservableObject
 {
-    public Control? View { get; set; }
+    public Control? View { get; private set; }
     private WindowNotificationManager? _notificationManager;
     private WindowToastManager? _toastManager;
     private TopLevel? _topLevel;
@@ -41,4 +41,12 @@ public class ViewModelBase : ObservableObject
     }
     
     protected WeakReferenceMessenger Messenger => WeakReferenceMessenger.Default;
+    
+    protected virtual void OnAttachView(Control? view) { }
+
+    public void SetView(Control? view)
+    {
+        View = view;
+        OnAttachView(View);
+    }
 }

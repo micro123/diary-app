@@ -29,7 +29,7 @@ namespace Diary.App
                 .UsePlatformDetect()
                 .With(new FontManagerOptions
                 {
-                    DefaultFamilyName = "avares://Diary.App/Assets/Fonts#Noto Sans",
+                    DefaultFamilyName = "avares://Diary.App/Assets/Fonts#Zhuque Fangsong",
                     FontFallbacks =
                     [
                         new FontFallback { FontFamily = "avares://Diary.App/Assets/Fonts#OpenMoji", }

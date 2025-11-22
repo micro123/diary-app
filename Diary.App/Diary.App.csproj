@@ -10,15 +10,16 @@
     <ItemGroup>
         <AvaloniaResource Include="Assets\**" />
         <AvaloniaResource Remove="Constants\**" />
+        <AvaloniaResource Remove="Generated\**" />
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Avalonia" Version="11.3.8" />
-        <PackageReference Include="Avalonia.Desktop" Version="11.3.8" />
-        <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.8" />
-        <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.8" />
+        <PackageReference Include="Avalonia" Version="11.3.9" />
+        <PackageReference Include="Avalonia.Desktop" Version="11.3.9" />
+        <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.9" />
+        <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.9" />
         <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
-        <PackageReference Include="Avalonia.Diagnostics" Version="11.3.8">
+        <PackageReference Include="Avalonia.Diagnostics" Version="11.3.9">
             <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
             <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
         </PackageReference>
@@ -31,8 +32,8 @@
         <PackageReference Include="Projektanker.Icons.Avalonia.MaterialDesign" Version="9.6.2" />
         <PackageReference Include="Semi.Avalonia" Version="11.3.7.1" />
         <PackageReference Include="Semi.Avalonia.ColorPicker" Version="11.3.7.1" />
-        <PackageReference Include="Xaml.Behaviors.Avalonia" Version="11.3.8.2" />
-        <PackageReference Include="Xaml.Behaviors.Interactivity" Version="11.3.8.2" />
+        <PackageReference Include="Xaml.Behaviors.Avalonia" Version="11.3.9" />
+        <PackageReference Include="Xaml.Behaviors.Interactivity" Version="11.3.9" />
     </ItemGroup>
 
     <ItemGroup>
@@ -46,22 +47,27 @@
 
     <ItemGroup>
       <AvaloniaXaml Remove="Constants\**" />
+      <AvaloniaXaml Remove="Generated\**" />
     </ItemGroup>
 
     <ItemGroup>
       <Compile Remove="Constants\**" />
+      <Compile Remove="Generated\**" />
     </ItemGroup>
 
     <ItemGroup>
       <EmbeddedResource Remove="Constants\**" />
+      <EmbeddedResource Remove="Generated\**" />
     </ItemGroup>
 
     <ItemGroup>
       <AdditionalFiles Remove="Constants\**" />
+      <AdditionalFiles Remove="Generated\**" />
     </ItemGroup>
 
     <ItemGroup>
       <None Remove="Constants\**" />
+      <None Remove="Generated\**" />
     </ItemGroup>
 
     <Target Name="GenVersionInfo" BeforeTargets="BeforeBuild">

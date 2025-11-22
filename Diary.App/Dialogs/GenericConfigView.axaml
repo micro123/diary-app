@@ -9,18 +9,10 @@
     <Design.DataContext>
         <dialogs:GenericConfigViewModel />
     </Design.DataContext>
-    <UserControl.Styles>
-        <Style Selector="TextBlock.Header">
-            <Setter Property="FontSize" Value="32" />
-            <Setter Property="FontWeight" Value="Bold" />
-            <Setter Property="HorizontalAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultDangerForeground}" />
-        </Style>
-    </UserControl.Styles>
     <Grid RowSpacing="8" RowDefinitions="Auto,Auto,*,Auto">
         <TextBlock Grid.Row="0" Text="{Binding Title}" Classes="Header" />
         <Separator Grid.Row="1" />
-        <ItemsControl Grid.Row="2" ItemsSource="{Binding SettingGroup.Children}" />
+        <ItemsControl Grid.Row="2" Classes="Settings" ItemsSource="{Binding SettingGroup.Children}" />
         <StackPanel Grid.Row="3" Orientation="Horizontal"
                     HorizontalAlignment="Center" Spacing="16">
             <Button Classes="Primary" Content="保存" Command="{Binding SaveCommand}" />

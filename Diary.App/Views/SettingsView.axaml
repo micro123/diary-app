@@ -21,7 +21,7 @@
 
     <!-- 内容 -->
     <Grid RowDefinitions="*,Auto">
-        <ItemsControl ItemsSource="{Binding SettingsTree.Children}"/>
+        <ItemsControl Classes="Settings" ItemsSource="{Binding SettingsTree.Children}"/>
         <StackPanel Grid.Row="1" Orientation="Horizontal"
                     HorizontalAlignment="Center" Spacing="16"
                     Margin="32  8 32 0">

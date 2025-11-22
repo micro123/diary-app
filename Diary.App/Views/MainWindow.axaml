@@ -91,16 +91,13 @@
         <Grid ColumnDefinitions="Auto,*,Auto,Auto" Height="32" Margin="4 0" ColumnSpacing="8">
             <Button Grid.Column="0" Margin="0" Padding="0" BorderThickness="0"
                     Background="Transparent">
-                <Button.Content>
-                    <Image Source="/Assets/Icons/diary-app.ico" Width="32" Height="32" />
-                </Button.Content>
+                <Image Source="/Assets/Icons/diary-app.ico" Width="32" Height="32" />
                 <Button.Flyout>
                     <MenuFlyout>
-                        <MenuItem Header="1" />
-                        <MenuItem Header="1" />
-                        <MenuItem Header="1" />
+                        <MenuItem Header="最大化" Command="{Binding MaximizedCommand}"/>
+                        <MenuItem Header="最小化" Command="{Binding MinimizedCommand}"/>
                         <Separator />
-                        <MenuItem Header="1" />
+                        <MenuItem Header="退出" Command="{Binding QuitCommand}"/>
                     </MenuFlyout>
                 </Button.Flyout>
             </Button>

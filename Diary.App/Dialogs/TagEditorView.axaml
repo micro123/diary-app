@@ -2,7 +2,33 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:dialogs="clr-namespace:Diary.App.Dialogs"
+             xmlns:views="clr-namespace:Diary.App.Views"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-             x:Class="Diary.App.Dialogs.TagEditorView">
-    Welcome to Avalonia!
+             x:Class="Diary.App.Dialogs.TagEditorView"
+             Width="680"
+             Height="480" Margin="24">
+    <Design.DataContext>
+        <dialogs:TagEditorViewModel />
+    </Design.DataContext>
+    <Grid RowSpacing="8" RowDefinitions="Auto,Auto,*,Auto">
+        <TextBlock Grid.Row="0" Text="{Binding Title}" Classes="Header" />
+        <Separator Grid.Row="1" />
+        <ItemsControl Grid.Row="2" ItemsSource="{Binding AllTags}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel Orientation="Horizontal"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.DataTemplates>
+                <DataTemplate DataType="{x:Type dialogs:EditableWorkTag}">
+                    <views:TagView DataContext="{Binding}"/>
+                </DataTemplate>
+            </ItemsControl.DataTemplates>
+        </ItemsControl>
+        <StackPanel Grid.Row="3" Orientation="Horizontal"
+                    HorizontalAlignment="Center" Spacing="16">
+            <Button Classes="Primary" Content="确定" Command="{Binding SaveCommand}" />
+        </StackPanel>
+    </Grid>
 </UserControl>

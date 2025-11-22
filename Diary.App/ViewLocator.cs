@@ -20,7 +20,7 @@ namespace Diary.App
             {
                 var control = (Control)Activator.CreateInstance(type)!;
                 var vm = param as ViewModelBase;
-                vm!.View = control;
+                vm!.SetView(control);
                 return control;
             }
 
