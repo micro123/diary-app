@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.Messages;
+using Ursa.Controls;
 
 namespace Diary.App.Models;
 
@@ -105,6 +107,27 @@ public sealed partial class SettingText(string title, bool password, object o, P
     protected override void LoadAction()
     {
         Value = (string)Prop.GetValue(Obj)!;
+    }
+
+    protected override void SaveAction()
+    {
+        Prop.SetValue(Obj, Value);
+    }
+}
+
+public sealed partial class SettingPath(string title, bool isFolder, object o, PropertyInfo p)
+    : EditableItemModel(title, o, p, EnsureString)
+{
+    [ObservableProperty] private string _value = "";
+    [ObservableProperty] private string _dirName = "";
+    public string PickerTitle => isFolder ? "选择目录" : "选择文件";
+
+    public UsePickerTypes PickerType => isFolder ? UsePickerTypes.OpenFolder : UsePickerTypes.OpenFile;
+    
+    protected override void LoadAction()
+    {
+        Value = (string)Prop.GetValue(Obj)!;
+        DirName = Path.GetDirectoryName(Value) ?? "";
     }
 
     protected override void SaveAction()

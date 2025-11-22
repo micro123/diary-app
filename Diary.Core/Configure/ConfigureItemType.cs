@@ -9,6 +9,7 @@ public enum ConfigureItemType
     Choice,
     Button,
     User,
+    Path,
     
     Group,
 }

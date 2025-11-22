@@ -5,10 +5,81 @@
              xmlns:u="clr-namespace:Ursa.Controls;assembly=Ursa"
              xmlns:converters="clr-namespace:Diary.App.Converters"
              x:Class="Diary.App.App"
-             xmlns:local="using:Diary.App">
+             xmlns:local="using:Diary.App"
+             xmlns:m="clr-namespace:Diary.App.Models">
 
     <Application.DataTemplates>
         <local:ViewLocator/>
+        <DataTemplate DataType="{x:Type m:SettingGroup}">
+            <Expander IsExpanded="True">
+                <Expander.Header>
+                    <TextBlock Classes="SectionHeader" Text="{Binding Title}" FontSize="{StaticResource SemiFontSizeHeader1}" />
+                </Expander.Header>
+                <ItemsControl ItemsSource="{Binding Children}" />
+            </Expander>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type m:SettingText}">
+            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,*" Margin="8 4" VerticalAlignment="Center"
+                  ColumnSpacing="16">
+                <TextBlock Classes="SettingLineCaption" />
+                <TextBox Classes="SLV ClearButton" Classes.RevealPasswordButton="{Binding Password}"
+                         Grid.Column="1" Text="{Binding Value}"
+                         PasswordChar="{Binding MaskChar}"/>
+            </Grid>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type m:SettingPath}">
+            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,*" Margin="8 4" VerticalAlignment="Center"
+                  ColumnSpacing="16">
+                <TextBlock Classes="SettingLineCaption" />
+                <u:PathPicker Grid.Column="1" Classes="SLV" AllowMultiple="False"
+                              UsePickerType="{Binding PickerType}" SelectedPathsText="{Binding Value}"
+                              Title="{Binding PickerTitle}" IsClearSelectionOnCancel="False"
+                              SuggestedStartPath="{Binding DirName}" ToolTip.Tip="{Binding Value}"/>
+            </Grid>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type m:SettingInteger}">
+            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,*" Margin="8 4" VerticalAlignment="Center"
+                  ColumnSpacing="16">
+                <TextBlock Classes="SettingLineCaption" />
+                <u:NumericLongUpDown Grid.Column="1" Classes="SLV" Value="{Binding Value}"
+                                     Minimum="{Binding MinValue}"
+                                     Maximum="{Binding MaxValue}" />
+            </Grid>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type m:SettingReal}">
+            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,*" Margin="8 4" VerticalAlignment="Center"
+                  ColumnSpacing="16">
+                <TextBlock Classes="SettingLineCaption" />
+                <u:NumericDoubleUpDown Grid.Column="1" Classes="SLV" Value="{Binding Value}"
+                                       Minimum="{Binding MinValue}"
+                                       Maximum="{Binding MaxValue}" />
+            </Grid>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type m:SettingSwitch}">
+            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,*" Margin="8 4" VerticalAlignment="Center"
+                  ColumnSpacing="16">
+                <TextBlock Classes="SettingLineCaption" />
+                <ToggleSwitch Grid.Column="1" Classes="SLV" IsChecked="{Binding Value}"
+                          VerticalAlignment="Center" OnContent="" OffContent=""
+                          HorizontalContentAlignment="Left" />
+            </Grid>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type m:SettingChoice}">
+            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,*" Margin="8 4" VerticalAlignment="Center"
+                  ColumnSpacing="16">
+                <TextBlock Classes="SettingLineCaption" />
+                <ComboBox Grid.Column="1" Classes="SLV Bordered" SelectedIndex="{Binding SelectedIndex}"
+                          ItemsSource="{Binding Options}" />
+            </Grid>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type m:SettingButton}">
+            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,*" Margin="8 4" VerticalAlignment="Center"
+                  ColumnSpacing="16">
+                <TextBlock Classes="SettingLineCaption" />
+                <Button Grid.Column="1" Classes="SLV" Content="{Binding Text}"
+                        Command="{Binding ExecuteCommand}" />
+            </Grid>
+        </DataTemplate>
     </Application.DataTemplates>
   
     <Application.Styles>
@@ -16,6 +87,46 @@
         <u-semi:SemiTheme Locale="zh-CN"/>
         <Style Selector="u|WindowNotificationManager">
             <Setter Property="Position" Value="BottomRight"/>
+        </Style>
+        <Style Selector="Grid.SettingLineBox">
+            <Setter Property="MinWidth" Value="450" />
+        </Style>
+        <Style Selector="TextBlock.SettingLineCaption">
+            <Setter Property="Width" Value="100" />
+            <Setter Property="FontSize" Value="{StaticResource SemiFontSizeRegular}" />
+            <Setter Property="TextAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Text" Value="{Binding Title, StringFormat='{}: '}" />
+        </Style>
+        <Style Selector="Expander:down">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Style Selector="^ TextBlock.SectionHeader">
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+            </Style>
+            <Style Selector="^:expanded TextBlock.SectionHeader">
+                <Setter Property="Foreground" Value="{DynamicResource ToggleSwitchContainerCheckedDefaultBackground}" />
+            </Style>
+        </Style>
+        <Style Selector="TextBox.SLV, ToggleSwitch.SLV, ComboBox.SLV, Button.SLV, u|PathPicker.SLV">
+            <Setter Property="Width" Value="240" />
+        </Style>
+        <Style Selector="u|NumericUpDown.SLV">
+            <Setter Property="Width" Value="240" />
+        </Style>
+        <Style Selector="Expander:down /template/ Border#ExpanderContent">
+            <Setter Property="BorderThickness" Value="0 0 0 2" />
+        </Style>
+        <Style Selector="Expander:down:expanded /template/ Border#ExpanderContent">
+            <Setter Property="BorderBrush" Value="{DynamicResource ButtonDefaultDangerForeground}" />
+        </Style>
+        <Style Selector="ItemsControl">
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <ScrollViewer Padding="{TemplateBinding Padding}">
+                        <ItemsPresenter />
+                    </ScrollViewer>
+                </ControlTemplate>
+            </Setter>
         </Style>
     </Application.Styles>
     

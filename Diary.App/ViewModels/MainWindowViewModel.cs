@@ -111,15 +111,16 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 var options = new OverlayDialogOptions()
                 {
-                    Title = "数据库设置",
                     CanDragMove = false,
                     CanResize = true,
                     CanLightDismiss = false,
                     Mode = DialogMode.None,
-                    IsCloseButtonVisible = true,
+                    IsCloseButtonVisible = false,
                 };
-                OverlayDialog.ShowCustom(_serviceProvider.GetRequiredService<DatabaseConfigViewModel>(),
-                    options: options);
+                var vm = _serviceProvider.GetRequiredService<GenericConfigViewModel>();
+                vm.InitSettings("数据库设置", App.Current.UseDb!.Config);
+                bool result = await OverlayDialog.ShowCustomModal<bool>(vm, options: options);
+                _logger.LogInformation($"db settings updated: {result}");
             });
             return;
         }

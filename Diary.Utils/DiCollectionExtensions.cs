@@ -26,9 +26,9 @@ public static class DiCollectionExtensions
                 else
                 {
                     if (string.IsNullOrEmpty(attr.Key))
-                        collection.AddScoped(attr.ServiceType ?? type, type);
+                        collection.AddTransient(attr.ServiceType ?? type, type);
                     else
-                        collection.AddKeyedScoped(attr.ServiceType ?? type, attr.Key, type);
+                        collection.AddKeyedTransient(attr.ServiceType ?? type, attr.Key, type);
                 }
             }
         }

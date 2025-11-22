@@ -55,6 +55,10 @@ public class ConfigureButtonAttribute(string caption, string text, string comman
     public string Command { get; } = command;
 }
 
-public class ConfigureGroupAttribute(string caption) : ConfigureAttribute(ConfigureItemType.Group, caption)
+public class ConfigurePathAttribute(string caption, bool isFolder = false)
+    : ConfigureAttribute(ConfigureItemType.Path, caption)
 {
+    public bool IsFolder { get; } = isFolder;
 }
+
+public class ConfigureGroupAttribute(string caption) : ConfigureAttribute(ConfigureItemType.Group, caption);

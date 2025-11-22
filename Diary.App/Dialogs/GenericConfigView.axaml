@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:dialogs="clr-namespace:Diary.App.Dialogs"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             Margin="32"
+             x:Class="Diary.App.Dialogs.GenericConfigView">
+    <Design.DataContext>
+        <dialogs:GenericConfigViewModel />
+    </Design.DataContext>
+    <UserControl.Styles>
+        <Style Selector="TextBlock.Header">
+            <Setter Property="FontSize" Value="32" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultDangerForeground}" />
+        </Style>
+    </UserControl.Styles>
+    <Grid RowSpacing="8" RowDefinitions="Auto,Auto,*,Auto">
+        <TextBlock Grid.Row="0" Text="{Binding Title}" Classes="Header" />
+        <Separator Grid.Row="1" />
+        <ItemsControl Grid.Row="2" ItemsSource="{Binding SettingGroup.Children}" />
+        <StackPanel Grid.Row="3" Orientation="Horizontal"
+                    HorizontalAlignment="Center" Spacing="16">
+            <Button Classes="Primary" Content="保存" Command="{Binding SaveCommand}" />
+            <Button Classes="Danger" Content="放弃" Command="{Binding CancelCommand}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

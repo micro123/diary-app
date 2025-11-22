@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using Avalonia;
@@ -58,6 +59,9 @@ namespace Diary.App
             else
             {
                 UseDb = factory.Create();
+                Debug.Assert(UseDb != null);
+                if (UseDb.Config != null)
+                    EasySaveLoad.Load(UseDb.Config);
                 // open
                 if (!UseDb.Connect())
                 {

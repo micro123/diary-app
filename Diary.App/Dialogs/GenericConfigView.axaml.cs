@@ -4,9 +4,9 @@ using Avalonia.Markup.Xaml;
 
 namespace Diary.App.Dialogs;
 
-public partial class DatabaseConfigView : UserControl
+public partial class GenericConfigView : UserControl
 {
-    public DatabaseConfigView()
+    public GenericConfigView()
     {
         InitializeComponent();
     }

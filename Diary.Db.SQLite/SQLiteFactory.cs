@@ -1,3 +1,4 @@
+using Diary.Core.Utils;
 using Diary.Database;
 
 namespace Diary.Db.SQLite;
