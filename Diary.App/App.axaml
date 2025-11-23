@@ -136,12 +136,17 @@
             <Setter Property="HorizontalAlignment" Value="Center" />
             <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultDangerForeground}" />
         </Style>
+        <Style Selector="ToggleSwitch">
+            <Setter Property="OnContent" Value="{x:Null}"/>
+            <Setter Property="OffContent" Value="{x:Null}"/>
+        </Style>
         <StyleInclude Source="avares://Semi.Avalonia.ColorPicker/Index.axaml" />
     </Application.Styles>
     
     <Application.Resources>
         <converters:DateConvert x:Key="DateConvert" />
         <converters:EnumConvert x:Key="EnumConvert" />
+        <converters:HsvColorConverter x:Key="Hsv2Int" />
         <converters1:ColorToBrushConverter x:Key="ColorToBrushConverter" />
         <converters2:ToBrushConverter x:Key="ToBrushConverter" />
     </Application.Resources>

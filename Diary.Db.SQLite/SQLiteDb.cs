@@ -173,12 +173,14 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         return true;
     }
 
-    public override WorkTag CreateWorkTag(string name)
+    public override WorkTag CreateWorkTag(string name, bool primary, int color)
     {
-        const string sql = @"INSERT INTO work_tags(tag_name) VALUES ($value) RETURNING *;";
+        const string sql = @"INSERT OR IGNORE INTO work_tags(tag_name,tag_level,tag_color) VALUES ($value,$level,$color) RETURNING *;";
         var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$value", name);
+        cmd.Parameters.AddWithValue("$level", primary ? 1 : 0);
+        cmd.Parameters.AddWithValue("$color", color);
         using var reader = cmd.ExecuteReader();
         if (reader.Read())
         {
@@ -203,10 +205,9 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         }
 
         const string sql =
-            @"UPDATE OR FAIL work_tags SET tag_name=$name, tag_color=$color, tag_level=$level, disabled=$disabled WHERE id=$id;";
+            @"UPDATE OR FAIL work_tags SET tag_color=$color, tag_level=$level, is_disabled=$disabled WHERE id=$id;";
         var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$name", tag.Name);
         cmd.Parameters.AddWithValue("$color", tag.Color);
         cmd.Parameters.AddWithValue("$level", tag.Level);
         cmd.Parameters.AddWithValue("$disabled", tag.Disabled ? 1 : 0);

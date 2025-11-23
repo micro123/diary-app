@@ -22,7 +22,7 @@ public abstract class DbInterfaceBase
     public abstract bool UpdateTables(uint targetVersion);
 
     // work tag
-    public abstract WorkTag CreateWorkTag(string name);
+    public abstract WorkTag CreateWorkTag(string name, bool primary, int color);
     public abstract bool UpdateWorkTag(WorkTag tag);
     public abstract bool DeleteWorkTag(WorkTag tag);
     public abstract ICollection<WorkTag> AllWorkTags();

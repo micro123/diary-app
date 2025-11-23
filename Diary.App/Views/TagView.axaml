@@ -5,6 +5,7 @@
              xmlns:dialogs="clr-namespace:Diary.App.Dialogs"
              xmlns:i="https://github.com/projektanker/icons.avalonia"
              xmlns:colorPicker="https://irihi.tech/semi"
+             xmlns:u="https://irihi.tech/ursa"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="Diary.App.Views.TagView">
     <Design.DataContext>
@@ -14,21 +15,36 @@
         <Style Selector="TextBlock, ToggleSwitch">
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
+        <Style Selector="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+        </Style>
     </UserControl.Styles>
-    <Border Theme="{StaticResource CardBorder}" Padding="8 2" >
-        <StackPanel Orientation="Horizontal" Spacing="8">
-            <TextBlock Text="{Binding Id, StringFormat='#{0}: '}" />
-            <TextBox Text="{Binding Name}"/>
-            <ColorPicker ColorSpectrumShape="Box">
+    <Border Theme="{StaticResource CardBorder}" Padding="6">
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,Auto,Auto,Auto"
+              ColumnSpacing="4" RowSpacing="4">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Id, StringFormat='#{0}'}"/>
+            <TextBlock Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Name}"
+                       Width="180" ToolTip.Tip="{Binding Name}"/>
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="颜色"/>
+            <ColorPicker Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3"
+                         HsvColor="{Binding Color, Converter={StaticResource Hsv2Int}}"
+                         ColorSpectrumShape="Box" HorizontalAlignment="Left">
                 <ColorPicker.Palette>
                     <colorPicker:SemiColorLightPalette />
                 </ColorPicker.Palette>
             </ColorPicker>
-            <ToggleSwitch IsChecked="{Binding Disabled}" OnContent="{x:Null}" OffContent="{x:Null}"
-                          />
-            <Button i:Attached.Icon="fa-trash-can" Theme="{StaticResource BorderlessButton}"
-                    Width="28" Height="28" Padding="0" ToolTip.Tip="删除标签"
-                    Command="{Binding DeleteCommand}"/>
-        </StackPanel>
+            <!-- <Button Grid.Row="1" Grid.Column="2" i:Attached.Icon="fa-floppy-disk" ToolTip.Tip="保存" -->
+            <!--         Theme="{DynamicResource BorderlessButton}" Classes="Small"/> -->
+            <!-- <Button Grid.Row="1" Grid.Column="3" i:Attached.Icon="fa-trash-can" ToolTip.Tip="删除" -->
+            <!--         Theme="{DynamicResource BorderlessButton}" Classes="Small Danger"/> -->
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="主标签"/>
+            <ToggleSwitch Grid.Row="2" Grid.Column="1" IsChecked="{Binding Primary}"/>
+            <TextBlock Grid.Row="2" Grid.Column="2" Text="禁用"/>
+            <ToggleSwitch Grid.Row="2" Grid.Column="3" IsChecked="{Binding Disabled}"/>
+            <Button Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="4" ToolTip.Tip="删除此标签"
+                    HorizontalAlignment="Stretch" i:Attached.Icon="fa-trash-can"
+                    Command="{Binding DeleteCommand}"
+                    Theme="{DynamicResource BorderlessButton}" Classes="Danger"/>
+        </Grid>
     </Border>
 </UserControl>

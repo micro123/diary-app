@@ -6,29 +6,51 @@
              xmlns:views="clr-namespace:Diary.App.Views"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="Diary.App.Dialogs.TagEditorView"
-             Width="680"
-             Height="480" Margin="24">
+             xmlns:u="https://irihi.tech/ursa"
+             xmlns:colorPicker="https://irihi.tech/semi"
+             Width="750"
+             Height="640" Margin="0 24 0 4">
     <Design.DataContext>
         <dialogs:TagEditorViewModel />
     </Design.DataContext>
-    <Grid RowSpacing="8" RowDefinitions="Auto,Auto,*,Auto">
+    <Grid RowSpacing="8" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto">
         <TextBlock Grid.Row="0" Text="{Binding Title}" Classes="Header" />
         <Separator Grid.Row="1" />
-        <ItemsControl Grid.Row="2" ItemsSource="{Binding AllTags}">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <WrapPanel Orientation="Horizontal"/>
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.DataTemplates>
-                <DataTemplate DataType="{x:Type dialogs:EditableWorkTag}">
-                    <views:TagView DataContext="{Binding}"/>
-                </DataTemplate>
-            </ItemsControl.DataTemplates>
-        </ItemsControl>
-        <StackPanel Grid.Row="3" Orientation="Horizontal"
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="8 2" Spacing="8">
+            <TextBlock Text="名称：" VerticalAlignment="Center"/>
+            <TextBox Text="{Binding NewTagName}" Width="150"/>
+            <CheckBox Content="是主标签吗？" IsChecked="{Binding NewIsPrimary}"
+                      VerticalAlignment="Center" Theme="{DynamicResource CardCheckBox}"/>
+            <TextBlock Text="标签颜色：" VerticalAlignment="Center"/>
+            <ColorPicker ColorSpectrumShape="Box" HorizontalAlignment="Left" Width="80"
+                         Theme="{StaticResource SimpleColorPicker}"
+                         IsAlphaEnabled="False" IsAlphaVisible="False"
+                         HsvColor="{Binding NewTagColor}">
+                <ColorPicker.Palette>
+                    <colorPicker:SemiColorLightPalette />
+                </ColorPicker.Palette>
+            </ColorPicker>
+            <Button Content="添加" Command="{Binding NewTagCommand}"/>
+        </StackPanel>
+        <Separator Grid.Row="3" />
+        <ScrollViewer Grid.Row="4">
+            <ItemsControl ItemsSource="{Binding AllTags}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.DataTemplates>
+                    <DataTemplate DataType="{x:Type dialogs:EditableWorkTag}">
+                        <views:TagView DataContext="{Binding}" />
+                    </DataTemplate>
+                </ItemsControl.DataTemplates>
+            </ItemsControl>
+        </ScrollViewer>
+        <Separator Grid.Row="5" />
+        <StackPanel Grid.Row="6" Orientation="Horizontal"
                     HorizontalAlignment="Center" Spacing="16">
-            <Button Classes="Primary" Content="确定" Command="{Binding SaveCommand}" />
+            <Button Classes="Primary" Content="关闭" Command="{Binding SaveCommand}" />
         </StackPanel>
     </Grid>
 </UserControl>

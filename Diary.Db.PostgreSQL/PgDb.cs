@@ -38,7 +38,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase
         throw new NotImplementedException();
     }
 
-    public override WorkTag CreateWorkTag(string name)
+    public override WorkTag CreateWorkTag(string name, bool primary, int color)
     {
         throw new NotImplementedException();
     }

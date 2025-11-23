@@ -1,4 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Diary.App.Utils;
 using Diary.Core.Data.Base;
 
 namespace Diary.App.Dialogs;
@@ -13,8 +15,26 @@ public partial class EditableWorkTag(WorkTag tag) : ObservableObject
     [ObservableProperty] private bool _primary = tag.Level == TagLevels.Primary;
     [ObservableProperty] private bool _disabled = tag.Disabled;
 
-    public void ApplyChanges()
+    public bool ApplyChanges()
     {
-        // todo: check if changed
+        if (Color != _tag.Color || (Primary != (_tag.Level == TagLevels.Primary)) || Disabled != _tag.Disabled)
+        {
+            _tag.Color = Color;
+            _tag.Level = Primary ? TagLevels.Primary : TagLevels.Secondary;
+            _tag.Disabled = Disabled;
+            App.Current.UseDb!.UpdateWorkTag(_tag);
+            return true;
+        }
+
+        return false;
+    }
+
+    [RelayCommand]
+    void Delete()
+    {
+        if (App.Current.UseDb!.DeleteWorkTag(_tag))
+        {
+            EventDispatcher.DbChanged();
+        }
     }
 }

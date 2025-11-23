@@ -17,4 +17,9 @@ public static class EventDispatcher
     {
         Messenger.Send(new PageSwitchEvent(page));
     }
+
+    public static void DbChanged()
+    {
+        Messenger.Send(new DbChangedEvent());
+    }
 }
