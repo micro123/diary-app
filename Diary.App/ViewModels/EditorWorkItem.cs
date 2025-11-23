@@ -1,6 +1,8 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Diary.App.Utils;
 using Diary.Core.Data.Base;
+using Diary.Database;
 using Diary.Utils;
 
 namespace Diary.App.ViewModels;
@@ -20,6 +22,8 @@ public partial class WorkEditorViewModel : ViewModelBase
     // todo: redmine date
 
     // todo: plm?
+
+    private DbInterfaceBase? Db => App.Current.UseDb;
 
     public static WorkEditorViewModel FromWorkItem(WorkItem workItem)
     {
@@ -44,25 +48,48 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     public void Save()
     {
-        if (WorkItem != null)
+        var db = Db!;
+        if (WorkItem == null)
         {
-            // todo: update exists
+            WorkItem = db.CreateWorkItem(Date, Comment);
+            if (WorkItem.Id <= 0)
+            {
+                EventDispatcher.ShowToast("保存失败了！");
+                return;
+            }
+            WorkItem.Priority = Priority;
+            WorkItem.Time = Time;
         }
         else
         {
-            // create new
+            WorkItem.CreateDate = Date;
+            WorkItem.Comment = Comment;
+            WorkItem.Time = Time;
+            WorkItem.Priority = Priority;
+        }
+        
+        db.UpdateWorkItem(WorkItem);
+        
+        if (!string.IsNullOrWhiteSpace(Note))
+        {
+            db.WorkUpdateNote(WorkItem, Note);
+        }
+        else
+        {
+            db.WorkDeleteNote(WorkItem);
         }
     }
 
     public void Delete()
     {
         // remove from db
+        Db!.DeleteWorkItem(WorkItem!);
     }
 
     public bool CanDelete()
     {
         // todo: check if commited
-        return true;
+        return WorkItem!=null && WorkItem.Id!=0;
     }
 
     [RelayCommand]
@@ -73,6 +100,14 @@ public partial class WorkEditorViewModel : ViewModelBase
             case  "0": Date = TimeTools.Today(); break;
             case "+1": Date = TimeTools.Tomorrow(); break;
             case "-1": Date = TimeTools.Yestoday(); break;
+        }
+    }
+
+    public void SyncNote()
+    {
+        if (WorkItem != null && WorkItem.Id > 0)
+        {
+            Note = Db!.WorkGetNote(WorkItem!) ?? string.Empty;
         }
     }
 }

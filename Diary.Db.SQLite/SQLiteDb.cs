@@ -286,7 +286,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         cmd.Parameters.AddWithValue("$create_date", item.CreateDate);
         cmd.Parameters.AddWithValue("$comment", item.Comment);
         cmd.Parameters.AddWithValue("$time", item.Time);
-        cmd.Parameters.AddWithValue("$priority", item.Priority);
+        cmd.Parameters.AddWithValue("$priority", (int)item.Priority);
         return cmd.ExecuteNonQuery() > 0;
     }
 
@@ -307,38 +307,65 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         throw new NotImplementedException();
     }
 
-    public override WorkNote WorkUpdateNote(WorkItem work, string content)
+    public override ICollection<WorkItem> GetWorkItemByDate(string date)
+    {
+        const string sql = @"SELECT * FROM work_items WHERE create_date=$date ORDER BY priority ASC;";
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$date", date);
+        using var reader = cmd.ExecuteReader();
+        List<WorkItem> items = new();
+        while (reader.Read())
+        {
+            items.Add(new WorkItem()
+            {
+                Id = reader.GetInt32(0),
+                CreateDate =  reader.GetString(1),
+                Comment = reader.GetString(2),
+                Time = reader.GetDouble(3),
+                Priority = (WorkPriorities)reader.GetInt32(4),
+            });
+        }
+        return items;
+    }
+
+    public override void WorkUpdateNote(WorkItem work, string content)
     {
         if (work.Id == 0)
             throw new ArgumentException("work id is required");
 
         const string sql =
-            @"INSERT INTO work_notes(id, note) VALUES ($id, $note) ON CONFLICT (id) DO UPDATE SET note=@note RETURNING *;";
+            @"INSERT INTO work_notes(id, note) VALUES ($id, $note) ON CONFLICT (id) DO UPDATE SET note=$note RETURNING *;";
         var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$id", work.Id);
         cmd.Parameters.AddWithValue("$note", content);
-        using var reader = cmd.ExecuteReader();
-        if (reader.Read())
-        {
-            return new WorkNote()
-            {
-                WorkId = reader.GetInt32(0),
-                Notes = reader.GetString(1),
-            };
-        }
-
-        return new WorkNote();
+        cmd.ExecuteNonQuery();
     }
 
-    public override bool WorkDeleteNote(WorkItem work)
+    public override void WorkDeleteNote(WorkItem work)
     {
         const string sql =
             @"DELETE FROM work_notes WHERE id=$id;";
         var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$id", work.Id);
-        return cmd.ExecuteNonQuery() > 0;
+        cmd.ExecuteNonQuery();
+    }
+
+    public override string? WorkGetNote(WorkItem work)
+    {
+        const string sql =
+            @"SELECT note FROM work_notes WHERE id=$id;";
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$id", work.Id);
+        using var reader = cmd.ExecuteReader();
+        if (reader.Read())
+        {
+            return reader.GetString(0);
+        }
+        return null;
     }
 
     public override bool WorkItemAddTag(WorkItem item, WorkTag tag)

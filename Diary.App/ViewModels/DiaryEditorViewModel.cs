@@ -44,6 +44,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanSave))]
     private void SaveWorkItem()
     {
+        SelectedWork!.Save();
     }
 
     private bool CanSave => SelectedWork != null;
@@ -77,6 +78,17 @@ public partial class DiaryEditorViewModel : ViewModelBase
         FetchWorks();
     }
 
+    partial void OnSelectedWorkChanging(WorkEditorViewModel? value)
+    {
+        // save old
+        SelectedWork?.Save();
+    }
+    
+    partial void OnSelectedWorkChanged(WorkEditorViewModel? value)
+    {
+        value?.SyncNote();
+    }
+
     public DiaryEditorViewModel(ILogger logger)
     {
         _logger = logger;
@@ -86,6 +98,19 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private void FetchWorks()
     {
         DailyWorks.Clear();
+        var db = App.Current.UseDb;
+        if (db != null)
+        {
+            var dbItems = db.GetWorkItemByDate(CurrentDateString);
+            foreach (var item in dbItems)
+            {
+                DailyWorks.Add(WorkEditorViewModel.FromWorkItem(item));
+            }
+        }
+        else
+        {
+            _logger.LogWarning("db is null");
+        }
     }
 
     #region 编辑器数据

@@ -32,10 +32,12 @@ public abstract class DbInterfaceBase
     public abstract bool UpdateWorkItem(WorkItem item);
     public abstract bool DeleteWorkItem(WorkItem item);
     public abstract ICollection<WorkItem> GetWorkItemByDateRange(string beginData, string endData);
+    public abstract ICollection<WorkItem> GetWorkItemByDate(string data);
 
     // work note
-    public abstract WorkNote WorkUpdateNote(WorkItem work, string content);
-    public abstract bool WorkDeleteNote(WorkItem work);
+    public abstract void WorkUpdateNote(WorkItem work, string content);
+    public abstract void WorkDeleteNote(WorkItem work);
+    public abstract string? WorkGetNote(WorkItem work);
     
     // work item - work tag
     public abstract bool WorkItemAddTag(WorkItem item, WorkTag tag);

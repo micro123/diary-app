@@ -78,12 +78,22 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase
         throw new NotImplementedException();
     }
 
-    public override WorkNote WorkUpdateNote(WorkItem work, string content)
+    public override ICollection<WorkItem> GetWorkItemByDate(string data)
     {
         throw new NotImplementedException();
     }
 
-    public override bool WorkDeleteNote(WorkItem work)
+    public override void WorkUpdateNote(WorkItem work, string content)
+    {
+        throw new NotImplementedException();
+    }
+
+    public override void WorkDeleteNote(WorkItem work)
+    {
+        throw new NotImplementedException();
+    }
+
+    public override string? WorkGetNote(WorkItem work)
     {
         throw new NotImplementedException();
     }
