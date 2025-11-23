@@ -9,13 +9,13 @@
              xmlns:u="https://irihi.tech/ursa"
              xmlns:colorPicker="https://irihi.tech/semi"
              Width="750"
-             Height="640" Margin="0 24 0 4">
+             Height="640" Margin="2 24 2 4">
     <Design.DataContext>
         <dialogs:TagEditorViewModel />
     </Design.DataContext>
     <Grid RowSpacing="8" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto">
         <TextBlock Grid.Row="0" Text="{Binding Title}" Classes="Header" />
-        <Separator Grid.Row="1" />
+        <u:Divider Content="新建标签" Grid.Row="1" HorizontalContentAlignment="Left"/>
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="8 2" Spacing="8">
             <TextBlock Text="名称：" VerticalAlignment="Center"/>
             <TextBox Text="{Binding NewTagName}" Width="150"/>
@@ -32,7 +32,7 @@
             </ColorPicker>
             <Button Content="添加" Command="{Binding NewTagCommand}"/>
         </StackPanel>
-        <Separator Grid.Row="3" />
+        <u:Divider Content="已有标签" Grid.Row="3" HorizontalContentAlignment="Left" />
         <ScrollViewer Grid.Row="4">
             <ItemsControl ItemsSource="{Binding AllTags}">
                 <ItemsControl.ItemsPanel>
@@ -47,7 +47,7 @@
                 </ItemsControl.DataTemplates>
             </ItemsControl>
         </ScrollViewer>
-        <Separator Grid.Row="5" />
+        <u:Divider Grid.Row="5" />
         <StackPanel Grid.Row="6" Orientation="Horizontal"
                     HorizontalAlignment="Center" Spacing="16">
             <Button Classes="Primary" Content="关闭" Command="{Binding SaveCommand}" />

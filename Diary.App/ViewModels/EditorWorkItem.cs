@@ -1,25 +1,26 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Diary.Core.Data.Base;
 using Diary.Utils;
 
 namespace Diary.App.ViewModels;
 
-public partial class WorkEditorViewModel: ViewModelBase
+public partial class WorkEditorViewModel : ViewModelBase
 {
     // db data fields
     private WorkItem? WorkItem { get; set; } // ref to existed db item, may null
-    
+
     // generic data
     [ObservableProperty] private string _date;
     [ObservableProperty] private string _comment;
     [ObservableProperty] private string _note;
     [ObservableProperty] private double _time;
     [ObservableProperty] private WorkPriorities _priority;
-    
+
     // todo: redmine date
-    
+
     // todo: plm?
-    
+
     public static WorkEditorViewModel FromWorkItem(WorkItem workItem)
     {
         return new WorkEditorViewModel
@@ -62,5 +63,16 @@ public partial class WorkEditorViewModel: ViewModelBase
     {
         // todo: check if commited
         return true;
+    }
+
+    [RelayCommand]
+    private void QuickDate(string what)
+    {
+        switch (what)
+        {
+            case  "0": Date = TimeTools.Today(); break;
+            case "+1": Date = TimeTools.Tomorrow(); break;
+            case "-1": Date = TimeTools.Yestoday(); break;
+        }
     }
 }

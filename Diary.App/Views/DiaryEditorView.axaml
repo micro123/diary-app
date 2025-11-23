@@ -15,8 +15,8 @@
 
     <UserControl.Styles>
         <Style Selector="Button.ActionButton">
-            <Setter Property="Command" Value="{Binding TestCommand}" />
-            <Setter Property="CommandParameter" Value="{Binding $self.Content}" />
+            <!-- <Setter Property="Command" Value="{Binding TestCommand}" /> -->
+            <!-- <Setter Property="CommandParameter" Value="{Binding $self.Content}" /> -->
             <Setter Property="ToolTip.Tip" Value="{Binding $self.HotKey, StringFormat='快捷键：{0}'}" />
         </Style>
     </UserControl.Styles>
@@ -27,10 +27,11 @@
             <Grid ColumnSpacing="8" ColumnDefinitions="Auto,*,Auto" HorizontalAlignment="Stretch">
                 <TextBlock Text="日期选择" VerticalAlignment="Center" />
                 <Button Grid.Column="2" Content="回到今天"
+                        HotKey="Ctrl+T" Classes="ActionButton"
                         Command="{Binding SelectTodayCommand}" />
             </Grid>
             <Separator/>
-            <Calendar FirstDayOfWeek="Sunday" FontSize="24"
+            <Calendar FirstDayOfWeek="Sunday"
                       IsTodayHighlighted="True" SelectionMode="SingleDate"
                       DisplayDate="{Binding CurrentDate}"
                       SelectedDate="{Binding SelectedDate}" />
@@ -50,15 +51,22 @@
         <!-- 右侧是编辑区 -->
         <DockPanel Grid.Column="2" VerticalSpacing="8">
             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0">
-                <Button Classes="ActionButton" Content="新建事项" HotKey="Ctrl+N" />
-                <Button Classes="ActionButton" Content="从模板新建" HotKey="Ctrl+Shift+N" />
-                <Button Classes="ActionButton" Content="保存" HotKey="Ctrl+S" />
-                <Button Classes="ActionButton" Content="重复当前事项" HotKey="Ctrl+D" />
-                <Button Classes="ActionButton" Content="删除当前项" HotKey="Ctrl+Shift+D"/>
+                <Button Classes="ActionButton" Content="新建事项" HotKey="Ctrl+N" 
+                        Command="{Binding NewWorkItemCommand}"/>
+                <!-- TODO: add flyout for next button -->
+                <Button Classes="ActionButton" Content="从模板新建" HotKey="Ctrl+Shift+N" 
+                        />
+                <Button Classes="ActionButton" Content="保存" HotKey="Ctrl+S" 
+                        Command="{Binding SaveWorkItemCommand}"/>
+                <Button Classes="ActionButton" Content="重复当前事项" HotKey="Ctrl+D" 
+                        Command="{Binding DuplicateWorkItemCommand}"/>
+                <Button Classes="ActionButton" Content="删除当前项" HotKey="Ctrl+Shift+D"
+                        Command="{Binding DeleteWorkItemCommand}"/>
             </StackPanel>
             <Separator DockPanel.Dock="Top" />
             <Panel>
-                <TextBlock Text="占位，当前未选中任何事项" FontSize="48" HorizontalAlignment="Center"
+                <TextBlock Text="当前未选中任何事项" FontSize="48" HorizontalAlignment="Center"
+                           Foreground="{DynamicResource ButtonDefaultDisabledForeground}"
                            IsVisible="{Binding !HasItem}" VerticalAlignment="Center"/>
                 <ContentControl IsVisible="{Binding HasItem}" Content="{Binding SelectedWork}"/>
             </Panel>

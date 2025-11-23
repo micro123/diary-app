@@ -11,45 +11,48 @@
     <Design.DataContext>
         <viewModels:WorkEditorViewModel />
     </Design.DataContext>
-    
+
     <UserControl.Styles>
         <Style Selector="MenuItem">
-            <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}" />
             <Style Selector="^:selected">
-                <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}"/>
+                <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}" />
             </Style>
         </Style>
     </UserControl.Styles>
-    
+
     <DockPanel>
-        <u:Divider DockPanel.Dock="Top" Content="一般信息" HorizontalContentAlignment="Left"/>
+        <u:Divider DockPanel.Dock="Top" Content="一般信息" HorizontalContentAlignment="Left" />
         <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,*" RowDefinitions="Auto,Auto,Auto,Auto"
               ColumnSpacing="8" RowSpacing="8">
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="日期：" VerticalAlignment="Center"/>
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="日期：" VerticalAlignment="Center" />
             <CalendarDatePicker Grid.Row="0" Grid.Column="1" Width="300"
-                                SelectedDate="{Binding Date, Converter={StaticResource DateConvert}}"/>
-            <SplitButton Grid.Row="0" Grid.Column="2" Content="使用今天">
+                                SelectedDate="{Binding Date, Converter={StaticResource DateConvert}}" />
+            <SplitButton Grid.Row="0" Grid.Column="2" Content="使用今天"
+                         Command="{Binding QuickDateCommand}" CommandParameter="0">
                 <SplitButton.Flyout>
                     <MenuFlyout>
-                        <MenuItem Header="使用昨天"/>
-                        <MenuItem Header="使用明天"/>
+                        <MenuItem Header="使用昨天" Command="{Binding QuickDateCommand}" CommandParameter="-1" />
+                        <MenuItem Header="使用明天" Command="{Binding QuickDateCommand}" CommandParameter="+1" />
                     </MenuFlyout>
                 </SplitButton.Flyout>
             </SplitButton>
-            <TextBlock Grid.Row="1" Grid.Column="0" Text="标题：" VerticalAlignment="Center"/>
-            <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Comment}" Classes="ClearButton"/>
-            <TextBlock Grid.Row="2" Grid.Column="0" Text="耗时：" VerticalAlignment="Center"/>
-            <u:NumericDoubleUpDown Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2"  Value="{Binding Time}" ShowButtonSpinner="False"/>
-            <TextBlock Grid.Row="3" Grid.Column="0" Text="优先级：" VerticalAlignment="Center"/>
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="标题：" VerticalAlignment="Center" />
+            <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Comment}" Classes="ClearButton" />
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="耗时：" VerticalAlignment="Center" />
+            <u:NumericDoubleUpDown Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Watermark="h"
+                                   Value="{Binding Time}" InnerRightContent="小时"
+                                   ShowButtonSpinner="False" />
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="优先级：" VerticalAlignment="Center" />
             <u:EnumSelector Grid.Row="3" Grid.Column="1" Value="{Binding Priority}"
-                            EnumType="{x:Type base:WorkPriorities}"/>
+                            EnumType="{x:Type base:WorkPriorities}" />
         </Grid>
-        <u:Divider DockPanel.Dock="Top" Content="标签列表" HorizontalContentAlignment="Left"/>
+        <u:Divider DockPanel.Dock="Top" Content="标签列表" HorizontalContentAlignment="Left" />
         <!-- 标签列表 -->
         <!-- redmine预留 -->
         <!-- plm预留 -->
-        <u:Divider DockPanel.Dock="Top" Content="备注（仅本地存储）" HorizontalContentAlignment="Left"/>
+        <u:Divider DockPanel.Dock="Top" Content="备注（仅本地存储）" HorizontalContentAlignment="Left" />
         <TextBox Text="{Binding Note}" AcceptsReturn="True" VerticalAlignment="Stretch"
-                 VerticalContentAlignment="Top" Padding="4"/>
+                 VerticalContentAlignment="Top" Padding="4" Classes="Bordered" />
     </DockPanel>
 </UserControl>

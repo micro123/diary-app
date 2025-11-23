@@ -22,4 +22,9 @@ public static class EventDispatcher
     {
         Messenger.Send(new DbChangedEvent());
     }
+
+    public static void ShowToast(string content)
+    {
+        Messenger.Send(new ToastEvent(content));
+    }
 }

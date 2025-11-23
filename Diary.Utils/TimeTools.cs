@@ -9,6 +9,7 @@ public static class TimeTools
         Month,
         Week,
     }
+
     public enum AdjustDirection
     {
         Previous,
@@ -16,41 +17,52 @@ public static class TimeTools
         Next,
     }
 
-    private static string FormatDateTime(DateTime dateTime)
+    public static string FormatDateTime(DateTime dateTime)
     {
         return dateTime.ToString("yyyy-MM-dd");
     }
 
-    static public string Today()
+    public static DateTime FromFormatedDate(string date)
+    {
+        if (DateTime.TryParse(date, out var dateTime))
+        {
+            return dateTime;
+        }
+
+        throw new FormatException();
+    }
+
+    public static string Today()
     {
         return FormatDateTime(DateTime.Today);
     }
 
-    static public string Yestoday()
+    public static string Yestoday()
     {
         return FormatDateTime(DateTime.Today.AddDays(-1));
     }
 
-    static public string Tomorrow()
+    public static string Tomorrow()
     {
         return FormatDateTime(DateTime.Today.AddDays(1));
     }
 
-    static public int GetWeekName(string date)
+    public static int GetWeekName(string date)
     {
         if (DateTime.TryParse(date, out var dateTime))
         {
             return (int)dateTime.DayOfWeek;
         }
+
         return -1;
     }
 
-    static public void CompletionDate(string prefix, out string start, out string end)
+    public static void CompletionDate(string prefix, out string start, out string end)
     {
         throw new NotImplementedException();
     }
 
-    static public void AdjustDate(ref string start, ref string end, AdjustPart part, AdjustDirection dir)
+    public static void AdjustDate(ref string start, ref string end, AdjustPart part, AdjustDirection dir)
     {
         throw new NotImplementedException();
     }

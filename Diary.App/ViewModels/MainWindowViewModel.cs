@@ -100,7 +100,13 @@ public partial class MainWindowViewModel : ViewModelBase
                 }
             });
         });
+        
         Messenger.Register<RunCommandEvent>(this, (r, m) => { HandleCommand(m.Value); });
+        
+        Messenger.Register<ToastEvent>(this, (r, m) =>
+        {
+            ToastManager?.Show(m.Value);
+        });
     }
 
     private void HandleCommand(string cmd)
