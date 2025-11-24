@@ -7,7 +7,7 @@
              xmlns:sys="clr-namespace:System;assembly=System.Runtime"
              xmlns:base="clr-namespace:Diary.Core.Data.Base;assembly=Diary.Core"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-             x:Class="Diary.App.Views.WorkEditorView">
+             x:Class="Diary.App.Views.WorkEditorView" Padding="8 0 0 0">
     <Design.DataContext>
         <viewModels:WorkEditorViewModel />
     </Design.DataContext>
@@ -23,12 +23,12 @@
 
     <DockPanel>
         <u:Divider DockPanel.Dock="Top" Content="一般信息" HorizontalContentAlignment="Left" />
-        <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,*" RowDefinitions="Auto,Auto,Auto,Auto"
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,Auto,*" RowDefinitions="Auto,Auto,Auto"
               ColumnSpacing="8" RowSpacing="8">
             <TextBlock Grid.Row="0" Grid.Column="0" Text="日期：" VerticalAlignment="Center" />
-            <CalendarDatePicker Grid.Row="0" Grid.Column="1" Width="300"
+            <CalendarDatePicker Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
                                 SelectedDate="{Binding Date, Converter={StaticResource DateConvert}}" />
-            <SplitButton Grid.Row="0" Grid.Column="2" Content="使用今天"
+            <SplitButton Grid.Row="0" Grid.Column="3" Content="使用今天"
                          Command="{Binding QuickDateCommand}" CommandParameter="0">
                 <SplitButton.Flyout>
                     <MenuFlyout>
@@ -38,13 +38,13 @@
                 </SplitButton.Flyout>
             </SplitButton>
             <TextBlock Grid.Row="1" Grid.Column="0" Text="标题：" VerticalAlignment="Center" />
-            <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Comment}" Classes="ClearButton" />
+            <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="4" Text="{Binding Comment}" Classes="ClearButton" />
             <TextBlock Grid.Row="2" Grid.Column="0" Text="耗时：" VerticalAlignment="Center" />
-            <u:NumericDoubleUpDown Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Watermark="h"
+            <u:NumericDoubleUpDown Grid.Row="2" Grid.Column="1"
                                    Value="{Binding Time}" InnerRightContent="小时"
-                                   ShowButtonSpinner="False" />
-            <TextBlock Grid.Row="3" Grid.Column="0" Text="优先级：" VerticalAlignment="Center" />
-            <u:EnumSelector Grid.Row="3" Grid.Column="1" Value="{Binding Priority}"
+                                   ShowButtonSpinner="False" Maximum="24" Minimum="0"/>
+            <TextBlock Grid.Row="2" Grid.Column="2" Text="优先级：" VerticalAlignment="Center" HorizontalAlignment="Right"/>
+            <u:EnumSelector Grid.Row="2" Grid.Column="3" Value="{Binding Priority}"
                             EnumType="{x:Type base:WorkPriorities}" />
         </Grid>
         <u:Divider DockPanel.Dock="Top" Content="标签列表" HorizontalContentAlignment="Left" />

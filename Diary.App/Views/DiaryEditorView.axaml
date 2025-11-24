@@ -22,12 +22,15 @@
         <Style Selector="ListBoxItem">
             <Setter Property="Padding" Value="0"/>
             <Setter Property="Margin" Value="2"/>
+            <Style Selector="^:selected > Border">
+                <Setter Property="BorderBrush" Value="{DynamicResource CheckBoxCardCheckedBorderBrush}" />
+            </Style>
         </Style>
     </UserControl.Styles>
 
     <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="4">
         <!-- 左侧是日期和项目列表展示 -->
-        <StackPanel Orientation="Vertical" Spacing="8">
+        <StackPanel Orientation="Vertical" Spacing="8" Width="280">
             <Grid ColumnSpacing="8" ColumnDefinitions="Auto,*,Auto" HorizontalAlignment="Stretch">
                 <TextBlock Text="日期选择" VerticalAlignment="Center" />
                 <Button Grid.Column="2" Content="回到今天"
@@ -45,7 +48,8 @@
                      SelectionMode="Single" SelectedItem="{Binding SelectedWork}">
                 <ListBox.ItemTemplate>
                     <DataTemplate DataType="{x:Type viewModels:WorkEditorViewModel}">
-                        <Border Theme="{DynamicResource CardBorder}" Padding="4">
+                        <Border Theme="{DynamicResource CardBorder}" Padding="4"
+                                ToolTip.Tip="{Binding Comment}">
                             <StackPanel Orientation="Vertical" Spacing="4">
                                 <TextBlock Text="{Binding Comment}"/>
                                 <Separator />

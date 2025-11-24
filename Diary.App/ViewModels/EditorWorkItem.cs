@@ -86,28 +86,29 @@ public partial class WorkEditorViewModel : ViewModelBase
     {
         // remove from db
         Db!.DeleteWorkItem(WorkItem!);
+        WorkItem = null;
     }
 
     public bool CanDelete()
     {
-        // todo: check if commited
         return WorkItem!=null && WorkItem.Id!=0;
     }
 
     [RelayCommand]
     private void QuickDate(string what)
     {
-        switch (what)
+        Date = what switch
         {
-            case  "0": Date = TimeTools.Today(); break;
-            case "+1": Date = TimeTools.Tomorrow(); break;
-            case "-1": Date = TimeTools.Yestoday(); break;
-        }
+            "0" => TimeTools.Today(),
+            "+1" => TimeTools.Tomorrow(),
+            "-1" => TimeTools.Yestoday(),
+            _ => Date
+        };
     }
 
     public void SyncNote()
     {
-        if (WorkItem != null && WorkItem.Id > 0)
+        if (WorkItem is { Id: > 0 })
         {
             Note = Db!.WorkGetNote(WorkItem!) ?? string.Empty;
         }
@@ -115,6 +116,18 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     public WorkEditorViewModel? Clone()
     {
-        throw  new System.NotImplementedException();
+        return new WorkEditorViewModel()
+        {
+            WorkItem = null,
+            Date = Date,
+            Note = Note,
+            Comment = Comment,
+            Priority = Priority,
+        };
+    }
+
+    public bool CanClone()
+    {
+        return WorkItem is { Id: > 0 }; // 克隆的前提是这个事件已经保存过了
     }
 }

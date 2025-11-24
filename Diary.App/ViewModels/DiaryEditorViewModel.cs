@@ -1,14 +1,8 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
-using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using CommunityToolkit.Mvvm.Messaging;
-using Diary.Core.Constants;
-using Diary.App.Messages;
-using Diary.App.Models;
-using Diary.Core.Data.Base;
 using Diary.Utils;
 using Microsoft.Extensions.Logging;
 
@@ -21,24 +15,22 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     [ObservableProperty]
     private DateTime _selectedDate;
-
+    [ObservableProperty]
     private DateTime _currentDate;
-
-    private DateTime CurrentDate
-    {
-        get => _currentDate;
-        set => SetProperty(ref _currentDate, value);
-    }
     
     private string CurrentDateString => TimeTools.FormatDateTime(CurrentDate);
+    private bool _creating = false;
 
     [RelayCommand]
     private void NewWorkItem()
     {
+        _creating = true;
+        SelectedWork = null; // hack: clear selection
         SelectedWork = new WorkEditorViewModel()
         {
             Date = CurrentDateString,
         };
+        _creating = false;
     }
 
     [RelayCommand(CanExecute = nameof(CanSave))]
@@ -47,7 +39,10 @@ public partial class DiaryEditorViewModel : ViewModelBase
         SelectedWork!.Save(out var created);
         if (created)
         {
-            DailyWorks.Add(SelectedWork);
+            var bak = SelectedWork;
+            SelectedWork = null;
+            DailyWorks.Add(bak);
+            SelectedWork = bak;
         }
     }
 
@@ -57,16 +52,24 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private void DuplicateWorkItem()
     {
         // duplicate but not save
-        SelectedWork = SelectedWork!.Clone();
+        var item = SelectedWork!.Clone();
+        SelectedWork = null;
+        _creating = true;
+        SelectedWork = item;
+        _creating = false;
     }
 
-    private bool CanDuplicate => SelectedWork != null;
+    private bool CanDuplicate => SelectedWork != null && SelectedWork.CanClone();
+    private bool _deleting = false;
 
     [RelayCommand(CanExecute = nameof(CanDelete))]
     private void DeleteWorkItem()
     {
+        _deleting = true;
         SelectedWork!.Delete();
-        SelectedWork = null;
+        DailyWorks.Remove(SelectedWork!);
+        SelectedWork = DailyWorks.FirstOrDefault();
+        _deleting = false;
     }
 
     private bool CanDelete => SelectedWork != null && SelectedWork.CanDelete();
@@ -75,7 +78,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private void SelectToday()
     {
         var today = DateTime.Today;
-        SetProperty(ref _currentDate, today, nameof(CurrentDate));
+        CurrentDate = today;
         SelectedDate = today;
     }
 
@@ -88,8 +91,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     partial void OnSelectedWorkChanging(WorkEditorViewModel? value) // 指 即将 从 当前值 更改为 value
     {
-        // save old
-        SelectedWork?.Save(out _);
+        if (!_deleting && !_creating && SelectedWork is not null)
+            SaveWorkItem();
         // fetch new
         value?.SyncNote();
     }

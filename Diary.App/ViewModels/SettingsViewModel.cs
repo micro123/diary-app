@@ -1,6 +1,4 @@
-using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.Reflection;
 using System.Threading.Tasks;
 using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -9,7 +7,6 @@ using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.Messages;
 using Diary.App.Models;
 using Diary.App.Utils;
-using Diary.Core.Configure;
 using Diary.Utils;
 using Ursa.Controls;
 
