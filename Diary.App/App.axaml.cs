@@ -205,7 +205,7 @@ namespace Diary.App
 
         private void LoadConfigurations()
         {
-            EasySaveLoad.Load(AppConfig);
+            // EasySaveLoad.Load(AppConfig); // already loaded by instance
         }
 
         private void DisableAvaloniaDataAnnotationValidation()

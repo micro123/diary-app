@@ -1,4 +1,9 @@
-﻿namespace Diary.RedMine;
+﻿using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using Diary.RedMine.Response;
+using RestSharp;
+
+namespace Diary.RedMine;
 
 public static class RedMineApis
 {
@@ -19,5 +24,18 @@ public static class RedMineApis
     // 获取活动列表: GET {base}/enumerations/time_entry_activities.json
 
     // 获取账号信息: GET {base}/users/current.json
+    public static bool GetUserInfo([NotNullWhen(true)] out UserInfo? userInfo)
+    {
+        userInfo = null;
+        var url = UserInfo.Query();
+        var client = RestTools.BasicClient();
+        if (client != null)
+        {
+            var request = RestTools.HttpGet(url);
+            var response = client.Execute(request);
+            Debug.WriteLine(response.Content);
+        }
 
+        return false;
+    }
 }

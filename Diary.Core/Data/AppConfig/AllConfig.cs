@@ -1,4 +1,5 @@
 using Diary.Core.Configure;
+using Diary.Core.Utils;
 using Diary.Utils;
 
 namespace Diary.Core.Data.AppConfig;
@@ -8,7 +9,7 @@ public class AllConfig: SingletonBase<AllConfig>
 {
     private AllConfig()
     {
-        
+        EasySaveLoad.Load(this);
     }
     
     [ConfigureGroup("视图设置")]
