@@ -14,4 +14,7 @@ public class WorkConfig
     [ConfigureButton("标签管理", "编辑标签", CommandNames.EditWorkTags)]
     private int EditWorkTags { get; set; } = 0;
     
+    [ConfigureButton("模板管理", "编辑模板", CommandNames.EditWorkTemplates)]
+    private int EditWorkTemplates { get; set; } = 0;
+    
 }

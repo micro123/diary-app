@@ -44,53 +44,53 @@ namespace Diary.App
             SyncTheme();
         }
 
-        private void ConfigureCheck()
+        private bool ConfigureCheck(out string message)
         {
-            UseDb?.Close();
-            UseDb = null;
+            message = string.Empty;
+            // do not change existing database
+            if (UseDb != null)
+                return true;
             
             // 从配置获取当前的数据库提供程序
             var factory = _dbFactories.FirstOrDefault(x => x.Name == AppConfig.DbSettings.DatabaseDriver);
             if (factory == null)
             {
-                EventDispatcher.RouteToPage(PageNames.Settings);
-                EventDispatcher.Notify("错误", "需要检查数据库设置！");
+                message = $"数据库{AppConfig.DbSettings.DatabaseDriver}不支持，请检查设置";
+                return false;
             }
-            else
+            
+            // 创建数据库
+            UseDb = factory.Create();
+            Debug.Assert(UseDb != null);
+            if (UseDb.Config != null)
+                EasySaveLoad.Load(UseDb.Config); // 加载数据库配置
+            
+            // open
+            if (!UseDb.Connect())
             {
-                UseDb = factory.Create();
-                Debug.Assert(UseDb != null);
-                if (UseDb.Config != null)
-                    EasySaveLoad.Load(UseDb.Config);
-                // open
-                if (!UseDb.Connect())
-                {
-                    UseDb = null;
-                    EventDispatcher.RouteToPage(PageNames.Settings);
-                    EventDispatcher.Notify("错误", "数据库连接失败！");
-                    return;
-                }
-
-                // init
-                if (!UseDb.Initialized())
-                {
-                    UseDb = null;
-                    EventDispatcher.RouteToPage(PageNames.Settings);
-                    EventDispatcher.Notify("错误", "数据库初始化失败！");
-                    return;
-                }
-                
-                // version check
-                if (UseDb.GetDataVersion() != DataVersion.VersionCode)
-                {
-                    if (!UseDb.UpdateTables(DataVersion.VersionCode))
-                    {
-                        EventDispatcher.Notify("错误", "数据库升级失败了，可能是程序bug！");
-                        return;
-                    }
-                }
-                EventDispatcher.RouteToPage(PageNames.DiaryEditor);
+                UseDb = null;
+                message = "数据库连接失败！";
+                return false;
             }
+
+            // init
+            if (!UseDb.Initialized())
+            {
+                UseDb = null;
+                message = "数据库初始化失败！";
+                return false;
+            }
+            
+            // version check
+            if (UseDb.GetDataVersion() != DataVersion.VersionCode)
+            {
+                if (!UseDb.UpdateTables(DataVersion.VersionCode))
+                {
+                    message = "数据库升级失败了，可能是程序bug！";
+                    return false;
+                }
+            }
+            return true;
         }
 
         private List<IDbFactory> _dbFactories = new();
@@ -115,7 +115,7 @@ namespace Diary.App
 
         private IServiceProvider ConfigureServices()
         {
-            Logger.LogInformation("Configuring services");
+            Logger.LogDebug("Configuring services");
             IServiceCollection services = new ServiceCollection();
 
             services.AddTypesFromAssembly(Assembly.GetExecutingAssembly());
@@ -141,6 +141,8 @@ namespace Diary.App
 
         public override void OnFrameworkInitializationCompleted()
         {
+            var success = ConfigureCheck(out var message);
+            
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
                 // Avoid duplicate validations from both Avalonia and the CommunityToolkit. 
@@ -157,10 +159,22 @@ namespace Diary.App
             
             WeakReferenceMessenger.Default.Register<ConfigUpdateEvent>(this, (r, m) =>
             {
-                Dispatcher.UIThread.Post(ConfigureCheck);
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (!ConfigureCheck(out var msg))
+                    {
+                        EventDispatcher.RouteToPage(PageNames.Settings);
+                        EventDispatcher.Notify("错误", msg);
+                    }
+                });
             });
+            
             // check if configure is valid
-            ConfigureCheck();
+            if (!success)
+            {
+                EventDispatcher.RouteToPage(PageNames.Settings);
+                EventDispatcher.Notify("错误", message);
+            }
             
             // start keep-alive thread
             StartKeepAliveTimer();

@@ -9,4 +9,10 @@ public class RedMineConfig
     
     [ConfigureText("Api Key", true)]
     public string RedMineApiKey { get; set; } = "";
+    
+    [ConfigureSwitch("使用代理服务器")]
+    public bool EnableProxy { get; set; } = false;
+    
+    [ConfigureText("代理服务器地址")]
+    public string ProxyServer { get; set; } = "";
 }

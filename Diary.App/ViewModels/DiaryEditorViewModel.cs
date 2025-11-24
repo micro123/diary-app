@@ -44,7 +44,11 @@ public partial class DiaryEditorViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanSave))]
     private void SaveWorkItem()
     {
-        SelectedWork!.Save();
+        SelectedWork!.Save(out var created);
+        if (created)
+        {
+            DailyWorks.Add(SelectedWork);
+        }
     }
 
     private bool CanSave => SelectedWork != null;
@@ -52,6 +56,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanDuplicate))]
     private void DuplicateWorkItem()
     {
+        // duplicate but not save
+        SelectedWork = SelectedWork!.Clone();
     }
 
     private bool CanDuplicate => SelectedWork != null;
@@ -59,6 +65,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanDelete))]
     private void DeleteWorkItem()
     {
+        SelectedWork!.Delete();
+        SelectedWork = null;
     }
 
     private bool CanDelete => SelectedWork != null && SelectedWork.CanDelete();
@@ -78,14 +86,11 @@ public partial class DiaryEditorViewModel : ViewModelBase
         FetchWorks();
     }
 
-    partial void OnSelectedWorkChanging(WorkEditorViewModel? value)
+    partial void OnSelectedWorkChanging(WorkEditorViewModel? value) // 指 即将 从 当前值 更改为 value
     {
         // save old
-        SelectedWork?.Save();
-    }
-    
-    partial void OnSelectedWorkChanged(WorkEditorViewModel? value)
-    {
+        SelectedWork?.Save(out _);
+        // fetch new
         value?.SyncNote();
     }
 
@@ -110,6 +115,11 @@ public partial class DiaryEditorViewModel : ViewModelBase
         else
         {
             _logger.LogWarning("db is null");
+        }
+
+        if (DailyWorks.Count > 0)
+        {
+            SelectedWork = DailyWorks[0];
         }
     }
 

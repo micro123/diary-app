@@ -46,8 +46,9 @@ public partial class WorkEditorViewModel : ViewModelBase
         Priority = WorkPriorities.P0;
     }
 
-    public void Save()
+    public void Save(out bool created)
     {
+        created = false;
         var db = Db!;
         if (WorkItem == null)
         {
@@ -59,6 +60,7 @@ public partial class WorkEditorViewModel : ViewModelBase
             }
             WorkItem.Priority = Priority;
             WorkItem.Time = Time;
+            created = true;
         }
         else
         {
@@ -109,5 +111,10 @@ public partial class WorkEditorViewModel : ViewModelBase
         {
             Note = Db!.WorkGetNote(WorkItem!) ?? string.Empty;
         }
+    }
+
+    public WorkEditorViewModel? Clone()
+    {
+        throw  new System.NotImplementedException();
     }
 }

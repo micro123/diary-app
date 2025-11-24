@@ -19,7 +19,7 @@ public static class Logging
             b.AddSimpleConsole();
         });
         var result = loggerFactory.CreateLogger("Main");
-        result.LogInformation("Log Initialized");
+        result.LogDebug("Log Initialized");
         return result;
     }
 
