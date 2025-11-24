@@ -3,6 +3,7 @@
 # 用法: .\gen_version.ps1 <param1> <param2> <param3>
 
 # 支持通过 $args 传入，也支持命名参数。优先使用显式参数，如果未通过 param 提供则使用 $args。
+chcp 65001
 
 if ($args.Count -ne 3) {
     Write-Error ".\gen_version.ps1 <project> <output_dir> <file_name>"
@@ -56,10 +57,33 @@ $branch = "unknown"
 $commit_count = "0"
 $commit_message = "unknown"
 $commit_date = "unknown"
-$hostname = RunCommand hostname
+$hostname = $([System.Environment]::MachineName)
 
 
 $repo_dir = RunCommand git rev-parse --show-toplevel
+
+function EncodingTest {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string]$text
+    )
+    
+    $probes=@(
+        [System.Text.Encoding]::UTF8, 
+        [System.Text.Encoding]::ASCII, 
+        [System.Text.Encoding]::Unicode, 
+        [System.Text.Encoding]::GetEncoding("GBK"), 
+        [System.Text.Encoding]::GetEncoding("GB2312")
+    )
+    
+    foreach($probe in $probes) {
+        $bytes = $probe.GetBytes($text)
+        Write-Output "[$($probe.EncodingName)] Bytes: $($bytes -join ', ')"
+        $decoded = $probe.GetString($bytes)
+        Write-Output "Decoded: $decoded"
+    }
+}
 
 if ($repo_dir -ne "") {
     Push-Location -Path $repo_dir
@@ -75,6 +99,8 @@ if ($repo_dir -ne "") {
         $hash_full += "-dirty"
         $hash_short += "-dirty"
     }
+    
+    # EncodingTest "$hostname"
 
     Pop-Location
 }
@@ -86,14 +112,14 @@ namespace ${project};
 
 internal static class VersionInfo
 {
-    public static readonly string BuildTime = "$timestamp";
-    public static readonly string GitVersionFull = "${hash_full}";
-    public static readonly string GitVersionShort = "${hash_short}";
-    public static readonly string CommitCount = "${commit_count}";
-    public static readonly string Branch = "${branch}";
-    public static readonly string LastCommitMessage = "${commit_message}";
-    public static readonly string LastCommitDate = "${commit_date}";
-    public static readonly string HostName = "${hostname}";
+    public const string BuildTime = "$timestamp";
+    public const string GitVersionFull = "${hash_full}";
+    public const string GitVersionShort = "${hash_short}";
+    public const string CommitCount = "${commit_count}";
+    public const string Branch = "${branch}";
+    public const string LastCommitMessage = "${commit_message}";
+    public const string LastCommitDate = "${commit_date}";
+    public const string HostName = "${hostname}";
 }
 "@
 $target_path = Join-Path $output_dir $file_name

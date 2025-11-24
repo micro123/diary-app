@@ -71,8 +71,9 @@
     </ItemGroup>
 
     <Target Name="GenVersionInfo" BeforeTargets="BeforeBuild">
-      <Exec Command="pwsh.exe &quot;$(SolutionDir)Scripts\gen_version.ps1&quot; $(MSBuildProjectName) &quot;$(IntermediateOutputPath)\Generated&quot; VersionInfo.cs" Condition="'$(OS)' == 'Windows_NT'" />
-      <Exec Command="/bin/bash  &quot;$(SolutionDir)Scripts\gen_version.sh&quot; $(MSBuildProjectName) &quot;$(IntermediateOutputPath)\Generated&quot; VersionInfo.cs" Condition="'$(OS)' != 'Windows_NT'" />
+      <Exec Command="pwsh.exe &quot;$(SolutionDir)Scripts\gen_version.ps1&quot; $(MSBuildProjectName) &quot;$(IntermediateOutputPath)Generated&quot; VersionInfo.cs" Condition="'$(OS)' == 'Windows_NT'"
+			UseUtf8Encoding="Always"/>
+      <Exec Command="/bin/bash  &quot;$(SolutionDir)Scripts\gen_version.sh&quot; $(MSBuildProjectName) &quot;$(IntermediateOutputPath)Generated&quot; VersionInfo.cs" Condition="'$(OS)' != 'Windows_NT'" />
         <ItemGroup>
             <Compile Include="$(IntermediateOutputPath)\Generated\VersionInfo.cs" />
         </ItemGroup>

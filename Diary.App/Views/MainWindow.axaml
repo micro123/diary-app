@@ -120,7 +120,7 @@
     </u:UrsaWindow.TitleBarContent>
 
     <!-- 主内容 -->
-    <SplitView Padding="4" DisplayMode="CompactOverlay" OpenPaneLength="220" CompactPaneLength="64"
+    <SplitView Padding="4" DisplayMode="CompactOverlay" OpenPaneLength="260" CompactPaneLength="64"
                IsPaneOpen="{Binding #PanelOpen.IsChecked, Mode=TwoWay}"
                Margin="0 32 0 0" PanePlacement="Left">
         <SplitView.Pane>
