@@ -34,6 +34,7 @@ public static class RedMineApis
             }
             else
             {
+                Debug.WriteLine($"response {response.Content}");
                 total =  response.Data!.Total;
                 projects = response.Data!.Results;
             }
@@ -58,7 +59,7 @@ public static class RedMineApis
             }
             else
             {
-                // Debug.WriteLine($"response {response.Content}");
+                Debug.WriteLine($"response {response.Content}");
                 project = response.Data!.Project;
             }
         }
@@ -95,7 +96,7 @@ public static class RedMineApis
             }
             else
             {
-                // Debug.WriteLine($"response {response.Content}");
+                Debug.WriteLine($"response {response.Content}");
                 total = response.Data!.Total;
                 issues = response.Data.Issues;
             }
@@ -119,7 +120,7 @@ public static class RedMineApis
             }
             else
             {
-                // Debug.WriteLine($"response {response.Content}");
+                Debug.WriteLine($"response {response.Content}");
                 issues = response.Data!.Issue;
             }
         }
@@ -128,10 +129,75 @@ public static class RedMineApis
     }
 
     // 创建问题: POST {base}/issues.json <json_data contains: project_id,subject,priority_id>
+    public static bool CreateIssue([NotNullWhen(true)] out IssueInfo? issue,
+        int projectId, string subject, string description = "", bool assignedToSelf = true)
+    {
+        issue = null;
+        
+        var url =  IssueInfo.Query();
+        var client = RestTools.BasicClient();
+        if (client != null)
+        {
+            var request = RestTools.HttpPost(url);
+            var postData = new IssueInfo.PostRes(projectId, subject);
+            if (!string.IsNullOrEmpty(description))
+            {
+                postData.Data.Description = description;
+            }
+            if (assignedToSelf)
+            {
+                postData.Data.AssignedToId = "me";
+            }
+            request.AddJsonBody(postData);
+            
+            var response = client.Execute<IssueInfo.FetchResult>(request);
+            if (response.StatusCode != HttpStatusCode.Created)
+            {
+                Debug.WriteLine($"http status code {response.StatusCode}: {response.ErrorMessage}");
+            }
+            else
+            {
+                Debug.WriteLine($"response {response.Content}");
+                issue = response.Data!.Issue;
+            }
+        }
+        
+        return issue != null;
+    }
 
     // 关闭问题: PUT {base}/issues/{id}.json <json_data contains: status_id = closed>
+    public static bool CloseIssue(int id)
+    {
+        // things broken
+        return false;
+    }
 
     // 提交工时: POST {base}/time_entries.json <json_data contains: issue_id,spent_on,hours,activity_id,comments>
+    public static bool CreateTimeEntry([NotNullWhen(true)] out TimeInfo? timeInfo, int issue, int activity, string date, double hours, string comment)
+    {
+        timeInfo = null;        
+        
+        var url = TimeInfo.Query();
+        var client = RestTools.BasicClient();
+        if (client != null)
+        {
+            var request = RestTools.HttpPost(url);
+            var body = new TimeInfo.PostRes(issue, activity, date, comment, hours);
+            request.AddJsonBody(body);
+            var response = client.Execute<TimeInfo.PostResult>(request);
+            if (response.StatusCode != HttpStatusCode.Created)
+            {
+                Debug.WriteLine($"http status code {response.StatusCode}: {response.ErrorMessage}");
+            }
+            else
+            {
+                Debug.WriteLine($"response {response.Content}");
+                timeInfo = response.Data!.TimeEntry;
+            }
+        }
+        
+        return timeInfo !=  null;
+    }
 
     // 查询工时: GET {base}/time_entries.json?user_id=me&from=<date_start>&to=<date_end>
     public static bool GetMyTimeEntries([NotNullWhen(true)] out IEnumerable<TimeInfo>? timeInfos,
@@ -162,6 +228,8 @@ public static class RedMineApis
             else
             {
                 Debug.WriteLine($"response {response.Content}");
+                total = response.Data!.Total;
+                timeInfos = response.Data!.TimeEntries;
             }
         }
         
@@ -184,7 +252,7 @@ public static class RedMineApis
             }
             else
             {
-                activities = response.Data?.TimeEntryActivities;
+                activities = response.Data!.TimeEntryActivities;
             }
         }
 

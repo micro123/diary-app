@@ -28,4 +28,11 @@ internal static class RestTools
         request.AddHeader("X-Redmine-API-Key", Cfg.RedMineApiKey);
         return request;
     }
+
+    public static RestRequest HttpPost(string query)
+    {
+        var request = new RestRequest(query, Method.Post);
+        request.AddHeader("X-Redmine-API-Key", Cfg.RedMineApiKey);
+        return request;
+    }
 }
