@@ -38,7 +38,9 @@ namespace Diary.App
         {
             EnumerateDbProviders();
             LoadConfigurations();
+            
             AvaloniaXamlLoader.Load(this);
+            DataContext = Services.GetRequiredService<AppModel>();
 
             // 同步主题设置
             SyncTheme();

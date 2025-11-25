@@ -8,14 +8,20 @@
              xmlns:local="using:Diary.App"
              xmlns:m="clr-namespace:Diary.App.Models"
              xmlns:converters1="clr-namespace:Avalonia.Markup.Xaml.Converters;assembly=Avalonia.Markup.Xaml"
-             xmlns:converters2="clr-namespace:Avalonia.Controls.Converters;assembly=Avalonia.Controls.ColorPicker">
+             xmlns:converters2="clr-namespace:Avalonia.Controls.Converters;assembly=Avalonia.Controls.ColorPicker"
+             Name="Diary Tools NG">
+    
+    <Design.DataContext>
+        <local:AppModel />
+    </Design.DataContext>
 
     <Application.DataTemplates>
-        <local:ViewLocator/>
+        <local:ViewLocator />
         <DataTemplate DataType="{x:Type m:SettingGroup}">
             <Expander IsExpanded="True">
                 <Expander.Header>
-                    <TextBlock Classes="SectionHeader" Text="{Binding Title}" FontSize="{StaticResource SemiFontSizeHeader1}" />
+                    <TextBlock Classes="SectionHeader" Text="{Binding Title}"
+                               FontSize="{StaticResource SemiFontSizeHeader1}" />
                 </Expander.Header>
                 <ItemsControl Classes="Settings" ItemsSource="{Binding Children}" />
             </Expander>
@@ -26,7 +32,7 @@
                 <TextBlock Classes="SettingLineCaption" />
                 <TextBox Classes="SLV ClearButton" Classes.RevealPasswordButton="{Binding Password}"
                          Grid.Column="1" Text="{Binding Value}"
-                         PasswordChar="{Binding MaskChar}"/>
+                         PasswordChar="{Binding MaskChar}" />
             </Grid>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingPath}">
@@ -36,7 +42,7 @@
                 <u:PathPicker Grid.Column="1" Classes="SLV" AllowMultiple="False"
                               UsePickerType="{Binding PickerType}" SelectedPathsText="{Binding Value}"
                               Title="{Binding PickerTitle}" IsClearSelectionOnCancel="False"
-                              SuggestedStartPath="{Binding DirName}" ToolTip.Tip="{Binding Value}"/>
+                              SuggestedStartPath="{Binding DirName}" ToolTip.Tip="{Binding Value}" />
             </Grid>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingInteger}">
@@ -62,8 +68,8 @@
                   ColumnSpacing="16">
                 <TextBlock Classes="SettingLineCaption" />
                 <ToggleSwitch Grid.Column="1" Classes="SLV" IsChecked="{Binding Value}"
-                          VerticalAlignment="Center" OnContent="" OffContent=""
-                          HorizontalContentAlignment="Left" />
+                              VerticalAlignment="Center" OnContent="" OffContent=""
+                              HorizontalContentAlignment="Left" />
             </Grid>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingChoice}">
@@ -83,12 +89,12 @@
             </Grid>
         </DataTemplate>
     </Application.DataTemplates>
-  
+
     <Application.Styles>
         <semi:SemiTheme Locale="zh-CN" />
-        <u-semi:SemiTheme Locale="zh-CN"/>
+        <u-semi:SemiTheme Locale="zh-CN" />
         <Style Selector="u|WindowNotificationManager">
-            <Setter Property="Position" Value="BottomRight"/>
+            <Setter Property="Position" Value="BottomRight" />
         </Style>
         <Style Selector="Grid.SettingLineBox">
             <Setter Property="MinWidth" Value="450" />
@@ -137,12 +143,12 @@
             <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultDangerForeground}" />
         </Style>
         <Style Selector="ToggleSwitch">
-            <Setter Property="OnContent" Value="{x:Null}"/>
-            <Setter Property="OffContent" Value="{x:Null}"/>
+            <Setter Property="OnContent" Value="{x:Null}" />
+            <Setter Property="OffContent" Value="{x:Null}" />
         </Style>
         <StyleInclude Source="avares://Semi.Avalonia.ColorPicker/Index.axaml" />
     </Application.Styles>
-    
+
     <Application.Resources>
         <converters:DateConvert x:Key="DateConvert" />
         <converters:EnumConvert x:Key="EnumConvert" />
@@ -150,4 +156,19 @@
         <converters1:ColorToBrushConverter x:Key="ColorToBrushConverter" />
         <converters2:ToBrushConverter x:Key="ToBrushConverter" />
     </Application.Resources>
+
+    <TrayIcon.Icons>
+        <TrayIcons>
+            <TrayIcon Icon="/Assets/Icons/diary-app.ico" ToolTipText="Diary Tools NG"
+                      Command="{Binding RaiseWindowCommand}">
+                <TrayIcon.Menu>
+                    <NativeMenu>
+                        <NativeMenuItem Header="About" Command="{Binding ShowAboutCommand}" />
+                        <NativeMenuItemSeparator />
+                        <NativeMenuItem Header="Exit" Command="{Binding QuitAppCommand}" />
+                    </NativeMenu>
+                </TrayIcon.Menu>
+            </TrayIcon>
+        </TrayIcons>
+    </TrayIcon.Icons>
 </Application>

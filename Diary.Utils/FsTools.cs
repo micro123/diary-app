@@ -2,7 +2,7 @@ using System.Reflection;
 
 namespace Diary.Utils;
 
-public static class FsTools
+public static partial class FsTools
 {
     private static readonly Dictionary<string, string> KnownDirectories = new();
 
@@ -23,14 +23,7 @@ public static class FsTools
 
     private static string GetApplicationName()
     {
-        if (!KnownDirectories.TryGetValue("AppName", out string? value))
-        {
-            var assembly = Assembly.GetEntryAssembly();
-            var name = Path.GetFileNameWithoutExtension(assembly!.Location);
-            value = name;
-            KnownDirectories.Add("AppName", value);
-        }
-        return value;
+        return "Diary.App";
     }
 
     public static string GetApplicationConfigDirectory()

@@ -150,30 +150,35 @@ public partial class MainWindowViewModel : ViewModelBase
         throw new ArgumentOutOfRangeException(nameof(cmd));
     }
 
+    private bool _quiting;
+    
     [RelayCommand]
-    void Quit()
+    private void Quit()
     {
+        _quiting = true;
         (View as Window)?.Close();
     }
 
     [RelayCommand(CanExecute = nameof(CanMinimized))]
-    void Minimized()
+    private void Minimized()
     {
         if (View is Window window)
             window.WindowState = WindowState.Minimized;
     }
-    bool CanMinimized()
+
+    private bool CanMinimized()
     {
         return (View as Window)?.WindowState != WindowState.Minimized;
     }
     
     [RelayCommand(CanExecute = nameof(CanMaximized))]
-    void Maximized()
+    private void Maximized()
     {
         if (View is Window window)
             window.WindowState = WindowState.Maximized;
     }
-    bool CanMaximized()
+
+    private bool CanMaximized()
     {
         return (View as Window)?.WindowState != WindowState.Maximized;
     }
@@ -189,5 +194,17 @@ public partial class MainWindowViewModel : ViewModelBase
                 MaximizedCommand.NotifyCanExecuteChanged();
             }
         };
+    }
+
+    [RelayCommand]
+    private void Closing(object? parameter)
+    {
+        if (_quiting)
+            return;
+        if (parameter is WindowClosingEventArgs args)
+        {
+            args.Cancel = true;
+            _logger.LogInformation("reject window closing!");
+        }
     }
 }

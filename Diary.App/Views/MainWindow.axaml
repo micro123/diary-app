@@ -20,6 +20,13 @@
               Title="Diary Tools NG"
               ActualThemeVariantChanged="OnActualThemeVariantChanged"
               Loaded="OnLoaded">
+    <Interaction.Behaviors>
+        <EventTriggerBehavior EventName="Closing">
+            <InvokeCommandAction Command="{Binding ClosingCommand}" PassEventArgsToCommand="True"/>
+        </EventTriggerBehavior>
+    </Interaction.Behaviors>
+    
+    
     <!-- 控件样式覆盖 -->
     <u:UrsaWindow.Styles>
         <!-- 底部展开折叠按钮 -->

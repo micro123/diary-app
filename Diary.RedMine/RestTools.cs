@@ -1,6 +1,7 @@
 using System.Net;
 using Diary.Core.Data.AppConfig;
 using RestSharp;
+using RestSharp.Serializers.NewtonsoftJson;
 
 namespace Diary.RedMine;
 
@@ -18,7 +19,7 @@ internal static class RestTools
         {
             options.Proxy = new WebProxy(Cfg.ProxyServer);
         }
-        return new RestClient(options);
+        return new RestClient(options, configureSerialization: s => s.UseNewtonsoftJson());
     }
 
     public static RestRequest HttpGet(string query)
