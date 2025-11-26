@@ -407,7 +407,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
 
     public override RedMineActivity AddRedMineActivity(int id, string title)
     {
-        const string sql = @"INSERT INTO redmine_activities VALUES ($id,$title) RETURNING *;";
+        const string sql = @"INSERT INTO redmine_activities VALUES ($id,$title) ON CONFLICT(id) DO UPDATE SET act_name=$title RETURNING *;";
         var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$id", id);

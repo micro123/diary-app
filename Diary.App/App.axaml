@@ -147,6 +147,7 @@
             <Setter Property="OffContent" Value="{x:Null}" />
         </Style>
         <StyleInclude Source="avares://Semi.Avalonia.ColorPicker/Index.axaml" />
+        <StyleInclude Source="avares://Semi.Avalonia.DataGrid/Index.axaml" />
     </Application.Styles>
 
     <Application.Resources>

@@ -3,32 +3,74 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:pages="clr-namespace:Diary.App.Pages"
+             xmlns:redMine="clr-namespace:Diary.Core.Data.RedMine;assembly=Diary.Core"
+             xmlns:i="https://github.com/projektanker/icons.avalonia"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-             x:Class="Diary.App.Pages.RedMineInfoView">
+             x:Class="Diary.App.Pages.RedMineInfoView"
+             Padding="8">
     <Design.DataContext>
-        <pages:RedMineInfoViewModel/>
+        <pages:RedMineInfoViewModel />
     </Design.DataContext>
     <UserControl.Styles>
         <Style Selector="Expander > TextBlock">
-            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="HorizontalAlignment" Value="Right" />
         </Style>
     </UserControl.Styles>
-    <Panel>
-        <TextBlock Text="无法连接服务器，需要检查RedMine设置" IsVisible="{Binding !ServerOk}"
-                   HorizontalAlignment="Center" VerticalAlignment="Center"
-                   Foreground="{DynamicResource ButtonDefaultDisabledForeground}" FontSize="48"/>
-        <StackPanel Orientation="Vertical" IsVisible="{Binding ServerOk}">
-            <Expander IsExpanded="True" HorizontalContentAlignment="Left" Header="用户信息">
-                <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto"
-                      RowSpacing="4" ColumnSpacing="4">
-                    <TextBlock Grid.Column="0" Grid.Row="0" Text="用户ID："/>
-                    <TextBlock Grid.Column="1" Grid.Row="0" Text="{Binding UserId}"/>
-                    <TextBlock Grid.Column="0" Grid.Row="1" Text="登录名："/>
-                    <TextBlock Grid.Column="1" Grid.Row="1" Text="{Binding UserLogin}"/>
-                    <TextBlock Grid.Column="0" Grid.Row="2" Text="用户名："/>
-                    <TextBlock Grid.Column="1" Grid.Row="2" Text="{Binding UserName}"/>
-                </Grid>
-            </Expander>
-        </StackPanel>
-    </Panel>
+    <StackPanel Orientation="Vertical" IsVisible="{Binding ServerOk}">
+        <!-- 用户信息 -->
+        <Expander IsExpanded="True" HorizontalContentAlignment="Left" Header="用户信息">
+            <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto"
+                  RowSpacing="4" ColumnSpacing="4">
+                <TextBlock Grid.Column="0" Grid.Row="0" Text="用户ID：" />
+                <TextBlock Grid.Column="1" Grid.Row="0" Text="{Binding UserId}" />
+                <TextBlock Grid.Column="0" Grid.Row="1" Text="登录名：" />
+                <TextBlock Grid.Column="1" Grid.Row="1" Text="{Binding UserLogin}" />
+                <TextBlock Grid.Column="0" Grid.Row="2" Text="用户名：" />
+                <TextBlock Grid.Column="1" Grid.Row="2" Text="{Binding UserName}" />
+            </Grid>
+        </Expander>
+        <!-- 活动信息 -->
+        <Expander IsExpanded="True" HorizontalContentAlignment="Left" Header="活动列表">
+            <StackPanel Orientation="Vertical" Spacing="16" HorizontalAlignment="Left">
+                <ItemsControl ItemsSource="{Binding Activities}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Vertical" Spacing="8" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.DataTemplates>
+                        <DataTemplate DataType="{x:Type redMine:RedMineActivity}">
+                            <Border BorderThickness="0 0 0 2"
+                                    BorderBrush="{DynamicResource ButtonDefaultPrimaryForeground}">
+                                <Grid ColumnDefinitions="28,Auto" ColumnSpacing="2">
+                                    <TextBlock Text="{Binding Id,StringFormat='#{0}'}"
+                                               HorizontalAlignment="Left" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Title}" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.DataTemplates>
+                </ItemsControl>
+                <Button Command="{Binding SyncActivitiesCommand}"
+                        Classes="Danger">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <i:Icon Value="mdi-sync" FontSize="18" />
+                        <TextBlock Text="同步服务器定义" FontSize="18" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Expander>
+        <Expander IsExpanded="True" HorizontalContentAlignment="Left" Header="问题列表">
+            <DataGrid CanUserReorderColumns="False" CanUserSortColumns="False" CanUserResizeColumns="True"
+                      ItemsSource="{Binding Issues}">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Width="Auto" Header="ID" Binding="{Binding Id}" />
+                    <DataGridTextColumn Width="*" Header="描述" Binding="{Binding Title}" />
+                    <DataGridTextColumn Width="Auto" Header="分配给" Binding="{Binding AssignedTo}" />
+                    <DataGridTextColumn Width="*" Header="项目" Binding="{Binding Project}" />
+                    <DataGridCheckBoxColumn Width="Auto" Header="已关闭" Binding="{Binding Disabled}" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Expander>
+    </StackPanel>
 </UserControl>

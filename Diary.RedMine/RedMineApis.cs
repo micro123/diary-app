@@ -8,7 +8,7 @@ namespace Diary.RedMine;
 
 public static class RedMineApis
 {
-    private const int PageSize = 50;
+    public const int PageSize = 50;
     
     // 项目搜索: GET {base}/search.json?q=<keyword1 keyword2>&projects=1
     public static bool SearchProject([NotNullWhen(true)] out IEnumerable<ProjectInfo>? projects,
@@ -85,6 +85,43 @@ public static class RedMineApis
                 request.AddQueryParameter("status_id", "open");
             if (!string.IsNullOrEmpty(keywords))
                 request.AddQueryParameter("subject", $"~{keywords}");
+            
+            request.AddQueryParameter("limit", PageSize);
+            request.AddQueryParameter("offset", page * PageSize);
+            
+            var response = client.Execute<IssueInfo.SearchResult>(request);
+            if (response.StatusCode != HttpStatusCode.OK)
+            {
+                Debug.WriteLine($"http status code {response.StatusCode}: {response.ErrorMessage}");
+            }
+            else
+            {
+                Debug.WriteLine($"response {response.Content}");
+                total = response.Data!.Total;
+                issues = response.Data.Issues;
+            }
+        }
+        
+        return issues != null;
+    }
+    
+    public static bool SearchIssueByIds([NotNullWhen(true)] out IEnumerable<IssueInfo>? issues,
+        out int total, bool myIssues = true, bool openOnly = true, int page = 0, string ids = "")
+    {
+        issues = null;
+        total = 0;
+        
+        var url = IssueInfo.Query();
+        var client = RestTools.BasicClient();
+        if (client != null)
+        {
+            var request = RestTools.HttpGet(url);
+            if (myIssues)
+                request.AddQueryParameter("assigned_to_id", "me");
+            if (openOnly)
+                request.AddQueryParameter("status_id", "open");
+            if (!string.IsNullOrEmpty(ids))
+                request.AddQueryParameter("issue_id", ids);
             
             request.AddQueryParameter("limit", PageSize);
             request.AddQueryParameter("offset", page * PageSize);

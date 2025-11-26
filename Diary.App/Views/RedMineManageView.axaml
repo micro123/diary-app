@@ -10,23 +10,28 @@
     <Design.DataContext>
         <viewModels:RedMineManageViewModel />
     </Design.DataContext>
-    <TabControl ItemsSource="{Binding Tabs}"
-                TabStripPlacement="Bottom" Theme="{DynamicResource CardTabControl}">
-        <TabControl.ItemTemplate>
-            <DataTemplate>
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <i:Icon Value="{Binding Icon}" FontSize="24"
-                            ToolTip.Tip="{Binding Title}" />
-                    <TextBlock Text="{Binding Title}" Classes="H3"
-                               VerticalAlignment="Center"
-                               Theme="{DynamicResource TitleTextBlock}" />
-                </StackPanel>
-            </DataTemplate>
-        </TabControl.ItemTemplate>
-        <TabControl.ContentTemplate>
-            <DataTemplate>
-                <ContentControl Content="{Binding Content}" />
-            </DataTemplate>
-        </TabControl.ContentTemplate>
-    </TabControl>
+    <Panel>
+        <TextBlock Text="无法连接服务器，需要检查RedMine设置" IsVisible="{Binding !ServerOk}"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   Foreground="{DynamicResource ButtonDefaultDisabledForeground}" FontSize="48"/>
+        <TabControl ItemsSource="{Binding Tabs}" IsVisible="{Binding ServerOk}"
+                    TabStripPlacement="Top" Theme="{DynamicResource LineTabControl}">
+            <TabControl.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <i:Icon Value="{Binding Icon}" FontSize="24"
+                                ToolTip.Tip="{Binding Title}" />
+                        <TextBlock Text="{Binding Title}" Classes="H3"
+                                   VerticalAlignment="Center"
+                                   Theme="{DynamicResource TitleTextBlock}" />
+                    </StackPanel>
+                </DataTemplate>
+            </TabControl.ItemTemplate>
+            <TabControl.ContentTemplate>
+                <DataTemplate>
+                    <ContentControl Content="{Binding Content}" />
+                </DataTemplate>
+            </TabControl.ContentTemplate>
+        </TabControl>
+    </Panel>
 </UserControl>
