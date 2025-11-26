@@ -47,11 +47,12 @@
         <DataGrid ItemsSource="{Binding SearchResults}"
                   CanUserReorderColumns="False" CanUserSortColumns="False" CanUserResizeColumns="True">
             <DataGrid.Columns>
-                <DataGridTextColumn Binding="{Binding Id}" Width="Auto" Header="ID"/>
-                <DataGridTextColumn Binding="{Binding Subject}" Width="*" Header="标题"/>
-                <DataGridTextColumn Binding="{Binding Project.Name}" Width="*" Header="项目"/>
-                <DataGridTextColumn Binding="{Binding Status.Name}" Width="Auto" Header="状态"/>
-                <DataGridTextColumn Binding="{Binding Priority.Name}" Width="Auto" Header="优先级"/>
+                <DataGridTextColumn Binding="{Binding Id, Mode=OneWay}" Width="Auto" Header="ID"/>
+                <DataGridTextColumn Binding="{Binding Subject, Mode=OneWay}" Width="*" Header="标题"/>
+                <DataGridTextColumn Binding="{Binding Project.Name, Mode=OneWay}" Width="*" Header="项目"/>
+                <DataGridTextColumn Binding="{Binding AssignedTo.Name, Mode=OneWay}" Width="Auto" Header="分配给"/>
+                <DataGridTextColumn Binding="{Binding Status.Name, Mode=OneWay}" Width="Auto" Header="状态"/>
+                <DataGridTextColumn Binding="{Binding Priority.Name, Mode=OneWay}" Width="Auto" Header="优先级"/>
                 <DataGridTemplateColumn Width="120" Header="操作">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>

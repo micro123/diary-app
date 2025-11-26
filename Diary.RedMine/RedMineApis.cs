@@ -81,8 +81,7 @@ public static class RedMineApis
             var request = RestTools.HttpGet(url);
             if (myIssues)
                 request.AddQueryParameter("assigned_to_id", "me");
-            if (openOnly)
-                request.AddQueryParameter("status_id", "open");
+            request.AddQueryParameter("status_id", openOnly ? "open" : "*");
             if (!string.IsNullOrEmpty(keywords))
                 request.AddQueryParameter("subject", $"~{keywords}");
             
@@ -118,8 +117,7 @@ public static class RedMineApis
             var request = RestTools.HttpGet(url);
             if (myIssues)
                 request.AddQueryParameter("assigned_to_id", "me");
-            if (openOnly)
-                request.AddQueryParameter("status_id", "open");
+            request.AddQueryParameter("status_id", openOnly ? "open" : "*");
             if (!string.IsNullOrEmpty(ids))
                 request.AddQueryParameter("issue_id", ids);
             

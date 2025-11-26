@@ -175,7 +175,8 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
 
     public override WorkTag CreateWorkTag(string name, bool primary, int color)
     {
-        const string sql = @"INSERT OR IGNORE INTO work_tags(tag_name,tag_level,tag_color) VALUES ($value,$level,$color) RETURNING *;";
+        const string sql =
+            @"INSERT OR IGNORE INTO work_tags(tag_name,tag_level,tag_color) VALUES ($value,$level,$color) RETURNING *;";
         var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$value", name);
@@ -320,12 +321,13 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
             items.Add(new WorkItem()
             {
                 Id = reader.GetInt32(0),
-                CreateDate =  reader.GetString(1),
+                CreateDate = reader.GetString(1),
                 Comment = reader.GetString(2),
                 Time = reader.GetDouble(3),
                 Priority = (WorkPriorities)reader.GetInt32(4),
             });
         }
+
         return items;
     }
 
@@ -365,6 +367,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         {
             return reader.GetString(0);
         }
+
         return null;
     }
 
@@ -407,7 +410,8 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
 
     public override RedMineActivity AddRedMineActivity(int id, string title)
     {
-        const string sql = @"INSERT INTO redmine_activities VALUES ($id,$title) ON CONFLICT(id) DO UPDATE SET act_name=$title RETURNING *;";
+        const string sql =
+            @"INSERT INTO redmine_activities VALUES ($id,$title) ON CONFLICT(id) DO UPDATE SET act_name=$title RETURNING *;";
         var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$id", id);
@@ -428,7 +432,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     public override RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project)
     {
         const string sql =
-            @"INSERT INTO redmine_issues(id, issue_title, assigned_to, project_id) VALUES ($id,$title,$assign,$project) RETURNING *;";
+            @"INSERT INTO redmine_issues(id, issue_title, assigned_to, project_id) VALUES ($id,$title,$assign,$project) ON CONFLICT(id) DO UPDATE SET issue_title=$title, assigned_to=$assign, project_id=$project RETURNING *;";
         var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$id", id);
@@ -465,7 +469,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     public override RedMineProject AddRedMineProject(int id, string title, string description)
     {
         const string sql =
-            @"INSERT INTO redmine_projects(id, project_name, project_desc) VALUES ($id,$title,$desc) RETURNING *;";
+            @"INSERT INTO redmine_projects(id, project_name, project_desc) VALUES ($id,$title,$desc) ON CONFLICT(id) DO UPDATE SET project_name=$title, project_desc=$desc RETURNING *;";
         var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$id", id);

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Avalonia.Controls.Notifications;
 using Avalonia.Threading;
@@ -7,6 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.ViewModels;
 using Diary.Core.Data.RedMine;
+using Diary.Database;
 using Diary.RedMine;
 using Diary.RedMine.Response;
 using Diary.Utils;
@@ -37,6 +39,7 @@ public partial class RedMineIssueManageViewModel : ViewModelBase
     [ObservableProperty] private int _totalPage = 1;
     [ObservableProperty] private ObservableCollection<IssueInfo> _searchResults = new();
 
+    private DbInterfaceBase? Db => App.Current.UseDb;
 
     private void UpdateSearchResults(IEnumerable<IssueInfo> searchResults)
     {
@@ -139,8 +142,20 @@ public partial class RedMineIssueManageViewModel : ViewModelBase
     private bool CanGoLastPage => CurrentPage < TotalPage;
 
     [RelayCommand]
-    private async Task Import()
+    private async Task Import(IssueInfo issue)
     {
-        await Task.Delay(500);
+        if (Db == null)
+            return;
+
+        await Task.Run(() =>
+        {
+            // 先导入项目
+            RedMineApis.GetProject(out var project, issue.Project.Id);
+            Debug.Assert(project != null);
+            Db.AddRedMineProject(project.Id, project.Name, project.Description);
+        
+            // 再导入问题
+            Db.AddRedMineIssue(issue.Id, issue.Subject, issue.AssignedTo.Name, issue.Project.Id);
+        });
     }
 }
