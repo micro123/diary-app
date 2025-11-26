@@ -1,0 +1,34 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:pages="clr-namespace:Diary.App.Pages"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:Class="Diary.App.Pages.RedMineInfoView">
+    <Design.DataContext>
+        <pages:RedMineInfoViewModel/>
+    </Design.DataContext>
+    <UserControl.Styles>
+        <Style Selector="Expander > TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+        </Style>
+    </UserControl.Styles>
+    <Panel>
+        <TextBlock Text="无法连接服务器，需要检查RedMine设置" IsVisible="{Binding !ServerOk}"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   Foreground="{DynamicResource ButtonDefaultDisabledForeground}" FontSize="48"/>
+        <StackPanel Orientation="Vertical" IsVisible="{Binding ServerOk}">
+            <Expander IsExpanded="True" HorizontalContentAlignment="Left" Header="用户信息">
+                <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto"
+                      RowSpacing="4" ColumnSpacing="4">
+                    <TextBlock Grid.Column="0" Grid.Row="0" Text="用户ID："/>
+                    <TextBlock Grid.Column="1" Grid.Row="0" Text="{Binding UserId}"/>
+                    <TextBlock Grid.Column="0" Grid.Row="1" Text="登录名："/>
+                    <TextBlock Grid.Column="1" Grid.Row="1" Text="{Binding UserLogin}"/>
+                    <TextBlock Grid.Column="0" Grid.Row="2" Text="用户名："/>
+                    <TextBlock Grid.Column="1" Grid.Row="2" Text="{Binding UserName}"/>
+                </Grid>
+            </Expander>
+        </StackPanel>
+    </Panel>
+</UserControl>
