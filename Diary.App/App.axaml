@@ -159,13 +159,14 @@
 
     <TrayIcon.Icons>
         <TrayIcons>
-            <TrayIcon Icon="/Assets/Icons/diary-app.ico" ToolTipText="Diary Tools NG"
-                      Command="{Binding RaiseWindowCommand}">
+            <TrayIcon Icon="/Assets/Icons/diary-app.ico" ToolTipText="{x:Static local:AppInfo.AppName}"
+                      Command="{Binding RaiseWindowCommand}" IsVisible="{Binding AppHidden}">
                 <TrayIcon.Menu>
                     <NativeMenu>
-                        <NativeMenuItem Header="About" Command="{Binding ShowAboutCommand}" />
+                        <NativeMenuItem Header="{x:Static local:AppInfo.AppVersionString}" IsEnabled="False"/>
+                        <NativeMenuItem Header="关于" Command="{Binding ShowAboutCommand}" />
                         <NativeMenuItemSeparator />
-                        <NativeMenuItem Header="Exit" Command="{Binding QuitAppCommand}" />
+                        <NativeMenuItem Header="退出" Command="{Binding QuitAppCommand}" />
                     </NativeMenu>
                 </TrayIcon.Menu>
             </TrayIcon>

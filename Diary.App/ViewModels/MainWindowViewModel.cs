@@ -25,18 +25,9 @@ public partial class MainWindowViewModel : ViewModelBase
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger _logger;
-    public string VersionString { get; } = $"{DataVersion.VersionString}.{VersionInfo.CommitCount}-{VersionInfo.GitVersionShort}";
+    public string VersionString => AppInfo.AppVersionString;
 
-    public string VersionDetails { get; } = $"""
-                                             数据版本：{DataVersion.VersionString} (0x{DataVersion.VersionCode:X8})
-                                             编译增量：{VersionInfo.CommitCount}
-                                             Git分支：{VersionInfo.Branch}
-                                             Git提交：{VersionInfo.GitVersionShort}
-                                             提交消息：{VersionInfo.LastCommitMessage}
-                                             提交时间：{VersionInfo.LastCommitDate}
-                                             编译时间：{VersionInfo.BuildTime}
-                                             编译主机：{VersionInfo.HostName}
-                                             """;
+    public string VersionDetails => AppInfo.AppVersionDetails;
 
     [RelayCommand]
     private async Task CopyVersion(bool simple)
@@ -145,12 +136,33 @@ public partial class MainWindowViewModel : ViewModelBase
                     await OverlayDialog.ShowCustomModal<object>(vm, options: options);
                 });
                 return;
+            case CommandNames.RaiseMainWindow:
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (!Window!.IsVisible)
+                    {
+                        Window.Show();
+                    }
+                    else
+                    {
+                        Window.Activate();
+                    }
+                });
+                return;
+            case CommandNames.QuitApp:
+                Dispatcher.UIThread.Post(Quit);
+                return;
+            case CommandNames.ShowAboutDialog:
+                Dispatcher.UIThread.Post(ShowAbout);
+                return;
+            
         }
 
         throw new ArgumentOutOfRangeException(nameof(cmd));
     }
 
     private bool _quiting;
+    private Window? Window => View as Window;
     
     [RelayCommand]
     private void Quit()
@@ -162,25 +174,23 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanMinimized))]
     private void Minimized()
     {
-        if (View is Window window)
-            window.WindowState = WindowState.Minimized;
+        Window!.WindowState = WindowState.Minimized;
     }
 
     private bool CanMinimized()
     {
-        return (View as Window)?.WindowState != WindowState.Minimized;
+        return Window?.WindowState != WindowState.Minimized;
     }
     
     [RelayCommand(CanExecute = nameof(CanMaximized))]
     private void Maximized()
     {
-        if (View is Window window)
-            window.WindowState = WindowState.Maximized;
+            Window!.WindowState = WindowState.Maximized;
     }
 
     private bool CanMaximized()
     {
-        return (View as Window)?.WindowState != WindowState.Maximized;
+        return Window?.WindowState != WindowState.Maximized;
     }
 
     protected override void OnAttachView(Control? view)
@@ -204,7 +214,31 @@ public partial class MainWindowViewModel : ViewModelBase
         if (parameter is WindowClosingEventArgs args)
         {
             args.Cancel = true;
-            _logger.LogInformation("reject window closing!");
+            Window!.Hide();
+            Messenger.Send(new WindowStateEvent(false));
         }
+    }
+
+    [RelayCommand]
+    private void Opened(object? parameter)
+    {
+        Messenger.Send(new WindowStateEvent(true));
+    }
+
+    [RelayCommand]
+    private void ShowAbout()
+    {
+        if (!Window!.IsVisible)
+            Window.Show();
+        var options = new OverlayDialogOptions()
+        {
+            Title = "关于",
+            Mode = DialogMode.Info,
+            Buttons = DialogButton.OK,
+            CanDragMove = false,
+            CanLightDismiss = true,
+            IsCloseButtonVisible = true,
+        };
+        OverlayDialog.Show(_serviceProvider.GetRequiredService<AboutViewModel>(), null, options);
     }
 }

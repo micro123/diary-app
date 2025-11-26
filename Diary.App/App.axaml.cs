@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
@@ -30,7 +31,7 @@ namespace Diary.App
     {
         public App()
         {
-            Name = "Diary App NG";
+            Name = AppInfo.AppName;
             Services = ConfigureServices();
         }
 
@@ -95,7 +96,7 @@ namespace Diary.App
             return true;
         }
 
-        private List<IDbFactory> _dbFactories = new();
+        private readonly List<IDbFactory> _dbFactories = new();
         private void EnumerateDbProviders()
         {
             var dbProviders = TypeLoader.GetImplementations<IDbFactory>(FsTools.GetBinaryDirectory(), "Diary.Db.*.dll");

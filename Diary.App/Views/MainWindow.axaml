@@ -24,6 +24,9 @@
         <EventTriggerBehavior EventName="Closing">
             <InvokeCommandAction Command="{Binding ClosingCommand}" PassEventArgsToCommand="True"/>
         </EventTriggerBehavior>
+        <EventTriggerBehavior EventName="Opened">
+            <InvokeCommandAction Command="{Binding OpenedCommand}" PassEventArgsToCommand="True"/>
+        </EventTriggerBehavior>
     </Interaction.Behaviors>
     
     
@@ -101,6 +104,8 @@
                 <Image Source="/Assets/Icons/diary-app.ico" Width="32" Height="32" />
                 <Button.Flyout>
                     <MenuFlyout>
+                        <MenuItem Header="关于" Command="{Binding ShowAboutCommand}"/>
+                        <Separator />
                         <MenuItem Header="最大化" Command="{Binding MaximizedCommand}"/>
                         <MenuItem Header="最小化" Command="{Binding MinimizedCommand}"/>
                         <Separator />

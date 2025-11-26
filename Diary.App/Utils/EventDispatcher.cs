@@ -27,4 +27,9 @@ public static class EventDispatcher
     {
         Messenger.Send(new ToastEvent(content));
     }
+
+    public static void RunCommand(string command)
+    {
+        Messenger.Send(new RunCommandEvent(command));
+    }
 }
