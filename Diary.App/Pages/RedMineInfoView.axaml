@@ -62,7 +62,7 @@
         </Expander>
         <Expander IsExpanded="True" HorizontalContentAlignment="Left" Header="问题列表">
             <DataGrid CanUserReorderColumns="False" CanUserSortColumns="False" CanUserResizeColumns="True"
-                      ItemsSource="{Binding Issues}">
+                      ItemsSource="{Binding Issues}" IsReadOnly="True">
                 <DataGrid.Columns>
                     <DataGridTextColumn Width="Auto" Header="ID" Binding="{Binding Id}" />
                     <DataGridTextColumn Width="*" Header="描述" Binding="{Binding Title}" />

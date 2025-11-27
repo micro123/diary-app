@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -76,6 +77,7 @@ public partial class RedMineInfoViewModel : ViewModelBase
         });
 
         Task.Run(UpdateUserInfo);
+        Task.Run(UpdateIssueList);
     }
 
     private void UpdateUserInfo()
@@ -99,4 +101,23 @@ public partial class RedMineInfoViewModel : ViewModelBase
             UserLogin = string.Empty;
         }
     }
+
+    private async Task UpdateIssueList()
+    {
+        if (Db is null)
+            return;
+
+        var issues = await Task.Run(() => Db.GetRedMineIssues(null));
+        await Dispatcher.UIThread.InvokeAsync(()=>SetIssues(issues));
+    }
+
+    private void SetIssues(IEnumerable<RedMineIssueDisplay> issues)
+    {
+        Issues.Clear();
+        foreach (var issue in issues)
+        {
+            Issues.Add(issue);
+        }
+    }
+    
 }

@@ -24,7 +24,6 @@ public partial class RedMineIssueManageViewModel : ViewModelBase
     // 搜索参数
     [ObservableProperty]
     private string _searchTerm = string.Empty;
-
     [ObservableProperty] private bool _onlyOpened;
     [ObservableProperty] private bool _onlyMyIssues;
     private string _lastSearchMethod = string.Empty;
@@ -36,14 +35,20 @@ public partial class RedMineIssueManageViewModel : ViewModelBase
         nameof(NextPageCommand))]
     private int _currentPage = 1;
 
-    [ObservableProperty] private int _totalPage = 1;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(FirstPageCommand), nameof(LastPageCommand), nameof(PrevPageCommand),
+        nameof(NextPageCommand))]
+    private int _totalPage = 1;
     [ObservableProperty] private ObservableCollection<IssueInfo> _searchResults = new();
 
     private DbInterfaceBase? Db => App.Current.UseDb;
 
-    private void UpdateSearchResults(IEnumerable<IssueInfo> searchResults)
+    private void UpdateSearchResults(IEnumerable<IssueInfo>? searchResults, int total)
     {
+        ResultCount = total;
+        TotalPage = total / RedMineApis.PageSize + 1;
         SearchResults.Clear();
+        if (searchResults == null) return;
         foreach (var result in searchResults)
         {
             SearchResults.Add(result);
@@ -68,36 +73,24 @@ public partial class RedMineIssueManageViewModel : ViewModelBase
             {
                 case SearchById:
                 {
-                    bool ok = RedMineApis.SearchIssueByIds(out var results, out int total,
+                    var ok = RedMineApis.SearchIssueByIds(out var results, out int total,
                         OnlyMyIssues, OnlyOpened, CurrentPage - 1, SearchTerm);
-                    if (ok)
+                    if (!ok)
                     {
-                        ResultCount = total;
-                        TotalPage = total / RedMineApis.PageSize + 1;
-                        Dispatcher.UIThread.InvokeAsync(() => UpdateSearchResults(results!));
-                    }
-                    else
-                    {
-                        ResultCount = 0;
                         NotificationManager?.Show("似乎有什么出错了 >_!", NotificationType.Error);
                     }
+                    Dispatcher.UIThread.InvokeAsync(() => UpdateSearchResults(results, total));
                 }
                     break;
                 case SearchByKeyword:
                 {
-                    bool ok = RedMineApis.SearchIssueByKeywords(out var results, out int total,
+                    var ok = RedMineApis.SearchIssueByKeywords(out var results, out int total,
                         OnlyMyIssues, OnlyOpened, CurrentPage - 1, SearchTerm);
-                    if (ok)
+                    if (!ok)
                     {
-                        ResultCount = total;
-                        TotalPage = total / RedMineApis.PageSize + 1;
-                        Dispatcher.UIThread.InvokeAsync(() => UpdateSearchResults(results!));
-                    }
-                    else
-                    {
-                        ResultCount = 0;
                         NotificationManager?.Show("似乎有什么出错了 >_!", NotificationType.Error);
                     }
+                    Dispatcher.UIThread.InvokeAsync(() => UpdateSearchResults(results, total));
                 }
                     break;
             }

@@ -4,7 +4,7 @@ namespace Diary.App;
 
 public static class AppInfo
 {
-    public static readonly string AppName = "Diary Tools NG";
+    public const string AppName = "Diary Tools NG";
 
     public static readonly string AppVersionString =
         $"{DataVersion.VersionString}.{VersionInfo.CommitCount}-{VersionInfo.GitVersionShort}";

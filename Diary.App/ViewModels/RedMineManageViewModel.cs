@@ -46,9 +46,9 @@ public partial class RedMineManageViewModel : ViewModelBase
         });
         Tabs.Add(new TabItemModel()
         {
-            Title = "项目搜索",
+            Title = "项目管理",
             Icon = "fa-list-check",
-            Content = "333"
+            Content = _serviceProvider.GetRequiredService<RedMineProjectViewModel>(),
         });
 
         Task.Run(CheckServer);

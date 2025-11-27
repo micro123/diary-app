@@ -1,5 +1,6 @@
 using System.Data.SQLite;
 using Diary.Core.Data.Base;
+using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
 using Diary.Database;
 using Diary.Utils;
@@ -520,24 +521,29 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         return activities;
     }
 
-    public override ICollection<RedMineIssue> GetRedMineIssues(RedMineProject? project)
+    public override ICollection<RedMineIssueDisplay> GetRedMineIssues(RedMineProject? project)
     {
         if (project == null)
         {
-            var sql = @"SELECT * FROM redmine_issues;";
+            var sql = """
+                      SELECT
+                          redmine_issues.id AS id, redmine_issues.issue_title, redmine_issues.assigned_to, redmine_projects.project_name, redmine_issues.is_closed
+                      FROM
+                          redmine_issues INNER JOIN redmine_projects WHERE redmine_issues.project_id=redmine_projects.id ORDER BY ID DESC;
+                      """;
             var cmd = _connection!.CreateCommand();
             cmd.CommandText = sql;
             using var reader = cmd.ExecuteReader();
-            var activities = new List<RedMineIssue>();
+            var activities = new List<RedMineIssueDisplay>();
             while (reader.Read())
             {
-                activities.Add(new RedMineIssue()
+                activities.Add(new RedMineIssueDisplay()
                 {
                     Id = reader.GetInt32(0),
                     Title = reader.GetString(1),
                     AssignedTo = reader.GetString(2),
-                    ProjectId = reader.GetInt32(3),
-                    IsClosed = reader.GetInt32(4) != 0,
+                    Project = reader.GetString(3),
+                    Disabled = reader.GetInt32(4) != 0,
                 });
             }
 
@@ -545,21 +551,26 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         }
         else
         {
-            var sql = @"SELECT * FROM redmine_issues WHERE project_id = @projectId;";
+            var sql = """
+                      SELECT
+                          redmine_issues.id AS id, redmine_issues.issue_title, redmine_issues.assigned_to, redmine_projects.project_name, redmine_issues.is_closed
+                      FROM
+                          redmine_issues INNER JOIN redmine_projects WHERE redmine_issues.project_id=$projectId AND redmine_issues.project_id=redmine_projects.id ORDER BY ID DESC;
+                      """;
             var cmd = _connection!.CreateCommand();
             cmd.CommandText = sql;
-            cmd.Parameters.AddWithValue("projectId", project.Id);
+            cmd.Parameters.AddWithValue("$projectId", project.Id);
             using var reader = cmd.ExecuteReader();
-            var activities = new List<RedMineIssue>();
+            var activities = new List<RedMineIssueDisplay>();
             while (reader.Read())
             {
-                activities.Add(new RedMineIssue()
+                activities.Add(new RedMineIssueDisplay()
                 {
                     Id = reader.GetInt32(0),
                     Title = reader.GetString(1),
                     AssignedTo = reader.GetString(2),
-                    ProjectId = reader.GetInt32(3),
-                    IsClosed = reader.GetInt32(4) != 0,
+                    Project = reader.GetString(3),
+                    Disabled = reader.GetInt32(4) != 0,
                 });
             }
 

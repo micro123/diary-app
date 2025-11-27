@@ -68,14 +68,14 @@ namespace ${project};
 
 internal static class VersionInfo
 {
-	public static readonly string BuildTime = "${timestamp}";
-	public static readonly string GitVersionFull = "${hash_full}";
-	public static readonly string GitVersionShort = "${hash_short}";
-	public static readonly string CommitCount = "${commit_count}";
-	public static readonly string Branch = "${branch}";
-	public static readonly string LastCommitMessage = "${commit_message_escaped}";
-	public static readonly string LastCommitDate = "${commit_date}";
-	public static readonly string HostName = "${hostname}";
+	public const string BuildTime = "${timestamp}";
+	public const string GitVersionFull = "${hash_full}";
+	public const string GitVersionShort = "${hash_short}";
+	public const string CommitCount = "${commit_count}";
+	public const string Branch = "${branch}";
+	public const string LastCommitMessage = "${commit_message_escaped}";
+	public const string LastCommitDate = "${commit_date}";
+	public const string HostName = "${hostname}";
 }
 EOF
 

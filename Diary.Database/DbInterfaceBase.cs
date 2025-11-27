@@ -1,4 +1,5 @@
 using Diary.Core.Data.Base;
+using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
 namespace Diary.Database;
 
@@ -53,7 +54,7 @@ public abstract class DbInterfaceBase
     public abstract void UpdateRedMineProjectStatus(int id, bool closed);
 
     public abstract ICollection<RedMineActivity> GetRedMineActivities();
-    public abstract ICollection<RedMineIssue> GetRedMineIssues(RedMineProject? project);
+    public abstract ICollection<RedMineIssueDisplay> GetRedMineIssues(RedMineProject? project);
     public abstract ICollection<RedMineProject> GetRedMineProjects();
 
     // time-entries

@@ -1,11 +1,13 @@
+using Diary.Utils;
+
 namespace Diary.Core;
 
-public static class DataVersion
+[VersionSource]
+public static partial class DataVersion
 {
     private const uint Major = 1;
     private const uint Minor = 0;
     private const uint Patch = 0;
-
-    public static string VersionString => $"{Major}.{Minor}.{Patch}";
-    public static uint VersionCode => Major * 0x10000u + Minor * 0x100u + Patch;
+    public const string VersionString = "1.0.0";
+    public const uint VersionCode = Major * 0x10000 + Minor * 0x100 + Patch;
 }

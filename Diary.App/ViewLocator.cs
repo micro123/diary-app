@@ -1,13 +1,13 @@
 using System;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
+using Avalonia.Layout;
 using Diary.App.ViewModels;
 
 namespace Diary.App
 {
     public class ViewLocator : IDataTemplate
     {
-
         public Control? Build(object? param)
         {
             if (param is null)
@@ -24,7 +24,12 @@ namespace Diary.App
                 return control;
             }
 
-            return new TextBlock { Text = "Not Found: " + name };
+            return new TextBlock
+            {
+                Text = "Not Found: " + name,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
         }
 
         public bool Match(object? data)

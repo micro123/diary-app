@@ -1,4 +1,5 @@
 using Diary.Core.Data.Base;
+using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
 using Diary.Database;
 
@@ -148,7 +149,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase
         throw new NotImplementedException();
     }
 
-    public override ICollection<RedMineIssue> GetRedMineIssues(RedMineProject? project)
+    public override ICollection<RedMineIssueDisplay> GetRedMineIssues(RedMineProject? project)
     {
         throw new NotImplementedException();
     }
