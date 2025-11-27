@@ -1,6 +1,6 @@
 namespace Diary.Core.Data.Base;
 
-public class WorkTag
+public record WorkTag
 {
     public int Id { get; set; } = 0;
     public string Name { get; set; } = string.Empty;

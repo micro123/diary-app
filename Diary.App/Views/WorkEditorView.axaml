@@ -49,6 +49,22 @@
         </Grid>
         <u:Divider DockPanel.Dock="Top" Content="标签列表" HorizontalContentAlignment="Left" />
         <!-- 标签列表 -->
+        <u:MultiComboBox DockPanel.Dock="Top"
+                         ItemsSource="{Binding AllTags}"
+                         SelectedItems="{Binding WorkTags}"
+                         Watermark="没有标签" HorizontalAlignment="Stretch">
+            <u:MultiComboBox.ItemTemplate>
+                <DataTemplate>
+                    <TextBox Text="{Binding Name}"/>
+                </DataTemplate>
+            </u:MultiComboBox.ItemTemplate>
+            <u:MultiComboBox.SelectedItemTemplate>
+                <DataTemplate>
+                    <TextBox Text="{Binding Name}"/>
+                </DataTemplate>
+            </u:MultiComboBox.SelectedItemTemplate>
+        </u:MultiComboBox>
+        <u:Divider DockPanel.Dock="Top" Content="RedMine信息" HorizontalContentAlignment="Left" />
         <!-- redmine预留 -->
         <!-- plm预留 -->
         <u:Divider DockPanel.Dock="Top" Content="备注（仅本地存储）" HorizontalContentAlignment="Left" />

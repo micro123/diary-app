@@ -1,6 +1,6 @@
 namespace Diary.Core.Data.RedMine;
 
-public class WorkTimeEntry
+public record WorkTimeEntry
 {
     public int WorkId {get; set;}
     public int EntryId {get; set;}

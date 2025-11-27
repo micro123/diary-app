@@ -119,5 +119,31 @@ public partial class RedMineInfoViewModel : ViewModelBase
             Issues.Add(issue);
         }
     }
+
+    [RelayCommand]
+    private async Task SyncIssueState()
+    {
+        // TODO: 抓取所有数据库中的问题，更新问题的描述、关闭状态、指派目标等
+        await Task.Delay(500);
+    }
     
+    [RelayCommand]
+    private async Task ReloadIssues()
+    {
+        await UpdateIssueList();
+    }
+    
+    [RelayCommand]
+    private async Task CloseIssue()
+    {
+        // TODO: 关闭问题
+        await Task.Delay(500);
+    }
+    
+    [RelayCommand]
+    private async Task DeleteIssue()
+    {
+        // TODO: 删除问题，只影响本地数据
+        await Task.Delay(500);
+    }
 }

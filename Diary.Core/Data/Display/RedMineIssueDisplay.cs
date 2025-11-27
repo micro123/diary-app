@@ -1,6 +1,6 @@
 namespace Diary.Core.Data.Display;
 
-public class RedMineIssueDisplay
+public record RedMineIssueDisplay
 {
     public int Id { get; set; }
     public required string Title { get; set; }

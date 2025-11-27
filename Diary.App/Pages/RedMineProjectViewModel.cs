@@ -9,6 +9,8 @@ using Diary.App.ViewModels;
 using Diary.RedMine;
 using Diary.RedMine.Response;
 using Diary.Utils;
+using Microsoft.Extensions.DependencyInjection;
+using Ursa.Controls;
 
 namespace Diary.App.Pages;
 
@@ -99,9 +101,56 @@ public partial class RedMineProjectViewModel : ViewModelBase
     private bool CanGoLastPage => CurrentPage < TotalPage;
 
     [RelayCommand]
-    private void CreateIssue(ProjectInfo project)
+    private async Task CreateIssue(ProjectInfo project)
     {
-        NotificationManager?.Show("还没实现~~", NotificationType.Information);
+        // NotificationManager?.Show("还没实现~~", NotificationType.Information);
+        var opt = new OverlayDialogOptions
+        {
+            Title = "创建问题",
+            Buttons = DialogButton.OKCancel,
+            CanDragMove = false,
+            CanResize = false,
+            CanLightDismiss = false,
+            Mode = DialogMode.None
+        };
+        var vm = App.Current.Services.GetRequiredService<NewIssueViewModel>();
+        bool finish = false;
+        do
+        {
+            var result = await OverlayDialog.ShowModal<NewIssueView, NewIssueViewModel>(vm: vm, options: opt);
+            if (result == DialogResult.OK)
+            {
+                // check parameters
+                if (!vm.IsValid)
+                {
+                    ToastManager?.Show("参数错误！");
+                }
+                else
+                {
+                    IssueInfo? issue = null;
+                    (finish, issue) = await Task.Run(() =>
+                    {
+                        var ok = RedMineApis.CreateIssue(out IssueInfo? info, project.Id,
+                            vm.IssueTitle, vm.IssueDesc,
+                            vm.AssignSelf);
+                        return (ok, info);
+                    });
+                    if (finish)
+                    {
+                        ToastManager?.Show("创建问题成功^_^");
+                        ToastManager?.Show($"新问题ID: {issue!.Id}");
+                    }
+                    else
+                    {
+                        ToastManager?.Show("创建问题失败了>_<");
+                    }
+                }
+            }
+            else
+            {
+                finish = true;
+            }
+        } while (!finish);
     }
 
     [RelayCommand]

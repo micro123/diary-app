@@ -8,53 +8,55 @@
              x:Class="Diary.App.Pages.RedMineProjectView"
              Padding="8">
     <Design.DataContext>
-        <pages:RedMineProjectViewModel/>
+        <pages:RedMineProjectViewModel />
     </Design.DataContext>
     <UserControl.Styles>
         <Style Selector="TextBlock">
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
         <Style Selector="CheckBox">
-            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center" />
             <!-- <Setter Property="Theme" Value="{DynamicResource CardCheckBox}"/> -->
         </Style>
     </UserControl.Styles>
-    <DockPanel VerticalSpacing="4">
-        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" DockPanel.Dock="Top">
-            <TextBox Text="{Binding SearchTerm}" Watermark="搜索关键字"/>
-            <Button Grid.Column="1" Content="搜索"
-                         Command="{Binding SearchCommand}">
-            </Button>
-        </Grid>
-        <StackPanel Orientation="Horizontal" Spacing="8" DockPanel.Dock="Top">
-            <Button Content="首页" Command="{Binding FirstPageCommand}"/>
-            <Button Content="上一页" Command="{Binding PrevPageCommand}"/>
-            <TextBlock Text="{Binding CurrentPage, StringFormat='第{0}页'}"/>
-            <TextBlock Text="{Binding TotalPage, StringFormat='共{0}页'}"/>
-            <Button Content="下一页" Command="{Binding NextPageCommand}"/>
-            <Button Content="尾页" Command="{Binding LastPageCommand}"/>
-            <TextBlock Text="{Binding ResultCount, StringFormat='共检索到{0}个项目'}"/>
-        </StackPanel>
-        <DataGrid ItemsSource="{Binding SearchResults}" IsReadOnly="True"
-                  CanUserReorderColumns="False" CanUserSortColumns="False" CanUserResizeColumns="True">
-            <DataGrid.Columns>
-                <DataGridTextColumn Binding="{Binding Id, Mode=OneWay}" Width="Auto" Header="ID"/>
-                <DataGridTextColumn Binding="{Binding Name, Mode=OneWay}" Width="*" Header="标题"/>
-                <DataGridTemplateColumn Width="120" Header="操作">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <StackPanel Orientation="Horizontal">
-                                <Button i:Attached.Icon="mdi-comment-alert-outline" ToolTip.Tip="查看描述信息"
-                                        Command="{Binding $parent[UserControl].DataContext.ShowDescCommand}"
-                                        CommandParameter="{Binding}"/>
-                                <Button Content="新建问题" Classes="Primary"
-                                        Command="{Binding $parent[UserControl].DataContext.CreateIssueCommand}"
-                                        CommandParameter="{Binding}"/>
-                            </StackPanel>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-            </DataGrid.Columns>
-        </DataGrid>
-    </DockPanel>
+    <ScrollViewer>
+        <DockPanel VerticalSpacing="4">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" DockPanel.Dock="Top">
+                <TextBox Text="{Binding SearchTerm}" Watermark="搜索关键字" />
+                <Button Grid.Column="1" Content="搜索"
+                        Command="{Binding SearchCommand}">
+                </Button>
+            </Grid>
+            <StackPanel Orientation="Horizontal" Spacing="8" DockPanel.Dock="Top">
+                <Button Content="首页" Command="{Binding FirstPageCommand}" />
+                <Button Content="上一页" Command="{Binding PrevPageCommand}" />
+                <TextBlock Text="{Binding CurrentPage, StringFormat='第{0}页'}" />
+                <TextBlock Text="{Binding TotalPage, StringFormat='共{0}页'}" />
+                <Button Content="下一页" Command="{Binding NextPageCommand}" />
+                <Button Content="尾页" Command="{Binding LastPageCommand}" />
+                <TextBlock Text="{Binding ResultCount, StringFormat='共检索到{0}个项目'}" />
+            </StackPanel>
+            <DataGrid ItemsSource="{Binding SearchResults}" IsReadOnly="True"
+                      CanUserReorderColumns="False" CanUserSortColumns="False" CanUserResizeColumns="True">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Binding="{Binding Id, Mode=OneWay}" Width="Auto" Header="ID" />
+                    <DataGridTextColumn Binding="{Binding Name, Mode=OneWay}" Width="*" Header="标题" />
+                    <DataGridTemplateColumn Width="120" Header="操作">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button i:Attached.Icon="mdi-comment-alert-outline" ToolTip.Tip="查看描述信息"
+                                            Command="{Binding $parent[UserControl].DataContext.ShowDescCommand}"
+                                            CommandParameter="{Binding}" />
+                                    <Button Content="新建问题" Classes="Primary"
+                                            Command="{Binding $parent[UserControl].DataContext.CreateIssueCommand}"
+                                            CommandParameter="{Binding}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+        </DockPanel>
+    </ScrollViewer>
 </UserControl>

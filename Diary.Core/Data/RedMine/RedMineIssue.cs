@@ -1,6 +1,6 @@
 namespace Diary.Core.Data.RedMine;
 
-public class RedMineIssue
+public record RedMineIssue
 {
     public int Id { get; init; } = 0;
     public string Title { get; init; } = string.Empty;

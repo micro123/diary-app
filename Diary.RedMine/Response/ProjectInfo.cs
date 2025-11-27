@@ -5,6 +5,7 @@ namespace Diary.RedMine.Response;
 public class ProjectInfo
 {
     public static string Search() => "search.json";
+    public static string All() => "projects.json";
     public static string Fetch(int id) => $"projects/{id}.json";
     
     [JsonProperty("id")] public int Id { get; set; }
@@ -22,6 +23,16 @@ public class ProjectInfo
     public class SearchResult
     {
         [JsonProperty("results")] public List<ProjectInfo> Results { get; set; } = new();
+
+        private List<ProjectInfo>? _projects;
+
+        [JsonProperty("projects")]
+        public List<ProjectInfo> Projects
+        {
+            get => _projects ?? Results;
+            set => _projects = value;
+        }
+        
         [JsonProperty("total_count")] public int Total { get; set; }
     }
 

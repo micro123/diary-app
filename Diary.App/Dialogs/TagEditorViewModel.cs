@@ -33,7 +33,8 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
     {
         Messenger.Register<DbChangedEvent>(this, (r, m) =>
         {
-            LoadTags();
+            if ((m.Value & DbChangedEvent.WorkTags) != 0)
+                LoadTags();
         });
         _logger = logger;
         LoadTags();

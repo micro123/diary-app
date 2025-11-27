@@ -1,0 +1,27 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:u="https://irihi.tech/ursa"
+             xmlns:pages="clr-namespace:Diary.App.Pages"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:Class="Diary.App.Pages.NewIssueView">
+    <Design.DataContext>
+        <pages:NewIssueViewModel />
+    </Design.DataContext>
+    <UserControl.Styles>
+        <Style Selector="u|FormItem">
+            <Setter Property="Margin" Value="4" />
+        </Style>
+        <Style Selector="TextBox">
+            <Setter Property="Width" Value="360"/>
+        </Style>
+    </UserControl.Styles>
+    <u:Form LabelPosition="Left" LabelWidth="70" LabelAlignment="Right">
+        <TextBox Text="{Binding IssueTitle}" u:FormItem.IsRequired="True"
+                 u:FormItem.Label="标题"/>
+        <TextBox Text="{Binding IssueDesc}" u:FormItem.IsRequired="False"
+                 u:FormItem.Label="说明" Classes="TextArea"/>
+        <ToggleSwitch u:FormItem.Label="派给自己" IsChecked="{Binding AssignSelf}"/>
+    </u:Form>
+</UserControl>

@@ -93,6 +93,9 @@ namespace Diary.App
                     return false;
                 }
             }
+            
+            Services.GetRequiredService<DbShareData>().InitLoad();
+            
             return true;
         }
 

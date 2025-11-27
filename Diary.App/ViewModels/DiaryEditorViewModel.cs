@@ -3,7 +3,9 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Diary.App.Models;
 using Diary.Utils;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Diary.App.ViewModels;
@@ -12,6 +14,7 @@ namespace Diary.App.ViewModels;
 public partial class DiaryEditorViewModel : ViewModelBase
 {
     private readonly ILogger _logger;
+    private readonly IServiceProvider _serviceProvider;
 
     [ObservableProperty]
     private DateTime _selectedDate;
@@ -19,14 +22,14 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private DateTime _currentDate;
     
     private string CurrentDateString => TimeTools.FormatDateTime(CurrentDate);
-    private bool _creating = false;
+    private bool _creating;
 
     [RelayCommand]
     private void NewWorkItem()
     {
         _creating = true;
         SelectedWork = null; // hack: clear selection
-        SelectedWork = new WorkEditorViewModel()
+        SelectedWork = new WorkEditorViewModel(_serviceProvider.GetRequiredService<DbShareData>())
         {
             Date = CurrentDateString,
         };
@@ -60,7 +63,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
     }
 
     private bool CanDuplicate => SelectedWork != null && SelectedWork.CanClone();
-    private bool _deleting = false;
+    private bool _deleting;
 
     [RelayCommand(CanExecute = nameof(CanDelete))]
     private void DeleteWorkItem()
@@ -95,11 +98,13 @@ public partial class DiaryEditorViewModel : ViewModelBase
             SaveWorkItem();
         // fetch new
         value?.SyncNote();
+        value?.SyncTags();
     }
 
-    public DiaryEditorViewModel(ILogger logger)
+    public DiaryEditorViewModel(ILogger logger, IServiceProvider serviceProvider)
     {
         _logger = logger;
+        _serviceProvider = serviceProvider;
         SelectedDate = DateTime.Today;
     }
 

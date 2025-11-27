@@ -406,7 +406,31 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
 
     public override ICollection<WorkTag> GetWorkItemTags(WorkItem item)
     {
-        throw new NotImplementedException();
+        if (item.Id == 0)
+            throw new ArgumentException("work id is required");
+        var sql = """
+                  SELECT work_tags.* 
+                  FROM work_item_tags INNER JOIN work_tags ON work_item_tags.tag_id=work_tags.id
+                  WHERE work_item_tags.work_id = $work_id;
+                  """;
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$work_id", item.Id);
+        using var reader = cmd.ExecuteReader();
+        var tags = new List<WorkTag>();
+        while (reader.Read())
+        {
+            tags.Add(new WorkTag()
+            {
+                Id = reader.GetInt32(0),
+                Name = reader.GetString(1),
+                Color = reader.GetInt32(2),
+                Level = (TagLevels)reader.GetInt32(3),
+                Disabled = reader.GetInt32(4) != 0,
+            });
+        }
+
+        return tags;
     }
 
     public override RedMineActivity AddRedMineActivity(int id, string title)

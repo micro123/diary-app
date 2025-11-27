@@ -1,6 +1,6 @@
 namespace Diary.Core.Data.Base;
 
-public class WorkItem
+public record WorkItem
 {
     public int Id { get; set; } = 0;
     public string CreateDate { get; set; } = string.Empty;

@@ -17,7 +17,8 @@ public static class RedMineApis
     {
         projects = null;
         total = 0;
-        var url = ProjectInfo.Search();
+        string url;
+        url = !string.IsNullOrEmpty(keyword) ? ProjectInfo.Search() : ProjectInfo.All();
         var client = RestTools.BasicClient();
         if (client != null)
         {
