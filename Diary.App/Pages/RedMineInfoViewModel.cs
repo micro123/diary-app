@@ -8,6 +8,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.Messages;
+using Diary.App.Models;
+using Diary.App.Utils;
 using Diary.App.ViewModels;
 using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
@@ -24,6 +26,7 @@ public partial class RedMineInfoViewModel : ViewModelBase
 {
     private readonly ILogger _logger;
     private readonly IServiceProvider _serviceProvider;
+    private readonly DbShareData _shareData;
     private DbInterfaceBase? Db => App.Current.UseDb;
 
     // 基本信息
@@ -32,10 +35,10 @@ public partial class RedMineInfoViewModel : ViewModelBase
     [ObservableProperty] private string _userLogin = string.Empty;
 
     // 活动列表
-    [ObservableProperty] private ObservableCollection<RedMineActivity> _activities = new();
+    public ObservableCollection<RedMineActivity> Activities => _shareData.RedMineActivities;
     
     // 问题列表
-    [ObservableProperty] private ObservableCollection<RedMineIssueDisplay> _issues = new();
+    public ObservableCollection<RedMineIssueDisplay> Issues => _shareData.RedMineIssues;
 
     [RelayCommand]
     private async Task SyncActivities()
@@ -47,37 +50,19 @@ public partial class RedMineInfoViewModel : ViewModelBase
             var all = activities?.Select(x => Db!.AddRedMineActivity(x.Id, x.Name)).ToArray();
             return all != null;
         });
-        if (result)
-        {
-            FetchActivitiesFromDb();
-        }
+        EventDispatcher.DbChanged(DbChangedEvent.RedMineActivity);
     }
 
-    private void FetchActivitiesFromDb()
-    {
-        if (Db is null)
-            return;
 
-        Activities.Clear();
-        foreach (var act in Db!.GetRedMineActivities())
-        {
-            Activities.Add(act);
-        }
-    }
-
-    public RedMineInfoViewModel(ILogger logger, IServiceProvider serviceProvider)
+    public RedMineInfoViewModel(ILogger logger, IServiceProvider serviceProvider, DbShareData shareData)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
-        FetchActivitiesFromDb();
+        _shareData = shareData;
 
-        Messenger.Register<ConfigUpdateEvent>(this, (r, m) =>
-        {
-            UpdateUserInfo();
-        });
+        Messenger.Register<ConfigUpdateEvent>(this, (r, m) => { UpdateUserInfo(); });
 
         Task.Run(UpdateUserInfo);
-        Task.Run(UpdateIssueList);
     }
 
     private void UpdateUserInfo()
@@ -102,44 +87,46 @@ public partial class RedMineInfoViewModel : ViewModelBase
         }
     }
 
-    private async Task UpdateIssueList()
-    {
-        if (Db is null)
-            return;
-
-        var issues = await Task.Run(() => Db.GetRedMineIssues(null));
-        await Dispatcher.UIThread.InvokeAsync(()=>SetIssues(issues));
-    }
-
-    private void SetIssues(IEnumerable<RedMineIssueDisplay> issues)
-    {
-        Issues.Clear();
-        foreach (var issue in issues)
-        {
-            Issues.Add(issue);
-        }
-    }
-
     [RelayCommand]
     private async Task SyncIssueState()
     {
-        // TODO: 抓取所有数据库中的问题，更新问题的描述、关闭状态、指派目标等
-        await Task.Delay(500);
+        await Task.Run(() =>
+        {
+            var batches = Issues.Select((x, n) => new { o = x, i = n })
+                .GroupBy(x => x.i / RedMineApis.PageSize)
+                .Select(g => g.Select(x => x.o));
+            foreach (var batch in batches)
+            {
+                var arr = batch.ToArray();
+                string ids = string.Join(',', arr.Select(x => x.Id));
+                var success =
+                    RedMineApis.SearchIssueByIds(out IEnumerable<IssueInfo>? infos, out var _, false, false, 0, ids);
+                if (success)
+                {
+                    // update db
+                    foreach (var issue in infos!)
+                    {
+                        Db!.AddRedMineIssue(issue.Id, issue.Subject, issue.AssignedTo.Name, issue.Project.Id, issue.Status.IsClosed);
+                    }
+                }
+            }
+        });
+        EventDispatcher.DbChanged(DbChangedEvent.RedMineIssue);
     }
-    
+
     [RelayCommand]
     private async Task ReloadIssues()
     {
-        await UpdateIssueList();
+        await Dispatcher.UIThread.InvokeAsync(() => EventDispatcher.DbChanged(DbChangedEvent.RedMineIssue));
     }
-    
+
     [RelayCommand]
     private async Task CloseIssue()
     {
         // TODO: 关闭问题
         await Task.Delay(500);
     }
-    
+
     [RelayCommand]
     private async Task DeleteIssue()
     {

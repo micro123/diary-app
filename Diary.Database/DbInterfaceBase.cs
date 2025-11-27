@@ -48,7 +48,7 @@ public abstract class DbInterfaceBase
 
     // redmine
     public abstract RedMineActivity AddRedMineActivity(int id, string title);
-    public abstract RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project);
+    public abstract RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project, bool closed = false);
     public abstract void UpdateRedMineIssueStatus(int id, bool closed);
     public abstract RedMineProject AddRedMineProject(int id, string title, string description);
     public abstract void UpdateRedMineProjectStatus(int id, bool closed);

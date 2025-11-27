@@ -161,7 +161,7 @@
     <TrayIcon.Icons>
         <TrayIcons>
             <TrayIcon Icon="/Assets/Icons/diary-app.ico" ToolTipText="{x:Static local:AppInfo.AppName}"
-                      Command="{Binding RaiseWindowCommand}" IsVisible="{Binding AppHidden}">
+                      Command="{Binding RaiseWindowCommand}" IsVisible="{Binding TrayVisible}">
                 <TrayIcon.Menu>
                     <NativeMenu>
                         <NativeMenuItem Header="{x:Static local:AppInfo.AppVersionString}" IsEnabled="False"/>

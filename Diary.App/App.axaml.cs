@@ -124,11 +124,10 @@ namespace Diary.App
             Logger.LogDebug("Configuring services");
             IServiceCollection services = new ServiceCollection();
 
-            services.AddTypesFromAssembly(Assembly.GetExecutingAssembly());
-
-            // TODO: Add More
+            // mask add before
             services.AddSingleton(Logging.Logger);
-
+            services.AddTypesFromAssembly(Assembly.GetExecutingAssembly());
+            
             return services.BuildServiceProvider();
         }
 

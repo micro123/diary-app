@@ -42,7 +42,7 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.DataTemplates>
                             <DataTemplate DataType="{x:Type redMine:RedMineActivity}">
-                                <Border BorderThickness="0 0 0 2"
+                                <Border BorderThickness="0 0 0 2" HorizontalAlignment="Left"
                                         BorderBrush="{DynamicResource ButtonDefaultPrimaryForeground}">
                                     <Grid ColumnDefinitions="28,Auto" ColumnSpacing="2">
                                         <TextBlock Text="{Binding Id,StringFormat='#{0}'}"

@@ -230,7 +230,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     {
         List<WorkTag> result = new();
 
-        const string sql = @"SELECT * FROM work_tags;";
+        const string sql = @"SELECT * FROM work_tags ORDER BY is_disabled ASC, tag_level ASC;";
         var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         using var reader = cmd.ExecuteReader();
@@ -454,16 +454,18 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         return new RedMineActivity();
     }
 
-    public override RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project)
+    public override RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project,
+        bool closed = false)
     {
         const string sql =
-            @"INSERT INTO redmine_issues(id, issue_title, assigned_to, project_id) VALUES ($id,$title,$assign,$project) ON CONFLICT(id) DO UPDATE SET issue_title=$title, assigned_to=$assign, project_id=$project RETURNING *;";
+            "INSERT INTO redmine_issues(id, issue_title, assigned_to, project_id, is_closed) VALUES ($id,$title,$assign,$project,$close) ON CONFLICT(id) DO UPDATE SET issue_title=$title, assigned_to=$assign, project_id=$project, is_closed=$close RETURNING *;";
         var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$id", id);
         cmd.Parameters.AddWithValue("$title", title);
         cmd.Parameters.AddWithValue("$assign", assignedTo);
         cmd.Parameters.AddWithValue("$project", project);
+        cmd.Parameters.AddWithValue("$close", closed ? 1 : 0);
         using var reader = cmd.ExecuteReader();
         if (reader.Read())
         {
@@ -551,9 +553,9 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         {
             var sql = """
                       SELECT
-                          redmine_issues.id AS id, redmine_issues.issue_title, redmine_issues.assigned_to, redmine_projects.project_name, redmine_issues.is_closed
+                          redmine_issues.id AS id, redmine_issues.issue_title, redmine_issues.assigned_to, redmine_projects.project_name, redmine_issues.is_closed as closed
                       FROM
-                          redmine_issues INNER JOIN redmine_projects WHERE redmine_issues.project_id=redmine_projects.id ORDER BY ID DESC;
+                          redmine_issues INNER JOIN redmine_projects ON redmine_issues.project_id=redmine_projects.id ORDER BY closed ASC, id DESC;
                       """;
             var cmd = _connection!.CreateCommand();
             cmd.CommandText = sql;
@@ -577,9 +579,9 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         {
             var sql = """
                       SELECT
-                          redmine_issues.id AS id, redmine_issues.issue_title, redmine_issues.assigned_to, redmine_projects.project_name, redmine_issues.is_closed
+                          redmine_issues.id AS id, redmine_issues.issue_title, redmine_issues.assigned_to, redmine_projects.project_name, redmine_issues.is_closed as closed
                       FROM
-                          redmine_issues INNER JOIN redmine_projects WHERE redmine_issues.project_id=$projectId AND redmine_issues.project_id=redmine_projects.id ORDER BY ID DESC;
+                          redmine_issues INNER JOIN redmine_projects ON redmine_issues.project_id=$projectId AND redmine_issues.project_id=redmine_projects.id ORDER BY closed ASC, id DESC;
                       """;
             var cmd = _connection!.CreateCommand();
             cmd.CommandText = sql;

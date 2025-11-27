@@ -40,7 +40,7 @@
             <TextBlock Grid.Row="1" Grid.Column="0" Text="标题：" VerticalAlignment="Center" />
             <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="4" Text="{Binding Comment}" Classes="ClearButton" />
             <TextBlock Grid.Row="2" Grid.Column="0" Text="耗时：" VerticalAlignment="Center" />
-            <u:NumericDoubleUpDown Grid.Row="2" Grid.Column="1"
+            <u:NumericDoubleUpDown Grid.Row="2" Grid.Column="1" Width="100"
                                    Value="{Binding Time}" InnerRightContent="小时"
                                    ShowButtonSpinner="False" Maximum="24" Minimum="0"/>
             <TextBlock Grid.Row="2" Grid.Column="2" Text="优先级：" VerticalAlignment="Center" HorizontalAlignment="Right"/>

@@ -17,8 +17,8 @@
         <TextBlock Grid.Row="0" Text="{Binding Title}" Classes="Header" />
         <u:Divider Content="新建标签" Grid.Row="1" HorizontalContentAlignment="Left"/>
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="8 2" Spacing="8">
-            <TextBlock Text="名称：" VerticalAlignment="Center"/>
-            <TextBox Text="{Binding NewTagName}" Width="150"/>
+            <TextBox Text="{Binding NewTagName}" Width="150" Watermark="输入标签名称"
+                     Classes="ClearButton"/>
             <CheckBox Content="是主标签吗？" IsChecked="{Binding NewIsPrimary}"
                       VerticalAlignment="Center" Theme="{DynamicResource CardCheckBox}"/>
             <TextBlock Text="标签颜色：" VerticalAlignment="Center"/>

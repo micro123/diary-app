@@ -21,18 +21,18 @@ public partial class AppModel: ObservableObject
         messenger.Register<WindowStateEvent>(this, (r, m) =>
         {
             if (!App.Current.AppConfig.ViewSettings.AlwaysShowTrayIcon)
-                AppHidden = !m.Value;
+                TrayVisible = !m.Value;
         });
         messenger.Register<ConfigUpdateEvent>(this, (r, m) =>
         {
             // 能进这里那么主窗口一定可见
             if (!App.Current.AppConfig.ViewSettings.AlwaysShowTrayIcon)
-                AppHidden = false;
+                TrayVisible = false;
         });
     }
 
     [ObservableProperty]
-    private bool _appHidden = App.Current.AppConfig.ViewSettings.AlwaysShowTrayIcon;
+    private bool _trayVisible = App.Current.AppConfig.ViewSettings.AlwaysShowTrayIcon;
 
     [RelayCommand]
     private void QuitApp()

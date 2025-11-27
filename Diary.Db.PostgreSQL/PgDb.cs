@@ -124,7 +124,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase
         throw new NotImplementedException();
     }
 
-    public override RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project)
+    public override RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project, bool closed = false)
     {
         throw new NotImplementedException();
     }

@@ -13,6 +13,7 @@ using Diary.App.Dialogs;
 using Diary.App.Messages;
 using Diary.App.Models;
 using Diary.Core;
+using Diary.Core.Data.AppConfig;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -210,6 +211,8 @@ public partial class MainWindowViewModel : ViewModelBase
     private void Closing(object? parameter)
     {
         if (_quiting)
+            return;
+        if (!AllConfig.Instance.ViewSettings.HideToTray)
             return;
         if (parameter is WindowClosingEventArgs args)
         {
