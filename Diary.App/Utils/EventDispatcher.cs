@@ -10,7 +10,8 @@ public static class EventDispatcher
 
     public static void Notify(string title, string body)
     {
-        Messenger.Send(new NotifyEvent(title, body));
+        var opt = new NotifyOptions(title, body);
+        Messenger.Send(new NotifyEvent(opt));
     }
 
     public static void RouteToPage(string page)

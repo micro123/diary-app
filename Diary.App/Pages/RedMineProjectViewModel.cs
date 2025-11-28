@@ -5,6 +5,7 @@ using Avalonia.Controls.Notifications;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Diary.App.Utils;
 using Diary.App.ViewModels;
 using Diary.RedMine;
 using Diary.RedMine.Response;
@@ -127,7 +128,7 @@ public partial class RedMineProjectViewModel : ViewModelBase
                 }
                 else
                 {
-                    IssueInfo? issue = null;
+                    IssueInfo? issue;
                     (finish, issue) = await Task.Run(() =>
                     {
                         var ok = RedMineApis.CreateIssue(out IssueInfo? info, project.Id,
@@ -137,8 +138,7 @@ public partial class RedMineProjectViewModel : ViewModelBase
                     });
                     if (finish)
                     {
-                        ToastManager?.Show("创建问题成功^_^");
-                        ToastManager?.Show($"新问题ID: {issue!.Id}");
+                        EventDispatcher.Notify("问题创建成功", $"新问题ID为: {issue!.Id}");
                     }
                     else
                     {
@@ -156,6 +156,6 @@ public partial class RedMineProjectViewModel : ViewModelBase
     [RelayCommand]
     private void ShowDesc(ProjectInfo project)
     {
-        NotificationManager?.Show(string.IsNullOrEmpty(project.Description) ? "描述是空的哟~~" : project.Description, NotificationType.Information);
+        EventDispatcher.Notify(project.Name, string.IsNullOrEmpty(project.Description) ? "描述是空的哟~~" : project.Description);
     }
 }

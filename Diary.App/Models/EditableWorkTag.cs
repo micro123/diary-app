@@ -3,7 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Diary.App.Utils;
 using Diary.Core.Data.Base;
 
-namespace Diary.App.Dialogs;
+namespace Diary.App.Models;
 
 public partial class EditableWorkTag(WorkTag tag) : ObservableObject
 {

@@ -17,87 +17,81 @@
             <Setter Property="HorizontalAlignment" Value="Right" />
         </Style>
     </UserControl.Styles>
-    <ScrollViewer>
-        <StackPanel Orientation="Vertical">
-            <!-- 用户信息 -->
-            <Expander IsExpanded="True" HorizontalContentAlignment="Left" Header="用户信息">
-                <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto"
-                      RowSpacing="4" ColumnSpacing="4">
-                    <TextBlock Grid.Column="0" Grid.Row="0" Text="用户ID：" />
-                    <TextBlock Grid.Column="1" Grid.Row="0" Text="{Binding UserId}" />
-                    <TextBlock Grid.Column="0" Grid.Row="1" Text="登录名：" />
-                    <TextBlock Grid.Column="1" Grid.Row="1" Text="{Binding UserLogin}" />
-                    <TextBlock Grid.Column="0" Grid.Row="2" Text="用户名：" />
-                    <TextBlock Grid.Column="1" Grid.Row="2" Text="{Binding UserName}" />
-                </Grid>
-            </Expander>
-            <!-- 活动信息 -->
-            <Expander IsExpanded="True" HorizontalContentAlignment="Left" Header="活动列表">
-                <StackPanel Orientation="Vertical" Spacing="16" HorizontalAlignment="Left">
-                    <ItemsControl ItemsSource="{Binding Activities}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <StackPanel Orientation="Vertical" Spacing="8" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.DataTemplates>
-                            <DataTemplate DataType="{x:Type redMine:RedMineActivity}">
-                                <Border BorderThickness="0 0 0 2" HorizontalAlignment="Left"
-                                        BorderBrush="{DynamicResource ButtonDefaultPrimaryForeground}">
-                                    <Grid ColumnDefinitions="28,Auto" ColumnSpacing="2">
-                                        <TextBlock Text="{Binding Id,StringFormat='#{0}'}"
-                                                   HorizontalAlignment="Left" />
-                                        <TextBlock Grid.Column="1" Text="{Binding Title}" />
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.DataTemplates>
-                    </ItemsControl>
-                    <Button Command="{Binding SyncActivitiesCommand}"
-                            Classes="Danger">
-                        <StackPanel Orientation="Horizontal" Spacing="4">
-                            <i:Icon Value="mdi-sync" FontSize="18" />
-                            <TextBlock Text="同步服务器定义" FontSize="18" />
-                        </StackPanel>
-                    </Button>
-                </StackPanel>
-            </Expander>
-            <!-- 问题列表 -->
-            <Expander IsExpanded="True" HorizontalContentAlignment="Left" Header="问题列表">
-                <StackPanel Orientation="Vertical" Spacing="4">
-                    <StackPanel Orientation="Horizontal">
-                        <Button Content="与服务器同步" ToolTip.Tip="此操作将更新所有已导入的问题信息，可能需要花一点时间"
-                                Command="{Binding SyncIssueStateCommand}" />
-                        <Button Content="重新抓取" Command="{Binding ReloadIssuesCommand}" />
+    <DockPanel VerticalSpacing="6">
+        <!-- 用户信息 -->
+        <Expander IsExpanded="True" HorizontalContentAlignment="Left" Header="用户信息" DockPanel.Dock="Top">
+            <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto"
+                  RowSpacing="4" ColumnSpacing="4">
+                <TextBlock Grid.Column="0" Grid.Row="0" Text="用户ID：" />
+                <TextBlock Grid.Column="1" Grid.Row="0" Text="{Binding UserId}" />
+                <TextBlock Grid.Column="0" Grid.Row="1" Text="登录名：" />
+                <TextBlock Grid.Column="1" Grid.Row="1" Text="{Binding UserLogin}" />
+                <TextBlock Grid.Column="0" Grid.Row="2" Text="用户名：" />
+                <TextBlock Grid.Column="1" Grid.Row="2" Text="{Binding UserName}" />
+            </Grid>
+        </Expander>
+        <!-- 活动信息 -->
+        <Expander IsExpanded="True" HorizontalContentAlignment="Left" Header="活动列表" DockPanel.Dock="Top">
+            <StackPanel Orientation="Vertical" Spacing="16" HorizontalAlignment="Left">
+                <ItemsControl ItemsSource="{Binding Activities}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Vertical" Spacing="8" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.DataTemplates>
+                        <DataTemplate DataType="{x:Type redMine:RedMineActivity}">
+                            <Border BorderThickness="0 0 0 2" HorizontalAlignment="Left"
+                                    BorderBrush="{DynamicResource ButtonDefaultPrimaryForeground}">
+                                <Grid ColumnDefinitions="28,Auto" ColumnSpacing="2">
+                                    <TextBlock Text="{Binding Id,StringFormat='#{0}'}"
+                                               HorizontalAlignment="Left" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Title}" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.DataTemplates>
+                </ItemsControl>
+                <Button Command="{Binding SyncActivitiesCommand}"
+                        Classes="Danger">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <i:Icon Value="mdi-sync" FontSize="18" />
+                        <TextBlock Text="同步服务器定义" FontSize="18" />
                     </StackPanel>
-                    <u:Divider Content="已导入的问题" />
-                    <DataGrid CanUserReorderColumns="False" CanUserSortColumns="False" CanUserResizeColumns="True"
-                              ItemsSource="{Binding Issues}" IsReadOnly="True">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Width="Auto" Header="ID" Binding="{Binding Id}" />
-                            <DataGridTextColumn Width="*" Header="描述" Binding="{Binding Title}" />
-                            <DataGridTextColumn Width="Auto" Header="分配给" Binding="{Binding AssignedTo}" />
-                            <DataGridTextColumn Width="*" Header="项目" Binding="{Binding Project}" />
-                            <DataGridCheckBoxColumn Width="Auto" Header="已关闭" Binding="{Binding Disabled}" />
-                            <DataGridTemplateColumn>
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal" Spacing="2">
-                                            <Button Content="关闭"
-                                                    Command="{Binding $parent[UserControl].DataContext.CloseIssueCommand}"
-                                                    CommandParameter="{Binding}" />
-                                            <Button Content="删除"
-                                                    Command="{Binding $parent[UserControl].DataContext.DeleteIssueCommand}"
-                                                    CommandParameter="{Binding}" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </StackPanel>
-            </Expander>
+                </Button>
+            </StackPanel>
+        </Expander>
+        <!-- 问题列表 -->
+        <u:Divider Content="已导入的问题" HorizontalContentAlignment="Left" DockPanel.Dock="Top" />
+        <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Spacing="8">
+            <Button Content="与服务器同步" ToolTip.Tip="此操作将更新所有已导入的问题信息，可能需要花一点时间"
+                    Command="{Binding SyncIssueStateCommand}" />
+            <Button Content="重新抓取" Command="{Binding ReloadIssuesCommand}" />
         </StackPanel>
-    </ScrollViewer>
+        <DataGrid CanUserReorderColumns="False" CanUserSortColumns="False" CanUserResizeColumns="True"
+                  ItemsSource="{Binding Issues}" IsReadOnly="True">
+            <DataGrid.Columns>
+                <DataGridTextColumn Width="Auto" Header="ID" Binding="{Binding Id}" />
+                <DataGridTextColumn Width="*" Header="描述" Binding="{Binding Title}" />
+                <DataGridTextColumn Width="Auto" Header="分配给" Binding="{Binding AssignedTo}" />
+                <DataGridTextColumn Width="*" Header="项目" Binding="{Binding Project}" />
+                <DataGridCheckBoxColumn Width="Auto" Header="已关闭" Binding="{Binding Disabled}" />
+                <DataGridTemplateColumn>
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="2">
+                                <Button Content="关闭"
+                                        Command="{Binding $parent[UserControl].DataContext.CloseIssueCommand}"
+                                        CommandParameter="{Binding}" />
+                                <Button Content="删除"
+                                        Command="{Binding $parent[UserControl].DataContext.DeleteIssueCommand}"
+                                        CommandParameter="{Binding}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
 
 </UserControl>

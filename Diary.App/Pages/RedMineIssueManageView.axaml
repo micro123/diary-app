@@ -19,7 +19,7 @@
             <!-- <Setter Property="Theme" Value="{DynamicResource CardCheckBox}"/> -->
         </Style>
     </UserControl.Styles>
-    <ScrollViewer>
+    <!-- <ScrollViewer> -->
         <DockPanel VerticalSpacing="4">
             <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8" DockPanel.Dock="Top">
                 <TextBox Text="{Binding SearchTerm}" Watermark="搜索关键字" />
@@ -66,5 +66,5 @@
                 </DataGrid.Columns>
             </DataGrid>
         </DockPanel>
-    </ScrollViewer>
+    <!-- </ScrollViewer> -->
 </UserControl>

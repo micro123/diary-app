@@ -8,6 +8,7 @@
              x:Class="Diary.App.Dialogs.TagEditorView"
              xmlns:u="https://irihi.tech/ursa"
              xmlns:colorPicker="https://irihi.tech/semi"
+             xmlns:models="clr-namespace:Diary.App.Models"
              Width="750"
              Height="640" Margin="2 24 2 4">
     <Design.DataContext>
@@ -41,7 +42,7 @@
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.DataTemplates>
-                    <DataTemplate DataType="{x:Type dialogs:EditableWorkTag}">
+                    <DataTemplate DataType="{x:Type models:EditableWorkTag}">
                         <views:TagView DataContext="{Binding}" />
                     </DataTemplate>
                 </ItemsControl.DataTemplates>

@@ -81,15 +81,23 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             Dispatcher.UIThread.Post(async void () =>
             {
-                try
+                var evt = m.Value;
+                var vm = _serviceProvider.GetRequiredService<StandardMessageViewModel>();
+                vm.Body = evt.Body;
+                var options = new OverlayDialogOptions()
                 {
-                    var msg = m.Value;
-                    await MessageBox.ShowOverlayAsync(msg.Body, msg.Title);
-                }
-                catch (Exception e)
-                {
-                    _logger.LogError(e, "error");
-                }
+                    Title = evt.Title,
+                    CanDragMove = false,
+                    CanResize = false,
+                    CanLightDismiss = evt.LightDismiss,
+                    Mode = evt.Mode,
+                    Buttons = evt.Button,
+                };
+                
+                if (m.Value.Modal)
+                    await OverlayDialog.ShowModal<StandardMessageView, StandardMessageViewModel>(vm, options: options);
+                else
+                    OverlayDialog.Show<StandardMessageView, StandardMessageViewModel>(vm, options: options);
             });
         });
         
