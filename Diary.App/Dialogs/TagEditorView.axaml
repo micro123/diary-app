@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:dialogs="clr-namespace:Diary.App.Dialogs"
              xmlns:views="clr-namespace:Diary.App.Views"
+             xmlns:i="https://github.com/projektanker/icons.avalonia"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="Diary.App.Dialogs.TagEditorView"
              x:DataType="dialogs:TagEditorViewModel"
@@ -35,7 +36,7 @@
             <Button Content="添加" Command="{Binding NewTagCommand}"/>
         </StackPanel>
         <u:Divider Content="已有标签" Grid.Row="3" HorizontalContentAlignment="Left" />
-        <ScrollViewer Grid.Row="4">
+        <ScrollViewer Grid.Row="4" x:Name="TagContainer">
             <ItemsControl ItemsSource="{Binding AllTags}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -44,7 +45,39 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.DataTemplates>
                     <DataTemplate DataType="{x:Type models:EditableWorkTag}">
-                        <views:TagView DataContext="{Binding}" />
+                        <Border Theme="{DynamicResource CardBorder}" Padding="6">
+                            <Border.Styles>
+                                <Style Selector="TextBlock, ToggleSwitch">
+                                    <Setter Property="VerticalAlignment" Value="Center" />
+                                </Style>
+                                <Style Selector="TextBlock">
+                                    <Setter Property="HorizontalAlignment" Value="Right"/>
+                                </Style>
+                            </Border.Styles>
+                            <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,Auto,Auto,Auto"
+                                  ColumnSpacing="4" RowSpacing="4">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Id, StringFormat='#{0}'}"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Name}"
+                                           Width="180" ToolTip.Tip="{Binding Name}"/>
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="颜色"/>
+                                <ColorPicker Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3"
+                                             HsvColor="{Binding Color, Converter={StaticResource Hsv2Int}}"
+                                             ColorSpectrumShape="Box" HorizontalAlignment="Left">
+                                    <ColorPicker.Palette>
+                                        <colorPicker:SemiColorLightPalette />
+                                    </ColorPicker.Palette>
+                                </ColorPicker>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="主标签"/>
+                                <ToggleSwitch Grid.Row="2" Grid.Column="1" IsChecked="{Binding Primary}"/>
+                                <TextBlock Grid.Row="2" Grid.Column="2" Text="禁用"/>
+                                <ToggleSwitch Grid.Row="2" Grid.Column="3" IsChecked="{Binding Disabled}"/>
+                                <Button Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="4" ToolTip.Tip="删除此标签"
+                                        HorizontalAlignment="Stretch" i:Attached.Icon="fa-trash-can"
+                                        Command="{Binding #TagContainer.((dialogs:TagEditorViewModel)DataContext).DelTagCommand}"
+                                        CommandParameter="{Binding}"
+                                        Theme="{DynamicResource BorderlessButton}" Classes="Danger"/>
+                            </Grid>
+                        </Border>
                     </DataTemplate>
                 </ItemsControl.DataTemplates>
             </ItemsControl>

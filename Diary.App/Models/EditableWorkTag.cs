@@ -29,12 +29,8 @@ public partial class EditableWorkTag(WorkTag tag) : ObservableObject
         return false;
     }
 
-    [RelayCommand]
-    void Delete()
+    public bool Delete()
     {
-        if (App.Current.UseDb!.DeleteWorkTag(_tag))
-        {
-            EventDispatcher.DbChanged();
-        }
+        return App.Current.UseDb!.DeleteWorkTag(_tag);
     }
 }

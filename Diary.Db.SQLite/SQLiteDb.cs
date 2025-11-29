@@ -66,15 +66,17 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
                                     	work_notes(
                                     		id INTEGER PRIMARY KEY
                                     			REFERENCES work_items(id)
-                                    			ON DELETE CASCADE,
+                                    			    ON DELETE CASCADE,
                                     		note TEXT NOT NULL
                                     	);
 
                                     	
                                     CREATE TABLE IF NOT EXISTS
                                     	work_item_tags(
-                                    		work_id INTEGER REFERENCES work_items(id),
-                                    		tag_id INTEGER REFERENCES work_tags(id),
+                                    		work_id INTEGER REFERENCES work_items(id)
+                                                ON DELETE CASCADE,
+                                    		tag_id INTEGER REFERENCES work_tags(id)
+                                                ON DELETE CASCADE,
                                     		PRIMARY KEY (work_id,tag_id)
                                     	);
                                     	
@@ -105,12 +107,15 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
                                     CREATE TABLE IF NOT EXISTS
                                     	redmine_time_entries(
                                     		work_id INTEGER PRIMARY KEY
-                                    			REFERENCES work_items(id) ON DELETE CASCADE,
+                                    			REFERENCES work_items(id)
+                                                    ON DELETE CASCADE,
                                     		id INTEGER DEFAULT 0,
                                     		act_id INTEGER
-                                    			REFERENCES redmine_activities(id) ON DELETE CASCADE,
+                                    			REFERENCES redmine_activities(id)
+                                                    ON DELETE CASCADE,
                                     		issue_id INTEGER
-                                    			REFERENCES redmine_issues(id) ON DELETE CASCADE
+                                    			REFERENCES redmine_issues(id)
+                                                    ON DELETE CASCADE
                                     	);
 
                                     CREATE TABLE IF NOT EXISTS
@@ -119,7 +124,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
                                     	);
 
                                     -- default data version is 1.0.0 (0x1000000)
-                                    INSERT INTO data_versions VALUES(0x10000) ON CONFLICT DO NOTHING;
+                                    INSERT OR IGNORE INTO data_versions VALUES(0x10000);
                                     """;
         using var transaction = _connection!.BeginTransaction();
         try
@@ -411,7 +416,8 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         var sql = """
                   SELECT work_tags.* 
                   FROM work_item_tags INNER JOIN work_tags ON work_item_tags.tag_id=work_tags.id
-                  WHERE work_item_tags.work_id = $work_id;
+                  WHERE work_item_tags.work_id = $work_id
+                  ORDER BY work_tags.tag_level ASC;
                   """;
         var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
@@ -485,7 +491,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     public override void UpdateRedMineIssueStatus(int id, bool closed)
     {
         const string sql =
-            @"UPDATE redmine_issues SET is_closed=@closed WHERE id=$id;";
+            @"UPDATE redmine_issues SET is_closed=$closed WHERE id=$id;";
         var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$id", id);
@@ -526,6 +532,43 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         cmd.Parameters.AddWithValue("$id", id);
         cmd.Parameters.AddWithValue("$closed", closed ? 1 : 0);
         cmd.ExecuteNonQuery();
+    }
+
+    public override WorkTimeEntry? WorkItemGetTimeEntry(WorkItem item)
+    {
+        if (item.Id == 0)
+            throw new ArgumentException("work id is required");
+        var sql = """
+                  SELECT * FROM redmine_time_entries WHERE work_id=$id;
+                  """;
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$id", item.Id);
+        using var reader = cmd.ExecuteReader();
+        if (reader.Read())
+        {
+            return new WorkTimeEntry()
+            {
+                WorkId = reader.GetInt32(0),
+                EntryId = reader.GetInt32(1),
+                ActivityId = reader.GetInt32(2),
+                IssueId = reader.GetInt32(3),
+            };
+        }
+        return null;
+    }
+
+    public override bool WorkItemWasUploaded(WorkItem item)
+    {
+        if (item.Id == 0)
+            throw new ArgumentException("work id is required");
+        var sql = """
+                  SELECT * FROM redmine_time_entries WHERE work_id=$id AND id>0;
+                  """;
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$id", item.Id);
+        return cmd.ExecuteNonQuery() > 0;
     }
 
     public override ICollection<RedMineActivity> GetRedMineActivities()
@@ -625,20 +668,20 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         return activities;
     }
 
-    public override WorkTimeEntry CreateWorkTimeEntry(WorkItem work, RedMineActivity activity, RedMineIssue issue)
+    public override WorkTimeEntry? CreateWorkTimeEntry(int work, int activity, int issue)
     {
-        if (work.Id == 0)
+        if (work == 0)
         {
-            throw new ArgumentException($"Work ID {work.Id} is invalid");
+            throw new ArgumentException($"Work ID {work} is invalid");
         }
 
         const string sql =
             "INSERT INTO redmine_time_entries(work_id, act_id, issue_id) VALUES ($workId, $actId, $issueId) ON CONFLICT DO UPDATE SET act_id=$actId, issue_id=$issueId RETURNING *;";
         var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$workId", work.Id);
-        cmd.Parameters.AddWithValue("$actId", activity.Id);
-        cmd.Parameters.AddWithValue("$issueId", issue.Id);
+        cmd.Parameters.AddWithValue("$workId", work);
+        cmd.Parameters.AddWithValue("$actId", activity);
+        cmd.Parameters.AddWithValue("$issueId", issue);
         using var reader = cmd.ExecuteReader();
         if (reader.Read())
         {
@@ -651,7 +694,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
             };
         }
 
-        return new WorkTimeEntry();
+        return null;
     }
 
     public override bool UpdateWorkTimeEntry(WorkTimeEntry timeEntry)

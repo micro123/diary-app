@@ -1,12 +1,14 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Linq;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
 using Diary.App.Utils;
 using Diary.Core.Data.Base;
 using Diary.Core.Data.Display;
+using Diary.Core.Data.RedMine;
 using Diary.Database;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,6 +21,7 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     // db data fields
     private WorkItem? WorkItem { get; set; } // ref to existed db item, may null
+    private WorkTimeEntry? TimeEntry { get; set; }
 
     // generic data
     [ObservableProperty] private string _date;
@@ -30,9 +33,12 @@ public partial class WorkEditorViewModel : ViewModelBase
     [ObservableProperty] private ObservableCollection<WorkTag> _availableTags = new();
 
     public ObservableCollection<WorkTag> AllTags => _shareData.WorkTags;
-    public ObservableCollection<RedMineIssueDisplay> RedMineIssues => _shareData.RedMineIssues;
 
     // todo: redmine date
+    public ObservableCollection<RedMineIssueDisplay> RedMineIssues => _shareData.RedMineIssues;
+    public ObservableCollection<RedMineActivity> RedMineActivities => _shareData.RedMineActivities;
+    [ObservableProperty] private int _issueIndex = -1;
+    [ObservableProperty] private int _activityIndex = -1;
 
     // todo: plm?
 
@@ -61,24 +67,55 @@ public partial class WorkEditorViewModel : ViewModelBase
 
         WorkTags.CollectionChanged += (sender, args) =>
         {
+            if (_syncing_tags)
+                return;
+            var tag = args.Action switch
+            {
+                NotifyCollectionChangedAction.Add => (WorkTag?)args.NewItems![0],
+                NotifyCollectionChangedAction.Remove => (WorkTag?)args.OldItems![0],
+                _ => null
+            };
             if (WorkItem is { Id: > 0 })
             {
-                if (_syncing_tags)
-                    return;
                 // 这里处理添加删除标签
                 switch (args.Action)
                 {
                     case NotifyCollectionChangedAction.Add:
-                        Db!.WorkItemAddTag(WorkItem, (WorkTag)args.NewItems![0]!);
+                        Db!.WorkItemAddTag(WorkItem, tag!);
                         break;
                     case NotifyCollectionChangedAction.Remove:
-                        Db!.WorkItemRemoveTag(WorkItem, (WorkTag)args.OldItems![0]!);
+                        if (tag!.Level == TagLevels.Primary)
+                        {
+                            // 在主线程全部移除标签
+                            Dispatcher.UIThread.Post(() =>
+                            {
+                                _syncing_tags = true;
+                                while(WorkTags.Count > 0)
+                                    WorkTags.RemoveAt(0);
+                                _syncing_tags = false;
+                            });
+                        }
+                        Db!.WorkItemRemoveTag(WorkItem, tag!);
                         break;
                 }
-                UpdateAvailableTags();
             }
+            else if (tag is { Level:  TagLevels.Primary } && args.Action == NotifyCollectionChangedAction.Remove)
+            {
+                // 在主线程全部移除标签
+                Dispatcher.UIThread.Post(() =>
+                {
+                    _syncing_tags = true;
+                    while(WorkTags.Count > 0)
+                        WorkTags.RemoveAt(0);
+                    _syncing_tags = false;
+                });
+            }
+            UpdateAvailableTags();
         };
     }
+
+    public bool IsDateChanged => WorkItem is not null && WorkItem.CreateDate != Date;
+    public int WorkId => WorkItem?.Id ?? 0;
 
     public void Save(out bool created)
     {
@@ -118,6 +155,12 @@ public partial class WorkEditorViewModel : ViewModelBase
             db.WorkDeleteNote(WorkItem);
         }
         
+        // 保存redmine信息，如果有效的话
+        if (IssueIndex >= 0 && ActivityIndex >= 0)
+        {
+            Db!.CreateWorkTimeEntry(WorkItem.Id, RedMineActivities[ActivityIndex].Id, RedMineIssues[IssueIndex].Id);
+        }
+        
         // 首次创建则全部添加标签
         if (created)
         {
@@ -152,7 +195,14 @@ public partial class WorkEditorViewModel : ViewModelBase
         };
     }
 
-    public void SyncNote()
+    public void SyncAll()
+    {
+        SyncNote();
+        SyncTags();
+        SyncRedMine();
+    }
+    
+    private void SyncNote()
     {
         if (WorkItem is { Id: > 0 })
         {
@@ -175,6 +225,46 @@ public partial class WorkEditorViewModel : ViewModelBase
         }
         UpdateAvailableTags();
         _syncing_tags = false;
+    }
+
+    public void SyncRedMine()
+    {
+        TimeEntry = null;
+        if (WorkItem is { Id: > 0 })
+        {
+            TimeEntry = Db!.WorkItemGetTimeEntry(WorkItem);
+        }
+        
+        if (TimeEntry != null)
+        {
+            var i = 0;
+            while (i < RedMineIssues.Count)
+            {
+                if (TimeEntry.IssueId == RedMineIssues[i].Id)
+                {
+                    IssueIndex = i;
+                    break;
+                }
+
+                ++i;
+            }
+
+            i = 0;
+            while (i < RedMineActivities.Count)
+            {
+                if (TimeEntry.ActivityId == RedMineActivities[i].Id)
+                {
+                    ActivityIndex = i;
+                    break;
+                }
+
+                ++i;
+            }
+        }
+        else
+        {
+            IssueIndex = ActivityIndex = -1;
+        }
     }
 
     public WorkEditorViewModel Clone()

@@ -81,8 +81,8 @@
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal" Spacing="2">
-                                <Button Content="关闭"
-                                        Command="{Binding #IssueList.((pages:RedMineInfoViewModel)DataContext).CloseIssueCommand}"
+                                <Button Content="{Binding !Disabled, Converter={StaticResource IssueOpenClose}}"
+                                        Command="{Binding #IssueList.((pages:RedMineInfoViewModel)DataContext).ToggleIssueCommand}"
                                         CommandParameter="{Binding}" />
                                 <Button Content="删除"
                                         Command="{Binding #IssueList.((pages:RedMineInfoViewModel)DataContext).DeleteIssueCommand}"

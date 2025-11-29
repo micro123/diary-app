@@ -144,6 +144,16 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase
         throw new NotImplementedException();
     }
 
+    public override WorkTimeEntry? WorkItemGetTimeEntry(WorkItem item)
+    {
+        throw new NotImplementedException();
+    }
+
+    public override bool WorkItemWasUploaded(WorkItem item)
+    {
+        throw new NotImplementedException();
+    }
+
     public override ICollection<RedMineActivity> GetRedMineActivities()
     {
         throw new NotImplementedException();
@@ -159,7 +169,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase
         throw new NotImplementedException();
     }
 
-    public override WorkTimeEntry CreateWorkTimeEntry(WorkItem work, RedMineActivity activity, RedMineIssue issue)
+    public override WorkTimeEntry? CreateWorkTimeEntry(int work, int activity, int issus)
     {
         throw new NotImplementedException();
     }

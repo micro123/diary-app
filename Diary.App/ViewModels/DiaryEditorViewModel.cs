@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -41,7 +42,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanSave))]
     private void SaveWorkItem()
     {
-        SelectedWork!.Save(out var created);
+        var newDate = SelectedWork!.IsDateChanged;
+        SelectedWork.Save(out var created);
         if (created)
         {
             var bak = SelectedWork;
@@ -49,6 +51,22 @@ public partial class DiaryEditorViewModel : ViewModelBase
             DailyWorks.Add(bak);
             SelectedWork = bak;
         }
+
+        if (newDate)
+        {
+            var date = SelectedWork.Date;
+            var id = SelectedWork.WorkId;
+            GoDate(TimeTools.FromFormatedDate(date)); // 这里会修改选中的对象
+            SelectWorkById(id);
+        }
+    }
+
+    private void SelectWorkById(int id)
+    {
+        Debug.Assert(id != 0);
+        var item = DailyWorks.FirstOrDefault(x=>x.WorkId == id);
+        if (item is not null)
+            SelectedWork = item;
     }
 
     private bool CanSave => SelectedWork != null;
@@ -82,9 +100,13 @@ public partial class DiaryEditorViewModel : ViewModelBase
     [RelayCommand]
     private void SelectToday()
     {
-        var today = DateTime.Today;
-        CurrentDate = today;
-        SelectedDate = today;
+        GoDate(DateTime.Today);
+    }
+
+    private void GoDate(DateTime date)
+    {
+        CurrentDate = date;
+        SelectedDate = date;
     }
 
     partial void OnSelectedDateChanged(DateTime value)
@@ -99,8 +121,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         if (!_deleting && !_creating && SelectedWork is not null)
             SaveWorkItem();
         // fetch new
-        value?.SyncNote();
-        value?.SyncTags();
+        value?.SyncAll();
     }
 
     public DiaryEditorViewModel(ILogger logger, IServiceProvider serviceProvider)
@@ -114,6 +135,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
             if ((m.Value & DbChangedEvent.ShareData) != 0)
             {
                 SelectedWork?.SyncTags(); // 重新拉取一次标签
+                SelectedWork?.SyncRedMine(); // 重新计算RedMine的下标
             }
         });
     }

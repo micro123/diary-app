@@ -158,6 +158,7 @@
         <converters:Int2Color x:Key="IntColor" />
         <converters:InverseColor x:Key="SimpleInverse" />
         <converters:TagLevelConverter x:Key="TagLevelFormater" />
+        <converters:OpenCloseFormater x:Key="IssueOpenClose" />
         <converters1:ColorToBrushConverter x:Key="ColorToBrushConverter" />
         <converters2:ToBrushConverter x:Key="ToBrushConverter" />
     </Application.Resources>

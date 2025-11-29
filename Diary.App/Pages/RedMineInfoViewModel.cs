@@ -121,16 +121,19 @@ public partial class RedMineInfoViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private async Task CloseIssue()
+    private async Task ToggleIssue(RedMineIssueDisplay issue)
     {
-        // TODO: 关闭问题
-        await Task.Delay(500);
+        await Task.Run(() =>
+        {
+            Db!.UpdateRedMineIssueStatus(issue.Id, !issue.Disabled);
+        });
+        EventDispatcher.DbChanged(DbChangedEvent.RedMineIssue);
     }
 
     [RelayCommand]
-    private async Task DeleteIssue()
+    private async Task DeleteIssue(RedMineIssueDisplay issue)
     {
-        // TODO: 删除问题，只影响本地数据
-        await Task.Delay(500);
+        // 不支持删除
+        await Task.Delay(100);
     }
 }

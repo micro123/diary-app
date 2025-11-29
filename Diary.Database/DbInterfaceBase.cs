@@ -52,13 +52,15 @@ public abstract class DbInterfaceBase
     public abstract void UpdateRedMineIssueStatus(int id, bool closed);
     public abstract RedMineProject AddRedMineProject(int id, string title, string description);
     public abstract void UpdateRedMineProjectStatus(int id, bool closed);
+    public abstract WorkTimeEntry? WorkItemGetTimeEntry(WorkItem item);
+    public abstract bool WorkItemWasUploaded(WorkItem item);
 
     public abstract ICollection<RedMineActivity> GetRedMineActivities();
     public abstract ICollection<RedMineIssueDisplay> GetRedMineIssues(RedMineProject? project);
     public abstract ICollection<RedMineProject> GetRedMineProjects();
 
     // time-entries
-    public abstract WorkTimeEntry CreateWorkTimeEntry(WorkItem work, RedMineActivity activity, RedMineIssue issue);
+    public abstract WorkTimeEntry? CreateWorkTimeEntry(int work, int activity, int issus);
     public abstract bool UpdateWorkTimeEntry(WorkTimeEntry timeEntry);
 }
 

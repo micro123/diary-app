@@ -29,13 +29,10 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
     
     [ObservableProperty] private ObservableCollection<EditableWorkTag> _allTags = new();
 
+    private bool _changed = false;
+    
     public TagEditorViewModel(ILogger logger)
     {
-        Messenger.Register<DbChangedEvent>(this, (r, m) =>
-        {
-            if ((m.Value & DbChangedEvent.WorkTags) != 0)
-                LoadTags();
-        });
         _logger = logger;
         LoadTags();
     }
@@ -48,26 +45,36 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
     public event EventHandler<object?>? RequestClose;
 
     [RelayCommand]
-    void Save()
+    private void Save()
     {
-        bool changed = false;
+        bool changed = _changed;
         foreach (var tag in AllTags)
         {
             changed |= tag.ApplyChanges();
         }
         if (changed)
-            EventDispatcher.DbChanged();
+            EventDispatcher.DbChanged(DbChangedEvent.WorkTags);
         RequestClose?.Invoke(this, null);
     }
 
+    [RelayCommand]
+    private void DelTag(EditableWorkTag tag)
+    {
+        if (tag.Delete())
+        {
+            AllTags.Remove(tag);
+        }
+    }
+
     [RelayCommand(CanExecute = nameof(CanAddTag))]
-    void NewTag()
+    private void NewTag()
     {
         _logger.LogInformation("new tag, name = {0}, primary = {1}, color = {2}", NewTagName, NewIsPrimary, NewTagColor);
         int rgb = HsvColorConverter.FromHsv(NewTagColor);
         var tag = App.Current.UseDb!.CreateWorkTag(NewTagName, NewIsPrimary, rgb);
         if (tag.Id > 0)
         {
+            _changed = true;
             // success
             NewTagName = string.Empty; // clear name
             LoadTags();
