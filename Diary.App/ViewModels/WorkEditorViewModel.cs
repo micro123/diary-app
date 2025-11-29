@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
@@ -26,6 +27,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     [ObservableProperty] private double _time;
     [ObservableProperty] private WorkPriorities _priority;
     [ObservableProperty] private ObservableCollection<WorkTag> _workTags = new();
+    [ObservableProperty] private ObservableCollection<WorkTag> _availableTags = new();
 
     public ObservableCollection<WorkTag> AllTags => _shareData.WorkTags;
     public ObservableCollection<RedMineIssueDisplay> RedMineIssues => _shareData.RedMineIssues;
@@ -73,6 +75,7 @@ public partial class WorkEditorViewModel : ViewModelBase
                         Db!.WorkItemRemoveTag(WorkItem, (WorkTag)args.OldItems![0]!);
                         break;
                 }
+                UpdateAvailableTags();
             }
         };
     }
@@ -163,13 +166,14 @@ public partial class WorkEditorViewModel : ViewModelBase
         _syncing_tags = true;
         if (WorkItem is { Id: > 0 })
         {
-            var tags = Db!.GetWorkItemTags(WorkItem);
             WorkTags.Clear();
+            var tags = Db!.GetWorkItemTags(WorkItem);
             foreach (var tag in tags)
             {
                 WorkTags.Add(tag);
             }
         }
+        UpdateAvailableTags();
         _syncing_tags = false;
     }
 
@@ -188,5 +192,40 @@ public partial class WorkEditorViewModel : ViewModelBase
     public bool CanClone()
     {
         return WorkItem is { Id: > 0 }; // 克隆的前提是这个事件已经保存过了
+    }
+
+    [RelayCommand]
+    private void AddTag(WorkTag tag)
+    {
+        if (!WorkTags.Contains(tag))
+            WorkTags.Add(tag);
+    }
+
+    [RelayCommand]
+    private void DelTag(WorkTag tag)
+    {
+        WorkTags.Remove(tag);
+    }
+    
+    private void UpdateAvailableTags()
+    {
+        AvailableTags.Clear();
+        if (WorkTags.Count > 0)
+        {
+            // show only secondary tags
+            foreach (var tag in AllTags.Where(x => x.Level == TagLevels.Secondary))
+            {
+                if (!WorkTags.Contains(tag))
+                    AvailableTags.Add(tag);
+            }
+        }
+        else
+        {
+            // show only primary tags
+            foreach (var tag in AllTags.Where(x => x.Level == TagLevels.Primary))
+            {
+                AvailableTags.Add(tag);
+            }
+        }
     }
 }

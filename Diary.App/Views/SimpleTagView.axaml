@@ -1,0 +1,32 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:base="clr-namespace:Diary.Core.Data.Base;assembly=Diary.Core"
+             xmlns:i="https://github.com/projektanker/icons.avalonia"
+             mc:Ignorable="d" d:DesignWidth="360" d:DesignHeight="40"
+             x:DataType="base:WorkTag"
+             x:Class="Diary.App.Views.SimpleTagView">
+    <Design.DataContext>
+        <base:WorkTag />
+    </Design.DataContext>
+    <UserControl.Styles>
+        <Style Selector="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+    </UserControl.Styles>
+    <Border Background="{Binding Color, Converter={StaticResource IntColor}}"
+            Theme="{DynamicResource CardBorder}" Margin="2" Padding="8 4">
+        <StackPanel Orientation="Horizontal" Spacing="4">
+            <TextBlock Text="{Binding Id, StringFormat='#{0}'}"
+                       Foreground="{Binding Color, Converter={StaticResource SimpleInverse}}"/>
+            <TextBlock Text="{Binding Level, Converter={StaticResource TagLevelFormater}}"
+                       Foreground="{Binding Color, Converter={StaticResource SimpleInverse}}"/>
+            <TextBlock Text="{Binding Name}"
+                       Foreground="{Binding Color, Converter={StaticResource SimpleInverse}}"/>
+            <Button Theme="{DynamicResource BorderlessButton}">
+                <i:Icon Value="mdi-tag-remove-outline" Classes="Danger"/>
+            </Button>
+        </StackPanel>
+    </Border>
+</UserControl>

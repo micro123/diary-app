@@ -6,6 +6,7 @@
              xmlns:u="https://irihi.tech/ursa"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="Diary.App.Pages.RedMineIssueManageView"
+             x:DataType="pages:RedMineIssueManageViewModel"
              Padding="8">
     <Design.DataContext>
         <pages:RedMineIssueManageViewModel />
@@ -46,7 +47,7 @@
                 <TextBlock Text="{Binding ResultCount, StringFormat='共检索到{0}个问题'}" />
             </StackPanel>
             <DataGrid ItemsSource="{Binding SearchResults}" IsReadOnly="True"
-                      CanUserReorderColumns="False" CanUserSortColumns="False" CanUserResizeColumns="True">
+                      CanUserReorderColumns="False" CanUserSortColumns="False" CanUserResizeColumns="True" x:Name="ResultList">
                 <DataGrid.Columns>
                     <DataGridTextColumn Binding="{Binding Id, Mode=OneWay}" Width="Auto" Header="ID" />
                     <DataGridTextColumn Binding="{Binding Subject, Mode=OneWay}" Width="*" Header="标题" />
@@ -58,7 +59,7 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <Button Content="导入问题" Classes="Primary"
-                                        Command="{Binding $parent[UserControl].DataContext.ImportCommand}"
+                                        Command="{Binding #ResultList.((pages:RedMineIssueManageViewModel)DataContext).ImportCommand}"
                                         CommandParameter="{Binding}" />
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>

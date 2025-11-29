@@ -7,6 +7,7 @@
              xmlns:i="https://github.com/projektanker/icons.avalonia"
              xmlns:u="https://irihi.tech/ursa"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:DataType="pages:RedMineInfoViewModel"
              x:Class="Diary.App.Pages.RedMineInfoView"
              Padding="8">
     <Design.DataContext>
@@ -69,7 +70,7 @@
             <Button Content="重新抓取" Command="{Binding ReloadIssuesCommand}" />
         </StackPanel>
         <DataGrid CanUserReorderColumns="False" CanUserSortColumns="False" CanUserResizeColumns="True"
-                  ItemsSource="{Binding Issues}" IsReadOnly="True">
+                  ItemsSource="{Binding Issues}" IsReadOnly="True" x:Name="IssueList">
             <DataGrid.Columns>
                 <DataGridTextColumn Width="Auto" Header="ID" Binding="{Binding Id}" />
                 <DataGridTextColumn Width="*" Header="描述" Binding="{Binding Title}" />
@@ -81,10 +82,10 @@
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal" Spacing="2">
                                 <Button Content="关闭"
-                                        Command="{Binding $parent[UserControl].DataContext.CloseIssueCommand}"
+                                        Command="{Binding #IssueList.((pages:RedMineInfoViewModel)DataContext).CloseIssueCommand}"
                                         CommandParameter="{Binding}" />
                                 <Button Content="删除"
-                                        Command="{Binding $parent[UserControl].DataContext.DeleteIssueCommand}"
+                                        Command="{Binding #IssueList.((pages:RedMineInfoViewModel)DataContext).DeleteIssueCommand}"
                                         CommandParameter="{Binding}" />
                             </StackPanel>
                         </DataTemplate>

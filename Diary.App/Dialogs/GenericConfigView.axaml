@@ -5,6 +5,7 @@
              xmlns:dialogs="clr-namespace:Diary.App.Dialogs"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              Margin="32"
+             x:DataType="dialogs:GenericConfigViewModel"
              x:Class="Diary.App.Dialogs.GenericConfigView">
     <Design.DataContext>
         <dialogs:GenericConfigViewModel />

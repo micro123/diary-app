@@ -2,14 +2,15 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:dialogs="clr-namespace:Diary.App.Dialogs"
              xmlns:i="https://github.com/projektanker/icons.avalonia"
              xmlns:colorPicker="https://irihi.tech/semi"
              xmlns:u="https://irihi.tech/ursa"
+             xmlns:models="clr-namespace:Diary.App.Models"
+             x:DataType="models:EditableWorkTag"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="Diary.App.Views.TagView">
     <Design.DataContext>
-        <dialogs:EditableWorkTag />
+        <models:EditableWorkTag />
     </Design.DataContext>
     <UserControl.Styles>
         <Style Selector="TextBlock, ToggleSwitch">
@@ -19,7 +20,7 @@
             <Setter Property="HorizontalAlignment" Value="Right"/>
         </Style>
     </UserControl.Styles>
-    <Border Theme="{StaticResource CardBorder}" Padding="6">
+    <Border Theme="{DynamicResource CardBorder}" Padding="6">
         <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,Auto,Auto,Auto"
               ColumnSpacing="4" RowSpacing="4">
             <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Id, StringFormat='#{0}'}"/>

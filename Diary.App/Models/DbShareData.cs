@@ -23,18 +23,28 @@ public class DbShareData
     {
         WeakReferenceMessenger.Default.Register<DbChangedEvent>(this, (r, m) =>
         {
+            var active = false;
+            
             App.Current.Logger.LogDebug("db changed, mask = {0:X}", m.Value);
             if (0 != (m.Value & DbChangedEvent.RedMineIssue))
             {
+                active = true;
                 LoadIssues();
             }
             if (0 != (m.Value & DbChangedEvent.RedMineActivity))
             {
+                active = true;
                 LoadActivities();
             }
             if (0 != (m.Value & DbChangedEvent.WorkTags))
             {
+                active = true;
                 LoadTags();
+            }
+
+            if (active)
+            {
+                WeakReferenceMessenger.Default.Send(new DbChangedEvent(DbChangedEvent.ShareData));
             }
         });
     }

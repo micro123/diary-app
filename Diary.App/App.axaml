@@ -5,6 +5,7 @@
              xmlns:u="clr-namespace:Ursa.Controls;assembly=Ursa"
              xmlns:converters="clr-namespace:Diary.App.Converters"
              x:Class="Diary.App.App"
+             x:DataType="local:AppModel"
              xmlns:local="using:Diary.App"
              xmlns:m="clr-namespace:Diary.App.Models"
              xmlns:converters1="clr-namespace:Avalonia.Markup.Xaml.Converters;assembly=Avalonia.Markup.Xaml"
@@ -104,7 +105,7 @@
             <Setter Property="FontSize" Value="{StaticResource SemiFontSizeRegular}" />
             <Setter Property="TextAlignment" Value="Right" />
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Text" Value="{Binding Title, StringFormat='{}: '}" />
+            <Setter Property="Text" Value="{ReflectionBinding Title, StringFormat='{}: '}" />
         </Style>
         <Style Selector="Expander:down">
             <Setter Property="HorizontalAlignment" Value="Stretch" />
@@ -154,6 +155,9 @@
         <converters:DateConvert x:Key="DateConvert" />
         <converters:EnumConvert x:Key="EnumConvert" />
         <converters:HsvColorConverter x:Key="Hsv2Int" />
+        <converters:Int2Color x:Key="IntColor" />
+        <converters:InverseColor x:Key="SimpleInverse" />
+        <converters:TagLevelConverter x:Key="TagLevelFormater" />
         <converters1:ColorToBrushConverter x:Key="ColorToBrushConverter" />
         <converters2:ToBrushConverter x:Key="ToBrushConverter" />
     </Application.Resources>

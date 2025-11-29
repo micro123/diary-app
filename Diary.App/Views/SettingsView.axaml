@@ -7,6 +7,7 @@
              xmlns:m="clr-namespace:Diary.App.Models"
              xmlns:viewModels="clr-namespace:Diary.App.ViewModels"
              x:Class="Diary.App.Views.SettingsView"
+             x:DataType="viewModels:SettingsViewModel"
              Padding="8">
     <Design.DataContext>
         <viewModels:SettingsViewModel/>

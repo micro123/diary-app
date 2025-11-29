@@ -7,7 +7,8 @@
              xmlns:viewModels="clr-namespace:Diary.App.ViewModels"
              xmlns:models="clr-namespace:Diary.App.Models"
              xmlns:views="clr-namespace:Diary.App.Views"
-             x:Class="Diary.App.Views.DiaryEditorView">
+             x:Class="Diary.App.Views.DiaryEditorView"
+             x:DataType="viewModels:DiaryEditorViewModel">
 
     <Design.DataContext>
         <viewModels:DiaryEditorViewModel />

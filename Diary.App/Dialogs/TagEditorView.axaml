@@ -6,6 +6,7 @@
              xmlns:views="clr-namespace:Diary.App.Views"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="Diary.App.Dialogs.TagEditorView"
+             x:DataType="dialogs:TagEditorViewModel"
              xmlns:u="https://irihi.tech/ursa"
              xmlns:colorPicker="https://irihi.tech/semi"
              xmlns:models="clr-namespace:Diary.App.Models"

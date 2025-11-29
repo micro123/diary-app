@@ -6,6 +6,7 @@
              xmlns:i="https://github.com/projektanker/icons.avalonia"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="Diary.App.Pages.RedMineProjectView"
+             x:DataType="pages:RedMineProjectViewModel"
              Padding="8">
     <Design.DataContext>
         <pages:RedMineProjectViewModel />
@@ -36,7 +37,7 @@
             <TextBlock Text="{Binding ResultCount, StringFormat='共检索到{0}个项目'}" />
         </StackPanel>
         <DataGrid ItemsSource="{Binding SearchResults}" IsReadOnly="True"
-                  CanUserReorderColumns="False" CanUserSortColumns="False" CanUserResizeColumns="True">
+                  CanUserReorderColumns="False" CanUserSortColumns="False" CanUserResizeColumns="True" x:Name="ResultList">
             <DataGrid.Columns>
                 <DataGridTextColumn Binding="{Binding Id, Mode=OneWay}" Width="Auto" Header="ID" />
                 <DataGridTextColumn Binding="{Binding Name, Mode=OneWay}" Width="*" Header="标题" />
@@ -45,10 +46,10 @@
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal">
                                 <Button i:Attached.Icon="mdi-comment-alert-outline" ToolTip.Tip="查看描述信息"
-                                        Command="{Binding $parent[UserControl].DataContext.ShowDescCommand}"
+                                        Command="{Binding #ResultList.((pages:RedMineProjectViewModel)DataContext).ShowDescCommand}"
                                         CommandParameter="{Binding}" />
                                 <Button Content="新建问题" Classes="Primary"
-                                        Command="{Binding $parent[UserControl].DataContext.CreateIssueCommand}"
+                                        Command="{Binding #ResultList.((pages:RedMineProjectViewModel)DataContext).CreateIssueCommand}"
                                         CommandParameter="{Binding}" />
                             </StackPanel>
                         </DataTemplate>

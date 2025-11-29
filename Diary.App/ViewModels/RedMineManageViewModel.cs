@@ -12,39 +12,39 @@ using Microsoft.Extensions.Logging;
 
 namespace Diary.App.ViewModels;
 
+public class RedMineTabItemModel
+{
+    public required string Title { get; set; }
+    public required string Icon { get; set; }
+    public required object Content { get; set; }
+}
+
 [DiAutoRegister]
 public partial class RedMineManageViewModel : ViewModelBase
 {
     private readonly ILogger _logger;
     private readonly IServiceProvider _serviceProvider;
-
-    public class TabItemModel
-    {
-        public required string Title { get; set; }
-        public required string Icon { get; set; }
-        public required object Content { get; set; }
-    }
     
-    [ObservableProperty] private ObservableCollection<TabItemModel> _tabs = new();
+    [ObservableProperty] private ObservableCollection<RedMineTabItemModel> _tabs = new();
     [ObservableProperty] private bool _serverOk;
 
     public RedMineManageViewModel(ILogger logger, IServiceProvider serviceProvider)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
-        Tabs.Add(new TabItemModel()
+        Tabs.Add(new RedMineTabItemModel()
         {
             Title = "基本信息",
             Icon = "mdi-information-slab-box-outline",
             Content = _serviceProvider.GetRequiredService<RedMineInfoViewModel>(),
         });
-        Tabs.Add(new TabItemModel()
+        Tabs.Add(new RedMineTabItemModel()
         {
             Title = "问题管理",
             Icon = "fa-exclamation",
             Content = _serviceProvider.GetRequiredService<RedMineIssueManageViewModel>(),
         });
-        Tabs.Add(new TabItemModel()
+        Tabs.Add(new RedMineTabItemModel()
         {
             Title = "项目管理",
             Icon = "fa-list-check",

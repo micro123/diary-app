@@ -6,7 +6,8 @@
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              xmlns:u="https://irihi.tech/ursa"
              xmlns:viewModels="clr-namespace:Diary.App.ViewModels"
-             x:Class="Diary.App.Views.RedMineManageView">
+             x:Class="Diary.App.Views.RedMineManageView"
+             x:DataType="viewModels:RedMineManageViewModel">
     <Design.DataContext>
         <viewModels:RedMineManageViewModel />
     </Design.DataContext>
@@ -28,7 +29,7 @@
                 </DataTemplate>
             </TabControl.ItemTemplate>
             <TabControl.ContentTemplate>
-                <DataTemplate>
+                <DataTemplate DataType="viewModels:RedMineTabItemModel">
                     <ContentControl Content="{Binding Content}" />
                 </DataTemplate>
             </TabControl.ContentTemplate>

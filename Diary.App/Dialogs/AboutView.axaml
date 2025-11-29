@@ -5,7 +5,8 @@
              xmlns:dialogs="clr-namespace:Diary.App.Dialogs"
              xmlns:app="clr-namespace:Diary.App"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-             x:Class="Diary.App.Dialogs.AboutView">
+             x:Class="Diary.App.Dialogs.AboutView"
+             x:DataType="dialogs:AboutViewModel">
     <Design.DataContext>
         <dialogs:AboutViewModel/>
     </Design.DataContext>

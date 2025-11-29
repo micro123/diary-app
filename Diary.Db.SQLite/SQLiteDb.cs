@@ -181,7 +181,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$value", name);
-        cmd.Parameters.AddWithValue("$level", primary ? 1 : 0);
+        cmd.Parameters.AddWithValue("$level", primary ? 0 : 1);
         cmd.Parameters.AddWithValue("$color", color);
         using var reader = cmd.ExecuteReader();
         if (reader.Read())

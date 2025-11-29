@@ -3,6 +3,8 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
+using Diary.App.Messages;
 using Diary.App.Models;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
@@ -106,6 +108,14 @@ public partial class DiaryEditorViewModel : ViewModelBase
         _logger = logger;
         _serviceProvider = serviceProvider;
         SelectedDate = DateTime.Today;
+        
+        Messenger.Register<DbChangedEvent>(this, (r, m) =>
+        {
+            if ((m.Value & DbChangedEvent.ShareData) != 0)
+            {
+                SelectedWork?.SyncTags(); // 重新拉取一次标签
+            }
+        });
     }
 
     private void FetchWorks()
