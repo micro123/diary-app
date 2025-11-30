@@ -2,6 +2,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -9,6 +10,7 @@ using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.Messages;
 using Diary.App.Models;
+using Diary.App.Utils;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -106,8 +108,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private async Task UploadTime()
     {
         SaveWorkItem();
-        var result = await SelectedWork!.Upload();
-        ToastManager?.Show(result ? "提交成功" : "提交失败");
+        var (result, msg) = await SelectedWork!.Upload();
+        ToastManager?.Show(result ? "提交成功" : $"提交失败: {msg}");
         
         // hack: update button state
         Dispatcher.UIThread.Post(() => UploadTimeCommand.NotifyCanExecuteChanged());
@@ -115,6 +117,45 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     private bool CanUpload => SelectedWork is { Uploaded: false };
 
+    [RelayCommand]
+    private async Task UploadAll()
+    {
+        if (SelectedWork is {IsNewItem: false})
+        {
+            SaveWorkItem();
+        }
+
+        var sb = new StringBuilder();
+        var skip = 0;
+        var success = 0;
+        var failed = 0;
+        
+        foreach (var work in DailyWorks)
+        {
+            if (!work.Uploaded)
+            {
+                var (result, message) = await work.Upload();
+                if (result)
+                {
+                    ++success;
+                    sb.AppendLine($"#{work.WorkId} 提交成功");
+                }
+                else
+                {
+                    ++failed;
+                    sb.AppendLine($"#{work.WorkId} 提交失败: {message}");
+                }
+            }
+            else
+            {
+                ++skip;
+                sb.AppendLine($"#{work.WorkId} 已跳过");
+            }
+        }
+
+        var title = $"提交结果: 成功 {success}，失败 {failed}，跳过 {skip}";
+        EventDispatcher.Notify(title, sb.ToString());
+    }
 
     [RelayCommand]
     private void SelectToday()

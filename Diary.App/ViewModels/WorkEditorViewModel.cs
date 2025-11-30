@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Threading;
@@ -52,6 +53,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     {
         return new WorkEditorViewModel(App.Current.Services.GetRequiredService<DbShareData>())
         {
+            WorkId = workItem.Id,
             WorkItem = workItem,
             Date = workItem.CreateDate,
             Comment = workItem.Comment,
@@ -90,37 +92,47 @@ public partial class WorkEditorViewModel : ViewModelBase
                     case NotifyCollectionChangedAction.Remove:
                         if (tag!.Level == TagLevels.Primary)
                         {
+                            Db!.WorkItemCleanTags(WorkItem);
                             // 在主线程全部移除标签
                             Dispatcher.UIThread.Post(() =>
                             {
                                 _syncing_tags = true;
-                                while(WorkTags.Count > 0)
+                                while (WorkTags.Count > 0)
                                     WorkTags.RemoveAt(0);
                                 _syncing_tags = false;
+                                UpdateAvailableTags();
                             });
                         }
-                        Db!.WorkItemRemoveTag(WorkItem, tag!);
+                        else
+                        {
+                            Db!.WorkItemRemoveTag(WorkItem, tag!);
+                        }
+
                         break;
                 }
             }
-            else if (tag is { Level:  TagLevels.Primary } && args.Action == NotifyCollectionChangedAction.Remove)
+            else if (tag is { Level: TagLevels.Primary } && args.Action == NotifyCollectionChangedAction.Remove)
             {
                 // 在主线程全部移除标签
                 Dispatcher.UIThread.Post(() =>
                 {
                     _syncing_tags = true;
-                    while(WorkTags.Count > 0)
+                    while (WorkTags.Count > 0)
                         WorkTags.RemoveAt(0);
                     _syncing_tags = false;
                 });
             }
+
             UpdateAvailableTags();
         };
     }
 
     public bool IsDateChanged => WorkItem is not null && WorkItem.CreateDate != Date;
+
     public bool IsNewItem => WorkItem is null;
-    public int WorkId => WorkItem?.Id ?? 0;
+
+    // public int WorkId => WorkItem?.Id ?? 0;
+    [ObservableProperty] private int _workId;
 
     public void Save(out bool created)
     {
@@ -135,6 +147,7 @@ public partial class WorkEditorViewModel : ViewModelBase
                 return;
             }
 
+            WorkId = WorkItem.Id;
             WorkItem.Priority = Priority;
             WorkItem.Time = Time;
             created = true;
@@ -159,13 +172,14 @@ public partial class WorkEditorViewModel : ViewModelBase
         {
             db.WorkDeleteNote(WorkItem);
         }
-        
+
         // 保存redmine信息，如果有效的话
         if (IssueIndex >= 0 && ActivityIndex >= 0)
         {
-            TimeEntry = Db!.CreateWorkTimeEntry(WorkItem.Id, RedMineActivities[ActivityIndex].Id, RedMineIssues[IssueIndex].Id);
+            TimeEntry = Db!.CreateWorkTimeEntry(WorkItem.Id, RedMineActivities[ActivityIndex].Id,
+                RedMineIssues[IssueIndex].Id);
         }
-        
+
         // 首次创建则全部添加标签
         if (created)
         {
@@ -185,7 +199,7 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     public bool CanDelete()
     {
-        return WorkItem != null && WorkItem.Id != 0;
+        return !Uploaded;
     }
 
     [RelayCommand]
@@ -206,7 +220,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         SyncTags();
         SyncRedMine();
     }
-    
+
     private void SyncNote()
     {
         if (WorkItem is { Id: > 0 })
@@ -216,6 +230,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     }
 
     private bool _syncing_tags;
+
     public void SyncTags()
     {
         _syncing_tags = true;
@@ -228,6 +243,7 @@ public partial class WorkEditorViewModel : ViewModelBase
                 WorkTags.Add(tag);
             }
         }
+
         UpdateAvailableTags();
         _syncing_tags = false;
     }
@@ -239,7 +255,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         {
             TimeEntry = Db!.WorkItemGetTimeEntry(WorkItem);
         }
-        
+
         if (TimeEntry != null)
         {
             var i = 0;
@@ -276,14 +292,23 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     public WorkEditorViewModel Clone()
     {
-        return new WorkEditorViewModel(_shareData)
+        var result = new WorkEditorViewModel(_shareData)
         {
             WorkItem = null,
             Date = Date,
             Note = Note,
             Comment = Comment,
+            Time = 0.0,
             Priority = Priority,
+            IssueIndex = IssueIndex,
+            ActivityIndex = ActivityIndex,
         };
+        foreach (var tag in WorkTags)
+        {
+            result.WorkTags.Add(tag);
+        }
+
+        return result;
     }
 
     public bool CanClone()
@@ -303,7 +328,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     {
         WorkTags.Remove(tag);
     }
-    
+
     private void UpdateAvailableTags()
     {
         AvailableTags.Clear();
@@ -328,23 +353,24 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     private bool CanUpload()
     {
-        return IssueIndex >= 0 && ActivityIndex >= 0; // new item and both set
+        return IssueIndex >= 0 && ActivityIndex >= 0 && Time > 0; // new item and both set
     }
 
-    public async Task<bool> Upload()
+    public async Task<(bool, string?)> Upload()
     {
         if (Uploaded)
-            return false;
+            return (false, null);
         if (!CanUpload())
-            return false;
-        // 先保存一下
-        // Save(out _);
+            return (false, "问题或活动不正确，又或者耗时是0");
         Debug.Assert(WorkItem is not null);
         Debug.Assert(TimeEntry is not null);
-        TimeEntry.EntryId = await Task.Run(() => RedMineApis.CreateTimeEntry(out var ti, TimeEntry.IssueId, TimeEntry.ActivityId, WorkItem.CreateDate,
-            WorkItem.Time, WorkItem.Comment) ? ti.Id : 0);
+        TimeEntry.EntryId = await Task.Run(() => RedMineApis.CreateTimeEntry(out var ti, TimeEntry.IssueId,
+            TimeEntry.ActivityId, WorkItem.CreateDate,
+            WorkItem.Time, WorkItem.Comment)
+            ? ti.Id
+            : 0);
         Db!.UpdateWorkTimeEntry(TimeEntry); // 关联到数据库
         Uploaded = TimeEntry.EntryId > 0;
-        return Uploaded;
+        return (Uploaded, Uploaded ? null : "可能是网络问题");
     }
 }

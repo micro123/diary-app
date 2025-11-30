@@ -28,7 +28,7 @@
     <DockPanel Name="EditPanel">
         <u:Divider DockPanel.Dock="Top" Content="一般信息" HorizontalContentAlignment="Left" />
         <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,Auto,*" RowDefinitions="Auto,Auto,Auto"
-              ColumnSpacing="8" RowSpacing="8">
+              ColumnSpacing="8" RowSpacing="8" IsEnabled="{Binding !Uploaded}">
             <TextBlock Grid.Row="0" Grid.Column="0" Text="日期：" VerticalAlignment="Center" />
             <CalendarDatePicker Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2" HorizontalAlignment="Stretch"
                                 SelectedDate="{Binding Date, Converter={StaticResource DateConvert}}" />
@@ -76,9 +76,10 @@
                             <TextBlock Text="{Binding Name}"
                                        Foreground="{Binding Color, Converter={StaticResource SimpleInverse}}"/>
                             <Button Theme="{DynamicResource BorderlessButton}"
+                                    Foreground="{Binding Color, Converter={StaticResource SimpleInverse}}"
                                     Command="{Binding #EditPanel.((viewModels:WorkEditorViewModel)DataContext).DelTagCommand}"
                                     CommandParameter="{Binding}">
-                                <i:Icon Value="mdi-tag-remove-outline" Classes="Danger"/>
+                                <i:Icon Value="mdi-trash-can-outline"/>
                             </Button>
                         </StackPanel>
                     </Border>
@@ -107,7 +108,7 @@
         <u:Divider DockPanel.Dock="Top" Content="RedMine信息" HorizontalContentAlignment="Left" />
         <!-- redmine预留 -->
         <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,350" DockPanel.Dock="Top"
-              ColumnSpacing="8" RowSpacing="8">
+              ColumnSpacing="8" RowSpacing="8" IsEnabled="{Binding !Uploaded}">
             <Grid.Styles>
                 <Style Selector="TextBlock">
                     <Setter Property="VerticalAlignment" Value="Center" />
@@ -149,6 +150,6 @@
         <!-- plm预留 -->
         <u:Divider DockPanel.Dock="Top" Content="备注（仅本地存储）" HorizontalContentAlignment="Left" />
         <TextBox Text="{Binding Note}" AcceptsReturn="True" VerticalAlignment="Stretch"
-                 VerticalContentAlignment="Top" Padding="4" Classes="Bordered" />
+                 VerticalContentAlignment="Top" Padding="4" Classes="Bordered"/>
     </DockPanel>
 </UserControl>
