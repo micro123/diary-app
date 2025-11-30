@@ -2,6 +2,8 @@ using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading.Tasks;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
@@ -37,6 +39,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
             Date = CurrentDateString,
         };
         _creating = false;
+        SelectedWork.SyncAll();
     }
 
     [RelayCommand(CanExecute = nameof(CanSave))]
@@ -46,19 +49,22 @@ public partial class DiaryEditorViewModel : ViewModelBase
         SelectedWork.Save(out var created);
         if (created)
         {
-            var bak = SelectedWork;
-            SelectedWork = null;
-            DailyWorks.Add(bak);
-            SelectedWork = bak;
+            if (CurrentDateString == SelectedWork.Date)
+            {
+                // 新创建的事项在其他的日期，需要切换
+                DailyWorks.Add(SelectedWork);
+            }
         }
 
-        if (newDate)
+        if (newDate || created)
         {
             var date = SelectedWork.Date;
             var id = SelectedWork.WorkId;
             GoDate(TimeTools.FromFormatedDate(date)); // 这里会修改选中的对象
             SelectWorkById(id);
         }
+        
+        UpdateTimeInfos();
     }
 
     private void SelectWorkById(int id)
@@ -94,14 +100,28 @@ public partial class DiaryEditorViewModel : ViewModelBase
         SelectedWork = DailyWorks.FirstOrDefault();
         _deleting = false;
     }
-
     private bool CanDelete => SelectedWork != null && SelectedWork.CanDelete();
+
+    [RelayCommand(CanExecute = nameof(CanUpload))]
+    private async Task UploadTime()
+    {
+        SaveWorkItem();
+        var result = await SelectedWork!.Upload();
+        ToastManager?.Show(result ? "提交成功" : "提交失败");
+        
+        // hack: update button state
+        Dispatcher.UIThread.Post(() => UploadTimeCommand.NotifyCanExecuteChanged());
+    }
+
+    private bool CanUpload => SelectedWork is { Uploaded: false };
+
 
     [RelayCommand]
     private void SelectToday()
     {
         GoDate(DateTime.Today);
     }
+    
 
     private void GoDate(DateTime date)
     {
@@ -120,8 +140,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
     {
         if (!_deleting && !_creating && SelectedWork is not null)
             SaveWorkItem();
-        // fetch new
-        value?.SyncAll();
+        UpdateTimeInfos();
     }
 
     public DiaryEditorViewModel(ILogger logger, IServiceProvider serviceProvider)
@@ -132,11 +151,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         
         Messenger.Register<DbChangedEvent>(this, (r, m) =>
         {
-            if ((m.Value & DbChangedEvent.ShareData) != 0)
-            {
-                SelectedWork?.SyncTags(); // 重新拉取一次标签
-                SelectedWork?.SyncRedMine(); // 重新计算RedMine的下标
-            }
+            Dispatcher.UIThread.Post(FetchWorks);
         });
     }
 
@@ -149,7 +164,9 @@ public partial class DiaryEditorViewModel : ViewModelBase
             var dbItems = db.GetWorkItemByDate(CurrentDateString);
             foreach (var item in dbItems)
             {
-                DailyWorks.Add(WorkEditorViewModel.FromWorkItem(item));
+                var x = WorkEditorViewModel.FromWorkItem(item);
+                x.SyncAll(); // load database data
+                DailyWorks.Add(x);
             }
         }
         else
@@ -163,15 +180,32 @@ public partial class DiaryEditorViewModel : ViewModelBase
         }
     }
 
+    private void UpdateTimeInfos()
+    {
+        double sum = 0.0, uploaded = 0.0;
+        foreach (var work in DailyWorks)
+        {
+            sum += work.Time;
+            if (work.Uploaded)
+                uploaded += work.Time;
+        }
+
+        TotalTime = sum;
+        UploadedTime = uploaded;
+    }
+
     #region 编辑器数据
 
     [ObservableProperty] private ObservableCollection<WorkEditorViewModel> _dailyWorks = new();
+    [ObservableProperty] private double _totalTime;
+    [ObservableProperty] private double _uploadedTime;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasItem))]
     [NotifyCanExecuteChangedFor(nameof(SaveWorkItemCommand))]
     [NotifyCanExecuteChangedFor(nameof(DuplicateWorkItemCommand))]
     [NotifyCanExecuteChangedFor(nameof(DeleteWorkItemCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UploadTimeCommand))]
     private WorkEditorViewModel? _selectedWork;
 
     public bool HasItem => SelectedWork != null;

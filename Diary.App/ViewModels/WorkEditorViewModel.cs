@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.Diagnostics;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -10,6 +12,7 @@ using Diary.Core.Data.Base;
 using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
 using Diary.Database;
+using Diary.RedMine;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -39,6 +42,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     public ObservableCollection<RedMineActivity> RedMineActivities => _shareData.RedMineActivities;
     [ObservableProperty] private int _issueIndex = -1;
     [ObservableProperty] private int _activityIndex = -1;
+    [ObservableProperty] private bool _uploaded = false;
 
     // todo: plm?
 
@@ -115,6 +119,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     }
 
     public bool IsDateChanged => WorkItem is not null && WorkItem.CreateDate != Date;
+    public bool IsNewItem => WorkItem is null;
     public int WorkId => WorkItem?.Id ?? 0;
 
     public void Save(out bool created)
@@ -158,7 +163,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         // 保存redmine信息，如果有效的话
         if (IssueIndex >= 0 && ActivityIndex >= 0)
         {
-            Db!.CreateWorkTimeEntry(WorkItem.Id, RedMineActivities[ActivityIndex].Id, RedMineIssues[IssueIndex].Id);
+            TimeEntry = Db!.CreateWorkTimeEntry(WorkItem.Id, RedMineActivities[ActivityIndex].Id, RedMineIssues[IssueIndex].Id);
         }
         
         // 首次创建则全部添加标签
@@ -260,6 +265,8 @@ public partial class WorkEditorViewModel : ViewModelBase
 
                 ++i;
             }
+
+            Uploaded = TimeEntry.EntryId > 0;
         }
         else
         {
@@ -317,5 +324,27 @@ public partial class WorkEditorViewModel : ViewModelBase
                 AvailableTags.Add(tag);
             }
         }
+    }
+
+    private bool CanUpload()
+    {
+        return IssueIndex >= 0 && ActivityIndex >= 0; // new item and both set
+    }
+
+    public async Task<bool> Upload()
+    {
+        if (Uploaded)
+            return false;
+        if (!CanUpload())
+            return false;
+        // 先保存一下
+        // Save(out _);
+        Debug.Assert(WorkItem is not null);
+        Debug.Assert(TimeEntry is not null);
+        TimeEntry.EntryId = await Task.Run(() => RedMineApis.CreateTimeEntry(out var ti, TimeEntry.IssueId, TimeEntry.ActivityId, WorkItem.CreateDate,
+            WorkItem.Time, WorkItem.Comment) ? ti.Id : 0);
+        Db!.UpdateWorkTimeEntry(TimeEntry); // 关联到数据库
+        Uploaded = TimeEntry.EntryId > 0;
+        return Uploaded;
     }
 }

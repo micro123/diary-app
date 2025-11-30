@@ -705,12 +705,13 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         }
 
         const string sql =
-            "UPDATE redmine_time_entries SET act_id=$actId, issue_id=$issueId, id=$entryId;";
+            "UPDATE redmine_time_entries SET act_id=$actId, issue_id=$issueId, id=$entryId WHERE work_id=$workId;";
         var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$actId", timeEntry.ActivityId);
         cmd.Parameters.AddWithValue("$issueId", timeEntry.IssueId);
         cmd.Parameters.AddWithValue("$entryId", timeEntry.EntryId);
+        cmd.Parameters.AddWithValue("$workId", timeEntry.WorkId);
         return cmd.ExecuteNonQuery() > 0;
     }
 
