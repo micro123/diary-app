@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              xmlns:u="https://irihi.tech/ursa"
+             xmlns:lvc="using:LiveChartsCore.SkiaSharpView.Avalonia"
              x:Class="Diary.App.Views.StatisticsView">
-    <TextBlock Text="统计工具🐮" FontSize="64" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+    
 </UserControl>
