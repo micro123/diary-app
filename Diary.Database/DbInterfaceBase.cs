@@ -1,6 +1,8 @@
 using Diary.Core.Data.Base;
 using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
+using Diary.Core.Data.Statistics;
+
 namespace Diary.Database;
 
 public abstract class DbInterfaceBase
@@ -62,6 +64,10 @@ public abstract class DbInterfaceBase
     // time-entries
     public abstract WorkTimeEntry? CreateWorkTimeEntry(int work, int activity, int issus);
     public abstract bool UpdateWorkTimeEntry(WorkTimeEntry timeEntry);
+    
+    // statistics
+    public abstract StatisticsResult GetStatistics(string beginDate, string endDate);
+    public abstract StatisticsResult GetStatistics();
 }
 
 

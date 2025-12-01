@@ -1,6 +1,7 @@
 using Diary.Core.Data.Base;
 using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
+using Diary.Core.Data.Statistics;
 using Diary.Database;
 
 namespace Diary.Db.PostgreSQL;
@@ -175,6 +176,16 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase
     }
 
     public override bool UpdateWorkTimeEntry(WorkTimeEntry timeEntry)
+    {
+        throw new NotImplementedException();
+    }
+
+    public override StatisticsResult GetStatistics(string beginDate, string endDate)
+    {
+        throw new NotImplementedException();
+    }
+
+    public override StatisticsResult GetStatistics()
     {
         throw new NotImplementedException();
     }

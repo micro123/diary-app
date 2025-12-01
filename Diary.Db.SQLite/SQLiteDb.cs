@@ -2,6 +2,7 @@ using System.Data.SQLite;
 using Diary.Core.Data.Base;
 using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
+using Diary.Core.Data.Statistics;
 using Diary.Database;
 using Diary.Utils;
 
@@ -311,7 +312,30 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
 
     public override ICollection<WorkItem> GetWorkItemByDateRange(string beginData, string endData)
     {
-        throw new NotImplementedException();
+        var sql = """
+                  SELECT *
+                  FROM work_items
+                  WHERE create_date BETWEEN $beginDate AND $endDate;
+                  """;
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$beginDate", beginData);
+        cmd.Parameters.AddWithValue("$endDate", endData);
+        using var reader = cmd.ExecuteReader();
+        var result = new List<WorkItem>();
+        while (reader.Read())
+        {
+            result.Add(new WorkItem()
+            {
+                Id = reader.GetInt32(0),
+                CreateDate = reader.GetString(1),
+                Comment = reader.GetString(2),
+                Time = reader.GetDouble(3),
+                Priority = (WorkPriorities)reader.GetInt32(4),
+            });
+        }
+
+        return result;
     }
 
     public override ICollection<WorkItem> GetWorkItemByDate(string date)
@@ -555,6 +579,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
                 IssueId = reader.GetInt32(3),
             };
         }
+
         return null;
     }
 
@@ -713,6 +738,114 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         cmd.Parameters.AddWithValue("$entryId", timeEntry.EntryId);
         cmd.Parameters.AddWithValue("$workId", timeEntry.WorkId);
         return cmd.ExecuteNonQuery() > 0;
+    }
+
+    public override StatisticsResult GetStatistics(string beginDate, string endDate)
+    {
+        var result = new StatisticsResult()
+        {
+            DateBegin = beginDate,
+            DateEnd = endDate,
+            PrimaryTags = new List<TagTime>(),
+        };
+
+        // total time
+        {
+            var dateRangeQuery = "SELECT sum(hours) FROM work_items WHERE create_date BETWEEN $beginDate AND $endDate;";
+            var cmd = _connection!.CreateCommand();
+            cmd.CommandText = dateRangeQuery;
+            cmd.Parameters.AddWithValue("$beginDate", beginDate);
+            cmd.Parameters.AddWithValue("$endDate", endDate);
+            using var reader = cmd.ExecuteReader();
+            if (reader.Read())
+                result.Total = reader.GetDouble(0);
+        }
+        
+        if (result.Total > 0)
+        {
+            var sql = """
+                      SELECT work_tags.id AS tid, sum(hours) AS total, tag_name 
+                      FROM 
+                      	((work_item_tags INNER JOIN
+                      			(SELECT id,hours FROM work_items WHERE create_date BETWEEN $beginDate AND $endDate) AS T1
+                      		ON work_item_tags.work_id=T1.id) AS T2
+                      	INNER JOIN work_tags ON work_tags.id=T2.tag_id AND work_tags.tag_level=0)
+                      GROUP BY tid;
+                      """;
+
+            // 一级标签
+            var cmd = _connection!.CreateCommand();
+            cmd.CommandText = sql;
+            cmd.Parameters.AddWithValue("$beginDate", beginDate);
+            cmd.Parameters.AddWithValue("$endDate", endDate);
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                result.PrimaryTags.Add(new TagTime()
+                {
+                    TagId = reader.GetInt32(0),
+                    Time = reader.GetDouble(1),
+                    TagName = reader.GetString(2),
+                    Nested = new List<TagTime>(),
+                });
+            }
+        }
+
+        foreach (var tag in result.PrimaryTags)
+        {
+            var sql = """
+                      SELECT
+                      	work_tags.id, sum(hours) as total, work_tags.tag_name
+                      FROM
+                      	((((SELECT work_id FROM work_item_tags WHERE tag_id=$tagId) AS T0 INNER JOIN
+                      	work_item_tags ON t0.work_id=work_item_tags.work_id AND work_item_tags.tag_id!=$tagId) INNER JOIN
+                      	(SELECT id, hours FROM work_items WHERE create_date BETWEEN $beginDate AND $endDate) AS T1 ON T0.work_id=T1.id) AS T2 INNER JOIN
+                      	work_tags ON work_tags.id=T2.tag_id AND work_tags.tag_level!=0)
+                      GROUP BY work_tags.id;
+                      """;
+            
+            var cmd = _connection!.CreateCommand();
+            cmd.CommandText = sql;
+            cmd.Parameters.AddWithValue("$beginDate", beginDate);
+            cmd.Parameters.AddWithValue("$endDate", endDate);
+            cmd.Parameters.AddWithValue("$tagId", tag.TagId);
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                tag.Nested.Add(new TagTime()
+                {
+                    TagId = reader.GetInt32(0),
+                    Time = reader.GetDouble(1),
+                    TagName = reader.GetString(2),
+                });
+            }
+        }
+        
+        return result;
+    }
+
+    public override StatisticsResult GetStatistics()
+    {
+        // get date range
+        var sql = "SELECT min(create_date), max(create_date) FROM work_items;";
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        using var reader = cmd.ExecuteReader();
+        if (reader.Read())
+        {
+            var beginDate = reader.GetString(0);
+            var endDate = reader.GetString(1);
+            return GetStatistics(beginDate, endDate);
+        }
+
+        // empty result
+        return new StatisticsResult()
+        {
+            DateBegin = string.Empty,
+            DateEnd = string.Empty,
+            Total = 0,
+            PrimaryTags = Array.Empty<TagTime>(),
+        };
     }
 
     public void Dispose()
