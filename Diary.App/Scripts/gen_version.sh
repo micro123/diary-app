@@ -64,18 +64,39 @@ mkdir -p "$output_dir"
 output_path="$output_dir/$file_name"
 
 tee "$output_path" <<EOF
+using Diary.Core;
 namespace ${project};
 
-internal static class VersionInfo
+internal static partial class VersionInfo
 {
-	public const string BuildTime = "${timestamp}";
-	public const string GitVersionFull = "${hash_full}";
-	public const string GitVersionShort = "${hash_short}";
-	public const string CommitCount = "${commit_count}";
-	public const string Branch = "${branch}";
-	public const string LastCommitMessage = "${commit_message_escaped}";
-	public const string LastCommitDate = "${commit_date}";
-	public const string HostName = "${hostname}";
+	  private const string BuildTime = "${timestamp}";
+	  private const string GitVersionFull = "${hash_full}";
+	  private const string GitVersionShort = "${hash_short}";
+	  private const string CommitCount = "${commit_count}";
+	  private const string Branch = "${branch}";
+	  private const string LastCommitMessage = "${commit_message_escaped}";
+	  private const string LastCommitDate = "${commit_date}";
+	  private const string HostName = "${hostname}";
+
+	  static partial void GetVersionStringImpl(ref string versionString)
+	  {
+		    versionString = $"{DataVersion.VersionString}.{CommitCount}-{GitVersionShort}";
+	  }
+
+    static partial void GetVersionDetailImpl(ref string versionString)
+    {
+        versionString =
+              $"""
+               数据版本：{DataVersion.VersionString} (0x{DataVersion.VersionCode:X8})
+               编译增量：{CommitCount}
+               Git分支：{Branch}
+               Git提交：{GitVersionShort}
+               提交消息：{LastCommitMessage}
+               提交时间：{LastCommitDate}
+               编译时间：{BuildTime}
+               编译主机：{HostName}
+               """;
+    }
 }
 EOF
 
