@@ -24,8 +24,8 @@ public partial class RedMineIssueManageViewModel : ViewModelBase
     // 搜索参数
     [ObservableProperty]
     private string _searchTerm = string.Empty;
-    [ObservableProperty] private bool _onlyOpened;
-    [ObservableProperty] private bool _onlyMyIssues;
+    [ObservableProperty] private bool _onlyOpened = true;
+    [ObservableProperty] private bool _onlyMyIssues = true;
     private string _lastSearchMethod = string.Empty;
 
     [ObservableProperty] private int _resultCount;
@@ -59,7 +59,7 @@ public partial class RedMineIssueManageViewModel : ViewModelBase
     private async Task Search(string method)
     {
         _lastSearchMethod = method;
-        CurrentPage = 1; // 点击搜索那就是第一页
+        CurrentPage = 1; // 点击搜索那就切换到第一页
         await SearchInternal();
     }
 

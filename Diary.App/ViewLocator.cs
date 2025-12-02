@@ -21,6 +21,7 @@ namespace Diary.App
                 var control = (Control)Activator.CreateInstance(type)!;
                 var vm = param as ViewModelBase;
                 vm!.SetView(control);
+                LastVm = vm;
                 return control;
             }
 
@@ -35,6 +36,17 @@ namespace Diary.App
         public bool Match(object? data)
         {
             return data is ViewModelBase;
+        }
+
+        private ViewModelBase? _lastVm;
+        private ViewModelBase? LastVm
+        {
+            set
+            {
+                _lastVm?.OnHide();
+                _lastVm = value;
+                _lastVm?.OnShow();
+            }
         }
     }
 }

@@ -235,6 +235,12 @@ public partial class DiaryEditorViewModel : ViewModelBase
         UploadedTime = uploaded;
     }
 
+    public override void OnHide()
+    {
+        if (SelectedWork is not null)
+            SaveWorkItem();
+    }
+
     #region 编辑器数据
 
     [ObservableProperty] private ObservableCollection<WorkEditorViewModel> _dailyWorks = new();
