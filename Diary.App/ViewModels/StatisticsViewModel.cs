@@ -1,4 +1,8 @@
+using System;
+using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Diary.App.Models;
 using Diary.Utils;
 
 namespace Diary.App.ViewModels;
@@ -6,12 +10,13 @@ namespace Diary.App.ViewModels;
 [DiAutoRegister]
 public partial class StatisticsViewModel : ViewModelBase
 {
-    [RelayCommand]
-    private void TestApi()
+    [ObservableProperty] private ObservableCollection<StatisticsTabData> _tabs = new();
+    
+    public StatisticsViewModel()
     {
-        var Db = App.Current.UseDb!;
-        var testing = Db.GetStatistics();
-
-        int a = 0;
+        foreach (var e in Enum.GetValues<StatisticsType>())
+        {
+            Tabs.Add(new StatisticsTabData(e));
+        }
     }
 }

@@ -9,6 +9,7 @@
              xmlns:views="clr-namespace:Diary.App.Views"
              xmlns:i="https://github.com/projektanker/icons.avalonia"
              xmlns:base="clr-namespace:Diary.Core.Data.Base;assembly=Diary.Core"
+             xmlns:app="clr-namespace:Diary.App"
              x:Class="Diary.App.Views.DiaryEditorView"
              x:DataType="viewModels:DiaryEditorViewModel">
 
@@ -31,131 +32,139 @@
             </Style>
         </Style>
         <Style Selector="TextBlock">
-            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
         <Style Selector="StackPanel#ViewSubmitted">
             <Style Selector="^ > i|Icon">
-                <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultSuccessForeground}"/>
+                <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultSuccessForeground}" />
             </Style>
             <Style Selector="^ > TextBlock">
-                <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultSuccessForeground}"/>
+                <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultSuccessForeground}" />
             </Style>
         </Style>
         <Style Selector="StackPanel#ViewUnsubmit">
             <Style Selector="^ > i|Icon">
-                <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultWarningForeground}"/>
+                <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultWarningForeground}" />
             </Style>
             <Style Selector="^ > TextBlock">
-                <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultWarningForeground}"/>
+                <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultWarningForeground}" />
             </Style>
         </Style>
     </UserControl.Styles>
 
-    <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="4">
-        <!-- 左侧是日期和项目列表展示 -->
-        <DockPanel VerticalSpacing="8" Width="280">
-            <Grid ColumnSpacing="8" ColumnDefinitions="Auto,*,Auto" HorizontalAlignment="Stretch"
-                  DockPanel.Dock="Top">
-                <TextBlock Text="日期选择" VerticalAlignment="Center" />
-                <Button Grid.Column="2" Content="回到今天"
-                        HotKey="Ctrl+T" Classes="ActionButton"
-                        Command="{Binding SelectTodayCommand}" />
-            </Grid>
-            <Separator DockPanel.Dock="Top" />
-            <Calendar FirstDayOfWeek="Sunday" DockPanel.Dock="Top"
-                      IsTodayHighlighted="True" SelectionMode="SingleDate"
-                      DisplayDate="{Binding CurrentDate}"
-                      SelectedDate="{Binding SelectedDate}" />
-            <Separator DockPanel.Dock="Top" />
-            <!-- 统计信息 -->
-            <StackPanel Orientation="Horizontal" DockPanel.Dock="Bottom" Spacing="8">
-                <TextBlock Text="{Binding TotalTime, StringFormat='总共 {0:0.##} 小时'}"/>
-                <TextBlock Text="{Binding UploadedTime, StringFormat='提交 {0:0.##} 小时'}"/>
-                <Button Command="{Binding UploadAllCommand}" HotKey="Ctrl+Shift+U"
-                        Classes="ActionButton">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <i:Icon Value="mdi-cloud-upload-outline" FontSize="14" />
-                        <TextBlock Text="提交" />
-                    </StackPanel>
-                </Button>
-            </StackPanel>
-            <ScrollViewer>
-                <ListBox ItemsSource="{Binding DailyWorks}"
-                         VerticalAlignment="Stretch" Name="DailyItemList"
-                         SelectionMode="Single" SelectedItem="{Binding SelectedWork}">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate DataType="{x:Type viewModels:WorkEditorViewModel}">
-                            <Border Theme="{DynamicResource CardBorder}" Padding="4"
-                                    CornerRadius="6"
-                                    ToolTip.Tip="{Binding Comment}">
-                                <StackPanel Orientation="Vertical" Spacing="2">
-                                    <StackPanel Orientation="Horizontal" Spacing="4">
-                                        <TextBlock Text="{Binding WorkId, StringFormat='#{0}'}" />
-                                        <TextBlock Text="{Binding Comment}"/>
-                                    </StackPanel>
-                                    <Separator />
-                                    <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Left">
-                                        <TextBlock Text="{Binding Time,StringFormat='{}{0:0.#} 小时'}" />
-                                        <TextBlock Text="{Binding Priority}" />
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Left">
-                                        <!-- 标签颜色 -->
-                                        <ItemsControl ItemsSource="{Binding WorkTags}">
-                                            <ItemsControl.ItemsPanel>
-                                                <ItemsPanelTemplate>
-                                                    <StackPanel Orientation="Horizontal" Spacing="1" />
-                                                </ItemsPanelTemplate>
-                                            </ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate DataType="base:WorkTag">
-                                                    <Border Width="20" Height="20" BorderThickness="0"
-                                                            CornerRadius="4" ToolTip.Tip="{Binding Name}"
-                                                            Background="{Binding Color, Converter={StaticResource IntColor}}" />
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                        <!-- 提交状态 -->
-                                        <StackPanel Name="ViewSubmitted" Orientation="Horizontal" Spacing="2" IsVisible="{Binding Uploaded}">
-                                            <i:Icon Value="mdi-check-circle-outline" FontSize="20"/>
-                                            <TextBlock Text="已提交"/>
+    <Panel>
+        <TextBlock Text="数据库连接出错，需要检查设置" HorizontalAlignment="Center" VerticalAlignment="Center"
+                   FontSize="64"
+                   IsVisible="{Binding !DatabaseOk, Source={x:Static app:App.Current}}" />
+        <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="4"
+              IsVisible="{Binding DatabaseOk, Source={x:Static app:App.Current}}">
+            <!-- 左侧是日期和项目列表展示 -->
+            <DockPanel VerticalSpacing="8" Width="280">
+                <Grid ColumnSpacing="8" ColumnDefinitions="Auto,*,Auto" HorizontalAlignment="Stretch"
+                      DockPanel.Dock="Top">
+                    <TextBlock Text="日期选择" VerticalAlignment="Center" />
+                    <Button Grid.Column="2" Content="回到今天"
+                            HotKey="Ctrl+T" Classes="ActionButton"
+                            Command="{Binding SelectTodayCommand}" />
+                </Grid>
+                <Separator DockPanel.Dock="Top" />
+                <Calendar FirstDayOfWeek="Sunday" DockPanel.Dock="Top"
+                          IsTodayHighlighted="True" SelectionMode="SingleDate"
+                          DisplayDate="{Binding CurrentDate}"
+                          SelectedDate="{Binding SelectedDate}" />
+                <Separator DockPanel.Dock="Top" />
+                <!-- 统计信息 -->
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Bottom" Spacing="8">
+                    <TextBlock Text="{Binding TotalTime, StringFormat='总共 {0:0.##} 小时'}" />
+                    <TextBlock Text="{Binding UploadedTime, StringFormat='提交 {0:0.##} 小时'}" />
+                    <Button Command="{Binding UploadAllCommand}" HotKey="Ctrl+Shift+U"
+                            Classes="ActionButton">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <i:Icon Value="mdi-cloud-upload-outline" FontSize="14" />
+                            <TextBlock Text="提交" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+                <ScrollViewer>
+                    <ListBox ItemsSource="{Binding DailyWorks}"
+                             VerticalAlignment="Stretch" Name="DailyItemList"
+                             SelectionMode="Single" SelectedItem="{Binding SelectedWork}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type viewModels:WorkEditorViewModel}">
+                                <Border Theme="{DynamicResource CardBorder}" Padding="4"
+                                        CornerRadius="6"
+                                        ToolTip.Tip="{Binding Comment}">
+                                    <StackPanel Orientation="Vertical" Spacing="2">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="{Binding WorkId, StringFormat='#{0}'}" />
+                                            <TextBlock Text="{Binding Comment}" />
                                         </StackPanel>
-                                        <StackPanel Name="ViewUnsubmit" Orientation="Horizontal" Spacing="2" IsVisible="{Binding !Uploaded}">
-                                            <i:Icon Value="mdi-radiobox-blank" FontSize="20"/>
-                                            <TextBlock Text="未提交"/>
+                                        <Separator />
+                                        <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Left">
+                                            <TextBlock Text="{Binding Time,StringFormat='{}{0:0.#} 小时'}" />
+                                            <TextBlock Text="{Binding Priority}" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Left">
+                                            <!-- 标签颜色 -->
+                                            <ItemsControl ItemsSource="{Binding WorkTags}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Orientation="Horizontal" Spacing="1" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate DataType="base:WorkTag">
+                                                        <Border Width="20" Height="20" BorderThickness="0"
+                                                                CornerRadius="4" ToolTip.Tip="{Binding Name}"
+                                                                Background="{Binding Color, Converter={StaticResource IntColor}}" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <!-- 提交状态 -->
+                                            <StackPanel Name="ViewSubmitted" Orientation="Horizontal" Spacing="2"
+                                                        IsVisible="{Binding Uploaded}">
+                                                <i:Icon Value="mdi-check-circle-outline" FontSize="20" />
+                                                <TextBlock Text="已提交" />
+                                            </StackPanel>
+                                            <StackPanel Name="ViewUnsubmit" Orientation="Horizontal" Spacing="2"
+                                                        IsVisible="{Binding !Uploaded}">
+                                                <i:Icon Value="mdi-radiobox-blank" FontSize="20" />
+                                                <TextBlock Text="未提交" />
+                                            </StackPanel>
                                         </StackPanel>
                                     </StackPanel>
-                                </StackPanel>
-                            </Border>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </ScrollViewer>
-        </DockPanel>
-        <Border Grid.Column="1" BorderThickness="1" BorderBrush="{DynamicResource GridSplitterBackground}"
-                CornerRadius="0" Margin="0 42 0 0" />
-        <!-- 右侧是编辑区 -->
-        <DockPanel Grid.Column="2" VerticalSpacing="8">
-            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0">
-                <Button Classes="ActionButton" Content="新建事项" HotKey="Ctrl+N"
-                        Command="{Binding NewWorkItemCommand}" />
-                <!-- TODO: add flyout for next button -->
-                <Button Classes="ActionButton" Content="从模板新建" HotKey="Ctrl+Shift+N" />
-                <Button Classes="ActionButton" Content="保存" HotKey="Ctrl+S"
-                        Command="{Binding SaveWorkItemCommand}" />
-                <Button Classes="ActionButton" Content="重复当前事项" HotKey="Ctrl+D"
-                        Command="{Binding DuplicateWorkItemCommand}" />
-                <Button Classes="ActionButton" Content="删除当前项" HotKey="Ctrl+Shift+D"
-                        Command="{Binding DeleteWorkItemCommand}" />
-                <Button Classes="ActionButton" Content="提交工时" HotKey="Ctrl+U"
-                        Command="{Binding UploadTimeCommand}" />
-            </StackPanel>
-            <Separator DockPanel.Dock="Top" />
-            <Panel>
-                <TextBlock Text="当前未选中任何事项" FontSize="48" HorizontalAlignment="Center"
-                           Foreground="{DynamicResource ButtonDefaultDisabledForeground}"
-                           IsVisible="{Binding !HasItem}" VerticalAlignment="Center" />
-                <ContentControl IsVisible="{Binding HasItem}" Content="{Binding SelectedWork}" />
-            </Panel>
-        </DockPanel>
-    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </ScrollViewer>
+            </DockPanel>
+            <Border Grid.Column="1" BorderThickness="1" BorderBrush="{DynamicResource GridSplitterBackground}"
+                    CornerRadius="0" Margin="0 42 0 0" />
+            <!-- 右侧是编辑区 -->
+            <DockPanel Grid.Column="2" VerticalSpacing="8">
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0">
+                    <Button Classes="ActionButton" Content="新建事项" HotKey="Ctrl+N"
+                            Command="{Binding NewWorkItemCommand}" />
+                    <!-- TODO: add flyout for next button -->
+                    <Button Classes="ActionButton" Content="从模板新建" HotKey="Ctrl+Shift+N" />
+                    <Button Classes="ActionButton" Content="保存" HotKey="Ctrl+S"
+                            Command="{Binding SaveWorkItemCommand}" />
+                    <Button Classes="ActionButton" Content="重复当前事项" HotKey="Ctrl+D"
+                            Command="{Binding DuplicateWorkItemCommand}" />
+                    <Button Classes="ActionButton" Content="删除当前项" HotKey="Ctrl+Shift+D"
+                            Command="{Binding DeleteWorkItemCommand}" />
+                    <Button Classes="ActionButton" Content="提交工时" HotKey="Ctrl+U"
+                            Command="{Binding UploadTimeCommand}" />
+                </StackPanel>
+                <Separator DockPanel.Dock="Top" />
+                <Panel>
+                    <TextBlock Text="当前未选中任何事项" FontSize="48" HorizontalAlignment="Center"
+                               Foreground="{DynamicResource ButtonDefaultDisabledForeground}"
+                               IsVisible="{Binding !HasItem}" VerticalAlignment="Center" />
+                    <ContentControl IsVisible="{Binding HasItem}" Content="{Binding SelectedWork}" />
+                </Panel>
+            </DockPanel>
+        </Grid>
+    </Panel>
 </UserControl>

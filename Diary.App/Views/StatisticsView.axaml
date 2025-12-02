@@ -6,8 +6,38 @@
              x:DataType="viewModels:StatisticsViewModel"
              xmlns:u="https://irihi.tech/ursa"
              xmlns:lvc="using:LiveChartsCore.SkiaSharpView.Avalonia"
+             xmlns:i="https://github.com/projektanker/icons.avalonia"
              xmlns:viewModels="clr-namespace:Diary.App.ViewModels"
+             xmlns:models="clr-namespace:Diary.App.Models"
+             xmlns:app="clr-namespace:Diary.App"
              x:Class="Diary.App.Views.StatisticsView">
-    <Button Content="测试API" HorizontalAlignment="Center" VerticalAlignment="Center"
-            Command="{Binding TestApiCommand}"/>
+    <Panel>
+        <TextBlock Text="数据库连接出错，需要检查设置" HorizontalAlignment="Center" VerticalAlignment="Center"
+                   FontSize="64"
+                   IsVisible="{Binding !DatabaseOk, Source={x:Static app:App.Current}}" />
+        <TabControl ItemsSource="{Binding Tabs}" TabStripPlacement="Top"
+                    Theme="{DynamicResource ScrollTabControl}"
+                    IsVisible="{Binding DatabaseOk, Source={x:Static app:App.Current}}">
+            <TabControl.ItemTemplate>
+                <DataTemplate DataType="models:StatisticsTabData">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <i:Icon Value="{Binding Icon}" FontSize="16" />
+                        <TextBlock Text="{Binding Name}" Classes="H5"
+                                   VerticalAlignment="Center"
+                                   Theme="{DynamicResource TitleTextBlock}" />
+                        <Button Theme="{DynamicResource BorderlessButton}" IsVisible="{Binding CanClose}">
+                            <i:Icon Value="fa-circle-xmark" />
+                        </Button>
+                    </StackPanel>
+                </DataTemplate>
+            </TabControl.ItemTemplate>
+            <TabControl.ContentTemplate>
+                <DataTemplate DataType="models:StatisticsTabData">
+                    <TextBlock Text="{Binding Name}" 
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+                </DataTemplate>
+            </TabControl.ContentTemplate>
+        </TabControl>
+    </Panel>
 </UserControl>

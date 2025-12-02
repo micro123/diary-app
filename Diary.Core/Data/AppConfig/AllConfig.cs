@@ -23,4 +23,7 @@ public class AllConfig: SingletonBase<AllConfig>
     
     [ConfigureGroup("数据库设置")]
     public DbConfig DbSettings { get; } = new();
+    
+    [ConfigureGroup("调查统计功能设置")]
+    public SurveyConfig SurveySettings { get; } = new();
 }

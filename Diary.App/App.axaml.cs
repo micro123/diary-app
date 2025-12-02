@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
@@ -10,6 +11,7 @@ using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.Messages;
 using Diary.App.Models;
@@ -95,6 +97,7 @@ namespace Diary.App
             }
             
             Services.GetRequiredService<DbShareData>().InitLoad();
+            DatabaseOk = true;
             
             return true;
         }
@@ -171,6 +174,7 @@ namespace Diary.App
                         EventDispatcher.RouteToPage(PageNames.Settings);
                         EventDispatcher.Notify("错误", msg);
                     }
+                    SurveyEnabled = AppConfig.SurveySettings.IsServerEnabled;
                 });
             });
             
@@ -233,6 +237,20 @@ namespace Diary.App
                 "DB_DRIVER" => new SettingChoice(caption, _dbFactories.Select(x=>x.Name), obj, property),
                 _ => throw new ArgumentOutOfRangeException(nameof(key), key, null),
             };
+        }
+
+        private static readonly StyledProperty<bool> DatabaseOkProperty = AvaloniaProperty.Register<App, bool>(nameof(DatabaseOk), false);
+        public bool DatabaseOk
+        {
+            get => GetValue(DatabaseOkProperty);
+            set => SetValue(DatabaseOkProperty, value);
+        }
+        
+        private static readonly StyledProperty<bool> SurveyEnabledProperty = AvaloniaProperty.Register<App, bool>(nameof(SurveyEnabled), false);
+        public bool SurveyEnabled
+        {
+            get => GetValue(SurveyEnabledProperty);
+            set => SetValue(SurveyEnabledProperty, value);
         }
     }
 }

@@ -4,6 +4,12 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              xmlns:u="https://irihi.tech/ursa"
+             xmlns:app="clr-namespace:Diary.App"
              x:Class="Diary.App.Views.SurveyView">
-    <TextBlock Text="调查工具🤥" FontSize="64" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+    <Panel>
+        <TextBlock Text="没有启用统计功能，此页面不可用" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="64"
+                   IsVisible="{Binding !SurveyEnabled, Source={x:Static app:App.Current}}" />
+        <TextBlock Text="调查工具🤥" FontSize="64" HorizontalAlignment="Center" VerticalAlignment="Center"
+                   IsVisible="{Binding SurveyEnabled, Source={x:Static app:App.Current}}"/>
+    </Panel>
 </UserControl>
