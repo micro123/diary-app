@@ -757,7 +757,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
             cmd.Parameters.AddWithValue("$beginDate", beginDate);
             cmd.Parameters.AddWithValue("$endDate", endDate);
             using var reader = cmd.ExecuteReader();
-            if (reader.Read())
+            if (reader.Read() && !reader.IsDBNull(0))
                 result.Total = reader.GetDouble(0);
         }
         
@@ -831,7 +831,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         using var reader = cmd.ExecuteReader();
-        if (reader.Read())
+        if (reader.Read() && !reader.IsDBNull(0))
         {
             var beginDate = reader.GetString(0);
             var endDate = reader.GetString(1);

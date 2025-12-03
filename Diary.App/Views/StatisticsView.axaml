@@ -25,7 +25,7 @@
                         <TextBlock Text="{Binding Name}" Classes="H5"
                                    VerticalAlignment="Center"
                                    Theme="{DynamicResource TitleTextBlock}" />
-                        <Button Theme="{DynamicResource BorderlessButton}" IsVisible="{Binding CanClose}">
+                        <Button Theme="{DynamicResource BorderlessButton}" IsVisible="{Binding !IsCustom}">
                             <i:Icon Value="fa-circle-xmark" />
                         </Button>
                     </StackPanel>
@@ -33,9 +33,47 @@
             </TabControl.ItemTemplate>
             <TabControl.ContentTemplate>
                 <DataTemplate DataType="models:StatisticsTabData">
-                    <TextBlock Text="{Binding Name}" 
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"/>
+                    <DockPanel VerticalSpacing="4" HorizontalSpacing="4">
+                        <!-- 日期显示 -->
+                        <StackPanel Orientation="Horizontal" Spacing="4" DockPanel.Dock="Top">
+                            <TextBlock Text="从" VerticalAlignment="Center" />
+                            <CalendarDatePicker SelectedDate="{Binding DateBegin}"
+                                                VerticalAlignment="Center" IsEnabled="{Binding IsCustom}" />
+                            <TextBlock Text="至" VerticalAlignment="Center" />
+                            <CalendarDatePicker SelectedDate="{Binding DateEnd}"
+                                                VerticalAlignment="Center" IsEnabled="{Binding IsCustom}" />
+                            <Button Classes="Primary" Theme="{DynamicResource FlatButton}"
+                                    Command="{Binding RefreshCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <i:Icon Value="fa-rotate" FontSize="16"/>
+                                    <TextBlock Text="重新统计" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                        <!-- 自定义工时 -->
+                        <StackPanel Orientation="Horizontal" Spacing="4" DockPanel.Dock="Top">
+                            <CheckBox Content="使用自定义总时间" IsChecked="{Binding UseCustomTime}"
+                                      VerticalAlignment="Center"/>
+                            <u:NumericDoubleUpDown ShowButtonSpinner="False" Value="{Binding CustomTotal}"
+                                                   IsEnabled="{Binding UseCustomTime}" Width="40"/>
+                        </StackPanel>
+                        <u:Divider DockPanel.Dock="Top"/>
+                        <!-- 图表 -->
+                        <ContentControl Content="{Binding Chart}" MinWidth="600"
+                                        DockPanel.Dock="Left"/>
+                        <!-- 表格 -->
+                        <TreeView SelectionMode="Single" ItemsSource="{Binding TimeDetails}">
+                            <TreeView.ItemTemplate>
+                                <TreeDataTemplate DataType="models:StatisticsTimeNode" ItemsSource="{Binding Children}">
+                                    <Grid ColumnDefinitions="80,80,80,*">
+                                        <TextBlock Grid.Column="0" Text="{Binding Name}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Time, StringFormat='{}{0:0.##}'}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Percent, StringFormat='{}{0:0.##}%'}" />
+                                    </Grid>
+                                </TreeDataTemplate>
+                            </TreeView.ItemTemplate>
+                        </TreeView>
+                    </DockPanel>
                 </DataTemplate>
             </TabControl.ContentTemplate>
         </TabControl>
