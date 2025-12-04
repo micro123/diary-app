@@ -67,7 +67,10 @@ public partial class StatisticsTabData : ObservableObject
         Name = GetTypeName(type);
         IsCustom = type == StatisticsType.Custom;
 
-        _timeDetails = new FastTreeDataGridFlatSource<StatisticsTimeNode>([], x => x.Children);
+        _timeDetails = new FastTreeDataGridFlatSource<StatisticsTimeNode>(
+            [], 
+            x => x.Children,
+            x => x.GetHashCode().ToString());
 
         InitChart();
         FetchData();
@@ -116,8 +119,10 @@ public partial class StatisticsTabData : ObservableObject
         var detail = new List<StatisticsTimeNode>();
         var times = new List<double>();
         var labels = new List<string>();
+        var sum1 = 0.0;
         foreach (var x in statistics.PrimaryTags)
         {
+            sum1 += x.Time;
             labels.Add(x.TagName);
             times.Add(x.Time);
             var node = new StatisticsTimeNode()
@@ -129,9 +134,11 @@ public partial class StatisticsTabData : ObservableObject
             };
             if (x.Nested.Count > 0)
             {
+                double sum2 = 0.0;
                 var nested = new List<StatisticsTimeNode>();
                 foreach (var sub in x.Nested)
                 {
+                    sum2 += sub.Time;
                     nested.Add(new StatisticsTimeNode()
                     {
                         Name = sub.TagName,
@@ -141,15 +148,35 @@ public partial class StatisticsTabData : ObservableObject
                     });
                 }
 
+                if (sum2 < x.Time)
+                {
+                    nested.Add(new StatisticsTimeNode()
+                    {
+                        Id = 0,
+                        Name = "未分类",
+                        Percent = 100.0 * (x.Time - sum2) / total,
+                    });
+                }
                 node.Children = nested;
             }
 
             detail.Add(node);
         }
 
+        if (sum1 < statistics.Total)
+        {
+            detail.Add(new StatisticsTimeNode()
+            {
+                Id = 0,
+                Name = "未分类",
+                Percent = 100.0 * (statistics.Total - sum1) / total,
+            });
+        }
+
         Bar.Values = times;
         XAxis.Labels = labels;
-        _timeDetails.Reset(detail, true);
+        _timeDetails.Reset(detail, false);
+        _timeDetails.ExpandAllGroups();
     }
 
 

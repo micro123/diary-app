@@ -22,10 +22,15 @@
             <TabControl.Styles>
                 <Style Selector="CalendarDatePicker">
                     <Setter Property="Width" Value="140" />
-                    <!-- <Setter Property="Text" Value="{Binding $self.SelectedDate, Converter={StaticResource DateConvert}}"/> -->
                     <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}" />
                     <Style Selector="^:disabled /template/ TextBox#PART_TextBox:disabled">
                         <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}" />
+                    </Style>
+                </Style>
+                <Style Selector="FastTreeDataGrid /template/ Border#PART_HeaderHost.HeaderHost">
+                    <Setter Property="Background" Value="{DynamicResource DataGridColumnHeaderBackground}"/>
+                    <Style Selector="^ TextBlock">
+                        <Setter Property="Foreground" Value="{DynamicResource DataGridColumnHeaderForeground}"/>
                     </Style>
                 </Style>
             </TabControl.Styles>
@@ -78,36 +83,46 @@
                         <ContentControl Content="{Binding Chart}" MinWidth="600"
                                         DockPanel.Dock="Left" />
                         <!-- 表格 -->
-                        <ftdg:FastTreeDataGrid ItemsSource="{Binding TimeDetails}"
+                        <FastTreeDataGrid ItemsSource="{Binding TimeDetails}"
                                                RowHeight="32" SelectionMode="None" HeaderHeight="32"
                                                IsFilterRowVisible="False">
-                            <ftdg:FastTreeDataGrid.Columns>
+                            <FastTreeDataGrid.Resources>
+                                <ResourceDictionary>
+                                    <SolidColorBrush x:Key="FastTreeDataGrid.GridLinePen" Color="Red"/>
+                                </ResourceDictionary>
+                            </FastTreeDataGrid.Resources>
+                            <FastTreeDataGrid.Styles>
+                                <Style Selector="TextBlock">
+                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                </Style>
+                            </FastTreeDataGrid.Styles>
+                            <FastTreeDataGrid.Columns>
                                 <FastTreeDataGridColumn Header="标签" SizingMode="Star" CanUserSort="False"
                                                         IsReadOnly="True" IsHierarchy="True" ValueKey="Name">
-                                    <FastTreeDataGridColumn.CellTemplate>
-                                        <WidgetTemplate>
-                                            <FormattedTextWidget Key="Name" EmSize="14" Trimming="CharacterEllipsis"/>
-                                        </WidgetTemplate>
-                                    </FastTreeDataGridColumn.CellTemplate>
+                                    <FastTreeDataGridColumn.CellControlTemplate>
+                                        <DataTemplate DataType="models:StatisticsTimeNode">
+                                            <TextBlock Text="{Binding Name}" />
+                                        </DataTemplate>
+                                    </FastTreeDataGridColumn.CellControlTemplate>
                                 </FastTreeDataGridColumn>
                                 <FastTreeDataGridColumn Header="耗时" SizingMode="Pixel" CanUserSort="False"
-                                                        IsReadOnly="True" PixelWidth="80">
+                                                        IsReadOnly="True" ValueKey="Time" PixelWidth="120">
                                     <FastTreeDataGridColumn.CellControlTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding Item.Time}" />
+                                        <DataTemplate DataType="models:StatisticsTimeNode">
+                                            <TextBlock Text="{Binding Time,StringFormat='{}{0:0.##} 小时'}" />
                                         </DataTemplate>
                                     </FastTreeDataGridColumn.CellControlTemplate>
                                 </FastTreeDataGridColumn>
                                 <FastTreeDataGridColumn Header="占比" SizingMode="Pixel" CanUserSort="False"
-                                                        IsReadOnly="True" PixelWidth="80">
+                                                        IsReadOnly="True" PixelWidth="120">
                                     <FastTreeDataGridColumn.CellControlTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding Item.Percent}" />
+                                        <DataTemplate DataType="models:StatisticsTimeNode">
+                                            <TextBlock Text="{Binding Percent,StringFormat='{}{0:0.##} %'}" />
                                         </DataTemplate>
                                     </FastTreeDataGridColumn.CellControlTemplate>
                                 </FastTreeDataGridColumn>
-                            </ftdg:FastTreeDataGrid.Columns>
-                        </ftdg:FastTreeDataGrid>
+                            </FastTreeDataGrid.Columns>
+                        </FastTreeDataGrid>
                     </DockPanel>
                 </DataTemplate>
             </TabControl.ContentTemplate>
