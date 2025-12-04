@@ -149,6 +149,7 @@
         </Style>
         <StyleInclude Source="avares://Semi.Avalonia.ColorPicker/Index.axaml" />
         <StyleInclude Source="avares://Semi.Avalonia.DataGrid/Index.axaml" />
+        <StyleInclude Source="avares://FastTreeDataGrid.Control/Themes/Generic.xaml" />
     </Application.Styles>
 
     <Application.Resources>

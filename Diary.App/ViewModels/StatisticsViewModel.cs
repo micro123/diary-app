@@ -14,9 +14,10 @@ public partial class StatisticsViewModel : ViewModelBase
     
     public StatisticsViewModel()
     {
-        foreach (var e in Enum.GetValues<StatisticsType>())
-        {
-            Tabs.Add(new StatisticsTabData(e));
-        }
+        Tabs.Add(new StatisticsTabData(StatisticsType.Custom));
+        // foreach (var e in Enum.GetValues<StatisticsType>())
+        // {
+        //     Tabs.Add(new StatisticsTabData(e));
+        // }
     }
 }

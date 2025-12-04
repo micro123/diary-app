@@ -31,6 +31,7 @@
             <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
         </PackageReference>
         <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+        <PackageReference Include="FastTreeDataGrid.Control" Version="0.1.0-alpha.1" />
         <PackageReference Include="Irihi.Ursa" Version="1.14.0" />
         <PackageReference Include="Irihi.Ursa.Themes.Semi" Version="1.14.0" />
         <PackageReference Include="LiveChartsCore.SkiaSharpView.Avalonia" Version="2.0.0-rc6.1" />
