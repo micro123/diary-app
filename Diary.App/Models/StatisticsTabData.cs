@@ -1,13 +1,12 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Threading.Tasks;
+using Avalonia.Controls;
+using Avalonia.Controls.Models.TreeDataGrid;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.Database;
 using Diary.Utils;
-using FastTreeDataGrid.Engine.Infrastructure;
-using LiveChartsCore;
 using LiveChartsCore.Measure;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Avalonia;
@@ -57,8 +56,8 @@ public partial class StatisticsTabData : ObservableObject
     [ObservableProperty] private double _customTotal = 0;
     [ObservableProperty] private double _statisticsTotal = 0;
 
-    private FastTreeDataGridFlatSource<StatisticsTimeNode> _timeDetails;
-    public IFastTreeDataGridSource TimeDetails => _timeDetails;
+    private HierarchicalTreeDataGridSource<StatisticsTimeNode> _timeDetails;
+    public ITreeDataGridSource TimeDetails => _timeDetails;
 
     /// <inheritdoc/>
     public StatisticsTabData(StatisticsType type)
@@ -67,10 +66,48 @@ public partial class StatisticsTabData : ObservableObject
         Name = GetTypeName(type);
         IsCustom = type == StatisticsType.Custom;
 
-        _timeDetails = new FastTreeDataGridFlatSource<StatisticsTimeNode>(
-            [], 
-            x => x.Children,
-            x => x.GetHashCode().ToString());
+        _timeDetails = new HierarchicalTreeDataGridSource<StatisticsTimeNode>([])
+        {
+            Columns =
+            {
+                new HierarchicalExpanderColumn<StatisticsTimeNode>(
+                    new TextColumn<StatisticsTimeNode,int>(
+                        null,
+                        x=>x.Id,
+                        (o,v) => o.Id = v!,
+                        new GridLength(80, GridUnitType.Pixel),
+                        new() { StringFormat = "#{0}", CanUserResizeColumn = false, CanUserSortColumn = false, BeginEditGestures = BeginEditGestures.None }
+                    ),
+                    x=>x.Children,
+                    x => x.Children.Count > 0),
+                new TextColumn<StatisticsTimeNode,string>(
+                    "标签",
+                    x=>x.Name,
+                    (o,v) => o.Name = v!,
+                    new GridLength(1, GridUnitType.Star),
+                    new() { StringFormat = "#{0}", CanUserResizeColumn = false, CanUserSortColumn = false, BeginEditGestures = BeginEditGestures.None }
+                    ),
+                new TextColumn<StatisticsTimeNode,double>(
+                    "耗时",
+                    x=>x.Time,
+                    (o,v) => o.Time = v!,
+                    new GridLength(120, GridUnitType.Pixel),
+                    new() { StringFormat = "{0:0.##} 小时", CanUserResizeColumn = false, CanUserSortColumn = false, BeginEditGestures = BeginEditGestures.None }
+                ),
+                new TextColumn<StatisticsTimeNode,double>(
+                    "占比",
+                    x=>x.Percent,
+                    (o,v) => o.Percent = v!,
+                    new GridLength(120, GridUnitType.Pixel),
+                    new() { StringFormat = "{0:0.##} %", CanUserResizeColumn = false, CanUserSortColumn = false, BeginEditGestures = BeginEditGestures.None }
+                ),
+                new TemplateColumn<StatisticsTimeNode>(
+                    "操作",
+                    "OperationsCell",
+                    options: new() { CanUserResizeColumn = false, CanUserSortColumn = false, BeginEditGestures = BeginEditGestures.None }
+                ),
+            }
+        };
 
         InitChart();
         FetchData();
@@ -175,8 +212,7 @@ public partial class StatisticsTabData : ObservableObject
 
         Bar.Values = times;
         XAxis.Labels = labels;
-        _timeDetails.Reset(detail, false);
-        _timeDetails.ExpandAllGroups();
+        _timeDetails.Items = detail;
     }
 
 

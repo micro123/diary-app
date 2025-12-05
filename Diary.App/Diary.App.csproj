@@ -31,7 +31,6 @@
             <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
         </PackageReference>
         <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-        <PackageReference Include="FastTreeDataGrid.Control" Version="0.1.0-alpha.1" />
         <PackageReference Include="Irihi.Ursa" Version="1.14.0" />
         <PackageReference Include="Irihi.Ursa.Themes.Semi" Version="1.14.0" />
         <PackageReference Include="LiveChartsCore.SkiaSharpView.Avalonia" Version="2.0.0-rc6.1" />
@@ -42,6 +41,7 @@
         <PackageReference Include="Semi.Avalonia" Version="11.3.7.1" />
         <PackageReference Include="Semi.Avalonia.ColorPicker" Version="11.3.7.1" />
         <PackageReference Include="Semi.Avalonia.DataGrid" Version="11.3.7.1" />
+        <PackageReference Include="TreeDataGrid.Avalonia" Version="11.3.0-a2" />
         <PackageReference Include="Xaml.Behaviors.Avalonia" Version="11.3.9" />
         <PackageReference Include="Xaml.Behaviors.Interactivity" Version="11.3.9" />
     </ItemGroup>
