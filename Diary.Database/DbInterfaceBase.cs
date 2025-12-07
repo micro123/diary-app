@@ -68,6 +68,7 @@ public abstract class DbInterfaceBase
     // statistics
     public abstract StatisticsResult GetStatistics(string beginDate, string endDate);
     public abstract StatisticsResult GetStatistics();
+    public abstract ICollection<WorkItem> GetWorkItemsByTagAndDate(string dateBegin, string dateEnd, int l1, int l2 = 0);
 }
 
 

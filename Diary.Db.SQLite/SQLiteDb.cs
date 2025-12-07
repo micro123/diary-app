@@ -847,6 +847,68 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
             PrimaryTags = Array.Empty<TagTime>(),
         };
     }
+    
+    public override ICollection<WorkItem> GetWorkItemsByTagAndDate(string dateBegin, string dateEnd, int l1, int l2 = 0)
+    {
+        var result = new List<WorkItem>();
+        if (l2 == 0)
+        {
+            var sql = """
+                      SELECT work_items.* FROM
+                      (work_items INNER JOIN work_item_tags on work_items.id = work_item_tags.work_id)
+                      WHERE work_item_tags.tag_id = $id AND work_items.create_date BETWEEN $begin AND $end
+                      ORDER BY create_date,work_items.id;
+                      """;
+            var cmd = _connection!.CreateCommand();
+            cmd.CommandText = sql;
+            cmd.Parameters.AddWithValue("$begin", dateBegin);
+            cmd.Parameters.AddWithValue("$end", dateEnd);
+            cmd.Parameters.AddWithValue("$id", l1);
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                result.Add(new WorkItem()
+                {
+                    Id = reader.GetInt32(0),
+                    CreateDate = reader.GetString(1),
+                    Comment = reader.GetString(2),
+                    Time = reader.GetDouble(3),
+                    Priority = (WorkPriorities)reader.GetInt32(4),
+                });
+            }
+        }
+        else
+        {
+            var sql = """
+                      SELECT work_items.* FROM
+                      work_items INNER JOIN
+                      (SELECT work_item_tags.work_id FROM
+                      	(SELECT work_id FROM work_item_tags WHERE tag_id=$primary) AS T0
+                      	INNER JOIN work_item_tags ON T0.work_id = work_item_tags.work_id AND work_item_tags.tag_id=$secondary) AS T1
+                      	ON work_items.id=T1.work_id WHERE create_date BETWEEN $begin AND $end
+                      ORDER BY create_date,id;
+                      """;
+            var cmd = _connection!.CreateCommand();
+            cmd.CommandText = sql;
+            cmd.Parameters.AddWithValue("$begin", dateBegin);
+            cmd.Parameters.AddWithValue("$end", dateEnd);
+            cmd.Parameters.AddWithValue("$primary", l1);
+            cmd.Parameters.AddWithValue("$secondary", l2);
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                result.Add(new WorkItem()
+                {
+                    Id = reader.GetInt32(0),
+                    CreateDate = reader.GetString(1),
+                    Comment = reader.GetString(2),
+                    Time = reader.GetDouble(3),
+                    Priority = (WorkPriorities)reader.GetInt32(4),
+                });
+            }
+        }
+        return result;
+    }
 
     public void Dispose()
     {

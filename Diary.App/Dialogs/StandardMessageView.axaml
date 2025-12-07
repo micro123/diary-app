@@ -6,10 +6,12 @@
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="Diary.App.Dialogs.StandardMessageView"
              x:DataType="dialogs:StandardMessageViewModel"
-             MinWidth="220"
-             MinHeight="120">
+             MinWidth="450"
+             MinHeight="220">
     <Design.DataContext>
         <dialogs:StandardMessageViewModel />
     </Design.DataContext>
-    <TextBlock Text="{Binding Body}" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+    <TextBox Text="{Binding Body}" IsReadOnly="True"
+             HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Left"
+             VerticalContentAlignment="Top" Classes="TextArea Bordered"/>
 </UserControl>

@@ -1,11 +1,9 @@
 ﻿using System;
 using Avalonia;
-using Avalonia.Logging;
 using Avalonia.Media;
 using Projektanker.Icons.Avalonia;
 using Projektanker.Icons.Avalonia.FontAwesome;
 using Projektanker.Icons.Avalonia.MaterialDesign;
-using Ursa.Controls;
 
 namespace Diary.App
 {
@@ -29,7 +27,7 @@ namespace Diary.App
                 .UsePlatformDetect()
                 .With(new FontManagerOptions
                 {
-                    DefaultFamilyName = "avares://Diary.App/Assets/Fonts#Zhuque Fangsong",
+                    DefaultFamilyName = "avares://Diary.App/Assets/Fonts#LXGW WenKai Mono",
                     FontFallbacks =
                     [
                         new FontFallback { FontFamily = "avares://Diary.App/Assets/Fonts#OpenMoji", }

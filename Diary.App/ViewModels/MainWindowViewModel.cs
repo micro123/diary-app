@@ -90,6 +90,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     CanDragMove = false,
                     CanResize = false,
                     CanLightDismiss = evt.LightDismiss,
+                    IsCloseButtonVisible = false,
                     Mode = evt.Mode,
                     Buttons = evt.Button,
                 };

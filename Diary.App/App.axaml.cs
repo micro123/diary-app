@@ -108,8 +108,9 @@ namespace Diary.App
             var dbProviders = TypeLoader.GetImplementations<IDbFactory>(FsTools.GetBinaryDirectory(), "Diary.Db.*.dll");
             foreach (var dbProvider in dbProviders)
             {
-                Logger.LogInformation($"Db provider: {dbProvider.Name}");
-                _dbFactories.Add(dbProvider);
+                Logger.LogInformation($"Db provider: {dbProvider.Name}, Usable? {dbProvider.Usable}");
+                if (dbProvider.Usable)
+                    _dbFactories.Add(dbProvider);
             }
         }
 

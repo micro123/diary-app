@@ -189,4 +189,9 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase
     {
         throw new NotImplementedException();
     }
+
+    public override ICollection<WorkItem> GetWorkItemsByTagAndDate(string dateBegin, string dateEnd, int l1, int l2 = 0)
+    {
+        throw new NotImplementedException();
+    }
 }

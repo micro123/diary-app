@@ -75,10 +75,40 @@
                                         DockPanel.Dock="Left" />
                         <!-- 表格 -->
                         <TreeDataGrid Source="{Binding TimeDetails}" CanUserResizeColumns="False"
-                                      CanUserSortColumns="False">
+                                      CanUserSortColumns="False" x:Name="TimeTable">
+                            <TreeDataGrid.Styles>
+                                <Style Selector="TreeDataGridRow">
+                                    <Style Selector="^ /template/ Border#RowBorder">
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="Focusable" Value="False"/>
+                                    </Style>
+                                    <Style Selector="^:pointerover /template/ Border#RowBorder">
+                                        <Setter Property="Background" Value="{DynamicResource SemiColorFill1}" />
+                                    </Style>
+                                    <Style Selector="^:selected">
+                                        <Style Selector="^ /template/ TreeDataGridCellsPresenter#PART_CellsPresenter">
+                                            <Setter Property="Background" Value="Transparent"/>
+                                        </Style>
+                                        <Style Selector="^ /template/ Border#RowBorder">
+                                            <Setter Property="Background" Value="{DynamicResource SemiColorPrimaryLight}" />
+                                        </Style>
+                                        <Style Selector="^:pointerover /template/ Border#RowBorder">
+                                            <Setter Property="Background" Value="{DynamicResource SemiColorPrimaryLightPointerover}" />
+                                        </Style>
+                                        <Style Selector="^:focus /template/ Border#RowBorder">
+                                            <Setter Property="Background" Value="{DynamicResource SemiColorPrimaryLight}" />
+                                        </Style>
+                                        <Style Selector="^:pointerover:focus /template/ Border#RowBorder">
+                                            <Setter Property="Background" Value="{DynamicResource SemiColorPrimaryLightPointerover}" />
+                                        </Style>
+                                    </Style>
+                                </Style>
+                            </TreeDataGrid.Styles>
                             <TreeDataGrid.Resources>
                                 <DataTemplate DataType="models:StatisticsTimeNode" x:Key="OperationsCell">
-                                    <Button Content="123"/>
+                                    <Button Content="详细" Command="{Binding #TimeTable.((models:StatisticsTabData)DataContext).ShowTagDetailsCommand}"
+                                            CommandParameter="{Binding}"
+                                            IsVisible="{Binding CanShowDetails}"/>
                                 </DataTemplate>
                             </TreeDataGrid.Resources>
                         </TreeDataGrid>

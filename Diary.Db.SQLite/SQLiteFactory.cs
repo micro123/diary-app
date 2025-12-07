@@ -3,9 +3,10 @@ using Diary.Database;
 
 namespace Diary.Db.SQLite;
 
-public class SQLiteFactory: IDbFactory
+public sealed class SQLiteFactory: IDbFactory
 {
     public string Name => "SQLite";
+    public bool Usable => true;
     public DbInterfaceBase Create()
     {
         return new SQLiteDb(this);

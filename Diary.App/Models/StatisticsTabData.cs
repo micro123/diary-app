@@ -1,10 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Text;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Controls.Models.TreeDataGrid;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Diary.App.Utils;
+using Diary.Core.Data.Base;
 using Diary.Database;
 using Diary.Utils;
 using LiveChartsCore.Measure;
@@ -85,7 +90,7 @@ public partial class StatisticsTabData : ObservableObject
                     x=>x.Name,
                     (o,v) => o.Name = v!,
                     new GridLength(1, GridUnitType.Star),
-                    new() { StringFormat = "#{0}", CanUserResizeColumn = false, CanUserSortColumn = false, BeginEditGestures = BeginEditGestures.None }
+                    new() { CanUserResizeColumn = false, CanUserSortColumn = false, BeginEditGestures = BeginEditGestures.None }
                     ),
                 new TextColumn<StatisticsTimeNode,double>(
                     "耗时",
@@ -181,7 +186,8 @@ public partial class StatisticsTabData : ObservableObject
                         Name = sub.TagName,
                         Percent = 100.0 * sub.Time / total,
                         Time = sub.Time,
-                        Id = x.TagId,
+                        Id = sub.TagId,
+                        Parent = node,
                     });
                 }
 
@@ -192,6 +198,7 @@ public partial class StatisticsTabData : ObservableObject
                         Id = 0,
                         Name = "未分类",
                         Percent = 100.0 * (x.Time - sum2) / total,
+                        Parent = node,
                     });
                 }
                 node.Children = nested;
@@ -210,9 +217,12 @@ public partial class StatisticsTabData : ObservableObject
             });
         }
 
-        Bar.Values = times;
-        XAxis.Labels = labels;
-        _timeDetails.Items = detail;
+        Dispatcher.UIThread.Post(() =>
+        {
+            Bar.Values = times;
+            XAxis.Labels = labels;
+            _timeDetails.Items = detail;
+        });
     }
 
 
@@ -273,5 +283,28 @@ public partial class StatisticsTabData : ObservableObject
             default:
                 throw new ArgumentOutOfRangeException(nameof(type), type, null);
         }
+    }
+
+    [RelayCommand]
+    private void ShowTagDetails(StatisticsTimeNode parameter)
+    {
+        ICollection<WorkItem>? items;
+        if (parameter.Parent is null)
+        {
+            Debug.Assert(parameter.Id != 0);
+            items = Db!.GetWorkItemsByTagAndDate(TimeTools.FormatDateTime(DateBegin), TimeTools.FormatDateTime(DateEnd), parameter.Id);
+        }
+        else
+        {
+            Debug.Assert(parameter.Parent.Id != 0 && parameter.Id != 0);
+            items = Db!.GetWorkItemsByTagAndDate(TimeTools.FormatDateTime(DateBegin), TimeTools.FormatDateTime(DateEnd), parameter.Parent.Id, parameter.Id);
+        }
+
+        var sb = new StringBuilder();
+        foreach (var item in items)
+        {
+            sb.AppendLine($"{item.CreateDate}: {item.Comment} ({item.Time:0.##} 小时)");
+        }
+        EventDispatcher.Notify("详细信息", sb.ToString());
     }
 }
