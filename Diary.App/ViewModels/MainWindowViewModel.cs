@@ -244,9 +244,9 @@ public partial class MainWindowViewModel : ViewModelBase
             Window.Show();
         var options = new OverlayDialogOptions()
         {
-            Title = "关于",
+            Title = "关于此软件",
             Mode = DialogMode.Info,
-            Buttons = DialogButton.OK,
+            Buttons = DialogButton.None,
             CanDragMove = false,
             CanLightDismiss = true,
             IsCloseButtonVisible = true,

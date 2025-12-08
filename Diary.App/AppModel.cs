@@ -37,21 +37,18 @@ public partial class AppModel: ObservableObject
     [RelayCommand]
     private void QuitApp()
     {
-        _logger.LogInformation("Quitting app");
         EventDispatcher.RunCommand(CommandNames.QuitApp);
     }
 
     [RelayCommand]
     private void ShowAbout()
     {
-        _logger.LogInformation("Showing about");
         EventDispatcher.RunCommand(CommandNames.ShowAboutDialog);
     }
 
     [RelayCommand]
     private void RaiseWindow()
     {
-        _logger.LogInformation("Raise window");
         EventDispatcher.RunCommand(CommandNames.RaiseMainWindow);
     }
 }

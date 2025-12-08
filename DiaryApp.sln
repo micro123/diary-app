@@ -35,6 +35,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Diary.RedMineTests", "Diary
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Diary.VersionGenerator", "Diary.VersionGenerator\Diary.VersionGenerator.csproj", "{2F4E7DF8-53FA-4CBB-A103-8C788F81BFBD}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Diary.Survey", "Diary.Survey\Diary.Survey.csproj", "{317F6C88-9B9F-4DD4-8B38-2A09A9F6ECA3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -81,6 +83,10 @@ Global
 		{2F4E7DF8-53FA-4CBB-A103-8C788F81BFBD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2F4E7DF8-53FA-4CBB-A103-8C788F81BFBD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2F4E7DF8-53FA-4CBB-A103-8C788F81BFBD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{317F6C88-9B9F-4DD4-8B38-2A09A9F6ECA3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{317F6C88-9B9F-4DD4-8B38-2A09A9F6ECA3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{317F6C88-9B9F-4DD4-8B38-2A09A9F6ECA3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{317F6C88-9B9F-4DD4-8B38-2A09A9F6ECA3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -96,6 +102,7 @@ Global
 		{702E1E6C-8107-4BF7-8ACE-CEEFEB93AD24} = {4958D7D8-4791-2CCE-6FFA-082B65933577}
 		{FED9F320-76D5-45C3-8C4E-AEA29184BEA2} = {1804F179-190B-4746-8E45-117A952CC6B1}
 		{2F4E7DF8-53FA-4CBB-A103-8C788F81BFBD} = {5ADD1E3F-4C5C-4BE4-94D2-995B89DD88C7}
+		{317F6C88-9B9F-4DD4-8B38-2A09A9F6ECA3} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {DAFD6FD6-29C1-41F3-8D76-F39BD486EFD3}

@@ -117,7 +117,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     private bool CanUpload => SelectedWork is { Uploaded: false };
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanUploadAll))]
     private async Task UploadAll()
     {
         if (SelectedWork is {IsNewItem: false})
@@ -157,6 +157,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
         EventDispatcher.Notify(title, sb.ToString());
     }
 
+    private bool CanUploadAll => TotalTime != 0 && UploadedTime < TotalTime;
+    
     [RelayCommand]
     private void SelectToday()
     {
@@ -244,8 +246,12 @@ public partial class DiaryEditorViewModel : ViewModelBase
     #region 编辑器数据
 
     [ObservableProperty] private ObservableCollection<WorkEditorViewModel> _dailyWorks = new();
-    [ObservableProperty] private double _totalTime;
-    [ObservableProperty] private double _uploadedTime;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(UploadAllCommand))]
+    private double _totalTime;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(UploadAllCommand))]
+    private double _uploadedTime;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasItem))]

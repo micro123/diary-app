@@ -106,7 +106,7 @@
                             </TreeDataGrid.Styles>
                             <TreeDataGrid.Resources>
                                 <DataTemplate DataType="models:StatisticsTimeNode" x:Key="OperationsCell">
-                                    <Button Content="详细" Command="{Binding #TimeTable.((models:StatisticsTabData)DataContext).ShowTagDetailsCommand}"
+                                    <Button Content="详细" Command="{Binding $parent[TreeDataGrid].((models:StatisticsTabData)DataContext).ShowTagDetailsCommand}"
                                             CommandParameter="{Binding}"
                                             IsVisible="{Binding CanShowDetails}"/>
                                 </DataTemplate>
