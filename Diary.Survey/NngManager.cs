@@ -6,8 +6,8 @@ namespace Diary.Survey;
 internal static class NngManager
 {
     internal static IAPIFactory<INngMsg> Factory { get; private set; }
-    internal const string ListenAddress = "tcp://*:9271";
-    internal const ushort ListenPort = 9271;
+    internal const string ListenAddress = "tcp://*:9721";
+    internal const ushort ListenPort = 9721;
 
     static NngManager()
     {
