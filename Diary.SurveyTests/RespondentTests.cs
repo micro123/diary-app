@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Diary.Survey;
 
 namespace Diary.SurveyTests;
@@ -10,9 +11,14 @@ public class RespondentTests
     {
         var respondent = new AppRespondent();
         respondent.Connect("127.0.0.1");
-        
-        var cts = new CancellationTokenSource();
-        var msg = await respondent.RecieveMessage(cts.Token);
+
+        respondent.ReceiveMessage += (o, s) =>
+        {
+            Debug.WriteLine(s);
+        };
+        respondent.StartReceive();
+        await Task.Delay(10000);
+        respondent.StopReceive();
         
         respondent.Shutdown();
     }
