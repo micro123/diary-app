@@ -1,17 +1,14 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using Avalonia;
-using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
 using Avalonia.Threading;
-using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.Messages;
 using Diary.App.Models;
@@ -23,6 +20,7 @@ using Diary.Core.Constants;
 using Diary.Core.Data.AppConfig;
 using Diary.Core.Utils;
 using Diary.Database;
+using Diary.Survey;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -35,6 +33,15 @@ namespace Diary.App
         {
             Name = AppInfo.AppName;
             Services = ConfigureServices();
+
+            _surveyor.ReceiveMessage += (_, s) =>
+            {
+                Logger.LogDebug($"_surveyor ReceiveMessage: {s}");
+            };
+            _respondent.ReceiveMessage += (_, s) =>
+            {
+                Logger.LogDebug($"_respondent ReceiveMessage: {s}");
+            };
         }
 
         public override void Initialize()
@@ -177,6 +184,8 @@ namespace Diary.App
                     }
                     SurveyEnabled = AppConfig.SurveySettings.IsServerEnabled;
                 });
+
+                UpdateSurveyObjects();
             });
             
             // check if configure is valid
@@ -188,6 +197,22 @@ namespace Diary.App
             
             // start keep-alive thread
             StartKeepAliveTimer();
+        }
+
+        private void UpdateSurveyObjects()
+        {
+            _surveyor.StopServer();
+            _respondent.Shutdown();
+            
+            if (AppConfig.SurveySettings.IsServerEnabled)
+            {
+                _surveyor.StartServer();
+            }
+
+            if (!string.IsNullOrWhiteSpace(AppConfig.SurveySettings.ServerAddress))
+            {
+                _respondent.Connect(AppConfig.SurveySettings.ServerAddress);
+            }
         }
 
         private void PreShutdown()
@@ -253,5 +278,8 @@ namespace Diary.App
             get => GetValue(SurveyEnabledProperty);
             set => SetValue(SurveyEnabledProperty, value);
         }
+
+        private AppSurveyor _surveyor = new();
+        private AppRespondent _respondent = new();
     }
 }

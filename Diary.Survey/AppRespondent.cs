@@ -28,11 +28,15 @@ public class AppRespondent
         _respondentCtx = _respondent.CreateAsyncContext(NngManager.Factory).Unwrap();
         _respondentCtx.Aio.SetTimeout(2500);
         
+        StartReceive();
+        
         return _respondentCtx != null;
     }
     
     public void Shutdown()
     {
+        StopReceive();
+        
         _respondentCtx?.Dispose();
         _respondentCtx = null;
         _dialer?.Dispose();
@@ -41,7 +45,7 @@ public class AppRespondent
         _respondent = null;
     }
 
-    public void StartReceive()
+    private void StartReceive()
     {
         if (_respondentCtx is null)
             return;
@@ -65,7 +69,7 @@ public class AppRespondent
         });
     }
 
-    public void StopReceive()
+    private void StopReceive()
     {
         _cts?.Cancel();
         _cts = null;

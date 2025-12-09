@@ -16,9 +16,7 @@ public class RespondentTests
         {
             Debug.WriteLine(s);
         };
-        respondent.StartReceive();
         await Task.Delay(10000);
-        respondent.StopReceive();
         
         respondent.Shutdown();
     }
