@@ -4,13 +4,106 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              xmlns:u="https://irihi.tech/ursa"
+             x:DataType="viewModels:SurveyViewModel"
+             xmlns:i="https://github.com/projektanker/icons.avalonia"
              xmlns:app="clr-namespace:Diary.App"
+             xmlns:viewModels="clr-namespace:Diary.App.ViewModels"
+             xmlns:models="clr-namespace:Diary.App.Models"
              x:Class="Diary.App.Views.SurveyView">
+    <UserControl.Styles>
+        <Style Selector="CalendarDatePicker">
+            <Setter Property="Width" Value="140" />
+            <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}" />
+            <Style Selector="^:disabled /template/ TextBox#PART_TextBox:disabled">
+                <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}" />
+            </Style>
+        </Style>
+        <Style Selector="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Styles>
     <Panel>
         <TextBlock Text="没有启用统计功能，此页面不可用" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="48"
-                   IsVisible="{Binding !SurveyEnabled, Source={x:Static app:App.Current}}" 
-                   Foreground="{DynamicResource ButtonDefaultDisabledForeground}"/>
-        <TextBlock Text="调查工具🤥" FontSize="64" HorizontalAlignment="Center" VerticalAlignment="Center"
-                   IsVisible="{Binding SurveyEnabled, Source={x:Static app:App.Current}}"/>
+                   IsVisible="{Binding !SurveyEnabled, Source={x:Static app:App.Current}}"
+                   Foreground="{DynamicResource ButtonDefaultDisabledForeground}" />
+        <DockPanel IsVisible="{Binding SurveyEnabled, Source={x:Static app:App.Current}}"
+                   VerticalSpacing="8">
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="4">
+                <TextBlock Text="时间范围：" />
+                <CalendarDatePicker SelectedDate="{Binding StartDate}" />
+                <TextBlock Text="至" />
+                <CalendarDatePicker SelectedDate="{Binding EndDate}" />
+                <Button Command="{Binding SendQueryCommand}"
+                        Theme="{DynamicResource BorderlessButton}" Classes="Primary">
+                    <StackPanel Orientation="Horizontal">
+                        <i:Icon Value="mdi-account-voice" />
+                        <TextBlock Text="发起调查" />
+                    </StackPanel>
+                </Button>
+                <TextBlock Text="正在调查中..." IsVisible="{Binding Surveying}"
+                           Foreground="{DynamicResource ButtonDefaultSuccessForeground}"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="4" DockPanel.Dock="Top">
+                <TextBlock Text="自定义总时间"/>
+                <u:NumericDoubleUpDown ShowButtonSpinner="True" InnerRightContent="小时" Width="120"
+                                       Value="{Binding CustomTotal}"/>
+                <Button Command="{Binding ReCalcCommand}">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <i:Icon Value="mdi-check-circle-outline" />
+                        <TextBlock Text="重新计算" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+            <ItemsControl ItemsSource="{Binding SurveyResults}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="viewModels:SurveyResult">
+                        <Expander Header="{Binding Title}" IsExpanded="True">
+                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,*">
+                                <TextBlock Grid.Column="0" Grid.Row="0" Text="日期：" />
+                                <TextBlock Grid.Column="1" Grid.Row="0" Text="{Binding Range}" />
+                                <TextBlock Grid.Column="0" Grid.Row="1" Text="总耗时：" />
+                                <TextBlock Grid.Column="1" Grid.Row="1" Text="{Binding Total}" />
+                                <TreeDataGrid Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="2"
+                                              Source="{Binding GridSource}">
+                                    <TreeDataGrid.Styles>
+                                        <Style Selector="TreeDataGridRow">
+                                            <Style Selector="^ /template/ Border#RowBorder">
+                                                <Setter Property="Background" Value="Transparent" />
+                                                <Setter Property="Focusable" Value="False" />
+                                            </Style>
+                                            <Style Selector="^:pointerover /template/ Border#RowBorder">
+                                                <Setter Property="Background" Value="{DynamicResource SemiColorFill1}" />
+                                            </Style>
+                                            <Style Selector="^:selected">
+                                                <Style
+                                                    Selector="^ /template/ TreeDataGridCellsPresenter#PART_CellsPresenter">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                </Style>
+                                                <Style Selector="^ /template/ Border#RowBorder">
+                                                    <Setter Property="Background"
+                                                            Value="{DynamicResource SemiColorPrimaryLight}" />
+                                                </Style>
+                                                <Style Selector="^:pointerover /template/ Border#RowBorder">
+                                                    <Setter Property="Background"
+                                                            Value="{DynamicResource SemiColorPrimaryLightPointerover}" />
+                                                </Style>
+                                                <Style Selector="^:focus /template/ Border#RowBorder">
+                                                    <Setter Property="Background"
+                                                            Value="{DynamicResource SemiColorPrimaryLight}" />
+                                                </Style>
+                                                <Style Selector="^:pointerover:focus /template/ Border#RowBorder">
+                                                    <Setter Property="Background"
+                                                            Value="{DynamicResource SemiColorPrimaryLightPointerover}" />
+                                                </Style>
+                                            </Style>
+                                        </Style>
+                                    </TreeDataGrid.Styles>
+                                </TreeDataGrid>
+                            </Grid>
+                        </Expander>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </DockPanel>
     </Panel>
 </UserControl>

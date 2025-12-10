@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
@@ -36,11 +38,11 @@ namespace Diary.App
 
             _surveyor.ReceiveMessage += (_, s) =>
             {
-                Logger.LogDebug($"_surveyor ReceiveMessage: {s}");
+                EventDispatcher.Msg(new RespondEvent(s));
             };
             _respondent.ReceiveMessage += (_, s) =>
             {
-                Logger.LogDebug($"_respondent ReceiveMessage: {s}");
+                EventDispatcher.Msg(new SurveyRequestEvent(s));
             };
         }
 
@@ -54,6 +56,7 @@ namespace Diary.App
 
             // 同步主题设置
             SyncTheme();
+            UpdateSurveyObjects();
         }
 
         private bool ConfigureCheck(out string message)
@@ -187,6 +190,14 @@ namespace Diary.App
 
                 UpdateSurveyObjects();
             });
+            WeakReferenceMessenger.Default.Register<SurveyResultEvent>(this, (r, m) =>
+            {
+                _respondent.Send(m.Value);
+            });
+            WeakReferenceMessenger.Default.Register<SurveyQueryEvent>(this, (r, m) =>
+            {
+                _surveyor.Survey(m.Value);
+            });
             
             // check if configure is valid
             if (!success)
@@ -201,8 +212,14 @@ namespace Diary.App
 
         private void UpdateSurveyObjects()
         {
+            if (Design.IsDesignMode)
+                return;
+            
             _surveyor.StopServer();
             _respondent.Shutdown();
+            
+            if (!AppConfig.SurveySettings.Enabled)
+                return;
             
             if (AppConfig.SurveySettings.IsServerEnabled)
             {
@@ -217,6 +234,8 @@ namespace Diary.App
 
         private void PreShutdown()
         {
+            _surveyor.StopServer();
+            _respondent.Shutdown();
             _timer.Stop();
             SaveConfigurations();
         }
@@ -241,6 +260,7 @@ namespace Diary.App
         private void LoadConfigurations()
         {
             // EasySaveLoad.Load(AppConfig); // already loaded by instance
+            SurveyEnabled = AppConfig.SurveySettings.IsServerEnabled;
         }
 
         private void DisableAvaloniaDataAnnotationValidation()

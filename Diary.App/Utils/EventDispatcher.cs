@@ -33,4 +33,9 @@ public static class EventDispatcher
     {
         Messenger.Send(new RunCommandEvent(command));
     }
+
+    public static void Msg<T>(T msg) where T : class
+    {
+        Messenger.Send(msg);
+    }
 }
