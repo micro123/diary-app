@@ -38,7 +38,7 @@ public sealed class SurveyResult
                         new GridLength(1, GridUnitType.Star),
                         new()
                         {
-                            StringFormat = "#{0}", CanUserResizeColumn = false, CanUserSortColumn = false,
+                            StringFormat = "{0}", CanUserResizeColumn = false, CanUserSortColumn = false,
                             BeginEditGestures = BeginEditGestures.None
                         }
                     ),
@@ -66,7 +66,7 @@ public sealed class SurveyResult
                         BeginEditGestures = BeginEditGestures.None
                     }
                 ),
-            }
+            },
         };
 
         UpdatePercent(total > 0 ? total : _data.TotalTime);
@@ -123,6 +123,10 @@ public partial class SurveyViewModel : ViewModelBase
             var data = JsonSerializer.Deserialize<RespondData>(content);
             if (data != null)
             {
+                if (data.Tags.Count == 0)
+                {
+                    data.Tags.Add(RespondTag.Null);
+                }
                 lock (_lock)
                 {
                     if (!_respondDatas.TryAdd(data.Key, data))

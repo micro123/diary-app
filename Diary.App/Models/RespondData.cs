@@ -15,6 +15,8 @@ public class RespondTag
 
     [JsonPropertyName("children")]
     public List<RespondTag> SubTags { get; set; } = new();
+
+    public static RespondTag Null { get; } =  new(){ TagName = "没有数据！", TagTime = 0 };
 }
 
 public class RespondData

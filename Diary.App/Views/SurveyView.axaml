@@ -96,6 +96,7 @@
                                 <TextBlock Grid.Column="0" Grid.Row="1" Text="总耗时：" />
                                 <TextBlock Grid.Column="1" Grid.Row="1" Text="{Binding Total}" />
                                 <TreeDataGrid Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="2"
+                                              CanUserResizeColumns="False" CanUserSortColumns="False"
                                               Source="{Binding GridSource}">
                                     <TreeDataGrid.Styles>
                                         <Style Selector="TreeDataGridRow">
