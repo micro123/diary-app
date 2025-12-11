@@ -33,6 +33,38 @@
                 <CalendarDatePicker SelectedDate="{Binding StartDate}" />
                 <TextBlock Text="至" />
                 <CalendarDatePicker SelectedDate="{Binding EndDate}" />
+                <Button Content="快速选择">
+                    <Button.Styles>
+                        <Style Selector="Button.QsBtn">
+                            <Setter Property="Command" Value="{Binding QuickSelectDateCommand}" />
+                            <Setter Property="CommandParameter" Value="{Binding $self.Name}" />
+                            <Setter Property="Width" Value="100" />
+                            <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
+                        </Style>
+                    </Button.Styles>
+                    <Button.Flyout>
+                        <Flyout ShowMode="Transient">
+                            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                                  ColumnDefinitions="Auto,Auto,Auto,*"
+                                  RowSpacing="8" ColumnSpacing="8">
+                                <Button Classes="QsBtn Primary" Name="B00" Grid.Row="0" Grid.Column="0" Content="上周" />
+                                <Button Classes="QsBtn Primary" Name="B10" Grid.Row="0" Grid.Column="1" Content="本周" />
+                                <Button Classes="QsBtn Primary" Name="B20" Grid.Row="0" Grid.Column="2" Content="下周" />
+                                <Button Classes="QsBtn Primary" Name="B01" Grid.Row="1" Grid.Column="0" Content="上月" />
+                                <Button Classes="QsBtn Primary" Name="B11" Grid.Row="1" Grid.Column="1" Content="本月" />
+                                <Button Classes="QsBtn Primary" Name="B21" Grid.Row="1" Grid.Column="2" Content="下月" />
+                                <Button Classes="QsBtn Primary" Name="B02" Grid.Row="2" Grid.Column="0" Content="上季度" />
+                                <Button Classes="QsBtn Primary" Name="B12" Grid.Row="2" Grid.Column="1" Content="本季度" />
+                                <Button Classes="QsBtn Primary" Name="B22" Grid.Row="2" Grid.Column="2" Content="下季度" />
+                                <Button Classes="QsBtn Primary" Name="B03" Grid.Row="3" Grid.Column="0" Content="去年" />
+                                <Button Classes="QsBtn Primary" Name="B13" Grid.Row="3" Grid.Column="1" Content="今年" />
+                                <Button Classes="QsBtn Primary" Name="B23" Grid.Row="3" Grid.Column="2" Content="明年" />
+                                <TextBlock Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="4"
+                                           Text="第一第二列以当前开始时间为准，第三列则以当前结束时间为基准" />
+                            </Grid>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
                 <Button Command="{Binding SendQueryCommand}"
                         Theme="{DynamicResource BorderlessButton}" Classes="Primary">
                     <StackPanel Orientation="Horizontal">
@@ -41,12 +73,12 @@
                     </StackPanel>
                 </Button>
                 <TextBlock Text="正在调查中..." IsVisible="{Binding Surveying}"
-                           Foreground="{DynamicResource ButtonDefaultSuccessForeground}"/>
+                           Foreground="{DynamicResource ButtonDefaultSuccessForeground}" />
             </StackPanel>
             <StackPanel Orientation="Horizontal" Spacing="4" DockPanel.Dock="Top">
-                <TextBlock Text="自定义总时间"/>
+                <TextBlock Text="自定义总时间" />
                 <u:NumericDoubleUpDown ShowButtonSpinner="True" InnerRightContent="小时" Width="120"
-                                       Value="{Binding CustomTotal}"/>
+                                       Value="{Binding CustomTotal}" />
                 <Button Command="{Binding ReCalcCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="4">
                         <i:Icon Value="mdi-check-circle-outline" />

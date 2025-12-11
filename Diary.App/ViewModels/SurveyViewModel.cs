@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -219,5 +220,19 @@ public partial class SurveyViewModel : ViewModelBase
     private void ReCalc()
     {
         UpdateTree();
+    }
+
+    [RelayCommand]
+    private void QuickSelectDate(string which)
+    {
+        Debug.Assert(which.Length == 3);
+        var col = which[1] - '0';
+        var row = which[2] - '0';
+        
+        DateTime startDate = StartDate;
+        DateTime endDate = EndDate;
+        TimeTools.AdjustDate(ref startDate, ref endDate, (AdjustPart)row, (AdjustDirection)col);
+        StartDate = startDate;
+        EndDate = endDate;
     }
 }
