@@ -146,6 +146,21 @@ public partial class MainWindowViewModel : ViewModelBase
                     await OverlayDialog.ShowCustomModal<object>(vm, options: options);
                 });
                 return;
+            case CommandNames.EditWorkTemplates:
+                Dispatcher.UIThread.Post(async () =>
+                {
+                    var options = new OverlayDialogOptions()
+                    {
+                        CanDragMove = false,
+                        CanResize = false,
+                        CanLightDismiss = false,
+                        Mode = DialogMode.None,
+                        IsCloseButtonVisible = false,
+                    };
+                    var vm = _serviceProvider.GetRequiredService<TemplateEditorViewModel>();
+                    await OverlayDialog.ShowCustomModal<object>(vm, options: options);
+                });
+                return;
             case CommandNames.RaiseMainWindow:
                 Dispatcher.UIThread.Post(() =>
                 {

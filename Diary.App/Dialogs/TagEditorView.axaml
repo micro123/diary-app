@@ -12,7 +12,7 @@
              xmlns:colorPicker="https://irihi.tech/semi"
              xmlns:models="clr-namespace:Diary.App.Models"
              Width="750"
-             Height="640" Margin="2 24 2 4">
+             Height="640" Margin="8 24 8 8">
     <Design.DataContext>
         <dialogs:TagEditorViewModel />
     </Design.DataContext>
