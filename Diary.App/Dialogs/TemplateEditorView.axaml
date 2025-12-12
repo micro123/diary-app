@@ -9,6 +9,7 @@
              xmlns:u="https://irihi.tech/ursa"
              xmlns:redMine="clr-namespace:Diary.Core.Data.RedMine;assembly=Diary.Core"
              xmlns:display="clr-namespace:Diary.Core.Data.Display;assembly=Diary.Core"
+             xmlns:base="clr-namespace:Diary.Core.Data.Base;assembly=Diary.Core"
              Width="750" Height="640" Margin="8 24 8 8"
              x:DataType="dialogs:TemplateEditorViewModel">
     <Design.DataContext>
@@ -20,66 +21,123 @@
         </Style>
     </UserControl.Styles>
     <DockPanel VerticalSpacing="8">
-        <TextBlock Classes="Header" Text="模板编辑" DockPanel.Dock="Top"/>
-        <u:Divider Content="新建模板" Grid.Row="1" HorizontalContentAlignment="Left" DockPanel.Dock="Top" />
-        <StackPanel Orientation="Horizontal" Spacing="4" DockPanel.Dock="Top">
-            <TextBlock Text="模板名" />
-            <TextBox Text="{Binding NewTemplateName}" HorizontalAlignment="Stretch"/>
-            <Button Command="{Binding AddTemplateCommand}">
+        <TextBlock Classes="Header" Text="模板编辑" DockPanel.Dock="Top" />
+        <u:Divider Content="新建模板" HorizontalContentAlignment="Left" DockPanel.Dock="Top" />
+        <Grid ColumnSpacing="4" DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto">
+            <TextBlock Grid.Column="0" Text="模板名" />
+            <TextBox Grid.Column="1" Text="{Binding NewTemplateName}" HorizontalAlignment="Stretch" />
+            <Button Grid.Column="2" Command="{Binding AddTemplateCommand}">
                 <StackPanel Orientation="Horizontal" Spacing="4">
                     <i:Icon Value="mdi-invoice-text-plus-outline" />
                     <TextBlock Text="添加" />
                 </StackPanel>
             </Button>
-        </StackPanel>
+        </Grid>
+        <u:Divider Content="现有模板" HorizontalContentAlignment="Left" DockPanel.Dock="Top" />
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
                     HorizontalAlignment="Center" Spacing="16">
-            <Button Classes="Danger" Content="取消" Command="{Binding SaveCommand}" 
-                    CommandParameter="0"/>
-            <Button Classes="Primary" Content="保存" Command="{Binding SaveCommand}" 
-                    CommandParameter="1"/>
+            <Button Classes="Danger" Content="取消" Command="{Binding SaveCommand}"
+                    CommandParameter="0" />
+            <Button Classes="Primary" Content="保存" Command="{Binding SaveCommand}"
+                    CommandParameter="1" />
         </StackPanel>
         <ScrollViewer>
             <ItemsControl ItemsSource="{Binding Templates}" x:Name="TemplatesView">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="dialogs:TemplateViewModel">
-                        <Expander Header="{Binding Name}">
-                            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto">
-                                <TextBlock Grid.Column="0" Grid.Row="0" Text="默认标题："/>
-                                <TextBox Grid.Column="1" Grid.Row="0" Text="{Binding DefaultTitle}"/>
-                                <TextBlock Grid.Column="0" Grid.Row="1" Text="默认时间："/>
+                        <Expander Header="{Binding Name}" IsExpanded="True">
+                            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto"
+                                  RowSpacing="8" ColumnSpacing="4">
+                                <TextBlock Grid.Column="0" Grid.Row="0" Text="默认标题：" />
+                                <TextBox Grid.Column="1" Grid.Row="0" Text="{Binding DefaultTitle}" />
+                                <TextBlock Grid.Column="0" Grid.Row="1" Text="默认时间：" />
                                 <u:NumericDoubleUpDown Grid.Column="1" Grid.Row="1" Value="{Binding Time}"
-                                                       ShowButtonSpinner="False"/>
-                                <TextBlock Grid.Column="0" Grid.Row="2" Text="默认活动："/>
+                                                       ShowButtonSpinner="False" />
+                                <TextBlock Grid.Column="0" Grid.Row="2" Text="默认活动：" />
                                 <ComboBox Grid.Column="1" Grid.Row="2" SelectedIndex="{Binding RedMineActivity}"
                                           ItemsSource="{Binding #TemplatesView.((dialogs:TemplateEditorViewModel)DataContext).Activities}">
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate DataType="redMine:RedMineActivity">
                                             <StackPanel Orientation="Horizontal" Spacing="4">
-                                                <TextBlock Text="{Binding Id, StringFormat='#{0}'}"/>
-                                                <TextBlock Text="{Binding Title}"/>
+                                                <TextBlock Text="{Binding Id, StringFormat='#{0}'}" />
+                                                <TextBlock Text="{Binding Title}" />
                                             </StackPanel>
                                         </DataTemplate>
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
-                                <TextBlock Grid.Column="0" Grid.Row="3" Text="默认问题："/>
+                                <TextBlock Grid.Column="0" Grid.Row="3" Text="默认问题：" />
                                 <ComboBox Grid.Column="1" Grid.Row="3" SelectedIndex="{Binding RedMineIssue}"
                                           ItemsSource="{Binding #TemplatesView.((dialogs:TemplateEditorViewModel)DataContext).Issues}">
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate DataType="display:RedMineIssueDisplay">
                                             <StackPanel Orientation="Horizontal" Spacing="4">
-                                                <TextBlock Text="{Binding Id, StringFormat='#{0}'}"/>
-                                                <TextBlock Text="{Binding Title}"/>
+                                                <TextBlock Text="{Binding Id, StringFormat='#{0}'}" />
+                                                <TextBlock Text="{Binding Title}" />
                                             </StackPanel>
                                         </DataTemplate>
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
-                                <u:Divider Grid.Column="0" Grid.Row="4" Content="标签列表："/>
-                                <Button Grid.Column="1" Grid.Row="4" >
-                                    
+                                <TextBlock Grid.Column="0" Grid.Row="4" Text="标签列表：" />
+                                <Button Grid.Column="2" Grid.Row="4" Classes="Primary"
+                                        Theme="{DynamicResource BorderlessButton}">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <i:Icon Value="" />
+                                        <TextBlock Text="添加标签" />
+                                    </StackPanel>
+                                    <Button.Flyout>
+                                        <MenuFlyout ShowMode="TransientWithDismissOnPointerMoveAway"
+                                                    ItemsSource="{Binding #TemplatesView.((dialogs:TemplateEditorViewModel)DataContext).Tags}">
+                                            <MenuFlyout.ItemContainerTheme>
+                                                <ControlTheme TargetType="MenuItem"
+                                                              BasedOn="{StaticResource {x:Type MenuItem}}"
+                                                              x:DataType="base:WorkTag">
+                                                    <Setter Property="Header" Value="{Binding Name}" />
+                                                    <Setter Property="Background"
+                                                            Value="{Binding Color, Converter={StaticResource IntColor}}" />
+                                                    <Setter Property="Foreground"
+                                                            Value="{Binding Color, Converter={StaticResource SimpleInverse}}" />
+                                                    <Setter Property="Command"
+                                                            Value="{Binding $parent[Expander].((dialogs:TemplateViewModel)DataContext).AddTagCommand}" />
+                                                    <Setter Property="CommandParameter" Value="{Binding}" />
+                                                </ControlTheme>
+                                            </MenuFlyout.ItemContainerTheme>
+                                        </MenuFlyout>
+                                    </Button.Flyout>
                                 </Button>
-                                <ItemsControl Grid.Column="0" Grid.Row="5" Grid.ColumnSpan="2" ItemsSource="{Binding Tags}">
-                                    
+                                <ItemsControl Grid.Column="0" Grid.Row="5" Grid.ColumnSpan="2"
+                                              ItemsSource="{Binding Tags}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel ItemSpacing="8" Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type base:WorkTag}">
+                                            <Border Background="{Binding Color, Converter={StaticResource IntColor}}"
+                                                    Theme="{DynamicResource CardBorder}" Margin="2" Padding="8 4">
+                                                <Border.Styles>
+                                                    <Style Selector="TextBlock">
+                                                        <Setter Property="VerticalAlignment" Value="Center" />
+                                                    </Style>
+                                                </Border.Styles>
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <TextBlock Text="{Binding Id, StringFormat='#{0}'}"
+                                                               Foreground="{Binding Color, Converter={StaticResource SimpleInverse}}" />
+                                                    <TextBlock
+                                                        Text="{Binding Level, Converter={StaticResource TagLevelFormater}}"
+                                                        Foreground="{Binding Color, Converter={StaticResource SimpleInverse}}" />
+                                                    <TextBlock Text="{Binding Name}"
+                                                               Foreground="{Binding Color, Converter={StaticResource SimpleInverse}}" />
+                                                    <Button Theme="{DynamicResource BorderlessButton}"
+                                                            Foreground="{Binding Color, Converter={StaticResource SimpleInverse}}"
+                                                            Command="{Binding $parent[Expander].((dialogs:TemplateViewModel)DataContext).RemoveTagCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <i:Icon Value="mdi-trash-can-outline" />
+                                                    </Button>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </Grid>
                         </Expander>

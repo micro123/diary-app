@@ -4,7 +4,9 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Diary.App.Messages;
 using Diary.App.Models;
+using Diary.App.Utils;
 using Diary.App.ViewModels;
 using Diary.Core.Data.Base;
 using Diary.Core.Data.Display;
@@ -19,7 +21,7 @@ namespace Diary.App.Dialogs;
 public partial class TemplateViewModel
 {
     public required string Name { get; set; }
-    public required string DefaultTitle { get; set; }
+    public string DefaultTitle { get; set; } = string.Empty;
     public int RedMineActivity { get; set; } = -1;
     public int RedMineIssue { get; set; } = -1;
     public double Time { get; set; } = 0.0;
@@ -72,6 +74,26 @@ public partial class TemplateViewModel
         };
         return result;
     }
+
+    [RelayCommand]
+    private void AddTag(WorkTag tag)
+    {
+        if (Tags.Contains(tag))
+            return;
+        if (Tags.Any(x => x.Level == TagLevels.Primary) && tag.Level == TagLevels.Primary)
+        {
+            return;
+        }
+        Tags.Add(tag);
+    }
+
+    [RelayCommand]
+    private void RemoveTag(WorkTag tag)
+    {
+        Tags.Remove(tag);
+        if (tag.Level == TagLevels.Primary)
+            Tags.Clear();
+    }
 }
 
 [DiAutoRegister]
@@ -87,12 +109,19 @@ public partial class TemplateEditorViewModel : ViewModelBase, IDialogContext
 
     public ObservableCollection<RedMineActivity> Activities => _dbShareData.RedMineActivities;
     public ObservableCollection<RedMineIssueDisplay> Issues => _dbShareData.RedMineIssues;
+    public ObservableCollection<WorkTag> Tags => _dbShareData.WorkTags;
 
     private bool CanAdd => !string.IsNullOrWhiteSpace(NewTemplateName);
 
     [RelayCommand(CanExecute = nameof(CanAdd))]
     private void AddTemplate()
     {
+        Templates.Add(new TemplateViewModel()
+        {
+            Name = NewTemplateName,
+            Tags = new(),
+        });
+        NewTemplateName = string.Empty;
     }
 
     public TemplateEditorViewModel(DbShareData dbShareData, ILogger logger)
@@ -131,7 +160,7 @@ public partial class TemplateEditorViewModel : ViewModelBase, IDialogContext
         var templates = Templates.Select(x => x.ToTemplate(_dbShareData)).ToList();
         TemplateManager.Instance.Templates = templates;
         EasySaveLoad.Save(TemplateManager.Instance);
-        // TODO: event
+        EventDispatcher.Msg(new TemplateChangedEvent());
     }
 
     public void Close()

@@ -67,7 +67,7 @@
                 </Button>
                 <Button Command="{Binding SendQueryCommand}"
                         Theme="{DynamicResource BorderlessButton}" Classes="Primary">
-                    <StackPanel Orientation="Horizontal">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
                         <i:Icon Value="mdi-account-voice" />
                         <TextBlock Text="发起调查" />
                     </StackPanel>

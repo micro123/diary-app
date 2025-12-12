@@ -373,4 +373,32 @@ public partial class WorkEditorViewModel : ViewModelBase
         Uploaded = TimeEntry.EntryId > 0;
         return (Uploaded, Uploaded ? null : "可能是网络问题");
     }
+
+    public void SetRedMineActivity(int activityId)
+    {
+        for (var i = 0; i < RedMineActivities.Count; i++)
+        {
+            if (RedMineActivities[i].Id == activityId)
+            {
+                ActivityIndex = i;
+                return;
+            }
+        }
+
+        ActivityIndex = -1;
+    }
+
+    public void SetRedMineIssues(int issueId)
+    {
+        for (var i = 0; i < RedMineIssues.Count; i++)
+        {
+            if (RedMineIssues[i].Id == issueId)
+            {
+                IssueIndex = i;
+                return;
+            }
+        }
+
+        IssueIndex = -1;
+    }
 }

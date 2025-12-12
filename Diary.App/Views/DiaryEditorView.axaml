@@ -147,7 +147,21 @@
                     <Button Classes="ActionButton" Content="新建事项" HotKey="Ctrl+N"
                             Command="{Binding NewWorkItemCommand}" />
                     <!-- TODO: add flyout for next button -->
-                    <Button Classes="ActionButton" Content="从模板新建" HotKey="Ctrl+Shift+N" />
+                    <Button Classes="ActionButton" Content="从模板新建" HotKey="Ctrl+Shift+N"
+                            IsEnabled="{Binding CanUseTemplates}">
+                        <Button.Flyout>
+                            <MenuFlyout ShowMode="Transient" ItemsSource="{Binding Templates}">
+                                <MenuFlyout.ItemContainerTheme>
+                                    <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}"
+                                                  x:DataType="models:Template">
+                                        <Setter Property="Header" Value="{Binding Name}"/>
+                                        <Setter Property="Command" Value="{Binding $parent[Button].((viewModels:DiaryEditorViewModel)DataContext).NewWithTemplateCommand}"/>
+                                        <Setter Property="CommandParameter" Value="{Binding}"/>
+                                    </ControlTheme>
+                                </MenuFlyout.ItemContainerTheme>
+                            </MenuFlyout>
+                        </Button.Flyout>
+                    </Button>
                     <Button Classes="ActionButton" Content="保存" HotKey="Ctrl+S"
                             Command="{Binding SaveWorkItemCommand}" />
                     <Button Classes="ActionButton" Content="重复当前事项" HotKey="Ctrl+D"

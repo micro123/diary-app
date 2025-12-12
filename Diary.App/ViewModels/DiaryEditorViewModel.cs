@@ -31,6 +31,9 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private string CurrentDateString => TimeTools.FormatDateTime(CurrentDate);
     private bool _creating;
 
+    [ObservableProperty] private ObservableCollection<Template> _templates = new();
+    [ObservableProperty] private bool _canUseTemplates = false;
+    
     [RelayCommand]
     private void NewWorkItem()
     {
@@ -42,6 +45,29 @@ public partial class DiaryEditorViewModel : ViewModelBase
         };
         _creating = false;
         SelectedWork.SyncAll();
+    }
+
+    [RelayCommand]
+    private void NewWithTemplate(Template template)
+    {
+        NewWorkItem();
+        if (SelectedWork is null)
+            return;
+        // apply template
+        if (!string.IsNullOrWhiteSpace(template.DefaultTitle))
+            SelectedWork.Comment =  template.DefaultTitle;
+        if (template.DefaultTime > 0)
+            SelectedWork.Time = template.DefaultTime;
+        if (template.DefaultActivity >= 0)
+            SelectedWork.SetRedMineActivity(template.DefaultActivity);
+        if (template.DefaultIssue >= 0)
+            SelectedWork.SetRedMineIssues(template.DefaultIssue);
+        foreach (var tag in template.DefaultWorkTags)
+        {
+            var x = SelectedWork.AllTags.FirstOrDefault(x => x.Id == tag);
+            if (x is not null)
+                SelectedWork.WorkTags.Add(x);
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanSave))]
@@ -196,6 +222,24 @@ public partial class DiaryEditorViewModel : ViewModelBase
         {
             Dispatcher.UIThread.Post(FetchWorks);
         });
+        
+        Messenger.Register<TemplateChangedEvent>(this, (r, m) =>
+        {
+            Dispatcher.UIThread.Post(FetchTemplates);
+        });
+        
+        FetchTemplates();
+    }
+
+    private void FetchTemplates()
+    {
+        Templates.Clear();
+        foreach (var template in TemplateManager.Instance.Templates)
+        {
+            Templates.Add(template);
+        }
+
+        CanUseTemplates = Templates.Count > 0;
     }
 
     private void FetchWorks()
