@@ -7,7 +7,8 @@
              xmlns:i="https://github.com/projektanker/icons.avalonia"
              xmlns:models="clr-namespace:Diary.App.Models"
              xmlns:app="clr-namespace:Diary.App"
-             x:CompileBindings="False"
+             xmlns:viewModels="clr-namespace:Diary.App.ViewModels"
+             x:DataType="viewModels:StatisticsViewModel"
              x:Class="Diary.App.Views.StatisticsView">
     <Panel>
         <TextBlock Text="数据库连接出错，需要检查设置" HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -16,15 +17,6 @@
         <TabControl ItemsSource="{Binding Tabs}" TabStripPlacement="Top"
                     Theme="{DynamicResource ScrollTabControl}"
                     IsVisible="{Binding DatabaseOk, Source={x:Static app:App.Current}}">
-            <TabControl.Styles>
-                <Style Selector="CalendarDatePicker">
-                    <Setter Property="Width" Value="140" />
-                    <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}" />
-                    <Style Selector="^:disabled /template/ TextBox#PART_TextBox:disabled">
-                        <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}" />
-                    </Style>
-                </Style>
-            </TabControl.Styles>
             <TabControl.ItemTemplate>
                 <DataTemplate DataType="models:StatisticsTabData">
                     <StackPanel Orientation="Horizontal" Spacing="8">
@@ -45,12 +37,54 @@
                         <StackPanel Orientation="Horizontal" Spacing="4" DockPanel.Dock="Top">
                             <TextBlock Text="从" VerticalAlignment="Center" />
                             <CalendarDatePicker SelectedDate="{Binding DateBegin}"
-                                                VerticalAlignment="Center" IsEnabled="{Binding IsCustom}"
-                                                Text="{Binding DateBegin, Converter={StaticResource DateConvert}}" />
+                                                VerticalAlignment="Center" IsEnabled="{Binding IsCustom}" />
                             <TextBlock Text="至" VerticalAlignment="Center" />
                             <CalendarDatePicker SelectedDate="{Binding DateEnd}"
-                                                VerticalAlignment="Center" IsEnabled="{Binding IsCustom}"
-                                                Text="{Binding DateEnd, Converter={StaticResource DateConvert}}" />
+                                                VerticalAlignment="Center" IsEnabled="{Binding IsCustom}" />
+                            <Button Content="快速选择" IsVisible="{Binding IsCustom}">
+                                <Button.Styles>
+                                    <Style Selector="Button.QsBtn">
+                                        <Setter Property="Command" Value="{Binding QuickSelectDateCommand}" />
+                                        <Setter Property="CommandParameter" Value="{Binding $self.Name}" />
+                                        <Setter Property="Width" Value="100" />
+                                        <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
+                                    </Style>
+                                </Button.Styles>
+                                <Button.Flyout>
+                                    <Flyout ShowMode="Transient">
+                                        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                                              ColumnDefinitions="Auto,Auto,Auto,*"
+                                              RowSpacing="8" ColumnSpacing="8">
+                                            <Button Classes="QsBtn Primary" Name="B00" Grid.Row="0" Grid.Column="0"
+                                                    Content="上周" />
+                                            <Button Classes="QsBtn Primary" Name="B10" Grid.Row="0" Grid.Column="1"
+                                                    Content="本周" />
+                                            <Button Classes="QsBtn Primary" Name="B20" Grid.Row="0" Grid.Column="2"
+                                                    Content="下周" />
+                                            <Button Classes="QsBtn Primary" Name="B01" Grid.Row="1" Grid.Column="0"
+                                                    Content="上月" />
+                                            <Button Classes="QsBtn Primary" Name="B11" Grid.Row="1" Grid.Column="1"
+                                                    Content="本月" />
+                                            <Button Classes="QsBtn Primary" Name="B21" Grid.Row="1" Grid.Column="2"
+                                                    Content="下月" />
+                                            <Button Classes="QsBtn Primary" Name="B02" Grid.Row="2" Grid.Column="0"
+                                                    Content="上季度" />
+                                            <Button Classes="QsBtn Primary" Name="B12" Grid.Row="2" Grid.Column="1"
+                                                    Content="本季度" />
+                                            <Button Classes="QsBtn Primary" Name="B22" Grid.Row="2" Grid.Column="2"
+                                                    Content="下季度" />
+                                            <Button Classes="QsBtn Primary" Name="B03" Grid.Row="3" Grid.Column="0"
+                                                    Content="去年" />
+                                            <Button Classes="QsBtn Primary" Name="B13" Grid.Row="3" Grid.Column="1"
+                                                    Content="今年" />
+                                            <Button Classes="QsBtn Primary" Name="B23" Grid.Row="3" Grid.Column="2"
+                                                    Content="明年" />
+                                            <TextBlock Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="4"
+                                                       Text="第一第二列以当前开始时间为准，第三列则以当前结束时间为基准" />
+                                        </Grid>
+                                    </Flyout>
+                                </Button.Flyout>
+                            </Button>
                             <Button Classes="Primary" Theme="{DynamicResource FlatButton}"
                                     Command="{Binding RefreshCommand}">
                                 <StackPanel Orientation="Horizontal" Spacing="4">
@@ -73,42 +107,53 @@
                         <!-- 图表 -->
                         <ContentControl Content="{Binding Chart}" MinWidth="600"
                                         DockPanel.Dock="Left" />
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Spacing="4">
+                            <Button Content="全部展开" Command="{Binding ExpandTreeCommand}"
+                                    CommandParameter="1" Theme="{DynamicResource BorderlessButton}" />
+                            <Button Content="全部折叠" Command="{Binding ExpandTreeCommand}"
+                                    CommandParameter="0" Theme="{DynamicResource BorderlessButton}" />
+                        </StackPanel>
                         <!-- 表格 -->
                         <TreeDataGrid Source="{Binding TimeDetails}" CanUserResizeColumns="False"
                                       CanUserSortColumns="False" x:Name="TimeTable">
                             <TreeDataGrid.Styles>
                                 <Style Selector="TreeDataGridRow">
                                     <Style Selector="^ /template/ Border#RowBorder">
-                                        <Setter Property="Background" Value="Transparent"/>
-                                        <Setter Property="Focusable" Value="False"/>
+                                        <Setter Property="Background" Value="Transparent" />
+                                        <Setter Property="Focusable" Value="False" />
                                     </Style>
                                     <Style Selector="^:pointerover /template/ Border#RowBorder">
                                         <Setter Property="Background" Value="{DynamicResource SemiColorFill1}" />
                                     </Style>
                                     <Style Selector="^:selected">
                                         <Style Selector="^ /template/ TreeDataGridCellsPresenter#PART_CellsPresenter">
-                                            <Setter Property="Background" Value="Transparent"/>
+                                            <Setter Property="Background" Value="Transparent" />
                                         </Style>
                                         <Style Selector="^ /template/ Border#RowBorder">
-                                            <Setter Property="Background" Value="{DynamicResource SemiColorPrimaryLight}" />
+                                            <Setter Property="Background"
+                                                    Value="{DynamicResource SemiColorPrimaryLight}" />
                                         </Style>
                                         <Style Selector="^:pointerover /template/ Border#RowBorder">
-                                            <Setter Property="Background" Value="{DynamicResource SemiColorPrimaryLightPointerover}" />
+                                            <Setter Property="Background"
+                                                    Value="{DynamicResource SemiColorPrimaryLightPointerover}" />
                                         </Style>
                                         <Style Selector="^:focus /template/ Border#RowBorder">
-                                            <Setter Property="Background" Value="{DynamicResource SemiColorPrimaryLight}" />
+                                            <Setter Property="Background"
+                                                    Value="{DynamicResource SemiColorPrimaryLight}" />
                                         </Style>
                                         <Style Selector="^:pointerover:focus /template/ Border#RowBorder">
-                                            <Setter Property="Background" Value="{DynamicResource SemiColorPrimaryLightPointerover}" />
+                                            <Setter Property="Background"
+                                                    Value="{DynamicResource SemiColorPrimaryLightPointerover}" />
                                         </Style>
                                     </Style>
                                 </Style>
                             </TreeDataGrid.Styles>
                             <TreeDataGrid.Resources>
                                 <DataTemplate DataType="models:StatisticsTimeNode" x:Key="OperationsCell">
-                                    <Button Content="详细" Command="{Binding $parent[TreeDataGrid].((models:StatisticsTabData)DataContext).ShowTagDetailsCommand}"
+                                    <Button Content="详细"
+                                            Command="{Binding $parent[TreeDataGrid].((models:StatisticsTabData)DataContext).ShowTagDetailsCommand}"
                                             CommandParameter="{Binding}"
-                                            IsVisible="{Binding CanShowDetails}"/>
+                                            IsVisible="{Binding CanShowDetails}" />
                                 </DataTemplate>
                             </TreeDataGrid.Resources>
                         </TreeDataGrid>

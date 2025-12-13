@@ -1,0 +1,92 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:u="https://irihi.tech/ursa">
+    <!-- Add Styles Here -->
+    <Style Selector="DataGrid">
+        <Style Selector="^ DataGridColumnHeader">
+            <Setter Property="Background" Value="{DynamicResource SemiColorFill2}" />
+            <Setter Property="Foreground" Value="{DynamicResource SemiColorTertiaryActive}"/>
+        </Style>
+        <Style Selector="^ DataGridRow:nth-child(2n)">
+            <Setter Property="Background" Value="{DynamicResource SemiColorFill0}" />
+        </Style>
+    </Style>
+    <Style Selector="TreeDataGrid">
+        <Style Selector="^ TreeDataGridColumnHeader">
+            <Setter Property="Background" Value="{DynamicResource SemiColorFill2}" />
+            <Setter Property="Foreground" Value="{DynamicResource SemiColorTertiaryActive}"/>
+            <Style Selector="^:pointerover /template/ Border#DataGridBorder">
+                <Setter Property="Background" Value="{DynamicResource SemiColorFill2}"/>
+            </Style>
+        </Style>
+        <Style Selector="^ TreeDataGridRow:nth-child(2n)">
+            <Setter Property="Background" Value="{DynamicResource SemiColorFill0}" />
+        </Style>    
+    </Style>
+    <Style Selector="CalendarDatePicker">
+        <Setter Property="Width" Value="140" />
+        <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}" />
+        <Style Selector="^:disabled /template/ TextBox#PART_TextBox:disabled">
+            <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}" />
+        </Style>
+        <Setter Property="SelectedDateFormat" Value="Custom" />
+        <Setter Property="CustomDateFormatString" Value="yyyy-MM-dd" />
+    </Style>
+    <Style Selector="u|WindowNotificationManager">
+        <Setter Property="Position" Value="BottomRight" />
+    </Style>
+    <Style Selector="Grid.SettingLineBox">
+        <Setter Property="MinWidth" Value="450" />
+    </Style>
+    <Style Selector="TextBlock.SettingLineCaption">
+        <Setter Property="Width" Value="100" />
+        <Setter Property="FontSize" Value="{StaticResource SemiFontSizeRegular}" />
+        <Setter Property="TextAlignment" Value="Right" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Text" Value="{ReflectionBinding Title, StringFormat='{}: '}" />
+    </Style>
+    <Style Selector="Expander.Settings:down">
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Style Selector="^ TextBlock.SectionHeader">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="^:expanded TextBlock.SectionHeader">
+            <Setter Property="Foreground" Value="{DynamicResource ToggleSwitchContainerCheckedDefaultBackground}" />
+        </Style>
+    </Style>
+    <Style Selector="TextBox.SLV, ToggleSwitch.SLV, ComboBox.SLV, Button.SLV, u|PathPicker.SLV">
+        <Setter Property="Width" Value="240" />
+    </Style>
+    <Style Selector="u|NumericUpDown.SLV">
+        <Setter Property="Width" Value="240" />
+    </Style>
+    <Style Selector="Expander:down /template/ Border#ExpanderContent">
+        <Setter Property="BorderThickness" Value="0 0 0 2" />
+        <Style Selector="^:expanded /template/ Border#ExpanderContent">
+            <Setter Property="BorderBrush" Value="{DynamicResource ButtonDefaultDangerForeground}" />
+        </Style>
+    </Style>
+    <Style Selector="Expander:down /template/ ToggleButton#ExpanderHeader">
+        <Setter Property="FontSize" Value="{StaticResource SemiFontSizeHeader3}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultSuccessForeground}"/>
+    </Style>
+    <Style Selector="ItemsControl.Settings">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <ScrollViewer Padding="{TemplateBinding Padding}">
+                    <ItemsPresenter />
+                </ScrollViewer>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="TextBlock.Header">
+        <Setter Property="FontSize" Value="32" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultDangerForeground}" />
+    </Style>
+    <Style Selector="ToggleSwitch">
+        <Setter Property="OnContent" Value="{x:Null}" />
+        <Setter Property="OffContent" Value="{x:Null}" />
+    </Style>
+</Styles>

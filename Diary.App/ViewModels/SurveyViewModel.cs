@@ -70,12 +70,13 @@ public sealed class SurveyResult
         };
 
         UpdatePercent(total > 0 ? total : _data.TotalTime);
+        GridSource.ExpandAll();
     }
 
     public string Title => $"{_data.Username}@{_data.Hostname}";
     public string Range => $"{_data.DateStart} ~ {_data.DateEnd}";
     public double Total => _data.TotalTime;
-    public ITreeDataGridSource GridSource { get; init; }
+    public HierarchicalTreeDataGridSource<RespondTag> GridSource { get; init; }
 
     private void UpdatePercent(double total)
     {

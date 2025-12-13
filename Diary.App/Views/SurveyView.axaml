@@ -11,13 +11,6 @@
              xmlns:models="clr-namespace:Diary.App.Models"
              x:Class="Diary.App.Views.SurveyView">
     <UserControl.Styles>
-        <Style Selector="CalendarDatePicker">
-            <Setter Property="Width" Value="140" />
-            <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}" />
-            <Style Selector="^:disabled /template/ TextBox#PART_TextBox:disabled">
-                <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}" />
-            </Style>
-        </Style>
         <Style Selector="TextBlock">
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
@@ -30,9 +23,9 @@
                    VerticalSpacing="8">
             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="4">
                 <TextBlock Text="时间范围：" />
-                <CalendarDatePicker SelectedDate="{Binding StartDate}" />
+                <CalendarDatePicker SelectedDate="{Binding StartDate}" IsTodayHighlighted="True"/>
                 <TextBlock Text="至" />
-                <CalendarDatePicker SelectedDate="{Binding EndDate}" />
+                <CalendarDatePicker SelectedDate="{Binding EndDate}" IsTodayHighlighted="True"/>
                 <Button Content="快速选择">
                     <Button.Styles>
                         <Style Selector="Button.QsBtn">

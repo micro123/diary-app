@@ -62,7 +62,7 @@ public partial class StatisticsTabData : ObservableObject
     [ObservableProperty] private double _statisticsTotal = 0;
 
     private HierarchicalTreeDataGridSource<StatisticsTimeNode> _timeDetails;
-    public ITreeDataGridSource TimeDetails => _timeDetails;
+    public HierarchicalTreeDataGridSource<StatisticsTimeNode> TimeDetails => _timeDetails;
 
     /// <inheritdoc/>
     public StatisticsTabData(StatisticsType type)
@@ -222,11 +222,10 @@ public partial class StatisticsTabData : ObservableObject
             Bar.Values = times;
             XAxis.Labels = labels;
             _timeDetails.Items = detail;
+            TimeDetails.ExpandAll();
         });
     }
-
-
-
+    
     private static void GetDateRange(out DateTime begin, out DateTime end, StatisticsType type)
     {
         DateTime today = DateTime.Today.Date;
@@ -306,5 +305,28 @@ public partial class StatisticsTabData : ObservableObject
             sb.AppendLine($"{item.CreateDate}: {item.Comment} ({item.Time:0.##} 小时)");
         }
         EventDispatcher.Notify("详细信息", sb.ToString());
+    }
+
+    [RelayCommand]
+    private void QuickSelectDate(string which)
+    {
+        Debug.Assert(which.Length == 3);
+        var col = which[1] - '0';
+        var row = which[2] - '0';
+        
+        DateTime startDate = DateBegin;
+        DateTime endDate = DateEnd;
+        TimeTools.AdjustDate(ref startDate, ref endDate, (AdjustPart)row, (AdjustDirection)col);
+        DateBegin = startDate;
+        DateEnd = endDate;
+    }
+
+    [RelayCommand]
+    private void ExpandTree(string open)
+    {
+        if (open == "1")
+            TimeDetails.ExpandAll();
+        else
+            TimeDetails.CollapseAll();
     }
 }

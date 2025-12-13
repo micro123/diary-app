@@ -94,59 +94,7 @@
     <Application.Styles>
         <semi:SemiTheme Locale="zh-CN" />
         <u-semi:SemiTheme Locale="zh-CN" />
-        <Style Selector="u|WindowNotificationManager">
-            <Setter Property="Position" Value="BottomRight" />
-        </Style>
-        <Style Selector="Grid.SettingLineBox">
-            <Setter Property="MinWidth" Value="450" />
-        </Style>
-        <Style Selector="TextBlock.SettingLineCaption">
-            <Setter Property="Width" Value="100" />
-            <Setter Property="FontSize" Value="{StaticResource SemiFontSizeRegular}" />
-            <Setter Property="TextAlignment" Value="Right" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Text" Value="{ReflectionBinding Title, StringFormat='{}: '}" />
-        </Style>
-        <Style Selector="Expander:down">
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Style Selector="^ TextBlock.SectionHeader">
-                <Setter Property="HorizontalAlignment" Value="Stretch" />
-            </Style>
-            <Style Selector="^:expanded TextBlock.SectionHeader">
-                <Setter Property="Foreground" Value="{DynamicResource ToggleSwitchContainerCheckedDefaultBackground}" />
-            </Style>
-        </Style>
-        <Style Selector="TextBox.SLV, ToggleSwitch.SLV, ComboBox.SLV, Button.SLV, u|PathPicker.SLV">
-            <Setter Property="Width" Value="240" />
-        </Style>
-        <Style Selector="u|NumericUpDown.SLV">
-            <Setter Property="Width" Value="240" />
-        </Style>
-        <Style Selector="Expander:down /template/ Border#ExpanderContent">
-            <Setter Property="BorderThickness" Value="0 0 0 2" />
-        </Style>
-        <Style Selector="Expander:down:expanded /template/ Border#ExpanderContent">
-            <Setter Property="BorderBrush" Value="{DynamicResource ButtonDefaultDangerForeground}" />
-        </Style>
-        <Style Selector="ItemsControl.Settings">
-            <Setter Property="Template">
-                <ControlTemplate>
-                    <ScrollViewer Padding="{TemplateBinding Padding}">
-                        <ItemsPresenter />
-                    </ScrollViewer>
-                </ControlTemplate>
-            </Setter>
-        </Style>
-        <Style Selector="TextBlock.Header">
-            <Setter Property="FontSize" Value="32" />
-            <Setter Property="FontWeight" Value="Bold" />
-            <Setter Property="HorizontalAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultDangerForeground}" />
-        </Style>
-        <Style Selector="ToggleSwitch">
-            <Setter Property="OnContent" Value="{x:Null}" />
-            <Setter Property="OffContent" Value="{x:Null}" />
-        </Style>
+        <StyleInclude Source="Resources/AdditionalStyles.axaml"/>
         <StyleInclude Source="avares://Semi.Avalonia.ColorPicker/Index.axaml" />
         <StyleInclude Source="avares://Semi.Avalonia.DataGrid/Index.axaml" />
         <StyleInclude Source="avares://Avalonia.Controls.TreeDataGrid/Themes/Generic.axaml"/>
@@ -163,6 +111,10 @@
         <converters:State2IconConverter x:Key="StateMark" />
         <converters1:ColorToBrushConverter x:Key="ColorToBrushConverter" />
         <converters2:ToBrushConverter x:Key="ToBrushConverter" />
+        <SolidColorBrush x:Key="DataGridColumnHeaderPointeroverBackground" Color="Transparent"/>
+        <SolidColorBrush x:Key="DataGridColumnHeaderPressedBackground" Color="Transparent"/>
+        <SolidColorBrush x:Key="TreeDataGridHeaderBackgroundPointerOverBrush" Color="Transparent" />
+        <SolidColorBrush x:Key="TreeDataGridHeaderBackgroundPressedBrush" Color="Transparent" />
     </Application.Resources>
 
     <TrayIcon.Icons>
