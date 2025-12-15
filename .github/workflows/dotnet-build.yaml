@@ -1,0 +1,29 @@
+name: DotNet Build
+on:
+  push:
+    branches:
+      - main
+  pull_request: 
+    branches:
+      - main
+    types:
+      - opened
+jobs: 
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with: 
+          fetch-depth: 0
+      - name: Install .Net Core
+        uses: actions/setup-dotnet@v5
+        with: 
+          dotnet-version: '9.0.x'
+          cache: 'true'
+      - name: Restore packages
+        run: dotnet restore
+      - name: Release build
+        run: dotnet build --no-restore --config Release
+        
