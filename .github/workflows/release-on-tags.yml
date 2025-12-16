@@ -37,7 +37,7 @@ jobs:
       - name: Upload artifact for ${{ matrix.rid }}
         uses: actions/upload-artifact@v4
         with: 
-          name: DiaryAppNG-${{ github.ref_name }}-${{ matrix.rid }}
+          name: DiaryAppNG-${{ github.ref_name }}-${{ matrix.rid }}.zip
           path: DiaryAppNG-${{ github.ref_name }}-${{ matrix.rid }}.zip
 
   create-releases:
