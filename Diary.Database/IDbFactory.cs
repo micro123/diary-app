@@ -9,4 +9,6 @@ public interface IDbFactory
     DbInterfaceBase Create();
     
     Migration? GetMigration(uint version);
+
+    object GetConfig();
 }

@@ -67,18 +67,18 @@ namespace Diary.App
                 return true;
             
             // 从配置获取当前的数据库提供程序
-            var factory = _dbFactories.FirstOrDefault(x => x.Name == AppConfig.DbSettings.DatabaseDriver);
-            if (factory == null)
+            UseFactory = _dbFactories.FirstOrDefault(x => x.Name == AppConfig.DbSettings.DatabaseDriver);
+            if (UseFactory == null)
             {
                 message = $"数据库{AppConfig.DbSettings.DatabaseDriver}不支持，请检查设置";
                 return false;
             }
             
             // 创建数据库
-            UseDb = factory.Create();
+            UseDb = UseFactory.Create();
             Debug.Assert(UseDb != null);
-            if (UseDb.Config != null)
-                EasySaveLoad.Load(UseDb.Config); // 加载数据库配置
+            var dbConfig = UseFactory.GetConfig();
+            EasySaveLoad.Load(dbConfig); // 加载数据库配置
             
             // open
             if (!UseDb.Connect())
@@ -131,6 +131,7 @@ namespace Diary.App
 
         public ILogger Logger => Logging.Logger;
         
+        public IDbFactory? UseFactory { get; private set; }
         public DbInterfaceBase? UseDb { get; private set; }
 
         private IServiceProvider ConfigureServices()

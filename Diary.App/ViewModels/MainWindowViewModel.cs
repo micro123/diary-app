@@ -126,7 +126,7 @@ public partial class MainWindowViewModel : ViewModelBase
                         IsCloseButtonVisible = false,
                     };
                     var vm = _serviceProvider.GetRequiredService<GenericConfigViewModel>();
-                    vm.InitSettings("数据库设置", App.Current.UseDb!.Config);
+                    vm.InitSettings("数据库设置", App.Current.UseFactory!.GetConfig());
                     bool result = await OverlayDialog.ShowCustomModal<bool>(vm, options: options);
                     _logger.LogInformation($"db settings updated: {result}");
                 });

@@ -144,15 +144,34 @@ public sealed partial class SettingInteger(string title, long min, long max, obj
     public long MinValue { get; } = min;
     public long MaxValue { get; } = max;
 
-    // TODO: save and load
     protected override void LoadAction()
     {
-        Value = (long)Prop.GetValue(Obj)!;
+        Value = Convert.ToInt64(Prop.GetValue(Obj)!);
     }
 
     protected override void SaveAction()
     {
-        Prop.SetValue(Obj, Value);
+        object? value = null;
+        try
+        {
+            switch (Type.GetTypeCode(Prop.PropertyType))
+            {
+                case TypeCode.SByte: value = Convert.ToSByte(Value); break;
+                case TypeCode.Byte: value = Convert.ToByte(Value); break;
+                case TypeCode.Int16: value = Convert.ToInt16(Value); break;
+                case TypeCode.UInt16: value = Convert.ToUInt16(Value); break;
+                case TypeCode.Int32: value = Convert.ToInt32(Value); break;
+                case TypeCode.UInt32: value = Convert.ToUInt32(Value); break;
+                case TypeCode.Int64: value = Convert.ToInt64(Value); break;
+                case TypeCode.UInt64: value = Convert.ToUInt64(Value); break;
+            }
+        }
+        catch (Exception)
+        {
+            value = null;
+        }
+        if (value != null)
+            Prop.SetValue(Obj, value);
     }
 }
 

@@ -2,7 +2,7 @@ using Diary.Core.Configure;
 
 namespace Diary.Db.PostgreSQL;
 
-[StorageFile("pgsql_config.dat")]
+[StorageFile("pgsql_config.dat", "diary_secret")]
 public class Config
 {
     [ConfigureText("服务器地址")]

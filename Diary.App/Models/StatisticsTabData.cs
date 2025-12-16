@@ -148,8 +148,11 @@ public partial class StatisticsTabData : ObservableObject
             DateBegin = s;
             DateEnd = e;
         }
+        
+        if (Db is null)
+            return;
 
-        var statistics = Db!.GetStatistics(TimeTools.FormatDateTime(DateBegin), TimeTools.FormatDateTime(DateEnd));
+        var statistics = Db.GetStatistics(TimeTools.FormatDateTime(DateBegin), TimeTools.FormatDateTime(DateEnd));
 
         double total = statistics.Total;
         StatisticsTotal = total;

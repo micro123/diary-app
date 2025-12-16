@@ -7,9 +7,6 @@ namespace Diary.Database;
 
 public abstract class DbInterfaceBase
 {
-    // driver config data
-    public abstract object? Config { get; }
-
     // connect to db
     public abstract bool Connect();
     // check if initialized

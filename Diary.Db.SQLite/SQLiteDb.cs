@@ -1,4 +1,5 @@
 using System.Data.SQLite;
+using System.Diagnostics;
 using Diary.Core.Data.Base;
 using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
@@ -12,19 +13,15 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
 {
     private readonly IDbFactory _factory = factory;
 
-    private readonly Config _config = new()
-    {
-        FilePath = Path.Combine(FsTools.GetApplicationDataDirectory(), "db.sqlite3"),
-    };
-
     private SQLiteConnection? _connection;
-    public override object? Config => _config;
 
     public override bool Connect()
     {
+        var cfg = _factory.GetConfig() as Config;
+        Debug.Assert(cfg != null);
         var csb = new SQLiteConnectionStringBuilder
         {
-            DataSource = _config.FilePath,
+            DataSource = cfg.FilePath,
         };
         _connection = new SQLiteConnection(csb.ToString());
         _connection.Open();
