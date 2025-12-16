@@ -93,6 +93,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         }
         
         UpdateTimeInfos();
+        DuplicateWorkItemCommand.NotifyCanExecuteChanged();
     }
 
     private void SelectWorkById(int id)

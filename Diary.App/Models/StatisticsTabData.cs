@@ -200,6 +200,7 @@ public partial class StatisticsTabData : ObservableObject
                     {
                         Id = 0,
                         Name = "未分类",
+                        Time = x.Time - sum2,
                         Percent = 100.0 * (x.Time - sum2) / total,
                         Parent = node,
                     });
@@ -216,6 +217,7 @@ public partial class StatisticsTabData : ObservableObject
             {
                 Id = 0,
                 Name = "未分类",
+                Time =  statistics.Total - sum1,
                 Percent = 100.0 * (statistics.Total - sum1) / total,
             });
         }

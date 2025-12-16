@@ -8,6 +8,15 @@ using Npgsql;
 
 namespace Diary.Db.PostgreSQL;
 
+internal static class NpgsqlDataReaderExtensions
+{
+    public static string GetStringTrimmed(this NpgsqlDataReader reader, int ordinal)
+    {
+        var value = reader.GetString(ordinal);
+        return value.TrimEnd();
+    }
+}
+
 public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAsyncDisposable
 {
     private readonly IDbFactory _factory = factory;
@@ -47,7 +56,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
         return new WorkTag()
         {
             Id = reader.GetInt32(0),
-            Name = reader.GetString(1),
+            Name = reader.GetStringTrimmed(1),
             Color = reader.GetInt32(2),
             Level = (TagLevels)reader.GetInt32(3),
             Disabled = reader.GetInt32(4) != 0,
@@ -59,9 +68,9 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
         return new WorkItem()
         {
             Id =  reader.GetInt32(0),
-            CreateDate = reader.GetString(1),
-            Comment = reader.GetString(2),
-            Time = reader.GetDouble(3),
+            CreateDate = reader.GetStringTrimmed(1),
+            Comment = reader.GetStringTrimmed(2),
+            Time = reader.GetFloat(3),
             Priority = (WorkPriorities)reader.GetInt32(4),
         };
     }
@@ -71,7 +80,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
         return new RedMineActivity()
         {
             Id = reader.GetInt32(0),
-            Title = reader.GetString(1),
+            Title = reader.GetStringTrimmed(1),
         };
     }
     
@@ -80,8 +89,8 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
         return new RedMineProject()
         {
             Id = reader.GetInt32(0),
-            Title = reader.GetString(1),
-            Description = reader.GetString(2),
+            Title = reader.GetStringTrimmed(1),
+            Description = reader.GetStringTrimmed(2),
             IsClosed = reader.GetInt32(3) != 0,
         };
     }
@@ -91,8 +100,8 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
         return new RedMineIssue()
         {
             Id = reader.GetInt32(0),
-            Title = reader.GetString(1),
-            AssignedTo = reader.GetString(2),
+            Title = reader.GetStringTrimmed(1),
+            AssignedTo = reader.GetStringTrimmed(2),
             ProjectId = reader.GetInt32(3),
             IsClosed = reader.GetInt32(4) != 0,
         };
@@ -180,7 +189,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   	INTO DATA_VERSIONS
                   VALUES
                   	(0x10000)
-                  ON CONFLICT
+                  ON CONFLICT (VERSION_CODE)
                   	DO NOTHING;
                   """;
         using var cmd = Command(sql);
@@ -236,9 +245,9 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   INSERT INTO work_tags(tag_name, tag_level, tag_color) values ($1, $2, $3) returning *;
                   """;
         using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", name);
-        cmd.Parameters.AddWithValue("$2", primary ? 0 : 1);
-        cmd.Parameters.AddWithValue("$3", color);
+        cmd.Parameters.AddWithValue(name);
+        cmd.Parameters.AddWithValue(primary ? 0 : 1);
+        cmd.Parameters.AddWithValue(color);
         using var reader = cmd.ExecuteReader();
         if (reader.Read())
         {
@@ -257,10 +266,10 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   WHERE id=$4;
                   """;
         using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", (int)tag.Level);
-        cmd.Parameters.AddWithValue("$2", tag.Color);
-        cmd.Parameters.AddWithValue("$3", tag.Disabled ? 1 : 0);
-        cmd.Parameters.AddWithValue("$4", tag.Id);
+        cmd.Parameters.AddWithValue((int)tag.Level);
+        cmd.Parameters.AddWithValue(tag.Color);
+        cmd.Parameters.AddWithValue(tag.Disabled ? 1 : 0);
+        cmd.Parameters.AddWithValue(tag.Id);
         return cmd.ExecuteNonQuery() > 0;
     }
 
@@ -273,13 +282,13 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   DELETE FROM work_tags WHERE id=$1;
                   """;
         using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", tag.Id);
+        cmd.Parameters.AddWithValue(tag.Id);
         return cmd.ExecuteNonQuery() > 0;
     }
 
     public override ICollection<WorkTag> AllWorkTags()
     {
-        var sql = "SELECT * FROM work_tags;";
+        var sql = "SELECT * FROM work_tags ORDER BY is_disabled, tag_level, id;";
         
         var result = new List<WorkTag>();
         using var cmd = Command(sql);
@@ -298,8 +307,8 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   INSERT INTO work_items(create_date, comment) VALUES ($1, $2) returning *;
                   """;
         using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", date);
-        cmd.Parameters.AddWithValue("$2", comment);
+        cmd.Parameters.AddWithValue(date);
+        cmd.Parameters.AddWithValue(comment);
         using var reader = cmd.ExecuteReader();
         return reader.Read() ? MapWorkItem(reader) : new WorkItem();
     }
@@ -313,11 +322,11 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   UPDATE work_items SET create_date=$1, comment=$2, hours=$3, priority=$4  WHERE id=$5;
                   """;
         using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", item.CreateDate);
-        cmd.Parameters.AddWithValue("$2", item.Comment);
-        cmd.Parameters.AddWithValue("$3", item.Time);
-        cmd.Parameters.AddWithValue("$4", (int)item.Priority);
-        cmd.Parameters.AddWithValue("$5", item.Id);
+        cmd.Parameters.AddWithValue(item.CreateDate);
+        cmd.Parameters.AddWithValue(item.Comment);
+        cmd.Parameters.AddWithValue(item.Time);
+        cmd.Parameters.AddWithValue((int)item.Priority);
+        cmd.Parameters.AddWithValue(item.Id);
         return cmd.ExecuteNonQuery() > 0;
     }
 
@@ -330,7 +339,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   DELTE FROM work_items WHERE id=$1;
                   """;
         using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", item.Id);
+        cmd.Parameters.AddWithValue(item.Id);
         return cmd.ExecuteNonQuery() > 0;
     }
 
@@ -339,11 +348,12 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
         var sql = """
                   SELECT *
                   FROM work_items
-                  WHERE create_date BETWEEN $1 AND $2;
+                  WHERE create_date BETWEEN $1 AND $2
+                  ORDER BY priority;
                   """;
         using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", beginData);
-        cmd.Parameters.AddWithValue("$2", endData);
+        cmd.Parameters.AddWithValue(beginData);
+        cmd.Parameters.AddWithValue(endData);
         using var reader = cmd.ExecuteReader();
         var result = new List<WorkItem>();
         while (reader.Read())
@@ -356,9 +366,9 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
 
     public override ICollection<WorkItem> GetWorkItemByDate(string date)
     {
-        const string sql = @"SELECT * FROM work_items WHERE create_date=$1 ORDER BY priority ASC;";
+        const string sql = @"SELECT * FROM work_items WHERE create_date=$1 ORDER BY priority;";
         var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", date);
+        cmd.Parameters.AddWithValue(date);
         using var reader = cmd.ExecuteReader();
         List<WorkItem> items = new();
         while (reader.Read())
@@ -378,8 +388,8 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   INSERT INTO work_notes(id, note) VALUES ($1, $2) ON CONFLICT(id) DO UPDATE SET note=$2;
                   """;
         using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", work.Id);
-        cmd.Parameters.AddWithValue("$2", content);
+        cmd.Parameters.AddWithValue(work.Id);
+        cmd.Parameters.AddWithValue(content);
         cmd.ExecuteNonQuery();
     }
 
@@ -392,7 +402,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   DELETE FROM work_notes WHERE id=$1;
                   """;
         using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", work.Id);
+        cmd.Parameters.AddWithValue(work.Id);
         cmd.ExecuteNonQuery();
     }
 
@@ -405,10 +415,10 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   SELECT note FROM work_notes WHERE id=$1;
                   """;
         using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", work.Id);
+        cmd.Parameters.AddWithValue(work.Id);
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
-            return reader.GetString(0);
+            return reader.GetStringTrimmed(0);
         return null;
     }
 
@@ -421,8 +431,8 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   INSERT INTO work_item_tags(work_id, tag_id) VALUES ($1, $2);
                   """;
         using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", item.Id);
-        cmd.Parameters.AddWithValue("$2", tag.Id);
+        cmd.Parameters.AddWithValue(item.Id);
+        cmd.Parameters.AddWithValue(tag.Id);
         return cmd.ExecuteNonQuery() > 0;
     }
 
@@ -435,8 +445,8 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   DELETE FROM work_item_tags WHERE work_id=$1 AND tag_id=$2;
                   """;
         using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", item.Id);
-        cmd.Parameters.AddWithValue("$2", tag.Id);
+        cmd.Parameters.AddWithValue(item.Id);
+        cmd.Parameters.AddWithValue(tag.Id);
         return cmd.ExecuteNonQuery() > 0;
     }
 
@@ -449,7 +459,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   DELETE FROM work_item_tags WHERE work_id=$1;
                   """;
         using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", item.Id);
+        cmd.Parameters.AddWithValue(item.Id);
         return cmd.ExecuteNonQuery() > 0;
     }
 
@@ -462,11 +472,11 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   SELECT work_tags.* 
                   FROM work_item_tags INNER JOIN work_tags ON work_item_tags.tag_id=work_tags.id
                   WHERE work_item_tags.work_id = $1
-                  ORDER BY work_tags.tag_level ASC;
+                  ORDER BY work_tags.tag_level;
                   """;
         var result = new List<WorkTag>();
         using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", item.Id);
+        cmd.Parameters.AddWithValue(item.Id);
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
         {
@@ -481,8 +491,8 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   INSERT INTO redmine_activities(id, act_name) VALUES ($1,$2) ON CONFLICT (id) DO UPDATE SET act_name=$2 RETURNING *;
                   """;
         using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", id);
-        cmd.Parameters.AddWithValue("$2", title);
+        cmd.Parameters.AddWithValue(id);
+        cmd.Parameters.AddWithValue(title);
         using var reader = cmd.ExecuteReader();
         if (reader.Read())
         {
@@ -496,15 +506,15 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
     {
         var sql = """
                   INSERT INTO redmine_issues(id, issue_title, assigned_to, project_id, is_closed)
-                  VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO UPDATE SET
+                  VALUES ($1,$2,$3,$4,$5) ON CONFLICT(id) DO UPDATE SET
                   issue_title=$2,assigned_to=$3,project_id=$4,is_closed=$5 RETURNING *;
                   """;
         using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", id);
-        cmd.Parameters.AddWithValue("$2", title);
-        cmd.Parameters.AddWithValue("$3", assignedTo);
-        cmd.Parameters.AddWithValue("$4", project);
-        cmd.Parameters.AddWithValue("$5", closed ? 1 : 0);
+        cmd.Parameters.AddWithValue(id);
+        cmd.Parameters.AddWithValue(title);
+        cmd.Parameters.AddWithValue(assignedTo);
+        cmd.Parameters.AddWithValue(project);
+        cmd.Parameters.AddWithValue(closed ? 1 : 0);
         using var reader = cmd.ExecuteReader();
         if (reader.Read())
             return MapRedMineIssue(reader);
@@ -517,8 +527,8 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   UPDATE redmine_issues SET is_closed=$2 WHERE id=$1;
                   """;
         using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", id);
-        cmd.Parameters.AddWithValue("$2", closed ? 1 : 0);
+        cmd.Parameters.AddWithValue(id);
+        cmd.Parameters.AddWithValue(closed ? 1 : 0);
         cmd.ExecuteNonQuery();
     }
 
@@ -529,9 +539,9 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   VALUES ($1,$2,$3) ON CONFLICT (id) DO UPDATE SET project_name=$2,project_desc=$3 RETURNING *;
                   """;
         using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", id);
-        cmd.Parameters.AddWithValue("$2", title);
-        cmd.Parameters.AddWithValue("$3", description);
+        cmd.Parameters.AddWithValue(id);
+        cmd.Parameters.AddWithValue(title);
+        cmd.Parameters.AddWithValue(description);
         using var reader = cmd.ExecuteReader();
         if (reader.Read())
             return MapRedMineProject(reader);
@@ -544,8 +554,8 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   UPDATE redmine_projects SET is_closed=$2 WHERE id=$1;
                   """;
         using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", id);
-        cmd.Parameters.AddWithValue("$2", closed ? 1 : 0);
+        cmd.Parameters.AddWithValue(id);
+        cmd.Parameters.AddWithValue(closed ? 1 : 0);
         cmd.ExecuteNonQuery();
     }
 
@@ -558,7 +568,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   SELECT * FROM redmine_time_entries WHERE work_id=$1;
                   """;
         using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", item.Id);
+        cmd.Parameters.AddWithValue(item.Id);
         using var reader = cmd.ExecuteReader();
         if (reader.Read())
             return MapWorkTimeEntry(reader);
@@ -574,7 +584,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   SELECT * FROM redmine_time_entries WHERE work_id=$1 AND id>0;
                   """;
         var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", item.Id);
+        cmd.Parameters.AddWithValue(item.Id);
         return  cmd.ExecuteNonQuery() > 0;
     }
 
@@ -598,9 +608,9 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
             return new RedMineIssueDisplay()
             {
                 Id = reader.GetInt32(0),
-                Title = reader.GetString(1),
-                AssignedTo = reader.GetString(2),
-                Project = reader.GetString(3),
+                Title = reader.GetStringTrimmed(1),
+                AssignedTo = reader.GetStringTrimmed(2),
+                Project = reader.GetStringTrimmed(3),
                 Disabled = reader.GetInt32(4) != 0,
             };
         }
@@ -610,7 +620,8 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
         {
             var sql = """
                       SELECT redmine_issues.id,redmine_issues.issue_title,redmine_issues.assigned_to,redmine_projects.project_name,redmine_issues.is_closed
-                      FROM redmine_issues INNER JOIN redmine_projects ON redmine_issues.project_id = redmine_projects.id;
+                      FROM redmine_issues INNER JOIN redmine_projects ON redmine_issues.project_id = redmine_projects.id
+                      ORDER BY redmine_issues.is_closed, redmine_issues.id DESC;
                       """;
             using var cmd = Command(sql);
             using var reader = cmd.ExecuteReader();
@@ -623,10 +634,11 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
         {
             var sql = """
                       SELECT redmine_issues.id,redmine_issues.issue_title,redmine_issues.assigned_to,redmine_projects.project_name,redmine_issues.is_closed
-                      FROM redmine_issues INNER JOIN redmine_projects ON redmine_issues.project_id = redmine_projects.id AND redmine_issues.project_id=$1;
+                      FROM redmine_issues INNER JOIN redmine_projects ON redmine_issues.project_id = redmine_projects.id AND redmine_issues.project_id=$1
+                      ORDER BY redmine_issues.is_closed, redmine_issues.id DESC;
                       """;
             using var cmd = Command(sql);
-            cmd.Parameters.AddWithValue("$1", project.Id);
+            cmd.Parameters.AddWithValue(project.Id);
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
@@ -639,7 +651,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
     public override ICollection<RedMineProject> GetRedMineProjects()
     {
         var sql = """
-                  SELECT * FROM redmine_projects;
+                  SELECT * FROM redmine_projects ORDER BY id DESC;
                   """;
         using var cmd = Command(sql);
         using var reader = cmd.ExecuteReader();
@@ -658,9 +670,9 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   ON CONFLICT (work_id) DO UPDATE SET act_id=$2, issue_id=$3 RETURNING *;
                   """;
         using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", work);
-        cmd.Parameters.AddWithValue("$2", activity);
-        cmd.Parameters.AddWithValue("$3", issus);
+        cmd.Parameters.AddWithValue(work);
+        cmd.Parameters.AddWithValue(activity);
+        cmd.Parameters.AddWithValue(issus);
         using var reader = cmd.ExecuteReader();
         return reader.Read() ? MapWorkTimeEntry(reader) : null;
     }
@@ -674,10 +686,10 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   UPDATE redmine_time_entries SET id=$1,act_id=$2,issue_id=$3 WHERE work_id=$4;
                   """;
         using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue("$1", timeEntry.EntryId);
-        cmd.Parameters.AddWithValue("$2", timeEntry.ActivityId);
-        cmd.Parameters.AddWithValue("$3", timeEntry.IssueId);
-        cmd.Parameters.AddWithValue("$4", timeEntry.WorkId);
+        cmd.Parameters.AddWithValue(timeEntry.EntryId);
+        cmd.Parameters.AddWithValue(timeEntry.ActivityId);
+        cmd.Parameters.AddWithValue(timeEntry.IssueId);
+        cmd.Parameters.AddWithValue(timeEntry.WorkId);
         return cmd.ExecuteNonQuery() > 0;
     }
 
@@ -694,11 +706,11 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
         {
             var dateRangeQuery = "SELECT sum(hours) FROM work_items WHERE create_date BETWEEN $1 AND $2;";
             using var cmd = Command(dateRangeQuery);
-            cmd.Parameters.AddWithValue("$1", beginDate);
-            cmd.Parameters.AddWithValue("$2", endDate);
+            cmd.Parameters.AddWithValue(beginDate);
+            cmd.Parameters.AddWithValue(endDate);
             using var reader = cmd.ExecuteReader();
             if (reader.Read() && !reader.IsDBNull(0))
-                result.Total = reader.GetDouble(0);
+                result.Total = reader.GetFloat(0);
         }
         
         if (result.Total > 0)
@@ -715,16 +727,16 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
 
             // 一级标签
             using var cmd = Command(sql);
-            cmd.Parameters.AddWithValue("$1", beginDate);
-            cmd.Parameters.AddWithValue("$2", endDate);
+            cmd.Parameters.AddWithValue(beginDate);
+            cmd.Parameters.AddWithValue(endDate);
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
                 result.PrimaryTags.Add(new TagTime()
                 {
                     TagId = reader.GetInt32(0),
-                    Time = reader.GetDouble(1),
-                    TagName = reader.GetString(2),
+                    Time = reader.GetFloat(1),
+                    TagName = reader.GetStringTrimmed(2),
                     Nested = new List<TagTime>(),
                 });
             }
@@ -744,17 +756,17 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                       """;
             
             using var cmd = Command(sql);
-            cmd.Parameters.AddWithValue("$1", beginDate);
-            cmd.Parameters.AddWithValue("$2", endDate);
-            cmd.Parameters.AddWithValue("$3", tag.TagId);
+            cmd.Parameters.AddWithValue(beginDate);
+            cmd.Parameters.AddWithValue(endDate);
+            cmd.Parameters.AddWithValue(tag.TagId);
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
                 tag.Nested.Add(new TagTime()
                 {
                     TagId = reader.GetInt32(0),
-                    Time = reader.GetDouble(1),
-                    TagName = reader.GetString(2),
+                    Time = reader.GetFloat(1),
+                    TagName = reader.GetStringTrimmed(2),
                 });
             }
         }
@@ -770,8 +782,8 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
         using var reader = cmd.ExecuteReader();
         if (reader.Read() && !reader.IsDBNull(0))
         {
-            var beginDate = reader.GetString(0);
-            var endDate = reader.GetString(1);
+            var beginDate = reader.GetStringTrimmed(0);
+            var endDate = reader.GetStringTrimmed(1);
             return GetStatistics(beginDate, endDate);
         }
 
@@ -794,21 +806,21 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                       SELECT work_items.* FROM
                       (work_items INNER JOIN work_item_tags on work_items.id = work_item_tags.work_id)
                       WHERE work_item_tags.tag_id = $1 AND work_items.create_date BETWEEN $2 AND $3
-                      ORDER BY create_date,work_items.id;
+                      ORDER BY create_date, priority, id;
                       """;
             using var cmd = Command(sql);
-            cmd.Parameters.AddWithValue("$1", l1);
-            cmd.Parameters.AddWithValue("$2", dateBegin);
-            cmd.Parameters.AddWithValue("$3", dateEnd);
+            cmd.Parameters.AddWithValue(l1);
+            cmd.Parameters.AddWithValue(dateBegin);
+            cmd.Parameters.AddWithValue(dateEnd);
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
                 result.Add(new WorkItem()
                 {
                     Id = reader.GetInt32(0),
-                    CreateDate = reader.GetString(1),
-                    Comment = reader.GetString(2),
-                    Time = reader.GetDouble(3),
+                    CreateDate = reader.GetStringTrimmed(1),
+                    Comment = reader.GetStringTrimmed(2),
+                    Time = reader.GetFloat(3),
                     Priority = (WorkPriorities)reader.GetInt32(4),
                 });
             }
@@ -822,22 +834,22 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                       	(SELECT work_id FROM work_item_tags WHERE tag_id=$3) AS T0
                       	INNER JOIN work_item_tags ON T0.work_id = work_item_tags.work_id AND work_item_tags.tag_id=$4) AS T1
                       	ON work_items.id=T1.work_id WHERE create_date BETWEEN $1 AND $2
-                      ORDER BY create_date,id;
+                      ORDER BY create_date, priority, id;
                       """;
             using var cmd = Command(sql);
-            cmd.Parameters.AddWithValue("$1", dateBegin);
-            cmd.Parameters.AddWithValue("$2", dateEnd);
-            cmd.Parameters.AddWithValue("$3", l1);
-            cmd.Parameters.AddWithValue("$4", l2);
+            cmd.Parameters.AddWithValue(dateBegin);
+            cmd.Parameters.AddWithValue(dateEnd);
+            cmd.Parameters.AddWithValue(l1);
+            cmd.Parameters.AddWithValue(l2);
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
                 result.Add(new WorkItem()
                 {
                     Id = reader.GetInt32(0),
-                    CreateDate = reader.GetString(1),
-                    Comment = reader.GetString(2),
-                    Time = reader.GetDouble(3),
+                    CreateDate = reader.GetStringTrimmed(1),
+                    Comment = reader.GetStringTrimmed(2),
+                    Time = reader.GetFloat(3),
                     Priority = (WorkPriorities)reader.GetInt32(4),
                 });
             }

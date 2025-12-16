@@ -193,7 +193,8 @@ public partial class WorkEditorViewModel : ViewModelBase
     public void Delete()
     {
         // remove from db
-        Db!.DeleteWorkItem(WorkItem!);
+        if (WorkItem is { Id: > 0 })
+            Db!.DeleteWorkItem(WorkItem!);
         WorkItem = null;
     }
 
