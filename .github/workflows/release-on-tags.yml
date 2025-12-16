@@ -70,7 +70,8 @@ jobs:
           UPLOAD_URL="${UPLOAD_URL%\{*}"
           echo "Upload URL: $UPLOAD_URL"
           find artifacts -type f
-          for f in artifacts/*.zip; do
+          # one more directory?
+          for f in artifacts/*/*.zip; do
             echo "processing file $f"
             [ -f "$f" ] || { echo "No zip artifacts found!"; exit 1; }
             filename=$(basename "$f")
