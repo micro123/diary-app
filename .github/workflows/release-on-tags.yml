@@ -70,7 +70,8 @@ jobs:
           UPLOAD_URL="${UPLOAD_URL%\{*}"
           echo "Upload URL: $UPLOAD_URL"
           for f in artifacts/*.zip; do
-            [ -f "$f" ] || { echo "No zip artifacts found"; exit 1; }
+            echo "processing file $f"
+            [ -f "$f" ] || { echo "No zip artifacts found!"; exit 1; }
             filename=$(basename "$f")
             echo "Uploading $filename ..."
             # 使用 GitHub Uploads API 上传 asset
