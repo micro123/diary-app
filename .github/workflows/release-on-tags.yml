@@ -1,0 +1,82 @@
+name: Create releases on tag push
+on:
+  push:
+    tags:
+      - 'v*'
+permissions: 
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: 
+        rid: [win-x64, linux-x64]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with: 
+          fetch-depth: '0'
+          
+      - name: Setup .Net 9.0
+        uses: actions/setup-dotnet@v5
+        with: 
+          dotnet-version: '9.0.x'
+          
+      - name: Publish for ${{ matrix.rid }}
+        run: |
+          RID=${{ matrix.rid }}
+          OUT=publish/${RID}
+          mkdir -p ${OUT}
+          dotnet publish -c Release -r $RID --self-contained true -o $OUT Diary.App/Diary.App.csproj
+          ARCHIVE=DiaryAppNG-${{ github.ref_name }}-${RID}.zip
+          cd publish
+          zip -r ../$ARCHIVE $RID
+          cd ..
+          ls -lh $ARCHIVE
+          
+      - name: Upload artifact for ${{ matrix.rid }}
+        uses: actions/upload-artifact@v4
+        with: 
+          name: DiaryAppNG-${{ github.ref_name }}-${{ matrix.rid }}
+          path: DiaryAppNG-${{ github.ref_name }}-${{ matrix.rid }}.zip
+
+  create-releases:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with: 
+          path: artifacts
+        
+      - name: Create github release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with: 
+          tag_name: ${{ github.ref_name }}
+          release_name: ${{ github.ref_name }}
+          body: Automated release created by CI for ${{ github.ref_name }}.
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          
+      - name: Upload all artifacts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPLOAD_URL: ${{ steps.create_release.outputs.upload_url }}
+        run: |
+          # upload_url contains a template like ".../assets{?name,label}" — strip the template part
+          UPLOAD_URL="${UPLOAD_URL%\{*}"
+          echo "Upload URL: $UPLOAD_URL"
+          for f in artifacts/*.zip; do
+            [ -f "$f" ] || { echo "No zip artifacts found"; exit 1; }
+            filename=$(basename "$f")
+            echo "Uploading $filename ..."
+            # 使用 GitHub Uploads API 上传 asset
+            curl -sS -X POST \
+              -H "Authorization: token $GITHUB_TOKEN" \
+              -H "Content-Type: application/zip" \
+              --data-binary @"$f" \
+              "$UPLOAD_URL?name=$filename"
+          done
