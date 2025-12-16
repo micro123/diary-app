@@ -69,6 +69,7 @@ jobs:
           # upload_url contains a template like ".../assets{?name,label}" — strip the template part
           UPLOAD_URL="${UPLOAD_URL%\{*}"
           echo "Upload URL: $UPLOAD_URL"
+          find artifacts -type f
           for f in artifacts/*.zip; do
             echo "processing file $f"
             [ -f "$f" ] || { echo "No zip artifacts found!"; exit 1; }
