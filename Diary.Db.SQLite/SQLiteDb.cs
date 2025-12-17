@@ -14,6 +14,75 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     private readonly IDbFactory _factory = factory;
 
     private SQLiteConnection? _connection;
+    
+    #region helpers
+    private static WorkTag MapWorkTag(SQLiteDataReader reader)
+    {
+        return new WorkTag()
+        {
+            Id = reader.GetInt32(0),
+            Name = reader.GetString(1),
+            Color = reader.GetInt32(2),
+            Level = (TagLevels)reader.GetInt32(3),
+            Disabled = reader.GetInt32(4) != 0,
+        };
+    }
+
+    private static WorkItem MapWorkItem(SQLiteDataReader reader)
+    {
+        return new WorkItem()
+        {
+            Id =  reader.GetInt32(0),
+            CreateDate = reader.GetString(1),
+            Comment = reader.GetString(2),
+            Time = reader.GetFloat(3),
+            Priority = (WorkPriorities)reader.GetInt32(4),
+        };
+    }
+    
+    private RedMineActivity MapRedMineActivity(SQLiteDataReader reader)
+    {
+        return new RedMineActivity()
+        {
+            Id = reader.GetInt32(0),
+            Title = reader.GetString(1),
+        };
+    }
+    
+    private RedMineProject MapRedMineProject(SQLiteDataReader reader)
+    {
+        return new RedMineProject()
+        {
+            Id = reader.GetInt32(0),
+            Title = reader.GetString(1),
+            Description = reader.GetString(2),
+            IsClosed = reader.GetInt32(3) != 0,
+        };
+    }
+    
+    private RedMineIssue MapRedMineIssue(SQLiteDataReader reader)
+    {
+        return new RedMineIssue()
+        {
+            Id = reader.GetInt32(0),
+            Title = reader.GetString(1),
+            AssignedTo = reader.GetString(2),
+            ProjectId = reader.GetInt32(3),
+            IsClosed = reader.GetInt32(4) != 0,
+        };
+    }
+    
+    private WorkTimeEntry MapWorkTimeEntry(SQLiteDataReader reader)
+    {
+        return new WorkTimeEntry()
+        {
+            WorkId = reader.GetInt32(0),
+            EntryId = reader.GetInt32(1),
+            ActivityId = reader.GetInt32(2),
+            IssueId = reader.GetInt32(3),
+        };
+    }
+    #endregion
 
     public override bool Connect()
     {
@@ -189,14 +258,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         using var reader = cmd.ExecuteReader();
         if (reader.Read())
         {
-            return new WorkTag()
-            {
-                Id = reader.GetInt32(0),
-                Name = reader.GetString(1),
-                Color = reader.GetInt32(2),
-                Level = (TagLevels)reader.GetInt32(3),
-                Disabled = reader.GetInt32(4) != 0,
-            };
+            return MapWorkTag(reader);
         }
 
         return new WorkTag();
@@ -239,16 +301,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
         {
-            result.Add(
-                new WorkTag
-                {
-                    Id = reader.GetInt32(0),
-                    Name = reader.GetString(1),
-                    Color = reader.GetInt32(2),
-                    Level = (TagLevels)reader.GetInt32(3),
-                    Disabled = reader.GetInt32(4) != 0,
-                }
-            );
+            result.Add(MapWorkTag(reader));
         }
 
         return result;
@@ -265,14 +318,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         using var reader = cmd.ExecuteReader();
         if (reader.Read())
         {
-            return new WorkItem()
-            {
-                Id = reader.GetInt32(0),
-                CreateDate = reader.GetString(1),
-                Comment = reader.GetString(2),
-                Time = reader.GetDouble(3),
-                Priority = (WorkPriorities)reader.GetInt32(4),
-            };
+            return MapWorkItem(reader);
         }
 
         return new WorkItem();
@@ -322,14 +368,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         var result = new List<WorkItem>();
         while (reader.Read())
         {
-            result.Add(new WorkItem()
-            {
-                Id = reader.GetInt32(0),
-                CreateDate = reader.GetString(1),
-                Comment = reader.GetString(2),
-                Time = reader.GetDouble(3),
-                Priority = (WorkPriorities)reader.GetInt32(4),
-            });
+            result.Add(MapWorkItem(reader));
         }
 
         return result;
@@ -345,14 +384,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         List<WorkItem> items = new();
         while (reader.Read())
         {
-            items.Add(new WorkItem()
-            {
-                Id = reader.GetInt32(0),
-                CreateDate = reader.GetString(1),
-                Comment = reader.GetString(2),
-                Time = reader.GetDouble(3),
-                Priority = (WorkPriorities)reader.GetInt32(4),
-            });
+            items.Add(MapWorkItem(reader));
         }
 
         return items;
@@ -447,14 +479,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         var tags = new List<WorkTag>();
         while (reader.Read())
         {
-            tags.Add(new WorkTag()
-            {
-                Id = reader.GetInt32(0),
-                Name = reader.GetString(1),
-                Color = reader.GetInt32(2),
-                Level = (TagLevels)reader.GetInt32(3),
-                Disabled = reader.GetInt32(4) != 0,
-            });
+            tags.Add(MapWorkTag(reader));
         }
 
         return tags;
@@ -471,11 +496,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         using var reader = cmd.ExecuteReader();
         if (reader.Read())
         {
-            return new RedMineActivity()
-            {
-                Id = reader.GetInt32(0),
-                Title = reader.GetString(1),
-            };
+            return MapRedMineActivity(reader);
         }
 
         return new RedMineActivity();
@@ -496,14 +517,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         using var reader = cmd.ExecuteReader();
         if (reader.Read())
         {
-            return new RedMineIssue()
-            {
-                Id = reader.GetInt32(0),
-                Title = reader.GetString(1),
-                AssignedTo = reader.GetString(2),
-                ProjectId = reader.GetInt32(3),
-                IsClosed = reader.GetInt32(4) != 0,
-            };
+            return MapRedMineIssue(reader);
         }
 
         return new RedMineIssue();
@@ -532,13 +546,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         using var reader = cmd.ExecuteReader();
         if (reader.Read())
         {
-            return new RedMineProject()
-            {
-                Id = reader.GetInt32(0),
-                Title = reader.GetString(1),
-                Description = reader.GetString(2),
-                IsClosed = reader.GetInt32(3) != 0,
-            };
+            return MapRedMineProject(reader);
         }
 
         return new RedMineProject();
@@ -568,13 +576,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         using var reader = cmd.ExecuteReader();
         if (reader.Read())
         {
-            return new WorkTimeEntry()
-            {
-                WorkId = reader.GetInt32(0),
-                EntryId = reader.GetInt32(1),
-                ActivityId = reader.GetInt32(2),
-                IssueId = reader.GetInt32(3),
-            };
+            return MapWorkTimeEntry(reader);
         }
 
         return null;
@@ -602,11 +604,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         var activities = new List<RedMineActivity>();
         while (reader.Read())
         {
-            activities.Add(new RedMineActivity()
-            {
-                Id = reader.GetInt32(0),
-                Title = reader.GetString(1),
-            });
+            activities.Add(MapRedMineActivity(reader));
         }
 
         return activities;
@@ -675,19 +673,13 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         using var reader = cmd.ExecuteReader();
-        var activities = new List<RedMineProject>();
+        var projects = new List<RedMineProject>();
         while (reader.Read())
         {
-            activities.Add(new RedMineProject()
-            {
-                Id = reader.GetInt32(0),
-                Title = reader.GetString(1),
-                Description = reader.GetString(2),
-                IsClosed = reader.GetInt32(3) != 0,
-            });
+            projects.Add(MapRedMineProject(reader));
         }
 
-        return activities;
+        return projects;
     }
 
     public override WorkTimeEntry? CreateWorkTimeEntry(int work, int activity, int issue)
@@ -707,13 +699,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         using var reader = cmd.ExecuteReader();
         if (reader.Read())
         {
-            return new WorkTimeEntry()
-            {
-                WorkId = reader.GetInt32(0),
-                EntryId = reader.GetInt32(1),
-                ActivityId = reader.GetInt32(2),
-                IssueId = reader.GetInt32(3),
-            };
+            return MapWorkTimeEntry(reader);
         }
 
         return null;
@@ -864,14 +850,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
-                result.Add(new WorkItem()
-                {
-                    Id = reader.GetInt32(0),
-                    CreateDate = reader.GetString(1),
-                    Comment = reader.GetString(2),
-                    Time = reader.GetDouble(3),
-                    Priority = (WorkPriorities)reader.GetInt32(4),
-                });
+                result.Add(MapWorkItem(reader));
             }
         }
         else
@@ -894,14 +873,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
-                result.Add(new WorkItem()
-                {
-                    Id = reader.GetInt32(0),
-                    CreateDate = reader.GetString(1),
-                    Comment = reader.GetString(2),
-                    Time = reader.GetDouble(3),
-                    Priority = (WorkPriorities)reader.GetInt32(4),
-                });
+                result.Add(MapWorkItem(reader));
             }
         }
         return result;

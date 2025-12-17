@@ -1,23 +1,103 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
+using Diary.Core.Configure;
+using Diary.Core.Utils;
 using Diary.Utils;
 
 namespace Diary.App.ViewModels;
+
+public class AddStatisticOptionItem
+{
+    public required string Name { get; set; }
+    public required StatisticsType Type { get; set; }
+    public required bool Enabled { get; set; }
+}
+
+[StorageFile("statistics.json")]
+public class StatisticsManager : SingletonBase<StatisticsManager>
+{
+    private StatisticsManager()
+    {
+        EasySaveLoad.Load(this);
+    }
+
+    public static void Save()
+    {
+        EasySaveLoad.Save(Instance);
+    }
+    
+    public ICollection<StatisticsType> StatisticsList { get; set; } = new List<StatisticsType>();
+}
 
 [DiAutoRegister]
 public partial class StatisticsViewModel : ViewModelBase
 {
     [ObservableProperty] private ObservableCollection<StatisticsTabData> _tabs = new();
+
+    [ObservableProperty] private ObservableCollection<AddStatisticOptionItem> _addList = new();
+    
+    private ICollection<StatisticsType> StatisticsTypes => StatisticsManager.Instance.StatisticsList;
     
     public StatisticsViewModel()
     {
+        foreach (var type in StatisticsTypes)
+        {
+            Tabs.Add(new StatisticsTabData(type));
+        }
         Tabs.Add(new StatisticsTabData(StatisticsType.Custom));
-        // foreach (var e in Enum.GetValues<StatisticsType>())
-        // {
-        //     Tabs.Add(new StatisticsTabData(e));
-        // }
+        SyncOptions();
+    }
+
+    private void SyncOptions()
+    {
+        AddList.Clear();
+        foreach (var type in Enum.GetValues<StatisticsType>())
+        {
+            if (StatisticsTypes.Contains(type) || type == StatisticsType.Custom)
+                continue;
+            AddList.Add(new AddStatisticOptionItem()
+            {
+                Name = StatisticsTabData.GetTypeName(type),
+                Type = type,
+                Enabled = true,
+            });
+        }
+
+        if (AddList.Count == 0)
+        {
+            AddList.Add(new AddStatisticOptionItem()
+            {
+                Name = "无可用项",
+                Type = StatisticsType.Custom,
+                Enabled = false
+            });
+        }
+    }
+
+    [RelayCommand]
+    private void AddStatistic(AddStatisticOptionItem item)
+    {
+        StatisticsTypes.Add(item.Type);
+        Tabs.Insert(Tabs.Count - 1, new StatisticsTabData(item.Type));
+        SyncOptions();
+        StatisticsManager.Save();
+    }
+    
+    [RelayCommand]
+    private void DelStatistic(StatisticsType type)
+    {
+        // find index of statistic
+        var data = Tabs.FirstOrDefault(x => x.Type == type);
+        if (data is null)
+            return;
+        Tabs.Remove(data);
+        StatisticsTypes.Remove(type);
+        SyncOptions();
+        StatisticsManager.Save();
     }
 }

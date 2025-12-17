@@ -17,6 +17,20 @@
         <TabControl ItemsSource="{Binding Tabs}" TabStripPlacement="Top"
                     Theme="{DynamicResource ScrollTabControl}"
                     IsVisible="{Binding DatabaseOk, Source={x:Static app:App.Current}}">
+            <TabControl.ContextFlyout>
+                <MenuFlyout ShowMode="Standard" ItemsSource="{Binding AddList}">
+                    <MenuFlyout.ItemContainerTheme>
+                        <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}"
+                                      x:DataType="viewModels:AddStatisticOptionItem">
+                            <Setter Property="Header" Value="{Binding Name}" />
+                            <Setter Property="Command"
+                                    Value="{Binding $parent[TabControl].((viewModels:StatisticsViewModel)DataContext).AddStatisticCommand}" />
+                            <Setter Property="CommandParameter" Value="{Binding}" />
+                            <Setter Property="IsEnabled" Value="{Binding Enabled}" />
+                        </ControlTheme>
+                    </MenuFlyout.ItemContainerTheme>
+                </MenuFlyout>
+            </TabControl.ContextFlyout>
             <TabControl.ItemTemplate>
                 <DataTemplate DataType="models:StatisticsTabData">
                     <StackPanel Orientation="Horizontal" Spacing="8">
@@ -24,7 +38,9 @@
                         <TextBlock Text="{Binding Name}" Classes="H5"
                                    VerticalAlignment="Center"
                                    Theme="{DynamicResource TitleTextBlock}" />
-                        <Button Theme="{DynamicResource BorderlessButton}" IsVisible="{Binding !IsCustom}">
+                        <Button Theme="{DynamicResource BorderlessButton}" IsVisible="{Binding !IsCustom}"
+                                Command="{Binding $parent[TabControl].((viewModels:StatisticsViewModel)DataContext).DelStatisticCommand}"
+                                CommandParameter="{Binding Type}">
                             <i:Icon Value="fa-circle-xmark" />
                         </Button>
                     </StackPanel>

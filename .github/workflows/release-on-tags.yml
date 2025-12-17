@@ -29,15 +29,15 @@ jobs:
           mkdir -p ${OUT}
           dotnet publish -c Release -r $RID --self-contained true -o $OUT Diary.App/Diary.App.csproj
           ARCHIVE=DiaryAppNG-${{ github.ref_name }}-${RID}.zip
-          cd publish
-          zip -r ../$ARCHIVE $RID
-          cd ..
+          cd ${OUT}
+          zip -r ../../$ARCHIVE .
+          cd ../..
           ls -lh $ARCHIVE
           
       - name: Upload artifact for ${{ matrix.rid }}
         uses: actions/upload-artifact@v4
         with: 
-          name: DiaryAppNG-${{ github.ref_name }}-${{ matrix.rid }}.zip
+          name: DiaryAppNG-${{ github.ref_name }}-${{ matrix.rid }}
           path: DiaryAppNG-${{ github.ref_name }}-${{ matrix.rid }}.zip
 
   create-releases:

@@ -33,7 +33,7 @@ public enum StatisticsType
 
 public partial class StatisticsTabData : ObservableObject
 {
-    private readonly StatisticsType _type;
+    public StatisticsType Type {get; private set;}
 
     private static readonly string[] Names =
     [
@@ -48,15 +48,15 @@ public partial class StatisticsTabData : ObservableObject
         "自定义"
     ];
 
-    private static string GetTypeName(StatisticsType statisticType) => Names[(int)statisticType];
+    public static string GetTypeName(StatisticsType statisticType) => Names[(int)statisticType];
     public string Name { get; init; }
     public bool IsCustom { get; init; }
     public string Icon => !IsCustom ? "fa-calendar-check" : "fa-calendar";
 
     private DbInterfaceBase? Db => App.Current.UseDb;
 
-    [ObservableProperty] private DateTime _dateBegin = TimeTools.FromFormatedDate("2025-11-01");
-    [ObservableProperty] private DateTime _dateEnd = TimeTools.FromFormatedDate("2025-11-30");
+    [ObservableProperty] private DateTime _dateBegin = DateTime.Now.Date;
+    [ObservableProperty] private DateTime _dateEnd = DateTime.Now.Date;
     [ObservableProperty] private bool _useCustomTime = false;
     [ObservableProperty] private double _customTotal = 0;
     [ObservableProperty] private double _statisticsTotal = 0;
@@ -67,8 +67,8 @@ public partial class StatisticsTabData : ObservableObject
     /// <inheritdoc/>
     public StatisticsTabData(StatisticsType type)
     {
-        _type = type;
-        Name = GetTypeName(type);
+        Type = type;
+        Name = GetTypeName(Type);
         IsCustom = type == StatisticsType.Custom;
 
         _timeDetails = new HierarchicalTreeDataGridSource<StatisticsTimeNode>([])
@@ -144,7 +144,7 @@ public partial class StatisticsTabData : ObservableObject
     {
         if (!IsCustom)
         {
-            GetDateRange(out var s, out var e, _type);
+            GetDateRange(out var s, out var e, Type);
             DateBegin = s;
             DateEnd = e;
         }
