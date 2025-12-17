@@ -42,10 +42,11 @@
                     CommandParameter="1" />
         </StackPanel>
         <ScrollViewer>
-            <ItemsControl ItemsSource="{Binding Templates}" x:Name="TemplatesView">
+            <ItemsControl ItemsSource="{Binding Templates}" x:Name="TemplatesView"
+                          Classes="Reorderable">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="dialogs:TemplateViewModel">
-                        <Expander Header="{Binding Name}" IsExpanded="True">
+                        <Expander Header="{Binding Name}" IsExpanded="False">
                             <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto"
                                   RowSpacing="8" ColumnSpacing="4">
                                 <TextBlock Grid.Column="0" Grid.Row="0" Text="默认标题：" />

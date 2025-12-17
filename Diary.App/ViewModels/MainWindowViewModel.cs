@@ -12,6 +12,7 @@ using Diary.Core.Constants;
 using Diary.App.Dialogs;
 using Diary.App.Messages;
 using Diary.App.Models;
+using Diary.App.Utils;
 using Diary.Core;
 using Diary.Core.Data.AppConfig;
 using Diary.Utils;
@@ -267,5 +268,11 @@ public partial class MainWindowViewModel : ViewModelBase
             IsCloseButtonVisible = true,
         };
         OverlayDialog.Show(_serviceProvider.GetRequiredService<AboutViewModel>(), null, options);
+    }
+
+    [RelayCommand]
+    private void ShowSettings()
+    {
+        EventDispatcher.RouteToPage(PageNames.Settings);
     }
 }

@@ -91,6 +91,14 @@
         </DataTemplate>
     </Application.DataTemplates>
 
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="Resources/AdditionalResources.axaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+
     <Application.Styles>
         <semi:SemiTheme Locale="zh-CN" />
         <u-semi:SemiTheme Locale="zh-CN" />
@@ -99,23 +107,6 @@
         <StyleInclude Source="avares://Semi.Avalonia.DataGrid/Index.axaml" />
         <StyleInclude Source="avares://Avalonia.Controls.TreeDataGrid/Themes/Generic.axaml"/>
     </Application.Styles>
-
-    <Application.Resources>
-        <converters:DateConvert x:Key="DateConvert" />
-        <converters:EnumConvert x:Key="EnumConvert" />
-        <converters:HsvColorConverter x:Key="Hsv2Int" />
-        <converters:Int2Color x:Key="IntColor" />
-        <converters:InverseColor x:Key="SimpleInverse" />
-        <converters:TagLevelConverter x:Key="TagLevelFormater" />
-        <converters:OpenCloseFormater x:Key="IssueOpenClose" />
-        <converters:State2IconConverter x:Key="StateMark" />
-        <converters1:ColorToBrushConverter x:Key="ColorToBrushConverter" />
-        <converters2:ToBrushConverter x:Key="ToBrushConverter" />
-        <SolidColorBrush x:Key="DataGridColumnHeaderPointeroverBackground" Color="Transparent"/>
-        <SolidColorBrush x:Key="DataGridColumnHeaderPressedBackground" Color="Transparent"/>
-        <SolidColorBrush x:Key="TreeDataGridHeaderBackgroundPointerOverBrush" Color="Transparent" />
-        <SolidColorBrush x:Key="TreeDataGridHeaderBackgroundPressedBrush" Color="Transparent" />
-    </Application.Resources>
 
     <TrayIcon.Icons>
         <TrayIcons>

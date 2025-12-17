@@ -89,4 +89,14 @@
         <Setter Property="OnContent" Value="{x:Null}" />
         <Setter Property="OffContent" Value="{x:Null}" />
     </Style>
+    <Style Selector="ItemsControl.Reorderable ContentPresenter">
+        <Setter Property="(Interaction.Behaviors)">
+            <BehaviorCollectionTemplate>
+                <BehaviorCollection>
+                    <ListReorderDragBehavior IsEnabled="True" Orientation="Vertical"
+                                             PlaceholderTemplate="{StaticResource SimplePlaceHolder}"/>
+                </BehaviorCollection>
+            </BehaviorCollectionTemplate>
+        </Setter>
+    </Style>
 </Styles>
