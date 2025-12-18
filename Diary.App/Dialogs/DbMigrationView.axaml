@@ -1,0 +1,50 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:dialogs="clr-namespace:Diary.App.Dialogs"
+             xmlns:u="https://irihi.tech/ursa"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:DataType="dialogs:DbMigrationViewModel"
+             x:Class="Diary.App.Dialogs.DbMigrationView"
+             MinHeight="400" MinWidth="650" Margin="8 24 8 8">
+    <DockPanel VerticalSpacing="4" IsEnabled="{Binding !Working}">
+        <TextBlock Classes="Header" Text="数据迁移向导" DockPanel.Dock="Top" />
+        <Separator DockPanel.Dock="Top"/>
+        <Grid ColumnDefinitions="Auto,Auto,*" DockPanel.Dock="Top" ColumnSpacing="4">
+            <TextBlock Grid.Row="0" Grid.Column="0" Classes="SettingLineCaption" Text="数据库类型:"/>
+            <ComboBox Grid.Row="0" Grid.Column="1" Classes="SLV"
+                      ItemsSource="{Binding DbProviders}"
+                      SelectedItem="{Binding DbType}"/>
+        </Grid>
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
+                    HorizontalAlignment="Center" Spacing="16">
+            <Button Classes="Primary" Content="取消" Command="{Binding AbortCommand}" />
+            <Button Classes="Danger" Content="迁移" Command="{Binding DoMigrateCommand}" />
+        </StackPanel>
+        <Panel>
+            <Grid IsVisible="{Binding SqliteMode}" ColumnDefinitions="Auto,Auto,*"
+                  RowDefinitions="Auto" ColumnSpacing="4" RowSpacing="4">
+                <!-- SQLITE -->
+                <TextBlock Grid.Row="0" Grid.Column="0" Classes="SettingLineCaption" Text="数据库文件:" />
+                <u:PathPicker Grid.Row="0" Grid.Column="1" SelectedPathsText="{Binding SqlitePath}"
+                              IsClearSelectionOnCancel="False" Title="选择数据库文件" AllowMultiple="False"
+                              UsePickerType="OpenFile" Classes="SLV"/>
+            </Grid>
+            <Grid IsVisible="{Binding !SqliteMode}" ColumnDefinitions="Auto,Auto,*"
+                  RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="4" RowSpacing="4">
+                <TextBlock Grid.Row="0" Grid.Column="0" Classes="SettingLineCaption" Text="服务器地址:" />
+                <TextBox Grid.Row="" Grid.Column="1" Classes="SLV" Text="{Binding Host}" />
+                <TextBlock Grid.Row="1" Grid.Column="0" Classes="SettingLineCaption" Text="服务端口:" />
+                <u:NumericUShortUpDown Grid.Row="1" Grid.Column="1" Value="{Binding Port}"
+                                       Classes="SLV" ShowButtonSpinner="False"/>
+                <TextBlock Grid.Row="2" Grid.Column="0" Classes="SettingLineCaption" Text="数据库名称:" />
+                <TextBox Grid.Row="2" Grid.Column="1" Classes="SLV" Text="{Binding Database}" />
+                <TextBlock Grid.Row="3" Grid.Column="0" Classes="SettingLineCaption" Text="用户名:" />
+                <TextBox Grid.Row="3" Grid.Column="1" Classes="SLV" Text="{Binding User}" />
+                <TextBlock Grid.Row="4" Grid.Column="0" Classes="SettingLineCaption" Text="密码:" />
+                <TextBox Grid.Row="4" Grid.Column="1" Classes="SLV" Text="{Binding Password}" />
+            </Grid>
+        </Panel>
+    </DockPanel>
+</UserControl>

@@ -102,11 +102,16 @@
             </BehaviorCollectionTemplate>
         </Setter>
     </Style>
-    <Style Selector="i|Icon.HelperIcon">
+    <Style Selector="Border.HelperIcon">
         <Setter Property="(ToolTip.ShowDelay)" Value="0" />
-        <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}" />
         <Setter Property="Padding" Value="12 0" />
-        <Setter Property="Value" Value="mdi-help-circle-outline" />
-        <Setter Property="FontSize" Value="24" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Child">
+            <Template>
+                <i:Icon Value="mdi-help-circle-outline" FontSize="24"
+                        Foreground="{DynamicResource ButtonDefaultPrimaryForeground}"/>
+            </Template>
+        </Setter>
     </Style>
 </Styles>

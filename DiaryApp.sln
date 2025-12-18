@@ -39,6 +39,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Diary.Survey", "Diary.Surve
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Diary.SurveyTests", "Diary.SurveyTests\Diary.SurveyTests.csproj", "{C458E499-7EB6-4621-9AEE-9BEFD9365532}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Diary.MigrationTool", "Diary.MigrationTool\Diary.MigrationTool.csproj", "{AB3BAB6F-2914-4C32-B7EF-37DD5C36416D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -93,6 +95,10 @@ Global
 		{C458E499-7EB6-4621-9AEE-9BEFD9365532}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C458E499-7EB6-4621-9AEE-9BEFD9365532}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C458E499-7EB6-4621-9AEE-9BEFD9365532}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AB3BAB6F-2914-4C32-B7EF-37DD5C36416D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AB3BAB6F-2914-4C32-B7EF-37DD5C36416D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AB3BAB6F-2914-4C32-B7EF-37DD5C36416D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AB3BAB6F-2914-4C32-B7EF-37DD5C36416D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -110,6 +116,7 @@ Global
 		{2F4E7DF8-53FA-4CBB-A103-8C788F81BFBD} = {5ADD1E3F-4C5C-4BE4-94D2-995B89DD88C7}
 		{317F6C88-9B9F-4DD4-8B38-2A09A9F6ECA3} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 		{C458E499-7EB6-4621-9AEE-9BEFD9365532} = {1804F179-190B-4746-8E45-117A952CC6B1}
+		{AB3BAB6F-2914-4C32-B7EF-37DD5C36416D} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {DAFD6FD6-29C1-41F3-8D76-F39BD486EFD3}

@@ -23,9 +23,9 @@
                         <TextBlock Classes="SectionHeader" Text="{Binding Title}"
                                    FontSize="{StaticResource SemiFontSizeHeader1}" 
                                    HorizontalAlignment="Stretch" VerticalAlignment="Center"/>
-                        <i:Icon Grid.Column="2"  FontSize="{StaticResource SemiFontSizeHeader1}"
+                        <Border Grid.Column="2"
                                 IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"
-                                VerticalAlignment="Center" Classes="HelperIcon"/>
+                                Classes="HelperIcon"/>
                     </Grid>
                 </Expander.Header>
                 <ItemsControl Classes="Settings" ItemsSource="{Binding Children}" />
@@ -37,9 +37,9 @@
                 <TextBox Classes="SLV ClearButton" Classes.RevealPasswordButton="{Binding Password}"
                          Grid.Column="1" Text="{Binding Value}"
                          PasswordChar="{Binding MaskChar}" />
-                <i:Icon Grid.Column="2" 
+                <Border Grid.Column="2" 
                         IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"
-                        VerticalAlignment="Center" Classes="HelperIcon"/>
+                        Classes="HelperIcon"/>
             </Grid>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingPath}">
@@ -49,9 +49,9 @@
                               UsePickerType="{Binding PickerType}" SelectedPathsText="{Binding Value}"
                               Title="{Binding PickerTitle}" IsClearSelectionOnCancel="False"
                               SuggestedStartPath="{Binding DirName}" ToolTip.Tip="{Binding Value}" />
-                <i:Icon Grid.Column="2" 
+                <Border Grid.Column="2" 
                         IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"
-                        VerticalAlignment="Center" Classes="HelperIcon"/>
+                        Classes="HelperIcon"/>
             </Grid>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingInteger}">
@@ -60,9 +60,9 @@
                 <u:NumericLongUpDown Grid.Column="1" Classes="SLV" Value="{Binding Value}"
                                      Minimum="{Binding MinValue}"
                                      Maximum="{Binding MaxValue}" />
-                <i:Icon Grid.Column="2" 
+                <Border Grid.Column="2" 
                         IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"
-                        VerticalAlignment="Center" Classes="HelperIcon"/>
+                        Classes="HelperIcon"/>
             </Grid>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingReal}">
@@ -71,9 +71,9 @@
                 <u:NumericDoubleUpDown Grid.Column="1" Classes="SLV" Value="{Binding Value}"
                                        Minimum="{Binding MinValue}"
                                        Maximum="{Binding MaxValue}" />
-                <i:Icon Grid.Column="2" 
+                <Border Grid.Column="2" 
                         IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"
-                        VerticalAlignment="Center" Classes="HelperIcon"/>
+                        Classes="HelperIcon"/>
             </Grid>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingSwitch}">
@@ -82,9 +82,9 @@
                 <ToggleSwitch Grid.Column="1" Classes="SLV" IsChecked="{Binding Value}"
                               VerticalAlignment="Center" OnContent="" OffContent=""
                               HorizontalContentAlignment="Left" />
-                <i:Icon Grid.Column="2" 
+                <Border Grid.Column="2" 
                         IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"
-                        VerticalAlignment="Center" Classes="HelperIcon"/>
+                        Classes="HelperIcon"/>
             </Grid>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingChoice}">
@@ -92,9 +92,9 @@
                 <TextBlock Classes="SettingLineCaption" />
                 <ComboBox Grid.Column="1" Classes="SLV Bordered" SelectedIndex="{Binding SelectedIndex}"
                           ItemsSource="{Binding Options}" />
-                <i:Icon Grid.Column="2" 
+                <Border Grid.Column="2" 
                         IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"
-                        VerticalAlignment="Center" Classes="HelperIcon"/>
+                        Classes="HelperIcon"/>
             </Grid>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingButton}">
@@ -102,9 +102,9 @@
                 <TextBlock Classes="SettingLineCaption" />
                 <Button Grid.Column="1" Classes="SLV" Content="{Binding Text}"
                         Command="{Binding ExecuteCommand}" />
-                <i:Icon Grid.Column="2" 
+                <Border Grid.Column="2" 
                         IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"
-                        VerticalAlignment="Center" Classes="HelperIcon"/>
+                        Classes="HelperIcon"/>
             </Grid>
         </DataTemplate>
     </Application.DataTemplates>

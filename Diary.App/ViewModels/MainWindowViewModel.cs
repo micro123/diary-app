@@ -132,6 +132,22 @@ public partial class MainWindowViewModel : ViewModelBase
                     _logger.LogInformation($"db settings updated: {result}");
                 });
                 return;
+            case CommandNames.ShowMigrateGuide:
+                Dispatcher.UIThread.Post(async () =>
+                {
+                    var options = new OverlayDialogOptions()
+                    {
+                        CanDragMove = false,
+                        CanResize = false,
+                        CanLightDismiss = false,
+                        Mode = DialogMode.Warning,
+                        IsCloseButtonVisible = false,
+                    };
+                    var vm = _serviceProvider.GetRequiredService<DbMigrationViewModel>();
+                    bool result = await OverlayDialog.ShowCustomModal<bool>(vm, options: options);
+                    _logger.LogInformation($"db settings updated: {result}");
+                });
+                return;
             case CommandNames.EditWorkTags:
                 Dispatcher.UIThread.Post(async () =>
                 {
