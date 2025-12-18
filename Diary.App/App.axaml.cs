@@ -277,11 +277,11 @@ namespace Diary.App
             }
         }
 
-        public SettingItemModel CreateFor(string caption, string key, object obj, PropertyInfo property)
+        public SettingItemModel CreateFor(string caption, string helpTip, string key, object obj, PropertyInfo property)
         {
             return key switch
             {
-                "DB_DRIVER" => new SettingChoice(caption, _dbFactories.Select(x=>x.Name), obj, property),
+                "DB_DRIVER" => new SettingChoice(caption, helpTip, _dbFactories.Select(x=>x.Name), obj, property),
                 _ => throw new ArgumentOutOfRangeException(nameof(key), key, null),
             };
         }

@@ -11,9 +11,11 @@ using Ursa.Controls;
 
 namespace Diary.App.Models;
 
-public abstract class SettingItemModel(string title) : ObservableObject
+public abstract class SettingItemModel(string title, string helpTip) : ObservableObject
 {
     public string Title { get; } = title;
+    public string HelpTip { get; } = helpTip;
+    public bool   HasHelp => !string.IsNullOrWhiteSpace(HelpTip);
 
     protected virtual void LoadAction()
     {
@@ -34,7 +36,7 @@ public abstract class SettingItemModel(string title) : ObservableObject
     }
 }
 
-public sealed partial class SettingGroup(string title) : SettingItemModel(title)
+public sealed partial class SettingGroup(string title, string helpTip = "") : SettingItemModel(title, helpTip)
 {
     [ObservableProperty] private ObservableCollection<SettingItemModel> _children = new();
 
@@ -60,7 +62,7 @@ public class EditableItemModel : SettingItemModel
     protected readonly object Obj;
     protected readonly PropertyInfo Prop;
 
-    public EditableItemModel(string title, object o, PropertyInfo p, Func<Type,bool> check) : base(title)
+    protected EditableItemModel(string title, string helpTip, object o, PropertyInfo p, Func<Type,bool> check) : base(title, helpTip)
     {
         Obj = o;
         Prop = p;
@@ -93,8 +95,8 @@ public class EditableItemModel : SettingItemModel
     }
 }
 
-public sealed partial class SettingText(string title, bool password, object o, PropertyInfo p)
-    : EditableItemModel(title, o, p, EnsureString)
+public sealed partial class SettingText(string title, string helpTip, bool password, object o, PropertyInfo p)
+    : EditableItemModel(title, helpTip, o, p, EnsureString)
 {
     private readonly object _o = o;
     private readonly PropertyInfo _p = p;
@@ -115,8 +117,8 @@ public sealed partial class SettingText(string title, bool password, object o, P
     }
 }
 
-public sealed partial class SettingPath(string title, bool isFolder, object o, PropertyInfo p)
-    : EditableItemModel(title, o, p, EnsureString)
+public sealed partial class SettingPath(string title, string helpTip, bool isFolder, object o, PropertyInfo p)
+    : EditableItemModel(title, helpTip, o, p, EnsureString)
 {
     [ObservableProperty] private string _value = "";
     [ObservableProperty] private string _dirName = "";
@@ -136,8 +138,8 @@ public sealed partial class SettingPath(string title, bool isFolder, object o, P
     }
 }
 
-public sealed partial class SettingInteger(string title, long min, long max, object o, PropertyInfo p)
-    : EditableItemModel(title, o, p, EnsureInteger)
+public sealed partial class SettingInteger(string title, string helpTip, long min, long max, object o, PropertyInfo p)
+    : EditableItemModel(title, helpTip, o, p, EnsureInteger)
 {
     [ObservableProperty] private long _value;
 
@@ -175,8 +177,8 @@ public sealed partial class SettingInteger(string title, long min, long max, obj
     }
 }
 
-public sealed partial class SettingReal(string title, double min, double max, object o, PropertyInfo p)
-    : EditableItemModel(title, o, p, EnsureFloatOrDouble)
+public sealed partial class SettingReal(string title, string helpTip, double min, double max, object o, PropertyInfo p)
+    : EditableItemModel(title, helpTip, o, p, EnsureFloatOrDouble)
 {
     [ObservableProperty] private double _value;
 
@@ -195,8 +197,8 @@ public sealed partial class SettingReal(string title, double min, double max, ob
     }
 }
 
-public sealed partial class SettingSwitch(string title, object o, PropertyInfo p)
-    : EditableItemModel(title, o, p, EnsureBoolean)
+public sealed partial class SettingSwitch(string title, string helpTip, object o, PropertyInfo p)
+    : EditableItemModel(title, helpTip, o, p, EnsureBoolean)
 {
     [ObservableProperty] private bool _value;
     
@@ -212,8 +214,8 @@ public sealed partial class SettingSwitch(string title, object o, PropertyInfo p
     }
 }
 
-public sealed partial class SettingChoice(string title, IEnumerable<string> options, object o, PropertyInfo p)
-    : EditableItemModel(title, o, p, EnsureString)
+public sealed partial class SettingChoice(string title, string helpTip, IEnumerable<string> options, object o, PropertyInfo p)
+    : EditableItemModel(title, helpTip, o, p, EnsureString)
 {
     [ObservableProperty] private int _selectedIndex;
     public ObservableCollection<string> Options { get; } = [..options];
@@ -232,7 +234,7 @@ public sealed partial class SettingChoice(string title, IEnumerable<string> opti
     }
 }
 
-public sealed partial class SettingButton(string title, string text, string command) : SettingItemModel(title)
+public sealed partial class SettingButton(string title, string helpTip, string text, string command) : SettingItemModel(title, helpTip)
 {
     [ObservableProperty] private string _text = text;
     [RelayCommand]

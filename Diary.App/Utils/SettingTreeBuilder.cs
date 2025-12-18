@@ -22,33 +22,33 @@ public static class SettingTreeBuilder
             switch (cfg)
             {
                 case ConfigureGroupAttribute g:
-                    var group = new SettingGroup(g.Caption);
+                    var group = new SettingGroup(g.Caption, g.HelpTip);
                     BuildTree(group, property.GetValue(o)!);
                     item = group;
                     break;
                 case ConfigureTextAttribute t:
-                    item = new SettingText(t.Caption, t.IsPassword, o, property);
+                    item = new SettingText(t.Caption, t.HelpTip, t.IsPassword, o, property);
                     break;
                 case ConfigureIntegralAttribute i:
-                    item = new SettingInteger(i.Caption, i.Min, i.Max, o, property);
+                    item = new SettingInteger(i.Caption, i.HelpTip, i.Min, i.Max, o, property);
                     break;
                 case ConfigureRealAttribute r:
-                    item = new SettingReal(r.Caption, r.Min, r.Max, o, property);
+                    item = new SettingReal(r.Caption, r.HelpTip, r.Min, r.Max, o, property);
                     break;
                 case ConfigureSwitchAttribute s:
-                    item = new SettingSwitch(s.Caption, o, property);
+                    item = new SettingSwitch(s.Caption, s.HelpTip, o, property);
                     break;
                 case ConfigureChoiceAttribute c:
-                    item = new SettingChoice(c.Caption, c.Choices, o, property);
+                    item = new SettingChoice(c.Caption, c.HelpTip, c.Choices, o, property);
                     break;
                 case ConfigureUserAttribute u:
-                    item = App.Current.CreateFor(u.Caption, u.Key, o, property);
+                    item = App.Current.CreateFor(u.Caption, u.HelpTip, u.Key, o, property);
                     break;
                 case ConfigurePathAttribute p:
-                    item = new SettingPath(p.Caption, p.IsFolder, o, property);
+                    item = new SettingPath(p.Caption, p.HelpTip, p.IsFolder, o, property);
                     break;
                 case ConfigureButtonAttribute b:
-                    item = new SettingButton(b.Caption, b.Text, b.Command);
+                    item = new SettingButton(b.Caption, b.HelpTip, b.Text, b.Command);
                     break;
                 default:
                     Debug.Fail($"Unknown property {property.Name}");

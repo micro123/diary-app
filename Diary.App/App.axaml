@@ -3,13 +3,11 @@
              xmlns:u-semi="https://irihi.tech/ursa/themes/semi"
              xmlns:semi="https://irihi.tech/semi"
              xmlns:u="clr-namespace:Ursa.Controls;assembly=Ursa"
-             xmlns:converters="clr-namespace:Diary.App.Converters"
              x:Class="Diary.App.App"
              x:DataType="local:AppModel"
              xmlns:local="using:Diary.App"
              xmlns:m="clr-namespace:Diary.App.Models"
-             xmlns:converters1="clr-namespace:Avalonia.Markup.Xaml.Converters;assembly=Avalonia.Markup.Xaml"
-             xmlns:converters2="clr-namespace:Avalonia.Controls.Converters;assembly=Avalonia.Controls.ColorPicker"
+             xmlns:i="https://github.com/projektanker/icons.avalonia"
              Name="Diary Tools NG">
     
     <Design.DataContext>
@@ -19,74 +17,94 @@
     <Application.DataTemplates>
         <local:ViewLocator />
         <DataTemplate DataType="{x:Type m:SettingGroup}">
-            <Expander IsExpanded="True">
+            <Expander IsExpanded="False">
                 <Expander.Header>
-                    <TextBlock Classes="SectionHeader" Text="{Binding Title}"
-                               FontSize="{StaticResource SemiFontSizeHeader1}" />
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <TextBlock Classes="SectionHeader" Text="{Binding Title}"
+                                   FontSize="{StaticResource SemiFontSizeHeader1}" 
+                                   HorizontalAlignment="Stretch" VerticalAlignment="Center"/>
+                        <i:Icon Grid.Column="2"  FontSize="{StaticResource SemiFontSizeHeader1}"
+                                IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"
+                                VerticalAlignment="Center" Classes="HelperIcon"/>
+                    </Grid>
                 </Expander.Header>
                 <ItemsControl Classes="Settings" ItemsSource="{Binding Children}" />
             </Expander>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingText}">
-            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,*" Margin="8 4" VerticalAlignment="Center"
-                  ColumnSpacing="16">
+            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,Auto,*" VerticalAlignment="Center">
                 <TextBlock Classes="SettingLineCaption" />
                 <TextBox Classes="SLV ClearButton" Classes.RevealPasswordButton="{Binding Password}"
                          Grid.Column="1" Text="{Binding Value}"
                          PasswordChar="{Binding MaskChar}" />
+                <i:Icon Grid.Column="2" 
+                        IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"
+                        VerticalAlignment="Center" Classes="HelperIcon"/>
             </Grid>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingPath}">
-            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,*" Margin="8 4" VerticalAlignment="Center"
-                  ColumnSpacing="16">
+            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,Auto,*" VerticalAlignment="Center">
                 <TextBlock Classes="SettingLineCaption" />
                 <u:PathPicker Grid.Column="1" Classes="SLV" AllowMultiple="False"
                               UsePickerType="{Binding PickerType}" SelectedPathsText="{Binding Value}"
                               Title="{Binding PickerTitle}" IsClearSelectionOnCancel="False"
                               SuggestedStartPath="{Binding DirName}" ToolTip.Tip="{Binding Value}" />
+                <i:Icon Grid.Column="2" 
+                        IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"
+                        VerticalAlignment="Center" Classes="HelperIcon"/>
             </Grid>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingInteger}">
-            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,*" Margin="8 4" VerticalAlignment="Center"
-                  ColumnSpacing="16">
+            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,Auto,*" VerticalAlignment="Center">
                 <TextBlock Classes="SettingLineCaption" />
                 <u:NumericLongUpDown Grid.Column="1" Classes="SLV" Value="{Binding Value}"
                                      Minimum="{Binding MinValue}"
                                      Maximum="{Binding MaxValue}" />
+                <i:Icon Grid.Column="2" 
+                        IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"
+                        VerticalAlignment="Center" Classes="HelperIcon"/>
             </Grid>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingReal}">
-            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,*" Margin="8 4" VerticalAlignment="Center"
-                  ColumnSpacing="16">
+            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,Auto,*" VerticalAlignment="Center">
                 <TextBlock Classes="SettingLineCaption" />
                 <u:NumericDoubleUpDown Grid.Column="1" Classes="SLV" Value="{Binding Value}"
                                        Minimum="{Binding MinValue}"
                                        Maximum="{Binding MaxValue}" />
+                <i:Icon Grid.Column="2" 
+                        IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"
+                        VerticalAlignment="Center" Classes="HelperIcon"/>
             </Grid>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingSwitch}">
-            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,*" Margin="8 4" VerticalAlignment="Center"
-                  ColumnSpacing="16">
+            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,Auto,*" VerticalAlignment="Center">
                 <TextBlock Classes="SettingLineCaption" />
                 <ToggleSwitch Grid.Column="1" Classes="SLV" IsChecked="{Binding Value}"
                               VerticalAlignment="Center" OnContent="" OffContent=""
                               HorizontalContentAlignment="Left" />
+                <i:Icon Grid.Column="2" 
+                        IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"
+                        VerticalAlignment="Center" Classes="HelperIcon"/>
             </Grid>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingChoice}">
-            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,*" Margin="8 4" VerticalAlignment="Center"
-                  ColumnSpacing="16">
+            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,Auto,*" VerticalAlignment="Center">
                 <TextBlock Classes="SettingLineCaption" />
                 <ComboBox Grid.Column="1" Classes="SLV Bordered" SelectedIndex="{Binding SelectedIndex}"
                           ItemsSource="{Binding Options}" />
+                <i:Icon Grid.Column="2" 
+                        IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"
+                        VerticalAlignment="Center" Classes="HelperIcon"/>
             </Grid>
         </DataTemplate>
         <DataTemplate DataType="{x:Type m:SettingButton}">
-            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,*" Margin="8 4" VerticalAlignment="Center"
-                  ColumnSpacing="16">
+            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,Auto,*" VerticalAlignment="Center">
                 <TextBlock Classes="SettingLineCaption" />
                 <Button Grid.Column="1" Classes="SLV" Content="{Binding Text}"
                         Command="{Binding ExecuteCommand}" />
+                <i:Icon Grid.Column="2" 
+                        IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"
+                        VerticalAlignment="Center" Classes="HelperIcon"/>
             </Grid>
         </DataTemplate>
     </Application.DataTemplates>

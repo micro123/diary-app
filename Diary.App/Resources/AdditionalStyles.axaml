@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:i="https://github.com/projektanker/icons.avalonia"
         xmlns:u="https://irihi.tech/ursa">
     <!-- Add Styles Here -->
     <Style Selector="DataGrid">
@@ -37,13 +38,15 @@
     </Style>
     <Style Selector="Grid.SettingLineBox">
         <Setter Property="MinWidth" Value="450" />
+        <Setter Property="ColumnSpacing" Value="4" />
+        <Setter Property="Margin" Value="8 2" />
     </Style>
     <Style Selector="TextBlock.SettingLineCaption">
-        <Setter Property="Width" Value="100" />
-        <Setter Property="FontSize" Value="{StaticResource SemiFontSizeRegular}" />
+        <Setter Property="Width" Value="120" />
+        <Setter Property="FontSize" Value="18" />
         <Setter Property="TextAlignment" Value="Right" />
         <Setter Property="VerticalAlignment" Value="Center" />
-        <Setter Property="Text" Value="{ReflectionBinding Title, StringFormat='{}: '}" />
+        <Setter Property="Text" Value="{ReflectionBinding Title, StringFormat='{}{0}:'}" />
     </Style>
     <Style Selector="Expander.Settings:down">
         <Setter Property="HorizontalAlignment" Value="Stretch" />
@@ -54,11 +57,11 @@
             <Setter Property="Foreground" Value="{DynamicResource ToggleSwitchContainerCheckedDefaultBackground}" />
         </Style>
     </Style>
-    <Style Selector="TextBox.SLV, ToggleSwitch.SLV, ComboBox.SLV, Button.SLV, u|PathPicker.SLV">
-        <Setter Property="Width" Value="240" />
+    <Style Selector="TextBox.SLV, ToggleSwitch.SLV, ComboBox.SLV, Button.SLV, u|PathPicker.SLV, u|NumericUpDown.SLV">
+        <Setter Property="Width" Value="400" />
     </Style>
-    <Style Selector="u|NumericUpDown.SLV">
-        <Setter Property="Width" Value="240" />
+    <Style Selector="TextBox.SLV, ComboBox.SLV, Button.SLV, u|NumericUpDown.SLV">
+        <Setter Property="FontSize" Value="18"/>
     </Style>
     <Style Selector="Expander:down /template/ Border#ExpanderContent">
         <Setter Property="BorderThickness" Value="0 0 0 2" />
@@ -98,5 +101,12 @@
                 </BehaviorCollection>
             </BehaviorCollectionTemplate>
         </Setter>
+    </Style>
+    <Style Selector="i|Icon.HelperIcon">
+        <Setter Property="(ToolTip.ShowDelay)" Value="0" />
+        <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}" />
+        <Setter Property="Padding" Value="12 0" />
+        <Setter Property="Value" Value="mdi-help-circle-outline" />
+        <Setter Property="FontSize" Value="24" />
     </Style>
 </Styles>
