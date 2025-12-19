@@ -160,11 +160,11 @@ public partial class SurveyViewModel : ViewModelBase
 
     private void CollectData(string query)
     {
-        _logger.LogInformation($"received query: {query}");
+        _logger.LogDebug("received query: {Query}", query);
         var parts = query.Split(':');
         if (parts.Length != 2)
         {
-            _logger.LogError($"invalid query: {query}");
+            _logger.LogError("invalid query: {Query}", query);
         }
         else
         {
@@ -200,7 +200,7 @@ public partial class SurveyViewModel : ViewModelBase
                 }
 
                 var content = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = false });
-                _logger.LogInformation($"respond content: {content}");
+                _logger.LogDebug("respond content: {Content}", content);
                 EventDispatcher.Msg(new SurveyResultEvent(content));
             });
         }

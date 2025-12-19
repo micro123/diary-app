@@ -69,7 +69,7 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
     [RelayCommand(CanExecute = nameof(CanAddTag))]
     private void NewTag()
     {
-        _logger.LogInformation("new tag, name = {0}, primary = {1}, color = {2}", NewTagName, NewIsPrimary, NewTagColor);
+        _logger.LogInformation("new tag, name = {name}, primary = {primary}, color = {color}", NewTagName, NewIsPrimary, NewTagColor);
         int rgb = HsvColorConverter.FromHsv(NewTagColor);
         var tag = App.Current.UseDb!.CreateWorkTag(NewTagName, NewIsPrimary, rgb);
         if (tag.Id > 0)

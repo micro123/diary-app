@@ -27,16 +27,18 @@ public partial class RedMineManageViewModel : ViewModelBase
     
     [ObservableProperty] private ObservableCollection<RedMineTabItemModel> _tabs = new();
     [ObservableProperty] private bool _serverOk;
+    private readonly RedMineInfoViewModel _redmineInfo;
 
     public RedMineManageViewModel(ILogger logger, IServiceProvider serviceProvider)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
+        _redmineInfo = _serviceProvider.GetRequiredService<RedMineInfoViewModel>();
         Tabs.Add(new RedMineTabItemModel()
         {
             Title = "基本信息",
             Icon = "mdi-information-slab-box-outline",
-            Content = _serviceProvider.GetRequiredService<RedMineInfoViewModel>(),
+            Content = _redmineInfo,
         });
         Tabs.Add(new RedMineTabItemModel()
         {
@@ -57,7 +59,8 @@ public partial class RedMineManageViewModel : ViewModelBase
 
     private void CheckServer()
     {
-        ServerOk = RedMineApis.GetUserInfo(out _);
-        _logger.LogInformation("RedMine Server Ok? {0}", ServerOk);
+        ServerOk = RedMineApis.GetUserInfo(out var info);
+        _logger.LogInformation("RedMine Server Ok? {Ok}", ServerOk);
+        _redmineInfo.UpdateUserInfo(info);
     }
 }

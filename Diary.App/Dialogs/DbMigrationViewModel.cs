@@ -9,6 +9,7 @@ using Diary.App.ViewModels;
 using Diary.Utils;
 using Irihi.Avalonia.Shared.Contracts;
 using Diary.MigrationTool;
+using Microsoft.Extensions.Logging;
 using Ursa.Controls;
 
 namespace Diary.App.Dialogs;
@@ -16,6 +17,7 @@ namespace Diary.App.Dialogs;
 [DiAutoRegister]
 public partial class DbMigrationViewModel: ViewModelBase, IDialogContext
 {
+    private readonly ILogger _logger;
     public static IList<string> DbProviders { get; } = ["SQLite", "PostgreSQL"];
 
     [ObservableProperty] private string _dbType = string.Empty;
@@ -39,8 +41,9 @@ public partial class DbMigrationViewModel: ViewModelBase, IDialogContext
     [ObservableProperty] private double _progress;
     [ObservableProperty] private string _message = string.Empty;
 
-    public DbMigrationViewModel()
+    public DbMigrationViewModel(ILogger logger)
     {
+        _logger = logger;
         DbType = DbProviders[0];
     }
     
@@ -57,6 +60,7 @@ public partial class DbMigrationViewModel: ViewModelBase, IDialogContext
 
     private void ProcessCallback(bool success, double progress, string message)
     {
+        _logger.LogInformation("Migrating: status {status}, progress {progress}, message {message}", success, progress, message);
         Dispatcher.UIThread.Invoke(() =>
         {
             Status = success;

@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Text;
+using Diary.Utils;
+using Microsoft.Extensions.Logging;
 using nng;
 using nng.Native;
 
@@ -11,6 +13,7 @@ public class AppSurveyor
     private INngListener? _listener;
     private ISurveyorAsyncContext<INngMsg>? _surveyorCtx;
     private CancellationTokenSource? _cts;
+    private ILogger Logger => Logging.Logger;
     
     public event EventHandler<string>? ReceiveMessage;
     
@@ -62,7 +65,7 @@ public class AppSurveyor
                     var code = msg.Err();
                     if (code != Defines.NngErrno.EAGAIN)
                     {
-                        Debug.WriteLine($"code {code}, stopped");
+                        Logger.LogInformation("surveyor error code {code}, stopped", code);
                         await _cts.CancelAsync();
                         _cts = null;
                         break;

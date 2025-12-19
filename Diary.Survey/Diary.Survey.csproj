@@ -11,4 +11,8 @@
       <PackageReference Include="NanomsgNG.NET" Version="1.7.0" />
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\Diary.Utils\Diary.Utils.csproj" />
+    </ItemGroup>
+
 </Project>

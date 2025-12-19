@@ -44,8 +44,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
 
         try
         {
-            var dsb = new NpgsqlSlimDataSourceBuilder(csb.ConnectionString)
-                .UseLoggerFactory(Logging.Factory).EnableParameterLogging();
+            var dsb = new NpgsqlSlimDataSourceBuilder(csb.ConnectionString);
             _dataSource = dsb.Build();
             _lastCommandTime = _stopwatch.ElapsedMilliseconds;
         }

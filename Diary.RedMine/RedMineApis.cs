@@ -2,12 +2,15 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using Diary.RedMine.Response;
+using Diary.Utils;
+using Microsoft.Extensions.Logging;
 using RestSharp;
 
 namespace Diary.RedMine;
 
 public static class RedMineApis
 {
+    private static ILogger Logger => Logging.Logger;
     public const int PageSize = 50;
     
     // 项目搜索: GET {base}/search.json?q=<keyword1 keyword2>&projects=1
@@ -31,11 +34,11 @@ public static class RedMineApis
             var response = client.Execute<ProjectInfo.SearchResult>(request);
             if (response.StatusCode != HttpStatusCode.OK)
             {
-                Debug.WriteLine($"http status code {response.StatusCode}: {response.ErrorMessage}");
+                Logger.LogError("http status code {StatusCode}: {ErrorMessage}", response.StatusCode, response.ErrorMessage);
             }
             else
             {
-                Debug.WriteLine($"response {response.Content}");
+                Logger.LogDebug("response {Content}", response.Content);
                 total =  response.Data!.Total;
                 projects = response.Data!.Results;
             }
@@ -56,11 +59,11 @@ public static class RedMineApis
             var response = client.Execute<ProjectInfo.FetchResult>(request);
             if (response.StatusCode != HttpStatusCode.OK)
             {
-                Debug.WriteLine($"http status code {response.StatusCode}: {response.ErrorMessage}");
+                Logger.LogError("http status code {StatusCode}: {ErrorMessage}", response.StatusCode, response.ErrorMessage);
             }
             else
             {
-                Debug.WriteLine($"response {response.Content}");
+                Logger.LogDebug("response {Content}", response.Content);
                 project = response.Data!.Project;
             }
         }
@@ -92,11 +95,11 @@ public static class RedMineApis
             var response = client.Execute<IssueInfo.SearchResult>(request);
             if (response.StatusCode != HttpStatusCode.OK)
             {
-                Debug.WriteLine($"http status code {response.StatusCode}: {response.ErrorMessage}");
+                Logger.LogError("http status code {StatusCode}: {ErrorMessage}", response.StatusCode, response.ErrorMessage);
             }
             else
             {
-                Debug.WriteLine($"response {response.Content}");
+                Logger.LogDebug("response {Content}", response.Content);
                 total = response.Data!.Total;
                 issues = response.Data.Issues;
             }
@@ -128,11 +131,11 @@ public static class RedMineApis
             var response = client.Execute<IssueInfo.SearchResult>(request);
             if (response.StatusCode != HttpStatusCode.OK)
             {
-                Debug.WriteLine($"http status code {response.StatusCode}: {response.ErrorMessage}");
+                Logger.LogError("http status code {StatusCode}: {ErrorMessage}", response.StatusCode, response.ErrorMessage);
             }
             else
             {
-                Debug.WriteLine($"response {response.Content}");
+                Logger.LogDebug("response {Content}", response.Content);
                 total = response.Data!.Total;
                 issues = response.Data.Issues;
             }
@@ -152,11 +155,11 @@ public static class RedMineApis
             var response = client.Execute<IssueInfo.FetchResult>(request);
             if (response.StatusCode != HttpStatusCode.OK)
             {
-                Debug.WriteLine($"http status code {response.StatusCode}: {response.ErrorMessage}");
+                Logger.LogError("http status code {StatusCode}: {ErrorMessage}", response.StatusCode, response.ErrorMessage);
             }
             else
             {
-                Debug.WriteLine($"response {response.Content}");
+                Logger.LogDebug("response {Content}", response.Content);
                 issues = response.Data!.Issue;
             }
         }
@@ -189,11 +192,11 @@ public static class RedMineApis
             var response = client.Execute<IssueInfo.FetchResult>(request);
             if (response.StatusCode != HttpStatusCode.Created)
             {
-                Debug.WriteLine($"http status code {response.StatusCode}: {response.ErrorMessage}");
+                Logger.LogError("http status code {StatusCode}: {ErrorMessage}", response.StatusCode, response.ErrorMessage);
             }
             else
             {
-                Debug.WriteLine($"response {response.Content}");
+                Logger.LogDebug("response {Content}", response.Content);
                 issue = response.Data!.Issue;
             }
         }
@@ -223,11 +226,11 @@ public static class RedMineApis
             var response = client.Execute<TimeInfo.PostResult>(request);
             if (response.StatusCode != HttpStatusCode.Created)
             {
-                Debug.WriteLine($"http status code {response.StatusCode}: {response.ErrorMessage}");
+                Logger.LogError("http status code {StatusCode}: {ErrorMessage}", response.StatusCode, response.ErrorMessage);
             }
             else
             {
-                Debug.WriteLine($"response {response.Content}");
+                Logger.LogDebug("response {Content}", response.Content);
                 timeInfo = response.Data!.TimeEntry;
             }
         }
@@ -259,11 +262,11 @@ public static class RedMineApis
             var response = client.Execute<TimeInfo.QueryResult>(request);
             if (response.StatusCode != HttpStatusCode.OK)
             {
-                Debug.WriteLine($"http status code {response.StatusCode}: {response.ErrorMessage}");
+                Logger.LogError("http status code {StatusCode}: {ErrorMessage}", response.StatusCode, response.ErrorMessage);
             }
             else
             {
-                Debug.WriteLine($"response {response.Content}");
+                Logger.LogDebug("response {Content}", response.Content);
                 total = response.Data!.Total;
                 timeInfos = response.Data!.TimeEntries;
             }
@@ -284,10 +287,11 @@ public static class RedMineApis
             var response = client.Execute<ActivityInfo.Res>(request);
             if (response.StatusCode != HttpStatusCode.OK)
             {
-                Debug.WriteLine($"http status code {response.StatusCode}: {response.ErrorMessage}");
+                Logger.LogError("http status code {StatusCode}: {ErrorMessage}", response.StatusCode, response.ErrorMessage);
             }
             else
             {
+                Logger.LogDebug("response {Content}", response.Content);
                 activities = response.Data!.TimeEntryActivities;
             }
         }
@@ -307,10 +311,11 @@ public static class RedMineApis
             var response = client.Execute<UserInfo.Res>(request);
             if (response.StatusCode != HttpStatusCode.OK)
             {
-                Debug.WriteLine($"http status code {response.StatusCode}: {response.ErrorMessage}");
+                Logger.LogError("http status code {StatusCode}: {ErrorMessage}", response.StatusCode, response.ErrorMessage);
             }
             else
             {
+                Logger.LogDebug("response {Content}", response.Content);
                 userInfo = response.Data!.User;
             }
         }

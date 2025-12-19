@@ -25,7 +25,7 @@ public class DbShareData
         {
             var active = false;
             
-            App.Current.Logger.LogDebug("db changed, mask = {0:X}", m.Value);
+            App.Current.Logger.LogDebug("db changed, mask = {Value:X}", m.Value);
             if (0 != (m.Value & DbChangedEvent.RedMineIssue))
             {
                 active = true;

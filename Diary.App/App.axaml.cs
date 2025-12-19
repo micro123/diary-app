@@ -120,7 +120,7 @@ namespace Diary.App
             var dbProviders = TypeLoader.GetImplementations<IDbFactory>(FsTools.GetBinaryDirectory(), "Diary.Db.*.dll");
             foreach (var dbProvider in dbProviders)
             {
-                Logger.LogInformation($"Db provider: {dbProvider.Name}, Usable? {dbProvider.Usable}");
+                Logger.LogInformation("Db provider: {Name}, Usable? {Usable}", dbProvider.Name, dbProvider.Usable);
                 if (dbProvider.Usable)
                     _dbFactories.Add(dbProvider);
             }
@@ -158,7 +158,7 @@ namespace Diary.App
                 default: throw new ArgumentOutOfRangeException(nameof(AppConfig.ViewSettings.DefaultColorTheme));
             }
 
-            Logger.LogDebug($"Theme: {ActualThemeVariant}");
+            Logger.LogDebug("Theme: {Variant}", ActualThemeVariant);
         }
 
         public override void OnFrameworkInitializationCompleted()
@@ -249,7 +249,7 @@ namespace Diary.App
             _timer.Interval = TimeSpan.FromSeconds(30);
             _timer.Tick += (_, _) =>
             {
-                Logger.LogDebug($"DB keep alive...");
+                Logger.LogDebug("DB keep alive...");
                 UseDb?.KeepAlive();
             };
             _timer.Start();

@@ -202,7 +202,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
     partial void OnSelectedDateChanged(DateTime value)
     {
         _currentDate = value;
-        _logger.LogDebug("date changed to {0}", _currentDate);
+        _logger.LogDebug("date changed to {Date}", _currentDate);
         FetchWorks();
     }
 
@@ -221,7 +221,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
         
         Messenger.Register<DbChangedEvent>(this, (r, m) =>
         {
-            Dispatcher.UIThread.Post(FetchWorks);
+            if ((m.Value & DbChangedEvent.ShareData) != 0)
+                Dispatcher.UIThread.Post(FetchWorks);
         });
         
         Messenger.Register<TemplateChangedEvent>(this, (r, m) =>

@@ -58,7 +58,7 @@
                     <DataGridTemplateColumn Width="120" Header="操作">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <Button Content="导入问题" Classes="Primary"
+                                <Button Content="导入问题" Classes="Primary" Padding="0" Width="120"
                                         Command="{Binding #ResultList.((pages:RedMineIssueManageViewModel)DataContext).ImportCommand}"
                                         CommandParameter="{Binding}" />
                             </DataTemplate>

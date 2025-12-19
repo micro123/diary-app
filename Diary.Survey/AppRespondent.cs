@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Text;
+using Diary.Utils;
+using Microsoft.Extensions.Logging;
 using nng;
 using nng.Native;
 
@@ -11,8 +13,9 @@ public class AppRespondent
     private INngDialer? _dialer;
     private ISurveyorAsyncContext<INngMsg>? _respondentCtx;
     private CancellationTokenSource? _cts;
-    private Queue<string> _msgToSend = new();
-    private object _lock = new();
+    private readonly Queue<string> _msgToSend = new();
+    private readonly Lock _lock = new();
+    private ILogger Logger => Logging.Logger;
 
     public event EventHandler<string>? ReceiveMessage;
 
@@ -89,7 +92,7 @@ public class AppRespondent
                     var result = await _respondentCtx.Send(nngMsg);
                     if (!result.IsOk())
                     {
-                        Debug.WriteLine($"send failed {result.Err()}");
+                        Logger.LogError("send failed {Msg}", msg.Err());
                     }
                 }
             }

@@ -59,32 +59,25 @@ public partial class RedMineInfoViewModel : ViewModelBase
         _logger = logger;
         _serviceProvider = serviceProvider;
         _shareData = shareData;
-
-        Messenger.Register<ConfigUpdateEvent>(this, (r, m) => { UpdateUserInfo(); });
-
-        Task.Run(UpdateUserInfo);
     }
 
-    private void UpdateUserInfo()
+    public void UpdateUserInfo(UserInfo? userInfo)
     {
-        RedMineApis.GetUserInfo(out var info);
-        Dispatcher.UIThread.Post(() => { UpdateUserInfo(info); });
-    }
-
-    private void UpdateUserInfo(UserInfo? userInfo)
-    {
-        if (userInfo is not null)
+        Dispatcher.UIThread.InvokeAsync(() =>
         {
-            UserName = $"{userInfo.LastName}{userInfo.FirstName}";
-            UserId = userInfo.Id;
-            UserLogin = userInfo.Login;
-        }
-        else
-        {
-            UserName = string.Empty;
-            UserId = 0;
-            UserLogin = string.Empty;
-        }
+            if (userInfo is not null)
+            {
+                UserName = $"{userInfo.LastName} {userInfo.FirstName}";
+                UserId = userInfo.Id;
+                UserLogin = userInfo.Login;
+            }
+            else
+            {
+                UserName = string.Empty;
+                UserId = 0;
+                UserLogin = string.Empty;
+            }
+        });
     }
 
     [RelayCommand]

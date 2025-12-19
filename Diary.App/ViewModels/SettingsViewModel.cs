@@ -8,6 +8,7 @@ using Diary.App.Messages;
 using Diary.App.Models;
 using Diary.App.Utils;
 using Diary.Utils;
+using Microsoft.Extensions.Logging;
 using Ursa.Controls;
 
 namespace Diary.App.ViewModels;
@@ -15,10 +16,12 @@ namespace Diary.App.ViewModels;
 [DiAutoRegister]
 public partial class SettingsViewModel : ViewModelBase
 {
+    private readonly ILogger _logger;
     [ObservableProperty] private SettingGroup _settingsTree = new("Root");
 
-    public SettingsViewModel()
+    public SettingsViewModel(ILogger logger)
     {
+        _logger = logger;
         BuildTree();
     }
 
@@ -45,7 +48,7 @@ public partial class SettingsViewModel : ViewModelBase
             icon: MessageBoxIcon.Warning,
             button: MessageBoxButton.OKCancel
         );
-        Debug.WriteLine($"Result: {confirm}");
+        _logger.LogDebug("Result: {confirm}", confirm);
         if (confirm != MessageBoxResult.OK)
             return;
 

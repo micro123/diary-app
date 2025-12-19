@@ -5,12 +5,15 @@ using System.Security.Cryptography;
 using System.Text;
 using Diary.Core.Configure;
 using Diary.Utils;
+using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 
 namespace Diary.Core.Utils;
 
 public static class EasySaveLoad
 {
+    private static ILogger Logger => Logging.Logger;
+    
     static class Pkcs7Alignment
     {
         /// <summary>
@@ -117,7 +120,7 @@ public static class EasySaveLoad
         }
         catch (CryptographicException ex)
         {
-            Debug.WriteLine(ex.Message);
+            Logger.LogError(ex, "AesDecrypt error");
             return string.Empty;
         }
     }

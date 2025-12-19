@@ -129,7 +129,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     var vm = _serviceProvider.GetRequiredService<GenericConfigViewModel>();
                     vm.InitSettings("数据库设置", App.Current.UseFactory!.GetConfig());
                     bool result = await OverlayDialog.ShowCustomModal<bool>(vm, options: options);
-                    _logger.LogInformation($"db settings updated: {result}");
+                    _logger.LogInformation("db settings updated: {result}", result);
                     if (result)
                         EventDispatcher.Msg(new ConfigUpdateEvent());
                 });
@@ -147,7 +147,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     };
                     var vm = _serviceProvider.GetRequiredService<DbMigrationViewModel>();
                     bool result = await OverlayDialog.ShowCustomModal<bool>(vm, options: options);
-                    _logger.LogInformation($"migration result is: {result}");
+                    _logger.LogInformation("migration result is: {result}", result);
                     if (result)
                         EventDispatcher.DbChanged();
                 });
