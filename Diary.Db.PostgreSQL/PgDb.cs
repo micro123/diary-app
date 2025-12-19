@@ -4,6 +4,7 @@ using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
 using Diary.Core.Data.Statistics;
 using Diary.Database;
+using Diary.Utils;
 using Npgsql;
 
 namespace Diary.Db.PostgreSQL;
@@ -21,6 +22,11 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
 {
     private readonly IDbFactory _factory = factory;
     private NpgsqlDataSource? _dataSource;
+    private NpgsqlConnection? _connection;
+    private NpgsqlTransaction? _transaction;
+    private Stopwatch _stopwatch = new();
+    private long _lastCommandTime;
+
     public override bool Connect()
     {
         var cfg = _factory.GetConfig() as Config;
@@ -35,11 +41,13 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
             Password = cfg.Password,
             CommandTimeout = 5,
         };
-        
+
         try
         {
-            var dsb = new NpgsqlSlimDataSourceBuilder(csb.ConnectionString);
+            var dsb = new NpgsqlSlimDataSourceBuilder(csb.ConnectionString)
+                .UseLoggerFactory(Logging.Factory).EnableParameterLogging();
             _dataSource = dsb.Build();
+            _lastCommandTime = _stopwatch.ElapsedMilliseconds;
         }
         catch (Exception)
         {
@@ -67,14 +75,14 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
     {
         return new WorkItem()
         {
-            Id =  reader.GetInt32(0),
+            Id = reader.GetInt32(0),
             CreateDate = reader.GetStringTrimmed(1),
             Comment = reader.GetStringTrimmed(2),
             Time = reader.GetFloat(3),
             Priority = (WorkPriorities)reader.GetInt32(4),
         };
     }
-    
+
     private RedMineActivity MapRedMineActivity(NpgsqlDataReader reader)
     {
         return new RedMineActivity()
@@ -83,7 +91,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
             Title = reader.GetStringTrimmed(1),
         };
     }
-    
+
     private RedMineProject MapRedMineProject(NpgsqlDataReader reader)
     {
         return new RedMineProject()
@@ -94,7 +102,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
             IsClosed = reader.GetInt32(3) != 0,
         };
     }
-    
+
     private RedMineIssue MapRedMineIssue(NpgsqlDataReader reader)
     {
         return new RedMineIssue()
@@ -106,7 +114,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
             IsClosed = reader.GetInt32(4) != 0,
         };
     }
-    
+
     private WorkTimeEntry MapWorkTimeEntry(NpgsqlDataReader reader)
     {
         return new WorkTimeEntry()
@@ -121,75 +129,82 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
 
     private NpgsqlCommand Command(string statement)
     {
+        _lastCommandTime = _stopwatch.ElapsedMilliseconds;
+        if (_connection != null)
+        {
+            return new NpgsqlCommand(statement, _connection, _transaction);
+        }
+
         return _dataSource!.CreateCommand(statement);
     }
+
     #endregion
-    
+
     public override bool Initialized()
     {
         var sql = """
-                  CREATE TABLE IF NOT EXISTS WORK_TAGS (
-                  	ID SERIAL PRIMARY KEY,
-                  	TAG_NAME CHAR(64) NOT NULL UNIQUE,
-                  	TAG_COLOR INTEGER NOT NULL DEFAULT 0,
-                  	TAG_LEVEL INTEGER NOT NULL DEFAULT 0,
-                  	IS_DISABLED INTEGER NOT NULL DEFAULT 0
+                  CREATE TABLE IF NOT EXISTS work_tags (
+                  	id SERIAL PRIMARY KEY,
+                  	tag_name CHAR(64) NOT NULL UNIQUE,
+                  	tag_color INTEGER NOT NULL DEFAULT 0,
+                  	tag_level INTEGER NOT NULL DEFAULT 0,
+                  	is_disabled INTEGER NOT NULL DEFAULT 0
                   );
-                  
-                  CREATE TABLE IF NOT EXISTS WORK_ITEMS (
-                  	ID SERIAL PRIMARY KEY,
-                  	CREATE_DATE CHAR(16) NOT NULL,
-                  	COMMENT CHAR(128) NOT NULL,
-                  	HOURS REAL DEFAULT 0.0,
-                  	PRIORITY INTEGER DEFAULT 0
+
+                  CREATE TABLE IF NOT EXISTS work_items (
+                  	id SERIAL PRIMARY KEY,
+                  	create_date CHAR(16) NOT NULL,
+                  	comment CHAR(128) NOT NULL,
+                  	hours REAL DEFAULT 0.0,
+                  	priority INTEGER DEFAULT 0
                   );
-                  
-                  CREATE TABLE IF NOT EXISTS WORK_NOTES (
-                  	ID INTEGER PRIMARY KEY REFERENCES WORK_ITEMS (ID) ON DELETE CASCADE,
-                  	NOTE TEXT NOT NULL
+
+                  CREATE TABLE IF NOT EXISTS work_notes (
+                  	id INTEGER PRIMARY KEY REFERENCES work_items (id) ON DELETE CASCADE,
+                  	note TEXT NOT NULL
                   );
-                  
-                  CREATE TABLE IF NOT EXISTS WORK_ITEM_TAGS (
-                  	WORK_ID INTEGER REFERENCES WORK_ITEMS (ID) ON DELETE CASCADE,
-                  	TAG_ID INTEGER REFERENCES WORK_TAGS (ID) ON DELETE CASCADE,
-                  	PRIMARY KEY (WORK_ID, TAG_ID)
+
+                  CREATE TABLE IF NOT EXISTS work_item_tags (
+                  	work_id INTEGER REFERENCES work_items (id) ON DELETE CASCADE,
+                  	tag_id INTEGER REFERENCES work_tags (id) ON DELETE CASCADE,
+                  	PRIMARY KEY (work_id, tag_id)
                   );
-                  
-                  CREATE TABLE IF NOT EXISTS REDMINE_PROJECTS (
-                  	ID INTEGER NOT NULL PRIMARY KEY,
-                  	PROJECT_NAME CHAR(128) NOT NULL,
-                  	PROJECT_DESC CHAR(1024) DEFAULT '',
-                  	IS_CLOSED INTEGER DEFAULT 0
+
+                  CREATE TABLE IF NOT EXISTS redmine_projects (
+                  	id INTEGER NOT NULL PRIMARY KEY,
+                  	project_name CHAR(128) NOT NULL,
+                  	project_desc CHAR(1024) DEFAULT '',
+                  	is_closed INTEGER DEFAULT 0
                   );
-                  
-                  CREATE TABLE IF NOT EXISTS REDMINE_ACTIVITIES (
-                  	ID INTEGER PRIMARY KEY,
-                  	ACT_NAME CHAR(32) NOT NULL
+
+                  CREATE TABLE IF NOT EXISTS redmine_activities (
+                  	id INTEGER PRIMARY KEY,
+                  	act_name CHAR(32) NOT NULL
                   );
-                  
-                  CREATE TABLE IF NOT EXISTS REDMINE_ISSUES (
-                  	ID INTEGER PRIMARY KEY,
-                  	ISSUE_TITLE CHAR(128) NOT NULL,
-                  	ASSIGNED_TO CHAR(16) DEFAULT '',
-                  	PROJECT_ID INTEGER NOT NULL REFERENCES REDMINE_PROJECTS (ID) ON DELETE CASCADE,
-                  	IS_CLOSED INTEGER DEFAULT 0
+
+                  CREATE TABLE IF NOT EXISTS redmine_issues (
+                  	id INTEGER PRIMARY KEY,
+                  	issue_title CHAR(128) NOT NULL,
+                  	assigned_to CHAR(16) DEFAULT '',
+                  	project_id INTEGER NOT NULL REFERENCES redmine_projects (id) ON DELETE CASCADE,
+                  	is_closed INTEGER DEFAULT 0
                   );
-                  
-                  CREATE TABLE IF NOT EXISTS REDMINE_TIME_ENTRIES (
-                  	WORK_ID INTEGER PRIMARY KEY REFERENCES WORK_ITEMS (ID) ON DELETE CASCADE,
-                  	ID INTEGER DEFAULT 0,
-                  	ACT_ID INTEGER REFERENCES REDMINE_ACTIVITIES (ID) ON DELETE CASCADE,
-                  	ISSUE_ID INTEGER REFERENCES REDMINE_ISSUES (ID) ON DELETE CASCADE
+
+                  CREATE TABLE IF NOT EXISTS redmine_time_entries (
+                  	work_id INTEGER PRIMARY KEY REFERENCES work_items (id) ON DELETE CASCADE,
+                  	id INTEGER DEFAULT 0,
+                  	act_id INTEGER REFERENCES redmine_activities (id) ON DELETE CASCADE,
+                  	issue_id INTEGER REFERENCES redmine_issues (id) ON DELETE CASCADE
                   );
-                  
-                  CREATE TABLE IF NOT EXISTS DATA_VERSIONS (VERSION_CODE INTEGER PRIMARY KEY);
-                  
-                  -- default data version is 1.0.0 (0x1000000)
+
+                  CREATE TABLE IF NOT EXISTS data_versions (version_code INTEGER PRIMARY KEY);
+
+                  -- default data version is 1.0.0 (0x10000 = 65536)
                   INSERT
-                  	INTO DATA_VERSIONS
+                  	INTO data_versions
                   VALUES
-                  	(0x10000)
-                  ON CONFLICT (VERSION_CODE)
+                  	(65536)
+                  ON CONFLICT (version_code)
                   	DO NOTHING;
                   """;
         using var cmd = Command(sql);
@@ -207,6 +222,11 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
 
     public override bool KeepAlive()
     {
+        if (_stopwatch.ElapsedMilliseconds - _lastCommandTime < 30_000)
+        {
+            return true;
+        }
+
         using var cmd = Command("select version();");
         return cmd.ExecuteNonQuery() > 0;
     }
@@ -253,6 +273,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
         {
             return MapWorkTag(reader);
         }
+
         return new WorkTag();
     }
 
@@ -289,7 +310,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
     public override ICollection<WorkTag> AllWorkTags()
     {
         var sql = "SELECT * FROM work_tags ORDER BY is_disabled, tag_level, id;";
-        
+
         var result = new List<WorkTag>();
         using var cmd = Command(sql);
         using var reader = cmd.ExecuteReader();
@@ -297,8 +318,17 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
         {
             result.Add(MapWorkTag(reader));
         }
-        
+
         return result;
+    }
+
+    public override bool UpdateWorkTagId(int oldId, int newId)
+    {
+        var sql = "UPDATE work_tags SET id=$1 WHERE id=$2;";
+        using var cmd = Command(sql);
+        cmd.Parameters.AddWithValue(newId);
+        cmd.Parameters.AddWithValue(oldId);
+        return cmd.ExecuteNonQuery() > 0;
     }
 
     public override WorkItem CreateWorkItem(string date, string comment)
@@ -334,7 +364,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
     {
         if (item.Id == 0)
             return false;
-        
+
         var sql = """
                   DELTE FROM work_items WHERE id=$1;
                   """;
@@ -377,6 +407,15 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
         }
 
         return items;
+    }
+
+    public override bool UpdateWorkItemId(int oldId, int newId)
+    {
+        var sql = "UPDATE work_items SET id=$1 WHERE id=$2;";
+        using var cmd = Command(sql);
+        cmd.Parameters.AddWithValue(newId);
+        cmd.Parameters.AddWithValue(oldId);
+        return cmd.ExecuteNonQuery() > 0;
     }
 
     public override void WorkUpdateNote(WorkItem work, string content)
@@ -424,21 +463,28 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
 
     public override bool WorkItemAddTag(WorkItem item, WorkTag tag)
     {
-        if (item.Id == 0 ||  tag.Id == 0)
+        if (item.Id == 0 || tag.Id == 0)
             throw new ArgumentException($"{nameof(item.Id)} or {nameof(tag.Id)} is required");
 
-        var sql = """
-                  INSERT INTO work_item_tags(work_id, tag_id) VALUES ($1, $2);
-                  """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(item.Id);
-        cmd.Parameters.AddWithValue(tag.Id);
-        return cmd.ExecuteNonQuery() > 0;
+        try
+        {
+            var sql = """
+                      INSERT INTO work_item_tags(work_id, tag_id) VALUES ($1, $2);
+                      """;
+            using var cmd = Command(sql);
+            cmd.Parameters.AddWithValue(item.Id);
+            cmd.Parameters.AddWithValue(tag.Id);
+            return cmd.ExecuteNonQuery() > 0;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     public override bool WorkItemRemoveTag(WorkItem item, WorkTag tag)
     {
-        if (item.Id == 0 ||  tag.Id == 0)
+        if (item.Id == 0 || tag.Id == 0)
             throw new ArgumentException($"{nameof(item.Id)} or {nameof(tag.Id)} is required");
 
         var sql = """
@@ -482,6 +528,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
         {
             result.Add(MapWorkTag(reader));
         }
+
         return result;
     }
 
@@ -502,7 +549,8 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
         return new RedMineActivity();
     }
 
-    public override RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project, bool closed = false)
+    public override RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project,
+        bool closed = false)
     {
         var sql = """
                   INSERT INTO redmine_issues(id, issue_title, assigned_to, project_id, is_closed)
@@ -520,7 +568,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
             return MapRedMineIssue(reader);
         return new RedMineIssue();
     }
-    
+
     public override void UpdateRedMineIssueStatus(int id, bool closed)
     {
         var sql = """
@@ -585,7 +633,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   """;
         var cmd = Command(sql);
         cmd.Parameters.AddWithValue(item.Id);
-        return  cmd.ExecuteNonQuery() > 0;
+        return cmd.ExecuteNonQuery() > 0;
     }
 
     public override ICollection<RedMineActivity> GetRedMineActivities()
@@ -614,7 +662,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                 Disabled = reader.GetInt32(4) != 0,
             };
         }
-        
+
         var issues = new List<RedMineIssueDisplay>();
         if (project == null)
         {
@@ -645,6 +693,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                 issues.Add(MapRedMineIssueDisplay(reader));
             }
         }
+
         return issues;
     }
 
@@ -660,21 +709,29 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
         {
             projects.Add(MapRedMineProject(reader));
         }
+
         return projects;
     }
 
     public override WorkTimeEntry? CreateWorkTimeEntry(int work, int activity, int issus)
     {
-        var sql = """
-                  INSERT INTO redmine_time_entries(work_id, act_id, issue_id) VALUES ($1, $2, $3)
-                  ON CONFLICT (work_id) DO UPDATE SET act_id=$2, issue_id=$3 RETURNING *;
-                  """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(work);
-        cmd.Parameters.AddWithValue(activity);
-        cmd.Parameters.AddWithValue(issus);
-        using var reader = cmd.ExecuteReader();
-        return reader.Read() ? MapWorkTimeEntry(reader) : null;
+        try
+        {
+            var sql = """
+                      INSERT INTO redmine_time_entries(work_id, act_id, issue_id) VALUES ($1, $2, $3)
+                      ON CONFLICT (work_id) DO UPDATE SET act_id=$2, issue_id=$3 RETURNING *;
+                      """;
+            using var cmd = Command(sql);
+            cmd.Parameters.AddWithValue(work);
+            cmd.Parameters.AddWithValue(activity);
+            cmd.Parameters.AddWithValue(issus);
+            using var reader = cmd.ExecuteReader();
+            return reader.Read() ? MapWorkTimeEntry(reader) : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     public override bool UpdateWorkTimeEntry(WorkTimeEntry timeEntry)
@@ -712,7 +769,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
             if (reader.Read() && !reader.IsDBNull(0))
                 result.Total = reader.GetFloat(0);
         }
-        
+
         if (result.Total > 0)
         {
             var sql = """
@@ -754,7 +811,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                       	work_tags ON work_tags.id=T2.tag_id AND work_tags.tag_level!=0)
                       GROUP BY work_tags.id;
                       """;
-            
+
             using var cmd = Command(sql);
             cmd.Parameters.AddWithValue(beginDate);
             cmd.Parameters.AddWithValue(endDate);
@@ -770,7 +827,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                 });
             }
         }
-        
+
         return result;
     }
 
@@ -796,7 +853,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
             PrimaryTags = Array.Empty<TagTime>(),
         };
     }
-    
+
     public override ICollection<WorkItem> GetWorkItemsByTagAndDate(string dateBegin, string dateEnd, int l1, int l2 = 0)
     {
         var result = new List<WorkItem>();
@@ -854,7 +911,85 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                 });
             }
         }
+
         return result;
+    }
+
+    public override bool DropData()
+    {
+        try
+        {
+            using var batch = _dataSource!.CreateBatch();
+            batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM work_item_tags;"));
+            batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM work_tags;"));
+            batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM work_notes;"));
+            batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM redmine_time_entries;"));
+            batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM redmine_activities;"));
+            batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM redmine_issues;"));
+            batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM redmine_projects;"));
+            batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM work_items;"));
+            batch.ExecuteNonQuery();
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    public override bool BeginTransaction()
+    {
+        Debug.Assert(_connection == null && _transaction == null);
+
+        // 使用同一个 connection 去操作数据库
+        _connection = _dataSource!.OpenConnection();
+        _transaction = _connection.BeginTransaction();
+        return true;
+    }
+
+    public override bool CommitTransaction()
+    {
+        Debug.Assert(_transaction != null && _connection != null);
+
+        try
+        {
+            _transaction!.Commit();
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+        finally
+        {
+            _transaction.Dispose();
+            _transaction = null;
+            _connection.Dispose();
+            _connection = null;
+        }
+    }
+
+    public override bool RollbackTransaction()
+    {
+        Debug.Assert(_transaction != null && _connection != null);
+
+        try
+        {
+            _transaction!.Rollback();
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+        finally
+        {
+            _transaction.Dispose();
+            _transaction = null;
+            _connection.Dispose();
+            _connection = null;
+        }
     }
 
     public void Dispose()

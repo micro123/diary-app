@@ -9,6 +9,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\Diary.Database\Diary.Database.csproj" />
+      <ProjectReference Include="..\Diary.RedMine\Diary.RedMine.csproj" />
     </ItemGroup>
 
     <ItemGroup>

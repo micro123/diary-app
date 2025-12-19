@@ -63,8 +63,10 @@ namespace Diary.App
         {
             message = string.Empty;
             // do not change existing database
-            if (UseDb != null)
-                return true;
+            // if (UseDb != null)
+            //     return true;
+            UseDb?.Close();
+            UseDb = null;
             
             // 从配置获取当前的数据库提供程序
             UseFactory = _dbFactories.FirstOrDefault(x => x.Name == AppConfig.DbSettings.DatabaseDriver);

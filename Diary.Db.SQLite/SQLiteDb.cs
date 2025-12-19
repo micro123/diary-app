@@ -14,8 +14,10 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     private readonly IDbFactory _factory = factory;
 
     private SQLiteConnection? _connection;
-    
+    private SQLiteTransaction? _transaction;
+
     #region helpers
+
     private static WorkTag MapWorkTag(SQLiteDataReader reader)
     {
         return new WorkTag()
@@ -32,14 +34,14 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     {
         return new WorkItem()
         {
-            Id =  reader.GetInt32(0),
+            Id = reader.GetInt32(0),
             CreateDate = reader.GetString(1),
             Comment = reader.GetString(2),
             Time = reader.GetFloat(3),
             Priority = (WorkPriorities)reader.GetInt32(4),
         };
     }
-    
+
     private RedMineActivity MapRedMineActivity(SQLiteDataReader reader)
     {
         return new RedMineActivity()
@@ -48,7 +50,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
             Title = reader.GetString(1),
         };
     }
-    
+
     private RedMineProject MapRedMineProject(SQLiteDataReader reader)
     {
         return new RedMineProject()
@@ -59,7 +61,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
             IsClosed = reader.GetInt32(3) != 0,
         };
     }
-    
+
     private RedMineIssue MapRedMineIssue(SQLiteDataReader reader)
     {
         return new RedMineIssue()
@@ -71,7 +73,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
             IsClosed = reader.GetInt32(4) != 0,
         };
     }
-    
+
     private WorkTimeEntry MapWorkTimeEntry(SQLiteDataReader reader)
     {
         return new WorkTimeEntry()
@@ -82,6 +84,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
             IssueId = reader.GetInt32(3),
         };
     }
+
     #endregion
 
     public override bool Connect()
@@ -307,6 +310,16 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         return result;
     }
 
+    public override bool UpdateWorkTagId(int oldId, int newId)
+    {
+        const string sql = "UPDATE work_tags SET id=$new WHERE id=$old;";
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$old", oldId);
+        cmd.Parameters.AddWithValue("$new", newId);
+        return cmd.ExecuteNonQuery() > 0;
+    }
+
     public override WorkItem CreateWorkItem(string date, string comment)
     {
         const string sql =
@@ -390,6 +403,16 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         return items;
     }
 
+    public override bool UpdateWorkItemId(int oldId, int newId)
+    {
+        const string sql = "UPDATE work_items SET id=$new WHERE id=$old;";
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$old", oldId);
+        cmd.Parameters.AddWithValue("$new", newId);
+        return cmd.ExecuteNonQuery() > 0;
+    }
+
     public override void WorkUpdateNote(WorkItem work, string content)
     {
         if (work.Id == 0)
@@ -434,11 +457,18 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     {
         const string sql =
             @"INSERT INTO work_item_tags VALUES($work_id, $tag_id) RETURNING *;";
-        var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$work_id", item.Id);
-        cmd.Parameters.AddWithValue("$tag_id", tag.Id);
-        return cmd.ExecuteNonQuery() > 0;
+        try
+        {
+            var cmd = _connection!.CreateCommand();
+            cmd.CommandText = sql;
+            cmd.Parameters.AddWithValue("$work_id", item.Id);
+            cmd.Parameters.AddWithValue("$tag_id", tag.Id);
+            return cmd.ExecuteNonQuery() > 0;
+        }
+        catch (SQLiteException)
+        {
+            return false;
+        }
     }
 
     public override bool WorkItemRemoveTag(WorkItem item, WorkTag tag)
@@ -691,17 +721,23 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
 
         const string sql =
             "INSERT INTO redmine_time_entries(work_id, act_id, issue_id) VALUES ($workId, $actId, $issueId) ON CONFLICT DO UPDATE SET act_id=$actId, issue_id=$issueId RETURNING *;";
-        var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$workId", work);
-        cmd.Parameters.AddWithValue("$actId", activity);
-        cmd.Parameters.AddWithValue("$issueId", issue);
-        using var reader = cmd.ExecuteReader();
-        if (reader.Read())
+        try
         {
-            return MapWorkTimeEntry(reader);
+            var cmd = _connection!.CreateCommand();
+            cmd.CommandText = sql;
+            cmd.Parameters.AddWithValue("$workId", work);
+            cmd.Parameters.AddWithValue("$actId", activity);
+            cmd.Parameters.AddWithValue("$issueId", issue);
+            using var reader = cmd.ExecuteReader();
+            if (reader.Read())
+            {
+                return MapWorkTimeEntry(reader);
+            }
         }
-
+        catch (SQLiteException)
+        {
+            return null;
+        }
         return null;
     }
 
@@ -743,7 +779,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
             if (reader.Read() && !reader.IsDBNull(0))
                 result.Total = reader.GetDouble(0);
         }
-        
+
         if (result.Total > 0)
         {
             var sql = """
@@ -786,7 +822,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
                       	work_tags ON work_tags.id=T2.tag_id AND work_tags.tag_level!=0)
                       GROUP BY work_tags.id;
                       """;
-            
+
             var cmd = _connection!.CreateCommand();
             cmd.CommandText = sql;
             cmd.Parameters.AddWithValue("$beginDate", beginDate);
@@ -803,7 +839,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
                 });
             }
         }
-        
+
         return result;
     }
 
@@ -830,7 +866,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
             PrimaryTags = Array.Empty<TagTime>(),
         };
     }
-    
+
     public override ICollection<WorkItem> GetWorkItemsByTagAndDate(string dateBegin, string dateEnd, int l1, int l2 = 0)
     {
         var result = new List<WorkItem>();
@@ -876,16 +912,103 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
                 result.Add(MapWorkItem(reader));
             }
         }
+
         return result;
+    }
+
+    public override bool DropData()
+    {
+        using var transaction = _connection!.BeginTransaction();
+        try
+        {
+            var sql = """
+                      DELETE FROM work_item_tags;
+                      DELETE FROM work_tags;
+                      DELETE FROM work_notes;
+                      DELETE FROM redmine_time_entries;
+                      DELETE FROM redmine_activities;
+                      DELETE FROM redmine_issues;
+                      DELETE FROM redmine_projects;
+                      DELETE FROM work_items;
+                      """;
+            var cmd = _connection.CreateCommand();
+            cmd.CommandText = sql;
+            cmd.ExecuteNonQuery();
+            transaction.Commit();
+        }
+        catch (Exception)
+        {
+            transaction.Rollback();
+            return false;
+        }
+
+        return true;
+    }
+
+    public override bool BeginTransaction()
+    {
+        Debug.Assert(_transaction == null);
+
+        try
+        {
+            _transaction = _connection!.BeginTransaction();
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    public override bool CommitTransaction()
+    {
+        Debug.Assert(_transaction != null);
+
+        try
+        {
+            _transaction.Commit();
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+        finally
+        {
+            _transaction.Dispose();
+            _transaction = null;
+        }
+    }
+
+    public override bool RollbackTransaction()
+    {
+        Debug.Assert(_transaction != null);
+
+        try
+        {
+            _transaction.Rollback();
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+        finally
+        {
+            _transaction.Dispose();
+            _transaction = null;
+        }
     }
 
     public void Dispose()
     {
+        _transaction?.Dispose();
         _connection?.Dispose();
     }
 
     public async ValueTask DisposeAsync()
     {
+        if (_transaction != null) await _transaction.DisposeAsync();
         if (_connection != null) await _connection.DisposeAsync();
     }
 }

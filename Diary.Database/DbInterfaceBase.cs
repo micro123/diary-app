@@ -26,6 +26,7 @@ public abstract class DbInterfaceBase
     public abstract bool UpdateWorkTag(WorkTag tag);
     public abstract bool DeleteWorkTag(WorkTag tag);
     public abstract ICollection<WorkTag> AllWorkTags();
+    public abstract bool UpdateWorkTagId(int oldId, int newId);
 
     // work item
     public abstract WorkItem CreateWorkItem(string date, string comment);
@@ -33,6 +34,7 @@ public abstract class DbInterfaceBase
     public abstract bool DeleteWorkItem(WorkItem item);
     public abstract ICollection<WorkItem> GetWorkItemByDateRange(string beginData, string endData);
     public abstract ICollection<WorkItem> GetWorkItemByDate(string data);
+    public abstract bool UpdateWorkItemId(int oldId, int newId);
 
     // work note
     public abstract void WorkUpdateNote(WorkItem work, string content);
@@ -66,6 +68,12 @@ public abstract class DbInterfaceBase
     public abstract StatisticsResult GetStatistics(string beginDate, string endDate);
     public abstract StatisticsResult GetStatistics();
     public abstract ICollection<WorkItem> GetWorkItemsByTagAndDate(string dateBegin, string dateEnd, int l1, int l2 = 0);
+    
+    // migrate use
+    public abstract bool DropData();
+    public abstract bool BeginTransaction();
+    public abstract bool CommitTransaction();
+    public abstract bool RollbackTransaction();
 }
 
 

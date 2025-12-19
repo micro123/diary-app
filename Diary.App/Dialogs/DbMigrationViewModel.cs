@@ -2,12 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.ViewModels;
 using Diary.Utils;
 using Irihi.Avalonia.Shared.Contracts;
 using Diary.MigrationTool;
+using Ursa.Controls;
 
 namespace Diary.App.Dialogs;
 
@@ -31,6 +33,11 @@ public partial class DbMigrationViewModel: ViewModelBase, IDialogContext
     [ObservableProperty] private ushort _port = 5432;
     [ObservableProperty] private string _user = string.Empty;
     [ObservableProperty] private string _password = string.Empty;
+    
+    // status message
+    [ObservableProperty] private bool _status = true;
+    [ObservableProperty] private double _progress;
+    [ObservableProperty] private string _message = string.Empty;
 
     public DbMigrationViewModel()
     {
@@ -48,49 +55,64 @@ public partial class DbMigrationViewModel: ViewModelBase, IDialogContext
         Close();
     }
 
+    private void ProcessCallback(bool success, double progress, string message)
+    {
+        Dispatcher.UIThread.Invoke(() =>
+        {
+            Status = success;
+            Progress = progress * 100.0;
+            Message = message;
+        });
+    }
+
     [RelayCommand(CanExecute = nameof(CanWork))]
     private async Task DoMigrate()
     {
+        var ans = await MessageBox.ShowOverlayAsync("当前数据将全部丢失，要继续吗？", "操作确认",
+            icon: MessageBoxIcon.Warning,
+            button: MessageBoxButton.YesNo);
+        if (ans != MessageBoxResult.Yes)
+            return;
+        
         Working = true;
-        await Task.Run(() =>
+        var result = await Task.Run(() =>
         {
             var db = App.Current.UseDb;
             if (db == null)
-                return; // error: must connect to db first!
+                return false; // error: must connect to db first!
             if (SqliteMode)
             {
                 if (!File.Exists(SqlitePath))
                 {
                     // error: file not exists!
-                    return;
+                    return false;
                 }
 
-                Migrator.MigrateFromSqlite(db, SqlitePath);
+                return Migrator.MigrateFromSqlite(db, SqlitePath, ProcessCallback);
             }
-            else
+
+            // check params
+            if (!string.IsNullOrEmpty(Host) &&
+                !string.IsNullOrEmpty(Database) &&
+                !string.IsNullOrEmpty(User) &&
+                !string.IsNullOrEmpty(Password))
             {
-                // check params
-                if (!string.IsNullOrEmpty(Host) &&
-                    !string.IsNullOrEmpty(Database) &&
-                    !string.IsNullOrEmpty(User) &&
-                    !string.IsNullOrEmpty(Password))
-                {
-                    Migrator.MigrateFromPgsql(db, Host, Port, Database, User, Password);
-                }
-                else
-                {
-                    // error: param(s) missing!
-                }
+                return Migrator.MigrateFromPgsql(db, Host, Port, Database, User, Password, ProcessCallback);
             }
+
+            // error: param(s) missing!
+            return false;
         });
         Working = false;
+        if (result)
+            RequestClose?.Invoke(this, true);
     }
 
     private bool CanWork => !Working;
 
     public void Close()
     {
-        RequestClose?.Invoke(this, null);
+        RequestClose?.Invoke(this, false);
     }
 
     public event EventHandler<object?>? RequestClose;

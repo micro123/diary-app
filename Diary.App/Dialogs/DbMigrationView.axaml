@@ -8,28 +8,36 @@
              x:DataType="dialogs:DbMigrationViewModel"
              x:Class="Diary.App.Dialogs.DbMigrationView"
              MinHeight="400" MinWidth="650" Margin="8 24 8 8">
-    <DockPanel VerticalSpacing="4" IsEnabled="{Binding !Working}">
+    <DockPanel VerticalSpacing="4">
         <TextBlock Classes="Header" Text="数据迁移向导" DockPanel.Dock="Top" />
-        <Separator DockPanel.Dock="Top"/>
-        <Grid ColumnDefinitions="Auto,Auto,*" DockPanel.Dock="Top" ColumnSpacing="4">
-            <TextBlock Grid.Row="0" Grid.Column="0" Classes="SettingLineCaption" Text="数据库类型:"/>
+        <Separator DockPanel.Dock="Top" />
+        <Grid ColumnDefinitions="Auto,Auto,*" DockPanel.Dock="Top" ColumnSpacing="4" IsEnabled="{Binding !Working}">
+            <TextBlock Grid.Row="0" Grid.Column="0" Classes="SettingLineCaption" Text="数据库类型:" />
             <ComboBox Grid.Row="0" Grid.Column="1" Classes="SLV"
                       ItemsSource="{Binding DbProviders}"
-                      SelectedItem="{Binding DbType}"/>
+                      SelectedItem="{Binding DbType}" />
         </Grid>
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
                     HorizontalAlignment="Center" Spacing="16">
             <Button Classes="Primary" Content="取消" Command="{Binding AbortCommand}" />
             <Button Classes="Danger" Content="迁移" Command="{Binding DoMigrateCommand}" />
         </StackPanel>
-        <Panel>
+        <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="4" IsVisible="{Binding Working}"
+              DockPanel.Dock="Bottom">
+            <TextBlock Grid.Column="0" Text="正在迁移中" />
+            <ProgressBar Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding Progress}"
+                         Width="160" ShowProgressText="True" />
+            <TextBlock Grid.Column="2" Text="{Binding Message}" VerticalAlignment="Center"
+                       TextAlignment="Left" />
+        </Grid>
+        <Panel IsEnabled="{Binding !Working}">
             <Grid IsVisible="{Binding SqliteMode}" ColumnDefinitions="Auto,Auto,*"
                   RowDefinitions="Auto" ColumnSpacing="4" RowSpacing="4">
                 <!-- SQLITE -->
                 <TextBlock Grid.Row="0" Grid.Column="0" Classes="SettingLineCaption" Text="数据库文件:" />
                 <u:PathPicker Grid.Row="0" Grid.Column="1" SelectedPathsText="{Binding SqlitePath}"
                               IsClearSelectionOnCancel="False" Title="选择数据库文件" AllowMultiple="False"
-                              UsePickerType="OpenFile" Classes="SLV"/>
+                              UsePickerType="OpenFile" Classes="SLV" />
             </Grid>
             <Grid IsVisible="{Binding !SqliteMode}" ColumnDefinitions="Auto,Auto,*"
                   RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="4" RowSpacing="4">
@@ -37,7 +45,7 @@
                 <TextBox Grid.Row="" Grid.Column="1" Classes="SLV" Text="{Binding Host}" />
                 <TextBlock Grid.Row="1" Grid.Column="0" Classes="SettingLineCaption" Text="服务端口:" />
                 <u:NumericUShortUpDown Grid.Row="1" Grid.Column="1" Value="{Binding Port}"
-                                       Classes="SLV" ShowButtonSpinner="False"/>
+                                       Classes="SLV" ShowButtonSpinner="False" />
                 <TextBlock Grid.Row="2" Grid.Column="0" Classes="SettingLineCaption" Text="数据库名称:" />
                 <TextBox Grid.Row="2" Grid.Column="1" Classes="SLV" Text="{Binding Database}" />
                 <TextBlock Grid.Row="3" Grid.Column="0" Classes="SettingLineCaption" Text="用户名:" />
