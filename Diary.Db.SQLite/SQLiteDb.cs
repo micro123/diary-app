@@ -127,7 +127,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
                                     	work_items(
                                     		id INTEGER PRIMARY KEY AUTOINCREMENT,
                                     		create_date CHAR(16) NOT NULL,
-                                    		comment CHAR(128) NOT NULL,
+                                    		comment CHAR(256) NOT NULL,
                                     		hours REAL DEFAULT 0.0,
                                     		priority INTEGER DEFAULT 0
                                     	);
@@ -153,21 +153,21 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
                                     CREATE TABLE IF NOT EXISTS
                                     	redmine_projects(
                                     		id INTEGER NOT NULL PRIMARY KEY,
-                                    		project_name CHAR(128) NOT NULL,
-                                    		project_desc CHAR(1024) DEFAULT '',
+                                    		project_name CHAR(256) NOT NULL,
+                                    		project_desc CHAR(2048) DEFAULT '',
                                     		is_closed INTEGER DEFAULT 0
                                     	);
                                     	
                                     CREATE TABLE IF NOT EXISTS
                                     	redmine_activities(
                                     		id INTEGER PRIMARY KEY,
-                                    		act_name CHAR(32) NOT NULL
+                                    		act_name CHAR(64) NOT NULL
                                     	);
                                     	
                                     CREATE TABLE IF NOT EXISTS
                                     	redmine_issues(
                                     		id INTEGER PRIMARY KEY,
-                                    		issue_title CHAR(128) NOT NULL,
+                                    		issue_title CHAR(256) NOT NULL,
                                     		assigned_to CHAR(16) DEFAULT '',
                                     		project_id INTEGER NOT NULL REFERENCES
                                     			redmine_projects(id) ON DELETE CASCADE,

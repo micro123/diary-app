@@ -39,11 +39,12 @@ public partial class WorkEditorViewModel : ViewModelBase
     public ObservableCollection<WorkTag> AllTags => _shareData.WorkTags;
 
     // todo: redmine date
-    public ObservableCollection<RedMineIssueDisplay> RedMineIssues => _shareData.RedMineIssues;
+    public ObservableCollection<RedMineIssueDisplay> RedMineIssues => _shareData.RedMineIssuesOpen;
     public ObservableCollection<RedMineActivity> RedMineActivities => _shareData.RedMineActivities;
     [ObservableProperty] private int _issueIndex = -1;
     [ObservableProperty] private int _activityIndex = -1;
     [ObservableProperty] private bool _uploaded = false;
+    [ObservableProperty] private string _issueText = string.Empty;
 
     // todo: plm?
 
@@ -262,9 +263,11 @@ public partial class WorkEditorViewModel : ViewModelBase
             var i = 0;
             while (i < RedMineIssues.Count)
             {
-                if (TimeEntry.IssueId == RedMineIssues[i].Id)
+                var x = RedMineIssues[i];
+                if (TimeEntry.IssueId == x.Id)
                 {
                     IssueIndex = i;
+                    IssueText = $"#{x.Id} {x.Title} ({x.Project})";
                     break;
                 }
 
@@ -288,6 +291,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         else
         {
             IssueIndex = ActivityIndex = -1;
+            IssueText = string.Empty;
         }
     }
 
@@ -302,6 +306,7 @@ public partial class WorkEditorViewModel : ViewModelBase
             Time = 0.0,
             Priority = Priority,
             IssueIndex = IssueIndex,
+            IssueText = IssueText,
             ActivityIndex = ActivityIndex,
         };
         foreach (var tag in WorkTags)
@@ -336,7 +341,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         if (WorkTags.Count > 0)
         {
             // show only secondary tags
-            foreach (var tag in AllTags.Where(x => x.Level == TagLevels.Secondary))
+            foreach (var tag in AllTags.Where(x => x is { Level: TagLevels.Secondary, Disabled: false }))
             {
                 if (!WorkTags.Contains(tag))
                     AvailableTags.Add(tag);
@@ -345,7 +350,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         else
         {
             // show only primary tags
-            foreach (var tag in AllTags.Where(x => x.Level == TagLevels.Primary))
+            foreach (var tag in AllTags.Where(x => x is { Level: TagLevels.Primary, Disabled: false }))
             {
                 AvailableTags.Add(tag);
             }
@@ -393,13 +398,16 @@ public partial class WorkEditorViewModel : ViewModelBase
     {
         for (var i = 0; i < RedMineIssues.Count; i++)
         {
-            if (RedMineIssues[i].Id == issueId)
+            var x =  RedMineIssues[i];
+            if (x.Id == issueId)
             {
                 IssueIndex = i;
+                IssueText = $"#{x.Id} {x.Title} ({x.Project})";
                 return;
             }
         }
 
         IssueIndex = -1;
+        IssueText = string.Empty;
     }
 }

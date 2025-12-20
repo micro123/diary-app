@@ -4,7 +4,6 @@ using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
 using Diary.Core.Data.Statistics;
 using Diary.Database;
-using Diary.Utils;
 using Npgsql;
 
 namespace Diary.Db.PostgreSQL;
@@ -23,7 +22,6 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
     private readonly IDbFactory _factory = factory;
     private NpgsqlDataSource? _dataSource;
     private NpgsqlConnection? _connection;
-    private NpgsqlTransaction? _transaction;
     private Stopwatch _stopwatch = new();
     private long _lastCommandTime;
 
@@ -131,7 +129,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
         _lastCommandTime = _stopwatch.ElapsedMilliseconds;
         if (_connection != null)
         {
-            return new NpgsqlCommand(statement, _connection, _transaction);
+            return new NpgsqlCommand(statement, _connection);
         }
 
         return _dataSource!.CreateCommand(statement);
@@ -153,7 +151,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   CREATE TABLE IF NOT EXISTS work_items (
                   	id SERIAL PRIMARY KEY,
                   	create_date CHAR(16) NOT NULL,
-                  	comment CHAR(128) NOT NULL,
+                  	comment CHAR(256) NOT NULL,
                   	hours REAL DEFAULT 0.0,
                   	priority INTEGER DEFAULT 0
                   );
@@ -171,19 +169,19 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
 
                   CREATE TABLE IF NOT EXISTS redmine_projects (
                   	id INTEGER NOT NULL PRIMARY KEY,
-                  	project_name CHAR(128) NOT NULL,
-                  	project_desc CHAR(1024) DEFAULT '',
+                  	project_name CHAR(256) NOT NULL,
+                  	project_desc CHAR(2048) DEFAULT '',
                   	is_closed INTEGER DEFAULT 0
                   );
 
                   CREATE TABLE IF NOT EXISTS redmine_activities (
                   	id INTEGER PRIMARY KEY,
-                  	act_name CHAR(32) NOT NULL
+                  	act_name CHAR(64) NOT NULL
                   );
 
                   CREATE TABLE IF NOT EXISTS redmine_issues (
                   	id INTEGER PRIMARY KEY,
-                  	issue_title CHAR(128) NOT NULL,
+                  	issue_title CHAR(256) NOT NULL,
                   	assigned_to CHAR(16) DEFAULT '',
                   	project_id INTEGER NOT NULL REFERENCES redmine_projects (id) ON DELETE CASCADE,
                   	is_closed INTEGER DEFAULT 0
@@ -939,56 +937,29 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
 
     public override bool BeginTransaction()
     {
-        Debug.Assert(_connection == null && _transaction == null);
+        Debug.Assert(_connection == null);
 
         // 使用同一个 connection 去操作数据库
         _connection = _dataSource!.OpenConnection();
-        _transaction = _connection.BeginTransaction();
         return true;
     }
 
     public override bool CommitTransaction()
     {
-        Debug.Assert(_transaction != null && _connection != null);
+        Debug.Assert(_connection != null);
 
-        try
-        {
-            _transaction!.Commit();
-            return true;
-        }
-        catch (Exception)
-        {
-            return false;
-        }
-        finally
-        {
-            _transaction.Dispose();
-            _transaction = null;
-            _connection.Dispose();
-            _connection = null;
-        }
+        _connection.Dispose();
+        _connection = null;
+        return true;
     }
 
     public override bool RollbackTransaction()
     {
-        Debug.Assert(_transaction != null && _connection != null);
+        Debug.Assert(_connection != null);
 
-        try
-        {
-            _transaction!.Rollback();
-            return true;
-        }
-        catch (Exception)
-        {
-            return false;
-        }
-        finally
-        {
-            _transaction.Dispose();
-            _transaction = null;
-            _connection.Dispose();
-            _connection = null;
-        }
+        _connection.Dispose();
+        _connection = null;
+        return true;
     }
 
     public void Dispose()

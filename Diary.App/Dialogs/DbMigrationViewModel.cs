@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Diary.App.Utils;
 using Diary.App.ViewModels;
 using Diary.Utils;
 using Irihi.Avalonia.Shared.Contracts;
@@ -109,7 +110,14 @@ public partial class DbMigrationViewModel: ViewModelBase, IDialogContext
         });
         Working = false;
         if (result)
+        {
+            EventDispatcher.Notify("成功", "数据迁移完成！");
             RequestClose?.Invoke(this, true);
+        }
+        else
+        {
+            EventDispatcher.Notify("错误", $"迁移失败了。。。");
+        }
     }
 
     private bool CanWork => !Working;

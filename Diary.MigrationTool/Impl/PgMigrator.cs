@@ -3,6 +3,7 @@ using Diary.Core.Data.Base;
 using Diary.Database;
 using Diary.RedMine;
 using Diary.RedMine.Response;
+using Diary.Utils;
 using Npgsql;
 
 namespace Diary.MigrationTool.Impl;
@@ -12,6 +13,7 @@ internal class PgMigrator: IDisposable, IAsyncDisposable
     private readonly DbInterfaceBase _db;
     private readonly Action<bool, double, string> _processCallback;
     private readonly NpgsqlDataSource _dataSource;
+    private readonly NpgsqlConnection _connection;
 
     public PgMigrator(DbInterfaceBase db, string host, ushort port, string database, string user, string password, Action<bool, double, string> processCallback)
     {
@@ -26,11 +28,12 @@ internal class PgMigrator: IDisposable, IAsyncDisposable
             Password = password,
         };
         _dataSource = new NpgsqlDataSourceBuilder(csb.ConnectionString).Build();
+        _connection = _dataSource.OpenConnection();
     }
 
     private NpgsqlCommand Command(string sql)
     {
-        return _dataSource.CreateCommand(sql);
+        return new NpgsqlCommand(sql, _connection);
     }
 
     private bool CheckVersion()
@@ -56,21 +59,21 @@ internal class PgMigrator: IDisposable, IAsyncDisposable
 
     private bool SyncIssues(double p)
     {
-        using var command = Command("SELECT issue_id FROM redmine_issues;");
+        using var command = Command("SELECT issue_id, is_closed FROM redmine_issues;");
         using var reader = command.ExecuteReader();
         var cnt = 1;
         while (reader.Read())
         {
             Ok(p, $"处理第{cnt++}条问题记录");
             var issueId = reader.GetInt32(0);
+            var isClosed = reader.GetInt32(1) != 0;
             if (RedMineApis.GetIssue(out IssueInfo? info, issueId))
             {
                 var project = info.Project;
                 if (RedMineApis.GetProject(out ProjectInfo? projectInfo, project.Id))
                 {
                     _db.AddRedMineProject(projectInfo.Id, projectInfo.Name, projectInfo.Description); // 需要先导入项目
-                    _db.AddRedMineIssue(issueId, info.Subject, info.AssignedTo.Name, projectInfo.Id,
-                        info.Status.IsClosed);
+                    _db.AddRedMineIssue(issueId, info.Subject, info.AssignedTo.Name, projectInfo.Id, isClosed);
                 }
                 else
                 {
@@ -99,7 +102,7 @@ internal class PgMigrator: IDisposable, IAsyncDisposable
             var time = reader.GetDouble(1);
             var comment = reader.GetString(2);
             var note = reader.GetString(3);
-            var date = reader.GetString(4);
+            var date = TimeTools.FormatDateTime(reader.GetDateTime(4));
             var actId = reader.IsDBNull(5) ? 0 : reader.GetInt32(5);
             var issueId = reader.IsDBNull(6) ? 0 : reader.GetInt32(6);
             var uploaded = reader.GetInt32(7) != 0;
@@ -120,10 +123,10 @@ internal class PgMigrator: IDisposable, IAsyncDisposable
                 _db.WorkUpdateNote(item, note);
             }
 
-            if (uploaded && actId != 0 && issueId != 0)
+            if (actId != 0 && issueId != 0)
             {
                 var entry = _db.CreateWorkTimeEntry(item.Id, actId, issueId);
-                if (entry != null)
+                if (entry != null && uploaded)
                 {
                     entry.EntryId = dummyId++; // 给个假的 ID
                     _db.UpdateWorkTimeEntry(entry);
@@ -144,7 +147,7 @@ internal class PgMigrator: IDisposable, IAsyncDisposable
             Ok(p, $"处理第{cnt++}个标签");
             var tagId = reader.GetInt32(0);
             var disabled = reader.GetInt32(4) != 0;
-            var tag = _db.CreateWorkTag(reader.GetString(1), reader.GetInt32(3) == 0, reader.GetInt32(2));
+            var tag = _db.CreateWorkTag(reader.GetString(1), reader.GetInt32(3) == 0, (int)(reader.GetInt64(2) & 0x00FFFFFF));
             if (disabled)
             {
                 tag.Disabled = true;

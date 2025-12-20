@@ -287,6 +287,12 @@ public partial class DiaryEditorViewModel : ViewModelBase
     {
         if (SelectedWork is not null)
             SaveWorkItem();
+        SelectedWork = null;
+    }
+
+    public override void OnShow()
+    {
+        
     }
 
     #region 编辑器数据

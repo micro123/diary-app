@@ -22,12 +22,12 @@
             <Button Classes="Primary" Content="取消" Command="{Binding AbortCommand}" />
             <Button Classes="Danger" Content="迁移" Command="{Binding DoMigrateCommand}" />
         </StackPanel>
-        <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="4" IsVisible="{Binding Working}"
-              DockPanel.Dock="Bottom">
-            <TextBlock Grid.Column="0" Text="正在迁移中" />
-            <ProgressBar Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding Progress}"
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="4" IsVisible="{Binding Working}"
+              DockPanel.Dock="Bottom" Margin="32 0">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="正在迁移中" />
+            <ProgressBar Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding Progress}"
                          Width="160" ShowProgressText="True" />
-            <TextBlock Grid.Column="2" Text="{Binding Message}" VerticalAlignment="Center"
+            <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Text="{Binding Message}" VerticalAlignment="Center"
                        TextAlignment="Left" />
         </Grid>
         <Panel IsEnabled="{Binding !Working}">
@@ -42,16 +42,17 @@
             <Grid IsVisible="{Binding !SqliteMode}" ColumnDefinitions="Auto,Auto,*"
                   RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="4" RowSpacing="4">
                 <TextBlock Grid.Row="0" Grid.Column="0" Classes="SettingLineCaption" Text="服务器地址:" />
-                <TextBox Grid.Row="" Grid.Column="1" Classes="SLV" Text="{Binding Host}" />
+                <TextBox Grid.Row="" Grid.Column="1" Classes="SLV ClearButton" Text="{Binding Host}" />
                 <TextBlock Grid.Row="1" Grid.Column="0" Classes="SettingLineCaption" Text="服务端口:" />
                 <u:NumericUShortUpDown Grid.Row="1" Grid.Column="1" Value="{Binding Port}"
                                        Classes="SLV" ShowButtonSpinner="False" />
                 <TextBlock Grid.Row="2" Grid.Column="0" Classes="SettingLineCaption" Text="数据库名称:" />
-                <TextBox Grid.Row="2" Grid.Column="1" Classes="SLV" Text="{Binding Database}" />
+                <TextBox Grid.Row="2" Grid.Column="1" Classes="SLV ClearButton" Text="{Binding Database}" />
                 <TextBlock Grid.Row="3" Grid.Column="0" Classes="SettingLineCaption" Text="用户名:" />
-                <TextBox Grid.Row="3" Grid.Column="1" Classes="SLV" Text="{Binding User}" />
+                <TextBox Grid.Row="3" Grid.Column="1" Classes="SLV ClearButton" Text="{Binding User}" />
                 <TextBlock Grid.Row="4" Grid.Column="0" Classes="SettingLineCaption" Text="密码:" />
-                <TextBox Grid.Row="4" Grid.Column="1" Classes="SLV" Text="{Binding Password}" />
+                <TextBox Grid.Row="4" Grid.Column="1" Classes="SLV RevealPasswordButton ClearButton" Text="{Binding Password}" 
+                         PasswordChar="*"/>
             </Grid>
         </Panel>
     </DockPanel>

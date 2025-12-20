@@ -51,21 +51,21 @@ internal class SqliteMigrator : IDisposable, IAsyncDisposable
     private bool SyncIssues(double p)
     {
         using var command = _connection.CreateCommand();
-        command.CommandText = "SELECT issue_id FROM redmine_issues;";
+        command.CommandText = "SELECT issue_id, is_closed FROM redmine_issues;";
         using var reader = command.ExecuteReader();
         var cnt = 1;
         while (reader.Read())
         {
             Ok(p, $"处理第{cnt++}条问题记录");
             var issueId = reader.GetInt32(0);
+            var isClosed = reader.GetInt32(4) != 0;
             if (RedMineApis.GetIssue(out IssueInfo? info, issueId))
             {
                 var project = info.Project;
                 if (RedMineApis.GetProject(out ProjectInfo? projectInfo, project.Id))
                 {
                     _db.AddRedMineProject(projectInfo.Id, projectInfo.Name, projectInfo.Description); // 需要先导入项目
-                    _db.AddRedMineIssue(issueId, info.Subject, info.AssignedTo.Name, projectInfo.Id,
-                        info.Status.IsClosed);
+                    _db.AddRedMineIssue(issueId, info.Subject, info.AssignedTo.Name, projectInfo.Id, isClosed);
                 }
                 else
                 {
@@ -116,10 +116,10 @@ internal class SqliteMigrator : IDisposable, IAsyncDisposable
                 _db.WorkUpdateNote(item, note);
             }
 
-            if (uploaded && actId != 0 && issueId != 0)
+            if (actId != 0 && issueId != 0)
             {
                 var entry = _db.CreateWorkTimeEntry(item.Id, actId, issueId);
-                if (entry != null)
+                if (entry != null && uploaded)
                 {
                     entry.EntryId = dummyId++; // 给个假的 ID
                     _db.UpdateWorkTimeEntry(entry);

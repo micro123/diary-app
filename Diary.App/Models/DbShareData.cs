@@ -15,6 +15,7 @@ public class DbShareData
 {
     public ObservableCollection<WorkTag> WorkTags { get; } = new();
     public ObservableCollection<RedMineIssueDisplay> RedMineIssues { get; } = new();
+    public ObservableCollection<RedMineIssueDisplay> RedMineIssuesOpen { get; } = new();
     public ObservableCollection<RedMineActivity> RedMineActivities { get; } = new();
 
     private DbInterfaceBase? DbInterface => App.Current.UseDb;
@@ -71,8 +72,13 @@ public class DbShareData
     {
         var issues = DbInterface!.GetRedMineIssues(null);
         RedMineIssues.Clear();
+        RedMineIssuesOpen.Clear();
         foreach (var issue in issues)
+        {
             RedMineIssues.Add(issue);
+            if (!issue.Disabled)
+                RedMineIssuesOpen.Add(issue);
+        }
     }
 
     private void LoadTags()

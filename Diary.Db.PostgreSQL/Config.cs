@@ -10,12 +10,12 @@ public class Config
 
     [ConfigureIntegral("端口", 1, 65535)]
     public ushort Port { get; set; } = 5432;
-    [ConfigureText("用户名")]
-    public string User { get; set; } = "";
-
-    [ConfigureText("密码")]
-    public string Password { get; set; } = "";
 
     [ConfigureText("数据库")]
     public string Database { get; set; } = "";
+    [ConfigureText("用户名")]
+    public string User { get; set; } = "";
+
+    [ConfigureText("密码", true)]
+    public string Password { get; set; } = "";
 }

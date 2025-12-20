@@ -25,7 +25,7 @@
         </Style>
     </UserControl.Styles>
 
-    <DockPanel Name="EditPanel">
+    <DockPanel Name="EditPanel" VerticalSpacing="4">
         <u:Divider DockPanel.Dock="Top" Content="一般信息" HorizontalContentAlignment="Left" />
         <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,Auto,*" RowDefinitions="Auto,Auto,Auto"
               ColumnSpacing="8" RowSpacing="8" IsEnabled="{Binding !Uploaded}">
@@ -107,7 +107,7 @@
         </Button>
         <u:Divider DockPanel.Dock="Top" Content="RedMine信息" HorizontalContentAlignment="Left" />
         <!-- redmine预留 -->
-        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,350" DockPanel.Dock="Top"
+        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*" DockPanel.Dock="Top"
               ColumnSpacing="8" RowSpacing="8" IsEnabled="{Binding !Uploaded}">
             <Grid.Styles>
                 <Style Selector="TextBlock">
@@ -120,7 +120,7 @@
             <TextBlock Grid.Row="0" Grid.Column="0" Text="关联问题" />
             <TextBlock Grid.Row="1" Grid.Column="0" Text="关联活动" />
             <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding RedMineIssues}"
-                      SelectedIndex="{Binding IssueIndex}">
+                      SelectedIndex="{Binding IssueIndex}" Text="{Binding IssueText}">
                 <ComboBox.ItemTemplate>
                     <DataTemplate DataType="display:RedMineIssueDisplay">
                         <StackPanel Orientation="Horizontal" Spacing="4">
