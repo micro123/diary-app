@@ -32,38 +32,35 @@ public sealed partial class SurveyResult
             Columns =
             {
                 new HierarchicalExpanderColumn<RespondTag>(
-                    new TextColumn<RespondTag, string>(
+                    new TemplateColumn<RespondTag>(
                         "标签",
-                        x => x.TagName,
-                        (o, v) => o.TagName = v!,
-                        new GridLength(1, GridUnitType.Star),
-                        new()
+                        "NameCell",
+                        width: new GridLength(1, GridUnitType.Star),
+                        options: new TemplateColumnOptions<RespondTag>
                         {
-                            StringFormat = "{0}", CanUserResizeColumn = false, CanUserSortColumn = false,
+                            CanUserResizeColumn = false, CanUserSortColumn = false,
                             BeginEditGestures = BeginEditGestures.None
                         }
                     ),
                     x => x.SubTags,
                     x => x.SubTags.Count > 0),
-                new TextColumn<RespondTag, double>(
+                new TemplateColumn<RespondTag>(
                     "耗时",
-                    x => x.TagTime,
-                    (o, v) => o.TagTime = v!,
-                    new GridLength(120, GridUnitType.Pixel),
-                    new()
+                    "TimeCell",
+                    width: new GridLength(120, GridUnitType.Pixel),
+                    options: new TemplateColumnOptions<RespondTag>
                     {
-                        StringFormat = "{0:0.##} 小时", CanUserResizeColumn = false, CanUserSortColumn = false,
+                        CanUserResizeColumn = false, CanUserSortColumn = false,
                         BeginEditGestures = BeginEditGestures.None
                     }
                 ),
-                new TextColumn<RespondTag, double>(
+                new TemplateColumn<RespondTag>(
                     "占比",
-                    x => x.Percent,
-                    (o, v) => o.Percent = v!,
-                    new GridLength(120, GridUnitType.Pixel),
-                    new()
+                    "PercentCell",
+                    width: new GridLength(120, GridUnitType.Pixel),
+                    options: new TemplateColumnOptions<RespondTag>
                     {
-                        StringFormat = "{0:0.##} %", CanUserResizeColumn = false, CanUserSortColumn = false,
+                        CanUserResizeColumn = false, CanUserSortColumn = false,
                         BeginEditGestures = BeginEditGestures.None
                     }
                 ),
@@ -211,14 +208,14 @@ public partial class SurveyViewModel : ViewModelBase
                     }
 
                     if (sum2 < tagTime.Time && primaryTag.SubTags.Count > 0) // 当有分类的时候，所有分类时间加起来又不够的时候才添加
-                        primaryTag.SubTags.Add(new RespondTag { TagName = "**未分类**", TagTime = tagTime.Time - sum2 });
+                        primaryTag.SubTags.Add(new RespondTag { TagTime = tagTime.Time - sum2 });
 
                     sum1 += tagTime.Time;
                     data.Tags.Add(primaryTag);
                 }
                 
                 if (sum1 < statistics.Total)
-                    data.Tags.Add(new RespondTag { TagName = "**未分类**", TagTime = statistics.Total - sum1 });
+                    data.Tags.Add(new RespondTag { TagTime = statistics.Total - sum1 });
 
                 var content = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = false });
                 _logger.LogDebug("respond content: {Content}", content);

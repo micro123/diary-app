@@ -77,35 +77,31 @@ public partial class StatisticsTabData : ObservableObject
             Columns =
             {
                 new HierarchicalExpanderColumn<StatisticsTimeNode>(
-                    new TextColumn<StatisticsTimeNode,int>(
-                        null,
-                        x=>x.Id,
-                        (o,v) => o.Id = v!,
-                        new GridLength(80, GridUnitType.Pixel),
-                        new() { StringFormat = "#{0}", CanUserResizeColumn = false, CanUserSortColumn = false, BeginEditGestures = BeginEditGestures.None }
+                    new TemplateColumn<StatisticsTimeNode>(
+                        "#ID",
+                        "IdCell",
+                        width: new GridLength(120, GridUnitType.Pixel) ,
+                        options: new() { CanUserResizeColumn = false, CanUserSortColumn = false, BeginEditGestures = BeginEditGestures.None }
                     ),
                     x=>x.Children,
                     x => x.Children.Count > 0),
-                new TextColumn<StatisticsTimeNode,string>(
+                new TemplateColumn<StatisticsTimeNode>(
                     "标签",
-                    x=>x.Name,
-                    (o,v) => o.Name = v!,
-                    new GridLength(1, GridUnitType.Star),
-                    new() { CanUserResizeColumn = false, CanUserSortColumn = false, BeginEditGestures = BeginEditGestures.None }
+                    "NameCell",
+                    width: new GridLength(1, GridUnitType.Star),
+                    options: new TemplateColumnOptions<StatisticsTimeNode> { CanUserResizeColumn = false, CanUserSortColumn = false, BeginEditGestures = BeginEditGestures.None }
                     ),
-                new TextColumn<StatisticsTimeNode,double>(
+                new TemplateColumn<StatisticsTimeNode>(
                     "耗时",
-                    x=>x.Time,
-                    (o,v) => o.Time = v!,
-                    new GridLength(120, GridUnitType.Pixel),
-                    new() { StringFormat = "{0:0.##} 小时", CanUserResizeColumn = false, CanUserSortColumn = false, BeginEditGestures = BeginEditGestures.None }
+                    "TimeCell",
+                    width: new GridLength(120, GridUnitType.Pixel),
+                    options: new TemplateColumnOptions<StatisticsTimeNode> { CanUserResizeColumn = false, CanUserSortColumn = false, BeginEditGestures = BeginEditGestures.None }
                 ),
-                new TextColumn<StatisticsTimeNode,double>(
+                new TemplateColumn<StatisticsTimeNode>(
                     "占比",
-                    x=>x.Percent,
-                    (o,v) => o.Percent = v!,
-                    new GridLength(120, GridUnitType.Pixel),
-                    new() { StringFormat = "{0:0.##} %", CanUserResizeColumn = false, CanUserSortColumn = false, BeginEditGestures = BeginEditGestures.None }
+                    "PercentCell",
+                    width: new GridLength(120, GridUnitType.Pixel),
+                    options: new TemplateColumnOptions<StatisticsTimeNode> { CanUserResizeColumn = false, CanUserSortColumn = false, BeginEditGestures = BeginEditGestures.None }
                 ),
                 new TemplateColumn<StatisticsTimeNode>(
                     "操作",
@@ -200,7 +196,6 @@ public partial class StatisticsTabData : ObservableObject
                     nested.Add(new StatisticsTimeNode()
                     {
                         Id = 0,
-                        Name = "未分类",
                         Time = x.Time - sum2,
                         Percent = 100.0 * (x.Time - sum2) / total,
                         Parent = node,
@@ -217,7 +212,6 @@ public partial class StatisticsTabData : ObservableObject
             detail.Add(new StatisticsTimeNode()
             {
                 Id = 0,
-                Name = "未分类",
                 Time =  statistics.Total - sum1,
                 Percent = 100.0 * (statistics.Total - sum1) / total,
             });

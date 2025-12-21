@@ -90,6 +90,9 @@
         <Setter Property="HorizontalAlignment" Value="Center" />
         <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultDangerForeground}" />
     </Style>
+    <Style Selector="TextBlock.GridText">
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
     <Style Selector="ToggleSwitch">
         <Setter Property="OnContent" Value="{x:Null}" />
         <Setter Property="OffContent" Value="{x:Null}" />

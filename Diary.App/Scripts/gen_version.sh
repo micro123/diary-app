@@ -80,7 +80,7 @@ internal static partial class VersionInfo
 
 	  static partial void GetVersionStringImpl(ref string versionString)
 	  {
-		    versionString = $"{DataVersion.VersionString}.{CommitCount}-{GitVersionShort}";
+		    versionString = $"{DataVersion.VersionString}-r{CommitCount}-{GitVersionShort}";
 	  }
 
     static partial void GetVersionDetailImpl(ref string versionString)

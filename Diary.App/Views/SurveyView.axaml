@@ -130,6 +130,26 @@
                                             </Style>
                                         </Style>
                                     </TreeDataGrid.Styles>
+                                    <TreeDataGrid.Resources>
+                                        <DataTemplate DataType="models:RespondTag" x:Key="NameCell">
+                                            <TextBlock Text="{Binding TagName}"
+                                                       Classes.Warning="{Binding IsAnno}"
+                                                       Classes.Danger="{Binding !IsValid}"
+                                                       Classes="GridText"/>
+                                        </DataTemplate>
+                                        <DataTemplate DataType="models:RespondTag" x:Key="TimeCell">
+                                            <TextBlock Text="{Binding TagTime, StringFormat='{}{0:0.##} 小时'}"
+                                                       IsVisible="{Binding IsValid}"
+                                                       Classes.Warning="{Binding IsAnno}"
+                                                       Classes="GridText"/>
+                                        </DataTemplate>
+                                        <DataTemplate DataType="models:RespondTag" x:Key="PercentCell">
+                                            <TextBlock Text="{Binding Percent, StringFormat='{}{0:0.##} %'}"
+                                                       IsVisible="{Binding IsValid}"
+                                                       Classes.Warning="{Binding IsAnno}"
+                                                       Classes="GridText"/>
+                                        </DataTemplate>
+                                    </TreeDataGrid.Resources>
                                 </TreeDataGrid>
                             </Grid>
                         </Expander>

@@ -182,6 +182,26 @@
                                             CommandParameter="{Binding}"
                                             IsVisible="{Binding CanShowDetails}" />
                                 </DataTemplate>
+                                <DataTemplate DataType="models:StatisticsTimeNode" x:Key="IdCell">
+                                    <TextBlock Text="{Binding Id, StringFormat='#{0}'}"
+                                               IsVisible="{Binding !IsUncategorized}"
+                                               Classes="GridText"/>
+                                </DataTemplate>
+                                <DataTemplate DataType="models:StatisticsTimeNode" x:Key="NameCell">
+                                    <TextBlock Text="{Binding Name}"
+                                               Classes.Warning="{Binding IsUncategorized}"
+                                               Classes="GridText"/>
+                                </DataTemplate>
+                                <DataTemplate DataType="models:StatisticsTimeNode" x:Key="TimeCell">
+                                    <TextBlock Text="{Binding Time, StringFormat='{}{0:0.##} 小时'}"
+                                               Classes.Warning="{Binding IsUncategorized}"
+                                               Classes="GridText"/>
+                                </DataTemplate>
+                                <DataTemplate DataType="models:StatisticsTimeNode" x:Key="PercentCell">
+                                    <TextBlock Text="{Binding Percent, StringFormat='{}{0:0.##} %'}"
+                                               Classes.Warning="{Binding IsUncategorized}"
+                                               Classes="GridText"/>
+                                </DataTemplate>
                             </TreeDataGrid.Resources>
                         </TreeDataGrid>
                     </DockPanel>
