@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
@@ -56,6 +57,20 @@ public partial class StatisticsViewModel : ViewModelBase
     private void SyncOptions()
     {
         AddList.Clear();
+        // fixed header
+        AddList.Add(new AddStatisticOptionItem()
+        {
+            Name = "添加快速测量",
+            Type = StatisticsType.Custom,
+            Enabled = false
+        });
+        AddList.Add(new AddStatisticOptionItem()
+        {
+            Name = "-",
+            Type = StatisticsType.Custom,
+            Enabled =  false,
+        });
+        
         foreach (var type in Enum.GetValues<StatisticsType>())
         {
             if (StatisticsTypes.Contains(type) || type == StatisticsType.Custom)
@@ -68,7 +83,7 @@ public partial class StatisticsViewModel : ViewModelBase
             });
         }
 
-        if (AddList.Count == 0)
+        if (AddList.Count < 3)
         {
             AddList.Add(new AddStatisticOptionItem()
             {
@@ -84,8 +99,8 @@ public partial class StatisticsViewModel : ViewModelBase
     {
         StatisticsTypes.Add(item.Type);
         Tabs.Insert(Tabs.Count - 1, new StatisticsTabData(item.Type));
-        SyncOptions();
         StatisticsManager.Save();
+        Dispatcher.UIThread.Post(SyncOptions);
     }
     
     [RelayCommand]

@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Controls.Models.TreeDataGrid;
+using Avalonia.Input;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -233,56 +234,33 @@ public partial class StatisticsTabData : ObservableObject
     
     private static void GetDateRange(out DateTime begin, out DateTime end, StatisticsType type)
     {
-        DateTime today = DateTime.Today.Date;
-        int subtract;
+        begin = DateTime.Now.Date;
+        end = DateTime.Now.Date;
         switch (type)
         {
             case StatisticsType.LastWeek:
-                subtract = (int)today.DayOfWeek + 7;
-                begin = today.AddDays(-subtract);
-                end = begin.AddDays(6);
+                TimeTools.AdjustDate(ref begin, ref end, AdjustPart.Week, AdjustDirection.Previous);
                 break;
             case StatisticsType.LastMonth:
-                begin = new DateTime(today.Year, today.Month, 1).AddMonths(-1);
-                end = begin.AddMonths(1).AddDays(-1);
+                TimeTools.AdjustDate(ref begin, ref end, AdjustPart.Month, AdjustDirection.Previous);
                 break;
             case StatisticsType.LastQuarter:
-            {
-                int q = (today.Month - 1) / 3;
-                int y = today.Year;
-                if (q == 0)
-                {
-                    q = 3;
-                    --y;
-                }
-
-                begin = new DateTime(y, q * 3 + 1, 1);
-                end = begin.AddMonths(3).AddDays(-1);
-            }
+                TimeTools.AdjustDate(ref begin, ref end, AdjustPart.Quarter, AdjustDirection.Previous);
                 break;
             case StatisticsType.LastYear:
-                begin = new DateTime(today.Year-1, 1, 1);
-                end = new DateTime(today.Year, 12, 31);
+                TimeTools.AdjustDate(ref begin, ref end, AdjustPart.Year, AdjustDirection.Previous);
                 break;
             case StatisticsType.ThisWeek:
-                subtract = (int)today.DayOfWeek;
-                begin = today.AddDays(-subtract);
-                end = begin.AddDays(6);
+                TimeTools.AdjustDate(ref begin, ref end, AdjustPart.Week, AdjustDirection.Current);
                 break;
             case StatisticsType.ThisMonth:
-                begin = new DateTime(today.Year, today.Month, 1);
-                end = begin.AddMonths(1).AddDays(-1);
+                TimeTools.AdjustDate(ref begin, ref end, AdjustPart.Month, AdjustDirection.Current);
                 break;
             case StatisticsType.ThisQuarter:
-            {
-                int q = (today.Month - 1) / 3;
-                begin = new DateTime(today.Year, q * 3 + 1, 1);
-                end = begin.AddMonths(3).AddDays(-1);
-            }
+                TimeTools.AdjustDate(ref begin, ref end, AdjustPart.Quarter, AdjustDirection.Current);
                 break;
             case StatisticsType.ThisYear:
-                begin = new DateTime(today.Year, 1, 1);
-                end = new DateTime(today.Year, 12, 31);
+                TimeTools.AdjustDate(ref begin, ref end, AdjustPart.Year, AdjustDirection.Current);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(type), type, null);
@@ -333,5 +311,14 @@ public partial class StatisticsTabData : ObservableObject
             TimeDetails.ExpandAll();
         else
             TimeDetails.CollapseAll();
+    }
+
+    [RelayCommand]
+    private void ToggleExpand(TappedEventArgs args)
+    {
+        if (UiUtility.TreeDataGridToggleExpand(args.Source as Control))
+        {
+            args.Handled = true;
+        }
     }
 }

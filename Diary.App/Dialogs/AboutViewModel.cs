@@ -18,13 +18,26 @@ public partial class AboutViewModel: ViewModelBase, IDialogContext
     public event EventHandler<object?>? RequestClose;
 
     public string AppVersionString => AppInfo.AppVersionString;
-    public string AppVersionDetails => AppInfo.AppVersionDetails;
 
     public string InfoText => """
-                              这里写一些内容。。。
-                              TODO: 描述信息
-                              TODO: 开源信息
+                              Diary Tool NG - A rewrite of Diary App using C#.
+                              Libraries (not complete):
+                                  Avalonia, DataGrid, TreeDataGrid
+                                  CommunityToolkit.Mvvm
+                                  Semi.Avalonia, Irihi.Ursa
+                                  LiveCharts2
+                                  Projektanker.Icons.Avalonia
+                                  Xaml.Behaviors.Avalonia
+                                  Newtonsoft.Json
+                                  SourceGear.sqlite3, Npgsql
+                                  Microsoft.Extensions.Logging, Serilog
+                                  RestSharp, RestSharp.Serializers.NewtonsoftJson
+                                  NanomsgNG.NET
+                              Source code: https://github.com/micro123/diary-app
+                              License: GPL-3.0
                               """;
+
+    public string AppVersionDetails => AppInfo.AppVersionDetails;
 
     [RelayCommand]
     private async Task CopyVersion()

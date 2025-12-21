@@ -90,7 +90,13 @@
                                 <TextBlock Grid.Column="1" Grid.Row="1" Text="{Binding Total}" />
                                 <TreeDataGrid Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="2"
                                               CanUserResizeColumns="False" CanUserSortColumns="False"
-                                              Source="{Binding GridSource}">
+                                              Source="{Binding GridSource}" >
+                                    <Interaction.Behaviors>
+                                        <EventTriggerBehavior EventName="Tapped">
+                                            <InvokeCommandAction PassEventArgsToCommand="True"
+                                                                 Command="{Binding ToggleExpandCommand}"/>
+                                        </EventTriggerBehavior>
+                                    </Interaction.Behaviors>
                                     <TreeDataGrid.Styles>
                                         <Style Selector="TreeDataGridRow">
                                             <Style Selector="^ /template/ Border#RowBorder">

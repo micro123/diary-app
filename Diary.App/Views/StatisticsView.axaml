@@ -10,16 +10,12 @@
              xmlns:viewModels="clr-namespace:Diary.App.ViewModels"
              x:DataType="viewModels:StatisticsViewModel"
              x:Class="Diary.App.Views.StatisticsView">
-    <Panel>
-        <TextBlock Text="数据库连接出错，需要检查设置" HorizontalAlignment="Center" VerticalAlignment="Center"
-                   FontSize="64"
-                   IsVisible="{Binding !DatabaseOk, Source={x:Static app:App.Current}}" />
-        <TabControl ItemsSource="{Binding Tabs}" TabStripPlacement="Top"
-                    Theme="{DynamicResource ScrollTabControl}"
-                    IsVisible="{Binding DatabaseOk, Source={x:Static app:App.Current}}">
-            <TabControl.ContextFlyout>
-                <MenuFlyout ShowMode="Standard" ItemsSource="{Binding AddList}">
-                    <MenuFlyout.ItemContainerTheme>
+    <UserControl.Styles>
+        <!-- 右键菜单只在Header上生效 -->
+        <Style Selector="TabControl /template/ ScrollViewer#PART_ScrollViewer">
+            <Setter Property="ContextMenu">
+                <ContextMenu ItemsSource="{Binding AddList}" >
+                    <ContextMenu.ItemContainerTheme>
                         <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}"
                                       x:DataType="viewModels:AddStatisticOptionItem">
                             <Setter Property="Header" Value="{Binding Name}" />
@@ -28,9 +24,18 @@
                             <Setter Property="CommandParameter" Value="{Binding}" />
                             <Setter Property="IsEnabled" Value="{Binding Enabled}" />
                         </ControlTheme>
-                    </MenuFlyout.ItemContainerTheme>
-                </MenuFlyout>
-            </TabControl.ContextFlyout>
+                    </ContextMenu.ItemContainerTheme>
+                </ContextMenu>
+            </Setter>
+        </Style>
+    </UserControl.Styles>
+    <Panel>
+        <TextBlock Text="数据库连接出错，需要检查设置" HorizontalAlignment="Center" VerticalAlignment="Center"
+                   FontSize="64"
+                   IsVisible="{Binding !DatabaseOk, Source={x:Static app:App.Current}}" />
+        <TabControl ItemsSource="{Binding Tabs}" TabStripPlacement="Top"
+                    Theme="{DynamicResource ScrollTabControl}"
+                    IsVisible="{Binding DatabaseOk, Source={x:Static app:App.Current}}">
             <TabControl.ItemTemplate>
                 <DataTemplate DataType="models:StatisticsTabData">
                     <StackPanel Orientation="Horizontal" Spacing="8">
@@ -131,7 +136,13 @@
                         </StackPanel>
                         <!-- 表格 -->
                         <TreeDataGrid Source="{Binding TimeDetails}" CanUserResizeColumns="False"
-                                      CanUserSortColumns="False" x:Name="TimeTable">
+                                      CanUserSortColumns="False">
+                            <Interaction.Behaviors>
+                                <EventTriggerBehavior EventName="Tapped">
+                                    <InvokeCommandAction Command="{Binding ToggleExpandCommand}"
+                                                         PassEventArgsToCommand="True" />
+                                </EventTriggerBehavior>
+                            </Interaction.Behaviors>
                             <TreeDataGrid.Styles>
                                 <Style Selector="TreeDataGridRow">
                                     <Style Selector="^ /template/ Border#RowBorder">

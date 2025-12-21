@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Controls.Models.TreeDataGrid;
+using Avalonia.Input;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -19,7 +20,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Diary.App.ViewModels;
 
-public sealed class SurveyResult
+public sealed partial class SurveyResult
 {
     private readonly RespondData _data;
 
@@ -87,6 +88,15 @@ public sealed class SurveyResult
             {
                 subTag.Percent = subTag.TagTime / total * 100.0;
             }
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleExpand(TappedEventArgs args)
+    {
+        if (UiUtility.TreeDataGridToggleExpand(args.Source as Control))
+        {
+            args.Handled = true;
         }
     }
 }
@@ -171,7 +181,7 @@ public partial class SurveyViewModel : ViewModelBase
             Task.Run(() =>
             {
                 var statistics = Db!.GetStatistics(parts[0], parts[1]);
-                var data = new RespondData()
+                var data = new RespondData
                 {
                     Hostname = SysInfo.GetHostname(),
                     Username = SysInfo.GetUsername(),
@@ -180,24 +190,35 @@ public partial class SurveyViewModel : ViewModelBase
                     TotalTime = statistics.Total,
                 };
 
+                var sum1 = 0.0;
+                var sum2 = 0.0;
                 foreach (var tagTime in statistics.PrimaryTags)
                 {
-                    var primaryTag = new RespondTag()
+                    var primaryTag = new RespondTag
                     {
                         TagName = tagTime.TagName,
                         TagTime = tagTime.Time,
                     };
+                    sum2 = 0.0;
                     if (tagTime.Nested.Count > 0)
                     {
                         var list = primaryTag.SubTags;
                         foreach (var nested in tagTime.Nested)
                         {
-                            list.Add(new RespondTag() { TagName = nested.TagName, TagTime = nested.Time });
+                            sum2 += nested.Time;
+                            list.Add(new RespondTag { TagName = nested.TagName, TagTime = nested.Time });
                         }
                     }
 
+                    if (sum2 < tagTime.Time && primaryTag.SubTags.Count > 0) // 当有分类的时候，所有分类时间加起来又不够的时候才添加
+                        primaryTag.SubTags.Add(new RespondTag { TagName = "**未分类**", TagTime = tagTime.Time - sum2 });
+
+                    sum1 += tagTime.Time;
                     data.Tags.Add(primaryTag);
                 }
+                
+                if (sum1 < statistics.Total)
+                    data.Tags.Add(new RespondTag { TagName = "**未分类**", TagTime = statistics.Total - sum1 });
 
                 var content = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = false });
                 _logger.LogDebug("respond content: {Content}", content);

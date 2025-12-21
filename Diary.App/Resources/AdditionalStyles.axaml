@@ -25,6 +25,8 @@
         </Style>    
     </Style>
     <Style Selector="CalendarDatePicker">
+        <!-- 从周一开始显示 -->
+        <Setter Property="FirstDayOfWeek" Value="Monday" />
         <Setter Property="Width" Value="160" />
         <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}" />
         <Style Selector="^:disabled /template/ TextBox#PART_TextBox:disabled">

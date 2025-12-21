@@ -23,8 +23,8 @@
                 </EventTriggerBehavior>
             </Interaction.Behaviors>
         </TextBlock>
-        <TextBox Theme="{DynamicResource Bordered}" Classes="Large" IsEnabled="False"
-                 Text="{Binding InfoText}"
+        <TextBox Theme="{DynamicResource Bordered}" Classes="Large" IsEnabled="True"
+                 Text="{Binding InfoText}" IsReadOnly="True"
                  HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
     </DockPanel>
 </UserControl>

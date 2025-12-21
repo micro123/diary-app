@@ -84,6 +84,10 @@ public static class TimeTools
             case AdjustPart.Week:
             {
                 int w = (int)input.DayOfWeek;
+                if (w == 0)
+                {
+                    w = 7; // 星期天特别处理
+                }
                 start = input.Date.AddDays(-w + 1);
                 end = start.AddDays(6);
             }
