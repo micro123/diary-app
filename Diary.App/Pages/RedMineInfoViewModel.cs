@@ -124,9 +124,9 @@ public partial class RedMineInfoViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private async Task DeleteIssue(RedMineIssueDisplay issue)
+    private void DeleteIssue(RedMineIssueDisplay issue)
     {
         // 不支持删除
-        await Task.Delay(100);
+        EventDispatcher.ShowToast("暂时不支持删除！");
     }
 }

@@ -148,7 +148,7 @@ public partial class RedMineIssueManageViewModel : ViewModelBase
             Db.AddRedMineProject(project.Id, project.Name, project.Description);
         
             // 再导入问题
-            Db.AddRedMineIssue(issue.Id, issue.Subject, issue.AssignedTo.Name, issue.Project.Id);
+            Db.AddRedMineIssue(issue.Id, issue.Subject, issue.AssignedTo.Name, issue.Project.Id, issue.Status.IsClosed);
         });
     }
 }

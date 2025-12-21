@@ -6,7 +6,6 @@
              xmlns:u="https://irihi.tech/ursa"
              xmlns:i="https://github.com/projektanker/icons.avalonia"
              xmlns:base="clr-namespace:Diary.Core.Data.Base;assembly=Diary.Core"
-             xmlns:views="clr-namespace:Diary.App.Views"
              xmlns:display="clr-namespace:Diary.Core.Data.Display;assembly=Diary.Core"
              xmlns:redMine="clr-namespace:Diary.Core.Data.RedMine;assembly=Diary.Core"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
@@ -117,8 +116,8 @@
                     <Setter Property="HorizontalAlignment" Value="Stretch"/>
                 </Style>
             </Grid.Styles>
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="关联问题" />
-            <TextBlock Grid.Row="1" Grid.Column="0" Text="关联活动" />
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="关联问题:" />
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="关联活动:" />
             <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding RedMineIssues}"
                       SelectedIndex="{Binding IssueIndex}" Text="{Binding IssueText}">
                 <ComboBox.ItemTemplate>
