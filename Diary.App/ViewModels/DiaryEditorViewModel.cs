@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Input;
+using Avalonia.Controls;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -16,6 +18,15 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Diary.App.ViewModels;
+
+
+public sealed class DayMenuItem
+{
+    public required string Header { get; set; }
+    public bool Enabled { get; set; } = false;
+    public ICommand? Command { get; set; } = null;
+}
+
 
 [DiAutoRegister]
 public partial class DiaryEditorViewModel : ViewModelBase
@@ -281,6 +292,63 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
         TotalTime = sum;
         UploadedTime = uploaded;
+    }
+
+    [ObservableProperty] private ObservableCollection<DayMenuItem> _dayMenuItems = new();
+    
+    [RelayCommand]
+    private void Test(ContextRequestedEventArgs args)
+    {
+        Button? btn = null;
+        Calendar? calendar = null;
+
+        var control = args.Source as Control;
+        while (control is not null)
+        {
+            if (control is Button b && btn == null)
+            {
+                btn = b;
+            }
+
+            if (control is Calendar c)
+            {
+                calendar = c;
+                break;
+            }
+            
+            control = control.Parent as Control;
+        }
+        
+        if (btn is not null && calendar is not null)
+        {
+            FillDayMenus((DateTime)btn.DataContext!);
+        }
+        
+    }
+
+    private void FillDayMenus(DateTime date)
+    {
+        if (date != SelectedDate)
+            GoDate(date); // 切换到那天
+        DayMenuItems.Clear();
+        // 固定项
+        DayMenuItems.Add(new DayMenuItem()
+        {
+            Header = date.ToString("yyyy年MM月dd日"),
+        });
+        DayMenuItems.Add(new DayMenuItem()
+        {
+            Header = $"总工时{TotalTime:0.##}小时，{TotalTime-UploadedTime:0.##}小时未提交",
+        });
+        DayMenuItems.Add(new DayMenuItem() { Header = "-" });
+        
+        // 功能项
+        DayMenuItems.Add(new DayMenuItem()
+        {
+            Header = "全部提交",
+            Command = UploadAllCommand,
+            Enabled = true,
+        });
     }
 
     public override void OnHide()

@@ -93,10 +93,6 @@
                                                               BasedOn="{StaticResource {x:Type MenuItem}}"
                                                               x:DataType="base:WorkTag">
                                                     <Setter Property="Header" Value="{Binding Name}" />
-                                                    <Setter Property="Background"
-                                                            Value="{Binding Color, Converter={StaticResource IntColor}}" />
-                                                    <Setter Property="Foreground"
-                                                            Value="{Binding Color, Converter={StaticResource SimpleInverse}}" />
                                                     <Setter Property="Command"
                                                             Value="{Binding $parent[Expander].((dialogs:TemplateViewModel)DataContext).AddTagCommand}" />
                                                     <Setter Property="CommandParameter" Value="{Binding}" />

@@ -66,13 +66,25 @@
                 <Calendar FirstDayOfWeek="Monday" DockPanel.Dock="Top"
                           IsTodayHighlighted="True" SelectionMode="SingleDate"
                           DisplayDate="{Binding CurrentDate}"
-                          SelectedDate="{Binding SelectedDate}" >
+                          SelectedDate="{Binding SelectedDate}">
+                    <Interaction.Behaviors>
+                        <EventTriggerBehavior EventName="ContextRequested">
+                            <InvokeCommandAction Command="{Binding TestCommand}" PassEventArgsToCommand="True" />
+                        </EventTriggerBehavior>
+                    </Interaction.Behaviors>
                     <Calendar.ContextMenu>
-                        <ContextMenu>
-                            <MenuItem Header="1"/>
-                            <MenuItem Header="-"/>
-                            <MenuItem Header="2"/>
-                            <MenuItem Header="3"/>
+                        <ContextMenu ItemsSource="{Binding DayMenuItems}">
+                            <ContextMenu.ItemContainerTheme>
+                                <ControlTheme TargetType="MenuItem"
+                                              BasedOn="{StaticResource {x:Type MenuItem}}"
+                                              x:DataType="viewModels:DayMenuItem">
+                                    <Setter Property="Header" Value="{Binding Header}" />
+                                    <Setter Property="Command"
+                                            Value="{Binding Command}" />
+                                    <Setter Property="CommandParameter" Value="{Binding}" />
+                                    <Setter Property="IsEnabled" Value="{Binding Enabled}" /> 
+                                </ControlTheme>
+                            </ContextMenu.ItemContainerTheme>
                         </ContextMenu>
                     </Calendar.ContextMenu>
                 </Calendar>
