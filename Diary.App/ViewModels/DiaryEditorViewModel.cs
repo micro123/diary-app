@@ -1,11 +1,13 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -16,6 +18,7 @@ using Diary.App.Utils;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Calendar = Avalonia.Controls.Calendar;
 
 namespace Diary.App.ViewModels;
 
@@ -193,6 +196,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
         var title = $"提交结果: 成功 {success}，失败 {failed}，跳过 {skip}";
         EventDispatcher.Notify(title, sb.ToString());
+        
+        UpdateTimeInfos();
     }
 
     private bool CanUploadAll => TotalTime != 0 && UploadedTime < TotalTime;
@@ -294,20 +299,50 @@ public partial class DiaryEditorViewModel : ViewModelBase
         UploadedTime = uploaded;
     }
 
-    [ObservableProperty] private ObservableCollection<DayMenuItem> _dayMenuItems = new();
+    [ObservableProperty] private ObservableCollection<DayMenuItem> _quickMenuItems = new();
+    
+    private enum CalendarWhat
+    {
+        None,
+        Day,
+        Month,
+        Year,
+    }
     
     [RelayCommand]
     private void Test(ContextRequestedEventArgs args)
     {
         Button? btn = null;
         Calendar? calendar = null;
+        CalendarWhat what = CalendarWhat.None;
+        DateTime? selectDate = null;
+        
+        bool isHeader = false;
+        bool isGridButton = false;
 
         var control = args.Source as Control;
         while (control is not null)
         {
-            if (control is Button b && btn == null)
+            if (btn is null)
             {
-                btn = b;
+                if (control is CalendarDayButton d)
+                {
+                    what = CalendarWhat.Day;
+                    btn = d;
+                    selectDate = (DateTime)d.DataContext!;
+                }
+                else if (control is Button m && control.Name == "PART_HeaderButton")
+                {
+                    what = CalendarWhat.None;
+                    btn = m;
+                    isHeader = true;
+                }
+                else if (control is CalendarButton y)
+                {
+                    what = CalendarWhat.None;
+                    btn = y;
+                    isGridButton = true;
+                }
             }
 
             if (control is Calendar c)
@@ -318,36 +353,92 @@ public partial class DiaryEditorViewModel : ViewModelBase
             
             control = control.Parent as Control;
         }
-        
-        if (btn is not null && calendar is not null)
+
+        if (what == CalendarWhat.None)
         {
-            FillDayMenus((DateTime)btn.DataContext!);
+            if (isHeader)
+            {
+                switch (calendar!.DisplayMode)
+                {
+                    case CalendarMode.Month:
+                        what = CalendarWhat.Month;
+                        selectDate = calendar.DisplayDate.AddDays(-calendar.DisplayDate.Day + 1);
+                        break;
+                    case CalendarMode.Year:
+                        what = CalendarWhat.Year;
+                        selectDate = new DateTime(calendar.DisplayDate.Year, 1, 1);
+                        break;
+                }
+            }
+            else if (isGridButton)
+            {
+                switch (calendar!.DisplayMode)
+                {
+                    case CalendarMode.Year:
+                        what = CalendarWhat.Month;
+                        break;
+                    case CalendarMode.Decade:
+                        what = CalendarWhat.Year;
+                        break;
+                }
+
+                selectDate = (DateTime)btn!.DataContext!;
+            }
         }
-        
+
+        if (what == CalendarWhat.None)
+        {
+            args.Handled = true; // ignore event
+            return;
+        }
+
+        switch (what)
+        {
+            case CalendarWhat.Day:
+                FillDayMenus((DateTime)selectDate!);
+                break;
+            case CalendarWhat.Month:
+                break;
+            case CalendarWhat.Year:
+                break;
+            default:
+                throw new ArgumentOutOfRangeException();
+        }
     }
 
     private void FillDayMenus(DateTime date)
     {
         if (date != SelectedDate)
             GoDate(date); // 切换到那天
-        DayMenuItems.Clear();
+        QuickMenuItems.Clear();
         // 固定项
-        DayMenuItems.Add(new DayMenuItem()
+        var sb = new StringBuilder();
+        sb.Append(date.ToString("yyyy年MM月dd日"));
+        sb.Append(' ');
+        sb.Append(
+            $"第{CultureInfo.InvariantCulture.Calendar.GetWeekOfYear(date, CalendarWeekRule.FirstDay, DayOfWeek.Monday)}周");
+        QuickMenuItems.Add(new DayMenuItem()
         {
-            Header = date.ToString("yyyy年MM月dd日"),
+            Header = sb.ToString(),
         });
-        DayMenuItems.Add(new DayMenuItem()
+        QuickMenuItems.Add(new DayMenuItem()
         {
-            Header = $"总工时{TotalTime:0.##}小时，{TotalTime-UploadedTime:0.##}小时未提交",
+            Header = $"今日总工时{TotalTime:0.##}小时，有{TotalTime-UploadedTime:0.##}小时未提交",
         });
-        DayMenuItems.Add(new DayMenuItem() { Header = "-" });
+        QuickMenuItems.Add(new DayMenuItem() { Header = "-" });
         
         // 功能项
-        DayMenuItems.Add(new DayMenuItem()
+        QuickMenuItems.Add(new DayMenuItem()
         {
-            Header = "全部提交",
+            Header = "提交本日工时",
             Command = UploadAllCommand,
             Enabled = true,
+        });
+        QuickMenuItems.Add(new DayMenuItem()
+        {
+            Header = "提交本周工时(尚未实现)",
+            Command = UploadAllCommand,
+            Enabled = false,
         });
     }
 

@@ -73,7 +73,7 @@
                         </EventTriggerBehavior>
                     </Interaction.Behaviors>
                     <Calendar.ContextMenu>
-                        <ContextMenu ItemsSource="{Binding DayMenuItems}">
+                        <ContextMenu ItemsSource="{Binding QuickMenuItems}">
                             <ContextMenu.ItemContainerTheme>
                                 <ControlTheme TargetType="MenuItem"
                                               BasedOn="{StaticResource {x:Type MenuItem}}"
