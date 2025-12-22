@@ -83,9 +83,13 @@ public partial class RedMineInfoViewModel : ViewModelBase
     [RelayCommand]
     private async Task SyncIssueState()
     {
-        await Task.Run(() =>
+        var has_effect = await Task.Run(() =>
         {
-            var batches = Issues.Select((x, n) => new { o = x, i = n })
+            bool changed = false;
+            // 只检查本地打开的问题，看看服务器上是否关闭了
+            var batches = Issues
+                .Where(x => !x.Disabled)
+                .Select((x, n) => new { o = x, i = n })
                 .GroupBy(x => x.i / RedMineApis.PageSize)
                 .Select(g => g.Select(x => x.o));
             foreach (var batch in batches)
@@ -99,12 +103,18 @@ public partial class RedMineInfoViewModel : ViewModelBase
                     // update db
                     foreach (var issue in infos!)
                     {
+                        if (!issue.Status.IsClosed)
+                            continue;
+                        changed = true;
                         Db!.AddRedMineIssue(issue.Id, issue.Subject, issue.AssignedTo.Name, issue.Project.Id, issue.Status.IsClosed);
                     }
                 }
             }
+            return changed;
         });
-        EventDispatcher.DbChanged(DbChangedEvent.RedMineIssue);
+        
+        if (has_effect)
+            EventDispatcher.DbChanged(DbChangedEvent.RedMineIssue);
     }
 
     [RelayCommand]

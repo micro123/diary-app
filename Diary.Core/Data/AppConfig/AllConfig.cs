@@ -21,7 +21,8 @@ public class AllConfig : SingletonBase<AllConfig>
     [ConfigureGroup("RedMine设置", "配置远程RedMine服务器")]
     public RedMineConfig RedMineSettings { get; } = new();
 
-    [ConfigureGroup("数据库设置")] public DbConfig DbSettings { get; } = new();
+    [ConfigureGroup("数据库设置", "所有功能的基础都是先连接好数据库。")]
+    public DbConfig DbSettings { get; } = new();
 
     [ConfigureGroup("调查统计功能设置", "”调查 - 回应“功能设置")]
     public SurveyConfig SurveySettings { get; } = new();

@@ -20,7 +20,7 @@
     </UserControl.Styles>
     <DockPanel VerticalSpacing="6">
         <!-- 用户信息 -->
-        <Expander IsExpanded="True" HorizontalContentAlignment="Left" Header="用户信息" DockPanel.Dock="Top">
+        <Expander IsExpanded="False" HorizontalContentAlignment="Left" Header="用户信息" DockPanel.Dock="Top">
             <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto"
                   RowSpacing="4" ColumnSpacing="4">
                 <TextBlock Grid.Column="0" Grid.Row="0" Text="用户ID：" />
@@ -32,7 +32,7 @@
             </Grid>
         </Expander>
         <!-- 活动信息 -->
-        <Expander IsExpanded="True" HorizontalContentAlignment="Left" Header="活动列表" DockPanel.Dock="Top">
+        <Expander IsExpanded="False" HorizontalContentAlignment="Left" Header="活动列表" DockPanel.Dock="Top">
             <StackPanel Orientation="Vertical" Spacing="16" HorizontalAlignment="Left">
                 <ItemsControl ItemsSource="{Binding Activities}">
                     <ItemsControl.ItemsPanel>

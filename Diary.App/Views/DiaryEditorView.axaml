@@ -16,9 +16,6 @@
     </Design.DataContext>
 
     <UserControl.Styles>
-        <Style Selector="Button.ActionButton">
-            <Setter Property="ToolTip.Tip" Value="{Binding $self.HotKey, StringFormat='快捷键：{0}'}" />
-        </Style>
         <Style Selector="ListBoxItem">
             <Setter Property="Padding" Value="0" />
             <Setter Property="Margin" Value="2" />
@@ -69,7 +66,16 @@
                 <Calendar FirstDayOfWeek="Monday" DockPanel.Dock="Top"
                           IsTodayHighlighted="True" SelectionMode="SingleDate"
                           DisplayDate="{Binding CurrentDate}"
-                          SelectedDate="{Binding SelectedDate}" />
+                          SelectedDate="{Binding SelectedDate}" >
+                    <Calendar.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="1"/>
+                            <MenuItem Header="-"/>
+                            <MenuItem Header="2"/>
+                            <MenuItem Header="3"/>
+                        </ContextMenu>
+                    </Calendar.ContextMenu>
+                </Calendar>
                 <Separator DockPanel.Dock="Top" />
                 <!-- 统计信息 -->
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Bottom" Spacing="8">

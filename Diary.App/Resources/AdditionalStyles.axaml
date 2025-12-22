@@ -119,4 +119,11 @@
             </Template>
         </Setter>
     </Style>
+    <Style Selector="Button.ActionButton">
+        <Setter Property="(ToolTip.Tip)" Value="{Binding $self.HotKey, StringFormat='快捷键：{0}'}" />
+        <Setter Property="(ToolTip.ShowDelay)" Value="150" />
+    </Style>
+    <Style Selector="ToolTip">
+        <Setter Property="ShowOnDisabled" Value="True"/>
+    </Style>
 </Styles>

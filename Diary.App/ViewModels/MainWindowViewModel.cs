@@ -95,20 +95,17 @@ public partial class MainWindowViewModel : ViewModelBase
                     Mode = evt.Mode,
                     Buttons = evt.Button,
                 };
-                
+
                 if (m.Value.Modal)
                     await OverlayDialog.ShowModal<StandardMessageView, StandardMessageViewModel>(vm, options: options);
                 else
                     OverlayDialog.Show<StandardMessageView, StandardMessageViewModel>(vm, options: options);
             });
         });
-        
+
         Messenger.Register<RunCommandEvent>(this, (r, m) => { HandleCommand(m.Value); });
-        
-        Messenger.Register<ToastEvent>(this, (r, m) =>
-        {
-            ToastManager?.Show(m.Value);
-        });
+
+        Messenger.Register<ToastEvent>(this, (r, m) => { ToastManager?.Show(m.Value); });
     }
 
     private void HandleCommand(string cmd)
@@ -137,6 +134,12 @@ public partial class MainWindowViewModel : ViewModelBase
             case CommandNames.ShowMigrateGuide:
                 Dispatcher.UIThread.Post(async () =>
                 {
+                    if (App.Current.UseDb is null)
+                    {
+                        EventDispatcher.ShowToast("需要先连接数据库！");
+                        return;
+                    }
+
                     var options = new OverlayDialogOptions()
                     {
                         CanDragMove = false,
@@ -155,6 +158,12 @@ public partial class MainWindowViewModel : ViewModelBase
             case CommandNames.EditWorkTags:
                 Dispatcher.UIThread.Post(async () =>
                 {
+                    if (App.Current.UseDb is null)
+                    {
+                        EventDispatcher.ShowToast("需要先连接数据库！");
+                        return;
+                    }
+
                     var options = new OverlayDialogOptions()
                     {
                         CanDragMove = false,
@@ -170,6 +179,12 @@ public partial class MainWindowViewModel : ViewModelBase
             case CommandNames.EditWorkTemplates:
                 Dispatcher.UIThread.Post(async () =>
                 {
+                    if (App.Current.UseDb is null)
+                    {
+                        EventDispatcher.ShowToast("需要先连接数据库！");
+                        return;
+                    }
+
                     var options = new OverlayDialogOptions()
                     {
                         CanDragMove = false,
@@ -201,7 +216,6 @@ public partial class MainWindowViewModel : ViewModelBase
             case CommandNames.ShowAboutDialog:
                 Dispatcher.UIThread.Post(ShowAbout);
                 return;
-            
         }
 
         throw new ArgumentOutOfRangeException(nameof(cmd));
@@ -209,7 +223,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private bool _quiting;
     private Window? Window => View as Window;
-    
+
     [RelayCommand]
     private void Quit()
     {
@@ -227,11 +241,11 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         return Window?.WindowState != WindowState.Minimized;
     }
-    
+
     [RelayCommand(CanExecute = nameof(CanMaximized))]
     private void Maximized()
     {
-            Window!.WindowState = WindowState.Maximized;
+        Window!.WindowState = WindowState.Maximized;
     }
 
     private bool CanMaximized()
