@@ -27,9 +27,9 @@
 程序使用`Avalonia UI`作为`UI`库以实现跨平台（主要是为了支持`Linux`平台），
 使用`MVVM`架构实现数据和界面分离。各个文件夹的作用如下：
 
-- Assets：
-- Converters：
-- Dialogs：
+- Assets：资源文件，包含字体、图标等
+- Converters：`XAMAL`中用到的数值转换工具
+- Dialogs：一些弹出式对话框放在这里，同时对应的`ViewModel`也在这
 - Messages：程序中解耦使用的消息类型定义。
 - Models：一些子页面的`ViewModel`,如统计、调查，也有一些通用的模型。
 - Pages：`RedMine`的一些页面在这里，`ViewModel`也在这里
