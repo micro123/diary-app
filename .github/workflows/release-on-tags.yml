@@ -30,6 +30,7 @@ jobs:
           dotnet publish -c Release -r $RID --self-contained true -o $OUT Diary.App/Diary.App.csproj
           ARCHIVE=DiaryAppNG-${{ github.ref_name }}-${RID}.zip
           cd ${OUT}
+          find runtimes -maxdepth 2 -mindepth 2 \( -not -path '*${RID}*' \) -exec rm -rf {} +
           zip -r ../../$ARCHIVE .
           cd ../..
           ls -lh $ARCHIVE
