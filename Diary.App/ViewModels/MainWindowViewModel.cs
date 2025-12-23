@@ -55,14 +55,16 @@ public partial class MainWindowViewModel : ViewModelBase
         _logger = logger;
         _pages =
         [
-            new NavigateInfo(PageNames.DiaryEditor, "mdi-notebook", serviceProvider.GetService<DiaryEditorViewModel>()),
+            new NavigateInfo(PageNames.DiaryEditor, "mdi-notebook", serviceProvider.GetService<DiaryEditorViewModel>(),
+                "Alt+1"),
             new NavigateInfo(PageNames.RedMineTool, "fa-cloud",
-                serviceProvider.GetRequiredService<RedMineManageViewModel>()),
+                serviceProvider.GetRequiredService<RedMineManageViewModel>(), "Alt+2"),
             new NavigateInfo(PageNames.Statistics, "fa-chart-pie",
-                serviceProvider.GetRequiredService<StatisticsViewModel>()),
+                serviceProvider.GetRequiredService<StatisticsViewModel>(), "Alt+3"),
             new NavigateInfo(PageNames.SurveyTool, "mdi-chat-processing-outline",
-                serviceProvider.GetRequiredService<SurveyViewModel>()),
-            new NavigateInfo(PageNames.Settings, "mdi-cog-outline", serviceProvider.GetService<SettingsViewModel>())
+                serviceProvider.GetRequiredService<SurveyViewModel>(), "Alt+4"),
+            new NavigateInfo(PageNames.Settings, "mdi-cog-outline", serviceProvider.GetService<SettingsViewModel>(),
+                "Alt+5")
         ];
 
         SelectedPage = Pages[0];
@@ -76,7 +78,7 @@ public partial class MainWindowViewModel : ViewModelBase
             }
         });
 
-        Messenger.Register<ConfigUpdateEvent>(this, (r, m) => { _logger.LogInformation("config updated!"); });
+        Messenger.Register<ConfigUpdateEvent>(this, (r, m) => { _logger.LogDebug("config updated!"); });
 
         Messenger.Register<NotifyEvent>(this, (r, m) =>
         {
@@ -106,6 +108,12 @@ public partial class MainWindowViewModel : ViewModelBase
         Messenger.Register<RunCommandEvent>(this, (r, m) => { HandleCommand(m.Value); });
 
         Messenger.Register<ToastEvent>(this, (r, m) => { ToastManager?.Show(m.Value); });
+    }
+
+    [RelayCommand]
+    private void SwitchPage(NavigateInfo info)
+    {
+        SelectedPage = info;
     }
 
     private void HandleCommand(string cmd)

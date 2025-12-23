@@ -128,9 +128,9 @@
                     </MenuFlyout>
                 </Button.Flyout>
             </Button>
-            <Button Grid.Column="4" Classes="Flat Success" Command="{Binding ShowSettingsCommand}"
+            <Button Grid.Column="4" Classes="Flat Success ActionButton" Command="{Binding ShowSettingsCommand}"
                     ToolTip.Tip="程序设置" ToolTip.ShowDelay="250" Width="32" Height="32" Padding="0" BorderThickness="0"
-                    Background="Transparent">
+                    Background="Transparent" HotKey="Alt+S">
                 <i:Icon Value="mdi-cog-outline" />
             </Button>
             <u:ThemeToggleButton Grid.Column="3" IsThreeState="False" Mode="Indicator" />

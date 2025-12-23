@@ -5,6 +5,8 @@ using System.Linq;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
+using Diary.App.Messages;
 using Diary.App.Models;
 using Diary.Core.Configure;
 using Diary.Core.Utils;
@@ -41,6 +43,7 @@ public partial class StatisticsViewModel : ViewModelBase
     [ObservableProperty] private ObservableCollection<StatisticsTabData> _tabs = new();
 
     [ObservableProperty] private ObservableCollection<AddStatisticOptionItem> _addList = new();
+    [ObservableProperty] private int _selectedTabIndex = 0;
     
     private ICollection<StatisticsType> StatisticsTypes => StatisticsManager.Instance.StatisticsList;
     
@@ -52,6 +55,14 @@ public partial class StatisticsViewModel : ViewModelBase
         }
         Tabs.Add(new StatisticsTabData(StatisticsType.Custom));
         SyncOptions();
+        
+        Messenger.Register<QuickStatisticsEvent>(this, (r, m) =>
+        {
+            var data = Tabs.Last();
+            data.DateBegin = m.Value.Item1;
+            data.MakeRange((AdjustPart)m.Value.Item2, AdjustDirection.Current);
+            SelectedTabIndex = Tabs.Count - 1; // 最后一个是自定义
+        });
     }
 
     private void SyncOptions()

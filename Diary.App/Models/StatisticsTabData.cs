@@ -291,11 +291,18 @@ public partial class StatisticsTabData : ObservableObject
         var col = which[1] - '0';
         var row = which[2] - '0';
         
+        MakeRange((AdjustPart)row, (AdjustDirection)col);
+    }
+
+    public void MakeRange(AdjustPart part, AdjustDirection direction)
+    {
         DateTime startDate = DateBegin;
         DateTime endDate = DateEnd;
-        TimeTools.AdjustDate(ref startDate, ref endDate, (AdjustPart)row, (AdjustDirection)col);
+        TimeTools.AdjustDate(ref startDate, ref endDate, part, direction);
         DateBegin = startDate;
         DateEnd = endDate;
+
+        Dispatcher.UIThread.Invoke(FetchData);
     }
 
     [RelayCommand]

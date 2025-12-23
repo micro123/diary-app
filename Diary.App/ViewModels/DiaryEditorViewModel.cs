@@ -15,6 +15,7 @@ using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.Messages;
 using Diary.App.Models;
 using Diary.App.Utils;
+using Diary.Core.Constants;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -28,6 +29,8 @@ public sealed class DayMenuItem
     public required string Header { get; set; }
     public bool Enabled { get; set; } = false;
     public ICommand? Command { get; set; } = null;
+
+    public static DayMenuItem Separator { get; } = new DayMenuItem() { Header = "-" };
 }
 
 
@@ -47,6 +50,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     [ObservableProperty] private ObservableCollection<Template> _templates = new();
     [ObservableProperty] private bool _canUseTemplates = false;
+
+    private bool IsSurveyorEnabled => App.Current.AppConfig.SurveySettings.IsServerEnabled;
     
     [RelayCommand]
     private void NewWorkItem()
@@ -398,11 +403,11 @@ public partial class DiaryEditorViewModel : ViewModelBase
                 FillDayMenus((DateTime)selectDate!);
                 break;
             case CalendarWhat.Month:
+                FillMonthMenus((DateTime)selectDate!);
                 break;
             case CalendarWhat.Year:
+                FillYearMenus((DateTime)selectDate!);
                 break;
-            default:
-                throw new ArgumentOutOfRangeException();
         }
     }
 
@@ -425,7 +430,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         {
             Header = $"今日总工时{TotalTime:0.##}小时，有{TotalTime-UploadedTime:0.##}小时未提交",
         });
-        QuickMenuItems.Add(new DayMenuItem() { Header = "-" });
+        QuickMenuItems.Add(DayMenuItem.Separator);
         
         // 功能项
         QuickMenuItems.Add(new DayMenuItem()
@@ -440,6 +445,134 @@ public partial class DiaryEditorViewModel : ViewModelBase
             Command = UploadAllCommand,
             Enabled = false,
         });
+        QuickMenuItems.Add(new DayMenuItem()
+        {
+            Header = "统计本周工时",
+            Command = new RelayCommand(() =>
+            {
+                EventDispatcher.RouteToPage(PageNames.Statistics);
+                EventDispatcher.Msg(new QuickStatisticsEvent(date, AdjustPart.Week));
+            }),
+            Enabled = true,
+        });
+        if (IsSurveyorEnabled)
+        {
+            QuickMenuItems.Add(DayMenuItem.Separator);
+            QuickMenuItems.Add(new DayMenuItem()
+            {
+                Header = "调查本周工时情况",
+                Command = new RelayCommand(() =>
+                {
+                    EventDispatcher.RouteToPage(PageNames.SurveyTool);
+                    EventDispatcher.Msg(new QuickSurveyEvent(date, AdjustPart.Week));
+                }),
+                Enabled = true,
+            });
+        }
+    }
+
+    private void FillMonthMenus(DateTime date)
+    {
+        QuickMenuItems.Clear();
+        // 固定项
+        var sb = new StringBuilder();
+        sb.Append(date.ToString("yyyy年MM月"));
+        sb.Append(' ');
+        sb.Append($"第{(date.Month-1)/3+1}季度");
+        QuickMenuItems.Add(new DayMenuItem()
+        {
+            Header = sb.ToString(),
+        });
+        QuickMenuItems.Add(DayMenuItem.Separator);
+        
+        // 功能项
+        QuickMenuItems.Add(new DayMenuItem()
+        {
+            Header = "提交本月工时(尚未实现)",
+            Command = UploadAllCommand,
+            Enabled = false,
+        });
+        QuickMenuItems.Add(new DayMenuItem()
+        {
+            Header = "统计本月工时",
+            Command = new RelayCommand(() =>
+            {
+                EventDispatcher.RouteToPage(PageNames.Statistics);
+                EventDispatcher.Msg(new QuickStatisticsEvent(date, AdjustPart.Month));
+            }),
+            Enabled = true,
+        });
+        QuickMenuItems.Add(new DayMenuItem()
+        {
+            Header = "统计本季度工时",
+            Command = new RelayCommand(() =>
+            {
+                EventDispatcher.RouteToPage(PageNames.Statistics);
+                EventDispatcher.Msg(new QuickStatisticsEvent(date, AdjustPart.Quarter));
+            }),
+            Enabled = true,
+        });
+        if (IsSurveyorEnabled)
+        {
+            QuickMenuItems.Add(DayMenuItem.Separator);
+            QuickMenuItems.Add(new DayMenuItem()
+            {
+                Header = "调查本月工时情况",
+                Command = new RelayCommand(() =>
+                {
+                    EventDispatcher.RouteToPage(PageNames.SurveyTool);
+                    EventDispatcher.Msg(new QuickSurveyEvent(date, AdjustPart.Month));
+                }),
+                Enabled = true,
+            });
+            QuickMenuItems.Add(new DayMenuItem()
+            {
+                Header = "调查本季度工时情况",
+                Command = new RelayCommand(() =>
+                {
+                    EventDispatcher.RouteToPage(PageNames.SurveyTool);
+                    EventDispatcher.Msg(new QuickSurveyEvent(date, AdjustPart.Quarter));
+                }),
+                Enabled = true,
+            });
+        }
+    }
+
+    private void FillYearMenus(DateTime date)
+    {
+        QuickMenuItems.Clear();
+        // 固定项
+        QuickMenuItems.Add(new DayMenuItem()
+        {
+            Header = date.ToString("yyyy年"),
+        });
+        QuickMenuItems.Add(DayMenuItem.Separator);
+        
+        // 功能项
+        QuickMenuItems.Add(new DayMenuItem()
+        {
+            Header = "统计此年工时",
+            Command = new RelayCommand(() =>
+            {
+                EventDispatcher.RouteToPage(PageNames.Statistics);
+                EventDispatcher.Msg(new QuickStatisticsEvent(date, AdjustPart.Week));
+            }),
+            Enabled = true,
+        });
+        if (IsSurveyorEnabled)
+        {
+            QuickMenuItems.Add(DayMenuItem.Separator);
+            QuickMenuItems.Add(new DayMenuItem()
+            {
+                Header = "调查此年工时情况",
+                Command = new RelayCommand(() =>
+                {
+                    EventDispatcher.RouteToPage(PageNames.SurveyTool);
+                    EventDispatcher.Msg(new QuickSurveyEvent(date, AdjustPart.Week));
+                }),
+                Enabled = true,
+            });
+        }
     }
 
     public override void OnHide()

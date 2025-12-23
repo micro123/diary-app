@@ -122,6 +122,14 @@ public partial class SurveyViewModel : ViewModelBase
 
         Messenger.Register<SurveyRequestEvent>(this, (r, m) => CollectData(m.Value));
         Messenger.Register<RespondEvent>(this, (r, m) => StoreData(m.Value));
+        Messenger.Register<QuickSurveyEvent>(this, (r, m) => BuildRange(m.Value.Item1, m.Value.Item2));
+    }
+
+    private void BuildRange(DateTime start, AdjustPart part)
+    {
+        StartDate = start;
+        MakeRange(part, AdjustDirection.Current);
+        SendQueryCommand.ExecuteAsync(null);
     }
 
     private void StoreData(string content)
@@ -252,9 +260,14 @@ public partial class SurveyViewModel : ViewModelBase
         var col = which[1] - '0';
         var row = which[2] - '0';
         
+        MakeRange((AdjustPart)row, (AdjustDirection)col);
+    }
+
+    private void MakeRange(AdjustPart row, AdjustDirection col)
+    {
         DateTime startDate = StartDate;
         DateTime endDate = EndDate;
-        TimeTools.AdjustDate(ref startDate, ref endDate, (AdjustPart)row, (AdjustDirection)col);
+        TimeTools.AdjustDate(ref startDate, ref endDate, row, col);
         StartDate = startDate;
         EndDate = endDate;
     }

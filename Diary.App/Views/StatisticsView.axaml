@@ -34,7 +34,7 @@
                    FontSize="64"
                    IsVisible="{Binding !DatabaseOk, Source={x:Static app:App.Current}}" />
         <TabControl ItemsSource="{Binding Tabs}" TabStripPlacement="Top"
-                    Theme="{DynamicResource ScrollTabControl}"
+                    Theme="{DynamicResource ScrollTabControl}" SelectedIndex="{Binding SelectedTabIndex}"
                     IsVisible="{Binding DatabaseOk, Source={x:Static app:App.Current}}">
             <TabControl.ItemTemplate>
                 <DataTemplate DataType="models:StatisticsTabData">
