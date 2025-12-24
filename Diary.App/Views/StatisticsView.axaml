@@ -106,7 +106,7 @@
                                     </Flyout>
                                 </Button.Flyout>
                             </Button>
-                            <Button Classes="Primary" Theme="{DynamicResource FlatButton}"
+                            <Button Classes="Primary" Theme="{DynamicResource BorderlessButton}"
                                     Command="{Binding RefreshCommand}">
                                 <StackPanel Orientation="Horizontal" Spacing="4">
                                     <i:Icon Value="fa-rotate" FontSize="16" />

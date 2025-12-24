@@ -1,0 +1,68 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:viewModels="clr-namespace:Diary.App.ViewModels"
+             xmlns:i="https://github.com/projektanker/icons.avalonia"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:Class="Diary.App.Views.StatusBarView"
+             x:DataType="viewModels:StatusBarViewModel"
+             Height="32" >
+    <Design.DataContext>
+        <viewModels:StatusBarViewModel/>
+    </Design.DataContext>
+    <DockPanel>
+        <DockPanel.Styles>
+            <Style Selector="Button">
+                <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
+                <Setter Property="Height" Value="24" />
+            </Style>
+            <Style Selector="StackPanel">
+                <Setter Property="Spacing" Value="4" />
+            </Style>
+        </DockPanel.Styles>
+        
+        <Button DockPanel.Dock="Left" ToolTip.Tip="查看源代码" Command="{Binding OpenSourceUrlCommand}">
+            <i:Icon Value="mdi-github" />
+        </Button>
+        
+        <Button DockPanel.Dock="Right" ToolTip.Tip="当前日期">
+            <StackPanel Orientation="Horizontal">
+                <i:Icon Value="mdi-calendar-month-outline" />
+                <TextBlock Text="{Binding Date}"/>
+            </StackPanel>
+            <Button.Flyout>
+                <Flyout ShowMode="Standard" PlacementGravity="BottomLeft">
+                    <Calendar />
+                </Flyout>
+            </Button.Flyout>
+        </Button>
+        <Button DockPanel.Dock="Right" ToolTip.Tip="计算机名称">
+            <StackPanel Orientation="Horizontal">
+                <i:Icon Value="mdi-desktop-classic" />
+                <TextBlock Text="{Binding ComputerName}" />
+            </StackPanel>
+        </Button>
+        <Button DockPanel.Dock="Right" ToolTip.Tip="用户名">
+            <StackPanel Orientation="Horizontal">
+                <i:Icon Value="mdi-account" />
+                <TextBlock Text="{Binding UserName}" />
+            </StackPanel>
+        </Button>
+        
+        <Border Width="2" DockPanel.Dock="Right" BorderThickness="0 0 2 0" 
+                BorderBrush="{DynamicResource SemiColorBorder}"
+                IsVisible="{Binding HasTasks}"/>
+        
+        <Button DockPanel.Dock="Right" ToolTip.Tip="查看后台任务"
+                IsVisible="{Binding HasTasks}">
+            <!-- TODO: 添加任务进度预览 -->
+            <StackPanel Orientation="Horizontal">
+                <i:Icon Value="mdi-gauge" />
+            </StackPanel>
+        </Button>
+        
+        <!-- 占用剩余空间 -->
+        <Rectangle />
+    </DockPanel>
+</UserControl>

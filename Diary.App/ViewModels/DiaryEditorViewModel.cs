@@ -16,6 +16,7 @@ using Diary.App.Messages;
 using Diary.App.Models;
 using Diary.App.Utils;
 using Diary.Core.Constants;
+using Diary.Core.Data.App;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

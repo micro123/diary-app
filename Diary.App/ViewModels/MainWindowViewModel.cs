@@ -25,11 +25,13 @@ namespace Diary.App.ViewModels;
 [DiAutoRegister]
 public partial class MainWindowViewModel : ViewModelBase
 {
+    private readonly StatusBarViewModel _statusBarViewModel;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger _logger;
     public string VersionString => AppInfo.AppVersionString;
 
     public string VersionDetails => AppInfo.AppVersionDetails;
+    public StatusBarViewModel StatusBar => _statusBarViewModel;
 
     [RelayCommand]
     private async Task CopyVersion(bool simple)
@@ -66,6 +68,7 @@ public partial class MainWindowViewModel : ViewModelBase
             new NavigateInfo(PageNames.Settings, "mdi-cog-outline", serviceProvider.GetService<SettingsViewModel>(),
                 "Alt+5")
         ];
+        _statusBarViewModel = _serviceProvider.GetRequiredService<StatusBarViewModel>();
 
         SelectedPage = Pages[0];
 
@@ -108,6 +111,18 @@ public partial class MainWindowViewModel : ViewModelBase
         Messenger.Register<RunCommandEvent>(this, (r, m) => { HandleCommand(m.Value); });
 
         Messenger.Register<ToastEvent>(this, (r, m) => { ToastManager?.Show(m.Value); });
+        
+        Messenger.Register<ConfirmRequest<ConfirmMessage, bool>>(this, async (r, m) =>
+        {
+            var result = await Dispatcher.UIThread.InvokeAsync(async () =>
+            {
+                var req = m.Request;
+                var result = await MessageBox.ShowOverlayAsync(req.Message, req.Title, icon: MessageBoxIcon.Question,
+                    button: MessageBoxButton.YesNo);
+                return result == MessageBoxResult.Yes;
+            });
+            m.Reply(result);
+        });
     }
 
     [RelayCommand]

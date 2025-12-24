@@ -13,6 +13,7 @@ namespace Diary.App.Views
     public partial class MainWindow: UrsaWindow
     {
         private ThemeVariantScope? _titleBarScope = null;
+        private ThemeVariantScope? _statusBarScope = null;
         
         public MainWindow()
         {
@@ -21,20 +22,32 @@ namespace Diary.App.Views
 
         private void OnActualThemeVariantChanged(object? sender, EventArgs e)
         {
-            SyncTitleBarTheme();
+            SyncBarsTheme();
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
-            SyncTitleBarTheme();
+            SyncBarsTheme();
             var host = this.FindDescendantOfType<OverlayDialogHost>();
             host?.DialogDataTemplates.Add(new ViewLocator());
         }
 
-        private void SyncTitleBarTheme()
+        private void SyncBarsTheme()
         {
-            var s = _titleBarScope ??= this.FindDescendantOfType<ThemeVariantScope>();
+            var t = _titleBarScope ??= GetThemeScopeOf<TitleBar>();
+            var s = _statusBarScope ??= GetThemeScopeOf<StatusBarView>();
+            t!.RequestedThemeVariant = ActualThemeVariant == ThemeVariant.Dark ? ThemeVariant.Light : ThemeVariant.Dark;
             s!.RequestedThemeVariant = ActualThemeVariant == ThemeVariant.Dark ? ThemeVariant.Light : ThemeVariant.Dark;
+        }
+
+        private ThemeVariantScope? GetThemeScopeOf<T>() where T : Control
+        {
+            var control = this.FindDescendantOfType<T>();
+            if (control != null)
+            {
+                return control.FindDescendantOfType<ThemeVariantScope>();
+            }
+            return null;
         }
     }
 }

@@ -42,14 +42,16 @@ public partial class SettingsViewModel : ViewModelBase
     [RelayCommand]
     private async Task Load()
     {
-        var confirm = await MessageBox.ShowOverlayAsync(
-            message: "所做的所有更改均被丢弃",
-            title: "确认执行吗？",
-            icon: MessageBoxIcon.Warning,
-            button: MessageBoxButton.OKCancel
-        );
-        _logger.LogDebug("Result: {confirm}", confirm);
-        if (confirm != MessageBoxResult.OK)
+        // var confirm = await MessageBox.ShowOverlayAsync(
+        //     message: "所做的所有更改均被丢弃",
+        //     title: "确认执行吗？",
+        //     icon: MessageBoxIcon.Warning,
+        //     button: MessageBoxButton.OKCancel
+        // );
+        // _logger.LogDebug("Result: {confirm}", confirm);
+        // if (confirm != MessageBoxResult.OK)
+        //     return;
+        if (!await EventDispatcher.Confirm("确认执行吗？", "所做的所有更改均被丢弃！"))
             return;
 
         ForceLoad();

@@ -52,6 +52,10 @@
         <ProjectReference Include="..\Diary.MigrationTool\Diary.MigrationTool.csproj" />
         <ProjectReference Include="..\Diary.RedMine\Diary.RedMine.csproj" />
         <ProjectReference Include="..\Diary.Db.SQLite\Diary.Db.SQLite.csproj" />
+        <ProjectReference Include="..\Diary.Script.CSharp\Diary.Script.CSharp.csproj" />
+        <ProjectReference Include="..\Diary.Script.Lua\Diary.Script.Lua.csproj" />
+        <ProjectReference Include="..\Diary.Script.Python\Diary.Script.Python.csproj" />
+        <ProjectReference Include="..\Diary.ScriptBase\Diary.ScriptBase.csproj" />
         <ProjectReference Include="..\Diary.Survey\Diary.Survey.csproj" />
         <ProjectReference Include="..\Diary.Utils\Diary.Utils.csproj" />
     </ItemGroup>

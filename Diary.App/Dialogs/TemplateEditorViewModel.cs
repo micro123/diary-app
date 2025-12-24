@@ -8,6 +8,7 @@ using Diary.App.Messages;
 using Diary.App.Models;
 using Diary.App.Utils;
 using Diary.App.ViewModels;
+using Diary.Core.Data.App;
 using Diary.Core.Data.Base;
 using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
