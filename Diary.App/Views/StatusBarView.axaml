@@ -22,28 +22,29 @@
             </Style>
         </DockPanel.Styles>
         
-        <Button DockPanel.Dock="Left" ToolTip.Tip="查看源代码" Command="{Binding OpenSourceUrlCommand}">
+        <Button DockPanel.Dock="Left" ToolTip.Tip="查看源代码" Classes="Warning"
+                Command="{Binding OpenSourceUrlCommand}">
             <i:Icon Value="mdi-github" />
         </Button>
         
-        <Button DockPanel.Dock="Right" ToolTip.Tip="当前日期">
+        <Button DockPanel.Dock="Right" ToolTip.Tip="当前日期" Classes="Warning">
             <StackPanel Orientation="Horizontal">
                 <i:Icon Value="mdi-calendar-month-outline" />
                 <TextBlock Text="{Binding Date}"/>
             </StackPanel>
             <Button.Flyout>
                 <Flyout ShowMode="Standard" PlacementGravity="BottomLeft">
-                    <Calendar />
+                    <Calendar SelectionMode="None"/>
                 </Flyout>
             </Button.Flyout>
         </Button>
-        <Button DockPanel.Dock="Right" ToolTip.Tip="计算机名称">
+        <Button DockPanel.Dock="Right" ToolTip.Tip="计算机名称" Classes="Warning">
             <StackPanel Orientation="Horizontal">
                 <i:Icon Value="mdi-desktop-classic" />
                 <TextBlock Text="{Binding ComputerName}" />
             </StackPanel>
         </Button>
-        <Button DockPanel.Dock="Right" ToolTip.Tip="用户名">
+        <Button DockPanel.Dock="Right" ToolTip.Tip="用户名" Classes="Warning">
             <StackPanel Orientation="Horizontal">
                 <i:Icon Value="mdi-account" />
                 <TextBlock Text="{Binding UserName}" />
@@ -54,7 +55,7 @@
                 BorderBrush="{DynamicResource SemiColorBorder}"
                 IsVisible="{Binding HasTasks}"/>
         
-        <Button DockPanel.Dock="Right" ToolTip.Tip="查看后台任务"
+        <Button DockPanel.Dock="Right" ToolTip.Tip="查看后台任务" Classes="Success"
                 IsVisible="{Binding HasTasks}">
             <!-- TODO: 添加任务进度预览 -->
             <StackPanel Orientation="Horizontal">

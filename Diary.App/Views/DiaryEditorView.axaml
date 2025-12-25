@@ -4,10 +4,10 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              xmlns:viewModels="clr-namespace:Diary.App.ViewModels"
-             xmlns:models="clr-namespace:Diary.App.Models"
              xmlns:i="https://github.com/projektanker/icons.avalonia"
              xmlns:base="clr-namespace:Diary.Core.Data.Base;assembly=Diary.Core"
              xmlns:app="clr-namespace:Diary.App"
+             xmlns:models="clr-namespace:Diary.Core.Data.App;assembly=Diary.Core"
              x:Class="Diary.App.Views.DiaryEditorView"
              x:DataType="viewModels:DiaryEditorViewModel">
 
