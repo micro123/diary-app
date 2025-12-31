@@ -1,10 +1,10 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.Messaging;
-using Diary.App.Messages;
 using Diary.Core.Data.Base;
 using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
 using Diary.Database;
+using Diary.GUIBase.Events;
 using Diary.Utils;
 using Microsoft.Extensions.Logging;
 
@@ -13,20 +13,22 @@ namespace Diary.App.Models;
 [DiAutoRegister(singleton: true)]
 public class DbShareData
 {
+    private readonly ILogger _logger;
     public ObservableCollection<WorkTag> WorkTags { get; } = new();
     public ObservableCollection<RedMineIssueDisplay> RedMineIssues { get; } = new();
     public ObservableCollection<RedMineIssueDisplay> RedMineIssuesOpen { get; } = new();
     public ObservableCollection<RedMineActivity> RedMineActivities { get; } = new();
 
-    private DbInterfaceBase? DbInterface => App.Current.UseDb;
+    private DbInterfaceBase? DbInterface => App.Instance.UseDb;
     
-    public DbShareData()
+    public DbShareData(ILogger logger)
     {
+        _logger = logger;
         WeakReferenceMessenger.Default.Register<DbChangedEvent>(this, (r, m) =>
         {
             var active = false;
             
-            App.Current.Logger.LogDebug("db changed, mask = {Value:X}", m.Value);
+            _logger.LogDebug("db changed, mask = {Value:X}", m.Value);
             if (0 != (m.Value & DbChangedEvent.RedMineIssue))
             {
                 active = true;

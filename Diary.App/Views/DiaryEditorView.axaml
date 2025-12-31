@@ -50,9 +50,9 @@
     <Panel>
         <TextBlock Text="数据库连接出错，需要检查设置" HorizontalAlignment="Center" VerticalAlignment="Center"
                    FontSize="64"
-                   IsVisible="{Binding !DatabaseOk, Source={x:Static app:App.Current}}" />
+                   IsVisible="{Binding !DatabaseOk, Source={x:Static app:App.Instance}}" />
         <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="4"
-              IsVisible="{Binding DatabaseOk, Source={x:Static app:App.Current}}">
+              IsVisible="{Binding DatabaseOk, Source={x:Static app:App.Instance}}">
             <!-- 左侧是日期和项目列表展示 -->
             <DockPanel VerticalSpacing="8" Width="280">
                 <Grid ColumnSpacing="8" ColumnDefinitions="Auto,*,Auto" HorizontalAlignment="Stretch"

@@ -1,15 +1,14 @@
-using System.Diagnostics;
 using System.Threading.Tasks;
 using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
-using Diary.App.Messages;
-using Diary.App.Models;
-using Diary.App.Utils;
+using Diary.GUIBase;
+using Diary.GUIBase.Events;
+using Diary.GUIBase.Utils;
+using Diary.GUIBase.ViewModels;
 using Diary.Utils;
 using Microsoft.Extensions.Logging;
-using Ursa.Controls;
 
 namespace Diary.App.ViewModels;
 
@@ -27,8 +26,8 @@ public partial class SettingsViewModel : ViewModelBase
 
     private void BuildTree()
     {
-        var config = App.Current.AppConfig;
-        SettingTreeBuilder.BuildTree(SettingsTree, config);
+        var app = BaseApp.Instance;
+        SettingTreeBuilder.BuildTree(SettingsTree, app.AppConfig, app);
     }
 
     [RelayCommand]

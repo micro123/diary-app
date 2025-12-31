@@ -12,11 +12,13 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
-using Diary.App.Messages;
 using Diary.App.Models;
 using Diary.App.Utils;
 using Diary.Core.Constants;
 using Diary.Core.Data.App;
+using Diary.GUIBase.Events;
+using Diary.GUIBase.Utils;
+using Diary.GUIBase.ViewModels;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -52,7 +54,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
     [ObservableProperty] private ObservableCollection<Template> _templates = new();
     [ObservableProperty] private bool _canUseTemplates = false;
 
-    private bool IsSurveyorEnabled => App.Current.AppConfig.SurveySettings.IsServerEnabled;
+    private bool IsSurveyorEnabled => App.Instance.AppConfig.SurveySettings.IsServerEnabled;
     
     [RelayCommand]
     private void NewWorkItem()
@@ -269,7 +271,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private void FetchWorks()
     {
         DailyWorks.Clear();
-        var db = App.Current.UseDb;
+        var db = App.Instance.UseDb;
         if (db != null)
         {
             var dbItems = db.GetWorkItemByDate(CurrentDateString);

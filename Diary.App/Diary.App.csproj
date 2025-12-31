@@ -21,34 +21,35 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Avalonia" Version="11.3.9" />
-        <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.3.9" />
-        <PackageReference Include="Avalonia.Desktop" Version="11.3.9" />
+<!--        <PackageReference Include="Avalonia" Version="11.3.10" />-->
+<!--        <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.3.10" />-->
+        <PackageReference Include="Avalonia.Desktop" Version="11.3.10" />
         <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
-        <PackageReference Include="Avalonia.Diagnostics" Version="11.3.9">
+        <PackageReference Include="Avalonia.Diagnostics" Version="11.3.10">
             <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
             <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
         </PackageReference>
-        <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-        <PackageReference Include="Irihi.Ursa" Version="1.14.0" />
-        <PackageReference Include="Irihi.Ursa.Themes.Semi" Version="1.14.0" />
-        <PackageReference Include="LiveChartsCore.SkiaSharpView.Avalonia" Version="2.0.0-rc6.1" />
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
-        <PackageReference Include="Projektanker.Icons.Avalonia" Version="9.6.2" />
-        <PackageReference Include="Projektanker.Icons.Avalonia.FontAwesome" Version="9.6.2" />
-        <PackageReference Include="Projektanker.Icons.Avalonia.MaterialDesign" Version="9.6.2" />
-        <PackageReference Include="Semi.Avalonia" Version="11.3.7.1" />
-        <PackageReference Include="Semi.Avalonia.ColorPicker" Version="11.3.7.1" />
-        <PackageReference Include="Semi.Avalonia.DataGrid" Version="11.3.7.1" />
-        <PackageReference Include="TreeDataGrid.Avalonia" Version="11.3.0-a2" />
-        <PackageReference Include="Xaml.Behaviors.Avalonia" Version="11.3.9" />
-        <PackageReference Include="Xaml.Behaviors.Interactivity" Version="11.3.9" />
+<!--        <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />-->
+<!--        <PackageReference Include="Irihi.Ursa" Version="1.14.1" />-->
+<!--        <PackageReference Include="Irihi.Ursa.Themes.Semi" Version="1.14.1" />-->
+<!--        <PackageReference Include="LiveChartsCore.SkiaSharpView.Avalonia" Version="2.0.0-rc6.1" />-->
+<!--        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.1" />-->
+<!--        <PackageReference Include="Projektanker.Icons.Avalonia" Version="9.6.2" />-->
+<!--        <PackageReference Include="Projektanker.Icons.Avalonia.FontAwesome" Version="9.6.2" />-->
+<!--        <PackageReference Include="Projektanker.Icons.Avalonia.MaterialDesign" Version="9.6.2" />-->
+<!--        <PackageReference Include="Semi.Avalonia" Version="11.3.7.2" />-->
+<!--        <PackageReference Include="Semi.Avalonia.ColorPicker" Version="11.3.7.2" />-->
+<!--        <PackageReference Include="Semi.Avalonia.DataGrid" Version="11.3.7.2" />-->
+<!--        <PackageReference Include="TreeDataGrid.Avalonia" Version="11.3.0" />-->
+<!--        <PackageReference Include="Xaml.Behaviors.Avalonia" Version="11.3.9" />-->
+<!--        <PackageReference Include="Xaml.Behaviors.Interactivity" Version="11.3.9" />-->
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\Diary.Core\Diary.Core.csproj" />
         <ProjectReference Include="..\Diary.Database\Diary.Database.csproj" />
         <ProjectReference Include="..\Diary.Db.PostgreSQL\Diary.Db.PostgreSQL.csproj" />
+        <ProjectReference Include="..\Diary.GUIBase\Diary.GUIBase.csproj" />
         <ProjectReference Include="..\Diary.MigrationTool\Diary.MigrationTool.csproj" />
         <ProjectReference Include="..\Diary.RedMine\Diary.RedMine.csproj" />
         <ProjectReference Include="..\Diary.Db.SQLite\Diary.Db.SQLite.csproj" />
@@ -68,6 +69,46 @@
     <ItemGroup>
       <Compile Remove="Constants\**" />
       <Compile Remove="Generated\**" />
+      <Compile Update="Views\Dialogs\AboutView.axaml.cs">
+        <DependentUpon>AboutView.axaml</DependentUpon>
+        <SubType>Code</SubType>
+      </Compile>
+      <Compile Update="Views\Dialogs\DbMigrationView.axaml.cs">
+        <DependentUpon>DbMigrationView.axaml</DependentUpon>
+        <SubType>Code</SubType>
+      </Compile>
+      <Compile Update="Views\Dialogs\GenericConfigView.axaml.cs">
+        <DependentUpon>GenericConfigView.axaml</DependentUpon>
+        <SubType>Code</SubType>
+      </Compile>
+      <Compile Update="Views\Dialogs\StandardMessageView.axaml.cs">
+        <DependentUpon>StandardMessageView.axaml</DependentUpon>
+        <SubType>Code</SubType>
+      </Compile>
+      <Compile Update="Views\Dialogs\TagEditorView.axaml.cs">
+        <DependentUpon>TagEditorView.axaml</DependentUpon>
+        <SubType>Code</SubType>
+      </Compile>
+      <Compile Update="Views\Dialogs\TemplateEditorView.axaml.cs">
+        <DependentUpon>TemplateEditorView.axaml</DependentUpon>
+        <SubType>Code</SubType>
+      </Compile>
+      <Compile Update="Views\Pages\NewIssueView.axaml.cs">
+        <DependentUpon>NewIssueView.axaml</DependentUpon>
+        <SubType>Code</SubType>
+      </Compile>
+      <Compile Update="Views\Pages\RedMineInfoView.axaml.cs">
+        <DependentUpon>RedMineInfoView.axaml</DependentUpon>
+        <SubType>Code</SubType>
+      </Compile>
+      <Compile Update="Views\Pages\RedMineIssueManageView.axaml.cs">
+        <DependentUpon>RedMineIssueManageView.axaml</DependentUpon>
+        <SubType>Code</SubType>
+      </Compile>
+      <Compile Update="Views\Pages\RedMineProjectView.axaml.cs">
+        <DependentUpon>RedMineProjectView.axaml</DependentUpon>
+        <SubType>Code</SubType>
+      </Compile>
     </ItemGroup>
 
     <ItemGroup>

@@ -13,6 +13,8 @@ using Diary.Core.Data.Base;
 using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
 using Diary.Database;
+using Diary.GUIBase.Utils;
+using Diary.GUIBase.ViewModels;
 using Diary.RedMine;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
@@ -48,11 +50,11 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     // todo: plm?
 
-    private DbInterfaceBase? Db => App.Current.UseDb;
+    private DbInterfaceBase? Db => App.Instance.UseDb;
 
     public static WorkEditorViewModel FromWorkItem(WorkItem workItem)
     {
-        return new WorkEditorViewModel(App.Current.Services.GetRequiredService<DbShareData>())
+        return new WorkEditorViewModel(App.Instance.Services.GetRequiredService<DbShareData>())
         {
             WorkId = workItem.Id,
             WorkItem = workItem,
@@ -67,7 +69,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     {
         _shareData = shareData;
         Date = TimeTools.Today();
-        Comment = App.Current.AppConfig.WorkSettings.DefaultTaskTitle;
+        Comment = App.Instance.AppConfig.WorkSettings.DefaultTaskTitle;
         Note = string.Empty;
         Time = 0.0;
         Priority = WorkPriorities.P0;

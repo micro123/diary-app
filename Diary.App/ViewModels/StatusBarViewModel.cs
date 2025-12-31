@@ -1,6 +1,7 @@
 using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Diary.GUIBase.ViewModels;
 using Diary.Utils;
 
 namespace Diary.App.ViewModels;

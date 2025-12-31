@@ -8,6 +8,7 @@
               xmlns:i="https://github.com/projektanker/icons.avalonia"
               xmlns:constants="clr-namespace:Diary.Core.Constants"
               xmlns:views="clr-namespace:Diary.App.Views"
+              xmlns:guiBase="clr-namespace:Diary.GUIBase;assembly=Diary.GUIBase"
               mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
               x:Class="Diary.App.Views.MainWindow"
               x:DataType="vm:MainWindowViewModel"
@@ -190,7 +191,7 @@
             <ContentControl Content="{Binding CurrentPageModel}"
                             Padding="8">
                 <ContentControl.ContentTemplate>
-                    <app:ViewLocator />
+                    <guiBase:ViewLocator />
                 </ContentControl.ContentTemplate>
             </ContentControl>
         </SplitView>

@@ -11,10 +11,12 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
-using Diary.App.Messages;
 using Diary.App.Models;
 using Diary.App.Utils;
 using Diary.Database;
+using Diary.GUIBase.Events;
+using Diary.GUIBase.Utils;
+using Diary.GUIBase.ViewModels;
 using Diary.Utils;
 using Microsoft.Extensions.Logging;
 
@@ -113,7 +115,7 @@ public partial class SurveyViewModel : ViewModelBase
 
     private IDictionary<string, RespondData> _respondDatas = new Dictionary<string, RespondData>();
 
-    private DbInterfaceBase? Db => App.Current.UseDb;
+    private DbInterfaceBase? Db => App.Instance.UseDb;
 
     public SurveyViewModel(ILogger logger, IServiceProvider serviceProvider)
     {

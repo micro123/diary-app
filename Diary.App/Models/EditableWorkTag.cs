@@ -22,7 +22,7 @@ public partial class EditableWorkTag(WorkTag tag) : ObservableObject
             _tag.Color = Color;
             _tag.Level = Primary ? TagLevels.Primary : TagLevels.Secondary;
             _tag.Disabled = Disabled;
-            App.Current.UseDb!.UpdateWorkTag(_tag);
+            App.Instance.UseDb!.UpdateWorkTag(_tag);
             return true;
         }
 
@@ -31,6 +31,6 @@ public partial class EditableWorkTag(WorkTag tag) : ObservableObject
 
     public bool Delete()
     {
-        return App.Current.UseDb!.DeleteWorkTag(_tag);
+        return App.Instance.UseDb!.DeleteWorkTag(_tag);
     }
 }

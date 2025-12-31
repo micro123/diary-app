@@ -6,10 +6,11 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
-using Diary.App.Messages;
 using Diary.App.Models;
 using Diary.Core.Configure;
 using Diary.Core.Utils;
+using Diary.GUIBase.Events;
+using Diary.GUIBase.ViewModels;
 using Diary.Utils;
 
 namespace Diary.App.ViewModels;

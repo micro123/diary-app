@@ -32,10 +32,10 @@
     <Panel>
         <TextBlock Text="数据库连接出错，需要检查设置" HorizontalAlignment="Center" VerticalAlignment="Center"
                    FontSize="64"
-                   IsVisible="{Binding !DatabaseOk, Source={x:Static app:App.Current}}" />
+                   IsVisible="{Binding !DatabaseOk, Source={x:Static app:App.Instance}}" />
         <TabControl ItemsSource="{Binding Tabs}" TabStripPlacement="Top"
                     Theme="{DynamicResource ScrollTabControl}" SelectedIndex="{Binding SelectedTabIndex}"
-                    IsVisible="{Binding DatabaseOk, Source={x:Static app:App.Current}}">
+                    IsVisible="{Binding DatabaseOk, Source={x:Static app:App.Instance}}">
             <TabControl.ItemTemplate>
                 <DataTemplate DataType="models:StatisticsTabData">
                     <StackPanel Orientation="Horizontal" Spacing="8">

@@ -12,7 +12,6 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.Messaging;
-using Diary.App.Messages;
 using Diary.App.Models;
 using Diary.App.Utils;
 using Diary.App.ViewModels;
@@ -22,6 +21,10 @@ using Diary.Core.Constants;
 using Diary.Core.Data.AppConfig;
 using Diary.Core.Utils;
 using Diary.Database;
+using Diary.GUIBase;
+using Diary.GUIBase.Events;
+using Diary.GUIBase.Utils;
+using Diary.GUIBase.ViewModels;
 using Diary.Survey;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,7 +32,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Diary.App
 {
-    public sealed partial class App : Application
+    public sealed partial class App : BaseApp
     {
         public App()
         {
@@ -126,15 +129,13 @@ namespace Diary.App
             }
         }
 
-        public new static App Current => (Application.Current as App)!;
-
-        public IServiceProvider Services { get; }
-        public AllConfig AppConfig => AllConfig.Instance;
+        public override IServiceProvider Services { get; protected set; }
+        public override AllConfig AppConfig => AllConfig.Instance;
 
         public ILogger Logger => Logging.Logger;
         
-        public IDbFactory? UseFactory { get; private set; }
-        public DbInterfaceBase? UseDb { get; private set; }
+        public override IDbFactory? UseFactory { get; protected set; }
+        public override DbInterfaceBase? UseDb { get; protected set; }
 
         private IServiceProvider ConfigureServices()
         {
@@ -143,7 +144,9 @@ namespace Diary.App
 
             // mask add before
             services.AddSingleton(Logging.Logger);
+            services.AddSingleton<BaseApp>(this);
             services.AddTypesFromAssembly(Assembly.GetExecutingAssembly());
+            services.AddTypesFromAssembly(typeof(ViewLocator).Assembly);
             
             return services.BuildServiceProvider();
         }
@@ -279,7 +282,7 @@ namespace Diary.App
             }
         }
 
-        public SettingItemModel CreateFor(string caption, string helpTip, string key, object obj, PropertyInfo property)
+        public override SettingItemModel CreateModelFor(string caption, string helpTip, string key, object obj, PropertyInfo property)
         {
             return key switch
             {
@@ -289,17 +292,17 @@ namespace Diary.App
         }
 
         private static readonly StyledProperty<bool> DatabaseOkProperty = AvaloniaProperty.Register<App, bool>(nameof(DatabaseOk), false);
-        public bool DatabaseOk
+        public override bool DatabaseOk
         {
             get => GetValue(DatabaseOkProperty);
-            set => SetValue(DatabaseOkProperty, value);
+            protected set => SetValue(DatabaseOkProperty, value);
         }
         
         private static readonly StyledProperty<bool> SurveyEnabledProperty = AvaloniaProperty.Register<App, bool>(nameof(SurveyEnabled), false);
-        public bool SurveyEnabled
+        public override bool SurveyEnabled
         {
             get => GetValue(SurveyEnabledProperty);
-            set => SetValue(SurveyEnabledProperty, value);
+            protected set => SetValue(SurveyEnabledProperty, value);
         }
 
         private AppSurveyor _surveyor = new();

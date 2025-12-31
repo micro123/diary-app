@@ -12,6 +12,7 @@ using CommunityToolkit.Mvvm.Input;
 using Diary.App.Utils;
 using Diary.Core.Data.Base;
 using Diary.Database;
+using Diary.GUIBase.Utils;
 using Diary.Utils;
 using LiveChartsCore.Measure;
 using LiveChartsCore.SkiaSharpView;
@@ -54,7 +55,7 @@ public partial class StatisticsTabData : ObservableObject
     public bool IsCustom { get; init; }
     public string Icon => !IsCustom ? "fa-calendar-check" : "fa-calendar";
 
-    private DbInterfaceBase? Db => App.Current.UseDb;
+    private DbInterfaceBase? Db => App.Instance.UseDb;
 
     [ObservableProperty] private DateTime _dateBegin = DateTime.Now.Date;
     [ObservableProperty] private DateTime _dateEnd = DateTime.Now.Date;

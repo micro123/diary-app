@@ -1,4 +1,5 @@
 using Diary.App.ViewModels;
+using Diary.GUIBase.ViewModels;
 
 namespace Diary.App.Models;
 

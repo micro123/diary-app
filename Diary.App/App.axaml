@@ -6,8 +6,9 @@
              x:Class="Diary.App.App"
              x:DataType="local:AppModel"
              xmlns:local="using:Diary.App"
-             xmlns:m="clr-namespace:Diary.App.Models"
+             xmlns:m="clr-namespace:Diary.GUIBase.ViewModels;assembly=Diary.GUIBase"
              xmlns:i="https://github.com/projektanker/icons.avalonia"
+             xmlns:guiBase="clr-namespace:Diary.GUIBase;assembly=Diary.GUIBase"
              Name="Diary Tools NG">
     
     <Design.DataContext>
@@ -15,7 +16,7 @@
     </Design.DataContext>
 
     <Application.DataTemplates>
-        <local:ViewLocator />
+        <guiBase:ViewLocator />
         <DataTemplate DataType="{x:Type m:SettingGroup}">
             <Expander IsExpanded="False">
                 <Expander.Header>
@@ -112,7 +113,7 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceInclude Source="Resources/AdditionalResources.axaml"/>
+                <ResourceInclude Source="avares://Diary.GUIBase/Resources/AppResources.axaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>
@@ -120,7 +121,7 @@
     <Application.Styles>
         <semi:SemiTheme Locale="zh-CN" />
         <u-semi:SemiTheme Locale="zh-CN" />
-        <StyleInclude Source="Resources/AdditionalStyles.axaml"/>
+        <StyleInclude Source="avares://Diary.GUIBase/Resources/AppStyles.axaml"/>
         <StyleInclude Source="avares://Semi.Avalonia.ColorPicker/Index.axaml" />
         <StyleInclude Source="avares://Semi.Avalonia.DataGrid/Index.axaml" />
         <StyleInclude Source="avares://Avalonia.Controls.TreeDataGrid/Themes/Generic.axaml"/>

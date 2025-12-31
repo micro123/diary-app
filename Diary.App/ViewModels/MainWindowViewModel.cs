@@ -9,16 +9,25 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.Core.Constants;
-using Diary.App.Dialogs;
-using Diary.App.Messages;
 using Diary.App.Models;
 using Diary.App.Utils;
 using Diary.Core;
 using Diary.Core.Data.AppConfig;
+using Diary.GUIBase;
+using Diary.GUIBase.Events;
+using Diary.GUIBase.Utils;
+using Diary.GUIBase.ViewModels;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Ursa.Controls;
+using AboutViewModel = Diary.App.ViewModels.Dialogs.AboutViewModel;
+using DbMigrationViewModel = Diary.App.ViewModels.Dialogs.DbMigrationViewModel;
+using GenericConfigViewModel = Diary.App.ViewModels.Dialogs.GenericConfigViewModel;
+using StandardMessageView = Diary.App.Views.Dialogs.StandardMessageView;
+using StandardMessageViewModel = Diary.App.ViewModels.Dialogs.StandardMessageViewModel;
+using TagEditorViewModel = Diary.App.ViewModels.Dialogs.TagEditorViewModel;
+using TemplateEditorViewModel = Diary.App.ViewModels.Dialogs.TemplateEditorViewModel;
 
 namespace Diary.App.ViewModels;
 
@@ -147,7 +156,7 @@ public partial class MainWindowViewModel : ViewModelBase
                         IsCloseButtonVisible = false,
                     };
                     var vm = _serviceProvider.GetRequiredService<GenericConfigViewModel>();
-                    vm.InitSettings("数据库设置", App.Current.UseFactory!.GetConfig());
+                    vm.InitSettings("数据库设置", App.Instance.UseFactory!.GetConfig());
                     bool result = await OverlayDialog.ShowCustomModal<bool>(vm, options: options);
                     _logger.LogInformation("db settings updated: {result}", result);
                     if (result)
@@ -157,7 +166,7 @@ public partial class MainWindowViewModel : ViewModelBase
             case CommandNames.ShowMigrateGuide:
                 Dispatcher.UIThread.Post(async () =>
                 {
-                    if (App.Current.UseDb is null)
+                    if (App.Instance.UseDb is null)
                     {
                         EventDispatcher.ShowToast("需要先连接数据库！");
                         return;
@@ -181,7 +190,7 @@ public partial class MainWindowViewModel : ViewModelBase
             case CommandNames.EditWorkTags:
                 Dispatcher.UIThread.Post(async () =>
                 {
-                    if (App.Current.UseDb is null)
+                    if (App.Instance.UseDb is null)
                     {
                         EventDispatcher.ShowToast("需要先连接数据库！");
                         return;
@@ -202,7 +211,7 @@ public partial class MainWindowViewModel : ViewModelBase
             case CommandNames.EditWorkTemplates:
                 Dispatcher.UIThread.Post(async () =>
                 {
-                    if (App.Current.UseDb is null)
+                    if (App.Instance.UseDb is null)
                     {
                         EventDispatcher.ShowToast("需要先连接数据库！");
                         return;

@@ -4,6 +4,7 @@ using Avalonia.Controls.Notifications;
 using Avalonia.Interactivity;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
+using Diary.GUIBase;
 using Ursa.Controls;
 using Notification = Ursa.Controls.Notification;
 using WindowNotificationManager = Ursa.Controls.WindowNotificationManager;

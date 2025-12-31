@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:app="clr-namespace:Diary.App"
+             xmlns:dialogs1="clr-namespace:Diary.App.ViewModels.Dialogs"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:Class="Diary.App.Views.Dialogs.AboutView"
+             x:DataType="dialogs1:AboutViewModel">
+    <Design.DataContext>
+        <dialogs1:AboutViewModel/>
+    </Design.DataContext>
+    
+    <DockPanel VerticalSpacing="8" HorizontalAlignment="Center">
+        <TextBlock Theme="{DynamicResource TitleTextBlock}" Classes="H1" DockPanel.Dock="Top"
+                   Text="{x:Static app:AppInfo.AppName}" HorizontalAlignment="Center"/>
+        <Image Source="/Assets/Icons/diary-app.ico" Width="128" Height="128" DockPanel.Dock="Top" />
+        <TextBlock HorizontalAlignment="Center" Classes="Success" Text="{Binding AppVersionString}"
+                   ToolTip.Tip="{Binding AppVersionDetails}" DockPanel.Dock="Top" >
+            <Interaction.Behaviors>
+                <EventTriggerBehavior EventName="PointerPressed">
+                    <InvokeCommandAction Command="{Binding CopyVersionCommand}"/>
+                </EventTriggerBehavior>
+            </Interaction.Behaviors>
+        </TextBlock>
+        <TextBox Theme="{DynamicResource Bordered}" Classes="Large" IsEnabled="True"
+                 Text="{Binding InfoText}" IsReadOnly="True"
+                 HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+    </DockPanel>
+</UserControl>
