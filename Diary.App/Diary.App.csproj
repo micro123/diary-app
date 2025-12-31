@@ -16,33 +16,15 @@
 
     <ItemGroup>
         <AvaloniaResource Include="Assets\**" />
-        <AvaloniaResource Remove="Constants\**" />
-        <AvaloniaResource Remove="Generated\**" />
     </ItemGroup>
 
     <ItemGroup>
-<!--        <PackageReference Include="Avalonia" Version="11.3.10" />-->
-<!--        <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.3.10" />-->
         <PackageReference Include="Avalonia.Desktop" Version="11.3.10" />
         <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
         <PackageReference Include="Avalonia.Diagnostics" Version="11.3.10">
             <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
             <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
         </PackageReference>
-<!--        <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />-->
-<!--        <PackageReference Include="Irihi.Ursa" Version="1.14.1" />-->
-<!--        <PackageReference Include="Irihi.Ursa.Themes.Semi" Version="1.14.1" />-->
-<!--        <PackageReference Include="LiveChartsCore.SkiaSharpView.Avalonia" Version="2.0.0-rc6.1" />-->
-<!--        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.1" />-->
-<!--        <PackageReference Include="Projektanker.Icons.Avalonia" Version="9.6.2" />-->
-<!--        <PackageReference Include="Projektanker.Icons.Avalonia.FontAwesome" Version="9.6.2" />-->
-<!--        <PackageReference Include="Projektanker.Icons.Avalonia.MaterialDesign" Version="9.6.2" />-->
-<!--        <PackageReference Include="Semi.Avalonia" Version="11.3.7.2" />-->
-<!--        <PackageReference Include="Semi.Avalonia.ColorPicker" Version="11.3.7.2" />-->
-<!--        <PackageReference Include="Semi.Avalonia.DataGrid" Version="11.3.7.2" />-->
-<!--        <PackageReference Include="TreeDataGrid.Avalonia" Version="11.3.0" />-->
-<!--        <PackageReference Include="Xaml.Behaviors.Avalonia" Version="11.3.9" />-->
-<!--        <PackageReference Include="Xaml.Behaviors.Interactivity" Version="11.3.9" />-->
     </ItemGroup>
 
     <ItemGroup>
@@ -60,72 +42,7 @@
         <ProjectReference Include="..\Diary.Survey\Diary.Survey.csproj" />
         <ProjectReference Include="..\Diary.Utils\Diary.Utils.csproj" />
     </ItemGroup>
-
-    <ItemGroup>
-      <AvaloniaXaml Remove="Constants\**" />
-      <AvaloniaXaml Remove="Generated\**" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <Compile Remove="Constants\**" />
-      <Compile Remove="Generated\**" />
-      <Compile Update="Views\Dialogs\AboutView.axaml.cs">
-        <DependentUpon>AboutView.axaml</DependentUpon>
-        <SubType>Code</SubType>
-      </Compile>
-      <Compile Update="Views\Dialogs\DbMigrationView.axaml.cs">
-        <DependentUpon>DbMigrationView.axaml</DependentUpon>
-        <SubType>Code</SubType>
-      </Compile>
-      <Compile Update="Views\Dialogs\GenericConfigView.axaml.cs">
-        <DependentUpon>GenericConfigView.axaml</DependentUpon>
-        <SubType>Code</SubType>
-      </Compile>
-      <Compile Update="Views\Dialogs\StandardMessageView.axaml.cs">
-        <DependentUpon>StandardMessageView.axaml</DependentUpon>
-        <SubType>Code</SubType>
-      </Compile>
-      <Compile Update="Views\Dialogs\TagEditorView.axaml.cs">
-        <DependentUpon>TagEditorView.axaml</DependentUpon>
-        <SubType>Code</SubType>
-      </Compile>
-      <Compile Update="Views\Dialogs\TemplateEditorView.axaml.cs">
-        <DependentUpon>TemplateEditorView.axaml</DependentUpon>
-        <SubType>Code</SubType>
-      </Compile>
-      <Compile Update="Views\Pages\NewIssueView.axaml.cs">
-        <DependentUpon>NewIssueView.axaml</DependentUpon>
-        <SubType>Code</SubType>
-      </Compile>
-      <Compile Update="Views\Pages\RedMineInfoView.axaml.cs">
-        <DependentUpon>RedMineInfoView.axaml</DependentUpon>
-        <SubType>Code</SubType>
-      </Compile>
-      <Compile Update="Views\Pages\RedMineIssueManageView.axaml.cs">
-        <DependentUpon>RedMineIssueManageView.axaml</DependentUpon>
-        <SubType>Code</SubType>
-      </Compile>
-      <Compile Update="Views\Pages\RedMineProjectView.axaml.cs">
-        <DependentUpon>RedMineProjectView.axaml</DependentUpon>
-        <SubType>Code</SubType>
-      </Compile>
-    </ItemGroup>
-
-    <ItemGroup>
-      <EmbeddedResource Remove="Constants\**" />
-      <EmbeddedResource Remove="Generated\**" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <AdditionalFiles Remove="Constants\**" />
-      <AdditionalFiles Remove="Generated\**" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <None Remove="Constants\**" />
-      <None Remove="Generated\**" />
-    </ItemGroup>
-
+    
     <Target Name="GenVersionInfo" BeforeTargets="BeforeBuild">
       <Exec Command="pwsh.exe &quot;$(MSBuildThisFileDirectory)Scripts\gen_version.ps1&quot; $(MSBuildProjectName) &quot;$(IntermediateOutputPath)Generated&quot; VersionInfo.cs" Condition="'$(OS)' == 'Windows_NT'"
 			UseUtf8Encoding="Always"/>
