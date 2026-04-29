@@ -238,13 +238,14 @@ namespace Diary.App
             }
         }
 
-        private void PreShutdown()
-        {
-            _surveyor.StopServer();
-            _respondent.Shutdown();
-            _timer.Stop();
-            SaveConfigurations();
-        }
+    private void PreShutdown()
+    {
+        _surveyor.StopServer();
+        _respondent.Shutdown();
+        _timer.Stop();
+        SaveConfigurations();
+        Logging.Shutdown();
+    }
 
         private readonly DispatcherTimer _timer = new();
         private void StartKeepAliveTimer()

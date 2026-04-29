@@ -48,4 +48,12 @@ public static class Logging
 
     public static ILogger Logger => _logger ??= InitLogger();
     public static ILoggerFactory Factory => _factory ??= InitLoggerFactory();
+
+    public static void Shutdown()
+    {
+        Log.CloseAndFlush();
+        _factory?.Dispose();
+        _factory = null;
+        _logger = null;
+    }
 }

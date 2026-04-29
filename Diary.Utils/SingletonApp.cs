@@ -12,6 +12,7 @@ public class SingletonApp : IDisposable
     private readonly Mutex _mutex;
     private NamedPipeServerStream? _server;
     private readonly CancellationTokenSource? _token;
+    private Task? _listenTask;
 
     public Action<string>? WakeupAction;
 
@@ -25,9 +26,8 @@ public class SingletonApp : IDisposable
         _mutex = new Mutex(true, _mutexKey, out _self);
         if (_self)
         {
-            // create pipe server
             _token = new CancellationTokenSource();
-            Task.Run(() => ListenPipe(_token.Token));
+            _listenTask = Task.Run(() => ListenPipe(_token.Token));
         }
     }
 
@@ -93,6 +93,11 @@ public class SingletonApp : IDisposable
     public void Dispose()
     {
         _token?.Cancel();
+        _listenTask?.ContinueWith(t =>
+        {
+            if (t.IsFaulted && t.Exception is not null)
+                Debug.WriteLine($"管道监听异常：{t.Exception.InnerException?.Message}");
+        }, TaskScheduler.Default);
         _token?.Dispose();
         _server?.Dispose();
         _mutex?.Dispose();

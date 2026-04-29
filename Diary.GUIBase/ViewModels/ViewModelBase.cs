@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+using System;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Messaging;
@@ -6,12 +7,13 @@ using Ursa.Controls;
 
 namespace Diary.GUIBase.ViewModels;
 
-public class ViewModelBase : ObservableObject
+public class ViewModelBase : ObservableObject, IDisposable
 {
     public Control? View { get; private set; }
     private WindowNotificationManager? _notificationManager;
     private WindowToastManager? _toastManager;
     private TopLevel? _topLevel;
+    private bool _disposed;
 
     protected WindowNotificationManager? NotificationManager =>
         _notificationManager ??= WindowNotificationManager.TryGetNotificationManager(View, out var manager)
@@ -51,4 +53,19 @@ public class ViewModelBase : ObservableObject
     
     public virtual void OnHide() {}
     public virtual void OnShow() {}
+
+    public virtual void Cleanup()
+    {
+        if (!_disposed)
+        {
+            _disposed = true;
+            WeakReferenceMessenger.Default.UnregisterAll(this);
+        }
+    }
+
+    public void Dispose()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
+    }
 }
