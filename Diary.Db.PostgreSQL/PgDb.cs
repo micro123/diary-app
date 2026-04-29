@@ -45,6 +45,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
             var dsb = new NpgsqlSlimDataSourceBuilder(csb.ConnectionString);
             _dataSource = dsb.Build();
             _lastCommandTime = _stopwatch.ElapsedMilliseconds;
+            _stopwatch.Start();
         }
         catch (Exception)
         {
@@ -225,7 +226,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
         }
 
         using var cmd = Command("select version();");
-        return cmd.ExecuteNonQuery() > 0;
+        return cmd.ExecuteScalar() != null;
     }
 
     public override void Close()
@@ -363,7 +364,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
             return false;
 
         var sql = """
-                  DELTE FROM work_items WHERE id=$1;
+                  DELETE FROM work_items WHERE id=$1;
                   """;
         using var cmd = Command(sql);
         cmd.Parameters.AddWithValue(item.Id);
@@ -394,7 +395,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
     public override ICollection<WorkItem> GetWorkItemByDate(string date)
     {
         const string sql = @"SELECT * FROM work_items WHERE create_date=$1 ORDER BY priority;";
-        var cmd = Command(sql);
+        using var cmd = Command(sql);
         cmd.Parameters.AddWithValue(date);
         using var reader = cmd.ExecuteReader();
         List<WorkItem> items = new();
@@ -628,9 +629,10 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
         var sql = """
                   SELECT * FROM redmine_time_entries WHERE work_id=$1 AND id>0;
                   """;
-        var cmd = Command(sql);
+        using var cmd = Command(sql);
         cmd.Parameters.AddWithValue(item.Id);
-        return cmd.ExecuteNonQuery() > 0;
+        using var reader = cmd.ExecuteReader();
+        return reader.Read();
     }
 
     public override ICollection<RedMineActivity> GetRedMineActivities()

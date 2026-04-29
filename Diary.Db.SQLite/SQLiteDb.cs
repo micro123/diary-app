@@ -99,7 +99,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         _connection.Open();
 
         // query version
-        var cmd = _connection.CreateCommand();
+        using var cmd = _connection.CreateCommand();
         cmd.CommandText = "select sqlite_version();";
         using var reader = cmd.ExecuteReader();
         if (reader.Read())
@@ -199,7 +199,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         using var transaction = _connection!.BeginTransaction();
         try
         {
-            var cmd = _connection.CreateCommand();
+            using var cmd = _connection.CreateCommand();
             cmd.CommandText = tableInitCmd;
             cmd.ExecuteNonQuery();
             transaction.Commit();
@@ -226,7 +226,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
 
     public override uint GetDataVersion()
     {
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = "SELECT * FROM data_versions ORDER BY version_code DESC LIMIT 1;";
         using var reader = cmd.ExecuteReader();
         if (reader.Read())
@@ -253,7 +253,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     {
         const string sql =
             @"INSERT OR IGNORE INTO work_tags(tag_name,tag_level,tag_color) VALUES ($value,$level,$color) RETURNING *;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$value", name);
         cmd.Parameters.AddWithValue("$level", primary ? 0 : 1);
@@ -276,7 +276,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
 
         const string sql =
             @"UPDATE OR FAIL work_tags SET tag_color=$color, tag_level=$level, is_disabled=$disabled WHERE id=$id;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$color", tag.Color);
         cmd.Parameters.AddWithValue("$level", tag.Level);
@@ -288,7 +288,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     public override bool DeleteWorkTag(WorkTag tag)
     {
         const string sql = @"DELETE FROM work_tags WHERE id=$id;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$id", tag.Id);
         return cmd.ExecuteNonQuery() > 0;
@@ -299,7 +299,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         List<WorkTag> result = new();
 
         const string sql = @"SELECT * FROM work_tags ORDER BY is_disabled ASC, tag_level ASC;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
@@ -313,7 +313,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     public override bool UpdateWorkTagId(int oldId, int newId)
     {
         const string sql = "UPDATE work_tags SET id=$new WHERE id=$old;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$old", oldId);
         cmd.Parameters.AddWithValue("$new", newId);
@@ -324,7 +324,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     {
         const string sql =
             @"INSERT INTO work_items(create_date, comment) VALUES ($create_date, $comment) RETURNING *;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$create_date", date);
         cmd.Parameters.AddWithValue("$comment", comment);
@@ -344,7 +344,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
 
         const string sql =
             @"UPDATE work_items SET create_date=$create_date, comment=$comment, hours=$time, priority=$priority WHERE id=$id;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$id", item.Id);
         cmd.Parameters.AddWithValue("$create_date", item.CreateDate);
@@ -360,7 +360,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
             return false;
         const string sql =
             @"DELETE FROM work_items WHERE id=$id;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$id", item.Id);
         return cmd.ExecuteNonQuery() > 0;
@@ -373,7 +373,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
                   FROM work_items
                   WHERE create_date BETWEEN $beginDate AND $endDate;
                   """;
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$beginDate", beginData);
         cmd.Parameters.AddWithValue("$endDate", endData);
@@ -390,7 +390,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     public override ICollection<WorkItem> GetWorkItemByDate(string date)
     {
         const string sql = @"SELECT * FROM work_items WHERE create_date=$date ORDER BY priority ASC;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$date", date);
         using var reader = cmd.ExecuteReader();
@@ -406,7 +406,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     public override bool UpdateWorkItemId(int oldId, int newId)
     {
         const string sql = "UPDATE work_items SET id=$new WHERE id=$old;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$old", oldId);
         cmd.Parameters.AddWithValue("$new", newId);
@@ -420,7 +420,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
 
         const string sql =
             @"INSERT INTO work_notes(id, note) VALUES ($id, $note) ON CONFLICT (id) DO UPDATE SET note=$note RETURNING *;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$id", work.Id);
         cmd.Parameters.AddWithValue("$note", content);
@@ -431,7 +431,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     {
         const string sql =
             @"DELETE FROM work_notes WHERE id=$id;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$id", work.Id);
         cmd.ExecuteNonQuery();
@@ -441,7 +441,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     {
         const string sql =
             @"SELECT note FROM work_notes WHERE id=$id;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$id", work.Id);
         using var reader = cmd.ExecuteReader();
@@ -459,7 +459,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
             @"INSERT INTO work_item_tags VALUES($work_id, $tag_id) RETURNING *;";
         try
         {
-            var cmd = _connection!.CreateCommand();
+            using var cmd = _connection!.CreateCommand();
             cmd.CommandText = sql;
             cmd.Parameters.AddWithValue("$work_id", item.Id);
             cmd.Parameters.AddWithValue("$tag_id", tag.Id);
@@ -475,7 +475,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     {
         const string sql =
             @"DELETE from work_item_tags WHERE work_id=$work_id and tag_id=$tag_id;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$work_id", item.Id);
         cmd.Parameters.AddWithValue("$tag_id", tag.Id);
@@ -486,7 +486,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     {
         const string sql =
             @"DELETE from work_item_tags WHERE work_id=$work_id;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$work_id", item.Id);
         return cmd.ExecuteNonQuery() > 0;
@@ -502,7 +502,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
                   WHERE work_item_tags.work_id = $work_id
                   ORDER BY work_tags.tag_level ASC;
                   """;
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$work_id", item.Id);
         using var reader = cmd.ExecuteReader();
@@ -519,7 +519,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     {
         const string sql =
             @"INSERT INTO redmine_activities VALUES ($id,$title) ON CONFLICT(id) DO UPDATE SET act_name=$title RETURNING *;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$id", id);
         cmd.Parameters.AddWithValue("$title", title);
@@ -537,7 +537,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     {
         const string sql =
             "INSERT INTO redmine_issues(id, issue_title, assigned_to, project_id, is_closed) VALUES ($id,$title,$assign,$project,$close) ON CONFLICT(id) DO UPDATE SET issue_title=$title, assigned_to=$assign, project_id=$project, is_closed=$close RETURNING *;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$id", id);
         cmd.Parameters.AddWithValue("$title", title);
@@ -557,7 +557,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     {
         const string sql =
             @"UPDATE redmine_issues SET is_closed=$closed WHERE id=$id;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$id", id);
         cmd.Parameters.AddWithValue("$closed", closed ? 1 : 0);
@@ -568,7 +568,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     {
         const string sql =
             @"INSERT INTO redmine_projects(id, project_name, project_desc) VALUES ($id,$title,$desc) ON CONFLICT(id) DO UPDATE SET project_name=$title, project_desc=$desc RETURNING *;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$id", id);
         cmd.Parameters.AddWithValue("$title", title);
@@ -586,7 +586,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     {
         const string sql =
             @"UPDATE redmine_projects SET is_closed=@closed WHERE id=$id;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$id", id);
         cmd.Parameters.AddWithValue("$closed", closed ? 1 : 0);
@@ -600,7 +600,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         var sql = """
                   SELECT * FROM redmine_time_entries WHERE work_id=$id;
                   """;
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$id", item.Id);
         using var reader = cmd.ExecuteReader();
@@ -619,7 +619,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         var sql = """
                   SELECT * FROM redmine_time_entries WHERE work_id=$id AND id>0;
                   """;
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$id", item.Id);
         return cmd.ExecuteNonQuery() > 0;
@@ -628,7 +628,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     public override ICollection<RedMineActivity> GetRedMineActivities()
     {
         var sql = @"SELECT * FROM redmine_activities;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         using var reader = cmd.ExecuteReader();
         var activities = new List<RedMineActivity>();
@@ -650,7 +650,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
                       FROM
                           redmine_issues INNER JOIN redmine_projects ON redmine_issues.project_id=redmine_projects.id ORDER BY closed ASC, id DESC;
                       """;
-            var cmd = _connection!.CreateCommand();
+            using var cmd = _connection!.CreateCommand();
             cmd.CommandText = sql;
             using var reader = cmd.ExecuteReader();
             var activities = new List<RedMineIssueDisplay>();
@@ -676,7 +676,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
                       FROM
                           redmine_issues INNER JOIN redmine_projects ON redmine_issues.project_id=$projectId AND redmine_issues.project_id=redmine_projects.id ORDER BY closed ASC, id DESC;
                       """;
-            var cmd = _connection!.CreateCommand();
+            using var cmd = _connection!.CreateCommand();
             cmd.CommandText = sql;
             cmd.Parameters.AddWithValue("$projectId", project.Id);
             using var reader = cmd.ExecuteReader();
@@ -700,7 +700,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     public override ICollection<RedMineProject> GetRedMineProjects()
     {
         var sql = @"SELECT * FROM redmine_projects;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         using var reader = cmd.ExecuteReader();
         var projects = new List<RedMineProject>();
@@ -723,7 +723,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
             "INSERT INTO redmine_time_entries(work_id, act_id, issue_id) VALUES ($workId, $actId, $issueId) ON CONFLICT DO UPDATE SET act_id=$actId, issue_id=$issueId RETURNING *;";
         try
         {
-            var cmd = _connection!.CreateCommand();
+            using var cmd = _connection!.CreateCommand();
             cmd.CommandText = sql;
             cmd.Parameters.AddWithValue("$workId", work);
             cmd.Parameters.AddWithValue("$actId", activity);
@@ -750,7 +750,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
 
         const string sql =
             "UPDATE redmine_time_entries SET act_id=$actId, issue_id=$issueId, id=$entryId WHERE work_id=$workId;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$actId", timeEntry.ActivityId);
         cmd.Parameters.AddWithValue("$issueId", timeEntry.IssueId);
@@ -771,7 +771,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         // total time
         {
             var dateRangeQuery = "SELECT sum(hours) FROM work_items WHERE create_date BETWEEN $beginDate AND $endDate;";
-            var cmd = _connection!.CreateCommand();
+            using var cmd = _connection!.CreateCommand();
             cmd.CommandText = dateRangeQuery;
             cmd.Parameters.AddWithValue("$beginDate", beginDate);
             cmd.Parameters.AddWithValue("$endDate", endDate);
@@ -793,7 +793,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
                       """;
 
             // 一级标签
-            var cmd = _connection!.CreateCommand();
+            using var cmd = _connection!.CreateCommand();
             cmd.CommandText = sql;
             cmd.Parameters.AddWithValue("$beginDate", beginDate);
             cmd.Parameters.AddWithValue("$endDate", endDate);
@@ -823,7 +823,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
                       GROUP BY work_tags.id;
                       """;
 
-            var cmd = _connection!.CreateCommand();
+            using var cmd = _connection!.CreateCommand();
             cmd.CommandText = sql;
             cmd.Parameters.AddWithValue("$beginDate", beginDate);
             cmd.Parameters.AddWithValue("$endDate", endDate);
@@ -847,7 +847,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     {
         // get date range
         var sql = "SELECT min(create_date), max(create_date) FROM work_items;";
-        var cmd = _connection!.CreateCommand();
+        using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         using var reader = cmd.ExecuteReader();
         if (reader.Read() && !reader.IsDBNull(0))
@@ -878,7 +878,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
                       WHERE work_item_tags.tag_id = $id AND work_items.create_date BETWEEN $begin AND $end
                       ORDER BY create_date,work_items.id;
                       """;
-            var cmd = _connection!.CreateCommand();
+            using var cmd = _connection!.CreateCommand();
             cmd.CommandText = sql;
             cmd.Parameters.AddWithValue("$begin", dateBegin);
             cmd.Parameters.AddWithValue("$end", dateEnd);
@@ -900,7 +900,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
                       	ON work_items.id=T1.work_id WHERE create_date BETWEEN $begin AND $end
                       ORDER BY create_date,id;
                       """;
-            var cmd = _connection!.CreateCommand();
+            using var cmd = _connection!.CreateCommand();
             cmd.CommandText = sql;
             cmd.Parameters.AddWithValue("$begin", dateBegin);
             cmd.Parameters.AddWithValue("$end", dateEnd);
@@ -931,7 +931,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
                       DELETE FROM redmine_projects;
                       DELETE FROM work_items;
                       """;
-            var cmd = _connection.CreateCommand();
+            using var cmd = _connection.CreateCommand();
             cmd.CommandText = sql;
             cmd.ExecuteNonQuery();
             transaction.Commit();
