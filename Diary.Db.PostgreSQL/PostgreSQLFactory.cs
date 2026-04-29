@@ -14,7 +14,7 @@ public sealed class PostgreSQLFactory: IDbFactory
 
     public Migration? GetMigration(uint version)
     {
-        throw new NotImplementedException();
+        return DbRecords.GetMigration(version);
     }
 
     public object GetConfig()

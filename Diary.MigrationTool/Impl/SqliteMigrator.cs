@@ -58,7 +58,7 @@ internal class SqliteMigrator : IDisposable, IAsyncDisposable
         {
             Ok(p, $"处理第{cnt++}条问题记录");
             var issueId = reader.GetInt32(0);
-            var isClosed = reader.GetInt32(4) != 0;
+            var isClosed = reader.GetInt32(1) != 0;
             if (RedMineApis.GetIssue(out IssueInfo? info, issueId))
             {
                 var project = info.Project;
