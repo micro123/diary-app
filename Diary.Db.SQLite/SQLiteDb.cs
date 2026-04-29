@@ -622,7 +622,8 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$id", item.Id);
-        return cmd.ExecuteNonQuery() > 0;
+        using var reader = cmd.ExecuteReader();
+        return reader.Read();
     }
 
     public override ICollection<RedMineActivity> GetRedMineActivities()
