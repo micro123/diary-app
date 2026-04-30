@@ -6,8 +6,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Input;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -22,7 +20,6 @@ using Diary.GUIBase.ViewModels;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Calendar = Avalonia.Controls.Calendar;
 
 namespace Diary.App.ViewModels;
 
@@ -309,7 +306,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     [ObservableProperty] private ObservableCollection<DayMenuItem> _quickMenuItems = new();
     
-    private enum CalendarWhat
+    public enum CalendarWhat
     {
         None,
         Day,
@@ -317,99 +314,18 @@ public partial class DiaryEditorViewModel : ViewModelBase
         Year,
     }
     
-    [RelayCommand]
-    private void Test(ContextRequestedEventArgs args)
+    public void ShowCalendarContextMenu(DateTime selectDate, CalendarWhat what)
     {
-        Button? btn = null;
-        Calendar? calendar = null;
-        CalendarWhat what = CalendarWhat.None;
-        DateTime? selectDate = null;
-        
-        bool isHeader = false;
-        bool isGridButton = false;
-
-        var control = args.Source as Control;
-        while (control is not null)
-        {
-            if (btn is null)
-            {
-                if (control is CalendarDayButton d)
-                {
-                    what = CalendarWhat.Day;
-                    btn = d;
-                    selectDate = (DateTime)d.DataContext!;
-                }
-                else if (control is Button m && control.Name == "PART_HeaderButton")
-                {
-                    what = CalendarWhat.None;
-                    btn = m;
-                    isHeader = true;
-                }
-                else if (control is CalendarButton y)
-                {
-                    what = CalendarWhat.None;
-                    btn = y;
-                    isGridButton = true;
-                }
-            }
-
-            if (control is Calendar c)
-            {
-                calendar = c;
-                break;
-            }
-            
-            control = control.Parent as Control;
-        }
-
-        if (what == CalendarWhat.None)
-        {
-            if (isHeader)
-            {
-                switch (calendar!.DisplayMode)
-                {
-                    case CalendarMode.Month:
-                        what = CalendarWhat.Month;
-                        selectDate = calendar.DisplayDate.AddDays(-calendar.DisplayDate.Day + 1);
-                        break;
-                    case CalendarMode.Year:
-                        what = CalendarWhat.Year;
-                        selectDate = new DateTime(calendar.DisplayDate.Year, 1, 1);
-                        break;
-                }
-            }
-            else if (isGridButton)
-            {
-                switch (calendar!.DisplayMode)
-                {
-                    case CalendarMode.Year:
-                        what = CalendarWhat.Month;
-                        break;
-                    case CalendarMode.Decade:
-                        what = CalendarWhat.Year;
-                        break;
-                }
-
-                selectDate = (DateTime)btn!.DataContext!;
-            }
-        }
-
-        if (what == CalendarWhat.None)
-        {
-            args.Handled = true; // ignore event
-            return;
-        }
-
         switch (what)
         {
             case CalendarWhat.Day:
-                FillDayMenus((DateTime)selectDate!);
+                FillDayMenus(selectDate);
                 break;
             case CalendarWhat.Month:
-                FillMonthMenus((DateTime)selectDate!);
+                FillMonthMenus(selectDate);
                 break;
             case CalendarWhat.Year:
-                FillYearMenus((DateTime)selectDate!);
+                FillYearMenus(selectDate);
                 break;
         }
     }

@@ -1,10 +1,8 @@
 using System.Collections.ObjectModel;
-using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
-using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
@@ -74,58 +72,10 @@ public partial class WorkEditorViewModel : ViewModelBase
         Time = 0.0;
         Priority = WorkPriorities.P0;
 
-        WorkTags.CollectionChanged += (sender, args) =>
+        WorkTags.CollectionChanged += (_, _) =>
         {
             if (_syncing_tags)
                 return;
-            var tag = args.Action switch
-            {
-                NotifyCollectionChangedAction.Add => (WorkTag?)args.NewItems![0],
-                NotifyCollectionChangedAction.Remove => (WorkTag?)args.OldItems![0],
-                _ => null
-            };
-            if (WorkItem is { Id: > 0 })
-            {
-                // 这里处理添加删除标签
-                switch (args.Action)
-                {
-                    case NotifyCollectionChangedAction.Add:
-                        Db!.WorkItemAddTag(WorkItem, tag!);
-                        break;
-                    case NotifyCollectionChangedAction.Remove:
-                        if (tag!.Level == TagLevels.Primary)
-                        {
-                            Db!.WorkItemCleanTags(WorkItem);
-                            // 在主线程全部移除标签
-                            Dispatcher.UIThread.Post(() =>
-                            {
-                                _syncing_tags = true;
-                                while (WorkTags.Count > 0)
-                                    WorkTags.RemoveAt(0);
-                                _syncing_tags = false;
-                                UpdateAvailableTags();
-                            });
-                        }
-                        else
-                        {
-                            Db!.WorkItemRemoveTag(WorkItem, tag!);
-                        }
-
-                        break;
-                }
-            }
-            else if (tag is { Level: TagLevels.Primary } && args.Action == NotifyCollectionChangedAction.Remove)
-            {
-                // 在主线程全部移除标签
-                Dispatcher.UIThread.Post(() =>
-                {
-                    _syncing_tags = true;
-                    while (WorkTags.Count > 0)
-                        WorkTags.RemoveAt(0);
-                    _syncing_tags = false;
-                });
-            }
-
             UpdateAvailableTags();
         };
     }
@@ -327,14 +277,42 @@ public partial class WorkEditorViewModel : ViewModelBase
     [RelayCommand]
     private void AddTag(WorkTag tag)
     {
-        if (!WorkTags.Contains(tag))
-            WorkTags.Add(tag);
+        if (WorkTags.Contains(tag))
+            return;
+        _syncing_tags = true;
+        if (WorkItem is { Id: > 0 })
+            Db!.WorkItemAddTag(WorkItem, tag);
+        WorkTags.Add(tag);
+        _syncing_tags = false;
+        UpdateAvailableTags();
     }
 
     [RelayCommand]
     private void DelTag(WorkTag tag)
     {
-        WorkTags.Remove(tag);
+        _syncing_tags = true;
+        if (WorkItem is { Id: > 0 })
+        {
+            if (tag.Level == TagLevels.Primary)
+            {
+                Db!.WorkItemCleanTags(WorkItem);
+                WorkTags.Clear();
+            }
+            else
+            {
+                Db!.WorkItemRemoveTag(WorkItem, tag);
+                WorkTags.Remove(tag);
+            }
+        }
+        else
+        {
+            if (tag.Level == TagLevels.Primary)
+                WorkTags.Clear();
+            else
+                WorkTags.Remove(tag);
+        }
+        _syncing_tags = false;
+        UpdateAvailableTags();
     }
 
     private void UpdateAvailableTags()

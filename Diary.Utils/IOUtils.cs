@@ -1,22 +1,34 @@
+using Microsoft.Extensions.Logging;
+
 namespace Diary.Utils;
 
 public static class IoUtils
 {
+    private static ILogger Logger => Logging.Logger;
+
     public static string ReadAllText(string path)
     {
-        if (File.Exists(path) && new FileInfo(path).Length < (8 << 20)) // max to 8MB
+        if (File.Exists(path))
         {
-            return File.ReadAllText(path);
+            var size = new FileInfo(path).Length;
+            if (size < (8 << 20))
+                return File.ReadAllText(path);
+            Logger.LogWarning("文件 {Path}({Size}字节) 超过8MB限制，已跳过", path, size);
         }
+
         return "";
     }
 
     public static byte[] ReadAllBytes(string path)
     {
-        if (File.Exists(path) && new FileInfo(path).Length < (8 << 20)) 
+        if (File.Exists(path))
         {
-            return File.ReadAllBytes(path);
+            var size = new FileInfo(path).Length;
+            if (size < (8 << 20))
+                return File.ReadAllBytes(path);
+            Logger.LogWarning("文件 {Path}({Size}字节) 超过8MB限制，已跳过", path, size);
         }
+
         return [];
     }
 

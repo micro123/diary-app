@@ -4,7 +4,7 @@ namespace Diary.Utils;
 
 public class SingletonBase<T> where T : class
 {
-    private static readonly Lazy<T> _instance = new(() =>
+    private static readonly Lazy<T> _instance = new Lazy<T>(() =>
     {
         var type = typeof(T);
         var ctor = type.GetConstructor(
@@ -19,7 +19,7 @@ public class SingletonBase<T> where T : class
             throw new InvalidOperationException("ctor must NOT be public");
         
         return (T)ctor.Invoke(null);
-    });
+    }, LazyThreadSafetyMode.PublicationOnly);
     
     protected SingletonBase() {}
     

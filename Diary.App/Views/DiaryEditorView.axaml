@@ -66,12 +66,8 @@
                 <Calendar FirstDayOfWeek="Monday" DockPanel.Dock="Top"
                           IsTodayHighlighted="True" SelectionMode="SingleDate"
                           DisplayDate="{Binding CurrentDate}"
-                          SelectedDate="{Binding SelectedDate}">
-                    <Interaction.Behaviors>
-                        <EventTriggerBehavior EventName="ContextRequested">
-                            <InvokeCommandAction Command="{Binding TestCommand}" PassEventArgsToCommand="True" />
-                        </EventTriggerBehavior>
-                    </Interaction.Behaviors>
+                          SelectedDate="{Binding SelectedDate}"
+                          ContextRequested="OnCalendarContextRequested">
                     <Calendar.ContextMenu>
                         <ContextMenu ItemsSource="{Binding QuickMenuItems}">
                             <ContextMenu.ItemContainerTheme>

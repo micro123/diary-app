@@ -46,8 +46,7 @@
 
 ## 其他
 
-- [ ] `DiaryEditorViewModel.cs:321-415` ViewModel 中直接遍历 Avalonia 视觉树，应移至 View 层
-- [ ] `AllConfig` 无脏标记/自动保存机制
-- [ ] `SingletonBase<T>` 构造失败后 Lazy 永久缓存异常，无法恢复
-- [ ] `IoUtils` >8MB 文件静默丢弃，无日志
-- [ ] `WorkEditorViewModel.cs` `CollectionChanged` 事件处理器内联写数据库，职责混乱
+- [x] `DiaryEditorViewModel.cs:321-415` ViewModel 中直接遍历 Avalonia 视觉树，应移至 View 层 → 已移至 `DiaryEditorView.axaml.cs`
+- [x] `SingletonBase<T>` 构造失败后 Lazy 永久缓存异常，无法恢复 → `LazyThreadSafetyMode.PublicationOnly`
+- [x] `IoUtils` >8MB 文件静默丢弃，无日志 → 添加 `LogWarning`
+- [x] `WorkEditorViewModel.cs` `CollectionChanged` 事件处理器内联写数据库，职责混乱 → DB 写入移至 `AddTag`/`DelTag` 命令
