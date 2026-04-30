@@ -1,0 +1,108 @@
+name: Manual Build & Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_suffix:
+        description: '版本后缀 (如 alpha1, test)'
+        required: false
+        default: 'manual'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rid: [win-x64, linux-x64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 9.0
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Generate version string
+        id: version
+        run: |
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          SHORT_HASH=$(git rev-parse --short HEAD)
+          SUFFIX="${{ inputs.version_suffix }}"
+          VERSION="r${COMMIT_COUNT}-${SHORT_HASH}-${SUFFIX}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Publish ${{ matrix.rid }}
+        run: |
+          RID=${{ matrix.rid }}
+          OUT=publish/${RID}
+          mkdir -p ${OUT}
+          dotnet publish -c Release -r ${RID} --self-contained true -o ${OUT} Diary.App/Diary.App.csproj
+          find ${OUT}/runtimes -maxdepth 2 -mindepth 2 \( -not -path "*${RID}*" \) -exec rm -rf {} + 2>/dev/null || true
+          ARCHIVE=DiaryAppNG-${{ steps.version.outputs.version }}-${RID}.zip
+          (cd ${OUT} && zip -r ${GITHUB_WORKSPACE}/${ARCHIVE} .)
+          echo "archive=${ARCHIVE}" >> $GITHUB_OUTPUT
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DiaryAppNG-${{ steps.version.outputs.version }}-${{ matrix.rid }}
+          path: ${{ github.workspace }}/*.zip
+
+  create-release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate version string
+        id: version
+        run: |
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          SHORT_HASH=$(git rev-parse --short HEAD)
+          SUFFIX="${{ inputs.version_suffix }}"
+          VERSION="r${COMMIT_COUNT}-${SHORT_HASH}-${SUFFIX}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: DiaryAppNG-*
+          merge-multiple: true
+          path: artifacts
+
+      - name: Delete old manual releases
+        run: |
+          gh release list --limit 50 --json tagName,name \
+            --jq '.[] | select(.name | startswith("Manual Build")) | .tagName' \
+          | while read tag; do
+            echo "Deleting old manual release: $tag"
+            gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
+          done
+        env:
+          GH_TOKEN: ${{ github.token }}
+        continue-on-error: true
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Manual Build ${{ steps.version.outputs.version }}
+          tag_name: manual-${{ steps.version.outputs.version }}
+          prerelease: true
+          files: artifacts/*.zip
+          body: |
+            ## Manual Build ${{ steps.version.outputs.version }}
+
+            - **Commit**: ${{ github.sha }}
+            - **Branch**: ${{ github.ref_name }}
+            - **Triggered by**: ${{ github.actor }}
+
+            > 临时手动构建，仅供测试使用。
