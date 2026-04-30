@@ -37,7 +37,7 @@ public sealed class DayMenuItem
 }
 
 
-[DiAutoRegister]
+[DiAutoRegister(singleton: true)]
 public partial class DiaryEditorViewModel : ViewModelBase
 {
     private readonly ILogger _logger;

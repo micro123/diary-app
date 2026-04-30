@@ -244,6 +244,7 @@ namespace Diary.App
         _respondent.Shutdown();
         _timer.Stop();
         SaveConfigurations();
+        (Services as IDisposable)?.Dispose();
         Logging.Shutdown();
     }
 

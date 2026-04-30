@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -31,7 +31,7 @@ using TemplateEditorViewModel = Diary.App.ViewModels.Dialogs.TemplateEditorViewM
 
 namespace Diary.App.ViewModels;
 
-[DiAutoRegister]
+[DiAutoRegister(singleton: true)]
 public partial class MainWindowViewModel : ViewModelBase
 {
     private readonly StatusBarViewModel _statusBarViewModel;

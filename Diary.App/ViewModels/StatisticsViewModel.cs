@@ -38,7 +38,7 @@ public class StatisticsManager : SingletonBase<StatisticsManager>
     public ICollection<StatisticsType> StatisticsList { get; set; } = new List<StatisticsType>();
 }
 
-[DiAutoRegister]
+[DiAutoRegister(singleton: true)]
 public partial class StatisticsViewModel : ViewModelBase
 {
     [ObservableProperty] private ObservableCollection<StatisticsTabData> _tabs = new();

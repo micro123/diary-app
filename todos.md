@@ -24,9 +24,9 @@
 
 ## 资源泄漏
 
-- [ ] 所有 ViewModel `Messenger.Register` 注册未取消（共 13 处，涉及 SurveyViewModel/StatisticsViewModel/RedMineManageViewModel/MainWindowViewModel/DiaryEditorViewModel）
-- [ ] `Logging.cs` `ILoggerFactory` / Serilog 未 Dispose，退出时可能丢日志
-- [ ] `SingletonApp.cs:30` `ListenPipe` Task 未跟踪
+- [x] 所有 ViewModel `Messenger.Register` 注册未取消（共 13 处，涉及 SurveyViewModel/StatisticsViewModel/RedMineManageViewModel/MainWindowViewModel/DiaryEditorViewModel）
+- [x] `Logging.cs` `ILoggerFactory` / Serilog 未 Dispose，退出时可能丢日志
+- [x] `SingletonApp.cs:30` `ListenPipe` Task 未跟踪
 
 ## 代码重复
 

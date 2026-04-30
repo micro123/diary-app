@@ -22,7 +22,7 @@ public class RedMineTabItemModel
     public required object Content { get; set; }
 }
 
-[DiAutoRegister]
+[DiAutoRegister(singleton: true)]
 public partial class RedMineManageViewModel : ViewModelBase
 {
     private readonly ILogger _logger;

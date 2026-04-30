@@ -100,7 +100,7 @@ public sealed partial class SurveyResult
     }
 }
 
-[DiAutoRegister]
+[DiAutoRegister(singleton: true)]
 public partial class SurveyViewModel : ViewModelBase
 {
     private readonly ILogger _logger;
