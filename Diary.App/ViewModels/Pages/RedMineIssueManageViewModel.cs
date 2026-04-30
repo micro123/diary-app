@@ -15,123 +15,55 @@ using Diary.Utils;
 namespace Diary.App.ViewModels.Pages;
 
 [DiAutoRegister]
-public partial class RedMineIssueManageViewModel : ViewModelBase
+public partial class RedMineIssueManageViewModel : PaginatedSearchViewModel<IssueInfo>
 {
     public const string SearchById = "SearchById";
     public const string SearchByKeyword = "SearchByKeyword";
 
-    // 搜索参数
-    [ObservableProperty]
-    private string _searchTerm = string.Empty;
+    [ObservableProperty] private string _searchTerm = string.Empty;
     [ObservableProperty] private bool _onlyOpened = true;
     [ObservableProperty] private bool _onlyMyIssues = true;
     private string _lastSearchMethod = string.Empty;
 
-    [ObservableProperty] private int _resultCount;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(FirstPageCommand), nameof(LastPageCommand), nameof(PrevPageCommand),
-        nameof(NextPageCommand))]
-    private int _currentPage = 1;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(FirstPageCommand), nameof(LastPageCommand), nameof(PrevPageCommand),
-        nameof(NextPageCommand))]
-    private int _totalPage = 1;
-    [ObservableProperty] private ObservableCollection<IssueInfo> _searchResults = new();
+    protected override int PageSize => RedMineApis.PageSize;
 
     private DbInterfaceBase? Db => App.Instance.UseDb;
-
-    private void UpdateSearchResults(IEnumerable<IssueInfo>? searchResults, int total)
-    {
-        ResultCount = total;
-        TotalPage = total / RedMineApis.PageSize + 1;
-        SearchResults.Clear();
-        if (searchResults == null) return;
-        foreach (var result in searchResults)
-        {
-            SearchResults.Add(result);
-        }
-    }
 
     [RelayCommand]
     private async Task Search(string method)
     {
         _lastSearchMethod = method;
-        CurrentPage = 1; // 点击搜索那就切换到第一页
-        await SearchInternal();
+        CurrentPage = 1;
+        await DoSearchInternalAsync();
     }
 
-    private async Task SearchInternal()
+    protected override async Task<(bool ok, IEnumerable<IssueInfo>? results, int total)> ExecuteSearchAsync(int page)
     {
         if (string.IsNullOrEmpty(_lastSearchMethod))
-            return;
-        await Task.Run(() =>
+            return (false, null, 0);
+
+        return await Task.Run(() =>
         {
+            bool ok;
+            IEnumerable<IssueInfo>? results;
+            int total;
             switch (_lastSearchMethod)
             {
                 case SearchById:
-                {
-                    var ok = RedMineApis.SearchIssueByIds(out var results, out int total,
-                        OnlyMyIssues, OnlyOpened, CurrentPage - 1, SearchTerm);
-                    if (!ok)
-                    {
-                        NotificationManager?.Show("似乎有什么出错了 >_!", NotificationType.Error);
-                    }
-                    Dispatcher.UIThread.InvokeAsync(() => UpdateSearchResults(results, total));
-                }
+                    ok = RedMineApis.SearchIssueByIds(out results, out total, OnlyMyIssues, OnlyOpened, page, SearchTerm);
                     break;
                 case SearchByKeyword:
-                {
-                    var ok = RedMineApis.SearchIssueByKeywords(out var results, out int total,
-                        OnlyMyIssues, OnlyOpened, CurrentPage - 1, SearchTerm);
-                    if (!ok)
-                    {
-                        NotificationManager?.Show("似乎有什么出错了 >_!", NotificationType.Error);
-                    }
-                    Dispatcher.UIThread.InvokeAsync(() => UpdateSearchResults(results, total));
-                }
+                    ok = RedMineApis.SearchIssueByKeywords(out results, out total, OnlyMyIssues, OnlyOpened, page, SearchTerm);
+                    break;
+                default:
+                    ok = false;
+                    results = null;
+                    total = 0;
                     break;
             }
+            return (ok, results, total);
         });
     }
-    
-
-    [RelayCommand(CanExecute = nameof(CanGoFirstPage))]
-    private async Task FirstPage()
-    {
-        CurrentPage = 1;
-        await SearchInternal();
-    }
-
-    private bool CanGoFirstPage => CurrentPage != 1;
-
-    [RelayCommand(CanExecute = nameof(CanGoPrevPage))]
-    private async Task PrevPage()
-    {
-        CurrentPage -= 1;
-        await SearchInternal();
-    }
-
-    private bool CanGoPrevPage => CurrentPage > 1;
-
-    [RelayCommand(CanExecute = nameof(CanGoNextPage))]
-    private async Task NextPage()
-    {
-        CurrentPage += 1;
-        await SearchInternal();
-    }
-
-    private bool CanGoNextPage => CurrentPage != TotalPage;
-
-    [RelayCommand(CanExecute = nameof(CanGoLastPage))]
-    private async Task LastPage()
-    {
-        CurrentPage = TotalPage;
-        await SearchInternal();
-    }
-
-    private bool CanGoLastPage => CurrentPage < TotalPage;
 
     [RelayCommand]
     private async Task Import(IssueInfo issue)
@@ -141,12 +73,10 @@ public partial class RedMineIssueManageViewModel : ViewModelBase
 
         await Task.Run(() =>
         {
-            // 先导入项目
             RedMineApis.GetProject(out var project, issue.Project.Id);
             Debug.Assert(project != null);
             Db.AddRedMineProject(project.Id, project.Name, project.Description);
-        
-            // 再导入问题
+
             Db.AddRedMineIssue(issue.Id, issue.Subject, issue.AssignedTo.Name, issue.Project.Id, issue.Status.IsClosed);
         });
     }

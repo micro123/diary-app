@@ -17,95 +17,27 @@ using NewIssueView = Diary.App.Views.Pages.NewIssueView;
 namespace Diary.App.ViewModels.Pages;
 
 [DiAutoRegister]
-public partial class RedMineProjectViewModel : ViewModelBase
+public partial class RedMineProjectViewModel : PaginatedSearchViewModel<ProjectInfo>
 {
-    // 搜索参数
     [ObservableProperty] private string _searchTerm = string.Empty;
-
-    // 搜索状态
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(FirstPageCommand), nameof(LastPageCommand), nameof(PrevPageCommand),
-        nameof(NextPageCommand))]
-    private int _currentPage = 1;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(FirstPageCommand), nameof(LastPageCommand), nameof(PrevPageCommand),
-        nameof(NextPageCommand))]
-    private int _totalPage = 1;
-
-    [ObservableProperty] private ObservableCollection<ProjectInfo> _searchResults = new();
-    [ObservableProperty] private int _resultCount;
+    protected override int PageSize => RedMineApis.PageSize;
 
     [RelayCommand]
     private async Task Search()
     {
         CurrentPage = 1;
-        await SearchInternal();
+        await DoSearchInternalAsync();
     }
 
-    private async Task SearchInternal()
+    protected override Task<(bool ok, IEnumerable<ProjectInfo>? results, int total)> ExecuteSearchAsync(int page)
     {
-        var ok = RedMineApis.SearchProject(out var results, out int total,
-            CurrentPage - 1, SearchTerm);
-        if (!ok)
-        {
-            NotificationManager?.Show("似乎有什么出错了 >_!", NotificationType.Error);
-        }
-        await Dispatcher.UIThread.InvokeAsync(() => UpdateSearchResults(results, total));
+        var ok = RedMineApis.SearchProject(out var results, out int total, page, SearchTerm);
+        return Task.FromResult<(bool, IEnumerable<ProjectInfo>?, int)>((ok, results, total));
     }
-
-    private void UpdateSearchResults(IEnumerable<ProjectInfo>? projects, int total)
-    {
-        ResultCount = total;
-        TotalPage = total / RedMineApis.PageSize + 1;
-        SearchResults.Clear();
-        if (projects == null) return;
-        foreach (var project in projects)
-        {
-            SearchResults.Add(project);
-        }
-    }
-
-    [RelayCommand(CanExecute = nameof(CanGoFirstPage))]
-    private async Task FirstPage()
-    {
-        CurrentPage = 1;
-        await SearchInternal();
-    }
-
-    private bool CanGoFirstPage => CurrentPage != 1;
-
-    [RelayCommand(CanExecute = nameof(CanGoPrevPage))]
-    private async Task PrevPage()
-    {
-        CurrentPage -= 1;
-        await SearchInternal();
-    }
-
-    private bool CanGoPrevPage => CurrentPage > 1;
-
-    [RelayCommand(CanExecute = nameof(CanGoNextPage))]
-    private async Task NextPage()
-    {
-        CurrentPage += 1;
-        await SearchInternal();
-    }
-
-    private bool CanGoNextPage => CurrentPage != TotalPage;
-
-    [RelayCommand(CanExecute = nameof(CanGoLastPage))]
-    private async Task LastPage()
-    {
-        CurrentPage = TotalPage;
-        await SearchInternal();
-    }
-
-    private bool CanGoLastPage => CurrentPage < TotalPage;
 
     [RelayCommand]
     private async Task CreateIssue(ProjectInfo project)
     {
-        // NotificationManager?.Show("还没实现~~", NotificationType.Information);
         var opt = new OverlayDialogOptions
         {
             Title = "创建问题",
@@ -122,7 +54,6 @@ public partial class RedMineProjectViewModel : ViewModelBase
             var result = await OverlayDialog.ShowModal<NewIssueView, NewIssueViewModel>(vm: vm, options: opt);
             if (result == DialogResult.OK)
             {
-                // check parameters
                 if (!vm.IsValid)
                 {
                     ToastManager?.Show("参数错误！");

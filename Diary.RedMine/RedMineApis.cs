@@ -75,45 +75,24 @@ public static class RedMineApis
     public static bool SearchIssueByKeywords([NotNullWhen(true)] out IEnumerable<IssueInfo>? issues,
         out int total, bool myIssues = true, bool openOnly = true, int page = 0, string keywords = "")
     {
-        issues = null;
-        total = 0;
-        
-        var url = IssueInfo.Query();
-        var client = RestTools.BasicClient();
-        if (client != null)
-        {
-            var request = RestTools.HttpGet(url);
-            if (myIssues)
-                request.AddQueryParameter("assigned_to_id", "me");
-            request.AddQueryParameter("status_id", openOnly ? "open" : "*");
-            if (!string.IsNullOrEmpty(keywords))
-                request.AddQueryParameter("subject", $"~{keywords}");
-            
-            request.AddQueryParameter("limit", PageSize);
-            request.AddQueryParameter("offset", page * PageSize);
-            
-            var response = client.Execute<IssueInfo.SearchResult>(request);
-            if (response.StatusCode != HttpStatusCode.OK)
-            {
-                Logger.LogError("http status code {StatusCode}: {ErrorMessage}", response.StatusCode, response.ErrorMessage);
-            }
-            else
-            {
-                Logger.LogDebug("response {Content}", response.Content);
-                total = response.Data!.Total;
-                issues = response.Data.Issues;
-            }
-        }
-        
-        return issues != null;
+        string? paramValue = !string.IsNullOrEmpty(keywords) ? $"~{keywords}" : null;
+        return SearchIssuesInternal(out issues, out total, myIssues, openOnly, page, "subject", paramValue);
     }
-    
+
     public static bool SearchIssueByIds([NotNullWhen(true)] out IEnumerable<IssueInfo>? issues,
         out int total, bool myIssues = true, bool openOnly = true, int page = 0, string ids = "")
     {
+        string? paramValue = !string.IsNullOrEmpty(ids) ? ids : null;
+        return SearchIssuesInternal(out issues, out total, myIssues, openOnly, page, "issue_id", paramValue);
+    }
+
+    private static bool SearchIssuesInternal([NotNullWhen(true)] out IEnumerable<IssueInfo>? issues,
+        out int total, bool myIssues, bool openOnly, int page,
+        string queryParamName, string? queryParamValue)
+    {
         issues = null;
         total = 0;
-        
+
         var url = IssueInfo.Query();
         var client = RestTools.BasicClient();
         if (client != null)
@@ -122,12 +101,12 @@ public static class RedMineApis
             if (myIssues)
                 request.AddQueryParameter("assigned_to_id", "me");
             request.AddQueryParameter("status_id", openOnly ? "open" : "*");
-            if (!string.IsNullOrEmpty(ids))
-                request.AddQueryParameter("issue_id", ids);
-            
+            if (queryParamValue != null)
+                request.AddQueryParameter(queryParamName, queryParamValue);
+
             request.AddQueryParameter("limit", PageSize);
             request.AddQueryParameter("offset", page * PageSize);
-            
+
             var response = client.Execute<IssueInfo.SearchResult>(request);
             if (response.StatusCode != HttpStatusCode.OK)
             {
@@ -140,7 +119,7 @@ public static class RedMineApis
                 issues = response.Data.Issues;
             }
         }
-        
+
         return issues != null;
     }
 

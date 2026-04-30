@@ -414,167 +414,75 @@ public partial class DiaryEditorViewModel : ViewModelBase
         }
     }
 
+    private void AddMenuHeader(string text) =>
+        QuickMenuItems.Add(new DayMenuItem { Header = text });
+
+    private void AddMenuSeparator() =>
+        QuickMenuItems.Add(DayMenuItem.Separator);
+
+    private void AddMenuAction(string text, ICommand command, bool enabled = true) =>
+        QuickMenuItems.Add(new DayMenuItem { Header = text, Command = command, Enabled = enabled });
+
+    private RelayCommand CreateStatisticsCommand(DateTime date, AdjustPart part) =>
+        new RelayCommand(() =>
+        {
+            EventDispatcher.RouteToPage(PageNames.Statistics);
+            EventDispatcher.Msg(new QuickStatisticsEvent(date, part));
+        });
+
+    private RelayCommand CreateSurveyCommand(DateTime date, AdjustPart part) =>
+        new RelayCommand(() =>
+        {
+            EventDispatcher.RouteToPage(PageNames.SurveyTool);
+            EventDispatcher.Msg(new QuickSurveyEvent(date, part));
+        });
+
     private void FillDayMenus(DateTime date)
     {
         if (date != SelectedDate)
-            GoDate(date); // 切换到那天
+            GoDate(date);
+
         QuickMenuItems.Clear();
-        // 固定项
-        var sb = new StringBuilder();
-        sb.Append(date.ToString("yyyy年MM月dd日"));
-        sb.Append(' ');
-        sb.Append(
-            $"第{CultureInfo.InvariantCulture.Calendar.GetWeekOfYear(date, CalendarWeekRule.FirstDay, DayOfWeek.Monday)}周");
-        QuickMenuItems.Add(new DayMenuItem()
-        {
-            Header = sb.ToString(),
-        });
-        QuickMenuItems.Add(new DayMenuItem()
-        {
-            Header = $"今日总工时{TotalTime:0.##}小时，有{TotalTime-UploadedTime:0.##}小时未提交",
-        });
-        QuickMenuItems.Add(DayMenuItem.Separator);
-        
-        // 功能项
-        QuickMenuItems.Add(new DayMenuItem()
-        {
-            Header = "提交本日工时",
-            Command = UploadAllCommand,
-            Enabled = true,
-        });
-        QuickMenuItems.Add(new DayMenuItem()
-        {
-            Header = "提交本周工时(尚未实现)",
-            Command = UploadAllCommand,
-            Enabled = false,
-        });
-        QuickMenuItems.Add(new DayMenuItem()
-        {
-            Header = "统计本周工时",
-            Command = new RelayCommand(() =>
-            {
-                EventDispatcher.RouteToPage(PageNames.Statistics);
-                EventDispatcher.Msg(new QuickStatisticsEvent(date, AdjustPart.Week));
-            }),
-            Enabled = true,
-        });
+        var weekOfYear = CultureInfo.InvariantCulture.Calendar.GetWeekOfYear(date, CalendarWeekRule.FirstDay, DayOfWeek.Monday);
+        AddMenuHeader($"{date:yyyy年MM月dd日} 第{weekOfYear}周");
+        AddMenuHeader($"今日总工时{TotalTime:0.##}小时，有{TotalTime-UploadedTime:0.##}小时未提交");
+        AddMenuSeparator();
+        AddMenuAction("提交本日工时", UploadAllCommand);
+        AddMenuAction("提交本周工时(尚未实现)", UploadAllCommand, false);
+        AddMenuAction("统计本周工时", CreateStatisticsCommand(date, AdjustPart.Week));
         if (IsSurveyorEnabled)
         {
-            QuickMenuItems.Add(DayMenuItem.Separator);
-            QuickMenuItems.Add(new DayMenuItem()
-            {
-                Header = "调查本周工时情况",
-                Command = new RelayCommand(() =>
-                {
-                    EventDispatcher.RouteToPage(PageNames.SurveyTool);
-                    EventDispatcher.Msg(new QuickSurveyEvent(date, AdjustPart.Week));
-                }),
-                Enabled = true,
-            });
+            AddMenuSeparator();
+            AddMenuAction("调查本周工时情况", CreateSurveyCommand(date, AdjustPart.Week));
         }
     }
 
     private void FillMonthMenus(DateTime date)
     {
         QuickMenuItems.Clear();
-        // 固定项
-        var sb = new StringBuilder();
-        sb.Append(date.ToString("yyyy年MM月"));
-        sb.Append(' ');
-        sb.Append($"第{(date.Month-1)/3+1}季度");
-        QuickMenuItems.Add(new DayMenuItem()
-        {
-            Header = sb.ToString(),
-        });
-        QuickMenuItems.Add(DayMenuItem.Separator);
-        
-        // 功能项
-        QuickMenuItems.Add(new DayMenuItem()
-        {
-            Header = "提交本月工时(尚未实现)",
-            Command = UploadAllCommand,
-            Enabled = false,
-        });
-        QuickMenuItems.Add(new DayMenuItem()
-        {
-            Header = "统计本月工时",
-            Command = new RelayCommand(() =>
-            {
-                EventDispatcher.RouteToPage(PageNames.Statistics);
-                EventDispatcher.Msg(new QuickStatisticsEvent(date, AdjustPart.Month));
-            }),
-            Enabled = true,
-        });
-        QuickMenuItems.Add(new DayMenuItem()
-        {
-            Header = "统计本季度工时",
-            Command = new RelayCommand(() =>
-            {
-                EventDispatcher.RouteToPage(PageNames.Statistics);
-                EventDispatcher.Msg(new QuickStatisticsEvent(date, AdjustPart.Quarter));
-            }),
-            Enabled = true,
-        });
+        AddMenuHeader($"{date:yyyy年MM月} 第{(date.Month - 1) / 3 + 1}季度");
+        AddMenuSeparator();
+        AddMenuAction("提交本月工时(尚未实现)", UploadAllCommand, false);
+        AddMenuAction("统计本月工时", CreateStatisticsCommand(date, AdjustPart.Month));
+        AddMenuAction("统计本季度工时", CreateStatisticsCommand(date, AdjustPart.Quarter));
         if (IsSurveyorEnabled)
         {
-            QuickMenuItems.Add(DayMenuItem.Separator);
-            QuickMenuItems.Add(new DayMenuItem()
-            {
-                Header = "调查本月工时情况",
-                Command = new RelayCommand(() =>
-                {
-                    EventDispatcher.RouteToPage(PageNames.SurveyTool);
-                    EventDispatcher.Msg(new QuickSurveyEvent(date, AdjustPart.Month));
-                }),
-                Enabled = true,
-            });
-            QuickMenuItems.Add(new DayMenuItem()
-            {
-                Header = "调查本季度工时情况",
-                Command = new RelayCommand(() =>
-                {
-                    EventDispatcher.RouteToPage(PageNames.SurveyTool);
-                    EventDispatcher.Msg(new QuickSurveyEvent(date, AdjustPart.Quarter));
-                }),
-                Enabled = true,
-            });
+            AddMenuSeparator();
+            AddMenuAction("调查本月工时情况", CreateSurveyCommand(date, AdjustPart.Month));
+            AddMenuAction("调查本季度工时情况", CreateSurveyCommand(date, AdjustPart.Quarter));
         }
     }
 
     private void FillYearMenus(DateTime date)
     {
         QuickMenuItems.Clear();
-        // 固定项
-        QuickMenuItems.Add(new DayMenuItem()
-        {
-            Header = date.ToString("yyyy年"),
-        });
-        QuickMenuItems.Add(DayMenuItem.Separator);
-        
-        // 功能项
-        QuickMenuItems.Add(new DayMenuItem()
-        {
-            Header = "统计此年工时",
-            Command = new RelayCommand(() =>
-            {
-                EventDispatcher.RouteToPage(PageNames.Statistics);
-                EventDispatcher.Msg(new QuickStatisticsEvent(date, AdjustPart.Week));
-            }),
-            Enabled = true,
-        });
+        AddMenuHeader(date.ToString("yyyy年"));
+        AddMenuSeparator();
+        AddMenuAction("统计此年工时", CreateStatisticsCommand(date, AdjustPart.Week));
         if (IsSurveyorEnabled)
         {
-            QuickMenuItems.Add(DayMenuItem.Separator);
-            QuickMenuItems.Add(new DayMenuItem()
-            {
-                Header = "调查此年工时情况",
-                Command = new RelayCommand(() =>
-                {
-                    EventDispatcher.RouteToPage(PageNames.SurveyTool);
-                    EventDispatcher.Msg(new QuickSurveyEvent(date, AdjustPart.Week));
-                }),
-                Enabled = true,
-            });
+            AddMenuSeparator();
+            AddMenuAction("调查此年工时情况", CreateSurveyCommand(date, AdjustPart.Week));
         }
     }
 

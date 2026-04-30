@@ -30,11 +30,11 @@
 
 ## 代码重复
 
-- [ ] `RedMineProjectViewModel` + `RedMineIssueManageViewModel` 分页逻辑完全重复
-- [ ] `DiaryEditorViewModel.cs:417-579` 上下文菜单构建代码三份重复（FillDayMenus/FillMonthMenus/FillYearMenus）
-- [ ] `StatisticsView.axaml` + `SurveyView.axaml` 快速日期按钮网格重复
-- [ ] `SqliteMigrator.cs` + `PgMigrator.cs` ~90% 代码相同（15 处 Ok() 调用一一对应）
-- [ ] `RedMineApis.cs` `SearchIssueByKeywords` + `SearchIssueByIds` 95% 相同
+- [x] `RedMineProjectViewModel` + `RedMineIssueManageViewModel` 分页逻辑完全重复 → 提取至 `PaginatedSearchViewModel<T>` 基类
+- [x] `DiaryEditorViewModel.cs:417-579` 上下文菜单构建代码三份重复（FillDayMenus/FillMonthMenus/FillYearMenus） → 统一辅助方法
+- [x] `StatisticsView.axaml` + `SurveyView.axaml` 快速日期按钮网格重复 → 提取至 `QuickDateSelectButton` 用户控件
+- [x] `SqliteMigrator.cs` + `PgMigrator.cs` ~90% 代码相同（15 处 Ok() 调用一一对应） → 提取至 `BaseMigrator` 基类
+- [x] `RedMineApis.cs` `SearchIssueByKeywords` + `SearchIssueByIds` 95% 相同 → 合并至 `SearchIssuesInternal` 私有方法
 
 ## 死代码 / 未实现
 

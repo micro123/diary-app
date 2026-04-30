@@ -39,7 +39,7 @@ public static class Migrator
         bool endTransaction = false;
         try
         {
-            using var migrator = new PgMigrator(db, host, port, database, user, password, processCallback);
+            using var migrator = PgMigrator.Create(db, host, port, database, user, password, processCallback);
             if (db.BeginTransaction())
             {
                 endTransaction = true;
