@@ -40,6 +40,41 @@ public abstract class DbInterfaceBase
     public abstract void WorkUpdateNote(WorkItem work, string content);
     public abstract void WorkDeleteNote(WorkItem work);
     public abstract string? WorkGetNote(WorkItem work);
+
+    // batch queries for performance
+    public virtual Dictionary<int, string> GetWorkNotesByDate(string date)
+    {
+        var result = new Dictionary<int, string>();
+        foreach (var item in GetWorkItemByDate(date))
+        {
+            var note = WorkGetNote(item);
+            if (note != null)
+                result[item.Id] = note;
+        }
+        return result;
+    }
+
+    public virtual Dictionary<int, ICollection<WorkTag>> GetWorkTagsByDate(string date)
+    {
+        var result = new Dictionary<int, ICollection<WorkTag>>();
+        foreach (var item in GetWorkItemByDate(date))
+        {
+            result[item.Id] = GetWorkItemTags(item);
+        }
+        return result;
+    }
+
+    public virtual Dictionary<int, WorkTimeEntry> GetWorkTimeEntriesByDate(string date)
+    {
+        var result = new Dictionary<int, WorkTimeEntry>();
+        foreach (var item in GetWorkItemByDate(date))
+        {
+            var entry = WorkItemGetTimeEntry(item);
+            if (entry != null)
+                result[item.Id] = entry;
+        }
+        return result;
+    }
     
     // work item - work tag
     public abstract bool WorkItemAddTag(WorkItem item, WorkTag tag);

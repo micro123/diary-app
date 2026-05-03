@@ -272,11 +272,18 @@ public partial class DiaryEditorViewModel : ViewModelBase
         if (db != null)
         {
             var dbItems = db.GetWorkItemByDate(CurrentDateString);
-            foreach (var item in dbItems)
+            if (dbItems.Count > 0)
             {
-                var x = WorkEditorViewModel.FromWorkItem(item);
-                x.SyncAll(); // load database data
-                DailyWorks.Add(x);
+                var notesById = db.GetWorkNotesByDate(CurrentDateString);
+                var tagsById = db.GetWorkTagsByDate(CurrentDateString);
+                var timeEntriesById = db.GetWorkTimeEntriesByDate(CurrentDateString);
+
+                foreach (var item in dbItems)
+                {
+                    var x = WorkEditorViewModel.FromWorkItem(item);
+                    x.SyncFromBatch(notesById, tagsById, timeEntriesById);
+                    DailyWorks.Add(x);
+                }
             }
         }
         else

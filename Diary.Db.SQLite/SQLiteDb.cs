@@ -195,6 +195,11 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
 
                                     -- default data version is 1.0.0 (0x1000000)
                                     INSERT OR IGNORE INTO data_versions VALUES(0x10000);
+                                    
+                                    CREATE INDEX IF NOT EXISTS idx_work_items_date ON work_items(create_date);
+                                    CREATE INDEX IF NOT EXISTS idx_work_item_tags_tag ON work_item_tags(tag_id);
+                                    CREATE INDEX IF NOT EXISTS idx_work_item_tags_work ON work_item_tags(work_id);
+                                    CREATE INDEX IF NOT EXISTS idx_redmine_issues_project ON redmine_issues(project_id);
                                     """;
         using var transaction = _connection!.BeginTransaction();
         try
@@ -451,6 +456,74 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         }
 
         return null;
+    }
+
+    public override Dictionary<int, string> GetWorkNotesByDate(string date)
+    {
+        var result = new Dictionary<int, string>();
+        var sql = """
+                  SELECT work_notes.id, work_notes.note
+                  FROM work_notes INNER JOIN work_items ON work_notes.id = work_items.id
+                  WHERE work_items.create_date = $date;
+                  """;
+        using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$date", date);
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            result[reader.GetInt32(0)] = reader.GetString(1);
+        }
+        return result;
+    }
+
+    public override Dictionary<int, ICollection<WorkTag>> GetWorkTagsByDate(string date)
+    {
+        var result = new Dictionary<int, ICollection<WorkTag>>();
+        var sql = """
+                  SELECT work_tags.*, work_item_tags.work_id
+                  FROM work_item_tags
+                  INNER JOIN work_tags ON work_item_tags.tag_id = work_tags.id
+                  INNER JOIN work_items ON work_item_tags.work_id = work_items.id
+                  WHERE work_items.create_date = $date
+                  ORDER BY work_tags.tag_level;
+                  """;
+        using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$date", date);
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            var tag = MapWorkTag(reader);
+            var workId = reader.GetInt32(5);
+            if (!result.TryGetValue(workId, out var list))
+            {
+                list = new List<WorkTag>();
+                result[workId] = list;
+            }
+            list.Add(tag);
+        }
+        return result;
+    }
+
+    public override Dictionary<int, WorkTimeEntry> GetWorkTimeEntriesByDate(string date)
+    {
+        var result = new Dictionary<int, WorkTimeEntry>();
+        var sql = """
+                  SELECT redmine_time_entries.*
+                  FROM redmine_time_entries INNER JOIN work_items ON redmine_time_entries.work_id = work_items.id
+                  WHERE work_items.create_date = $date;
+                  """;
+        using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$date", date);
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            var entry = MapWorkTimeEntry(reader);
+            result[entry.WorkId] = entry;
+        }
+        return result;
     }
 
     public override bool WorkItemAddTag(WorkItem item, WorkTag tag)
@@ -811,33 +884,45 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
             }
         }
 
-        foreach (var tag in result.PrimaryTags)
+        if (result.PrimaryTags.Count > 0)
         {
-            var sql = """
-                      SELECT
-                      	work_tags.id, sum(hours) as total, work_tags.tag_name
-                      FROM
-                      	((((SELECT work_id FROM work_item_tags WHERE tag_id=$tagId) AS T0 INNER JOIN
-                      	work_item_tags ON t0.work_id=work_item_tags.work_id AND work_item_tags.tag_id!=$tagId) INNER JOIN
-                      	(SELECT id, hours FROM work_items WHERE create_date BETWEEN $beginDate AND $endDate) AS T1 ON T0.work_id=T1.id) AS T2 INNER JOIN
-                      	work_tags ON work_tags.id=T2.tag_id AND work_tags.tag_level!=0)
-                      GROUP BY work_tags.id;
-                      """;
+            var nestedSql = """
+                            SELECT
+                            	primary_tags.tag_id AS primary_id,
+                            	work_tags.id,
+                            	SUM(T1.hours) AS total,
+                            	work_tags.tag_name
+                            FROM
+                            	(SELECT wit.work_id, wit.tag_id
+                            	 FROM work_item_tags wit
+                            	 INNER JOIN work_tags ON work_tags.id = wit.tag_id AND work_tags.tag_level = 0) AS primary_tags
+                            	INNER JOIN work_item_tags AS nested_tags
+                            		ON primary_tags.work_id = nested_tags.work_id AND nested_tags.tag_id != primary_tags.tag_id
+                            	INNER JOIN work_tags ON work_tags.id = nested_tags.tag_id AND work_tags.tag_level != 0
+                            	INNER JOIN (SELECT id, hours FROM work_items WHERE create_date BETWEEN $beginDate AND $endDate) AS T1
+                            		ON primary_tags.work_id = T1.id
+                            GROUP BY primary_tags.tag_id, work_tags.id, work_tags.tag_name;
+                            """;
 
-            using var cmd = _connection!.CreateCommand();
-            cmd.CommandText = sql;
-            cmd.Parameters.AddWithValue("$beginDate", beginDate);
-            cmd.Parameters.AddWithValue("$endDate", endDate);
-            cmd.Parameters.AddWithValue("$tagId", tag.TagId);
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
+            using var nestedCmd = _connection!.CreateCommand();
+            nestedCmd.CommandText = nestedSql;
+            nestedCmd.Parameters.AddWithValue("$beginDate", beginDate);
+            nestedCmd.Parameters.AddWithValue("$endDate", endDate);
+            using var nestedReader = nestedCmd.ExecuteReader();
+
+            var nestedMap = result.PrimaryTags.ToDictionary(t => t.TagId);
+            while (nestedReader.Read())
             {
-                tag.Nested.Add(new TagTime()
+                var primaryId = nestedReader.GetInt32(0);
+                if (nestedMap.TryGetValue(primaryId, out var primaryTag))
                 {
-                    TagId = reader.GetInt32(0),
-                    Time = reader.GetDouble(1),
-                    TagName = reader.GetString(2),
-                });
+                    primaryTag.Nested.Add(new TagTime()
+                    {
+                        TagId = nestedReader.GetInt32(1),
+                        Time = nestedReader.GetDouble(2),
+                        TagName = nestedReader.GetString(3),
+                    });
+                }
             }
         }
 

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -175,6 +176,69 @@ public partial class WorkEditorViewModel : ViewModelBase
         SyncRedMine();
     }
 
+    public void SyncFromBatch(
+        Dictionary<int, string> notesById,
+        Dictionary<int, ICollection<WorkTag>> tagsById,
+        Dictionary<int, WorkTimeEntry> timeEntriesById)
+    {
+        if (WorkItem is not { Id: > 0 })
+            return;
+
+        var id = WorkItem.Id;
+
+        if (notesById.TryGetValue(id, out var note))
+            Note = note;
+        else
+            Note = string.Empty;
+
+        if (tagsById.TryGetValue(id, out var tags))
+        {
+            _syncing_tags = true;
+            WorkTags.Clear();
+            foreach (var tag in tags)
+                WorkTags.Add(tag);
+            UpdateAvailableTags();
+            _syncing_tags = false;
+        }
+
+        if (timeEntriesById.TryGetValue(id, out var timeEntry))
+        {
+            TimeEntry = timeEntry;
+            SyncRedMineFromEntry();
+        }
+    }
+
+    private void SyncRedMineFromEntry()
+    {
+        if (TimeEntry == null)
+        {
+            IssueIndex = ActivityIndex = -1;
+            IssueText = string.Empty;
+            return;
+        }
+
+        for (var i = 0; i < RedMineIssues.Count; i++)
+        {
+            if (TimeEntry.IssueId == RedMineIssues[i].Id)
+            {
+                IssueIndex = i;
+                IssueText = $"#{RedMineIssues[i].Id} {RedMineIssues[i].Title} ({RedMineIssues[i].Project})";
+                break;
+            }
+        }
+
+        for (var i = 0; i < RedMineActivities.Count; i++)
+        {
+            if (TimeEntry.ActivityId == RedMineActivities[i].Id)
+            {
+                ActivityIndex = i;
+                break;
+            }
+        }
+
+        Uploaded = TimeEntry.EntryId > 0;
+    }
+
     private void SyncNote()
     {
         if (WorkItem is { Id: > 0 })
@@ -210,41 +274,7 @@ public partial class WorkEditorViewModel : ViewModelBase
             TimeEntry = Db!.WorkItemGetTimeEntry(WorkItem);
         }
 
-        if (TimeEntry != null)
-        {
-            var i = 0;
-            while (i < RedMineIssues.Count)
-            {
-                var x = RedMineIssues[i];
-                if (TimeEntry.IssueId == x.Id)
-                {
-                    IssueIndex = i;
-                    IssueText = $"#{x.Id} {x.Title} ({x.Project})";
-                    break;
-                }
-
-                ++i;
-            }
-
-            i = 0;
-            while (i < RedMineActivities.Count)
-            {
-                if (TimeEntry.ActivityId == RedMineActivities[i].Id)
-                {
-                    ActivityIndex = i;
-                    break;
-                }
-
-                ++i;
-            }
-
-            Uploaded = TimeEntry.EntryId > 0;
-        }
-        else
-        {
-            IssueIndex = ActivityIndex = -1;
-            IssueText = string.Empty;
-        }
+        SyncRedMineFromEntry();
     }
 
     public WorkEditorViewModel Clone()
