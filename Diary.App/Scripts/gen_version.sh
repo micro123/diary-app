@@ -41,7 +41,7 @@ if [ -n "$repo_dir" ]; then
 	hash_short=$(run_command git rev-parse --short HEAD)
 	branch=$(run_command git rev-parse --abbrev-ref HEAD)
 	commit_count=$(run_command git rev-list --count HEAD)
-	commit_message=$(run_command git log -1 --pretty=%B)
+	commit_message=$(run_command git log -1 --pretty=%s)
 	commit_date=$(run_command git log -1 --pretty=%cd --date=format:'%Y/%m/%d %H:%M:%S')
 
 	if [ -n "$dirty_check" ]; then
@@ -53,10 +53,9 @@ if [ -n "$repo_dir" ]; then
 fi
 
 # Escape commit message for embedding in a C# string literal.
-# 注意：必须先 slurp 全文（:a;N;$!ba）再做转义，否则反斜杠/引号转义只在第一行生效，
-# 多行提交信息后续行里的 " / \ 会原样进入字符串字面量导致编译失败。
+# 已只取 subject 首行，不含换行，故仅需转义反斜杠与双引号。
 escape_cs_string() {
-	printf '%s' "$1" | sed -e ':a' -e 'N' -e '$!ba' -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/\n/\\n/g'
+	printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
 }
 
 commit_message_escaped=$(escape_cs_string "$commit_message")

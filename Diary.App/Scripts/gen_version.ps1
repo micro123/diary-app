@@ -93,15 +93,16 @@ if ($repo_dir -ne "") {
     $hash_short = RunCommand git rev-parse --short HEAD
     $branch = RunCommand git rev-parse --abbrev-ref HEAD
     $commit_count = RunCommand git rev-list --count HEAD
-    $commit_message = RunCommand git log -1 --pretty=%B
+    $commit_message = RunCommand git log -1 --pretty=%s
     $commit_date = RunCommand git log -1 --pretty=%cd  --date=format:'%Y/%m/%d %H:%M:%S'
     if ($dirty_check -ne "") {
         $hash_full += "-dirty"
         $hash_short += "-dirty"
     }
 
-    # 转义提交消息以便嵌入 C# 字符串字面量：先反斜杠，再双引号，最后换行
-    $commit_message = $commit_message.Replace('\', '\\').Replace('"', '\"').Replace("`r`n", "`n").Replace("`r", "`n").Replace("`n", "\n")
+    # 转义提交消息以便嵌入 C# 字符串字面量：仅反斜杠与双引号
+    # （已只取 subject 首行，不含换行）
+    $commit_message = $commit_message.Replace('\', '\\').Replace('"', '\"')
 
     # EncodingTest "$hostname"
 
