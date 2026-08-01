@@ -52,9 +52,11 @@ if [ -n "$repo_dir" ]; then
     popd
 fi
 
-# Escape commit message for embedding in a C# string literal
+# Escape commit message for embedding in a C# string literal.
+# 注意：必须先 slurp 全文（:a;N;$!ba）再做转义，否则反斜杠/引号转义只在第一行生效，
+# 多行提交信息后续行里的 " / \ 会原样进入字符串字面量导致编译失败。
 escape_cs_string() {
-	printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e ':a;N;$!ba;s/\n/\\n/g'
+	printf '%s' "$1" | sed -e ':a' -e 'N' -e '$!ba' -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/\n/\\n/g'
 }
 
 commit_message_escaped=$(escape_cs_string "$commit_message")

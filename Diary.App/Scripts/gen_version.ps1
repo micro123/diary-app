@@ -99,7 +99,10 @@ if ($repo_dir -ne "") {
         $hash_full += "-dirty"
         $hash_short += "-dirty"
     }
-    
+
+    # 转义提交消息以便嵌入 C# 字符串字面量：先反斜杠，再双引号，最后换行
+    $commit_message = $commit_message.Replace('\', '\\').Replace('"', '\"').Replace("`r`n", "`n").Replace("`r", "`n").Replace("`n", "\n")
+
     # EncodingTest "$hostname"
 
     Pop-Location
