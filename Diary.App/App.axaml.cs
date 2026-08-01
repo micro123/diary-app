@@ -11,6 +11,8 @@ using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using System.Windows.Input;
+using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.Models;
 using Diary.App.Utils;
@@ -291,6 +293,19 @@ namespace Diary.App
                 "DB_DRIVER" => new SettingChoice(caption, helpTip, _dbFactories.Select(x=>x.Name), obj, property),
                 _ => throw new ArgumentOutOfRangeException(nameof(key), key, null),
             };
+        }
+
+        private readonly Dictionary<string, RelayCommand> _settingCommands = new();
+
+        public override ICommand? ResolveCommand(string name)
+        {
+            if (!_settingCommands.TryGetValue(name, out var cmd))
+            {
+                var mainVm = Services.GetRequiredService<MainWindowViewModel>();
+                cmd = new RelayCommand(() => mainVm.ExecuteSettingCommand(name));
+                _settingCommands[name] = cmd;
+            }
+            return cmd;
         }
 
         private static readonly StyledProperty<bool> DatabaseOkProperty = AvaloniaProperty.Register<App, bool>(nameof(DatabaseOk), false);

@@ -9,8 +9,8 @@ public class DbConfig
     public string DatabaseDriver { get; set; } = "SQLite";
 
     [ConfigureButton("配置数据库", "配置", CommandNames.ShowDbSettings, "配置驱动参数，会重新打开数据库连接。")]
-    private int ShowSettings { get; set; } = 0;
+    private object? ShowSettings { get; }
 
     [ConfigureButton("迁移旧数据", "迁移向导", CommandNames.ShowMigrateGuide, "从DiaryApp迁移数据，会丢失当前数据！")]
-    private int ShowMigrateGuide { get; set; } = 0;
+    private object? ShowMigrateGuide { get; }
 }

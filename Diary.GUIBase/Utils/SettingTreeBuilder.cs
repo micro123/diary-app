@@ -48,7 +48,8 @@ public static class SettingTreeBuilder
                     item = new SettingPath(p.Caption, p.HelpTip, p.IsFolder, o, property);
                     break;
                 case ConfigureButtonAttribute b:
-                    item = new SettingButton(b.Caption, b.HelpTip, b.Text, b.Command);
+                    // 延迟解析命令以避免循环依赖（BuildTree 期间 MainWindowViewModel 可能尚未构造完成）
+                    item = new SettingButton(b.Caption, b.HelpTip, b.Text, () => BaseApp.Instance.ResolveCommand(b.Command));
                     break;
                 default:
                     Debug.Fail($"Unknown property {property.Name}");

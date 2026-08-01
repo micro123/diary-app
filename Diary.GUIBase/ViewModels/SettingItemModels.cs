@@ -1,9 +1,9 @@
+using System;
 using System.Collections.ObjectModel;
 using System.Reflection;
+using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using CommunityToolkit.Mvvm.Messaging;
-using Diary.GUIBase.Events;
 using Ursa.Controls;
 
 namespace Diary.GUIBase.ViewModels;
@@ -95,9 +95,6 @@ public class EditableItemModel : SettingItemModel
 public sealed partial class SettingText(string title, string helpTip, bool password, object o, PropertyInfo p)
     : EditableItemModel(title, helpTip, o, p, EnsureString)
 {
-    private readonly object _o = o;
-    private readonly PropertyInfo _p = p;
-
     [ObservableProperty] private string _value = "";
     public bool Password { get; } = password;
     public char MaskChar { get; } = password ? '*' : '\0';
@@ -231,12 +228,14 @@ public sealed partial class SettingChoice(string title, string helpTip, IEnumera
     }
 }
 
-public sealed partial class SettingButton(string title, string helpTip, string text, string command) : SettingItemModel(title, helpTip)
+public sealed partial class SettingButton(string title, string helpTip, string text, Func<ICommand?> resolveCommand) : SettingItemModel(title, helpTip)
 {
     [ObservableProperty] private string _text = text;
     [RelayCommand]
     void Execute()
     {
-        WeakReferenceMessenger.Default.Send(new RunCommandEvent(command));
+        var command = resolveCommand();
+        if (command?.CanExecute(null) != false)
+            command?.Execute(null);
     }
 }

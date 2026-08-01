@@ -117,7 +117,7 @@ public partial class MainWindowViewModel : ViewModelBase
             });
         });
 
-        Messenger.Register<RunCommandEvent>(this, (r, m) => { HandleCommand(m.Value); });
+        Messenger.Register<RunCommandEvent>(this, (r, m) => { ExecuteSettingCommand(m.Value); });
 
         Messenger.Register<ToastEvent>(this, (r, m) => { ToastManager?.Show(m.Value); });
         
@@ -140,7 +140,7 @@ public partial class MainWindowViewModel : ViewModelBase
         SelectedPage = info;
     }
 
-    private void HandleCommand(string cmd)
+    public void ExecuteSettingCommand(string cmd)
     {
         switch (cmd)
         {

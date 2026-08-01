@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Windows.Input;
 using Avalonia;
 using Diary.Core.Data.AppConfig;
 using Diary.Database;
@@ -56,4 +57,9 @@ public abstract class BaseApp: Application
     /// 获取当前的实例
     /// </summary>
     public static BaseApp Instance { get; } = (BaseApp)Current!;
+
+    /// <summary>
+    /// 解析设置页面按钮的命令
+    /// </summary>
+    public virtual ICommand? ResolveCommand(string name) => null;
 }
