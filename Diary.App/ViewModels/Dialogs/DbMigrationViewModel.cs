@@ -62,7 +62,8 @@ public partial class DbMigrationViewModel: ViewModelBase, IDialogContext
     private void ProcessCallback(bool success, double progress, string message)
     {
         _logger.LogInformation("Migrating: status {status}, progress {progress}, message {message}", success, progress, message);
-        Dispatcher.UIThread.Invoke(() =>
+        // 回调来自线程池线程，用 Post 异步切回 UI 线程更新绑定，避免同步阻塞工作线程
+        Dispatcher.UIThread.Post(() =>
         {
             Status = success;
             Progress = progress * 100.0;

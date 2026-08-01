@@ -8,8 +8,8 @@ public class PgMigration(uint from, uint to, params string[] statements) : Migra
     
     public override bool Up(DbInterfaceBase db)
     {
-        var pg = db as PgDb;
-        // TODO: exec _stmts
-        return true;
+        if (db is not PgDb pg)
+            return false;
+        return pg.ExecRaw(_stmts);
     }
 }

@@ -14,8 +14,8 @@ internal class SQLiteMigration : Migration
 
     public override bool Up(DbInterfaceBase db)
     {
-        var sqlite = db as SQLiteDb;
-        // return sqlite!.Exec(_up);
-        return false;
+        if (db is not SQLiteDb sqlite)
+            return false;
+        return sqlite.ExecRaw(_up);
     }
 }

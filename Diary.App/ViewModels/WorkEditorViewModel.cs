@@ -380,13 +380,20 @@ public partial class WorkEditorViewModel : ViewModelBase
             return (false, "问题或活动不正确，又或者耗时是0");
         Debug.Assert(WorkItem is not null);
         Debug.Assert(TimeEntry is not null);
-        TimeEntry.EntryId = await Task.Run(() => RedMineApis.CreateTimeEntry(out var ti, TimeEntry.IssueId,
-            TimeEntry.ActivityId, WorkItem.CreateDate,
-            WorkItem.Time, WorkItem.Comment)
-            ? ti.Id
-            : 0);
-        Db!.UpdateWorkTimeEntry(TimeEntry); // 关联到数据库
-        Uploaded = TimeEntry.EntryId > 0;
+
+        // 网络 API 调用与 DB 写入一并放到后台线程，避免在 UI 线程同步写库造成卡顿
+        var entryId = 0;
+        await Task.Run(() =>
+        {
+            if (RedMineApis.CreateTimeEntry(out var ti, TimeEntry.IssueId,
+                    TimeEntry.ActivityId, WorkItem.CreateDate,
+                    WorkItem.Time, WorkItem.Comment))
+                entryId = ti.Id;
+            TimeEntry.EntryId = entryId;
+            Db!.UpdateWorkTimeEntry(TimeEntry); // 关联到数据库
+        });
+        // 绑定属性必须在 UI 线程更新（await 恢复点）
+        Uploaded = entryId > 0;
         return (Uploaded, Uploaded ? null : "可能是网络问题");
     }
 

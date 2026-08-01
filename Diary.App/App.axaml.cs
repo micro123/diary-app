@@ -43,11 +43,12 @@ namespace Diary.App
 
             _surveyor.ReceiveMessage += (_, s) =>
             {
-                EventDispatcher.Msg(new RespondEvent(s));
+                // 接收事件来自后台线程，转回 UI 线程再分发消息，避免 handler 跨线程操作绑定
+                Dispatcher.UIThread.Post(() => EventDispatcher.Msg(new RespondEvent(s)));
             };
             _respondent.ReceiveMessage += (_, s) =>
             {
-                EventDispatcher.Msg(new SurveyRequestEvent(s));
+                Dispatcher.UIThread.Post(() => EventDispatcher.Msg(new SurveyRequestEvent(s)));
             };
         }
 

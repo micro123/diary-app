@@ -22,6 +22,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
     private readonly IDbFactory _factory = factory;
     private NpgsqlDataSource? _dataSource;
     private NpgsqlConnection? _connection;
+    private NpgsqlTransaction? _transaction;
     private Stopwatch _stopwatch = new();
     private long _lastCommandTime;
 
@@ -130,7 +131,10 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
         _lastCommandTime = _stopwatch.ElapsedMilliseconds;
         if (_connection != null)
         {
-            return new NpgsqlCommand(statement, _connection);
+            var cmd = new NpgsqlCommand(statement, _connection);
+            if (_transaction != null)
+                cmd.Transaction = _transaction;
+            return cmd;
         }
 
         return _dataSource!.CreateCommand(statement);
@@ -254,6 +258,16 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
             currentVersion = GetDataVersion();
         }
 
+        return true;
+    }
+
+    /// <summary>
+    /// 执行多语句 DDL（版本迁移用）。Npgsql 支持在单个 CommandText 中以分号分隔多条语句。
+    /// </summary>
+    internal bool ExecRaw(string sql)
+    {
+        using var cmd = Command(sql);
+        cmd.ExecuteNonQuery();
         return true;
     }
 
@@ -1020,6 +1034,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
 
         // 使用同一个 connection 去操作数据库
         _connection = _dataSource!.OpenConnection();
+        _transaction = _connection.BeginTransaction();
         return true;
     }
 
@@ -1027,6 +1042,12 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
     {
         Debug.Assert(_connection != null);
 
+        if (_transaction != null)
+        {
+            _transaction.Commit();
+            _transaction.Dispose();
+            _transaction = null;
+        }
         _connection.Dispose();
         _connection = null;
         return true;
@@ -1036,6 +1057,12 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
     {
         Debug.Assert(_connection != null);
 
+        if (_transaction != null)
+        {
+            _transaction.Rollback();
+            _transaction.Dispose();
+            _transaction = null;
+        }
         _connection.Dispose();
         _connection = null;
         return true;
@@ -1043,11 +1070,22 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
 
     public void Dispose()
     {
+        _transaction?.Dispose();
+        _transaction = null;
+        _connection?.Dispose();
+        _connection = null;
         _dataSource?.Dispose();
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (_dataSource != null) await _dataSource.DisposeAsync();
+        if (_transaction != null)
+            await _transaction.DisposeAsync();
+        _transaction = null;
+        if (_connection != null)
+            await _connection.DisposeAsync();
+        _connection = null;
+        if (_dataSource != null)
+            await _dataSource.DisposeAsync();
     }
 }

@@ -254,6 +254,17 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         return true;
     }
 
+    /// <summary>
+    /// 执行多语句 DDL（版本迁移用）。SQLite 支持在单个 CommandText 中以分号分隔多条语句。
+    /// </summary>
+    internal bool ExecRaw(string sql)
+    {
+        using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.ExecuteNonQuery();
+        return true;
+    }
+
     public override WorkTag CreateWorkTag(string name, bool primary, int color)
     {
         const string sql =
@@ -658,7 +669,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
     public override void UpdateRedMineProjectStatus(int id, bool closed)
     {
         const string sql =
-            @"UPDATE redmine_projects SET is_closed=@closed WHERE id=$id;";
+            @"UPDATE redmine_projects SET is_closed=$closed WHERE id=$id;";
         using var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$id", id);

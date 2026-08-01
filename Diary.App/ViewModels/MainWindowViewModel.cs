@@ -94,26 +94,34 @@ public partial class MainWindowViewModel : ViewModelBase
 
         Messenger.Register<NotifyEvent>(this, (r, m) =>
         {
-            Dispatcher.UIThread.Post(async void () =>
+            // async void 会让异常无法捕获导致崩溃，改 async + try/catch 记录
+            Dispatcher.UIThread.Post(async () =>
             {
-                var evt = m.Value;
-                var vm = _serviceProvider.GetRequiredService<StandardMessageViewModel>();
-                vm.Body = evt.Body;
-                var options = new OverlayDialogOptions()
+                try
                 {
-                    Title = evt.Title,
-                    CanDragMove = false,
-                    CanResize = false,
-                    CanLightDismiss = evt.LightDismiss,
-                    IsCloseButtonVisible = false,
-                    Mode = evt.Mode,
-                    Buttons = evt.Button,
-                };
+                    var evt = m.Value;
+                    var vm = _serviceProvider.GetRequiredService<StandardMessageViewModel>();
+                    vm.Body = evt.Body;
+                    var options = new OverlayDialogOptions()
+                    {
+                        Title = evt.Title,
+                        CanDragMove = false,
+                        CanResize = false,
+                        CanLightDismiss = evt.LightDismiss,
+                        IsCloseButtonVisible = false,
+                        Mode = evt.Mode,
+                        Buttons = evt.Button,
+                    };
 
-                if (m.Value.Modal)
-                    await OverlayDialog.ShowModal<StandardMessageView, StandardMessageViewModel>(vm, options: options);
-                else
-                    OverlayDialog.Show<StandardMessageView, StandardMessageViewModel>(vm, options: options);
+                    if (m.Value.Modal)
+                        await OverlayDialog.ShowModal<StandardMessageView, StandardMessageViewModel>(vm, options: options);
+                    else
+                        OverlayDialog.Show<StandardMessageView, StandardMessageViewModel>(vm, options: options);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "NotifyEvent handler failed");
+                }
             });
         });
 

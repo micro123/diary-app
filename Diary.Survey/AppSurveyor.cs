@@ -59,23 +59,31 @@ public class AppSurveyor
             var token = _cts.Token;
             while (!token.IsCancellationRequested)
             {
-                var msg = _surveyor!.RecvMsg();
-                if (!msg.TryOk(out var data))
+                NngResult<INngMsg> msg;
+                try
                 {
-                    var code = msg.Err();
-                    if (code != Defines.NngErrno.EAGAIN)
-                    {
-                        Logger.LogInformation("surveyor error code {code}, stopped", code);
-                        await _cts.CancelAsync();
-                        _cts = null;
-                        break;
-                    }
+                    msg = await _surveyorCtx.Receive(token);
                 }
-                else
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+
+                if (msg.TryOk(out var data))
                 {
                     var bytes = data.AsSpan();
                     var str = Encoding.UTF8.GetString(bytes);
                     ReceiveMessage?.Invoke(this, str);
+                }
+                else
+                {
+                    var code = msg.Err();
+                    // EAGAIN：调查超时内无回复，继续轮询；其他错误才停止
+                    if (code != Defines.NngErrno.EAGAIN)
+                    {
+                        Logger.LogInformation("surveyor error code {code}, stopped", code);
+                        break;
+                    }
                 }
             }
         });

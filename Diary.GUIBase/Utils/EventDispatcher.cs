@@ -37,11 +37,6 @@ public static class EventDispatcher
     {
         Messenger.Send(msg);
     }
-    
-    public static Task AsyncMsg<T>(T msg) where T : class
-    {
-        return Task.Run(() => Messenger.Send(msg));
-    }
 
     public static async Task<bool> Confirm(string title, string body)
     {
