@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Diagnostics;
 using Diary.Core.Data.Base;
 using Diary.Core.Data.Display;
@@ -8,27 +9,29 @@ using Npgsql;
 
 namespace Diary.Db.PostgreSQL;
 
-internal static class NpgsqlDataReaderExtensions
+public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDisposable, IAsyncDisposable
 {
-    public static string GetStringTrimmed(this NpgsqlDataReader reader, int ordinal)
-    {
-        var value = reader.GetString(ordinal);
-        return value.TrimEnd();
-    }
-}
-
-public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAsyncDisposable
-{
-    private readonly IDbFactory _factory = factory;
     private NpgsqlDataSource? _dataSource;
     private NpgsqlConnection? _connection;
     private NpgsqlTransaction? _transaction;
     private Stopwatch _stopwatch = new();
     private long _lastCommandTime;
 
+    #region provider primitives
+
+    protected override DbCommand CreateCommand(string sql) => Command(sql);
+
+    protected override string ReadString(DbDataReader reader, int ordinal)
+        => reader.GetString(ordinal).TrimEnd();
+
+    protected override void BindParameter(DbCommand cmd, string name, object? value)
+        => ((NpgsqlCommand)cmd).Parameters.AddWithValue(value ?? DBNull.Value);
+
+    #endregion
+
     public override bool Connect()
     {
-        var cfg = _factory.GetConfig() as Config;
+        var cfg = Factory.GetConfig() as Config;
         Debug.Assert(cfg != null);
         var csb = new NpgsqlConnectionStringBuilder()
         {
@@ -57,74 +60,6 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
     }
 
     #region helpers
-
-    private static WorkTag MapWorkTag(NpgsqlDataReader reader)
-    {
-        return new WorkTag()
-        {
-            Id = reader.GetInt32(0),
-            Name = reader.GetStringTrimmed(1),
-            Color = reader.GetInt32(2),
-            Level = (TagLevels)reader.GetInt32(3),
-            Disabled = reader.GetInt32(4) != 0,
-        };
-    }
-
-    private static WorkItem MapWorkItem(NpgsqlDataReader reader)
-    {
-        return new WorkItem()
-        {
-            Id = reader.GetInt32(0),
-            CreateDate = reader.GetStringTrimmed(1),
-            Comment = reader.GetStringTrimmed(2),
-            Time = reader.GetFloat(3),
-            Priority = (WorkPriorities)reader.GetInt32(4),
-        };
-    }
-
-    private RedMineActivity MapRedMineActivity(NpgsqlDataReader reader)
-    {
-        return new RedMineActivity()
-        {
-            Id = reader.GetInt32(0),
-            Title = reader.GetStringTrimmed(1),
-        };
-    }
-
-    private RedMineProject MapRedMineProject(NpgsqlDataReader reader)
-    {
-        return new RedMineProject()
-        {
-            Id = reader.GetInt32(0),
-            Title = reader.GetStringTrimmed(1),
-            Description = reader.GetStringTrimmed(2),
-            IsClosed = reader.GetInt32(3) != 0,
-        };
-    }
-
-    private RedMineIssue MapRedMineIssue(NpgsqlDataReader reader)
-    {
-        return new RedMineIssue()
-        {
-            Id = reader.GetInt32(0),
-            Title = reader.GetStringTrimmed(1),
-            AssignedTo = reader.GetStringTrimmed(2),
-            ProjectId = reader.GetInt32(3),
-            IsClosed = reader.GetInt32(4) != 0,
-        };
-    }
-
-    private WorkTimeEntry MapWorkTimeEntry(NpgsqlDataReader reader)
-    {
-        return new WorkTimeEntry()
-        {
-            WorkId = reader.GetInt32(0),
-            EntryId = reader.GetInt32(1),
-            ActivityId = reader.GetInt32(2),
-            IssueId = reader.GetInt32(3),
-        };
-    }
-
 
     private NpgsqlCommand Command(string statement)
     {
@@ -244,31 +179,6 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
         using var cmd = Command("SELECT * FROM data_versions ORDER BY version_code DESC LIMIT 1;");
         var result = cmd.ExecuteScalar();
         return result != null ? Convert.ToUInt32(result) : 0;
-    }
-
-    public override bool UpdateTables(uint targetVersion)
-    {
-        var currentVersion = GetDataVersion();
-        while (currentVersion != targetVersion)
-        {
-            var migration = _factory.GetMigration(currentVersion);
-            if (migration == null)
-                return false;
-            migration.Up(this);
-            currentVersion = GetDataVersion();
-        }
-
-        return true;
-    }
-
-    /// <summary>
-    /// 执行多语句 DDL（版本迁移用）。Npgsql 支持在单个 CommandText 中以分号分隔多条语句。
-    /// </summary>
-    internal bool ExecRaw(string sql)
-    {
-        using var cmd = Command(sql);
-        cmd.ExecuteNonQuery();
-        return true;
     }
 
     public override WorkTag CreateWorkTag(string name, bool primary, int color)
@@ -469,31 +379,27 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
         cmd.Parameters.AddWithValue(work.Id);
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
-            return reader.GetStringTrimmed(0);
+            return ReadString(reader, 0);
         return null;
     }
 
     public override Dictionary<int, string> GetWorkNotesByDate(string date)
     {
-        var result = new Dictionary<int, string>();
         var sql = """
                   SELECT work_notes.id, work_notes.note
                   FROM work_notes INNER JOIN work_items ON work_notes.id = work_items.id
                   WHERE work_items.create_date = $1;
                   """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(date);
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
-        {
-            result[reader.GetInt32(0)] = reader.GetStringTrimmed(1);
-        }
+        var rows = Query<(int Id, string Note)>(
+            sql, r => (r.GetInt32(0), ReadString(r, 1)), ("$1", date));
+        var result = new Dictionary<int, string>();
+        foreach (var (id, note) in rows)
+            result[id] = note;
         return result;
     }
 
     public override Dictionary<int, ICollection<WorkTag>> GetWorkTagsByDate(string date)
     {
-        var result = new Dictionary<int, ICollection<WorkTag>>();
         var sql = """
                   SELECT work_tags.*, work_item_tags.work_id
                   FROM work_item_tags
@@ -502,13 +408,11 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                   WHERE work_items.create_date = $1
                   ORDER BY work_tags.tag_level;
                   """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(date);
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
+        var rows = Query<(WorkTag Tag, int WorkId)>(
+            sql, r => (MapWorkTag(r), r.GetInt32(5)), ("$1", date));
+        var result = new Dictionary<int, ICollection<WorkTag>>();
+        foreach (var (tag, workId) in rows)
         {
-            var tag = MapWorkTag(reader);
-            var workId = reader.GetInt32(5);
             if (!result.TryGetValue(workId, out var list))
             {
                 list = new List<WorkTag>();
@@ -521,20 +425,15 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
 
     public override Dictionary<int, WorkTimeEntry> GetWorkTimeEntriesByDate(string date)
     {
-        var result = new Dictionary<int, WorkTimeEntry>();
         var sql = """
                   SELECT redmine_time_entries.*
                   FROM redmine_time_entries INNER JOIN work_items ON redmine_time_entries.work_id = work_items.id
                   WHERE work_items.create_date = $1;
                   """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(date);
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
-        {
-            var entry = MapWorkTimeEntry(reader);
+        var entries = Query<WorkTimeEntry>(sql, MapWorkTimeEntry, ("$1", date));
+        var result = new Dictionary<int, WorkTimeEntry>();
+        foreach (var entry in entries)
             result[entry.WorkId] = entry;
-        }
         return result;
     }
 
@@ -729,14 +628,14 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
 
     public override ICollection<RedMineIssueDisplay> GetRedMineIssues(RedMineProject? project)
     {
-        static RedMineIssueDisplay MapRedMineIssueDisplay(NpgsqlDataReader reader)
+        RedMineIssueDisplay MapRedMineIssueDisplay(NpgsqlDataReader reader)
         {
             return new RedMineIssueDisplay()
             {
                 Id = reader.GetInt32(0),
-                Title = reader.GetStringTrimmed(1),
-                AssignedTo = reader.GetStringTrimmed(2),
-                Project = reader.GetStringTrimmed(3),
+                Title = ReadString(reader, 1),
+                AssignedTo = ReadString(reader, 2),
+                Project = ReadString(reader, 3),
                 Disabled = reader.GetInt32(4) != 0,
             };
         }
@@ -871,7 +770,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                 {
                     TagId = reader.GetInt32(0),
                     Time = reader.GetFloat(1),
-                    TagName = reader.GetStringTrimmed(2),
+                    TagName = ReadString(reader, 2),
                     Nested = new List<TagTime>(),
                 });
             }
@@ -912,36 +811,13 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                     {
                         TagId = nestedReader.GetInt32(1),
                         Time = nestedReader.GetFloat(2),
-                        TagName = nestedReader.GetStringTrimmed(3),
+                        TagName = ReadString(nestedReader, 3),
                     });
                 }
             }
         }
 
         return result;
-    }
-
-    public override StatisticsResult GetStatistics()
-    {
-        // get date range
-        var sql = "SELECT min(create_date), max(create_date) FROM work_items;";
-        using var cmd = Command(sql);
-        using var reader = cmd.ExecuteReader();
-        if (reader.Read() && !reader.IsDBNull(0))
-        {
-            var beginDate = reader.GetStringTrimmed(0);
-            var endDate = reader.GetStringTrimmed(1);
-            return GetStatistics(beginDate, endDate);
-        }
-
-        // empty result
-        return new StatisticsResult()
-        {
-            DateBegin = string.Empty,
-            DateEnd = string.Empty,
-            Total = 0,
-            PrimaryTags = Array.Empty<TagTime>(),
-        };
     }
 
     public override ICollection<WorkItem> GetWorkItemsByTagAndDate(string dateBegin, string dateEnd, int l1, int l2 = 0)
@@ -965,8 +841,8 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                 result.Add(new WorkItem()
                 {
                     Id = reader.GetInt32(0),
-                    CreateDate = reader.GetStringTrimmed(1),
-                    Comment = reader.GetStringTrimmed(2),
+                    CreateDate = ReadString(reader, 1),
+                    Comment = ReadString(reader, 2),
                     Time = reader.GetFloat(3),
                     Priority = (WorkPriorities)reader.GetInt32(4),
                 });
@@ -994,8 +870,8 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAs
                 result.Add(new WorkItem()
                 {
                     Id = reader.GetInt32(0),
-                    CreateDate = reader.GetStringTrimmed(1),
-                    Comment = reader.GetStringTrimmed(2),
+                    CreateDate = ReadString(reader, 1),
+                    Comment = ReadString(reader, 2),
                     Time = reader.GetFloat(3),
                     Priority = (WorkPriorities)reader.GetInt32(4),
                 });

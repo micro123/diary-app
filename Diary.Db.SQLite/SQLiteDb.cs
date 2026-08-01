@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Data.SQLite;
 using System.Diagnostics;
 using Diary.Core.Data.Base;
@@ -9,87 +10,30 @@ using Diary.Utils;
 
 namespace Diary.Db.SQLite;
 
-public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable, IAsyncDisposable
+public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDisposable, IAsyncDisposable
 {
-    private readonly IDbFactory _factory = factory;
-
     private SQLiteConnection? _connection;
     private SQLiteTransaction? _transaction;
 
-    #region helpers
+    #region provider primitives
 
-    private static WorkTag MapWorkTag(SQLiteDataReader reader)
+    protected override DbCommand CreateCommand(string sql)
     {
-        return new WorkTag()
-        {
-            Id = reader.GetInt32(0),
-            Name = reader.GetString(1),
-            Color = reader.GetInt32(2),
-            Level = (TagLevels)reader.GetInt32(3),
-            Disabled = reader.GetInt32(4) != 0,
-        };
+        var cmd = _connection!.CreateCommand();
+        cmd.CommandText = sql;
+        return cmd;
     }
 
-    private static WorkItem MapWorkItem(SQLiteDataReader reader)
-    {
-        return new WorkItem()
-        {
-            Id = reader.GetInt32(0),
-            CreateDate = reader.GetString(1),
-            Comment = reader.GetString(2),
-            Time = reader.GetFloat(3),
-            Priority = (WorkPriorities)reader.GetInt32(4),
-        };
-    }
+    protected override string ReadString(DbDataReader reader, int ordinal) => reader.GetString(ordinal);
 
-    private RedMineActivity MapRedMineActivity(SQLiteDataReader reader)
-    {
-        return new RedMineActivity()
-        {
-            Id = reader.GetInt32(0),
-            Title = reader.GetString(1),
-        };
-    }
-
-    private RedMineProject MapRedMineProject(SQLiteDataReader reader)
-    {
-        return new RedMineProject()
-        {
-            Id = reader.GetInt32(0),
-            Title = reader.GetString(1),
-            Description = reader.GetString(2),
-            IsClosed = reader.GetInt32(3) != 0,
-        };
-    }
-
-    private RedMineIssue MapRedMineIssue(SQLiteDataReader reader)
-    {
-        return new RedMineIssue()
-        {
-            Id = reader.GetInt32(0),
-            Title = reader.GetString(1),
-            AssignedTo = reader.GetString(2),
-            ProjectId = reader.GetInt32(3),
-            IsClosed = reader.GetInt32(4) != 0,
-        };
-    }
-
-    private WorkTimeEntry MapWorkTimeEntry(SQLiteDataReader reader)
-    {
-        return new WorkTimeEntry()
-        {
-            WorkId = reader.GetInt32(0),
-            EntryId = reader.GetInt32(1),
-            ActivityId = reader.GetInt32(2),
-            IssueId = reader.GetInt32(3),
-        };
-    }
+    protected override void BindParameter(DbCommand cmd, string name, object? value)
+        => ((SQLiteCommand)cmd).Parameters.AddWithValue(name, value ?? DBNull.Value);
 
     #endregion
 
     public override bool Connect()
     {
-        var cfg = _factory.GetConfig() as Config;
+        var cfg = Factory.GetConfig() as Config;
         Debug.Assert(cfg != null);
         var csb = new SQLiteConnectionStringBuilder
         {
@@ -237,32 +181,6 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         if (reader.Read())
             return (uint)reader.GetInt32(0);
         return 0;
-    }
-
-    public override bool UpdateTables(uint targetVersion)
-    {
-        var currentVersion = GetDataVersion();
-        while (currentVersion != targetVersion)
-        {
-            var migration = _factory.GetMigration(currentVersion);
-            if (migration == null)
-                return false;
-            migration.Up(this);
-            currentVersion = GetDataVersion();
-        }
-
-        return true;
-    }
-
-    /// <summary>
-    /// 执行多语句 DDL（版本迁移用）。SQLite 支持在单个 CommandText 中以分号分隔多条语句。
-    /// </summary>
-    internal bool ExecRaw(string sql)
-    {
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.ExecuteNonQuery();
-        return true;
     }
 
     public override WorkTag CreateWorkTag(string name, bool primary, int color)
@@ -471,26 +389,21 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
 
     public override Dictionary<int, string> GetWorkNotesByDate(string date)
     {
-        var result = new Dictionary<int, string>();
         var sql = """
                   SELECT work_notes.id, work_notes.note
                   FROM work_notes INNER JOIN work_items ON work_notes.id = work_items.id
                   WHERE work_items.create_date = $date;
                   """;
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$date", date);
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
-        {
-            result[reader.GetInt32(0)] = reader.GetString(1);
-        }
+        var rows = Query<(int Id, string Note)>(
+            sql, r => (r.GetInt32(0), ReadString(r, 1)), ("$date", date));
+        var result = new Dictionary<int, string>();
+        foreach (var (id, note) in rows)
+            result[id] = note;
         return result;
     }
 
     public override Dictionary<int, ICollection<WorkTag>> GetWorkTagsByDate(string date)
     {
-        var result = new Dictionary<int, ICollection<WorkTag>>();
         var sql = """
                   SELECT work_tags.*, work_item_tags.work_id
                   FROM work_item_tags
@@ -499,14 +412,11 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
                   WHERE work_items.create_date = $date
                   ORDER BY work_tags.tag_level;
                   """;
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$date", date);
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
+        var rows = Query<(WorkTag Tag, int WorkId)>(
+            sql, r => (MapWorkTag(r), r.GetInt32(5)), ("$date", date));
+        var result = new Dictionary<int, ICollection<WorkTag>>();
+        foreach (var (tag, workId) in rows)
         {
-            var tag = MapWorkTag(reader);
-            var workId = reader.GetInt32(5);
             if (!result.TryGetValue(workId, out var list))
             {
                 list = new List<WorkTag>();
@@ -519,21 +429,15 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
 
     public override Dictionary<int, WorkTimeEntry> GetWorkTimeEntriesByDate(string date)
     {
-        var result = new Dictionary<int, WorkTimeEntry>();
         var sql = """
                   SELECT redmine_time_entries.*
                   FROM redmine_time_entries INNER JOIN work_items ON redmine_time_entries.work_id = work_items.id
                   WHERE work_items.create_date = $date;
                   """;
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$date", date);
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
-        {
-            var entry = MapWorkTimeEntry(reader);
+        var entries = Query<WorkTimeEntry>(sql, MapWorkTimeEntry, ("$date", date));
+        var result = new Dictionary<int, WorkTimeEntry>();
+        foreach (var entry in entries)
             result[entry.WorkId] = entry;
-        }
         return result;
     }
 
@@ -938,30 +842,6 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase, IDisposable,
         }
 
         return result;
-    }
-
-    public override StatisticsResult GetStatistics()
-    {
-        // get date range
-        var sql = "SELECT min(create_date), max(create_date) FROM work_items;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        using var reader = cmd.ExecuteReader();
-        if (reader.Read() && !reader.IsDBNull(0))
-        {
-            var beginDate = reader.GetString(0);
-            var endDate = reader.GetString(1);
-            return GetStatistics(beginDate, endDate);
-        }
-
-        // empty result
-        return new StatisticsResult()
-        {
-            DateBegin = string.Empty,
-            DateEnd = string.Empty,
-            Total = 0,
-            PrimaryTags = Array.Empty<TagTime>(),
-        };
     }
 
     public override ICollection<WorkItem> GetWorkItemsByTagAndDate(string dateBegin, string dateEnd, int l1, int l2 = 0)

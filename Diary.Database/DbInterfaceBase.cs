@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Diary.Core.Data.Base;
 using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
@@ -7,6 +8,9 @@ namespace Diary.Database;
 
 public abstract class DbInterfaceBase
 {
+    protected readonly IDbFactory Factory;
+    protected DbInterfaceBase(IDbFactory factory) => Factory = factory;
+
     // connect to db
     public abstract bool Connect();
     // check if initialized
@@ -19,7 +23,31 @@ public abstract class DbInterfaceBase
     // data version
     public abstract uint GetDataVersion();
     // migrate tables
-    public abstract bool UpdateTables(uint targetVersion);
+    public virtual bool UpdateTables(uint targetVersion)
+    {
+        var currentVersion = GetDataVersion();
+        while (currentVersion != targetVersion)
+        {
+            var migration = Factory.GetMigration(currentVersion);
+            if (migration == null)
+                return false;
+            migration.Up(this);
+            currentVersion = GetDataVersion();
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// 执行多语句 DDL（版本迁移用）。命令由 <see cref="CreateCommand"/> 构建，
+    /// 事务绑定等差异由 provider 在 <see cref="CreateCommand"/> 中处理。
+    /// </summary>
+    public bool ExecRaw(string sql)
+    {
+        using var cmd = CreateCommand(sql);
+        cmd.ExecuteNonQuery();
+        return true;
+    }
 
     // work tag
     public abstract WorkTag CreateWorkTag(string name, bool primary, int color);
@@ -75,7 +103,7 @@ public abstract class DbInterfaceBase
         }
         return result;
     }
-    
+
     // work item - work tag
     public abstract bool WorkItemAddTag(WorkItem item, WorkTag tag);
     public abstract bool WorkItemRemoveTag(WorkItem item, WorkTag tag);
@@ -98,17 +126,166 @@ public abstract class DbInterfaceBase
     // time-entries
     public abstract WorkTimeEntry? CreateWorkTimeEntry(int work, int activity, int issus);
     public abstract bool UpdateWorkTimeEntry(WorkTimeEntry timeEntry);
-    
+
     // statistics
     public abstract StatisticsResult GetStatistics(string beginDate, string endDate);
-    public abstract StatisticsResult GetStatistics();
+    public virtual StatisticsResult GetStatistics()
+    {
+        // get date range
+        const string sql = "SELECT min(create_date), max(create_date) FROM work_items;";
+        using var cmd = CreateCommand(sql);
+        using var reader = cmd.ExecuteReader();
+        if (reader.Read() && !reader.IsDBNull(0))
+        {
+            var beginDate = ReadString(reader, 0);
+            var endDate = ReadString(reader, 1);
+            return GetStatistics(beginDate, endDate);
+        }
+
+        // empty result
+        return new StatisticsResult()
+        {
+            DateBegin = string.Empty,
+            DateEnd = string.Empty,
+            Total = 0,
+            PrimaryTags = Array.Empty<TagTime>(),
+        };
+    }
     public abstract ICollection<WorkItem> GetWorkItemsByTagAndDate(string dateBegin, string dateEnd, int l1, int l2 = 0);
-    
+
     // migrate use
     public abstract bool DropData();
     public abstract bool BeginTransaction();
     public abstract bool CommitTransaction();
     public abstract bool RollbackTransaction();
+
+    #region provider primitives
+
+    /// <summary>
+    /// 构造一个已设好 CommandText、按需绑好当前事务的命令，调用方可直接加参数。
+    /// </summary>
+    protected abstract DbCommand CreateCommand(string sql);
+
+    /// <summary>
+    /// 读取字符串列。provider 封装 CHAR padding 处理差异
+    /// （SQLite 不 trim；PostgreSQL 的 CHAR 列返回值带尾随空格需 TrimEnd）。
+    /// </summary>
+    protected abstract string ReadString(DbDataReader reader, int ordinal);
+
+    /// <summary>
+    /// 绑定一个参数。SQLite 按 <paramref name="name"/> 命名绑定（须匹配 SQL 的 $name 占位符）；
+    /// PostgreSQL 按位置绑定（忽略 <paramref name="name"/>，args 顺序须匹配 SQL 的 $1..$n）。
+    /// </summary>
+    protected abstract void BindParameter(DbCommand command, string name, object? value);
+
+    #endregion
+
+    #region orchestration helpers
+
+    /// <summary>执行查询，对每行调用 <paramref name="map"/> 收集为列表。</summary>
+    protected List<T> Query<T>(string sql, Func<DbDataReader, T> map, params (string Name, object? Value)[] args)
+    {
+        var result = new List<T>();
+        using var cmd = CreateCommand(sql);
+        foreach (var (name, value) in args)
+            BindParameter(cmd, name, value);
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+            result.Add(map(reader));
+        return result;
+    }
+
+    /// <summary>读取首行并映射；无行返回 null。</summary>
+    protected T? QueryFirst<T>(string sql, Func<DbDataReader, T> map, params (string Name, object? Value)[] args)
+        where T : class
+    {
+        using var cmd = CreateCommand(sql);
+        foreach (var (name, value) in args)
+            BindParameter(cmd, name, value);
+        using var reader = cmd.ExecuteReader();
+        return reader.Read() ? map(reader) : null;
+    }
+
+    /// <summary>执行非查询，返回受影响行数。</summary>
+    protected int Execute(string sql, params (string Name, object? Value)[] args)
+    {
+        using var cmd = CreateCommand(sql);
+        foreach (var (name, value) in args)
+            BindParameter(cmd, name, value);
+        return cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>执行标量查询，返回首行首列。</summary>
+    protected object? ExecuteScalar(string sql, params (string Name, object? Value)[] args)
+    {
+        using var cmd = CreateCommand(sql);
+        foreach (var (name, value) in args)
+            BindParameter(cmd, name, value);
+        return cmd.ExecuteScalar();
+    }
+
+    /// <summary>是否存在匹配行。</summary>
+    protected bool Exists(string sql, params (string Name, object? Value)[] args)
+    {
+        using var cmd = CreateCommand(sql);
+        foreach (var (name, value) in args)
+            BindParameter(cmd, name, value);
+        using var reader = cmd.ExecuteReader();
+        return reader.Read();
+    }
+
+    #endregion
+
+    #region mappers
+
+    protected WorkTag MapWorkTag(DbDataReader r) => new()
+    {
+        Id = r.GetInt32(0),
+        Name = ReadString(r, 1),
+        Color = r.GetInt32(2),
+        Level = (TagLevels)r.GetInt32(3),
+        Disabled = r.GetInt32(4) != 0,
+    };
+
+    protected WorkItem MapWorkItem(DbDataReader r) => new()
+    {
+        Id = r.GetInt32(0),
+        CreateDate = ReadString(r, 1),
+        Comment = ReadString(r, 2),
+        Time = r.GetFloat(3),
+        Priority = (WorkPriorities)r.GetInt32(4),
+    };
+
+    protected RedMineActivity MapRedMineActivity(DbDataReader r) => new()
+    {
+        Id = r.GetInt32(0),
+        Title = ReadString(r, 1),
+    };
+
+    protected RedMineProject MapRedMineProject(DbDataReader r) => new()
+    {
+        Id = r.GetInt32(0),
+        Title = ReadString(r, 1),
+        Description = ReadString(r, 2),
+        IsClosed = r.GetInt32(3) != 0,
+    };
+
+    protected RedMineIssue MapRedMineIssue(DbDataReader r) => new()
+    {
+        Id = r.GetInt32(0),
+        Title = ReadString(r, 1),
+        AssignedTo = ReadString(r, 2),
+        ProjectId = r.GetInt32(3),
+        IsClosed = r.GetInt32(4) != 0,
+    };
+
+    protected WorkTimeEntry MapWorkTimeEntry(DbDataReader r) => new()
+    {
+        WorkId = r.GetInt32(0),
+        EntryId = r.GetInt32(1),
+        ActivityId = r.GetInt32(2),
+        IssueId = r.GetInt32(3),
+    };
+
+    #endregion
 }
-
-
