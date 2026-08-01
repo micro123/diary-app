@@ -13,9 +13,9 @@ using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
 using Diary.Database;
 using Diary.GUIBase.Utils;
+using Diary.Utils;
 using Diary.GUIBase.ViewModels;
 using Diary.RedMine;
-using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Diary.App.ViewModels;
@@ -191,15 +191,17 @@ public partial class WorkEditorViewModel : ViewModelBase
         else
             Note = string.Empty;
 
+        // 无论该工作项是否已有标签，都要重建 WorkTags 并刷新可选标签列表，
+        // 否则无标签项的 AvailableTags 永远是空的（添加标签列表列不出任何标签）。
+        _syncing_tags = true;
+        WorkTags.Clear();
         if (tagsById.TryGetValue(id, out var tags))
         {
-            _syncing_tags = true;
-            WorkTags.Clear();
             foreach (var tag in tags)
                 WorkTags.Add(tag);
-            UpdateAvailableTags();
-            _syncing_tags = false;
         }
+        _syncing_tags = false;
+        UpdateAvailableTags();
 
         if (timeEntriesById.TryGetValue(id, out var timeEntry))
         {
