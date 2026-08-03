@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableMSTestRunner>true</EnableMSTestRunner>
+    <OutputType>Exe</OutputType>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <TestingPlatformShowTestsFailure>true</TestingPlatformShowTestsFailure>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.5.1" />
+    <PackageReference Include="MSTest" Version="4.2.2" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.7.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Diary.Db.SQLite\Diary.Db.SQLite.csproj" />
+    <ProjectReference Include="..\Diary.Db.PostgreSQL\Diary.Db.PostgreSQL.csproj" />
+    <ProjectReference Include="..\Diary.Database\Diary.Database.csproj" />
+    <ProjectReference Include="..\Diary.Core\Diary.Core.csproj" />
+  </ItemGroup>
+</Project>
