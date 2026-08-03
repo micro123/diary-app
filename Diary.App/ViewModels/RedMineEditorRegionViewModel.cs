@@ -20,6 +20,7 @@ namespace Diary.App.ViewModels;
 public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEditorRegion
 {
     private readonly DbShareData _shareData;
+    private readonly IRedMineApi _api;
     private WorkTimeEntry? TimeEntry { get; set; }
 
     public ObservableCollection<RedMineIssueDisplay> RedMineIssues => _shareData.RedMineIssuesOpen;
@@ -38,9 +39,10 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
 
     private static IRedMineDb? RedMineDb => App.Instance.UseDb?.RedMineDb;
 
-    public RedMineEditorRegionViewModel(DbShareData shareData)
+    public RedMineEditorRegionViewModel(DbShareData shareData, IRedMineApi api)
     {
         _shareData = shareData;
+        _api = api;
     }
 
     public void OnWorkItemChanged(WorkItem? item, object? preloadedBinding = null)
@@ -87,7 +89,7 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
         var entryId = 0;
         await Task.Run(() =>
         {
-            if (RedMineApis.CreateTimeEntry(out var ti, TimeEntry.IssueId,
+            if (_api.CreateTimeEntry(out var ti, TimeEntry.IssueId,
                     TimeEntry.ActivityId, item.CreateDate, item.Time, item.Comment))
                 entryId = ti.Id;
             TimeEntry.EntryId = entryId;

@@ -23,6 +23,7 @@ using Diary.GUIBase;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
+using Diary.RedMine;
 using Diary.Survey;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
@@ -144,6 +145,7 @@ namespace Diary.App
             // mask add before
             services.AddSingleton(Logging.Logger);
             services.AddSingleton<BaseApp>(this);
+            services.AddSingleton<IRedMineApi, RedMineApi>();
             services.AddTypesFromAssembly(Assembly.GetExecutingAssembly());
             services.AddTypesFromAssembly(typeof(ViewLocator).Assembly);
 

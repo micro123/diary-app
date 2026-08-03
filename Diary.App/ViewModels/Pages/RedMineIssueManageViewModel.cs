@@ -19,10 +19,16 @@ public partial class RedMineIssueManageViewModel : PaginatedSearchViewModel<Issu
     [ObservableProperty] private bool _onlyOpened = true;
     [ObservableProperty] private bool _onlyMyIssues = true;
     private string _lastSearchMethod = string.Empty;
+    private readonly IRedMineApi _api;
 
-    protected override int PageSize => RedMineApis.PageSize;
+    protected override int PageSize => _api.PageSize;
 
     private DbInterfaceBase? Db => App.Instance.UseDb;
+
+    public RedMineIssueManageViewModel(IRedMineApi api)
+    {
+        _api = api;
+    }
 
     [RelayCommand]
     private async Task Search(string method)
@@ -45,10 +51,10 @@ public partial class RedMineIssueManageViewModel : PaginatedSearchViewModel<Issu
             switch (_lastSearchMethod)
             {
                 case SearchById:
-                    ok = RedMineApis.SearchIssueByIds(out results, out total, OnlyMyIssues, OnlyOpened, page, SearchTerm);
+                    ok = _api.SearchIssueByIds(out results, out total, OnlyMyIssues, OnlyOpened, page, SearchTerm);
                     break;
                 case SearchByKeyword:
-                    ok = RedMineApis.SearchIssueByKeywords(out results, out total, OnlyMyIssues, OnlyOpened, page, SearchTerm);
+                    ok = _api.SearchIssueByKeywords(out results, out total, OnlyMyIssues, OnlyOpened, page, SearchTerm);
                     break;
                 default:
                     ok = false;
@@ -68,7 +74,7 @@ public partial class RedMineIssueManageViewModel : PaginatedSearchViewModel<Issu
 
         await Task.Run(() =>
         {
-            RedMineApis.GetProject(out var project, issue.Project.Id);
+            _api.GetProject(out var project, issue.Project.Id);
             Debug.Assert(project != null);
             Db.RedMineDb!.AddRedMineProject(project.Id, project.Name, project.Description);
 

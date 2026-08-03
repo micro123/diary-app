@@ -11,6 +11,8 @@ internal abstract class BaseMigrator : IDisposable, IAsyncDisposable
     protected readonly DbInterfaceBase Db;
     private readonly Action<bool, double, string> _processCallback;
     private readonly IDbConnection _connection;
+    // RedMineApi 无状态，直接实例化（MigrationTool 不走 DI）。
+    protected static readonly IRedMineApi Api = new RedMineApi();
 
     protected BaseMigrator(DbInterfaceBase db, IDbConnection connection, Action<bool, double, string> processCallback)
     {
@@ -70,10 +72,10 @@ internal abstract class BaseMigrator : IDisposable, IAsyncDisposable
             Ok(p, $"处理第{cnt++}条问题记录");
             var issueId = reader.GetInt32(0);
             var isClosed = reader.GetInt32(1) != 0;
-            if (RedMineApis.GetIssue(out IssueInfo? info, issueId))
+            if (Api.GetIssue(out IssueInfo? info, issueId))
             {
                 var project = info.Project;
-                if (RedMineApis.GetProject(out ProjectInfo? projectInfo, project.Id))
+                if (Api.GetProject(out ProjectInfo? projectInfo, project.Id))
                 {
                     Db.RedMineDb!.AddRedMineProject(projectInfo.Id, projectInfo.Name, projectInfo.Description);
                     Db.RedMineDb!.AddRedMineIssue(issueId, info.Subject, info.AssignedTo.Name, projectInfo.Id, isClosed);

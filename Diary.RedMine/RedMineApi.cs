@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using Diary.RedMine.Response;
 using Diary.Utils;
@@ -7,13 +7,18 @@ using RestSharp;
 
 namespace Diary.RedMine;
 
-public static class RedMineApis
+/// <summary>
+/// <see cref="IRedMineApi"/> 实现。从原静态 <c>RedMineApis</c> 迁出，方法体逐行一致，
+/// 仍走 <see cref="RestTools"/>（同程序集 internal 静态）与 <c>Logging.Logger</c>。
+/// 无状态，注册为 DI 单例。
+/// </summary>
+public class RedMineApi : IRedMineApi
 {
     private static ILogger Logger => Logging.Logger;
-    public const int PageSize = 50;
+    public int PageSize => 50;
 
     // 项目搜索: GET {base}/search.json?q=<keyword1 keyword2>&projects=1
-    public static bool SearchProject([NotNullWhen(true)] out IEnumerable<ProjectInfo>? projects,
+    public bool SearchProject([NotNullWhen(true)] out IEnumerable<ProjectInfo>? projects,
         out int total, int page = 0,
         string keyword = "")
     {
@@ -47,7 +52,7 @@ public static class RedMineApis
     }
 
     // 项目信息: GET {base}/projects/{id}.json
-    public static bool GetProject([NotNullWhen(true)] out ProjectInfo? project, int id)
+    public bool GetProject([NotNullWhen(true)] out ProjectInfo? project, int id)
     {
         project = null;
         var url = ProjectInfo.Fetch(id);
@@ -71,21 +76,21 @@ public static class RedMineApis
     }
 
     // 问题搜索: GET {base}/issues.json?[assigned_to_id=me&][status_id=open|closed|*&](issue_id=...|subject=~...)
-    public static bool SearchIssueByKeywords([NotNullWhen(true)] out IEnumerable<IssueInfo>? issues,
+    public bool SearchIssueByKeywords([NotNullWhen(true)] out IEnumerable<IssueInfo>? issues,
         out int total, bool myIssues = true, bool openOnly = true, int page = 0, string keywords = "")
     {
         string? paramValue = !string.IsNullOrEmpty(keywords) ? $"~{keywords}" : null;
         return SearchIssuesInternal(out issues, out total, myIssues, openOnly, page, "subject", paramValue);
     }
 
-    public static bool SearchIssueByIds([NotNullWhen(true)] out IEnumerable<IssueInfo>? issues,
+    public bool SearchIssueByIds([NotNullWhen(true)] out IEnumerable<IssueInfo>? issues,
         out int total, bool myIssues = true, bool openOnly = true, int page = 0, string ids = "")
     {
         string? paramValue = !string.IsNullOrEmpty(ids) ? ids : null;
         return SearchIssuesInternal(out issues, out total, myIssues, openOnly, page, "issue_id", paramValue);
     }
 
-    private static bool SearchIssuesInternal([NotNullWhen(true)] out IEnumerable<IssueInfo>? issues,
+    private bool SearchIssuesInternal([NotNullWhen(true)] out IEnumerable<IssueInfo>? issues,
         out int total, bool myIssues, bool openOnly, int page,
         string queryParamName, string? queryParamValue)
     {
@@ -122,7 +127,7 @@ public static class RedMineApis
         return issues != null;
     }
 
-    public static bool GetIssue([NotNullWhen(true)] out IssueInfo? issues, int id)
+    public bool GetIssue([NotNullWhen(true)] out IssueInfo? issues, int id)
     {
         issues = null;
         var url = IssueInfo.Fetch(id);
@@ -146,7 +151,7 @@ public static class RedMineApis
     }
 
     // 创建问题: POST {base}/issues.json <json_data contains: project_id,subject,priority_id>
-    public static bool CreateIssue([NotNullWhen(true)] out IssueInfo? issue,
+    public bool CreateIssue([NotNullWhen(true)] out IssueInfo? issue,
         int projectId, string subject, string description = "", bool assignedToSelf = true)
     {
         issue = null;
@@ -183,14 +188,14 @@ public static class RedMineApis
     }
 
     // 关闭问题: PUT {base}/issues/{id}.json <json_data contains: status_id = closed>
-    public static bool CloseIssue(int id)
+    public bool CloseIssue(int id)
     {
         // things broken
         return false;
     }
 
     // 提交工时: POST {base}/time_entries.json <json_data contains: issue_id,spent_on,hours,activity_id,comments>
-    public static bool CreateTimeEntry([NotNullWhen(true)] out TimeInfo? timeInfo, int issue, int activity, string date, double hours, string comment)
+    public bool CreateTimeEntry([NotNullWhen(true)] out TimeInfo? timeInfo, int issue, int activity, string date, double hours, string comment)
     {
         timeInfo = null;
 
@@ -217,7 +222,7 @@ public static class RedMineApis
     }
 
     // 查询工时: GET {base}/time_entries.json?user_id=me&from=<date_start>&to=<date_end>
-    public static bool GetMyTimeEntries([NotNullWhen(true)] out IEnumerable<TimeInfo>? timeInfos,
+    public bool GetMyTimeEntries([NotNullWhen(true)] out IEnumerable<TimeInfo>? timeInfos,
         out int total,
         string dateStart = "", string dateEnd = "", int page = 0)
     {
@@ -246,7 +251,7 @@ public static class RedMineApis
             {
                 Logger.LogDebug("response {Content}", response.Content);
                 total = response.Data!.Total;
-                timeInfos = response.Data!.TimeEntries;
+                timeInfos = response.Data.TimeEntries;
             }
         }
 
@@ -254,7 +259,7 @@ public static class RedMineApis
     }
 
     // 获取活动列表: GET {base}/enumerations/time_entry_activities.json
-    public static bool GetActivities([NotNullWhen(true)] out IEnumerable<ActivityInfo>? activities)
+    public bool GetActivities([NotNullWhen(true)] out IEnumerable<ActivityInfo>? activities)
     {
         activities = null;
         var url = ActivityInfo.Query();
@@ -278,7 +283,7 @@ public static class RedMineApis
     }
 
     // 获取账号信息: GET {base}/users/current.json
-    public static bool GetUserInfo([NotNullWhen(true)] out UserInfo? userInfo)
+    public bool GetUserInfo([NotNullWhen(true)] out UserInfo? userInfo)
     {
         userInfo = null;
         var url = UserInfo.Query();

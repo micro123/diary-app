@@ -25,15 +25,17 @@ public partial class RedMineManageViewModel : ViewModelBase
 {
     private readonly ILogger _logger;
     private readonly IServiceProvider _serviceProvider;
+    private readonly IRedMineApi _api;
 
     [ObservableProperty] private ObservableCollection<RedMineTabItemModel> _tabs = new();
     [ObservableProperty] private bool _serverOk;
     private readonly RedMineInfoViewModel _redmineInfo;
 
-    public RedMineManageViewModel(ILogger logger, IServiceProvider serviceProvider)
+    public RedMineManageViewModel(ILogger logger, IServiceProvider serviceProvider, IRedMineApi api)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
+        _api = api;
         _redmineInfo = _serviceProvider.GetRequiredService<RedMineInfoViewModel>();
         Tabs.Add(new RedMineTabItemModel()
         {
@@ -60,7 +62,7 @@ public partial class RedMineManageViewModel : ViewModelBase
 
     private void CheckServer()
     {
-        ServerOk = RedMineApis.GetUserInfo(out var info);
+        ServerOk = _api.GetUserInfo(out var info);
         _logger.LogInformation("RedMine Server Ok? {Ok}", ServerOk);
         _redmineInfo.UpdateUserInfo(info);
     }

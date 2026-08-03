@@ -2,6 +2,7 @@ using Diary.App.Models;
 using Diary.Core.Constants;
 using Diary.GUIBase;
 using Diary.GUIBase.ViewModels;
+using Diary.RedMine;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -17,11 +18,13 @@ public class RedMineTrackerIntegration : ITrackerIntegration
 {
     private readonly IServiceProvider _services;
     private readonly DbShareData _shareData;
+    private readonly IRedMineApi _api;
 
-    public RedMineTrackerIntegration(IServiceProvider services, DbShareData shareData)
+    public RedMineTrackerIntegration(IServiceProvider services, DbShareData shareData, IRedMineApi api)
     {
         _services = services;
         _shareData = shareData;
+        _api = api;
     }
 
     public string Key => "RedMine";
@@ -29,7 +32,7 @@ public class RedMineTrackerIntegration : ITrackerIntegration
     public string Icon => "fa-cloud";
     public bool IsConfigured => App.Instance.AppConfig.RedMineSettings.Valid();
 
-    public ITrackerEditorRegion? CreateEditorRegion() => new RedMineEditorRegionViewModel(_shareData);
+    public ITrackerEditorRegion? CreateEditorRegion() => new RedMineEditorRegionViewModel(_shareData, _api);
 
     public IDictionary<int, object?>? LoadBindingsByDate(string date)
     {

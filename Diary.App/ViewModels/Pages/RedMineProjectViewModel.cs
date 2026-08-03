@@ -15,7 +15,13 @@ namespace Diary.App.ViewModels.Pages;
 public partial class RedMineProjectViewModel : PaginatedSearchViewModel<ProjectInfo>
 {
     [ObservableProperty] private string _searchTerm = string.Empty;
-    protected override int PageSize => RedMineApis.PageSize;
+    private readonly IRedMineApi _api;
+    protected override int PageSize => _api.PageSize;
+
+    public RedMineProjectViewModel(IRedMineApi api)
+    {
+        _api = api;
+    }
 
     [RelayCommand]
     private async Task Search()
@@ -26,7 +32,7 @@ public partial class RedMineProjectViewModel : PaginatedSearchViewModel<ProjectI
 
     protected override Task<(bool ok, IEnumerable<ProjectInfo>? results, int total)> ExecuteSearchAsync(int page)
     {
-        var ok = RedMineApis.SearchProject(out var results, out int total, page, SearchTerm);
+        var ok = _api.SearchProject(out var results, out int total, page, SearchTerm);
         return Task.FromResult<(bool, IEnumerable<ProjectInfo>?, int)>((ok, results, total));
     }
 
@@ -58,7 +64,7 @@ public partial class RedMineProjectViewModel : PaginatedSearchViewModel<ProjectI
                     IssueInfo? issue;
                     (finish, issue) = await Task.Run(() =>
                     {
-                        var ok = RedMineApis.CreateIssue(out IssueInfo? info, project.Id,
+                        var ok = _api.CreateIssue(out IssueInfo? info, project.Id,
                             vm.IssueTitle, vm.IssueDesc,
                             vm.AssignSelf);
                         return (ok, info);

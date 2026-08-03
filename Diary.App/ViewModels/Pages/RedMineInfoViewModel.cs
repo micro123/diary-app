@@ -22,6 +22,7 @@ public partial class RedMineInfoViewModel : ViewModelBase
     private readonly ILogger _logger;
     private readonly IServiceProvider _serviceProvider;
     private readonly DbShareData _shareData;
+    private readonly IRedMineApi _api;
     private DbInterfaceBase? Db => App.Instance.UseDb;
 
     // 基本信息
@@ -40,7 +41,7 @@ public partial class RedMineInfoViewModel : ViewModelBase
     {
         var result = await Task.Run(() =>
         {
-            RedMineApis.GetActivities(out var activities);
+            _api.GetActivities(out var activities);
             // 更新数据库
             var all = activities?.Select(x => Db!.RedMineDb!.AddRedMineActivity(x.Id, x.Name)).ToArray();
             return all != null;
@@ -49,11 +50,12 @@ public partial class RedMineInfoViewModel : ViewModelBase
     }
 
 
-    public RedMineInfoViewModel(ILogger logger, IServiceProvider serviceProvider, DbShareData shareData)
+    public RedMineInfoViewModel(ILogger logger, IServiceProvider serviceProvider, DbShareData shareData, IRedMineApi api)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
         _shareData = shareData;
+        _api = api;
     }
 
     public void UpdateUserInfo(UserInfo? userInfo)
@@ -85,14 +87,14 @@ public partial class RedMineInfoViewModel : ViewModelBase
             var batches = Issues
                 .Where(x => !x.Disabled)
                 .Select((x, n) => new { o = x, i = n })
-                .GroupBy(x => x.i / RedMineApis.PageSize)
+                .GroupBy(x => x.i / _api.PageSize)
                 .Select(g => g.Select(x => x.o));
             foreach (var batch in batches)
             {
                 var arr = batch.ToArray();
                 string ids = string.Join(',', arr.Select(x => x.Id));
                 var success =
-                    RedMineApis.SearchIssueByIds(out IEnumerable<IssueInfo>? infos, out var _, false, false, 0, ids);
+                    _api.SearchIssueByIds(out IEnumerable<IssueInfo>? infos, out var _, false, false, 0, ids);
                 if (success)
                 {
                     // update db
