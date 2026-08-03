@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
+using System.Data.Common;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -169,7 +170,21 @@ namespace Diary.App
 
         public override void OnFrameworkInitializationCompleted()
         {
-            var success = ConfigureCheck(out var message);
+            InstallGlobalExceptionHandlers();
+
+            bool success;
+            string message;
+            try
+            {
+                success = ConfigureCheck(out message);
+            }
+            catch (Exception ex)
+            {
+                // ConfigureCheck 内部多数路径已 catch，但 GetDataVersion/InitLoad 等仍可能抛
+                success = false;
+                message = "数据库打开异常";
+                Logger.LogError(ex, "ConfigureCheck 抛出未处理异常");
+            }
             
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
@@ -252,13 +267,47 @@ namespace Diary.App
     }
 
         private readonly DispatcherTimer _timer = new();
+
+        /// <summary>
+        /// 全局未处理异常兜底：网络断连等导致 DB 调用抛 NpgsqlException 时，避免直接崩溃。
+        /// 记日志 + 给提示；连上后下次操作由连接池自愈。
+        /// </summary>
+        private void InstallGlobalExceptionHandlers()
+        {
+            // UI 线程未处理异常（DispatcherTimer、绑定命令、async void 等均在 UI 线程分发）
+            Dispatcher.UIThread.UnhandledException += (_, e) =>
+            {
+                e.Handled = true;
+                var ex = e.Exception;
+                Logger.LogError(ex, "未处理的 UI 线程异常");
+                var msg = ex is DbException
+                    ? "数据库连接异常，请检查网络或数据库设置"
+                    : $"未处理异常：{ex.GetType().Name}";
+                try { EventDispatcher.Notify("发生错误", msg); }
+                catch { /* handler 自身不得再抛 */ }
+            };
+            // 后台 Task 未观察异常：.NET Core 默认不崩，仍记日志
+            TaskScheduler.UnobservedTaskException += (_, e) =>
+            {
+                Logger.LogError(e.Exception, "未观察的后台任务异常");
+                e.SetObserved();
+            };
+            // AppDomain 兜底：仅记日志（IsTerminating 时无法阻止退出）
+            AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            {
+                if (e.ExceptionObject is Exception ex)
+                    Logger.LogError(ex, "AppDomain 未处理异常 IsTerminating={Terminating}", e.IsTerminating);
+            };
+        }
+
         private void StartKeepAliveTimer()
         {
             _timer.Interval = TimeSpan.FromSeconds(30);
             _timer.Tick += (_, _) =>
             {
                 Logger.LogDebug("DB keep alive...");
-                UseDb?.KeepAlive();
+                try { UseDb?.KeepAlive(); }
+                catch (Exception ex) { Logger.LogWarning(ex, "KeepAlive 失败（可能网络中断）"); }
             };
             _timer.Start();
         }
