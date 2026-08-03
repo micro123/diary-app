@@ -6,7 +6,7 @@ using Diary.Core.Data.Statistics;
 
 namespace Diary.Database;
 
-public abstract class DbInterfaceBase : IDisposable
+public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
 {
     protected readonly IDbFactory Factory;
     protected DbInterfaceBase(IDbFactory factory) => Factory = factory;
@@ -239,6 +239,30 @@ public abstract class DbInterfaceBase : IDisposable
 
     #endregion
 
+    #region IDbExtensionHost — 把 protected helpers 提升为公开接口，供独立扩展类使用
+
+    List<T> IDbExtensionHost.Query<T>(string sql, Func<DbDataReader, T> map, params (string Name, object? Value)[] args)
+        => Query(sql, map, args);
+
+    T? IDbExtensionHost.QueryFirst<T>(string sql, Func<DbDataReader, T> map, params (string Name, object? Value)[] args)
+        where T : class
+        => QueryFirst(sql, map, args);
+
+    int IDbExtensionHost.Execute(string sql, params (string Name, object? Value)[] args)
+        => Execute(sql, args);
+
+    object? IDbExtensionHost.ExecuteScalar(string sql, params (string Name, object? Value)[] args)
+        => ExecuteScalar(sql, args);
+
+    bool IDbExtensionHost.Exists(string sql, params (string Name, object? Value)[] args)
+        => Exists(sql, args);
+
+    bool IDbExtensionHost.ExecRaw(string sql) => ExecRaw(sql);
+
+    string IDbExtensionHost.ReadString(DbDataReader reader, int ordinal) => ReadString(reader, ordinal);
+
+    #endregion
+
     #region mappers
 
     protected WorkTag MapWorkTag(DbDataReader r) => new()
@@ -259,29 +283,8 @@ public abstract class DbInterfaceBase : IDisposable
         Priority = (WorkPriorities)r.GetInt32(4),
     };
 
-    protected RedMineActivity MapRedMineActivity(DbDataReader r) => new()
-    {
-        Id = r.GetInt32(0),
-        Title = ReadString(r, 1),
-    };
-
-    protected RedMineProject MapRedMineProject(DbDataReader r) => new()
-    {
-        Id = r.GetInt32(0),
-        Title = ReadString(r, 1),
-        Description = ReadString(r, 2),
-        IsClosed = r.GetInt32(3) != 0,
-    };
-
-    protected RedMineIssue MapRedMineIssue(DbDataReader r) => new()
-    {
-        Id = r.GetInt32(0),
-        Title = ReadString(r, 1),
-        AssignedTo = ReadString(r, 2),
-        ProjectId = r.GetInt32(3),
-        IsClosed = r.GetInt32(4) != 0,
-    };
-
+    // 注：MapRedMineActivity/Project/Issue 已随 RedMine 方法迁入各 provider 的 RedMineDb。
+    // MapWorkTimeEntry 保留——GetWorkTimeEntriesByDate（generic 批查询，仍 override 在 provider）仍依赖它。
     protected WorkTimeEntry MapWorkTimeEntry(DbDataReader r) => new()
     {
         WorkId = r.GetInt32(0),

@@ -380,129 +380,49 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
         return Query(sql, MapWorkTag, ("$work_id", item.Id));
     }
 
+    #region redmine — 委托至 SQLiteRedMineDb（阶段 1 indirection，行为零变化）
+
+    private SQLiteRedMineDb? _redMine;
+    private SQLiteRedMineDb RedMine => _redMine ??= new SQLiteRedMineDb(this);
+
     public override RedMineActivity AddRedMineActivity(int id, string title)
-    {
-        const string sql =
-            @"INSERT INTO redmine_activities VALUES ($id,$title) ON CONFLICT(id) DO UPDATE SET act_name=$title RETURNING *;";
-        return QueryFirst(sql, MapRedMineActivity, ("$id", id), ("$title", title)) ?? new RedMineActivity();
-    }
+        => RedMine.AddRedMineActivity(id, title);
 
     public override RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project,
         bool closed = false)
-    {
-        const string sql =
-            "INSERT INTO redmine_issues(id, issue_title, assigned_to, project_id, is_closed) VALUES ($id,$title,$assign,$project,$close) ON CONFLICT(id) DO UPDATE SET issue_title=$title, assigned_to=$assign, project_id=$project, is_closed=$close RETURNING *;";
-        return QueryFirst(sql, MapRedMineIssue,
-            ("$id", id), ("$title", title), ("$assign", assignedTo),
-            ("$project", project), ("$close", closed ? 1 : 0)) ?? new RedMineIssue();
-    }
+        => RedMine.AddRedMineIssue(id, title, assignedTo, project, closed);
 
     public override void UpdateRedMineIssueStatus(int id, bool closed)
-    {
-        const string sql = @"UPDATE redmine_issues SET is_closed=$closed WHERE id=$id;";
-        Execute(sql, ("$id", id), ("$closed", closed ? 1 : 0));
-    }
+        => RedMine.UpdateRedMineIssueStatus(id, closed);
 
     public override RedMineProject AddRedMineProject(int id, string title, string description)
-    {
-        const string sql =
-            @"INSERT INTO redmine_projects(id, project_name, project_desc) VALUES ($id,$title,$desc) ON CONFLICT(id) DO UPDATE SET project_name=$title, project_desc=$desc RETURNING *;";
-        return QueryFirst(sql, MapRedMineProject, ("$id", id), ("$title", title), ("$desc", description)) ?? new RedMineProject();
-    }
+        => RedMine.AddRedMineProject(id, title, description);
 
     public override void UpdateRedMineProjectStatus(int id, bool closed)
-    {
-        const string sql = @"UPDATE redmine_projects SET is_closed=$closed WHERE id=$id;";
-        Execute(sql, ("$id", id), ("$closed", closed ? 1 : 0));
-    }
+        => RedMine.UpdateRedMineProjectStatus(id, closed);
 
     public override WorkTimeEntry? WorkItemGetTimeEntry(WorkItem item)
-    {
-        if (item.Id == 0)
-            throw new ArgumentException("work id is required");
-        var sql = """
-                  SELECT * FROM redmine_time_entries WHERE work_id=$id;
-                  """;
-        return QueryFirst(sql, MapWorkTimeEntry, ("$id", item.Id));
-    }
+        => RedMine.WorkItemGetTimeEntry(item);
 
     public override bool WorkItemWasUploaded(WorkItem item)
-    {
-        if (item.Id == 0)
-            throw new ArgumentException("work id is required");
-        var sql = """
-                  SELECT * FROM redmine_time_entries WHERE work_id=$id AND id>0;
-                  """;
-        return Exists(sql, ("$id", item.Id));
-    }
+        => RedMine.WorkItemWasUploaded(item);
 
     public override ICollection<RedMineActivity> GetRedMineActivities()
-    {
-        const string sql = @"SELECT * FROM redmine_activities;";
-        return Query(sql, MapRedMineActivity);
-    }
+        => RedMine.GetRedMineActivities();
 
     public override ICollection<RedMineIssueDisplay> GetRedMineIssues(RedMineProject? project)
-    {
-        RedMineIssueDisplay MapDisplay(DbDataReader r) => new()
-        {
-            Id = r.GetInt32(0),
-            Title = ReadString(r, 1),
-            AssignedTo = ReadString(r, 2),
-            Project = ReadString(r, 3),
-            Disabled = r.GetInt32(4) != 0,
-        };
-
-        if (project is null)
-        {
-            var sql = """
-                      SELECT redmine_issues.id AS id, redmine_issues.issue_title, redmine_issues.assigned_to, redmine_projects.project_name, redmine_issues.is_closed AS closed
-                      FROM redmine_issues INNER JOIN redmine_projects ON redmine_issues.project_id=redmine_projects.id
-                      ORDER BY closed ASC, id DESC;
-                      """;
-            return Query(sql, MapDisplay);
-        }
-
-        var sqlFiltered = """
-                          SELECT redmine_issues.id AS id, redmine_issues.issue_title, redmine_issues.assigned_to, redmine_projects.project_name, redmine_issues.is_closed AS closed
-                          FROM redmine_issues INNER JOIN redmine_projects ON redmine_issues.project_id=$projectId AND redmine_issues.project_id=redmine_projects.id
-                          ORDER BY closed ASC, id DESC;
-                          """;
-        return Query(sqlFiltered, MapDisplay, ("$projectId", project.Id));
-    }
+        => RedMine.GetRedMineIssues(project);
 
     public override ICollection<RedMineProject> GetRedMineProjects()
-    {
-        const string sql = @"SELECT * FROM redmine_projects;";
-        return Query(sql, MapRedMineProject);
-    }
+        => RedMine.GetRedMineProjects();
 
     public override WorkTimeEntry? CreateWorkTimeEntry(int work, int activity, int issue)
-    {
-        if (work == 0)
-            throw new ArgumentException($"Work ID {work} is invalid");
-        const string sql =
-            "INSERT INTO redmine_time_entries(work_id, act_id, issue_id) VALUES ($workId, $actId, $issueId) ON CONFLICT DO UPDATE SET act_id=$actId, issue_id=$issueId RETURNING *;";
-        try
-        {
-            return QueryFirst(sql, MapWorkTimeEntry, ("$workId", work), ("$actId", activity), ("$issueId", issue));
-        }
-        catch (SQLiteException)
-        {
-            return null;
-        }
-    }
+        => RedMine.CreateWorkTimeEntry(work, activity, issue);
 
     public override bool UpdateWorkTimeEntry(WorkTimeEntry timeEntry)
-    {
-        if (timeEntry.WorkId == 0)
-            throw new ArgumentException($"Work ID {timeEntry.WorkId} is invalid");
-        const string sql =
-            "UPDATE redmine_time_entries SET act_id=$actId, issue_id=$issueId, id=$entryId WHERE work_id=$workId;";
-        return Execute(sql,
-            ("$actId", timeEntry.ActivityId), ("$issueId", timeEntry.IssueId),
-            ("$entryId", timeEntry.EntryId), ("$workId", timeEntry.WorkId)) > 0;
-    }
+        => RedMine.UpdateWorkTimeEntry(timeEntry);
+
+    #endregion
 
     public override StatisticsResult GetStatistics(string beginDate, string endDate)
     {
