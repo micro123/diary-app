@@ -27,7 +27,7 @@
     <DockPanel Name="EditPanel" VerticalSpacing="4">
         <u:Divider DockPanel.Dock="Top" Content="一般信息" HorizontalContentAlignment="Left" />
         <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,Auto,*" RowDefinitions="Auto,Auto,Auto"
-              ColumnSpacing="8" RowSpacing="8" IsEnabled="{Binding !Uploaded}">
+              ColumnSpacing="8" RowSpacing="8" IsEnabled="{Binding !IsLocked}">
             <TextBlock Grid.Row="0" Grid.Column="0" Text="日期：" VerticalAlignment="Center" />
             <CalendarDatePicker Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2" HorizontalAlignment="Stretch"
                                 SelectedDate="{Binding Date, Converter={StaticResource DateConvert}}" />
@@ -104,48 +104,8 @@
                 </MenuFlyout>
             </Button.Flyout>
         </Button>
-        <u:Divider DockPanel.Dock="Top" Content="RedMine信息" HorizontalContentAlignment="Left" />
-        <!-- redmine预留 -->
-        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*" DockPanel.Dock="Top"
-              ColumnSpacing="8" RowSpacing="8" IsEnabled="{Binding !Uploaded}">
-            <Grid.Styles>
-                <Style Selector="TextBlock">
-                    <Setter Property="VerticalAlignment" Value="Center" />
-                </Style>
-                <Style Selector="ComboBox">
-                    <Setter Property="HorizontalAlignment" Value="Stretch"/>
-                </Style>
-            </Grid.Styles>
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="关联问题:" />
-            <TextBlock Grid.Row="1" Grid.Column="0" Text="关联活动:" />
-            <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding RedMineIssues}"
-                      SelectedIndex="{Binding IssueIndex}" Text="{Binding IssueText}">
-                <ComboBox.ItemTemplate>
-                    <DataTemplate DataType="display:RedMineIssueDisplay">
-                        <StackPanel Orientation="Horizontal" Spacing="4">
-                            <TextBlock Text="{Binding Id, StringFormat='#{0}'}" 
-                                       FontWeight="Bold"/>
-                            <TextBlock Text="{Binding Title}" />
-                            <TextBlock Text="{Binding Project, StringFormat='(项目：{0})'}"/>
-                        </StackPanel>
-                    </DataTemplate>
-                </ComboBox.ItemTemplate>
-            </ComboBox>
-            <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding RedMineActivities}"
-                      SelectedIndex="{Binding ActivityIndex}">
-                <ComboBox.ItemTemplate>
-                    <DataTemplate DataType="redMine:RedMineActivity">
-                        <StackPanel Orientation="Vertical">
-                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                <TextBlock Text="{Binding Id, StringFormat='#{0}'}" 
-                                           FontWeight="Bold"/>
-                                <TextBlock Text="{Binding Title}" />
-                            </StackPanel>
-                        </StackPanel>
-                    </DataTemplate>
-                </ComboBox.ItemTemplate>
-            </ComboBox>
-        </Grid>
+        <!-- tracker 区（RedMine 等）：由 TrackerRegion 经 ViewLocator 解析对应 view 渲染；无 tracker 则空 -->
+        <ContentControl DockPanel.Dock="Top" Content="{Binding TrackerRegion}" IsEnabled="{Binding !IsLocked}" />
         <!-- plm预留 -->
         <u:Divider DockPanel.Dock="Top" Content="备注（仅本地存储）" HorizontalContentAlignment="Left" />
         <TextBox Text="{Binding Note}" AcceptsReturn="True" VerticalAlignment="Stretch"

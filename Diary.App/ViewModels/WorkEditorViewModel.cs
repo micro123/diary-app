@@ -1,16 +1,13 @@
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
 using Diary.Core.Data.Base;
-using Diary.Core.Data.Display;
-using Diary.Core.Data.RedMine;
 using Diary.Database;
+using Diary.GUIBase;
 using Diary.GUIBase.Utils;
-using Diary.Utils;
 using Diary.GUIBase.ViewModels;
-using Diary.RedMine;
+using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Diary.App.ViewModels;
@@ -21,7 +18,10 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     // db data fields
     private WorkItem? WorkItem { get; set; } // ref to existed db item, may null
-    private WorkTimeEntry? TimeEntry { get; set; }
+
+    // tracker 区（RedMine 等）。无 tracker 时为 null，编辑器只渲染 generic 字段。
+    private ITrackerEditorRegion? _tracker;
+    public ViewModelBase? TrackerRegion { get; private set; }
 
     // generic data
     [ObservableProperty] private string _date;
@@ -32,15 +32,10 @@ public partial class WorkEditorViewModel : ViewModelBase
     [ObservableProperty] private ObservableCollection<WorkTag> _workTags = new();
     [ObservableProperty] private ObservableCollection<WorkTag> _availableTags = new();
 
-    public ObservableCollection<WorkTag> AllTags => _shareData.WorkTags;
+    /// <summary>是否锁住 generic 编辑字段（=tracker 区已上传到远程）。</summary>
+    [ObservableProperty] private bool _isLocked;
 
-    // todo: redmine date
-    public ObservableCollection<RedMineIssueDisplay> RedMineIssues => _shareData.RedMineIssuesOpen;
-    public ObservableCollection<RedMineActivity> RedMineActivities => _shareData.RedMineActivities;
-    [ObservableProperty] private int _issueIndex = -1;
-    [ObservableProperty] private int _activityIndex = -1;
-    [ObservableProperty] private bool _uploaded = false;
-    [ObservableProperty] private string _issueText = string.Empty;
+    public ObservableCollection<WorkTag> AllTags => _shareData.WorkTags;
 
     // todo: plm?
 
@@ -67,6 +62,11 @@ public partial class WorkEditorViewModel : ViewModelBase
         Note = string.Empty;
         Time = 0.0;
         Priority = WorkPriorities.P0;
+
+        // 解析当前 tracker（首个注册的；M2 仅 RedMine），创建编辑器区。
+        var tracker = App.Instance.Services.GetService<IEnumerable<ITrackerIntegration>>()?.FirstOrDefault();
+        _tracker = tracker?.CreateEditorRegion();
+        TrackerRegion = _tracker as ViewModelBase;
 
         WorkTags.CollectionChanged += (_, _) =>
         {
@@ -122,12 +122,8 @@ public partial class WorkEditorViewModel : ViewModelBase
             db.WorkDeleteNote(WorkItem);
         }
 
-        // 保存redmine信息，如果有效的话
-        if (IssueIndex >= 0 && ActivityIndex >= 0)
-        {
-            TimeEntry = Db!.RedMineDb!.CreateWorkTimeEntry(WorkItem.Id, RedMineActivities[ActivityIndex].Id,
-                RedMineIssues[IssueIndex].Id);
-        }
+        // tracker 绑定（如 RedMine 的 issue/activity → CreateWorkTimeEntry）
+        _tracker?.OnSave(WorkItem);
 
         // 首次创建则全部添加标签
         if (created)
@@ -149,7 +145,7 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     public bool CanDelete()
     {
-        return !Uploaded;
+        return _tracker?.CanDelete ?? true;
     }
 
     [RelayCommand]
@@ -168,13 +164,14 @@ public partial class WorkEditorViewModel : ViewModelBase
     {
         SyncNote();
         SyncTags();
-        SyncRedMine();
+        _tracker?.OnWorkItemChanged(WorkItem);
+        IsLocked = _tracker?.IsLocked ?? false;
     }
 
     public void SyncFromBatch(
         Dictionary<int, string> notesById,
         Dictionary<int, ICollection<WorkTag>> tagsById,
-        Dictionary<int, WorkTimeEntry> timeEntriesById)
+        IDictionary<int, object?>? bindingsById)
     {
         if (WorkItem is not { Id: > 0 })
             return;
@@ -198,42 +195,11 @@ public partial class WorkEditorViewModel : ViewModelBase
         _syncing_tags = false;
         UpdateAvailableTags();
 
-        if (timeEntriesById.TryGetValue(id, out var timeEntry))
-        {
-            TimeEntry = timeEntry;
-            SyncRedMineFromEntry();
-        }
-    }
-
-    private void SyncRedMineFromEntry()
-    {
-        if (TimeEntry == null)
-        {
-            IssueIndex = ActivityIndex = -1;
-            IssueText = string.Empty;
-            return;
-        }
-
-        for (var i = 0; i < RedMineIssues.Count; i++)
-        {
-            if (TimeEntry.IssueId == RedMineIssues[i].Id)
-            {
-                IssueIndex = i;
-                IssueText = $"#{RedMineIssues[i].Id} {RedMineIssues[i].Title} ({RedMineIssues[i].Project})";
-                break;
-            }
-        }
-
-        for (var i = 0; i < RedMineActivities.Count; i++)
-        {
-            if (TimeEntry.ActivityId == RedMineActivities[i].Id)
-            {
-                ActivityIndex = i;
-                break;
-            }
-        }
-
-        Uploaded = TimeEntry.EntryId > 0;
+        var binding = bindingsById != null && bindingsById.TryGetValue(id, out var b)
+            ? b
+            : null;
+        _tracker?.OnWorkItemChanged(WorkItem, binding);
+        IsLocked = _tracker?.IsLocked ?? false;
     }
 
     private void SyncNote()
@@ -263,17 +229,6 @@ public partial class WorkEditorViewModel : ViewModelBase
         _syncing_tags = false;
     }
 
-    public void SyncRedMine()
-    {
-        TimeEntry = null;
-        if (WorkItem is { Id: > 0 })
-        {
-            TimeEntry = Db!.RedMineDb!.WorkItemGetTimeEntry(WorkItem);
-        }
-
-        SyncRedMineFromEntry();
-    }
-
     public WorkEditorViewModel Clone()
     {
         var result = new WorkEditorViewModel(_shareData)
@@ -284,14 +239,13 @@ public partial class WorkEditorViewModel : ViewModelBase
             Comment = Comment,
             Time = 0.0,
             Priority = Priority,
-            IssueIndex = IssueIndex,
-            IssueText = IssueText,
-            ActivityIndex = ActivityIndex,
         };
         foreach (var tag in WorkTags)
         {
             result.WorkTags.Add(tag);
         }
+        // tracker 区选择复制到新 editor 的 region
+        _tracker?.OnCloneTo(result._tracker);
 
         return result;
     }
@@ -364,64 +318,18 @@ public partial class WorkEditorViewModel : ViewModelBase
         }
     }
 
-    private bool CanUpload()
-    {
-        return IssueIndex >= 0 && ActivityIndex >= 0 && Time > 0; // new item and both set
-    }
-
     public async Task<(bool, string?)> Upload()
     {
-        if (Uploaded)
-            return (false, null);
-        if (!CanUpload())
-            return (false, "问题或活动不正确，又或者耗时是0");
-        Debug.Assert(WorkItem is not null);
-        Debug.Assert(TimeEntry is not null);
-
-        // 网络 API 调用与 DB 写入一并放到后台线程，避免在 UI 线程同步写库造成卡顿
-        var entryId = 0;
-        await Task.Run(() =>
-        {
-            if (RedMineApis.CreateTimeEntry(out var ti, TimeEntry.IssueId,
-                    TimeEntry.ActivityId, WorkItem.CreateDate,
-                    WorkItem.Time, WorkItem.Comment))
-                entryId = ti.Id;
-            TimeEntry.EntryId = entryId;
-            Db!.RedMineDb!.UpdateWorkTimeEntry(TimeEntry); // 关联到数据库
-        });
-        // 绑定属性必须在 UI 线程更新（await 恢复点）
-        Uploaded = entryId > 0;
-        return (Uploaded, Uploaded ? null : "可能是网络问题");
+        if (_tracker is null)
+            return (false, "无可用 tracker");
+        var (ok, msg) = await _tracker.UploadAsync(WorkItem!);
+        IsLocked = _tracker.IsLocked;
+        return (ok, msg);
     }
 
-    public void SetRedMineActivity(int activityId)
-    {
-        for (var i = 0; i < RedMineActivities.Count; i++)
-        {
-            if (RedMineActivities[i].Id == activityId)
-            {
-                ActivityIndex = i;
-                return;
-            }
-        }
+    /// <summary>模板默认值应用：按 id 选中 activity（RedMine 语义）。</summary>
+    public void SetRedMineActivity(int activityId) => _tracker?.SetActivity(activityId);
 
-        ActivityIndex = -1;
-    }
-
-    public void SetRedMineIssues(int issueId)
-    {
-        for (var i = 0; i < RedMineIssues.Count; i++)
-        {
-            var x = RedMineIssues[i];
-            if (x.Id == issueId)
-            {
-                IssueIndex = i;
-                IssueText = $"#{x.Id} {x.Title} ({x.Project})";
-                return;
-            }
-        }
-
-        IssueIndex = -1;
-        IssueText = string.Empty;
-    }
+    /// <summary>模板默认值应用：按 id 选中 issue（RedMine 语义）。</summary>
+    public void SetRedMineIssues(int issueId) => _tracker?.SetIssue(issueId);
 }

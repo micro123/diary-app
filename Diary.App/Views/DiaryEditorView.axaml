@@ -134,12 +134,12 @@
                                             </ItemsControl>
                                             <!-- 提交状态 -->
                                             <StackPanel Name="ViewSubmitted" Orientation="Horizontal" Spacing="2"
-                                                        IsVisible="{Binding Uploaded}">
+                                                        IsVisible="{Binding IsLocked}">
                                                 <i:Icon Value="mdi-check-circle-outline" FontSize="20" />
                                                 <TextBlock Text="已提交" />
                                             </StackPanel>
                                             <StackPanel Name="ViewUnsubmit" Orientation="Horizontal" Spacing="2"
-                                                        IsVisible="{Binding !Uploaded}">
+                                                        IsVisible="{Binding !IsLocked}">
                                                 <i:Icon Value="mdi-radiobox-blank" FontSize="20" />
                                                 <TextBlock Text="未提交" />
                                             </StackPanel>

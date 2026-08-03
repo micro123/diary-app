@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Messaging;
 using Diary.Core.Constants;
 using Diary.App.Models;
 using Diary.Core.Data.AppConfig;
+using Diary.GUIBase;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
@@ -58,19 +59,28 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
-        _pages =
-        [
-            new NavigateInfo(PageNames.DiaryEditor, "mdi-notebook", serviceProvider.GetService<DiaryEditorViewModel>(),
-                "Alt+1"),
-            new NavigateInfo(PageNames.RedMineTool, "fa-cloud",
-                serviceProvider.GetRequiredService<RedMineManageViewModel>(), "Alt+2"),
-            new NavigateInfo(PageNames.Statistics, "fa-chart-pie",
-                serviceProvider.GetRequiredService<StatisticsViewModel>(), "Alt+3"),
-            new NavigateInfo(PageNames.SurveyTool, "mdi-chat-processing-outline",
-                serviceProvider.GetRequiredService<SurveyViewModel>(), "Alt+4"),
-            new NavigateInfo(PageNames.Settings, "mdi-cog-outline", serviceProvider.GetService<SettingsViewModel>(),
-                "Alt+5")
-        ];
+
+        // 导航可扩展：[日记] + tracker 贡献页 + [统计/调查/设置]。
+        // 手势按最终位置分配 Alt+1..；单 tracker（RedMine）下顺序/手势与原硬编码一致。
+        var built = new List<NavigateInfo>();
+        var trackers = serviceProvider.GetService<IEnumerable<ITrackerIntegration>>() ?? Enumerable.Empty<ITrackerIntegration>();
+        int idx = 1;
+        built.Add(new NavigateInfo(PageNames.DiaryEditor, "mdi-notebook",
+            serviceProvider.GetService<DiaryEditorViewModel>(), $"Alt+{idx++}"));
+        foreach (var t in trackers)
+        {
+            var page = t.CreateManagePage();
+            if (page is null)
+                continue;
+            built.Add(new NavigateInfo(t.DisplayName, t.Icon, page, $"Alt+{idx++}"));
+        }
+        built.Add(new NavigateInfo(PageNames.Statistics, "fa-chart-pie",
+            serviceProvider.GetRequiredService<StatisticsViewModel>(), $"Alt+{idx++}"));
+        built.Add(new NavigateInfo(PageNames.SurveyTool, "mdi-chat-processing-outline",
+            serviceProvider.GetRequiredService<SurveyViewModel>(), $"Alt+{idx++}"));
+        built.Add(new NavigateInfo(PageNames.Settings, "mdi-cog-outline",
+            serviceProvider.GetService<SettingsViewModel>(), $"Alt+{idx++}"));
+        _pages = new ObservableCollection<NavigateInfo>(built);
         _statusBarViewModel = _serviceProvider.GetRequiredService<StatusBarViewModel>();
 
         SelectedPage = Pages[0];

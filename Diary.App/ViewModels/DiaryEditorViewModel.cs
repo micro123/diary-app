@@ -10,6 +10,7 @@ using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.Models;
 using Diary.Core.Constants;
 using Diary.Core.Data.App;
+using Diary.GUIBase;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
@@ -157,7 +158,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         Dispatcher.UIThread.Post(() => UploadTimeCommand.NotifyCanExecuteChanged());
     }
 
-    private bool CanUpload => SelectedWork is { Uploaded: false };
+    private bool CanUpload => SelectedWork is { IsLocked: false };
 
     [RelayCommand(CanExecute = nameof(CanUploadAll))]
     private async Task UploadAll()
@@ -174,7 +175,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
         foreach (var work in DailyWorks)
         {
-            if (!work.Uploaded)
+            if (!work.IsLocked)
             {
                 var (result, message) = await work.Upload();
                 if (result)
@@ -272,12 +273,14 @@ public partial class DiaryEditorViewModel : ViewModelBase
             {
                 var notesById = db.GetWorkNotesByDate(CurrentDateString);
                 var tagsById = db.GetWorkTagsByDate(CurrentDateString);
-                var timeEntriesById = db.GetWorkTimeEntriesByDate(CurrentDateString);
+                var tracker = App.Instance.Services
+                    .GetService<IEnumerable<ITrackerIntegration>>()?.FirstOrDefault();
+                var bindingsById = tracker?.LoadBindingsByDate(CurrentDateString);
 
                 foreach (var item in dbItems)
                 {
                     var x = WorkEditorViewModel.FromWorkItem(item);
-                    x.SyncFromBatch(notesById, tagsById, timeEntriesById);
+                    x.SyncFromBatch(notesById, tagsById, bindingsById);
                     DailyWorks.Add(x);
                 }
             }
@@ -299,7 +302,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         foreach (var work in DailyWorks)
         {
             sum += work.Time;
-            if (work.Uploaded)
+            if (work.IsLocked)
                 uploaded += work.Time;
         }
 
