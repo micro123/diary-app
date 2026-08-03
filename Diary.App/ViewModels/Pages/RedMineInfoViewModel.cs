@@ -42,7 +42,7 @@ public partial class RedMineInfoViewModel : ViewModelBase
         {
             RedMineApis.GetActivities(out var activities);
             // 更新数据库
-            var all = activities?.Select(x => Db!.AddRedMineActivity(x.Id, x.Name)).ToArray();
+            var all = activities?.Select(x => Db!.RedMineDb!.AddRedMineActivity(x.Id, x.Name)).ToArray();
             return all != null;
         });
         EventDispatcher.DbChanged(DbChangedEvent.RedMineActivity);
@@ -101,7 +101,7 @@ public partial class RedMineInfoViewModel : ViewModelBase
                         if (!issue.Status.IsClosed)
                             continue;
                         changed = true;
-                        Db!.AddRedMineIssue(issue.Id, issue.Subject, issue.AssignedTo.Name, issue.Project.Id, issue.Status.IsClosed);
+                        Db!.RedMineDb!.AddRedMineIssue(issue.Id, issue.Subject, issue.AssignedTo.Name, issue.Project.Id, issue.Status.IsClosed);
                     }
                 }
             }
@@ -123,7 +123,7 @@ public partial class RedMineInfoViewModel : ViewModelBase
     {
         await Task.Run(() =>
         {
-            Db!.UpdateRedMineIssueStatus(issue.Id, !issue.Disabled);
+            Db!.RedMineDb!.UpdateRedMineIssueStatus(issue.Id, !issue.Disabled);
         });
         EventDispatcher.DbChanged(DbChangedEvent.RedMineIssue);
     }

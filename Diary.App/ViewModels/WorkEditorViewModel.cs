@@ -125,7 +125,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         // 保存redmine信息，如果有效的话
         if (IssueIndex >= 0 && ActivityIndex >= 0)
         {
-            TimeEntry = Db!.CreateWorkTimeEntry(WorkItem.Id, RedMineActivities[ActivityIndex].Id,
+            TimeEntry = Db!.RedMineDb!.CreateWorkTimeEntry(WorkItem.Id, RedMineActivities[ActivityIndex].Id,
                 RedMineIssues[IssueIndex].Id);
         }
 
@@ -268,7 +268,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         TimeEntry = null;
         if (WorkItem is { Id: > 0 })
         {
-            TimeEntry = Db!.WorkItemGetTimeEntry(WorkItem);
+            TimeEntry = Db!.RedMineDb!.WorkItemGetTimeEntry(WorkItem);
         }
 
         SyncRedMineFromEntry();
@@ -387,7 +387,7 @@ public partial class WorkEditorViewModel : ViewModelBase
                     WorkItem.Time, WorkItem.Comment))
                 entryId = ti.Id;
             TimeEntry.EntryId = entryId;
-            Db!.UpdateWorkTimeEntry(TimeEntry); // 关联到数据库
+            Db!.RedMineDb!.UpdateWorkTimeEntry(TimeEntry); // 关联到数据库
         });
         // 绑定属性必须在 UI 线程更新（await 恢复点）
         Uploaded = entryId > 0;

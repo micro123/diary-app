@@ -380,49 +380,9 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
         return Query(sql, MapWorkTag, ("$work_id", item.Id));
     }
 
-    #region redmine — 委托至 SQLiteRedMineDb（阶段 1 indirection，行为零变化）
-
-    private SQLiteRedMineDb? _redMine;
-    private SQLiteRedMineDb RedMine => _redMine ??= new SQLiteRedMineDb(this);
-
-    public override RedMineActivity AddRedMineActivity(int id, string title)
-        => RedMine.AddRedMineActivity(id, title);
-
-    public override RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project,
-        bool closed = false)
-        => RedMine.AddRedMineIssue(id, title, assignedTo, project, closed);
-
-    public override void UpdateRedMineIssueStatus(int id, bool closed)
-        => RedMine.UpdateRedMineIssueStatus(id, closed);
-
-    public override RedMineProject AddRedMineProject(int id, string title, string description)
-        => RedMine.AddRedMineProject(id, title, description);
-
-    public override void UpdateRedMineProjectStatus(int id, bool closed)
-        => RedMine.UpdateRedMineProjectStatus(id, closed);
-
-    public override WorkTimeEntry? WorkItemGetTimeEntry(WorkItem item)
-        => RedMine.WorkItemGetTimeEntry(item);
-
-    public override bool WorkItemWasUploaded(WorkItem item)
-        => RedMine.WorkItemWasUploaded(item);
-
-    public override ICollection<RedMineActivity> GetRedMineActivities()
-        => RedMine.GetRedMineActivities();
-
-    public override ICollection<RedMineIssueDisplay> GetRedMineIssues(RedMineProject? project)
-        => RedMine.GetRedMineIssues(project);
-
-    public override ICollection<RedMineProject> GetRedMineProjects()
-        => RedMine.GetRedMineProjects();
-
-    public override WorkTimeEntry? CreateWorkTimeEntry(int work, int activity, int issue)
-        => RedMine.CreateWorkTimeEntry(work, activity, issue);
-
-    public override bool UpdateWorkTimeEntry(WorkTimeEntry timeEntry)
-        => RedMine.UpdateWorkTimeEntry(timeEntry);
-
-    #endregion
+    // redmine — provider 支持 RedMine：构造 SQLiteRedMineDb（经 base.RedMineDb 暴露）。
+    // 不支持 RedMine 的 provider 返回 null 即可。
+    protected override IRedMineDb? CreateRedMineDb() => new SQLiteRedMineDb(this);
 
     public override StatisticsResult GetStatistics(string beginDate, string endDate)
     {

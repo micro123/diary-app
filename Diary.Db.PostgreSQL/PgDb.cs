@@ -429,49 +429,9 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
     }
 
     // $1=id $2=title
-    #region redmine — 委托至 PgRedMineDb（阶段 1 indirection，行为零变化）
-
-    private PgRedMineDb? _redMine;
-    private PgRedMineDb RedMine => _redMine ??= new PgRedMineDb(this);
-
-    public override RedMineActivity AddRedMineActivity(int id, string title)
-        => RedMine.AddRedMineActivity(id, title);
-
-    public override RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project,
-        bool closed = false)
-        => RedMine.AddRedMineIssue(id, title, assignedTo, project, closed);
-
-    public override void UpdateRedMineIssueStatus(int id, bool closed)
-        => RedMine.UpdateRedMineIssueStatus(id, closed);
-
-    public override RedMineProject AddRedMineProject(int id, string title, string description)
-        => RedMine.AddRedMineProject(id, title, description);
-
-    public override void UpdateRedMineProjectStatus(int id, bool closed)
-        => RedMine.UpdateRedMineProjectStatus(id, closed);
-
-    public override WorkTimeEntry? WorkItemGetTimeEntry(WorkItem item)
-        => RedMine.WorkItemGetTimeEntry(item);
-
-    public override bool WorkItemWasUploaded(WorkItem item)
-        => RedMine.WorkItemWasUploaded(item);
-
-    public override ICollection<RedMineActivity> GetRedMineActivities()
-        => RedMine.GetRedMineActivities();
-
-    public override ICollection<RedMineIssueDisplay> GetRedMineIssues(RedMineProject? project)
-        => RedMine.GetRedMineIssues(project);
-
-    public override ICollection<RedMineProject> GetRedMineProjects()
-        => RedMine.GetRedMineProjects();
-
-    public override WorkTimeEntry? CreateWorkTimeEntry(int work, int activity, int issus)
-        => RedMine.CreateWorkTimeEntry(work, activity, issus);
-
-    public override bool UpdateWorkTimeEntry(WorkTimeEntry timeEntry)
-        => RedMine.UpdateWorkTimeEntry(timeEntry);
-
-    #endregion
+    // redmine — provider 支持 RedMine：构造 PgRedMineDb（经 base.RedMineDb 暴露）。
+    // 不支持 RedMine 的 provider 返回 null 即可。
+    protected override IRedMineDb? CreateRedMineDb() => new PgRedMineDb(this);
 
     public override StatisticsResult GetStatistics(string beginDate, string endDate)
     {

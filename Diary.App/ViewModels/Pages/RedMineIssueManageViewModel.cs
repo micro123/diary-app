@@ -70,9 +70,9 @@ public partial class RedMineIssueManageViewModel : PaginatedSearchViewModel<Issu
         {
             RedMineApis.GetProject(out var project, issue.Project.Id);
             Debug.Assert(project != null);
-            Db.AddRedMineProject(project.Id, project.Name, project.Description);
+            Db.RedMineDb!.AddRedMineProject(project.Id, project.Name, project.Description);
 
-            Db.AddRedMineIssue(issue.Id, issue.Subject, issue.AssignedTo.Name, issue.Project.Id, issue.Status.IsClosed);
+            Db.RedMineDb!.AddRedMineIssue(issue.Id, issue.Subject, issue.AssignedTo.Name, issue.Project.Id, issue.Status.IsClosed);
         });
     }
 }

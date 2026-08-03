@@ -269,10 +269,10 @@ public abstract class DbContractTests
     public void AddRedMineActivity_GetActivities()
     {
         using var db = CreateDb();
-        var act = db.AddRedMineActivity(10, "开发");
+        var act = db.RedMineDb!.AddRedMineActivity(10, "开发");
         Assert.AreEqual(10, act.Id);
         Assert.AreEqual("开发", act.Title);
-        var all = db.GetRedMineActivities();
+        var all = db.RedMineDb!.GetRedMineActivities();
         Assert.AreEqual(1, all.Count);
         Assert.AreEqual("开发", all.First().Title);
     }
@@ -281,36 +281,36 @@ public abstract class DbContractTests
     public void AddRedMineProject_GetProjects()
     {
         using var db = CreateDb();
-        var proj = db.AddRedMineProject(20, "项目A", "描述");
+        var proj = db.RedMineDb!.AddRedMineProject(20, "项目A", "描述");
         Assert.AreEqual(20, proj.Id);
         Assert.AreEqual("项目A", proj.Title);
         Assert.AreEqual("描述", proj.Description);
         Assert.IsFalse(proj.IsClosed);
-        Assert.AreEqual(1, db.GetRedMineProjects().Count);
+        Assert.AreEqual(1, db.RedMineDb!.GetRedMineProjects().Count);
     }
 
     [TestMethod]
     public void UpdateRedMineProjectStatus_TogglesClosed()
     {
         using var db = CreateDb();
-        db.AddRedMineProject(20, "P", "");
-        db.UpdateRedMineProjectStatus(20, true);
-        Assert.IsTrue(db.GetRedMineProjects().Single(p => p.Id == 20).IsClosed);
+        db.RedMineDb!.AddRedMineProject(20, "P", "");
+        db.RedMineDb!.UpdateRedMineProjectStatus(20, true);
+        Assert.IsTrue(db.RedMineDb!.GetRedMineProjects().Single(p => p.Id == 20).IsClosed);
     }
 
     [TestMethod]
     public void AddRedMineIssue_GetIssuesByProject()
     {
         using var db = CreateDb();
-        db.AddRedMineProject(20, "项目A", "");
-        db.AddRedMineProject(21, "项目B", "");
-        db.AddRedMineIssue(100, "任务1", "张三", 20);
-        db.AddRedMineIssue(101, "任务2", "李四", 21);
+        db.RedMineDb!.AddRedMineProject(20, "项目A", "");
+        db.RedMineDb!.AddRedMineProject(21, "项目B", "");
+        db.RedMineDb!.AddRedMineIssue(100, "任务1", "张三", 20);
+        db.RedMineDb!.AddRedMineIssue(101, "任务2", "李四", 21);
 
-        var all = db.GetRedMineIssues(null).ToList();
+        var all = db.RedMineDb!.GetRedMineIssues(null).ToList();
         Assert.AreEqual(2, all.Count);
 
-        var onlyA = db.GetRedMineIssues(db.GetRedMineProjects().Single(p => p.Id == 20)).ToList();
+        var onlyA = db.RedMineDb!.GetRedMineIssues(db.RedMineDb!.GetRedMineProjects().Single(p => p.Id == 20)).ToList();
         Assert.AreEqual(1, onlyA.Count);
         Assert.AreEqual(100, onlyA[0].Id);
         Assert.AreEqual("项目A", onlyA[0].Project);
@@ -320,10 +320,10 @@ public abstract class DbContractTests
     public void UpdateRedMineIssueStatus_TogglesClosed()
     {
         using var db = CreateDb();
-        db.AddRedMineProject(20, "P", "");
-        db.AddRedMineIssue(100, "任务", "", 20);
-        db.UpdateRedMineIssueStatus(100, true);
-        var issue = db.GetRedMineIssues(null).Single(i => i.Id == 100);
+        db.RedMineDb!.AddRedMineProject(20, "P", "");
+        db.RedMineDb!.AddRedMineIssue(100, "任务", "", 20);
+        db.RedMineDb!.UpdateRedMineIssueStatus(100, true);
+        var issue = db.RedMineDb!.GetRedMineIssues(null).Single(i => i.Id == 100);
         Assert.IsTrue(issue.Disabled);
     }
 
@@ -332,17 +332,17 @@ public abstract class DbContractTests
     {
         using var db = CreateDb();
         var item = db.CreateWorkItem("2026-08-01", "x");
-        db.AddRedMineActivity(10, "开发");
-        db.AddRedMineProject(20, "P", "");
-        db.AddRedMineIssue(100, "任务", "", 20);
+        db.RedMineDb!.AddRedMineActivity(10, "开发");
+        db.RedMineDb!.AddRedMineProject(20, "P", "");
+        db.RedMineDb!.AddRedMineIssue(100, "任务", "", 20);
 
-        var entry = db.CreateWorkTimeEntry(item.Id, 10, 100);
+        var entry = db.RedMineDb!.CreateWorkTimeEntry(item.Id, 10, 100);
         Assert.IsNotNull(entry);
         Assert.AreEqual(item.Id, entry!.WorkId);
         Assert.AreEqual(10, entry.ActivityId);
         Assert.AreEqual(100, entry.IssueId);
 
-        var got = db.WorkItemGetTimeEntry(item);
+        var got = db.RedMineDb!.WorkItemGetTimeEntry(item);
         Assert.IsNotNull(got);
         Assert.AreEqual(10, got!.ActivityId);
     }
@@ -353,17 +353,17 @@ public abstract class DbContractTests
     {
         using var db = CreateDb();
         var item = db.CreateWorkItem("2026-08-01", "x");
-        db.AddRedMineActivity(10, "开发");
-        db.AddRedMineProject(20, "P", "");
-        db.AddRedMineIssue(100, "任务", "", 20);
+        db.RedMineDb!.AddRedMineActivity(10, "开发");
+        db.RedMineDb!.AddRedMineProject(20, "P", "");
+        db.RedMineDb!.AddRedMineIssue(100, "任务", "", 20);
 
-        db.CreateWorkTimeEntry(item.Id, 10, 100);
-        Assert.IsFalse(db.WorkItemWasUploaded(item));
+        db.RedMineDb!.CreateWorkTimeEntry(item.Id, 10, 100);
+        Assert.IsFalse(db.RedMineDb!.WorkItemWasUploaded(item));
 
-        var entry = db.WorkItemGetTimeEntry(item)!;
+        var entry = db.RedMineDb!.WorkItemGetTimeEntry(item)!;
         entry.EntryId = 42;
-        Assert.IsTrue(db.UpdateWorkTimeEntry(entry));
-        Assert.IsTrue(db.WorkItemWasUploaded(item));
+        Assert.IsTrue(db.RedMineDb!.UpdateWorkTimeEntry(entry));
+        Assert.IsTrue(db.RedMineDb!.WorkItemWasUploaded(item));
     }
 
     /// <summary>档 2 薄委托回归：GetWorkTimeEntriesByDate 按 workId 分组。</summary>
@@ -372,10 +372,10 @@ public abstract class DbContractTests
     {
         using var db = CreateDb();
         var item = db.CreateWorkItem("2026-08-01", "x");
-        db.AddRedMineActivity(10, "开发");
-        db.AddRedMineProject(20, "P", "");
-        db.AddRedMineIssue(100, "任务", "", 20);
-        db.CreateWorkTimeEntry(item.Id, 10, 100);
+        db.RedMineDb!.AddRedMineActivity(10, "开发");
+        db.RedMineDb!.AddRedMineProject(20, "P", "");
+        db.RedMineDb!.AddRedMineIssue(100, "任务", "", 20);
+        db.RedMineDb!.CreateWorkTimeEntry(item.Id, 10, 100);
 
         var dict = db.GetWorkTimeEntriesByDate("2026-08-01");
         Assert.AreEqual(1, dict.Count);
@@ -487,7 +487,7 @@ public abstract class DbContractTests
     public void GetRedMineActivities_EmptyTable_ReturnsEmptyList()
     {
         using var db = CreateDb();
-        Assert.AreEqual(0, db.GetRedMineActivities().Count);
+        Assert.AreEqual(0, db.RedMineDb!.GetRedMineActivities().Count);
     }
 
     /// <summary>helper 边界：无条目时 WorkItemGetTimeEntry 返回 null。</summary>
@@ -496,7 +496,7 @@ public abstract class DbContractTests
     {
         using var db = CreateDb();
         var item = db.CreateWorkItem("2026-08-01", "x");
-        Assert.IsNull(db.WorkItemGetTimeEntry(item));
+        Assert.IsNull(db.RedMineDb!.WorkItemGetTimeEntry(item));
     }
 
     // ---------- 补全：GetWorkItemsByTagAndDate / KeepAlive / Close / 边界 ----------
@@ -554,9 +554,9 @@ public abstract class DbContractTests
     public void AddRedMineIssue_ClosedTrue_ReflectsInQuery()
     {
         using var db = CreateDb();
-        db.AddRedMineProject(20, "P", "");
-        db.AddRedMineIssue(100, "任务", "张三", 20, closed: true);
-        var issue = db.GetRedMineIssues(null).Single(i => i.Id == 100);
+        db.RedMineDb!.AddRedMineProject(20, "P", "");
+        db.RedMineDb!.AddRedMineIssue(100, "任务", "张三", 20, closed: true);
+        var issue = db.RedMineDb!.GetRedMineIssues(null).Single(i => i.Id == 100);
         Assert.IsTrue(issue.Disabled);
     }
 

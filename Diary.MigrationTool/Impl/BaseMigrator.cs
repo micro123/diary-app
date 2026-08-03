@@ -54,7 +54,7 @@ internal abstract class BaseMigrator : IDisposable, IAsyncDisposable
         while (reader.Read())
         {
             Ok(p, $"处理第{cnt++}条活动信息");
-            Db.AddRedMineActivity(reader.GetInt32(0), reader.GetString(1));
+            Db.RedMineDb!.AddRedMineActivity(reader.GetInt32(0), reader.GetString(1));
         }
 
         return true;
@@ -75,8 +75,8 @@ internal abstract class BaseMigrator : IDisposable, IAsyncDisposable
                 var project = info.Project;
                 if (RedMineApis.GetProject(out ProjectInfo? projectInfo, project.Id))
                 {
-                    Db.AddRedMineProject(projectInfo.Id, projectInfo.Name, projectInfo.Description);
-                    Db.AddRedMineIssue(issueId, info.Subject, info.AssignedTo.Name, projectInfo.Id, isClosed);
+                    Db.RedMineDb!.AddRedMineProject(projectInfo.Id, projectInfo.Name, projectInfo.Description);
+                    Db.RedMineDb!.AddRedMineIssue(issueId, info.Subject, info.AssignedTo.Name, projectInfo.Id, isClosed);
                 }
                 else
                 {
@@ -128,11 +128,11 @@ internal abstract class BaseMigrator : IDisposable, IAsyncDisposable
 
             if (actId != 0 && issueId != 0)
             {
-                var entry = Db.CreateWorkTimeEntry(item.Id, actId, issueId);
+                var entry = Db.RedMineDb!.CreateWorkTimeEntry(item.Id, actId, issueId);
                 if (entry != null && uploaded)
                 {
                     entry.EntryId = dummyId++;
-                    Db.UpdateWorkTimeEntry(entry);
+                    Db.RedMineDb!.UpdateWorkTimeEntry(entry);
                 }
             }
         }

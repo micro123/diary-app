@@ -62,7 +62,7 @@ public class DbShareData
 
     private void LoadActivities()
     {
-        var activities = DbInterface!.GetRedMineActivities();
+        var activities = DbInterface!.RedMineDb!.GetRedMineActivities();
         RedMineActivities.Clear();
         foreach (var activity in activities)
         {
@@ -72,7 +72,7 @@ public class DbShareData
 
     private void LoadIssues()
     {
-        var issues = DbInterface!.GetRedMineIssues(null);
+        var issues = DbInterface!.RedMineDb!.GetRedMineIssues(null);
         RedMineIssues.Clear();
         RedMineIssuesOpen.Clear();
         foreach (var issue in issues)

@@ -100,7 +100,7 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
         var result = new Dictionary<int, WorkTimeEntry>();
         foreach (var item in GetWorkItemByDate(date))
         {
-            var entry = WorkItemGetTimeEntry(item);
+            var entry = RedMineDb?.WorkItemGetTimeEntry(item);
             if (entry != null)
                 result[item.Id] = entry;
         }
@@ -113,22 +113,11 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
     public abstract bool WorkItemCleanTags(WorkItem item);
     public abstract ICollection<WorkTag> GetWorkItemTags(WorkItem item);
 
-    // redmine
-    public abstract RedMineActivity AddRedMineActivity(int id, string title);
-    public abstract RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project, bool closed = false);
-    public abstract void UpdateRedMineIssueStatus(int id, bool closed);
-    public abstract RedMineProject AddRedMineProject(int id, string title, string description);
-    public abstract void UpdateRedMineProjectStatus(int id, bool closed);
-    public abstract WorkTimeEntry? WorkItemGetTimeEntry(WorkItem item);
-    public abstract bool WorkItemWasUploaded(WorkItem item);
-
-    public abstract ICollection<RedMineActivity> GetRedMineActivities();
-    public abstract ICollection<RedMineIssueDisplay> GetRedMineIssues(RedMineProject? project);
-    public abstract ICollection<RedMineProject> GetRedMineProjects();
-
-    // time-entries
-    public abstract WorkTimeEntry? CreateWorkTimeEntry(int work, int activity, int issus);
-    public abstract bool UpdateWorkTimeEntry(WorkTimeEntry timeEntry);
+    // redmine — 经 IRedMineDb 访问。不再强制每个 provider 实现 RedMine：
+    // provider 若支持 RedMine，override CreateRedMineDb() 返回其 RedMineDb；否则返回 null。
+    public IRedMineDb? RedMineDb => _redMine ??= CreateRedMineDb();
+    private IRedMineDb? _redMine;
+    protected abstract IRedMineDb? CreateRedMineDb();
 
     // statistics
     public abstract StatisticsResult GetStatistics(string beginDate, string endDate);
