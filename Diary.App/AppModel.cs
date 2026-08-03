@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging;
 namespace Diary.App;
 
 [DiAutoRegister]
-public partial class AppModel: ObservableObject
+public partial class AppModel : ObservableObject
 {
     private readonly ILogger _logger;
 

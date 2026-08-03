@@ -33,7 +33,7 @@ public static class Migrator
 
         return false;
     }
-    
+
     public static bool MigrateFromPgsql(DbInterfaceBase db, string host, ushort port, string database, string user, string password, Action<bool, double, string> processCallback)
     {
         bool endTransaction = false;

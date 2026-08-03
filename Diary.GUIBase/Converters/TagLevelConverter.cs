@@ -5,7 +5,7 @@ using Diary.Core.Data.Base;
 
 namespace Diary.GUIBase.Converters;
 
-public class TagLevelConverter:IValueConverter
+public class TagLevelConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {

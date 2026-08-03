@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -16,7 +12,7 @@ using Ursa.Controls;
 namespace Diary.App.ViewModels.Dialogs;
 
 [DiAutoRegister]
-public partial class DbMigrationViewModel: ViewModelBase, IDialogContext
+public partial class DbMigrationViewModel : ViewModelBase, IDialogContext
 {
     private readonly ILogger _logger;
     public static IList<string> DbProviders { get; } = ["SQLite", "PostgreSQL"];
@@ -26,17 +22,17 @@ public partial class DbMigrationViewModel: ViewModelBase, IDialogContext
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(AbortCommand))]
     private bool _working;
-    
+
     // sqlite params
     [ObservableProperty] private string _sqlitePath = string.Empty;
-    
+
     // postgresql params
     [ObservableProperty] private string _host = string.Empty;
     [ObservableProperty] private string _database = string.Empty;
     [ObservableProperty] private ushort _port = 5432;
     [ObservableProperty] private string _user = string.Empty;
     [ObservableProperty] private string _password = string.Empty;
-    
+
     // status message
     [ObservableProperty] private bool _status = true;
     [ObservableProperty] private double _progress;
@@ -47,7 +43,7 @@ public partial class DbMigrationViewModel: ViewModelBase, IDialogContext
         _logger = logger;
         DbType = DbProviders[0];
     }
-    
+
     partial void OnDbTypeChanged(string value)
     {
         SqliteMode = value == DbProviders[0];
@@ -79,7 +75,7 @@ public partial class DbMigrationViewModel: ViewModelBase, IDialogContext
             button: MessageBoxButton.YesNo);
         if (ans != MessageBoxResult.Yes)
             return;
-        
+
         Working = true;
         var result = await Task.Run(() =>
         {

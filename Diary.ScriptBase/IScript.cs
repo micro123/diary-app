@@ -14,7 +14,7 @@ public interface IEditorScript : IScript
 {
     bool ApplyToDay { get; }
     bool ApplyToRange { get; }
-    
+
     void ExecuteDay(string date, IScriptApi apiSet);
     void ExecuteRange(string startDate, string endDate, IScriptApi apiSet);
 }

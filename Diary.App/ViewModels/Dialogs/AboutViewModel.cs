@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using Diary.GUIBase.ViewModels;
 using Diary.Utils;
@@ -8,7 +6,7 @@ using Irihi.Avalonia.Shared.Contracts;
 namespace Diary.App.ViewModels.Dialogs;
 
 [DiAutoRegister]
-public partial class AboutViewModel: ViewModelBase, IDialogContext
+public partial class AboutViewModel : ViewModelBase, IDialogContext
 {
     public void Close()
     {

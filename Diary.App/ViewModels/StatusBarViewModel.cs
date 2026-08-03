@@ -1,4 +1,3 @@
-using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.GUIBase.ViewModels;
@@ -7,7 +6,7 @@ using Diary.Utils;
 namespace Diary.App.ViewModels;
 
 [DiAutoRegister]
-public partial class StatusBarViewModel: ViewModelBase
+public partial class StatusBarViewModel : ViewModelBase
 {
     [ObservableProperty] private string _date;
     [ObservableProperty] private string _userName;

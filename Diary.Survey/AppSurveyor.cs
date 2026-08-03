@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text;
 using Diary.Utils;
 using Microsoft.Extensions.Logging;
@@ -14,30 +13,30 @@ public class AppSurveyor
     private ISurveyorAsyncContext<INngMsg>? _surveyorCtx;
     private CancellationTokenSource? _cts;
     private ILogger Logger => Logging.Logger;
-    
+
     public event EventHandler<string>? ReceiveMessage;
-    
+
     public bool StartServer()
     {
         if (_surveyor != null)
             return false;
-        
+
         _surveyor = NngManager.Factory.SurveyorOpen().Unwrap();
-        _surveyor.SetOpt(Defines.NNG_OPT_RECVTIMEO, new nng_duration(){TimeMs = 3000});
+        _surveyor.SetOpt(Defines.NNG_OPT_RECVTIMEO, new nng_duration() { TimeMs = 3000 });
         _surveyor.SetOpt(Defines.NNG_OPT_SENDTIMEO, new nng_duration() { TimeMs = 3000 });
         // _surveyor.SetOpt(Defines.NNG_OPT_SURVEYOR_SURVEYTIME, new nng_duration() { TimeMs = 2500 });
         _listener = _surveyor.ListenWithListener(NngManager.ListenAddress, Defines.NngFlag.NNG_FLAG_NONBLOCK).Unwrap();
         _surveyorCtx = _surveyor.CreateAsyncContext(NngManager.Factory).Unwrap();
         // _surveyorCtx.Aio.SetTimeout(2500);
         _surveyorCtx.Ctx.SetOpt(Defines.NNG_OPT_SURVEYOR_SURVEYTIME, new nng_duration() { TimeMs = 2500 });
-        
+
         return _surveyorCtx != null;
     }
 
     public void StopServer()
     {
         StopReceive();
-        
+
         _surveyorCtx?.Aio.Cancel();
         _surveyorCtx?.Aio.Wait();
         _surveyorCtx?.Dispose();

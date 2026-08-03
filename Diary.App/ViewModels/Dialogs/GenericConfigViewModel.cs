@@ -1,4 +1,3 @@
-using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.Core.Utils;
@@ -11,13 +10,13 @@ using Irihi.Avalonia.Shared.Contracts;
 namespace Diary.App.ViewModels.Dialogs;
 
 [DiAutoRegister]
-public partial class GenericConfigViewModel: ViewModelBase, IDialogContext
+public partial class GenericConfigViewModel : ViewModelBase, IDialogContext
 {
     [ObservableProperty] private SettingGroup _settingGroup = new("Root");
     [ObservableProperty] private string _title = string.Empty;
-    
+
     private object? _settings;
-    
+
     public void Close()
     {
         RequestClose?.Invoke(this, null);

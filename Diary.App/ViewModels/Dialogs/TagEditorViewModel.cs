@@ -1,4 +1,3 @@
-using System;
 using System.Collections.ObjectModel;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -25,11 +24,11 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
     private string _newTagName = string.Empty;
     [ObservableProperty] private bool _newIsPrimary = true;
     [ObservableProperty] private HsvColor _newTagColor = default;
-    
+
     [ObservableProperty] private ObservableCollection<EditableWorkTag> _allTags = new();
 
     private bool _changed = false;
-    
+
     public TagEditorViewModel(ILogger logger)
     {
         _logger = logger;
@@ -96,7 +95,7 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
         AllTags.Clear();
         foreach (var tag in all)
         {
-            AllTags.Add(new  EditableWorkTag(tag));
+            AllTags.Add(new EditableWorkTag(tag));
         }
     }
 }

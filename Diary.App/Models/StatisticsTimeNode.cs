@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace Diary.App.Models;
 
 public sealed class StatisticsTimeNode

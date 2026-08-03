@@ -17,11 +17,11 @@ public class SingletonBase<T> where T : class
             throw new InvalidOperationException($"NO default constructor found for {typeof(T).FullName}");
         if (ctor.IsPublic)
             throw new InvalidOperationException("ctor must NOT be public");
-        
+
         return (T)ctor.Invoke(null);
     }, LazyThreadSafetyMode.PublicationOnly);
-    
-    protected SingletonBase() {}
-    
+
+    protected SingletonBase() { }
+
     public static T Instance => _instance.Value;
 }

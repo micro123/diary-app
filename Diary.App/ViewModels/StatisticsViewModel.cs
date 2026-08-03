@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Linq;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -34,7 +31,7 @@ public class StatisticsManager : SingletonBase<StatisticsManager>
     {
         EasySaveLoad.Save(Instance);
     }
-    
+
     public ICollection<StatisticsType> StatisticsList { get; set; } = new List<StatisticsType>();
 }
 
@@ -45,9 +42,9 @@ public partial class StatisticsViewModel : ViewModelBase
 
     [ObservableProperty] private ObservableCollection<AddStatisticOptionItem> _addList = new();
     [ObservableProperty] private int _selectedTabIndex = 0;
-    
+
     private ICollection<StatisticsType> StatisticsTypes => StatisticsManager.Instance.StatisticsList;
-    
+
     public StatisticsViewModel()
     {
         foreach (var type in StatisticsTypes)
@@ -56,7 +53,7 @@ public partial class StatisticsViewModel : ViewModelBase
         }
         Tabs.Add(new StatisticsTabData(StatisticsType.Custom));
         SyncOptions();
-        
+
         Messenger.Register<QuickStatisticsEvent>(this, (r, m) =>
         {
             var data = Tabs.Last();
@@ -80,9 +77,9 @@ public partial class StatisticsViewModel : ViewModelBase
         {
             Name = "-",
             Type = StatisticsType.Custom,
-            Enabled =  false,
+            Enabled = false,
         });
-        
+
         foreach (var type in Enum.GetValues<StatisticsType>())
         {
             if (StatisticsTypes.Contains(type) || type == StatisticsType.Custom)
@@ -114,7 +111,7 @@ public partial class StatisticsViewModel : ViewModelBase
         StatisticsManager.Save();
         Dispatcher.UIThread.Post(SyncOptions);
     }
-    
+
     [RelayCommand]
     private void DelStatistic(StatisticsType type)
     {

@@ -1,21 +1,17 @@
-using System;
 using Avalonia.Controls;
-using Avalonia.Controls.Notifications;
 using Avalonia.Interactivity;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
 using Diary.GUIBase;
 using Ursa.Controls;
-using Notification = Ursa.Controls.Notification;
-using WindowNotificationManager = Ursa.Controls.WindowNotificationManager;
 
 namespace Diary.App.Views
 {
-    public partial class MainWindow: UrsaWindow
+    public partial class MainWindow : UrsaWindow
     {
         private ThemeVariantScope? _titleBarScope = null;
         private ThemeVariantScope? _statusBarScope = null;
-        
+
         public MainWindow()
         {
             InitializeComponent();

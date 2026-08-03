@@ -1,7 +1,4 @@
-using System;
 using System.Collections.ObjectModel;
-using System.Linq;
-using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
 using Avalonia.Threading;
@@ -10,10 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.Core.Constants;
 using Diary.App.Models;
-using Diary.App.Utils;
-using Diary.Core;
 using Diary.Core.Data.AppConfig;
-using Diary.GUIBase;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
@@ -128,7 +122,7 @@ public partial class MainWindowViewModel : ViewModelBase
         Messenger.Register<RunCommandEvent>(this, (r, m) => { ExecuteSettingCommand(m.Value); });
 
         Messenger.Register<ToastEvent>(this, (r, m) => { ToastManager?.Show(m.Value); });
-        
+
         Messenger.Register<ConfirmRequest<ConfirmMessage, bool>>(this, async (r, m) =>
         {
             var result = await Dispatcher.UIThread.InvokeAsync(async () =>

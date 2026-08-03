@@ -1,5 +1,4 @@
-﻿using System;
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Media;
 using Diary.Core.Constants;
 using Diary.GUIBase.Utils;
@@ -37,7 +36,7 @@ namespace Diary.App
             IconProvider.Current
                 .Register<FontAwesomeIconProvider>()
                 .Register<MaterialDesignIconProvider>();
-            
+
             return AppBuilder.Configure<App>()
                 .UsePlatformDetect()
                 .With(new FontManagerOptions

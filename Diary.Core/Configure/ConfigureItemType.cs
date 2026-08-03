@@ -10,6 +10,6 @@ public enum ConfigureItemType
     Button,
     User,
     Path,
-    
+
     Group,
 }

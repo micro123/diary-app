@@ -20,14 +20,14 @@ public class DbShareData
     public ObservableCollection<RedMineActivity> RedMineActivities { get; } = new();
 
     private DbInterfaceBase? DbInterface => App.Instance.UseDb;
-    
+
     public DbShareData(ILogger logger)
     {
         _logger = logger;
         WeakReferenceMessenger.Default.Register<DbChangedEvent>(this, (r, m) =>
         {
             var active = false;
-            
+
             _logger.LogDebug("db changed, mask = {Value:X}", m.Value);
             if (0 != (m.Value & DbChangedEvent.RedMineIssue))
             {

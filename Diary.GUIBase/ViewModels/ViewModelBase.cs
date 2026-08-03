@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Messaging;
@@ -40,9 +38,9 @@ public class ViewModelBase : ObservableObject, IDisposable
         await TopLevel.Clipboard.SetTextAsync(text);
         return true;
     }
-    
+
     protected WeakReferenceMessenger Messenger => WeakReferenceMessenger.Default;
-    
+
     protected virtual void OnAttachView(Control? view) { }
 
     public void SetView(Control? view)
@@ -50,9 +48,9 @@ public class ViewModelBase : ObservableObject, IDisposable
         View = view;
         OnAttachView(View);
     }
-    
-    public virtual void OnHide() {}
-    public virtual void OnShow() {}
+
+    public virtual void OnHide() { }
+    public virtual void OnShow() { }
 
     public virtual void Cleanup()
     {

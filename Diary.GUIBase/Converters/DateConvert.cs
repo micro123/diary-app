@@ -7,7 +7,7 @@ using Diary.Utils;
 namespace Diary.GUIBase.Converters;
 
 // date <=> string
-public class DateConvert: IValueConverter
+public class DateConvert : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {

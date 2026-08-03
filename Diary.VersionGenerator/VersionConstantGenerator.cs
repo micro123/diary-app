@@ -15,7 +15,7 @@ public class VersionConstantGenerator : IIncrementalGenerator
     {
         public ClassDeclarationSyntax? Class;
     }
-    
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var myProvider = context.SyntaxProvider.CreateSyntaxProvider(
@@ -30,7 +30,7 @@ public class VersionConstantGenerator : IIncrementalGenerator
     {
         throw new ArgumentException(o?.ToString());
     }
-    
+
     private Info GetVersionInfo(GeneratorSyntaxContext syntaxContext, CancellationToken token)
     {
         static bool ClassCheck(GeneratorSyntaxContext syntaxContext, ClassDeclarationSyntax c)
@@ -52,7 +52,7 @@ public class VersionConstantGenerator : IIncrementalGenerator
 
             return false;
         }
-        
+
         var classSyntax = (ClassDeclarationSyntax)syntaxContext.Node;
         if (!ClassCheck(syntaxContext, classSyntax))
             return default;
@@ -71,7 +71,7 @@ public class VersionConstantGenerator : IIncrementalGenerator
                 return string.Empty;
             return field.Declaration.Variables.First().Identifier.ValueText;
         }
-        
+
         var members = info.Class!.Members;
         // Get Major,Minor,Patch Member
         var fieldMajor =
@@ -80,15 +80,15 @@ public class VersionConstantGenerator : IIncrementalGenerator
             members.FirstOrDefault(x => x is FieldDeclarationSyntax field && GetFieldName(field) == "Minor");
         var fieldPatch =
             members.FirstOrDefault(x => x is FieldDeclarationSyntax field && GetFieldName(field) == "Patch");
-        
+
         if (fieldMajor is null || fieldMinor is null || fieldPatch is null)
             ThrowHere("field missing");
 
-        
+
         // var major = context.SemanticModel.GetSymbolInfo(classSyntax, token);
         // var minor = syntaxContext.SemanticModel.GetDeclaredSymbol(fieldMinor!, token);
         // var patch = syntaxContext.SemanticModel.GetDeclaredSymbol(fieldPatch!, token);
-        
+
         // ThrowHere(fieldMajor.ToString());
         var majorValueText = fieldMajor!.DescendantNodes().OfType<LiteralExpressionSyntax>().FirstOrDefault()
             !.ToString();
@@ -102,9 +102,9 @@ public class VersionConstantGenerator : IIncrementalGenerator
         uint.TryParse(patchValueText, out var patch);
 
         // ThrowHere($"{major}.{minor}.{patch}");
-        
+
         var className = info.Class.Identifier.ValueText;
-        
+
         BaseNamespaceDeclarationSyntax? nsSyntax =
             info.Class.Ancestors().OfType<NamespaceDeclarationSyntax>().FirstOrDefault();
         nsSyntax ??= info.Class.Ancestors().OfType<FileScopedNamespaceDeclarationSyntax>().FirstOrDefault();
@@ -127,7 +127,7 @@ public class VersionConstantGenerator : IIncrementalGenerator
         sb.AppendLine($"    public const string VersionString = \"{major}.{minor}.{patch}\";");
         sb.AppendLine($"    public const uint VersionCode = 0x{code:X8};");
         sb.AppendLine("}");
-        
+
         context.AddSource(className + ".g.cs", sb.ToString());
     }
 }

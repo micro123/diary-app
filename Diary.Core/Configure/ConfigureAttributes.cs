@@ -1,5 +1,3 @@
-using System.Numerics;
-
 namespace Diary.Core.Configure;
 
 [AttributeUsage(AttributeTargets.Property, AllowMultiple = false)]

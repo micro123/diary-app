@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Linq;
-using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -35,7 +31,7 @@ public partial class RedMineInfoViewModel : ViewModelBase
 
     // 活动列表
     public ObservableCollection<RedMineActivity> Activities => _shareData.RedMineActivities;
-    
+
     // 问题列表
     public ObservableCollection<RedMineIssueDisplay> Issues => _shareData.RedMineIssues;
 
@@ -111,7 +107,7 @@ public partial class RedMineInfoViewModel : ViewModelBase
             }
             return changed;
         });
-        
+
         if (has_effect)
             EventDispatcher.DbChanged(DbChangedEvent.RedMineIssue);
     }

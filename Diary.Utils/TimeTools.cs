@@ -63,34 +63,34 @@ public static class TimeTools
         switch (part)
         {
             case AdjustPart.Year:
-            {
-                start = new DateTime(input.Year, 1, 1);
-                end = new DateTime(input.Year, 12, 31);
-            }
+                {
+                    start = new DateTime(input.Year, 1, 1);
+                    end = new DateTime(input.Year, 12, 31);
+                }
                 break;
             case AdjustPart.Quarter:
-            {
-                int q = (input.Month - 1) / 3;
-                start = new DateTime(input.Year, q*3+1, 1);
-                end = start.AddMonths(3).AddDays(-1);
-            }
+                {
+                    int q = (input.Month - 1) / 3;
+                    start = new DateTime(input.Year, q * 3 + 1, 1);
+                    end = start.AddMonths(3).AddDays(-1);
+                }
                 break;
             case AdjustPart.Month:
-            {
-                start = new DateTime(input.Year, input.Month, 1);
-                end = start.AddMonths(1).AddDays(-1);
-            }
+                {
+                    start = new DateTime(input.Year, input.Month, 1);
+                    end = start.AddMonths(1).AddDays(-1);
+                }
                 break;
             case AdjustPart.Week:
-            {
-                int w = (int)input.DayOfWeek;
-                if (w == 0)
                 {
-                    w = 7; // 星期天特别处理
+                    int w = (int)input.DayOfWeek;
+                    if (w == 0)
+                    {
+                        w = 7; // 星期天特别处理
+                    }
+                    start = input.Date.AddDays(-w + 1);
+                    end = start.AddDays(6);
                 }
-                start = input.Date.AddDays(-w + 1);
-                end = start.AddDays(6);
-            }
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(part), part, null);
@@ -121,7 +121,7 @@ public static class TimeTools
         }
         return (start, end);
     }
-    
+
     public static void AdjustDate(ref DateTime start, ref DateTime end, AdjustPart part, AdjustDirection dir)
     {
         (start, end) = dir switch

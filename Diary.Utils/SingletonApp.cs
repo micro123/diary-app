@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.IO.Pipes;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace Diary.Utils;
 

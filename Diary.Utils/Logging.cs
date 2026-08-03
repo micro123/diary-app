@@ -1,7 +1,5 @@
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Console;
 using Serilog;
-using Serilog.Core;
 using Serilog.Events;
 using ILogger = Microsoft.Extensions.Logging.ILogger;
 

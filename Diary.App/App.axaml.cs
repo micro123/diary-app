@@ -1,9 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Reflection;
-using System.Threading.Tasks;
 using System.Data.Common;
 using Avalonia;
 using Avalonia.Controls;
@@ -16,7 +12,6 @@ using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.Models;
-using Diary.App.Utils;
 using Diary.App.ViewModels;
 using Diary.App.Views;
 using Diary.Core;
@@ -57,7 +52,7 @@ namespace Diary.App
         {
             EnumerateDbProviders();
             LoadConfigurations();
-            
+
             AvaloniaXamlLoader.Load(this);
             DataContext = Services.GetRequiredService<AppModel>();
 
@@ -74,7 +69,7 @@ namespace Diary.App
             //     return true;
             UseDb?.Close();
             UseDb = null;
-            
+
             // 从配置获取当前的数据库提供程序
             UseFactory = _dbFactories.FirstOrDefault(x => x.Name == AppConfig.DbSettings.DatabaseDriver);
             if (UseFactory == null)
@@ -82,13 +77,13 @@ namespace Diary.App
                 message = $"数据库{AppConfig.DbSettings.DatabaseDriver}不支持，请检查设置";
                 return false;
             }
-            
+
             // 创建数据库
             UseDb = UseFactory.Create();
             Debug.Assert(UseDb != null);
             var dbConfig = UseFactory.GetConfig();
             EasySaveLoad.Load(dbConfig); // 加载数据库配置
-            
+
             // open
             if (!UseDb.Connect())
             {
@@ -104,7 +99,7 @@ namespace Diary.App
                 message = "数据库初始化失败！";
                 return false;
             }
-            
+
             // version check
             if (UseDb.GetDataVersion() != DataVersion.VersionCode)
             {
@@ -114,10 +109,10 @@ namespace Diary.App
                     return false;
                 }
             }
-            
+
             Services.GetRequiredService<DbShareData>().InitLoad();
             DatabaseOk = true;
-            
+
             return true;
         }
 
@@ -137,7 +132,7 @@ namespace Diary.App
         public override AllConfig AppConfig => AllConfig.Instance;
 
         public ILogger Logger => Logging.Logger;
-        
+
         public override IDbFactory? UseFactory { get; protected set; }
         public override DbInterfaceBase? UseDb { get; protected set; }
 
@@ -151,7 +146,7 @@ namespace Diary.App
             services.AddSingleton<BaseApp>(this);
             services.AddTypesFromAssembly(Assembly.GetExecutingAssembly());
             services.AddTypesFromAssembly(typeof(ViewLocator).Assembly);
-            
+
             return services.BuildServiceProvider();
         }
 
@@ -185,7 +180,7 @@ namespace Diary.App
                 message = "数据库打开异常";
                 Logger.LogError(ex, "ConfigureCheck 抛出未处理异常");
             }
-            
+
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
                 // Avoid duplicate validations from both Avalonia and the CommunityToolkit. 
@@ -199,7 +194,7 @@ namespace Diary.App
             }
 
             base.OnFrameworkInitializationCompleted();
-            
+
             WeakReferenceMessenger.Default.Register<ConfigUpdateEvent>(this, (r, m) =>
             {
                 Dispatcher.UIThread.Post(() =>
@@ -222,14 +217,14 @@ namespace Diary.App
             {
                 _surveyor.Survey(m.Value);
             });
-            
+
             // check if configure is valid
             if (!success)
             {
                 EventDispatcher.RouteToPage(PageNames.Settings);
                 EventDispatcher.Notify("错误", message);
             }
-            
+
             // start keep-alive thread
             StartKeepAliveTimer();
         }
@@ -238,13 +233,13 @@ namespace Diary.App
         {
             if (Design.IsDesignMode)
                 return;
-            
+
             _surveyor.StopServer();
             _respondent.Shutdown();
-            
+
             if (!AppConfig.SurveySettings.Enabled)
                 return;
-            
+
             if (AppConfig.SurveySettings.IsServerEnabled)
             {
                 _surveyor.StartServer();
@@ -256,15 +251,15 @@ namespace Diary.App
             }
         }
 
-    private void PreShutdown()
-    {
-        _surveyor.StopServer();
-        _respondent.Shutdown();
-        _timer.Stop();
-        SaveConfigurations();
-        (Services as IDisposable)?.Dispose();
-        Logging.Shutdown();
-    }
+        private void PreShutdown()
+        {
+            _surveyor.StopServer();
+            _respondent.Shutdown();
+            _timer.Stop();
+            SaveConfigurations();
+            (Services as IDisposable)?.Dispose();
+            Logging.Shutdown();
+        }
 
         private readonly DispatcherTimer _timer = new();
 
@@ -340,7 +335,7 @@ namespace Diary.App
         {
             return key switch
             {
-                "DB_DRIVER" => new SettingChoice(caption, helpTip, _dbFactories.Select(x=>x.Name), obj, property),
+                "DB_DRIVER" => new SettingChoice(caption, helpTip, _dbFactories.Select(x => x.Name), obj, property),
                 _ => throw new ArgumentOutOfRangeException(nameof(key), key, null),
             };
         }
@@ -364,7 +359,7 @@ namespace Diary.App
             get => GetValue(DatabaseOkProperty);
             protected set => SetValue(DatabaseOkProperty, value);
         }
-        
+
         private static readonly StyledProperty<bool> SurveyEnabledProperty = AvaloniaProperty.Register<App, bool>(nameof(SurveyEnabled), false);
         public override bool SurveyEnabled
         {

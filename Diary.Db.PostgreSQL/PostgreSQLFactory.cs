@@ -2,7 +2,7 @@ using Diary.Database;
 
 namespace Diary.Db.PostgreSQL;
 
-public sealed class PostgreSQLFactory: IDbFactory
+public sealed class PostgreSQLFactory : IDbFactory
 {
     private readonly Config _config = new();
     public string Name => "PostgreSQL";

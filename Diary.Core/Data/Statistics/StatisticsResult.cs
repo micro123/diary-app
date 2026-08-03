@@ -1,5 +1,3 @@
-using System.Collections.Immutable;
-
 namespace Diary.Core.Data.Statistics;
 
 public class StatisticsResult

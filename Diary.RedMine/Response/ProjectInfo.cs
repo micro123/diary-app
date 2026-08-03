@@ -7,7 +7,7 @@ public class ProjectInfo
     public static string Search() => "search.json";
     public static string All() => "projects.json";
     public static string Fetch(int id) => $"projects/{id}.json";
-    
+
     [JsonProperty("id")] public int Id { get; set; }
     [JsonProperty("title")] public string Title { get; set; } = string.Empty;
     [JsonProperty("description")] public string Description { get; set; } = string.Empty;
@@ -19,7 +19,7 @@ public class ProjectInfo
         get => _name ?? Title;
         set => _name = value;
     }
-    
+
     public class SearchResult
     {
         [JsonProperty("results")] public List<ProjectInfo> Results { get; set; } = new();
@@ -32,7 +32,7 @@ public class ProjectInfo
             get => _projects ?? Results;
             set => _projects = value;
         }
-        
+
         [JsonProperty("total_count")] public int Total { get; set; }
     }
 

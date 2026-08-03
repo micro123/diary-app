@@ -40,7 +40,7 @@ public static class EventDispatcher
 
     public static async Task<bool> Confirm(string title, string body)
     {
-        var msg = new ConfirmRequest<ConfirmMessage, bool>(new ConfirmMessage{Title = title, Message = body});
+        var msg = new ConfirmRequest<ConfirmMessage, bool>(new ConfirmMessage { Title = title, Message = body });
         Messenger.Send(msg);
         try
         {

@@ -1,4 +1,3 @@
-using System;
 using System.Collections.ObjectModel;
 using System.Reflection;
 using System.Windows.Input;
@@ -12,7 +11,7 @@ public abstract class SettingItemModel(string title, string helpTip) : Observabl
 {
     public string Title { get; } = title;
     public string HelpTip { get; } = helpTip;
-    public bool   HasHelp => !string.IsNullOrWhiteSpace(HelpTip);
+    public bool HasHelp => !string.IsNullOrWhiteSpace(HelpTip);
 
     protected virtual void LoadAction()
     {
@@ -59,7 +58,7 @@ public class EditableItemModel : SettingItemModel
     protected readonly object Obj;
     protected readonly PropertyInfo Prop;
 
-    protected EditableItemModel(string title, string helpTip, object o, PropertyInfo p, Func<Type,bool> check) : base(title, helpTip)
+    protected EditableItemModel(string title, string helpTip, object o, PropertyInfo p, Func<Type, bool> check) : base(title, helpTip)
     {
         Obj = o;
         Prop = p;
@@ -78,13 +77,13 @@ public class EditableItemModel : SettingItemModel
     {
         return type == typeof(bool);
     }
-    
+
     protected static bool EnsureInteger(Type type)
     {
         var code = Type.GetTypeCode(type);
         return code is >= TypeCode.SByte and <= TypeCode.UInt64;
     }
-    
+
     protected static bool EnsureFloatOrDouble(Type type)
     {
         var code = Type.GetTypeCode(type);
@@ -119,7 +118,7 @@ public sealed partial class SettingPath(string title, string helpTip, bool isFol
     public string PickerTitle => isFolder ? "选择目录" : "选择文件";
 
     public UsePickerTypes PickerType => isFolder ? UsePickerTypes.OpenFolder : UsePickerTypes.OpenFile;
-    
+
     protected override void LoadAction()
     {
         Value = (string)Prop.GetValue(Obj)!;
@@ -195,7 +194,7 @@ public sealed partial class SettingSwitch(string title, string helpTip, object o
     : EditableItemModel(title, helpTip, o, p, EnsureBoolean)
 {
     [ObservableProperty] private bool _value;
-    
+
     // TODO: save and load
     protected override void LoadAction()
     {
@@ -212,7 +211,7 @@ public sealed partial class SettingChoice(string title, string helpTip, IEnumera
     : EditableItemModel(title, helpTip, o, p, EnsureString)
 {
     [ObservableProperty] private int _selectedIndex;
-    public ObservableCollection<string> Options { get; } = [..options];
+    public ObservableCollection<string> Options { get; } = [.. options];
 
     // TODO: save and load
     protected override void LoadAction()

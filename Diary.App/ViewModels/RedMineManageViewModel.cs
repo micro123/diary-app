@@ -1,6 +1,4 @@
-using System;
 using System.Collections.ObjectModel;
-using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.GUIBase.Events;
@@ -27,7 +25,7 @@ public partial class RedMineManageViewModel : ViewModelBase
 {
     private readonly ILogger _logger;
     private readonly IServiceProvider _serviceProvider;
-    
+
     [ObservableProperty] private ObservableCollection<RedMineTabItemModel> _tabs = new();
     [ObservableProperty] private bool _serverOk;
     private readonly RedMineInfoViewModel _redmineInfo;
@@ -57,7 +55,7 @@ public partial class RedMineManageViewModel : ViewModelBase
         });
 
         Task.Run(CheckServer);
-        Messenger.Register<ConfigUpdateEvent>(this, (r,m)=>{ Task.Run(CheckServer); });
+        Messenger.Register<ConfigUpdateEvent>(this, (r, m) => { Task.Run(CheckServer); });
     }
 
     private void CheckServer()

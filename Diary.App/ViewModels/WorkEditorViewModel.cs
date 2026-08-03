@@ -1,13 +1,8 @@
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
-using Diary.App.Utils;
 using Diary.Core.Data.Base;
 using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
@@ -417,7 +412,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     {
         for (var i = 0; i < RedMineIssues.Count; i++)
         {
-            var x =  RedMineIssues[i];
+            var x = RedMineIssues[i];
             if (x.Id == issueId)
             {
                 IssueIndex = i;

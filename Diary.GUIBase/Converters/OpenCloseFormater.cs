@@ -4,7 +4,7 @@ using Avalonia.Data.Converters;
 
 namespace Diary.GUIBase.Converters;
 
-public class OpenCloseFormater: IValueConverter
+public class OpenCloseFormater : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {

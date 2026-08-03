@@ -29,7 +29,7 @@ public static class TypeLoader
     public static IEnumerable<T> GetImplementations<T>(string dir, string pattern)
     {
         var dlls = Directory.GetFiles(dir, pattern, SearchOption.TopDirectoryOnly);
-        if  (dlls.Length == 0)
+        if (dlls.Length == 0)
         {
             yield break;
         }

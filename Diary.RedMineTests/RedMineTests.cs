@@ -49,7 +49,7 @@ public sealed class RedMineTests
     [TestMethod]
     public void SearchIssues()
     {
-        Assert.IsTrue(RedMineApis.SearchIssueByKeywords(out var issues, out var total, myIssues:false, openOnly:false));
+        Assert.IsTrue(RedMineApis.SearchIssueByKeywords(out var issues, out var total, myIssues: false, openOnly: false));
         Debug.WriteLine($"search results has {total} issues");
         foreach (var issue in issues)
         {
@@ -67,7 +67,7 @@ public sealed class RedMineTests
     [TestMethod]
     public void GetTimeEntries()
     {
-        Assert.IsTrue(RedMineApis.GetMyTimeEntries(out var timeEntries,  out var total, "2025-11-17", "2025-11-23"));
+        Assert.IsTrue(RedMineApis.GetMyTimeEntries(out var timeEntries, out var total, "2025-11-17", "2025-11-23"));
         Debug.WriteLine($"total results has {total} timeEntries");
         foreach (var timeEntry in timeEntries)
         {
@@ -78,7 +78,7 @@ public sealed class RedMineTests
     [TestMethod]
     public void CreateIssue()
     {
-        Assert.IsTrue(RedMineApis.CreateIssue(out var issue, 1, "Diary.App.ApiTest",  "Diary.App.ApiTest", true));
+        Assert.IsTrue(RedMineApis.CreateIssue(out var issue, 1, "Diary.App.ApiTest", "Diary.App.ApiTest", true));
         Debug.WriteLine($"issue created! id = {issue.Id}, subject = {issue.Subject}, description = {issue.Description}, assignedTo = {issue.AssignedTo.Id}");
     }
 

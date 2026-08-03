@@ -1,6 +1,4 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using Diary.App.Utils;
 using Diary.Core.Data.Base;
 
 namespace Diary.App.Models;

@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace Diary.App.Models;
@@ -8,14 +6,14 @@ public class RespondTag
 {
     [JsonIgnore]
     public const string AnonymousName = "**未分类**";
-    
+
     [JsonPropertyName("name")]
-    public string TagName {get; set;} = AnonymousName;
+    public string TagName { get; set; } = AnonymousName;
     [JsonPropertyName("total")]
-    public double TagTime {get; set;}
-    
+    public double TagTime { get; set; }
+
     [JsonIgnore]
-    public double Percent {get; set;}
+    public double Percent { get; set; }
 
     [JsonPropertyName("children")]
     public List<RespondTag> SubTags { get; set; } = new();
@@ -23,7 +21,7 @@ public class RespondTag
     [JsonIgnore] public bool IsValid => TagTime > 0;
     [JsonIgnore] public bool IsAnno => string.Compare(TagName, AnonymousName, StringComparison.Ordinal) == 0;
 
-    public static RespondTag Null { get; } =  new(){ TagName = "没有数据！", TagTime = 0 };
+    public static RespondTag Null { get; } = new() { TagName = "没有数据！", TagTime = 0 };
 }
 
 public class RespondData
@@ -37,7 +35,7 @@ public class RespondData
     [JsonPropertyName("date_end")]
     public string DateEnd { get; set; } = string.Empty;
     [JsonPropertyName("hours")]
-    public double TotalTime {get; set;}
+    public double TotalTime { get; set; }
     [JsonPropertyName("tags")]
     public List<RespondTag> Tags { get; set; } = new();
 

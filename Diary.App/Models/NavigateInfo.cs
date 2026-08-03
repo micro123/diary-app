@@ -1,4 +1,3 @@
-using Diary.App.ViewModels;
 using Diary.GUIBase.ViewModels;
 
 namespace Diary.App.Models;
@@ -8,6 +7,6 @@ public class NavigateInfo(string name, string icon, ViewModelBase? vm, string ge
     public string Name { get; init; } = name;
     public string Icon { get; init; } = icon;
     public ViewModelBase? ViewModel { get; init; } = vm;
-    
+
     public string Gesture { get; init; } = gesture;
 }

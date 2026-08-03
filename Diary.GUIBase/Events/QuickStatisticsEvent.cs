@@ -3,4 +3,4 @@ using Diary.Utils;
 
 namespace Diary.GUIBase.Events;
 
-public class QuickStatisticsEvent(DateTime date, AdjustPart part): ValueChangedMessage<(DateTime,AdjustPart)>((date, part));
+public class QuickStatisticsEvent(DateTime date, AdjustPart part) : ValueChangedMessage<(DateTime, AdjustPart)>((date, part));

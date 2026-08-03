@@ -5,7 +5,7 @@ using Avalonia.Media;
 
 namespace Diary.GUIBase.Converters;
 
-public class Int2Color: IValueConverter
+public class Int2Color : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {

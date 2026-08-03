@@ -22,7 +22,7 @@ public class TimeInfo
     public string Comment { get; set; } = string.Empty;
     [JsonProperty("spent_on")]
     public string SpentOn { get; set; } = string.Empty;
-    
+
 
     public class QueryResult
     {

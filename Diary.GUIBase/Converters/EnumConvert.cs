@@ -5,7 +5,7 @@ using Diary.Utils;
 
 namespace Diary.GUIBase.Converters;
 
-public class EnumConvert: IValueConverter
+public class EnumConvert : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {

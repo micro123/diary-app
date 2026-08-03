@@ -1,5 +1,3 @@
-using Diary.Core;
-
 namespace Diary.App;
 
 public static class AppInfo

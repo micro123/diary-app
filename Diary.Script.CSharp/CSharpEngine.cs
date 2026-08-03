@@ -3,7 +3,7 @@ using Diary.ScriptBase;
 
 namespace Diary.Script.CSharp;
 
-public class CSharpEngine: IScriptEngine
+public class CSharpEngine : IScriptEngine
 {
     public string Name { get; } = "csharp";
     public bool Cacheable { get; } = true;

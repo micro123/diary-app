@@ -12,7 +12,7 @@ public static class DiCollectionExtensions
         {
             if (!type.IsClass || type.IsAbstract)
                 continue;
-            
+
             var attrs = type.GetCustomAttributes<DiAutoRegisterAttribute>();
             foreach (var attr in attrs)
             {

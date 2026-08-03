@@ -1,9 +1,6 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Text.Json;
-using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Controls.Models.TreeDataGrid;
 using Avalonia.Input;
@@ -223,7 +220,7 @@ public partial class SurveyViewModel : ViewModelBase
                     sum1 += tagTime.Time;
                     data.Tags.Add(primaryTag);
                 }
-                
+
                 if (sum1 < statistics.Total)
                     data.Tags.Add(new RespondTag { TagTime = statistics.Total - sum1 });
 
@@ -261,7 +258,7 @@ public partial class SurveyViewModel : ViewModelBase
         Debug.Assert(which.Length == 3);
         var col = which[1] - '0';
         var row = which[2] - '0';
-        
+
         MakeRange((AdjustPart)row, (AdjustDirection)col);
     }
 

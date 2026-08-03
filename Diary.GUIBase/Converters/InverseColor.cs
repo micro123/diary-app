@@ -5,14 +5,14 @@ using Avalonia.Media;
 
 namespace Diary.GUIBase.Converters;
 
-public class InverseColor: IValueConverter
+public class InverseColor : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is int rgb)
         {
-            var (r,g,b) = Int2Color.FromInt(rgb);
-            return IsLight(r, g, b) ? new SolidColorBrush(Color.FromRgb(0, 0, 0)) : new SolidColorBrush(Color.FromRgb(255,255,255));
+            var (r, g, b) = Int2Color.FromInt(rgb);
+            return IsLight(r, g, b) ? new SolidColorBrush(Color.FromRgb(0, 0, 0)) : new SolidColorBrush(Color.FromRgb(255, 255, 255));
         }
         return AvaloniaProperty.UnsetValue;
     }

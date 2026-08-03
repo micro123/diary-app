@@ -1,5 +1,4 @@
 using Diary.Utils;
-using Microsoft.Extensions.Logging;
 
 namespace Diary.UtilTests;
 

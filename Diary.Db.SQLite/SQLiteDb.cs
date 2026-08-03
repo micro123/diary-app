@@ -6,7 +6,6 @@ using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
 using Diary.Core.Data.Statistics;
 using Diary.Database;
-using Diary.Utils;
 
 namespace Diary.Db.SQLite;
 

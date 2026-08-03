@@ -19,12 +19,12 @@ public static class UiUtility
                     row = null;
                     break;
                 }
-                
+
                 if (control is TreeDataGridRow r)
                 {
                     row = r;
                 }
-                
+
                 if (control is TreeDataGrid)
                 {
                     break;

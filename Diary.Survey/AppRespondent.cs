@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text;
 using Diary.Utils;
 using Microsoft.Extensions.Logging;
@@ -25,24 +24,24 @@ public class AppRespondent
             return false;
 
         _respondent = NngManager.Factory.RespondentOpen().Ok();
-        _respondent.SetOpt(Defines.NNG_OPT_RECVTIMEO, new nng_duration(){TimeMs = 250});
-        _respondent.SetOpt(Defines.NNG_OPT_RECONNMAXT, new nng_duration(){TimeMs = 0});
-        _respondent.SetOpt(Defines.NNG_OPT_RECONNMINT, new nng_duration(){TimeMs = 1500});
+        _respondent.SetOpt(Defines.NNG_OPT_RECVTIMEO, new nng_duration() { TimeMs = 250 });
+        _respondent.SetOpt(Defines.NNG_OPT_RECONNMAXT, new nng_duration() { TimeMs = 0 });
+        _respondent.SetOpt(Defines.NNG_OPT_RECONNMINT, new nng_duration() { TimeMs = 1500 });
         _dialer = _respondent.DialWithDialer($"tcp://{hostIpAddress}:{NngManager.ListenPort}", Defines.NngFlag.NNG_FLAG_NONBLOCK).Unwrap();
-        _dialer.SetOpt(Defines.NNG_OPT_RECONNMINT, new nng_duration(){TimeMs = 1500});
-        _dialer.SetOpt(Defines.NNG_OPT_RECONNMAXT, new nng_duration(){TimeMs = 0});
+        _dialer.SetOpt(Defines.NNG_OPT_RECONNMINT, new nng_duration() { TimeMs = 1500 });
+        _dialer.SetOpt(Defines.NNG_OPT_RECONNMAXT, new nng_duration() { TimeMs = 0 });
         _respondentCtx = _respondent.CreateAsyncContext(NngManager.Factory).Unwrap();
         _respondentCtx.Aio.SetTimeout(250);
-        
+
         StartReceive();
-        
+
         return _respondentCtx != null;
     }
-    
+
     public void Shutdown()
     {
         StopReceive();
-        
+
         lock (_lock)
         {
             _msgToSend.Clear();
@@ -76,7 +75,7 @@ public class AppRespondent
                     if (_msgToSend.Count > 0)
                         msgToSend = _msgToSend.Dequeue();
                 }
-                
+
                 var msg = await _respondentCtx.Receive(token);
                 if (msg.TryOk(out var data))
                 {

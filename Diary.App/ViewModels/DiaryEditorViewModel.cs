@@ -1,17 +1,13 @@
-using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Input;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.Models;
-using Diary.App.Utils;
 using Diary.Core.Constants;
 using Diary.Core.Data.App;
 using Diary.GUIBase.Events;
@@ -44,7 +40,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private DateTime _selectedDate;
     [ObservableProperty]
     private DateTime _currentDate;
-    
+
     private string CurrentDateString => TimeTools.FormatDateTime(CurrentDate);
     private bool _creating;
 
@@ -52,7 +48,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
     [ObservableProperty] private bool _canUseTemplates = false;
 
     private bool IsSurveyorEnabled => App.Instance.AppConfig.SurveySettings.IsServerEnabled;
-    
+
     [RelayCommand]
     private void NewWorkItem()
     {
@@ -74,7 +70,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
             return;
         // apply template
         if (!string.IsNullOrWhiteSpace(template.DefaultTitle))
-            SelectedWork.Comment =  template.DefaultTitle;
+            SelectedWork.Comment = template.DefaultTitle;
         if (template.DefaultTime > 0)
             SelectedWork.Time = template.DefaultTime;
         if (template.DefaultActivity >= 0)
@@ -110,7 +106,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
             GoDate(TimeTools.FromFormatedDate(date)); // 这里会修改选中的对象
             SelectWorkById(id);
         }
-        
+
         UpdateTimeInfos();
         DuplicateWorkItemCommand.NotifyCanExecuteChanged();
     }
@@ -118,7 +114,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private void SelectWorkById(int id)
     {
         Debug.Assert(id != 0);
-        var item = DailyWorks.FirstOrDefault(x=>x.WorkId == id);
+        var item = DailyWorks.FirstOrDefault(x => x.WorkId == id);
         if (item is not null)
             SelectedWork = item;
     }
@@ -156,7 +152,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         SaveWorkItem();
         var (result, msg) = await SelectedWork!.Upload();
         ToastManager?.Show(result ? "提交成功" : $"提交失败: {msg}");
-        
+
         // hack: update button state
         Dispatcher.UIThread.Post(() => UploadTimeCommand.NotifyCanExecuteChanged());
     }
@@ -166,7 +162,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanUploadAll))]
     private async Task UploadAll()
     {
-        if (SelectedWork is {IsNewItem: false})
+        if (SelectedWork is { IsNewItem: false })
         {
             SaveWorkItem();
         }
@@ -175,7 +171,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         var skip = 0;
         var success = 0;
         var failed = 0;
-        
+
         foreach (var work in DailyWorks)
         {
             if (!work.Uploaded)
@@ -201,18 +197,18 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
         var title = $"提交结果: 成功 {success}，失败 {failed}，跳过 {skip}";
         EventDispatcher.Notify(title, sb.ToString());
-        
+
         UpdateTimeInfos();
     }
 
     private bool CanUploadAll => TotalTime != 0 && UploadedTime < TotalTime;
-    
+
     [RelayCommand]
     private void SelectToday()
     {
         GoDate(DateTime.Today);
     }
-    
+
 
     private void GoDate(DateTime date)
     {
@@ -239,18 +235,18 @@ public partial class DiaryEditorViewModel : ViewModelBase
         _logger = logger;
         _serviceProvider = serviceProvider;
         SelectedDate = DateTime.Today;
-        
+
         Messenger.Register<DbChangedEvent>(this, (r, m) =>
         {
             if ((m.Value & DbChangedEvent.ShareData) != 0)
                 Dispatcher.UIThread.Post(FetchWorks);
         });
-        
+
         Messenger.Register<TemplateChangedEvent>(this, (r, m) =>
         {
             Dispatcher.UIThread.Post(FetchTemplates);
         });
-        
+
         FetchTemplates();
     }
 
@@ -312,7 +308,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
     }
 
     [ObservableProperty] private ObservableCollection<DayMenuItem> _quickMenuItems = new();
-    
+
     public enum CalendarWhat
     {
         None,
@@ -320,7 +316,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         Month,
         Year,
     }
-    
+
     public void ShowCalendarContextMenu(DateTime selectDate, CalendarWhat what)
     {
         switch (what)
@@ -368,7 +364,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         QuickMenuItems.Clear();
         var weekOfYear = CultureInfo.InvariantCulture.Calendar.GetWeekOfYear(date, CalendarWeekRule.FirstDay, DayOfWeek.Monday);
         AddMenuHeader($"{date:yyyy年MM月dd日} 第{weekOfYear}周");
-        AddMenuHeader($"今日总工时{TotalTime:0.##}小时，有{TotalTime-UploadedTime:0.##}小时未提交");
+        AddMenuHeader($"今日总工时{TotalTime:0.##}小时，有{TotalTime - UploadedTime:0.##}小时未提交");
         AddMenuSeparator();
         AddMenuAction("提交本日工时", UploadAllCommand);
         AddMenuAction("提交本周工时(尚未实现)", UploadAllCommand, false);
@@ -418,7 +414,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     public override void OnShow()
     {
-        
+
     }
 
     #region 编辑器数据

@@ -3,10 +3,10 @@ namespace Diary.GUIBase.Events;
 public class ConfirmRequest<TRequest, TResponse>(TRequest request)
 {
     public TRequest Request { get; } = request;
-    
+
     private readonly TaskCompletionSource<TResponse> _tcs = new TaskCompletionSource<TResponse>();
     public Task<TResponse> Task => _tcs.Task;
-    
+
     public bool Reply(TResponse response)
     {
         return _tcs.TrySetResult(response);
@@ -20,7 +20,7 @@ public class ConfirmRequest<TRequest, TResponse>(TRequest request)
 
 public record ConfirmMessage
 {
-    public required string Title { get;set; }
-    public required string Message { get;set; }
+    public required string Title { get; set; }
+    public required string Message { get; set; }
 }
 

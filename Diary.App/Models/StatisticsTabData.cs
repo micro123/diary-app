@@ -1,8 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
-using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Controls.Models.TreeDataGrid;
 using Avalonia.Input;
@@ -35,7 +32,7 @@ public enum StatisticsType
 
 public partial class StatisticsTabData : ObservableObject
 {
-    public StatisticsType Type {get; private set;}
+    public StatisticsType Type { get; private set; }
 
     private static readonly string[] Names =
     [
@@ -146,7 +143,7 @@ public partial class StatisticsTabData : ObservableObject
             DateBegin = s;
             DateEnd = e;
         }
-        
+
         if (Db is null)
             return;
 
@@ -213,7 +210,7 @@ public partial class StatisticsTabData : ObservableObject
             detail.Add(new StatisticsTimeNode()
             {
                 Id = 0,
-                Time =  statistics.Total - sum1,
+                Time = statistics.Total - sum1,
                 Percent = 100.0 * (statistics.Total - sum1) / total,
             });
         }
@@ -226,7 +223,7 @@ public partial class StatisticsTabData : ObservableObject
             TimeDetails.ExpandAll();
         });
     }
-    
+
     private static void GetDateRange(out DateTime begin, out DateTime end, StatisticsType type)
     {
         begin = DateTime.Now.Date;
@@ -291,7 +288,7 @@ public partial class StatisticsTabData : ObservableObject
         Debug.Assert(which.Length == 3);
         var col = which[1] - '0';
         var row = which[2] - '0';
-        
+
         MakeRange((AdjustPart)row, (AdjustDirection)col);
     }
 

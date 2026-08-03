@@ -1,4 +1,3 @@
-using Diary.Core.Data.AppConfig;
 using Newtonsoft.Json;
 
 namespace Diary.RedMine.Response;

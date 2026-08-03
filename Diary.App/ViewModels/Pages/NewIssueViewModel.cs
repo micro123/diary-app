@@ -5,7 +5,7 @@ using Diary.Utils;
 namespace Diary.App.ViewModels.Pages;
 
 [DiAutoRegister]
-public partial class NewIssueViewModel: ViewModelBase
+public partial class NewIssueViewModel : ViewModelBase
 {
     [ObservableProperty] private string _issueTitle = string.Empty;
     [ObservableProperty] private string _issueDesc = string.Empty;

@@ -1,7 +1,5 @@
 using Diary.Core;
 using Diary.Core.Data.Base;
-using Diary.Core.Data.RedMine;
-using Diary.Core.Data.Statistics;
 using Diary.Database;
 
 namespace Diary.DbTests;

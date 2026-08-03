@@ -17,7 +17,7 @@ public class RespondentTests
             Debug.WriteLine(s);
         };
         await Task.Delay(10000);
-        
+
         respondent.Shutdown();
     }
 }

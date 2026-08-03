@@ -1,6 +1,4 @@
-using System;
 using System.Collections.ObjectModel;
-using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
@@ -36,7 +34,7 @@ public partial class TemplateViewModel
         }
         return -1;
     }
-    
+
     public static TemplateViewModel FromTemplate(Template template, DbShareData shareData)
     {
         ObservableCollection<WorkTag> tags = new();
@@ -55,7 +53,7 @@ public partial class TemplateViewModel
             DefaultTitle = template.DefaultTitle,
             Time = template.DefaultTime,
             RedMineActivity = FindIndex(shareData.RedMineActivities, x => x.Id == template.DefaultActivity),
-            RedMineIssue =  FindIndex(shareData.RedMineIssues, x => x.Id == template.DefaultIssue),
+            RedMineIssue = FindIndex(shareData.RedMineIssues, x => x.Id == template.DefaultIssue),
             Tags = tags,
         };
         return result;
@@ -102,7 +100,8 @@ public partial class TemplateEditorViewModel : ViewModelBase, IDialogContext
     private readonly DbShareData _dbShareData;
     private readonly ILogger _logger;
 
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(AddTemplateCommand))]
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(AddTemplateCommand))]
     private string _newTemplateName = string.Empty;
 
     [ObservableProperty] private ObservableCollection<TemplateViewModel> _templates = new();
@@ -131,7 +130,7 @@ public partial class TemplateEditorViewModel : ViewModelBase, IDialogContext
 
         LoadTemplates();
     }
-    
+
     private void LoadTemplates()
     {
         var templates = TemplateManager.Instance.Templates;

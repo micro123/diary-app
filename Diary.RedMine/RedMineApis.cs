@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using Diary.RedMine.Response;
 using Diary.Utils;
@@ -12,7 +11,7 @@ public static class RedMineApis
 {
     private static ILogger Logger => Logging.Logger;
     public const int PageSize = 50;
-    
+
     // 项目搜索: GET {base}/search.json?q=<keyword1 keyword2>&projects=1
     public static bool SearchProject([NotNullWhen(true)] out IEnumerable<ProjectInfo>? projects,
         out int total, int page = 0,
@@ -39,7 +38,7 @@ public static class RedMineApis
             else
             {
                 Logger.LogDebug("response {Content}", response.Content);
-                total =  response.Data!.Total;
+                total = response.Data!.Total;
                 projects = response.Data!.Results;
             }
         }
@@ -48,7 +47,7 @@ public static class RedMineApis
     }
 
     // 项目信息: GET {base}/projects/{id}.json
-    public static bool GetProject([NotNullWhen(true)] out ProjectInfo? project,int id)
+    public static bool GetProject([NotNullWhen(true)] out ProjectInfo? project, int id)
     {
         project = null;
         var url = ProjectInfo.Fetch(id);
@@ -142,7 +141,7 @@ public static class RedMineApis
                 issues = response.Data!.Issue;
             }
         }
-        
+
         return issues != null;
     }
 
@@ -151,8 +150,8 @@ public static class RedMineApis
         int projectId, string subject, string description = "", bool assignedToSelf = true)
     {
         issue = null;
-        
-        var url =  IssueInfo.Query();
+
+        var url = IssueInfo.Query();
         var client = RestTools.BasicClient();
         if (client != null)
         {
@@ -167,7 +166,7 @@ public static class RedMineApis
                 postData.Data.AssignedToId = "me";
             }
             request.AddJsonBody(postData);
-            
+
             var response = client.Execute<IssueInfo.FetchResult>(request);
             if (response.StatusCode != HttpStatusCode.Created)
             {
@@ -179,7 +178,7 @@ public static class RedMineApis
                 issue = response.Data!.Issue;
             }
         }
-        
+
         return issue != null;
     }
 
@@ -193,8 +192,8 @@ public static class RedMineApis
     // 提交工时: POST {base}/time_entries.json <json_data contains: issue_id,spent_on,hours,activity_id,comments>
     public static bool CreateTimeEntry([NotNullWhen(true)] out TimeInfo? timeInfo, int issue, int activity, string date, double hours, string comment)
     {
-        timeInfo = null;        
-        
+        timeInfo = null;
+
         var url = TimeInfo.Query();
         var client = RestTools.BasicClient();
         if (client != null)
@@ -213,18 +212,18 @@ public static class RedMineApis
                 timeInfo = response.Data!.TimeEntry;
             }
         }
-        
-        return timeInfo !=  null;
+
+        return timeInfo != null;
     }
 
     // 查询工时: GET {base}/time_entries.json?user_id=me&from=<date_start>&to=<date_end>
     public static bool GetMyTimeEntries([NotNullWhen(true)] out IEnumerable<TimeInfo>? timeInfos,
         out int total,
-        string dateStart = "",  string dateEnd = "", int page = 0)
+        string dateStart = "", string dateEnd = "", int page = 0)
     {
         timeInfos = null;
         total = 0;
-        
+
         var url = TimeInfo.Query();
         var client = RestTools.BasicClient();
         if (client != null)
@@ -237,7 +236,7 @@ public static class RedMineApis
                 request.AddQueryParameter("from", dateStart);
             if (!string.IsNullOrEmpty(dateEnd))
                 request.AddQueryParameter("to", dateEnd);
-            
+
             var response = client.Execute<TimeInfo.QueryResult>(request);
             if (response.StatusCode != HttpStatusCode.OK)
             {
@@ -250,7 +249,7 @@ public static class RedMineApis
                 timeInfos = response.Data!.TimeEntries;
             }
         }
-        
+
         return timeInfos != null;
     }
 

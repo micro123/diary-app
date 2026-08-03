@@ -85,7 +85,7 @@ public static class EasySaveLoad
             return string.Empty;
         }
     }
-    
+
     private static bool GetSaveConfig(object o, [NotNullWhen(true)] out StorageFileAttribute? storageFileAttribute)
     {
         storageFileAttribute = null;
@@ -93,7 +93,7 @@ public static class EasySaveLoad
         storageFileAttribute = cls.GetCustomAttribute<StorageFileAttribute>(false);
         return storageFileAttribute != null;
     }
-    
+
     public static bool Save(object obj)
     {
         if (GetSaveConfig(obj, out var storageFileAttribute))
