@@ -6,7 +6,7 @@ using Diary.Core.Data.Statistics;
 
 namespace Diary.Database;
 
-public abstract class DbInterfaceBase
+public abstract class DbInterfaceBase : IDisposable
 {
     protected readonly IDbFactory Factory;
     protected DbInterfaceBase(IDbFactory factory) => Factory = factory;
@@ -19,6 +19,9 @@ public abstract class DbInterfaceBase
     public abstract bool KeepAlive();
     // close connection
     public abstract void Close();
+
+    // release all held resources (connection / data source / transaction)
+    public abstract void Dispose();
 
     // data version
     public abstract uint GetDataVersion();

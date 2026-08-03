@@ -187,117 +187,63 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
     {
         const string sql =
             @"INSERT OR IGNORE INTO work_tags(tag_name,tag_level,tag_color) VALUES ($value,$level,$color) RETURNING *;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$value", name);
-        cmd.Parameters.AddWithValue("$level", primary ? 0 : 1);
-        cmd.Parameters.AddWithValue("$color", color);
-        using var reader = cmd.ExecuteReader();
-        if (reader.Read())
-        {
-            return MapWorkTag(reader);
-        }
-
-        return new WorkTag();
+        return QueryFirst(sql, MapWorkTag,
+            ("$value", name), ("$level", primary ? 0 : 1), ("$color", color)) ?? new WorkTag();
     }
 
     public override bool UpdateWorkTag(WorkTag tag)
     {
         if (tag.Id == 0)
-        {
             return false;
-        }
-
         const string sql =
             @"UPDATE OR FAIL work_tags SET tag_color=$color, tag_level=$level, is_disabled=$disabled WHERE id=$id;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$color", tag.Color);
-        cmd.Parameters.AddWithValue("$level", tag.Level);
-        cmd.Parameters.AddWithValue("$disabled", tag.Disabled ? 1 : 0);
-        cmd.Parameters.AddWithValue("$id", tag.Id);
-        return cmd.ExecuteNonQuery() > 0;
+        return Execute(sql,
+            ("$color", tag.Color), ("$level", tag.Level),
+            ("$disabled", tag.Disabled ? 1 : 0), ("$id", tag.Id)) > 0;
     }
 
     public override bool DeleteWorkTag(WorkTag tag)
     {
         const string sql = @"DELETE FROM work_tags WHERE id=$id;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$id", tag.Id);
-        return cmd.ExecuteNonQuery() > 0;
+        return Execute(sql, ("$id", tag.Id)) > 0;
     }
 
     public override ICollection<WorkTag> AllWorkTags()
     {
-        List<WorkTag> result = new();
-
         const string sql = @"SELECT * FROM work_tags ORDER BY is_disabled ASC, tag_level ASC;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
-        {
-            result.Add(MapWorkTag(reader));
-        }
-
-        return result;
+        return Query(sql, MapWorkTag);
     }
 
     public override bool UpdateWorkTagId(int oldId, int newId)
     {
         const string sql = "UPDATE work_tags SET id=$new WHERE id=$old;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$old", oldId);
-        cmd.Parameters.AddWithValue("$new", newId);
-        return cmd.ExecuteNonQuery() > 0;
+        return Execute(sql, ("$old", oldId), ("$new", newId)) > 0;
     }
 
     public override WorkItem CreateWorkItem(string date, string comment)
     {
         const string sql =
             @"INSERT INTO work_items(create_date, comment) VALUES ($create_date, $comment) RETURNING *;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$create_date", date);
-        cmd.Parameters.AddWithValue("$comment", comment);
-        using var reader = cmd.ExecuteReader();
-        if (reader.Read())
-        {
-            return MapWorkItem(reader);
-        }
-
-        return new WorkItem();
+        return QueryFirst(sql, MapWorkItem, ("$create_date", date), ("$comment", comment)) ?? new WorkItem();
     }
 
     public override bool UpdateWorkItem(WorkItem item)
     {
         if (item.Id == 0)
             return false;
-
         const string sql =
             @"UPDATE work_items SET create_date=$create_date, comment=$comment, hours=$time, priority=$priority WHERE id=$id;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$id", item.Id);
-        cmd.Parameters.AddWithValue("$create_date", item.CreateDate);
-        cmd.Parameters.AddWithValue("$comment", item.Comment);
-        cmd.Parameters.AddWithValue("$time", item.Time);
-        cmd.Parameters.AddWithValue("$priority", (int)item.Priority);
-        return cmd.ExecuteNonQuery() > 0;
+        return Execute(sql,
+            ("$create_date", item.CreateDate), ("$comment", item.Comment),
+            ("$time", item.Time), ("$priority", (int)item.Priority), ("$id", item.Id)) > 0;
     }
 
     public override bool DeleteWorkItem(WorkItem item)
     {
         if (item.Id == 0)
             return false;
-        const string sql =
-            @"DELETE FROM work_items WHERE id=$id;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$id", item.Id);
-        return cmd.ExecuteNonQuery() > 0;
+        const string sql = @"DELETE FROM work_items WHERE id=$id;";
+        return Execute(sql, ("$id", item.Id)) > 0;
     }
 
     public override ICollection<WorkItem> GetWorkItemByDateRange(string beginData, string endData)
@@ -307,84 +253,40 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
                   FROM work_items
                   WHERE create_date BETWEEN $beginDate AND $endDate;
                   """;
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$beginDate", beginData);
-        cmd.Parameters.AddWithValue("$endDate", endData);
-        using var reader = cmd.ExecuteReader();
-        var result = new List<WorkItem>();
-        while (reader.Read())
-        {
-            result.Add(MapWorkItem(reader));
-        }
-
-        return result;
+        return Query(sql, MapWorkItem, ("$beginDate", beginData), ("$endDate", endData));
     }
 
     public override ICollection<WorkItem> GetWorkItemByDate(string date)
     {
         const string sql = @"SELECT * FROM work_items WHERE create_date=$date ORDER BY priority ASC;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$date", date);
-        using var reader = cmd.ExecuteReader();
-        List<WorkItem> items = new();
-        while (reader.Read())
-        {
-            items.Add(MapWorkItem(reader));
-        }
-
-        return items;
+        return Query(sql, MapWorkItem, ("$date", date));
     }
 
     public override bool UpdateWorkItemId(int oldId, int newId)
     {
         const string sql = "UPDATE work_items SET id=$new WHERE id=$old;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$old", oldId);
-        cmd.Parameters.AddWithValue("$new", newId);
-        return cmd.ExecuteNonQuery() > 0;
+        return Execute(sql, ("$old", oldId), ("$new", newId)) > 0;
     }
 
     public override void WorkUpdateNote(WorkItem work, string content)
     {
         if (work.Id == 0)
             throw new ArgumentException("work id is required");
-
         const string sql =
             @"INSERT INTO work_notes(id, note) VALUES ($id, $note) ON CONFLICT (id) DO UPDATE SET note=$note RETURNING *;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$id", work.Id);
-        cmd.Parameters.AddWithValue("$note", content);
-        cmd.ExecuteNonQuery();
+        Execute(sql, ("$id", work.Id), ("$note", content));
     }
 
     public override void WorkDeleteNote(WorkItem work)
     {
-        const string sql =
-            @"DELETE FROM work_notes WHERE id=$id;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$id", work.Id);
-        cmd.ExecuteNonQuery();
+        const string sql = @"DELETE FROM work_notes WHERE id=$id;";
+        Execute(sql, ("$id", work.Id));
     }
 
     public override string? WorkGetNote(WorkItem work)
     {
-        const string sql =
-            @"SELECT note FROM work_notes WHERE id=$id;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$id", work.Id);
-        using var reader = cmd.ExecuteReader();
-        if (reader.Read())
-        {
-            return reader.GetString(0);
-        }
-
-        return null;
+        const string sql = @"SELECT note FROM work_notes WHERE id=$id;";
+        return QueryFirst(sql, r => ReadString(r, 0), ("$id", work.Id));
     }
 
     public override Dictionary<int, string> GetWorkNotesByDate(string date)
@@ -443,15 +345,10 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
 
     public override bool WorkItemAddTag(WorkItem item, WorkTag tag)
     {
-        const string sql =
-            @"INSERT INTO work_item_tags VALUES($work_id, $tag_id) RETURNING *;";
+        const string sql = @"INSERT INTO work_item_tags VALUES($work_id, $tag_id) RETURNING *;";
         try
         {
-            using var cmd = _connection!.CreateCommand();
-            cmd.CommandText = sql;
-            cmd.Parameters.AddWithValue("$work_id", item.Id);
-            cmd.Parameters.AddWithValue("$tag_id", tag.Id);
-            return cmd.ExecuteNonQuery() > 0;
+            return Execute(sql, ("$work_id", item.Id), ("$tag_id", tag.Id)) > 0;
         }
         catch (SQLiteException)
         {
@@ -461,23 +358,14 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
 
     public override bool WorkItemRemoveTag(WorkItem item, WorkTag tag)
     {
-        const string sql =
-            @"DELETE from work_item_tags WHERE work_id=$work_id and tag_id=$tag_id;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$work_id", item.Id);
-        cmd.Parameters.AddWithValue("$tag_id", tag.Id);
-        return cmd.ExecuteNonQuery() > 0;
+        const string sql = @"DELETE from work_item_tags WHERE work_id=$work_id and tag_id=$tag_id;";
+        return Execute(sql, ("$work_id", item.Id), ("$tag_id", tag.Id)) > 0;
     }
 
     public override bool WorkItemCleanTags(WorkItem item)
     {
-        const string sql =
-            @"DELETE from work_item_tags WHERE work_id=$work_id;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$work_id", item.Id);
-        return cmd.ExecuteNonQuery() > 0;
+        const string sql = @"DELETE from work_item_tags WHERE work_id=$work_id;";
+        return Execute(sql, ("$work_id", item.Id)) > 0;
     }
 
     public override ICollection<WorkTag> GetWorkItemTags(WorkItem item)
@@ -485,39 +373,19 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
         if (item.Id == 0)
             throw new ArgumentException("work id is required");
         var sql = """
-                  SELECT work_tags.* 
+                  SELECT work_tags.*
                   FROM work_item_tags INNER JOIN work_tags ON work_item_tags.tag_id=work_tags.id
                   WHERE work_item_tags.work_id = $work_id
                   ORDER BY work_tags.tag_level ASC;
                   """;
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$work_id", item.Id);
-        using var reader = cmd.ExecuteReader();
-        var tags = new List<WorkTag>();
-        while (reader.Read())
-        {
-            tags.Add(MapWorkTag(reader));
-        }
-
-        return tags;
+        return Query(sql, MapWorkTag, ("$work_id", item.Id));
     }
 
     public override RedMineActivity AddRedMineActivity(int id, string title)
     {
         const string sql =
             @"INSERT INTO redmine_activities VALUES ($id,$title) ON CONFLICT(id) DO UPDATE SET act_name=$title RETURNING *;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$id", id);
-        cmd.Parameters.AddWithValue("$title", title);
-        using var reader = cmd.ExecuteReader();
-        if (reader.Read())
-        {
-            return MapRedMineActivity(reader);
-        }
-
-        return new RedMineActivity();
+        return QueryFirst(sql, MapRedMineActivity, ("$id", id), ("$title", title)) ?? new RedMineActivity();
     }
 
     public override RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project,
@@ -525,60 +393,28 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
     {
         const string sql =
             "INSERT INTO redmine_issues(id, issue_title, assigned_to, project_id, is_closed) VALUES ($id,$title,$assign,$project,$close) ON CONFLICT(id) DO UPDATE SET issue_title=$title, assigned_to=$assign, project_id=$project, is_closed=$close RETURNING *;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$id", id);
-        cmd.Parameters.AddWithValue("$title", title);
-        cmd.Parameters.AddWithValue("$assign", assignedTo);
-        cmd.Parameters.AddWithValue("$project", project);
-        cmd.Parameters.AddWithValue("$close", closed ? 1 : 0);
-        using var reader = cmd.ExecuteReader();
-        if (reader.Read())
-        {
-            return MapRedMineIssue(reader);
-        }
-
-        return new RedMineIssue();
+        return QueryFirst(sql, MapRedMineIssue,
+            ("$id", id), ("$title", title), ("$assign", assignedTo),
+            ("$project", project), ("$close", closed ? 1 : 0)) ?? new RedMineIssue();
     }
 
     public override void UpdateRedMineIssueStatus(int id, bool closed)
     {
-        const string sql =
-            @"UPDATE redmine_issues SET is_closed=$closed WHERE id=$id;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$id", id);
-        cmd.Parameters.AddWithValue("$closed", closed ? 1 : 0);
-        cmd.ExecuteNonQuery();
+        const string sql = @"UPDATE redmine_issues SET is_closed=$closed WHERE id=$id;";
+        Execute(sql, ("$id", id), ("$closed", closed ? 1 : 0));
     }
 
     public override RedMineProject AddRedMineProject(int id, string title, string description)
     {
         const string sql =
             @"INSERT INTO redmine_projects(id, project_name, project_desc) VALUES ($id,$title,$desc) ON CONFLICT(id) DO UPDATE SET project_name=$title, project_desc=$desc RETURNING *;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$id", id);
-        cmd.Parameters.AddWithValue("$title", title);
-        cmd.Parameters.AddWithValue("$desc", description);
-        using var reader = cmd.ExecuteReader();
-        if (reader.Read())
-        {
-            return MapRedMineProject(reader);
-        }
-
-        return new RedMineProject();
+        return QueryFirst(sql, MapRedMineProject, ("$id", id), ("$title", title), ("$desc", description)) ?? new RedMineProject();
     }
 
     public override void UpdateRedMineProjectStatus(int id, bool closed)
     {
-        const string sql =
-            @"UPDATE redmine_projects SET is_closed=$closed WHERE id=$id;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$id", id);
-        cmd.Parameters.AddWithValue("$closed", closed ? 1 : 0);
-        cmd.ExecuteNonQuery();
+        const string sql = @"UPDATE redmine_projects SET is_closed=$closed WHERE id=$id;";
+        Execute(sql, ("$id", id), ("$closed", closed ? 1 : 0));
     }
 
     public override WorkTimeEntry? WorkItemGetTimeEntry(WorkItem item)
@@ -588,16 +424,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
         var sql = """
                   SELECT * FROM redmine_time_entries WHERE work_id=$id;
                   """;
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$id", item.Id);
-        using var reader = cmd.ExecuteReader();
-        if (reader.Read())
-        {
-            return MapWorkTimeEntry(reader);
-        }
-
-        return null;
+        return QueryFirst(sql, MapWorkTimeEntry, ("$id", item.Id));
     }
 
     public override bool WorkItemWasUploaded(WorkItem item)
@@ -607,145 +434,75 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
         var sql = """
                   SELECT * FROM redmine_time_entries WHERE work_id=$id AND id>0;
                   """;
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$id", item.Id);
-        using var reader = cmd.ExecuteReader();
-        return reader.Read();
+        return Exists(sql, ("$id", item.Id));
     }
 
     public override ICollection<RedMineActivity> GetRedMineActivities()
     {
-        var sql = @"SELECT * FROM redmine_activities;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        using var reader = cmd.ExecuteReader();
-        var activities = new List<RedMineActivity>();
-        while (reader.Read())
-        {
-            activities.Add(MapRedMineActivity(reader));
-        }
-
-        return activities;
+        const string sql = @"SELECT * FROM redmine_activities;";
+        return Query(sql, MapRedMineActivity);
     }
 
     public override ICollection<RedMineIssueDisplay> GetRedMineIssues(RedMineProject? project)
     {
-        if (project == null)
+        RedMineIssueDisplay MapDisplay(DbDataReader r) => new()
+        {
+            Id = r.GetInt32(0),
+            Title = ReadString(r, 1),
+            AssignedTo = ReadString(r, 2),
+            Project = ReadString(r, 3),
+            Disabled = r.GetInt32(4) != 0,
+        };
+
+        if (project is null)
         {
             var sql = """
-                      SELECT
-                          redmine_issues.id AS id, redmine_issues.issue_title, redmine_issues.assigned_to, redmine_projects.project_name, redmine_issues.is_closed as closed
-                      FROM
-                          redmine_issues INNER JOIN redmine_projects ON redmine_issues.project_id=redmine_projects.id ORDER BY closed ASC, id DESC;
+                      SELECT redmine_issues.id AS id, redmine_issues.issue_title, redmine_issues.assigned_to, redmine_projects.project_name, redmine_issues.is_closed AS closed
+                      FROM redmine_issues INNER JOIN redmine_projects ON redmine_issues.project_id=redmine_projects.id
+                      ORDER BY closed ASC, id DESC;
                       """;
-            using var cmd = _connection!.CreateCommand();
-            cmd.CommandText = sql;
-            using var reader = cmd.ExecuteReader();
-            var activities = new List<RedMineIssueDisplay>();
-            while (reader.Read())
-            {
-                activities.Add(new RedMineIssueDisplay()
-                {
-                    Id = reader.GetInt32(0),
-                    Title = reader.GetString(1),
-                    AssignedTo = reader.GetString(2),
-                    Project = reader.GetString(3),
-                    Disabled = reader.GetInt32(4) != 0,
-                });
-            }
-
-            return activities;
+            return Query(sql, MapDisplay);
         }
-        else
-        {
-            var sql = """
-                      SELECT
-                          redmine_issues.id AS id, redmine_issues.issue_title, redmine_issues.assigned_to, redmine_projects.project_name, redmine_issues.is_closed as closed
-                      FROM
-                          redmine_issues INNER JOIN redmine_projects ON redmine_issues.project_id=$projectId AND redmine_issues.project_id=redmine_projects.id ORDER BY closed ASC, id DESC;
-                      """;
-            using var cmd = _connection!.CreateCommand();
-            cmd.CommandText = sql;
-            cmd.Parameters.AddWithValue("$projectId", project.Id);
-            using var reader = cmd.ExecuteReader();
-            var activities = new List<RedMineIssueDisplay>();
-            while (reader.Read())
-            {
-                activities.Add(new RedMineIssueDisplay()
-                {
-                    Id = reader.GetInt32(0),
-                    Title = reader.GetString(1),
-                    AssignedTo = reader.GetString(2),
-                    Project = reader.GetString(3),
-                    Disabled = reader.GetInt32(4) != 0,
-                });
-            }
 
-            return activities;
-        }
+        var sqlFiltered = """
+                          SELECT redmine_issues.id AS id, redmine_issues.issue_title, redmine_issues.assigned_to, redmine_projects.project_name, redmine_issues.is_closed AS closed
+                          FROM redmine_issues INNER JOIN redmine_projects ON redmine_issues.project_id=$projectId AND redmine_issues.project_id=redmine_projects.id
+                          ORDER BY closed ASC, id DESC;
+                          """;
+        return Query(sqlFiltered, MapDisplay, ("$projectId", project.Id));
     }
 
     public override ICollection<RedMineProject> GetRedMineProjects()
     {
-        var sql = @"SELECT * FROM redmine_projects;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        using var reader = cmd.ExecuteReader();
-        var projects = new List<RedMineProject>();
-        while (reader.Read())
-        {
-            projects.Add(MapRedMineProject(reader));
-        }
-
-        return projects;
+        const string sql = @"SELECT * FROM redmine_projects;";
+        return Query(sql, MapRedMineProject);
     }
 
     public override WorkTimeEntry? CreateWorkTimeEntry(int work, int activity, int issue)
     {
         if (work == 0)
-        {
             throw new ArgumentException($"Work ID {work} is invalid");
-        }
-
         const string sql =
             "INSERT INTO redmine_time_entries(work_id, act_id, issue_id) VALUES ($workId, $actId, $issueId) ON CONFLICT DO UPDATE SET act_id=$actId, issue_id=$issueId RETURNING *;";
         try
         {
-            using var cmd = _connection!.CreateCommand();
-            cmd.CommandText = sql;
-            cmd.Parameters.AddWithValue("$workId", work);
-            cmd.Parameters.AddWithValue("$actId", activity);
-            cmd.Parameters.AddWithValue("$issueId", issue);
-            using var reader = cmd.ExecuteReader();
-            if (reader.Read())
-            {
-                return MapWorkTimeEntry(reader);
-            }
+            return QueryFirst(sql, MapWorkTimeEntry, ("$workId", work), ("$actId", activity), ("$issueId", issue));
         }
         catch (SQLiteException)
         {
             return null;
         }
-        return null;
     }
 
     public override bool UpdateWorkTimeEntry(WorkTimeEntry timeEntry)
     {
         if (timeEntry.WorkId == 0)
-        {
             throw new ArgumentException($"Work ID {timeEntry.WorkId} is invalid");
-        }
-
         const string sql =
             "UPDATE redmine_time_entries SET act_id=$actId, issue_id=$issueId, id=$entryId WHERE work_id=$workId;";
-        using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.AddWithValue("$actId", timeEntry.ActivityId);
-        cmd.Parameters.AddWithValue("$issueId", timeEntry.IssueId);
-        cmd.Parameters.AddWithValue("$entryId", timeEntry.EntryId);
-        cmd.Parameters.AddWithValue("$workId", timeEntry.WorkId);
-        return cmd.ExecuteNonQuery() > 0;
+        return Execute(sql,
+            ("$actId", timeEntry.ActivityId), ("$issueId", timeEntry.IssueId),
+            ("$entryId", timeEntry.EntryId), ("$workId", timeEntry.WorkId)) > 0;
     }
 
     public override StatisticsResult GetStatistics(string beginDate, string endDate)
@@ -846,7 +603,6 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
 
     public override ICollection<WorkItem> GetWorkItemsByTagAndDate(string dateBegin, string dateEnd, int l1, int l2 = 0)
     {
-        var result = new List<WorkItem>();
         if (l2 == 0)
         {
             var sql = """
@@ -855,18 +611,9 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
                       WHERE work_item_tags.tag_id = $id AND work_items.create_date BETWEEN $begin AND $end
                       ORDER BY create_date,work_items.id;
                       """;
-            using var cmd = _connection!.CreateCommand();
-            cmd.CommandText = sql;
-            cmd.Parameters.AddWithValue("$begin", dateBegin);
-            cmd.Parameters.AddWithValue("$end", dateEnd);
-            cmd.Parameters.AddWithValue("$id", l1);
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
-            {
-                result.Add(MapWorkItem(reader));
-            }
+            return Query(sql, MapWorkItem, ("$begin", dateBegin), ("$end", dateEnd), ("$id", l1));
         }
-        else
+
         {
             var sql = """
                       SELECT work_items.* FROM
@@ -877,20 +624,9 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
                       	ON work_items.id=T1.work_id WHERE create_date BETWEEN $begin AND $end
                       ORDER BY create_date,id;
                       """;
-            using var cmd = _connection!.CreateCommand();
-            cmd.CommandText = sql;
-            cmd.Parameters.AddWithValue("$begin", dateBegin);
-            cmd.Parameters.AddWithValue("$end", dateEnd);
-            cmd.Parameters.AddWithValue("$primary", l1);
-            cmd.Parameters.AddWithValue("$secondary", l2);
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
-            {
-                result.Add(MapWorkItem(reader));
-            }
+            return Query(sql, MapWorkItem,
+                ("$begin", dateBegin), ("$end", dateEnd), ("$primary", l1), ("$secondary", l2));
         }
-
-        return result;
     }
 
     public override bool DropData()
@@ -977,7 +713,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
         }
     }
 
-    public void Dispose()
+    public override void Dispose()
     {
         _transaction?.Dispose();
         _connection?.Dispose();

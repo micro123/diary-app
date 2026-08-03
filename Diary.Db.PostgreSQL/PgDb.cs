@@ -181,120 +181,87 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
         return result != null ? Convert.ToUInt32(result) : 0;
     }
 
+    // $1=name $2=level $3=color
     public override WorkTag CreateWorkTag(string name, bool primary, int color)
     {
         var sql = """
-                  INSERT INTO work_tags(tag_name, tag_level, tag_color) values ($1, $2, $3) returning *;
+                  INSERT INTO work_tags(tag_name, tag_level, tag_color) values ($1, $2, $3) ON CONFLICT (tag_name) DO NOTHING returning *;
                   """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(name);
-        cmd.Parameters.AddWithValue(primary ? 0 : 1);
-        cmd.Parameters.AddWithValue(color);
-        using var reader = cmd.ExecuteReader();
-        if (reader.Read())
-        {
-            return MapWorkTag(reader);
-        }
-
-        return new WorkTag();
+        return QueryFirst(sql, MapWorkTag, ("$1", name), ("$2", primary ? 0 : 1), ("$3", color)) ?? new WorkTag();
     }
 
+    // $1=level $2=color $3=disabled $4=id
     public override bool UpdateWorkTag(WorkTag tag)
     {
         if (tag.Id == 0)
             return false;
-
         var sql = """
                   UPDATE work_tags SET tag_level=$1, tag_color=$2, is_disabled=$3
                   WHERE id=$4;
                   """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue((int)tag.Level);
-        cmd.Parameters.AddWithValue(tag.Color);
-        cmd.Parameters.AddWithValue(tag.Disabled ? 1 : 0);
-        cmd.Parameters.AddWithValue(tag.Id);
-        return cmd.ExecuteNonQuery() > 0;
+        return Execute(sql,
+            ("$1", (int)tag.Level), ("$2", tag.Color),
+            ("$3", tag.Disabled ? 1 : 0), ("$4", tag.Id)) > 0;
     }
 
+    // $1=id
     public override bool DeleteWorkTag(WorkTag tag)
     {
         if (tag.Id == 0)
             return false;
-
         var sql = """
                   DELETE FROM work_tags WHERE id=$1;
                   """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(tag.Id);
-        return cmd.ExecuteNonQuery() > 0;
+        return Execute(sql, ("$1", tag.Id)) > 0;
     }
 
     public override ICollection<WorkTag> AllWorkTags()
     {
-        var sql = "SELECT * FROM work_tags ORDER BY is_disabled, tag_level, id;";
-
-        var result = new List<WorkTag>();
-        using var cmd = Command(sql);
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
-        {
-            result.Add(MapWorkTag(reader));
-        }
-
-        return result;
+        const string sql = "SELECT * FROM work_tags ORDER BY is_disabled, tag_level, id;";
+        return Query(sql, MapWorkTag);
     }
 
+    // $1=new $2=old
     public override bool UpdateWorkTagId(int oldId, int newId)
     {
-        var sql = "UPDATE work_tags SET id=$1 WHERE id=$2;";
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(newId);
-        cmd.Parameters.AddWithValue(oldId);
-        return cmd.ExecuteNonQuery() > 0;
+        const string sql = "UPDATE work_tags SET id=$1 WHERE id=$2;";
+        return Execute(sql, ("$1", newId), ("$2", oldId)) > 0;
     }
 
+    // $1=date $2=comment
     public override WorkItem CreateWorkItem(string date, string comment)
     {
         var sql = """
                   INSERT INTO work_items(create_date, comment) VALUES ($1, $2) returning *;
                   """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(date);
-        cmd.Parameters.AddWithValue(comment);
-        using var reader = cmd.ExecuteReader();
-        return reader.Read() ? MapWorkItem(reader) : new WorkItem();
+        return QueryFirst(sql, MapWorkItem, ("$1", date), ("$2", comment)) ?? new WorkItem();
     }
 
+    // $1=date $2=comment $3=time $4=priority $5=id
     public override bool UpdateWorkItem(WorkItem item)
     {
         if (item.Id == 0)
             return false;
-
         var sql = """
                   UPDATE work_items SET create_date=$1, comment=$2, hours=$3, priority=$4  WHERE id=$5;
                   """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(item.CreateDate);
-        cmd.Parameters.AddWithValue(item.Comment);
-        cmd.Parameters.AddWithValue(item.Time);
-        cmd.Parameters.AddWithValue((int)item.Priority);
-        cmd.Parameters.AddWithValue(item.Id);
-        return cmd.ExecuteNonQuery() > 0;
+        return Execute(sql,
+            ("$1", item.CreateDate), ("$2", item.Comment),
+            ("$3", item.Time), ("$4", (int)item.Priority), ("$5", item.Id)) > 0;
     }
 
+    // $1=id
     public override bool DeleteWorkItem(WorkItem item)
     {
         if (item.Id == 0)
             return false;
-
         var sql = """
                   DELETE FROM work_items WHERE id=$1;
                   """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(item.Id);
-        return cmd.ExecuteNonQuery() > 0;
+        return Execute(sql, ("$1", item.Id)) > 0;
     }
 
+    // $1=begin $2=end
     public override ICollection<WorkItem> GetWorkItemByDateRange(string beginData, string endData)
     {
         var sql = """
@@ -303,84 +270,54 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
                   WHERE create_date BETWEEN $1 AND $2
                   ORDER BY priority;
                   """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(beginData);
-        cmd.Parameters.AddWithValue(endData);
-        using var reader = cmd.ExecuteReader();
-        var result = new List<WorkItem>();
-        while (reader.Read())
-        {
-            result.Add(MapWorkItem(reader));
-        }
-
-        return result;
+        return Query(sql, MapWorkItem, ("$1", beginData), ("$2", endData));
     }
 
+    // $1=date
     public override ICollection<WorkItem> GetWorkItemByDate(string date)
     {
         const string sql = @"SELECT * FROM work_items WHERE create_date=$1 ORDER BY priority;";
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(date);
-        using var reader = cmd.ExecuteReader();
-        List<WorkItem> items = new();
-        while (reader.Read())
-        {
-            items.Add(MapWorkItem(reader));
-        }
-
-        return items;
+        return Query(sql, MapWorkItem, ("$1", date));
     }
 
+    // $1=new $2=old
     public override bool UpdateWorkItemId(int oldId, int newId)
     {
-        var sql = "UPDATE work_items SET id=$1 WHERE id=$2;";
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(newId);
-        cmd.Parameters.AddWithValue(oldId);
-        return cmd.ExecuteNonQuery() > 0;
+        const string sql = "UPDATE work_items SET id=$1 WHERE id=$2;";
+        return Execute(sql, ("$1", newId), ("$2", oldId)) > 0;
     }
 
+    // $1=id $2=note
     public override void WorkUpdateNote(WorkItem work, string content)
     {
         if (work.Id == 0)
             throw new ArgumentNullException(nameof(work.Id));
-
         var sql = """
                   INSERT INTO work_notes(id, note) VALUES ($1, $2) ON CONFLICT(id) DO UPDATE SET note=$2;
                   """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(work.Id);
-        cmd.Parameters.AddWithValue(content);
-        cmd.ExecuteNonQuery();
+        Execute(sql, ("$1", work.Id), ("$2", content));
     }
 
+    // $1=id
     public override void WorkDeleteNote(WorkItem work)
     {
         if (work.Id == 0)
             throw new ArgumentNullException(nameof(work.Id));
-
         var sql = """
                   DELETE FROM work_notes WHERE id=$1;
                   """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(work.Id);
-        cmd.ExecuteNonQuery();
+        Execute(sql, ("$1", work.Id));
     }
 
+    // $1=id
     public override string? WorkGetNote(WorkItem work)
     {
         if (work.Id == 0)
             throw new ArgumentNullException(nameof(work.Id));
-
         var sql = """
                   SELECT note FROM work_notes WHERE id=$1;
                   """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(work.Id);
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
-            return ReadString(reader, 0);
-        return null;
+        return QueryFirst(sql, r => ReadString(r, 0), ("$1", work.Id));
     }
 
     public override Dictionary<int, string> GetWorkNotesByDate(string date)
@@ -437,20 +374,17 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
         return result;
     }
 
+    // $1=work_id $2=tag_id
     public override bool WorkItemAddTag(WorkItem item, WorkTag tag)
     {
         if (item.Id == 0 || tag.Id == 0)
             throw new ArgumentException($"{nameof(item.Id)} or {nameof(tag.Id)} is required");
-
         try
         {
             var sql = """
                       INSERT INTO work_item_tags(work_id, tag_id) VALUES ($1, $2);
                       """;
-            using var cmd = Command(sql);
-            cmd.Parameters.AddWithValue(item.Id);
-            cmd.Parameters.AddWithValue(tag.Id);
-            return cmd.ExecuteNonQuery() > 0;
+            return Execute(sql, ("$1", item.Id), ("$2", tag.Id)) > 0;
         }
         catch (Exception)
         {
@@ -458,73 +392,52 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
         }
     }
 
+    // $1=work_id $2=tag_id
     public override bool WorkItemRemoveTag(WorkItem item, WorkTag tag)
     {
         if (item.Id == 0 || tag.Id == 0)
             throw new ArgumentException($"{nameof(item.Id)} or {nameof(tag.Id)} is required");
-
         var sql = """
                   DELETE FROM work_item_tags WHERE work_id=$1 AND tag_id=$2;
                   """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(item.Id);
-        cmd.Parameters.AddWithValue(tag.Id);
-        return cmd.ExecuteNonQuery() > 0;
+        return Execute(sql, ("$1", item.Id), ("$2", tag.Id)) > 0;
     }
 
+    // $1=work_id
     public override bool WorkItemCleanTags(WorkItem item)
     {
         if (item.Id == 0)
             throw new ArgumentNullException(nameof(item.Id));
-
         var sql = """
                   DELETE FROM work_item_tags WHERE work_id=$1;
                   """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(item.Id);
-        return cmd.ExecuteNonQuery() > 0;
+        return Execute(sql, ("$1", item.Id)) > 0;
     }
 
+    // $1=work_id
     public override ICollection<WorkTag> GetWorkItemTags(WorkItem item)
     {
         if (item.Id == 0)
             throw new ArgumentNullException(nameof(item.Id));
-
         var sql = """
-                  SELECT work_tags.* 
+                  SELECT work_tags.*
                   FROM work_item_tags INNER JOIN work_tags ON work_item_tags.tag_id=work_tags.id
                   WHERE work_item_tags.work_id = $1
                   ORDER BY work_tags.tag_level;
                   """;
-        var result = new List<WorkTag>();
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(item.Id);
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
-        {
-            result.Add(MapWorkTag(reader));
-        }
-
-        return result;
+        return Query(sql, MapWorkTag, ("$1", item.Id));
     }
 
+    // $1=id $2=title
     public override RedMineActivity AddRedMineActivity(int id, string title)
     {
         var sql = """
                   INSERT INTO redmine_activities(id, act_name) VALUES ($1,$2) ON CONFLICT (id) DO UPDATE SET act_name=$2 RETURNING *;
                   """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(id);
-        cmd.Parameters.AddWithValue(title);
-        using var reader = cmd.ExecuteReader();
-        if (reader.Read())
-        {
-            return MapRedMineActivity(reader);
-        }
-
-        return new RedMineActivity();
+        return QueryFirst(sql, MapRedMineActivity, ("$1", id), ("$2", title)) ?? new RedMineActivity();
     }
 
+    // $1=id $2=title $3=assign $4=project $5=close
     public override RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project,
         bool closed = false)
     {
@@ -533,163 +446,110 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
                   VALUES ($1,$2,$3,$4,$5) ON CONFLICT(id) DO UPDATE SET
                   issue_title=$2,assigned_to=$3,project_id=$4,is_closed=$5 RETURNING *;
                   """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(id);
-        cmd.Parameters.AddWithValue(title);
-        cmd.Parameters.AddWithValue(assignedTo);
-        cmd.Parameters.AddWithValue(project);
-        cmd.Parameters.AddWithValue(closed ? 1 : 0);
-        using var reader = cmd.ExecuteReader();
-        if (reader.Read())
-            return MapRedMineIssue(reader);
-        return new RedMineIssue();
+        return QueryFirst(sql, MapRedMineIssue,
+            ("$1", id), ("$2", title), ("$3", assignedTo),
+            ("$4", project), ("$5", closed ? 1 : 0)) ?? new RedMineIssue();
     }
 
+    // $1=id $2=closed
     public override void UpdateRedMineIssueStatus(int id, bool closed)
     {
         var sql = """
                   UPDATE redmine_issues SET is_closed=$2 WHERE id=$1;
                   """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(id);
-        cmd.Parameters.AddWithValue(closed ? 1 : 0);
-        cmd.ExecuteNonQuery();
+        Execute(sql, ("$1", id), ("$2", closed ? 1 : 0));
     }
 
+    // $1=id $2=title $3=desc
     public override RedMineProject AddRedMineProject(int id, string title, string description)
     {
         var sql = """
                   INSERT INTO redmine_projects(id, project_name, project_desc)
                   VALUES ($1,$2,$3) ON CONFLICT (id) DO UPDATE SET project_name=$2,project_desc=$3 RETURNING *;
                   """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(id);
-        cmd.Parameters.AddWithValue(title);
-        cmd.Parameters.AddWithValue(description);
-        using var reader = cmd.ExecuteReader();
-        if (reader.Read())
-            return MapRedMineProject(reader);
-        return new RedMineProject();
+        return QueryFirst(sql, MapRedMineProject, ("$1", id), ("$2", title), ("$3", description)) ?? new RedMineProject();
     }
 
+    // $1=id $2=closed
     public override void UpdateRedMineProjectStatus(int id, bool closed)
     {
         var sql = """
                   UPDATE redmine_projects SET is_closed=$2 WHERE id=$1;
                   """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(id);
-        cmd.Parameters.AddWithValue(closed ? 1 : 0);
-        cmd.ExecuteNonQuery();
+        Execute(sql, ("$1", id), ("$2", closed ? 1 : 0));
     }
 
+    // $1=work_id
     public override WorkTimeEntry? WorkItemGetTimeEntry(WorkItem item)
     {
         if (item.Id == 0)
             throw new ArgumentNullException(nameof(item.Id));
-
         var sql = """
                   SELECT * FROM redmine_time_entries WHERE work_id=$1;
                   """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(item.Id);
-        using var reader = cmd.ExecuteReader();
-        if (reader.Read())
-            return MapWorkTimeEntry(reader);
-        return null;
+        return QueryFirst(sql, MapWorkTimeEntry, ("$1", item.Id));
     }
 
+    // $1=work_id
     public override bool WorkItemWasUploaded(WorkItem item)
     {
         if (item.Id == 0)
             throw new ArgumentNullException(nameof(item.Id));
-
         var sql = """
                   SELECT * FROM redmine_time_entries WHERE work_id=$1 AND id>0;
                   """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(item.Id);
-        using var reader = cmd.ExecuteReader();
-        return reader.Read();
+        return Exists(sql, ("$1", item.Id));
     }
 
     public override ICollection<RedMineActivity> GetRedMineActivities()
     {
-        var sql = """
-                  SELECT * FROM redmine_activities;
-                  """;
-        using var cmd = Command(sql);
-        using var reader = cmd.ExecuteReader();
-        var activities = new List<RedMineActivity>();
-        while (reader.Read())
-            activities.Add(MapRedMineActivity(reader));
-        return activities;
+        const string sql = """
+                           SELECT * FROM redmine_activities;
+                           """;
+        return Query(sql, MapRedMineActivity);
     }
 
+    // $1=project_id（仅按项目过滤的分支用）
     public override ICollection<RedMineIssueDisplay> GetRedMineIssues(RedMineProject? project)
     {
-        RedMineIssueDisplay MapRedMineIssueDisplay(NpgsqlDataReader reader)
+        RedMineIssueDisplay MapDisplay(DbDataReader r) => new()
         {
-            return new RedMineIssueDisplay()
-            {
-                Id = reader.GetInt32(0),
-                Title = ReadString(reader, 1),
-                AssignedTo = ReadString(reader, 2),
-                Project = ReadString(reader, 3),
-                Disabled = reader.GetInt32(4) != 0,
-            };
-        }
+            Id = r.GetInt32(0),
+            Title = ReadString(r, 1),
+            AssignedTo = ReadString(r, 2),
+            Project = ReadString(r, 3),
+            Disabled = r.GetInt32(4) != 0,
+        };
 
-        var issues = new List<RedMineIssueDisplay>();
-        if (project == null)
+        if (project is null)
         {
             var sql = """
                       SELECT redmine_issues.id,redmine_issues.issue_title,redmine_issues.assigned_to,redmine_projects.project_name,redmine_issues.is_closed
                       FROM redmine_issues INNER JOIN redmine_projects ON redmine_issues.project_id = redmine_projects.id
                       ORDER BY redmine_issues.is_closed, redmine_issues.id DESC;
                       """;
-            using var cmd = Command(sql);
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
-            {
-                issues.Add(MapRedMineIssueDisplay(reader));
-            }
+            return Query(sql, MapDisplay);
         }
-        else
+
         {
             var sql = """
                       SELECT redmine_issues.id,redmine_issues.issue_title,redmine_issues.assigned_to,redmine_projects.project_name,redmine_issues.is_closed
                       FROM redmine_issues INNER JOIN redmine_projects ON redmine_issues.project_id = redmine_projects.id AND redmine_issues.project_id=$1
                       ORDER BY redmine_issues.is_closed, redmine_issues.id DESC;
                       """;
-            using var cmd = Command(sql);
-            cmd.Parameters.AddWithValue(project.Id);
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
-            {
-                issues.Add(MapRedMineIssueDisplay(reader));
-            }
+            return Query(sql, MapDisplay, ("$1", project.Id));
         }
-
-        return issues;
     }
 
     public override ICollection<RedMineProject> GetRedMineProjects()
     {
-        var sql = """
-                  SELECT * FROM redmine_projects ORDER BY id DESC;
-                  """;
-        using var cmd = Command(sql);
-        using var reader = cmd.ExecuteReader();
-        var projects = new List<RedMineProject>();
-        while (reader.Read())
-        {
-            projects.Add(MapRedMineProject(reader));
-        }
-
-        return projects;
+        const string sql = """
+                           SELECT * FROM redmine_projects ORDER BY id DESC;
+                           """;
+        return Query(sql, MapRedMineProject);
     }
 
+    // $1=work $2=activity $3=issue
     public override WorkTimeEntry? CreateWorkTimeEntry(int work, int activity, int issus)
     {
         try
@@ -698,12 +558,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
                       INSERT INTO redmine_time_entries(work_id, act_id, issue_id) VALUES ($1, $2, $3)
                       ON CONFLICT (work_id) DO UPDATE SET act_id=$2, issue_id=$3 RETURNING *;
                       """;
-            using var cmd = Command(sql);
-            cmd.Parameters.AddWithValue(work);
-            cmd.Parameters.AddWithValue(activity);
-            cmd.Parameters.AddWithValue(issus);
-            using var reader = cmd.ExecuteReader();
-            return reader.Read() ? MapWorkTimeEntry(reader) : null;
+            return QueryFirst(sql, MapWorkTimeEntry, ("$1", work), ("$2", activity), ("$3", issus));
         }
         catch (Exception)
         {
@@ -711,20 +566,17 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
         }
     }
 
+    // $1=entryId $2=actId $3=issueId $4=workId
     public override bool UpdateWorkTimeEntry(WorkTimeEntry timeEntry)
     {
         if (timeEntry.WorkId == 0)
             throw new ArgumentException("Work time entry must have a valid id");
-
         var sql = """
                   UPDATE redmine_time_entries SET id=$1,act_id=$2,issue_id=$3 WHERE work_id=$4;
                   """;
-        using var cmd = Command(sql);
-        cmd.Parameters.AddWithValue(timeEntry.EntryId);
-        cmd.Parameters.AddWithValue(timeEntry.ActivityId);
-        cmd.Parameters.AddWithValue(timeEntry.IssueId);
-        cmd.Parameters.AddWithValue(timeEntry.WorkId);
-        return cmd.ExecuteNonQuery() > 0;
+        return Execute(sql,
+            ("$1", timeEntry.EntryId), ("$2", timeEntry.ActivityId),
+            ("$3", timeEntry.IssueId), ("$4", timeEntry.WorkId)) > 0;
     }
 
     public override StatisticsResult GetStatistics(string beginDate, string endDate)
@@ -822,34 +674,20 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
 
     public override ICollection<WorkItem> GetWorkItemsByTagAndDate(string dateBegin, string dateEnd, int l1, int l2 = 0)
     {
-        var result = new List<WorkItem>();
         if (l2 == 0)
         {
+            // $1=tag_id $2=begin $3=end
             var sql = """
                       SELECT work_items.* FROM
                       (work_items INNER JOIN work_item_tags on work_items.id = work_item_tags.work_id)
                       WHERE work_item_tags.tag_id = $1 AND work_items.create_date BETWEEN $2 AND $3
                       ORDER BY create_date, priority, id;
                       """;
-            using var cmd = Command(sql);
-            cmd.Parameters.AddWithValue(l1);
-            cmd.Parameters.AddWithValue(dateBegin);
-            cmd.Parameters.AddWithValue(dateEnd);
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
-            {
-                result.Add(new WorkItem()
-                {
-                    Id = reader.GetInt32(0),
-                    CreateDate = ReadString(reader, 1),
-                    Comment = ReadString(reader, 2),
-                    Time = reader.GetFloat(3),
-                    Priority = (WorkPriorities)reader.GetInt32(4),
-                });
-            }
+            return Query(sql, MapWorkItem, ("$1", l1), ("$2", dateBegin), ("$3", dateEnd));
         }
-        else
+
         {
+            // $1=begin $2=end $3=primary $4=secondary
             var sql = """
                       SELECT work_items.* FROM
                       work_items INNER JOIN
@@ -859,26 +697,9 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
                       	ON work_items.id=T1.work_id WHERE create_date BETWEEN $1 AND $2
                       ORDER BY create_date, priority, id;
                       """;
-            using var cmd = Command(sql);
-            cmd.Parameters.AddWithValue(dateBegin);
-            cmd.Parameters.AddWithValue(dateEnd);
-            cmd.Parameters.AddWithValue(l1);
-            cmd.Parameters.AddWithValue(l2);
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
-            {
-                result.Add(new WorkItem()
-                {
-                    Id = reader.GetInt32(0),
-                    CreateDate = ReadString(reader, 1),
-                    Comment = ReadString(reader, 2),
-                    Time = reader.GetFloat(3),
-                    Priority = (WorkPriorities)reader.GetInt32(4),
-                });
-            }
+            return Query(sql, MapWorkItem,
+                ("$1", dateBegin), ("$2", dateEnd), ("$3", l1), ("$4", l2));
         }
-
-        return result;
     }
 
     public override bool DropData()
@@ -944,7 +765,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
         return true;
     }
 
-    public void Dispose()
+    public override void Dispose()
     {
         _transaction?.Dispose();
         _transaction = null;

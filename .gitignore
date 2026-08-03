@@ -365,4 +365,7 @@ FodyWeavers.xsd
 .vscode/
 .idea/
 
+# 本地 MCP 客户端配置（端口随会话变化，不进仓库）
+.mcp.json
+
 /*/Generated/*
