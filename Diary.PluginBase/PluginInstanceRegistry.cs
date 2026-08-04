@@ -22,6 +22,11 @@ public sealed class PluginInstanceRegistry
         var key = (plugin.Manifest.Id, instanceId);
         if (_instances.ContainsKey(key))
             return new PluginInstanceCreationResult(false, Error: "插件实例已存在");
+        if (!plugin.Manifest.SupportsMultipleInstances
+            && _instances.Keys.Any(existing => existing.PluginId == plugin.Manifest.Id))
+        {
+            return new PluginInstanceCreationResult(false, Error: "插件不支持多实例");
+        }
 
         try
         {

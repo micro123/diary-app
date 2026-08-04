@@ -9,7 +9,7 @@ public class PluginInstanceRegistryTests
     public void Create_RegistersMultipleInstances()
     {
         var registry = new PluginInstanceRegistry();
-        var plugin = new TestPlugin();
+        var plugin = new TestPlugin(supportsMultiple: true);
 
         var first = registry.Create(plugin, "company", new object());
         var second = registry.Create(plugin, "personal", new object());
@@ -24,7 +24,7 @@ public class PluginInstanceRegistryTests
     public void Create_RejectsDuplicateAndKeepsExistingInstance()
     {
         var registry = new PluginInstanceRegistry();
-        var plugin = new TestPlugin();
+        var plugin = new TestPlugin(supportsMultiple: false);
 
         var first = registry.Create(plugin, "company", new object());
         var duplicate = registry.Create(plugin, "company", new object());
@@ -34,12 +34,26 @@ public class PluginInstanceRegistryTests
         Assert.AreEqual(1, registry.Instances.Count);
     }
 
-    private sealed class TestPlugin : ITrackerPlugin
+    [TestMethod]
+    public void Create_RejectsSecondInstanceWhenPluginDoesNotSupportIt()
+    {
+        var registry = new PluginInstanceRegistry();
+        var plugin = new TestPlugin(supportsMultiple: false);
+
+        Assert.IsTrue(registry.Create(plugin, "company", new object()).Success);
+        var second = registry.Create(plugin, "personal", new object());
+
+        Assert.IsFalse(second.Success);
+        StringAssert.Contains(second.Error, "不支持多实例");
+    }
+
+    private sealed class TestPlugin(bool supportsMultiple) : ITrackerPlugin
     {
         public PluginManifest Manifest { get; } = new()
         {
             Id = "tracker.test",
             Version = "1.0.0",
+            SupportsMultipleInstances = supportsMultiple,
         };
 
         public void RegisterServices(Microsoft.Extensions.DependencyInjection.IServiceCollection services) { }

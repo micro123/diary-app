@@ -12,6 +12,8 @@ public sealed record PluginManifest
 
     /// <summary>插件 API 契约版本；破坏性变化递增。</summary>
     public int ApiVersion { get; init; }
+    /// <summary>是否支持同一插件类型创建多个实例。</summary>
+    public bool SupportsMultipleInstances { get; init; }
     /// <summary>所需核心数据库最低版本。</summary>
     public uint MinCoreDataVersion { get; init; }
     /// <summary>明确不兼容时的核心数据库最高版本；null 表示无上限。</summary>
