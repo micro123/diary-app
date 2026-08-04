@@ -8,4 +8,6 @@ public interface IRedMineUiData
     ObservableCollection<RedMineIssueDisplay> RedMineIssues { get; }
     ObservableCollection<RedMineIssueDisplay> RedMineIssuesOpen { get; }
     ObservableCollection<RedMineActivity> RedMineActivities { get; }
+
+    void InitLoad();
 }
