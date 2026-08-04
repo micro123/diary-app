@@ -19,6 +19,7 @@
   <ItemGroup>
       <ProjectReference Include="..\Diary.Utils\Diary.Utils.csproj" />
       <ProjectReference Include="..\Diary.PluginBase\Diary.PluginBase.csproj" />
+      <ProjectReference Include="..\Diary.App\Diary.App.csproj" />
       <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.10" />
   </ItemGroup>
 </Project>

@@ -158,7 +158,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         Dispatcher.UIThread.Post(() => UploadTimeCommand.NotifyCanExecuteChanged());
     }
 
-    private bool CanUpload => SelectedWork is { IsLocked: false };
+    private bool CanUpload => SelectedWork?.CanUpload() == true;
 
     [RelayCommand(CanExecute = nameof(CanUploadAll))]
     private async Task UploadAll()
@@ -175,7 +175,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
         foreach (var work in DailyWorks)
         {
-            if (!work.IsLocked)
+            if (work.CanUpload())
             {
                 var (result, message) = await work.Upload();
                 if (result)

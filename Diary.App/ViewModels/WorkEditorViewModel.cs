@@ -17,6 +17,7 @@ public partial class WorkEditorViewModel : ViewModelBase
 {
     private readonly DbShareData _shareData;
     private readonly IWorkItemPersistenceCoordinator _persistence;
+    private readonly ITrackerUploadCoordinator _uploadCoordinator;
 
     // db data fields
     private WorkItem? WorkItem { get; set; } // ref to existed db item, may null
@@ -46,7 +47,8 @@ public partial class WorkEditorViewModel : ViewModelBase
     {
         return new WorkEditorViewModel(
             App.Instance.Services.GetRequiredService<DbShareData>(),
-            App.Instance.Services.GetRequiredService<IWorkItemPersistenceCoordinator>())
+            App.Instance.Services.GetRequiredService<IWorkItemPersistenceCoordinator>(),
+            App.Instance.Services.GetRequiredService<ITrackerUploadCoordinator>())
         {
             WorkId = workItem.Id,
             WorkItem = workItem,
@@ -59,11 +61,14 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     public WorkEditorViewModel(
         DbShareData shareData,
-        IWorkItemPersistenceCoordinator? persistence = null)
+        IWorkItemPersistenceCoordinator? persistence = null,
+        ITrackerUploadCoordinator? uploadCoordinator = null)
     {
         _shareData = shareData;
         _persistence = persistence
             ?? App.Instance.Services.GetRequiredService<IWorkItemPersistenceCoordinator>();
+        _uploadCoordinator = uploadCoordinator
+            ?? App.Instance.Services.GetRequiredService<ITrackerUploadCoordinator>();
         Date = TimeTools.Today();
         Comment = App.Instance.AppConfig.WorkSettings.DefaultTaskTitle;
         Note = string.Empty;
@@ -245,6 +250,9 @@ public partial class WorkEditorViewModel : ViewModelBase
         return WorkItem is { Id: > 0 }; // 克隆的前提是这个事件已经保存过了
     }
 
+    public bool CanUpload()
+        => WorkItem is { Id: > 0 } && Extensions.Any(extension => !extension.IsLocked);
+
     [RelayCommand]
     private void AddTag(WorkTag tag)
     {
@@ -311,22 +319,11 @@ public partial class WorkEditorViewModel : ViewModelBase
     /// <summary>上传所有 tracker 扩展，聚合结果。任一失败即整体失败。</summary>
     public async Task<(bool, string?)> Upload()
     {
-        if (Extensions.Count == 0)
-            return (false, "无可用 tracker");
-        var allOk = true;
-        var errs = new List<string>();
-        foreach (var ext in Extensions)
-        {
-            var r = await ext.UploadAsync(WorkItem!);
-            if (!r.Success)
-            {
-                allOk = false;
-                if (!string.IsNullOrEmpty(r.Error))
-                    errs.Add(r.Error);
-            }
-        }
+        if (WorkItem is null)
+            return (false, "工作项尚未保存");
+        var result = await _uploadCoordinator.UploadAsync(WorkItem, Extensions);
         RecomputeIsLocked();
-        return (allOk, allOk ? null : string.Join("; ", errs));
+        return (result.Success, result.Error);
     }
 
     private void RecomputeIsLocked() => IsLocked = Extensions.Any(e => e.IsLocked);
