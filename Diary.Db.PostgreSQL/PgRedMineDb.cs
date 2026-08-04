@@ -1,6 +1,7 @@
 using System.Data.Common;
 using Diary.Core.Data.Base;
 using Diary.Database;
+using Diary.PluginBase;
 using Diary.RedMine;
 using Diary.RedMine.Models;
 
@@ -21,41 +22,30 @@ internal sealed class PgRedMineDb(IDbExtensionHost host) : IRedMineDb
 
     internal bool Initialize()
     {
-        const string sql = """
-                           CREATE TABLE IF NOT EXISTS redmine_projects (
-                               id INTEGER NOT NULL PRIMARY KEY,
-                               project_name CHAR(256) NOT NULL,
-                               project_desc CHAR(2048) DEFAULT '',
-                               is_closed INTEGER DEFAULT 0
-                           );
-                           CREATE TABLE IF NOT EXISTS redmine_activities (
-                               id INTEGER PRIMARY KEY,
-                               act_name CHAR(64) NOT NULL
-                           );
-                           CREATE TABLE IF NOT EXISTS redmine_issues (
-                               id INTEGER PRIMARY KEY,
-                               issue_title CHAR(256) NOT NULL,
-                               assigned_to CHAR(16) DEFAULT '',
-                               project_id INTEGER NOT NULL REFERENCES redmine_projects (id) ON DELETE CASCADE,
-                               is_closed INTEGER DEFAULT 0
-                           );
-                           CREATE TABLE IF NOT EXISTS redmine_time_entries (
-                               work_id INTEGER PRIMARY KEY REFERENCES work_items (id) ON DELETE CASCADE,
-                               id INTEGER DEFAULT 0,
-                               act_id INTEGER REFERENCES redmine_activities (id) ON DELETE CASCADE,
-                               issue_id INTEGER REFERENCES redmine_issues (id) ON DELETE CASCADE
-                           );
-                           CREATE TABLE IF NOT EXISTS plugin_data_versions(
-                               plugin_id CHAR(128) PRIMARY KEY,
-                               schema_version INTEGER NOT NULL
-                           );
-                           INSERT INTO plugin_data_versions(plugin_id, schema_version)
-                           VALUES ('tracker.redmine', 1)
-                           ON CONFLICT(plugin_id) DO UPDATE SET schema_version=1;
-                           """;
         try
         {
-            return _host.ExecRaw(sql);
+            const string versionTable = """
+                                        CREATE TABLE IF NOT EXISTS plugin_data_versions(
+                                            plugin_id CHAR(128) PRIMARY KEY,
+                                            schema_version INTEGER NOT NULL
+                                        );
+                                        """;
+            if (!_host.ExecRaw(versionTable))
+                return false;
+
+            var context = new DelegatePluginMigrationContext(
+                "PostgreSQL", 0, _host.ExecRaw,
+                (sql, map, args) => _host.Query(sql, reader => map(reader),
+                    args.Cast<(string Name, object? Value)>().ToArray()));
+            if (!PluginMigrationRunner.Upgrade(
+                    "tracker.redmine", GetSchemaVersion(), CurrentSchemaVersion,
+                    new[] { new RedMineInitialMigration() }, context))
+            {
+                return false;
+            }
+
+            return _host.ExecRaw(
+                "INSERT INTO plugin_data_versions(plugin_id, schema_version) VALUES ('tracker.redmine', 1) ON CONFLICT(plugin_id) DO UPDATE SET schema_version=1;");
         }
         catch (Exception)
         {
