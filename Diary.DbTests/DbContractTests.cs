@@ -366,7 +366,7 @@ public abstract class DbContractTests
         Assert.IsTrue(db.RedMineDb!.WorkItemWasUploaded(item));
     }
 
-    /// <summary>档 2 薄委托回归：GetWorkTimeEntriesByDate 按 workId 分组。</summary>
+    /// <summary>RedMine 批量绑定回归：GetWorkTimeEntriesByDate 按 workId 分组。</summary>
     [TestMethod]
     public void GetWorkTimeEntriesByDate_GroupsByWorkId()
     {
@@ -377,7 +377,7 @@ public abstract class DbContractTests
         db.RedMineDb!.AddRedMineIssue(100, "任务", "", 20);
         db.RedMineDb!.CreateWorkTimeEntry(item.Id, 10, 100);
 
-        var dict = db.GetWorkTimeEntriesByDate("2026-08-01");
+        var dict = db.RedMineDb!.GetWorkTimeEntriesByDate("2026-08-01");
         Assert.AreEqual(1, dict.Count);
         Assert.AreEqual(10, dict[item.Id].ActivityId);
     }

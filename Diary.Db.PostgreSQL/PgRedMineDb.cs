@@ -78,6 +78,19 @@ internal sealed class PgRedMineDb(IDbExtensionHost host) : IRedMineDb
         return _host.QueryFirst(sql, MapWorkTimeEntry, ("$1", item.Id));
     }
 
+    public IDictionary<int, WorkTimeEntry> GetWorkTimeEntriesByDate(string date)
+    {
+        const string sql = """
+                           SELECT redmine_time_entries.*
+                           FROM redmine_time_entries INNER JOIN work_items ON redmine_time_entries.work_id = work_items.id
+                           WHERE work_items.create_date = $1;
+                           """;
+        var result = new Dictionary<int, WorkTimeEntry>();
+        foreach (var entry in _host.Query(sql, MapWorkTimeEntry, ("$1", date)))
+            result[entry.WorkId] = entry;
+        return result;
+    }
+
     // $1=work_id
     public bool WorkItemWasUploaded(WorkItem item)
     {

@@ -328,20 +328,6 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
         return result;
     }
 
-    public override Dictionary<int, WorkTimeEntry> GetWorkTimeEntriesByDate(string date)
-    {
-        var sql = """
-                  SELECT redmine_time_entries.*
-                  FROM redmine_time_entries INNER JOIN work_items ON redmine_time_entries.work_id = work_items.id
-                  WHERE work_items.create_date = $date;
-                  """;
-        var entries = Query<WorkTimeEntry>(sql, MapWorkTimeEntry, ("$date", date));
-        var result = new Dictionary<int, WorkTimeEntry>();
-        foreach (var entry in entries)
-            result[entry.WorkId] = entry;
-        return result;
-    }
-
     public override bool WorkItemAddTag(WorkItem item, WorkTag tag)
     {
         const string sql = @"INSERT INTO work_item_tags VALUES($work_id, $tag_id) RETURNING *;";

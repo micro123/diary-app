@@ -95,18 +95,6 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
         return result;
     }
 
-    public virtual Dictionary<int, WorkTimeEntry> GetWorkTimeEntriesByDate(string date)
-    {
-        var result = new Dictionary<int, WorkTimeEntry>();
-        foreach (var item in GetWorkItemByDate(date))
-        {
-            var entry = RedMineDb?.WorkItemGetTimeEntry(item);
-            if (entry != null)
-                result[item.Id] = entry;
-        }
-        return result;
-    }
-
     // work item - work tag
     public abstract bool WorkItemAddTag(WorkItem item, WorkTag tag);
     public abstract bool WorkItemRemoveTag(WorkItem item, WorkTag tag);
@@ -273,7 +261,6 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
     };
 
     // 注：MapRedMineActivity/Project/Issue 已随 RedMine 方法迁入各 provider 的 RedMineDb。
-    // MapWorkTimeEntry 保留——GetWorkTimeEntriesByDate（generic 批查询，仍 override 在 provider）仍依赖它。
     protected WorkTimeEntry MapWorkTimeEntry(DbDataReader r) => new()
     {
         WorkId = r.GetInt32(0),

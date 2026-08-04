@@ -62,6 +62,19 @@ internal sealed class SQLiteRedMineDb(IDbExtensionHost host) : IRedMineDb
         return _host.QueryFirst(sql, MapWorkTimeEntry, ("$id", item.Id));
     }
 
+    public IDictionary<int, WorkTimeEntry> GetWorkTimeEntriesByDate(string date)
+    {
+        const string sql = """
+                           SELECT redmine_time_entries.*
+                           FROM redmine_time_entries INNER JOIN work_items ON redmine_time_entries.work_id = work_items.id
+                           WHERE work_items.create_date = $date;
+                           """;
+        var result = new Dictionary<int, WorkTimeEntry>();
+        foreach (var entry in _host.Query(sql, MapWorkTimeEntry, ("$date", date)))
+            result[entry.WorkId] = entry;
+        return result;
+    }
+
     public bool WorkItemWasUploaded(WorkItem item)
     {
         if (item.Id == 0)

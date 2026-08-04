@@ -360,20 +360,6 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
         return result;
     }
 
-    public override Dictionary<int, WorkTimeEntry> GetWorkTimeEntriesByDate(string date)
-    {
-        var sql = """
-                  SELECT redmine_time_entries.*
-                  FROM redmine_time_entries INNER JOIN work_items ON redmine_time_entries.work_id = work_items.id
-                  WHERE work_items.create_date = $1;
-                  """;
-        var entries = Query<WorkTimeEntry>(sql, MapWorkTimeEntry, ("$1", date));
-        var result = new Dictionary<int, WorkTimeEntry>();
-        foreach (var entry in entries)
-            result[entry.WorkId] = entry;
-        return result;
-    }
-
     // $1=work_id $2=tag_id
     public override bool WorkItemAddTag(WorkItem item, WorkTag tag)
     {

@@ -18,6 +18,7 @@ public interface IRedMineDb
     RedMineProject AddRedMineProject(int id, string title, string description);
     void UpdateRedMineProjectStatus(int id, bool closed);
     WorkTimeEntry? WorkItemGetTimeEntry(WorkItem item);
+    IDictionary<int, WorkTimeEntry> GetWorkTimeEntriesByDate(string date);
     bool WorkItemWasUploaded(WorkItem item);
 
     ICollection<RedMineActivity> GetRedMineActivities();
