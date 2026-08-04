@@ -9,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using RedMineInfoViewModel = Diary.RedMine.UI.ViewModels.Pages.RedMineInfoViewModel;
 using RedMineIssueManageViewModel = Diary.RedMine.UI.ViewModels.Pages.RedMineIssueManageViewModel;
-using RedMineProjectViewModel = Diary.App.ViewModels.Pages.RedMineProjectViewModel;
+using RedMineProjectViewModel = Diary.RedMine.UI.ViewModels.Pages.RedMineProjectViewModel;
 
 namespace Diary.App.ViewModels;
 

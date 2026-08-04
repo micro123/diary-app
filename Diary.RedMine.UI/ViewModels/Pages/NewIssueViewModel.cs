@@ -2,7 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Diary.GUIBase.ViewModels;
 using Diary.Utils;
 
-namespace Diary.App.ViewModels.Pages;
+namespace Diary.RedMine.UI.ViewModels.Pages;
 
 [DiAutoRegister]
 public partial class NewIssueViewModel : ViewModelBase
