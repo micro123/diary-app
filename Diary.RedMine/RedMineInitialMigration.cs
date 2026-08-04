@@ -4,7 +4,7 @@ namespace Diary.RedMine;
 
 public sealed class RedMineInitialMigration : IPluginMigration
 {
-    public string PluginId => "tracker.redmine";
+    public string PluginId => RedMinePluginConstants.PluginId;
     public uint FromVersion { get; init; } = 0;
     public uint ToVersion { get; init; } = 2;
 

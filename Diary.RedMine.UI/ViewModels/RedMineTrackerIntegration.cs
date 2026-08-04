@@ -22,8 +22,8 @@ public sealed class RedMineTrackerIntegration : ITrackerInstance, ITrackerUiCont
         _api = api;
     }
 
-    public string PluginId => "tracker.redmine";
-    public string InstanceId => "redmine.default";
+    public string PluginId => RedMinePluginConstants.PluginId;
+    public string InstanceId => RedMinePluginConstants.DefaultInstanceId;
     public string DisplayName => "RedMine工具";
     public string Icon => "fa-cloud";
     public bool IsConfigured => RedMineConfigurationStore.Current.Valid();

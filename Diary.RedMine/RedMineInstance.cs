@@ -11,7 +11,7 @@ public sealed record RedMineInstanceConfiguration(
 
 public sealed class RedMineInstance(RedMineInstanceConfiguration configuration) : ITrackerInstance
 {
-    public string PluginId => "tracker.redmine";
+    public string PluginId => RedMinePluginConstants.PluginId;
     public string InstanceId => configuration.InstanceId;
     public string DisplayName => configuration.DisplayName;
     public string Icon => "fa-cloud";

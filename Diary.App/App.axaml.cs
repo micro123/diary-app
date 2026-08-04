@@ -126,27 +126,27 @@ namespace Diary.App
 
         private void RegisterTrackerInstances()
         {
-            var plugin = _plugins.FirstOrDefault(x => x.Manifest.Id == "tracker.redmine");
+            var plugin = _plugins.FirstOrDefault(x => x.Manifest.Id == RedMinePluginConstants.PluginId);
             var database = UseDb?.GetExtension<IRedMineDb>();
             if (plugin is null || database is null)
-                return;
-
-            var registry = Services.GetRequiredService<PluginInstanceRegistry>();
-            foreach (var settings in RedMineConfigurationStore.Current.Instances.Where(x => x.Enabled))
             {
-                if (registry.Get(plugin.Manifest.Id, settings.InstanceId) is not null)
-                    continue;
-                var result = registry.Create(
-                    plugin,
+                Logger.LogWarning("RedMine tracker instance registration skipped: plugin or database extension unavailable");
+                return;
+            }
+            Logger.LogInformation(
+                "Tracker database extension ready: {PluginId}, schema {SchemaVersion}",
+                plugin.Manifest.Id, database.SchemaVersion);
+
+            var registrations = RedMineConfigurationStore.Current.Instances
+                .Where(x => x.Enabled)
+                .Select(settings => new TrackerInstanceRegistration(
                     settings.InstanceId,
                     new RedMineInstanceConfiguration(
                         settings.InstanceId,
                         settings.DisplayName,
                         settings,
-                        database));
-                if (!result.Success)
-                    Logger.LogError("RedMine instance {InstanceId} blocked: {Error}", settings.InstanceId, result.Error);
-            }
+                        database)));
+            Services.GetRequiredService<TrackerInstanceCoordinator>().Register(plugin, registrations);
         }
 
         private void EnumerateDbProviders()
@@ -177,6 +177,7 @@ namespace Diary.App
             services.AddSingleton(Logging.Logger);
             services.AddSingleton<BaseApp>(this);
             services.AddSingleton<PluginInstanceRegistry>();
+            services.AddSingleton<TrackerInstanceCoordinator>();
             var compatibility = new PluginCompatibilityContext(
                 1,
                 1,

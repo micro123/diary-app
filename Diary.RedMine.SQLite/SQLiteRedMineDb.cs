@@ -50,14 +50,14 @@ public sealed class SQLiteRedMineDb(IDbExtensionHost host, string instanceId) : 
                 (sql, map, args) => _host.Query(sql, reader => map(reader),
                     args.Cast<(string Name, object? Value)>().ToArray()));
             if (!PluginMigrationRunner.Upgrade(
-                    "tracker.redmine", schemaVersion, CurrentSchemaVersion,
+                    RedMinePluginConstants.PluginId, schemaVersion, CurrentSchemaVersion,
                     new IPluginMigration[] { new RedMineInitialMigration(), new RedMineInstanceMigration() }, context))
             {
                 return false;
             }
 
             return _host.ExecRaw(
-                "INSERT INTO plugin_data_versions(plugin_id, schema_version) VALUES ('tracker.redmine', 2) ON CONFLICT(plugin_id) DO UPDATE SET schema_version=2;");
+                $"INSERT INTO plugin_data_versions(plugin_id, schema_version) VALUES ('{RedMinePluginConstants.PluginId}', 2) ON CONFLICT(plugin_id) DO UPDATE SET schema_version=2;");
         }
         catch (SQLiteException)
         {
@@ -92,7 +92,7 @@ public sealed class SQLiteRedMineDb(IDbExtensionHost host, string instanceId) : 
     {
         var value = _host.ExecuteScalar(
             "SELECT schema_version FROM plugin_data_versions WHERE plugin_id=$pluginId;",
-            ("$pluginId", "tracker.redmine"));
+            ("$pluginId", RedMinePluginConstants.PluginId));
         return value is null ? 0 : Convert.ToUInt32(value);
     }
 

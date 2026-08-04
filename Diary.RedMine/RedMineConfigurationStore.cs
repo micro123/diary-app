@@ -13,7 +13,7 @@ public sealed class RedMinePluginConfig : RedMineConfig
 
 public sealed class RedMineInstanceSettings : RedMineConfig
 {
-    public string InstanceId { get; set; } = "redmine.default";
+    public string InstanceId { get; set; } = RedMinePluginConstants.DefaultInstanceId;
     public string DisplayName { get; set; } = "RedMine工具";
     public bool Enabled { get; set; } = true;
 }
@@ -44,7 +44,7 @@ public static class RedMineConfigurationStore
         {
             var defaultInstance = new RedMineInstanceSettings
             {
-                InstanceId = "redmine.default",
+                InstanceId = RedMinePluginConstants.DefaultInstanceId,
                 DisplayName = "RedMine工具",
                 Enabled = true,
             };

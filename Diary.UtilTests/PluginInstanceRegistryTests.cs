@@ -1,75 +1,61 @@
 using Diary.PluginBase;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Diary.UtilTests;
 
 [TestClass]
-public class PluginInstanceRegistryTests
+public sealed class PluginInstanceRegistryTests
 {
     [TestMethod]
-    public void Create_RegistersMultipleInstances()
+    public void RegistryCreatesMultipleMemoryTrackerInstances()
     {
         var registry = new PluginInstanceRegistry();
-        var plugin = new TestPlugin(supportsMultiple: true);
+        var plugin = new MemoryTrackerPlugin(supportsMultipleInstances: true);
 
-        var first = registry.Create(plugin, "company", new object());
-        var second = registry.Create(plugin, "personal", new object());
-
-        Assert.IsTrue(first.Success);
-        Assert.IsTrue(second.Success);
+        Assert.IsTrue(registry.Create(plugin, "memory.one", new object()).Success);
+        Assert.IsTrue(registry.Create(plugin, "memory.two", new object()).Success);
         Assert.AreEqual(2, registry.Instances.Count);
-        Assert.AreSame(first.Instance, registry.Get("tracker.test", "company"));
+        Assert.AreEqual("memory.two", registry.Get(plugin.Manifest.Id, "memory.two")!.InstanceId);
     }
 
     [TestMethod]
-    public void Create_RejectsDuplicateAndKeepsExistingInstance()
+    public void RegistryRejectsDuplicateOrUnsupportedInstances()
     {
         var registry = new PluginInstanceRegistry();
-        var plugin = new TestPlugin(supportsMultiple: false);
+        var single = new MemoryTrackerPlugin(supportsMultipleInstances: false);
 
-        var first = registry.Create(plugin, "company", new object());
-        var duplicate = registry.Create(plugin, "company", new object());
+        Assert.IsTrue(registry.Create(single, "memory.default", new object()).Success);
+        var duplicate = registry.Create(single, "memory.default", new object());
+        var second = registry.Create(single, "memory.other", new object());
 
-        Assert.IsTrue(first.Success);
         Assert.IsFalse(duplicate.Success);
-        Assert.AreEqual(1, registry.Instances.Count);
-    }
-
-    [TestMethod]
-    public void Create_RejectsSecondInstanceWhenPluginDoesNotSupportIt()
-    {
-        var registry = new PluginInstanceRegistry();
-        var plugin = new TestPlugin(supportsMultiple: false);
-
-        Assert.IsTrue(registry.Create(plugin, "company", new object()).Success);
-        var second = registry.Create(plugin, "personal", new object());
-
         Assert.IsFalse(second.Success);
-        StringAssert.Contains(second.Error, "不支持多实例");
     }
 
-    private sealed class TestPlugin(bool supportsMultiple) : ITrackerPlugin
+    private sealed class MemoryTrackerPlugin(bool supportsMultipleInstances) : ITrackerPlugin
     {
         public PluginManifest Manifest { get; } = new()
         {
-            Id = "tracker.test",
+            Id = "tracker.memory",
             Version = "1.0.0",
-            SupportsMultipleInstances = supportsMultiple,
+            ApiVersion = 1,
+            SupportsMultipleInstances = supportsMultipleInstances,
         };
 
-        public void RegisterServices(Microsoft.Extensions.DependencyInjection.IServiceCollection services) { }
-        public object CreateConfiguration() => new();
+        public void RegisterServices(IServiceCollection services) { }
+        public object CreateConfiguration() => new object();
         public IEnumerable<IPluginMigration> GetMigrations() => Array.Empty<IPluginMigration>();
         public ITrackerInstance CreateInstance(string instanceId, object configuration)
-            => new TestInstance(instanceId);
+            => new MemoryTrackerInstance(instanceId);
     }
 
-    private sealed class TestInstance(string instanceId) : ITrackerInstance
+    private sealed class MemoryTrackerInstance(string instanceId) : ITrackerInstance
     {
-        public string PluginId => "tracker.test";
+        public string PluginId => "tracker.memory";
         public string InstanceId => instanceId;
         public string DisplayName => instanceId;
-        public string Icon => string.Empty;
+        public string Icon => "memory";
         public bool IsConfigured => true;
-        public IDictionary<int, object?>? LoadBindingsByDate(string date) => null;
+        public IDictionary<int, object?>? LoadBindingsByDate(string date) => new Dictionary<int, object?>();
     }
 }

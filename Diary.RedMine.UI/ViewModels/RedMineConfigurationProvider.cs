@@ -10,7 +10,7 @@ namespace Diary.RedMine.UI.ViewModels;
 [DiAutoRegister(singleton: true, serviceType: typeof(ITrackerConfigurationProvider))]
 public sealed class RedMineConfigurationProvider(IServiceProvider services) : ITrackerConfigurationProvider
 {
-    public string PluginId => "tracker.redmine";
+    public string PluginId => RedMinePluginConstants.PluginId;
     public object CreateDefaultConfiguration() => new RedMinePluginConfig();
 
     public bool Validate(object configuration, out string? error)

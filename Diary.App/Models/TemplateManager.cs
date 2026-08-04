@@ -2,6 +2,7 @@ using System.Text.Json;
 using Diary.Core.Configure;
 using Diary.Core.Data.App;
 using Diary.Core.Utils;
+using Diary.RedMine;
 using Diary.Utils;
 
 namespace Diary.App.Models;
@@ -38,8 +39,8 @@ public class TemplateManager : SingletonBase<TemplateManager>
             var list = (t.Extensions as List<TemplateExtensionData>) ?? new List<TemplateExtensionData>(t.Extensions);
             list.Add(new TemplateExtensionData
             {
-                PluginId = "tracker.redmine",
-                InstanceId = "redmine.default",
+                PluginId = RedMinePluginConstants.PluginId,
+                InstanceId = RedMinePluginConstants.DefaultInstanceId,
                 SchemaVersion = 1,
                 PayloadJson = payload,
             });

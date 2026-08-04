@@ -31,7 +31,7 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
 
     public bool IsLocked => Uploaded;
     public bool CanDelete => !Uploaded;
-    public string InstanceId => "redmine.default";
+    public string InstanceId => RedMinePluginConstants.DefaultInstanceId;
     ViewModelBase ITrackerEditorExtension.View => this;
 
     private static IRedMineDb? RedMineDb => BaseApp.Instance.UseDb?.GetExtension<IRedMineDb>();

@@ -7,7 +7,7 @@ public sealed class RedMinePlugin : ITrackerPlugin
 {
     public PluginManifest Manifest { get; } = new()
     {
-        Id = "tracker.redmine",
+        Id = RedMinePluginConstants.PluginId,
         Version = "1.0.0",
         ApiVersion = 1,
         MinCoreDataVersion = 0,

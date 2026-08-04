@@ -50,14 +50,14 @@ public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRed
                 (sql, map, args) => _host.Query(sql, reader => map(reader),
                     args.Cast<(string Name, object? Value)>().ToArray()));
             if (!PluginMigrationRunner.Upgrade(
-                    "tracker.redmine", schemaVersion, CurrentSchemaVersion,
+                    RedMinePluginConstants.PluginId, schemaVersion, CurrentSchemaVersion,
                     new IPluginMigration[] { new RedMineInitialMigration(), new RedMineInstanceMigration() }, context))
             {
                 return false;
             }
 
             return _host.ExecRaw(
-                "INSERT INTO plugin_data_versions(plugin_id, schema_version) VALUES ('tracker.redmine', 2) ON CONFLICT(plugin_id) DO UPDATE SET schema_version=2;");
+                $"INSERT INTO plugin_data_versions(plugin_id, schema_version) VALUES ('{RedMinePluginConstants.PluginId}', 2) ON CONFLICT(plugin_id) DO UPDATE SET schema_version=2;");
         }
         catch (Exception)
         {
@@ -93,7 +93,7 @@ public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRed
     {
         var value = _host.ExecuteScalar(
             "SELECT schema_version FROM plugin_data_versions WHERE plugin_id=$1;",
-            ("$1", "tracker.redmine"));
+            ("$1", RedMinePluginConstants.PluginId));
         return value is null ? 0 : Convert.ToUInt32(value);
     }
 

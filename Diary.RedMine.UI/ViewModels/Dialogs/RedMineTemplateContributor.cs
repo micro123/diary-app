@@ -17,8 +17,8 @@ public sealed class RedMineTemplateContributor(IRedMineUiData data) : ITrackerTe
 {
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
-    public string PluginId => "tracker.redmine";
-    public string InstanceId => "redmine.default";
+    public string PluginId => RedMinePluginConstants.PluginId;
+    public string InstanceId => RedMinePluginConstants.DefaultInstanceId;
     public int CurrentSchemaVersion => 1;
 
     public object CreateDefaultData() => new RedMineTemplateData();
