@@ -23,8 +23,8 @@ public sealed class RedMineUiDataStore : IRedMineUiData
         _logger = logger;
         WeakReferenceMessenger.Default.Register<DbChangedEvent>(this, (_, message) =>
         {
-            if ((message.Value & DbChangedEvent.RedMineIssue) != 0) LoadIssues();
-            if ((message.Value & DbChangedEvent.RedMineActivity) != 0) LoadActivities();
+            if ((message.Value & RedMineUiEvents.IssueChanged) != 0) LoadIssues();
+            if ((message.Value & RedMineUiEvents.ActivityChanged) != 0) LoadActivities();
         });
     }
 

@@ -50,7 +50,7 @@ public partial class RedMineInfoViewModel : ViewModelBase
                     Db.GetExtension<IRedMineDb>()!.AddRedMineActivity(activity.Id, activity.Name);
             }
         });
-        EventDispatcher.DbChanged(DbChangedEvent.RedMineActivity);
+        EventDispatcher.DbChanged(RedMineUiEvents.ActivityChanged);
     }
 
     public void UpdateUserInfo(UserInfo? userInfo)
@@ -87,18 +87,18 @@ public partial class RedMineInfoViewModel : ViewModelBase
             }
             return result;
         });
-        if (changed) EventDispatcher.DbChanged(DbChangedEvent.RedMineIssue);
+        if (changed) EventDispatcher.DbChanged(RedMineUiEvents.IssueChanged);
     }
 
     [RelayCommand]
     private async Task ReloadIssues()
-        => await Dispatcher.UIThread.InvokeAsync(() => EventDispatcher.DbChanged(DbChangedEvent.RedMineIssue));
+        => await Dispatcher.UIThread.InvokeAsync(() => EventDispatcher.DbChanged(RedMineUiEvents.IssueChanged));
 
     [RelayCommand]
     private async Task ToggleIssue(RedMineIssueDisplay issue)
     {
         await Task.Run(() => Db!.GetExtension<IRedMineDb>()!.UpdateRedMineIssueStatus(issue.Id, !issue.Disabled));
-        EventDispatcher.DbChanged(DbChangedEvent.RedMineIssue);
+        EventDispatcher.DbChanged(RedMineUiEvents.IssueChanged);
     }
 
     [RelayCommand]

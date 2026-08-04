@@ -1,4 +1,3 @@
-using Diary.Core.Constants;
 using Diary.GUIBase;
 using Diary.GUIBase.ViewModels;
 using Diary.PluginBase;
@@ -25,7 +24,7 @@ public sealed class RedMineTrackerIntegration : ITrackerInstance, ITrackerUiCont
 
     public string PluginId => "tracker.redmine";
     public string InstanceId => "redmine.default";
-    public string DisplayName => PageNames.RedMineTool;
+    public string DisplayName => "RedMine工具";
     public string Icon => "fa-cloud";
     public bool IsConfigured => RedMineConfigurationStore.Current.Valid();
 
