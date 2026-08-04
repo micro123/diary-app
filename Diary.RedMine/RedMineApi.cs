@@ -14,6 +14,13 @@ namespace Diary.RedMine;
 /// </summary>
 public class RedMineApi : IRedMineApi
 {
+    private readonly RedMinePluginConfig _configuration;
+
+    public RedMineApi(RedMinePluginConfig? configuration = null)
+    {
+        _configuration = configuration ?? RedMineConfigurationStore.Current;
+    }
+
     private static ILogger Logger => Logging.Logger;
     public int PageSize => 50;
 
@@ -26,10 +33,10 @@ public class RedMineApi : IRedMineApi
         total = 0;
         string url;
         url = !string.IsNullOrEmpty(keyword) ? ProjectInfo.Search() : ProjectInfo.All();
-        var client = RestTools.BasicClient();
+        var client = RestTools.BasicClient(_configuration);
         if (client != null)
         {
-            var request = RestTools.HttpGet(url);
+            var request = RestTools.HttpGet(_configuration, url);
             if (!string.IsNullOrEmpty(keyword))
                 request.AddQueryParameter("q", keyword);
             request.AddQueryParameter("projects", "1");
@@ -56,10 +63,10 @@ public class RedMineApi : IRedMineApi
     {
         project = null;
         var url = ProjectInfo.Fetch(id);
-        var client = RestTools.BasicClient();
+        var client = RestTools.BasicClient(_configuration);
         if (client != null)
         {
-            var request = RestTools.HttpGet(url);
+            var request = RestTools.HttpGet(_configuration, url);
             var response = client.Execute<ProjectInfo.FetchResult>(request);
             if (response.StatusCode != HttpStatusCode.OK)
             {
@@ -98,10 +105,10 @@ public class RedMineApi : IRedMineApi
         total = 0;
 
         var url = IssueInfo.Query();
-        var client = RestTools.BasicClient();
+        var client = RestTools.BasicClient(_configuration);
         if (client != null)
         {
-            var request = RestTools.HttpGet(url);
+            var request = RestTools.HttpGet(_configuration, url);
             if (myIssues)
                 request.AddQueryParameter("assigned_to_id", "me");
             request.AddQueryParameter("status_id", openOnly ? "open" : "*");
@@ -131,10 +138,10 @@ public class RedMineApi : IRedMineApi
     {
         issues = null;
         var url = IssueInfo.Fetch(id);
-        var client = RestTools.BasicClient();
+        var client = RestTools.BasicClient(_configuration);
         if (client != null)
         {
-            var request = RestTools.HttpGet(url);
+            var request = RestTools.HttpGet(_configuration, url);
             var response = client.Execute<IssueInfo.FetchResult>(request);
             if (response.StatusCode != HttpStatusCode.OK)
             {
@@ -157,10 +164,10 @@ public class RedMineApi : IRedMineApi
         issue = null;
 
         var url = IssueInfo.Query();
-        var client = RestTools.BasicClient();
+        var client = RestTools.BasicClient(_configuration);
         if (client != null)
         {
-            var request = RestTools.HttpPost(url);
+            var request = RestTools.HttpPost(_configuration, url);
             var postData = new IssueInfo.PostRes(projectId, subject);
             if (!string.IsNullOrEmpty(description))
             {
@@ -200,10 +207,10 @@ public class RedMineApi : IRedMineApi
         timeInfo = null;
 
         var url = TimeInfo.Query();
-        var client = RestTools.BasicClient();
+        var client = RestTools.BasicClient(_configuration);
         if (client != null)
         {
-            var request = RestTools.HttpPost(url);
+            var request = RestTools.HttpPost(_configuration, url);
             var body = new TimeInfo.PostRes(issue, activity, date, comment, hours);
             request.AddJsonBody(body);
             var response = client.Execute<TimeInfo.PostResult>(request);
@@ -230,10 +237,10 @@ public class RedMineApi : IRedMineApi
         total = 0;
 
         var url = TimeInfo.Query();
-        var client = RestTools.BasicClient();
+        var client = RestTools.BasicClient(_configuration);
         if (client != null)
         {
-            var request = RestTools.HttpGet(url);
+            var request = RestTools.HttpGet(_configuration, url);
             request.AddQueryParameter("user_id", "me");
             request.AddQueryParameter("limit", PageSize);
             request.AddQueryParameter("offset", page * PageSize);
@@ -263,10 +270,10 @@ public class RedMineApi : IRedMineApi
     {
         activities = null;
         var url = ActivityInfo.Query();
-        var client = RestTools.BasicClient();
+        var client = RestTools.BasicClient(_configuration);
         if (client != null)
         {
-            var request = RestTools.HttpGet(url);
+            var request = RestTools.HttpGet(_configuration, url);
             var response = client.Execute<ActivityInfo.Res>(request);
             if (response.StatusCode != HttpStatusCode.OK)
             {
@@ -287,10 +294,10 @@ public class RedMineApi : IRedMineApi
     {
         userInfo = null;
         var url = UserInfo.Query();
-        var client = RestTools.BasicClient();
+        var client = RestTools.BasicClient(_configuration);
         if (client != null)
         {
-            var request = RestTools.HttpGet(url);
+            var request = RestTools.HttpGet(_configuration, url);
             var response = client.Execute<UserInfo.Res>(request);
             if (response.StatusCode != HttpStatusCode.OK)
             {

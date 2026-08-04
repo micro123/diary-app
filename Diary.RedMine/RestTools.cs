@@ -13,7 +13,7 @@ internal static class RestTools
     private static bool _cachedUseProxy;
     private static string _cachedProxyServer = string.Empty;
 
-    public static RestClient? BasicClient()
+    public static RestClient? BasicClient(RedMinePluginConfig cfg)
     {
         if (!Cfg.Valid())
         {
@@ -46,14 +46,14 @@ internal static class RestTools
         return _cachedClient;
     }
 
-    public static RestRequest HttpGet(string query)
+    public static RestRequest HttpGet(RedMinePluginConfig cfg, string query)
     {
         var request = new RestRequest(query);
         request.AddHeader("X-Redmine-API-Key", Cfg.RedMineApiKey);
         return request;
     }
 
-    public static RestRequest HttpPost(string query)
+    public static RestRequest HttpPost(RedMinePluginConfig cfg, string query)
     {
         var request = new RestRequest(query, Method.Post);
         request.AddHeader("X-Redmine-API-Key", Cfg.RedMineApiKey);
