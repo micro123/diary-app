@@ -1,0 +1,37 @@
+@startuml
+skinparam componentStyle rectangle
+skinparam shadowing false
+package "Diary.App" {
+  [App] as App
+  [Core UI] as UI
+  [PluginHost] as Host
+}
+package "Contracts" {
+  [Diary.Core] as Core
+  [Diary.Database] as DB
+  [Diary.PluginBase] as PB
+  [Diary.PluginUI] as PUI
+}
+package "Redmine" {
+  [Diary.RedMine] as RM
+  [Diary.RedMine.UI] as RMUI
+  [SQLite extension] as SQL
+  [PostgreSQL extension] as PG
+}
+database "SQLite / PostgreSQL" as Store
+cloud "Redmine API" as API
+App --> Host
+App --> UI
+Host --> PB
+Host --> PUI
+UI --> Core
+UI --> DB
+RM --> PB
+RM --> DB
+RMUI --> PUI
+RMUI --> RM
+SQL --> DB
+PG --> DB
+DB --> Store
+RM --> API
+@enduml

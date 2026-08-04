@@ -1,0 +1,20 @@
+@startuml
+start
+:创建 DI 容器;
+:扫描插件程序集;
+:校验 manifest;
+if (兼容?) then (是)
+  :注册插件服务;
+else (否)
+  :记录 Blocked;
+endif
+:连接核心数据库;
+:执行核心迁移;
+:创建数据库扩展;
+:探测实际 Redmine schema;
+:执行插件迁移;
+:加载核心和插件 UI 数据;
+:按配置创建插件实例;
+:创建主窗口;
+stop
+@enduml

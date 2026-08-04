@@ -1,0 +1,14 @@
+@startuml
+actor "核心 UI" as UI
+participant "DbInterfaceBase" as DB
+participant "Factory Loader" as Loader
+participant "Redmine Extension" as Ext
+UI -> DB : GetExtension(type, instanceId)
+DB -> DB : 查询扩展缓存
+DB -> Loader : 发现 Diary.RedMine.*.dll
+Loader --> DB : IDbExtensionFactory
+DB -> Ext : Create(host, instanceId)
+Ext -> Store : Initialize and migrate
+Ext --> DB : IRedMineDb
+DB --> UI : extension or null
+@enduml

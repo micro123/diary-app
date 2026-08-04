@@ -1,5 +1,8 @@
 # 解决方案项目架构
 
+当前实现的插件、数据库扩展、Redmine 实例和启动迁移链路见 [`CurrentArchitecture.md`](CurrentArchitecture.md)。
+本文保留为项目目录和主程序结构的概览；插件目标架构与分阶段改造计划见 [`TrackerPluginArchitecture.md`](TrackerPluginArchitecture.md)。
+
 ## 目录结构
 
 - App：主程序和程序工具放这下面
