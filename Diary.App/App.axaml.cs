@@ -178,6 +178,7 @@ namespace Diary.App
             services.AddSingleton<BaseApp>(this);
             services.AddSingleton<PluginInstanceRegistry>();
             services.AddSingleton<TrackerInstanceCoordinator>();
+            services.AddSingleton<IWorkItemPersistenceCoordinator, WorkItemPersistenceCoordinator>();
             var compatibility = new PluginCompatibilityContext(
                 1,
                 1,

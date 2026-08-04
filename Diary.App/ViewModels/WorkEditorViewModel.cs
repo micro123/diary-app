@@ -16,6 +16,7 @@ namespace Diary.App.ViewModels;
 public partial class WorkEditorViewModel : ViewModelBase
 {
     private readonly DbShareData _shareData;
+    private readonly IWorkItemPersistenceCoordinator _persistence;
 
     // db data fields
     private WorkItem? WorkItem { get; set; } // ref to existed db item, may null
@@ -43,7 +44,9 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     public static WorkEditorViewModel FromWorkItem(WorkItem workItem)
     {
-        return new WorkEditorViewModel(App.Instance.Services.GetRequiredService<DbShareData>())
+        return new WorkEditorViewModel(
+            App.Instance.Services.GetRequiredService<DbShareData>(),
+            App.Instance.Services.GetRequiredService<IWorkItemPersistenceCoordinator>())
         {
             WorkId = workItem.Id,
             WorkItem = workItem,
@@ -54,9 +57,13 @@ public partial class WorkEditorViewModel : ViewModelBase
         };
     }
 
-    public WorkEditorViewModel(DbShareData shareData)
+    public WorkEditorViewModel(
+        DbShareData shareData,
+        IWorkItemPersistenceCoordinator? persistence = null)
     {
         _shareData = shareData;
+        _persistence = persistence
+            ?? App.Instance.Services.GetRequiredService<IWorkItemPersistenceCoordinator>();
         Date = TimeTools.Today();
         Comment = App.Instance.AppConfig.WorkSettings.DefaultTaskTitle;
         Note = string.Empty;
@@ -90,55 +97,18 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     public void Save(out bool created)
     {
-        created = false;
         var db = Db!;
-        if (WorkItem == null)
+        var result = _persistence.Save(db, new WorkItemSaveRequest(
+            WorkItem, Date, Comment, Note, Time, Priority, WorkTags, Extensions));
+        created = result.Created;
+        if (!result.Success || result.WorkItem is null)
         {
-            WorkItem = db.CreateWorkItem(Date, Comment);
-            if (WorkItem.Id <= 0)
-            {
-                EventDispatcher.ShowToast("保存失败了！");
-                return;
-            }
-
-            WorkId = WorkItem.Id;
-            WorkItem.Priority = Priority;
-            WorkItem.Time = Time;
-            created = true;
-        }
-        else
-        {
-            WorkItem.CreateDate = Date;
-            WorkItem.Comment = Comment;
-            WorkItem.Time = Time;
-            WorkItem.Priority = Priority;
+            EventDispatcher.ShowToast(result.Error ?? "保存失败了！");
+            return;
         }
 
-        // 一般信息
-        db.UpdateWorkItem(WorkItem);
-
-        // 笔记
-        if (!string.IsNullOrWhiteSpace(Note))
-        {
-            db.WorkUpdateNote(WorkItem, Note);
-        }
-        else
-        {
-            db.WorkDeleteNote(WorkItem);
-        }
-
-        // tracker 绑定（如 RedMine 的 issue/activity → CreateWorkTimeEntry）
-        foreach (var ext in Extensions)
-            ext.Save(WorkItem);
-
-        // 首次创建则全部添加标签
-        if (created)
-        {
-            foreach (var workTag in WorkTags)
-            {
-                Db!.WorkItemAddTag(WorkItem, workTag);
-            }
-        }
+        WorkItem = result.WorkItem;
+        WorkId = WorkItem.Id;
     }
 
     public void Delete()

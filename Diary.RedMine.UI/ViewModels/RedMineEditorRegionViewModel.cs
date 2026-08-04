@@ -51,12 +51,13 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
         SyncFromEntry();
     }
 
-    public void Save(WorkItem item)
+    public bool Save(WorkItem item)
     {
         if (item.Id <= 0 || IssueIndex < 0 || ActivityIndex < 0)
-            return;
+            return true;
         TimeEntry = RedMineDb?.CreateWorkTimeEntry(
             item.Id, RedMineActivities[ActivityIndex].Id, RedMineIssues[IssueIndex].Id);
+        return TimeEntry is not null;
     }
 
     public void CloneTo(ITrackerEditorExtension? target)

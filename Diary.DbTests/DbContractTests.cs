@@ -115,6 +115,18 @@ public abstract class DbContractTests
     }
 
     [TestMethod]
+    public void TransactionRollback_DoesNotPersistWorkItem()
+    {
+        using var db = CreateDb();
+        Assert.IsTrue(db.BeginTransaction());
+        var item = db.CreateWorkItem("2026-08-01", "rollback");
+        Assert.IsTrue(item.Id > 0);
+        Assert.IsTrue(db.RollbackTransaction());
+
+        Assert.AreEqual(0, db.GetWorkItemByDate("2026-08-01").Count);
+    }
+
+    [TestMethod]
     public void GetWorkItemByDate_ReturnsItemsForDate()
     {
         using var db = CreateDb();

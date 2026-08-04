@@ -19,8 +19,8 @@ public interface ITrackerEditorExtension
     /// <summary>加载工作项的本地绑定（<paramref name="binding"/> 为批量预取，null 时扩展自行加载；新项 item 为 null）。</summary>
     void Load(WorkItem? item, object? binding = null);
 
-    /// <summary>保存时持久化本地绑定（如 CreateWorkTimeEntry）。</summary>
-    void Save(WorkItem item);
+    /// <summary>保存时持久化本地绑定（如 CreateWorkTimeEntry）；无绑定时返回 true。</summary>
+    bool Save(WorkItem item);
 
     /// <summary>复制当前选择到另一扩展（重复工作项用；target 可能为 null）。</summary>
     void CloneTo(ITrackerEditorExtension? target);
