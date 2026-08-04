@@ -16,24 +16,28 @@
 
 ## 2. 当前状态
 
-当前项目已经完成部分 tracker 抽象：
+当前项目已经完成 tracker 插件化的基础骨架：
 
-- `ITrackerIntegration` 提供 tracker 导航页、编辑器区域、管理页和按日加载绑定的能力。
-- `ITrackerEditorRegion` 将 Redmine 编辑器区域从 `WorkEditorViewModel` 中拆出。
-- `DbInterfaceBase.RedMineDb` 将 Redmine 数据访问实现拆到了 `SQLiteRedMineDb` 和 `PgRedMineDb`。
-- SQLite 和 PostgreSQL 使用共享的数据库契约测试。
+- `Diary.PluginBase` 提供 manifest、兼容性检查、插件入口、实例和迁移契约。
+- `Diary.PluginUI` 提供配置、管理页、编辑器和模板贡献契约。
+- `PluginHost` 已支持插件注册和迁移结果状态。
+- `PluginInstanceRegistry` 已按 `(PluginId, InstanceId)` 管理实例。
+- Redmine 数据访问已拆到 `Diary.RedMine.SQLite` 和 `Diary.RedMine.PostgreSQL`。
+- SQLite 和 PostgreSQL 使用共享的数据库扩展契约测试。
+- Redmine schema 已有独立版本表和 0 -> 1 -> 2 迁移链。
+- Redmine 表已经使用 `instance_id` 做数据隔离。
 
-但当前实现仍然存在以下耦合：
+当前实现仍然存在以下缺口：
 
-- `Diary.Database` 直接定义 `IRedMineDb` 并引用 Redmine 数据模型。
-- `DbInterfaceBase` 仍包含 `RedMineDb` 和 `GetWorkTimeEntriesByDate()`。
-- SQLite 和 PostgreSQL 初始化时无条件创建 Redmine 表。
-- `WorkEditorViewModel` 只持有一个 tracker 区域，并使用 `FirstOrDefault()` 选择 tracker。
-- 应用层大量使用 `RedMineDb!`，未真正处理 tracker 不存在的情况。
-- Redmine 配置、API、管理页面和编辑器扩展仍位于主程序程序集。
-- 插件没有独立的 manifest、兼容性检查和数据库迁移生命周期。
+- `App.RegisterTrackerInstances()` 仍硬编码 `tracker.redmine`。
+- Redmine manifest 尚未开启 `SupportsMultipleInstances`。
+- 实例生命周期、配置加载、数据库迁移和 UI 注册尚未统一编排。
+- `Diary.Database` 仍保留 `IRedMineDb` 扩展路径。
+- 数据库扩展发现仍使用 `Diary.RedMine.*.dll` 文件模式。
+- 编辑器、模板和上传状态尚未完成通用多 tracker 聚合。
+- 插件配置迁移、诊断页面、重试和卸载流程尚未完整实现。
 
-因此当前状态是“Redmine 可以不配置和不使用”，还不是“Redmine 可以完全作为独立插件安装或移除”。
+因此当前状态是“具备可选插件和实例隔离基础”，还不是“任意 tracker 可以无核心代码改动地安装、升级、运行和移除”。
 
 ## 3. 核心设计原则
 
@@ -906,65 +910,63 @@ SupportedProviders: PostgreSQL
 
 只有用户明确选择“删除插件数据”时，才执行清理迁移或数据删除操作。
 
-## 17. 分阶段改造计划
+## 17. 当前改造路线图
 
-### 阶段 1：抽取通用契约
+以下路线以当前代码为起点。已完成项不再作为待办，后续实现必须按依赖顺序推进。
 
-- 新增 `Diary.PluginBase`。
-- 将 `ITrackerIntegration` 改名或兼容为通用 tracker 插件契约。
-- 将 `ITrackerEditorRegion` 改成不包含 Redmine 语义的接口。
-- 新增 `PluginManifest` 和 API 版本。
-- 将核心 `Template` 改为核心字段加透明的 tracker 扩展数据。
+### 阶段 1：通用实例生命周期
 
-验收标准：核心项目不新增任何 Redmine 类型引用。
+当前基础：插件 manifest、`PluginHost`、`PluginInstanceRegistry` 和 Redmine 实例配置已经存在。
 
-### 阶段 2：支持多个编辑器扩展
+- 定义通用实例配置存储和实例状态接口。
+- 将 `App.RegisterTrackerInstances()` 改为遍历所有插件。
+- 统一实例创建、数据库初始化、迁移和 UI 注册顺序。
+- 接入 `SupportsMultipleInstances`，贯通导航、管理页和编辑器上下文。
 
-- `WorkEditorViewModel._tracker` 改为扩展集合。
-- 删除 `FirstOrDefault()` 单 tracker 逻辑。
-- 支持多个管理页和多个编辑器区域。
-- 实现保存、克隆、删除、锁定和上传聚合。
-- 增加模板协调器，统一应用核心模板和多个 tracker 模板扩展。
+验收标准：新增测试 tracker 不需要修改 `Diary.App` 的 tracker 专用分支即可创建两个实例。
 
-验收标准：Redmine 和一个模拟 tracker 可以同时显示并保存。
+### 阶段 2：多 tracker 编辑器和保存协调
 
-### 阶段 3：拆分 Redmine 项目
+- 将编辑器单一 tracker 状态改为扩展集合。
+- 聚合加载、保存、克隆、锁定、删除权限和上传状态。
+- 核心工作项与所有本地绑定使用一个本地事务。
+- 远程上传放在事务外，按实例独立重试。
 
-- 创建 `Diary.Tracker.RedMine`。
-- 移动 Redmine API、模型、配置、数据库实现和 UI。
-- 主程序改为扫描和加载插件。
-- 删除主程序对 Redmine 具体类型的直接引用。
-- 将旧模板中的 `DefaultActivity` 和 `DefaultIssue` 迁移为 Redmine 扩展 payload。
+验收标准：Redmine 和测试 tracker 可以同时绑定一个工作项，一个 tracker 上传失败不影响另一个。
 
-验收标准：移除 Redmine 插件程序集后，核心日记仍可启动和使用。
+### 阶段 3：模板扩展落地
 
-### 阶段 4：插件数据库迁移
+- 完成透明 `Extensions` payload 的序列化和编辑器协调器。
+- 迁移旧 Redmine 模板字段。
+- 保留缺失插件的未知 payload。
+- 支持同一 tracker 多实例模板扩展。
 
-- 新增插件数据库版本表。
-- 新增插件迁移接口和迁移调度器。
-- 移除核心 provider 中的 Redmine 表初始化。
-- 为 Redmine 表结构建立独立迁移链。
+验收标准：缺少 tracker 插件时模板核心字段仍可用，插件恢复后原 payload 可以重新编辑。
 
-验收标准：新安装数据库只包含核心表；启用 Redmine 后才创建 Redmine 表。
+### 阶段 4：核心边界收紧
 
-### 阶段 5：配置和管理页插件化
+- 将 `IRedMineDb` 和 Redmine 模型收敛到 Redmine 插件内部。
+- 移除 `Diary.App` 对 Redmine 配置和实例类型的直接引用。
+- 将 `Diary.RedMine.*.dll` 扫描改为通用插件数据库扩展能力。
 
-- 插件贡献配置对象和设置页面。
-- 插件贡献管理页面。
-- 支持插件配置迁移。
-- 支持多个 tracker 实例。
-- 插件贡献模板编辑区域。
+验收标准：移除 Redmine 程序集后核心日记、核心数据库、模板和编辑器仍可运行。
 
-验收标准：主程序不包含 Redmine 配置字段和管理页面类型。
+### 阶段 5：配置、诊断和卸载
 
-### 阶段 6：兼容性和失败恢复
+- 通用配置持久化、配置 schema 迁移和敏感字段处理。
+- 插件诊断页面、迁移重试和错误导出。
+- 禁用/卸载时保留配置和数据，删除数据必须显式确认。
 
-- 完成插件状态机。
-- 增加 API、核心数据库和 provider 能力检查。
-- 增加迁移失败恢复和重试。
-- 增加插件诊断页面。
+验收标准：单个插件可以独立禁用、重试和移除，不影响核心数据或其他插件。
 
-验收标准：单个插件失败时核心日记和其他插件不受影响。
+### 阶段 6：完整测试和发布门槛
+
+- 覆盖插件缺失、版本不兼容、依赖缺失、迁移失败和恢复。
+- 覆盖 SQLite/PostgreSQL schema 迁移幂等和历史坏版本号。
+- 覆盖多实例隔离、多 tracker 保存和远程失败重试。
+- 将外部 Redmine API 测试与本地契约测试分离。
+
+验收标准：核心测试不依赖远程 Redmine 服务，插件失败不会阻止核心日记启动。
 
 ## 18. 测试要求
 
@@ -1017,18 +1019,15 @@ SupportedProviders: PostgreSQL
 - 插件 API、核心数据版本和插件数据版本互不混淆。
 - 主程序不再出现 `RedMineDb!`、`SetRedMineActivity()` 等 tracker 专用调用。
 
-## 20. 推荐的第一批实际改动
+## 20. 第一批实施任务
 
-第一批不建议直接移动全部 Redmine 文件，而应先建立抽象边界：
+第一批只处理实例生命周期，不同时改动模板和远程 API：
 
-1. 新增 `Diary.PluginBase` 项目。
-2. 定义 `PluginManifest`、`ITrackerPlugin`、`ITrackerInstance` 和 `ITrackerEditorExtension`。
-3. 将核心 `Template` 移除 `DefaultActivity` 和 `DefaultIssue`，增加透明扩展 payload。
-4. 将 `WorkEditorViewModel` 的单 tracker 字段改为集合。
-5. 将 `GetWorkTimeEntriesByDate()` 改为插件批量绑定接口。
-6. 将 `IRedMineDb` 重命名或迁移为 Redmine 插件内部接口。
-7. 为插件数据库迁移定义最小可用协议。
-8. 编写一个内存或空实现 tracker，验证多 tracker 编辑器和模板流程。
-9. 最后再迁移 Redmine 的 API、配置、数据库和 UI。
+1. 定义通用实例配置枚举和实例状态模型。
+2. 把 `RegisterTrackerInstances()` 的 Redmine 分支改成插件遍历。
+3. 将数据库扩展初始化和插件实例创建放到同一生命周期协调器。
+4. 增加一个内存测试 tracker，验证两个实例可以被宿主创建。
+5. 验证插件迁移失败时核心 UI 仍可启动。
+6. 再进入多 tracker 编辑器改造。
 
-这样可以先验证插件宿主设计，再处理 Redmine 代码迁移，避免在重构过程中同时改变数据库结构、UI 生命周期和远程 API 行为。
+对应的执行清单维护在 `Docs/TODOS.md`；当前实现基线维护在 `Docs/CurrentArchitecture.md`。

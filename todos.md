@@ -1,5 +1,9 @@
 # TODO
 
+## Tracker 插件化
+
+Tracker 插件当前路线、阶段 TODO 和验收标准统一维护在 [`Docs/TODOS.md`](Docs/TODOS.md)；目标设计见 [`Docs/TrackerPluginArchitecture.md`](Docs/TrackerPluginArchitecture.md)。
+
 ## 严重 Bug
 
 - [x] `PgDb.cs:366` SQL 拼写错误 `DELTE FROM work_items`，应为 `DELETE`（已修复）
