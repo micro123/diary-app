@@ -28,4 +28,24 @@ public static class PluginHost
             return new PluginLoadResult(PluginState.Blocked, ex.Message);
         }
     }
+
+    public static PluginLoadResult Migrate(
+        ITrackerPlugin plugin,
+        uint currentVersion,
+        IPluginMigrationContext context)
+    {
+        ArgumentNullException.ThrowIfNull(plugin);
+        ArgumentNullException.ThrowIfNull(context);
+
+        var migrations = plugin.GetMigrations().ToArray();
+        if (migrations.Length == 0)
+            return new PluginLoadResult(PluginState.Enabled);
+
+        var targetVersion = migrations.Max(migration => migration.ToVersion);
+        var migrated = PluginMigrationRunner.Upgrade(
+            plugin.Manifest.Id, currentVersion, targetVersion, migrations, context);
+        return migrated
+            ? new PluginLoadResult(PluginState.Enabled)
+            : new PluginLoadResult(PluginState.MigrationFailed, "插件数据库迁移失败");
+    }
 }

@@ -33,6 +33,15 @@ public class PluginMigrationRunnerTests
     }
 
     [TestMethod]
+    public void PluginHostReturnsMigrationFailedWhenMigrationFails()
+    {
+        var plugin = new TestPlugin(shouldThrow: true);
+        var result = PluginHost.Migrate(plugin, 1, new TestContext());
+
+        Assert.AreEqual(PluginState.MigrationFailed, result.State);
+    }
+
+    [TestMethod]
     public void ManifestValidator_AcceptsSupportedPlugin()
     {
         var manifest = new PluginManifest
@@ -146,7 +155,8 @@ public class PluginMigrationRunnerTests
         }
 
         public object CreateConfiguration() => new();
-        public IEnumerable<IPluginMigration> GetMigrations() => Array.Empty<IPluginMigration>();
+        public IEnumerable<IPluginMigration> GetMigrations()
+            => new[] { new TestMigration(1, 2, new List<uint>(), shouldThrow) };
         public ITrackerInstance CreateInstance(string instanceId, object configuration) => throw new NotSupportedException();
     }
 }
