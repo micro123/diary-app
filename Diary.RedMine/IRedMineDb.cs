@@ -23,4 +23,5 @@ public interface IRedMineDb
 
     WorkTimeEntry? CreateWorkTimeEntry(int work, int activity, int issus);
     bool UpdateWorkTimeEntry(WorkTimeEntry timeEntry);
+    bool ClearData();
 }

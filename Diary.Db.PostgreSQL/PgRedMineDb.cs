@@ -16,6 +16,43 @@ internal sealed class PgRedMineDb(IDbExtensionHost host) : IRedMineDb
 {
     private readonly IDbExtensionHost _host = host;
 
+    internal bool Initialize()
+    {
+        const string sql = """
+                           CREATE TABLE IF NOT EXISTS redmine_projects (
+                               id INTEGER NOT NULL PRIMARY KEY,
+                               project_name CHAR(256) NOT NULL,
+                               project_desc CHAR(2048) DEFAULT '',
+                               is_closed INTEGER DEFAULT 0
+                           );
+                           CREATE TABLE IF NOT EXISTS redmine_activities (
+                               id INTEGER PRIMARY KEY,
+                               act_name CHAR(64) NOT NULL
+                           );
+                           CREATE TABLE IF NOT EXISTS redmine_issues (
+                               id INTEGER PRIMARY KEY,
+                               issue_title CHAR(256) NOT NULL,
+                               assigned_to CHAR(16) DEFAULT '',
+                               project_id INTEGER NOT NULL REFERENCES redmine_projects (id) ON DELETE CASCADE,
+                               is_closed INTEGER DEFAULT 0
+                           );
+                           CREATE TABLE IF NOT EXISTS redmine_time_entries (
+                               work_id INTEGER PRIMARY KEY REFERENCES work_items (id) ON DELETE CASCADE,
+                               id INTEGER DEFAULT 0,
+                               act_id INTEGER REFERENCES redmine_activities (id) ON DELETE CASCADE,
+                               issue_id INTEGER REFERENCES redmine_issues (id) ON DELETE CASCADE
+                           );
+                           """;
+        try
+        {
+            return _host.ExecRaw(sql);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
     // $1=id $2=title
     public RedMineActivity AddRedMineActivity(int id, string title)
     {
@@ -23,6 +60,24 @@ internal sealed class PgRedMineDb(IDbExtensionHost host) : IRedMineDb
                   INSERT INTO redmine_activities(id, act_name) VALUES ($1,$2) ON CONFLICT (id) DO UPDATE SET act_name=$2 RETURNING *;
                   """;
         return _host.QueryFirst(sql, MapRedMineActivity, ("$1", id), ("$2", title)) ?? new RedMineActivity();
+    }
+
+    public bool ClearData()
+    {
+        const string sql = """
+                           DELETE FROM redmine_time_entries;
+                           DELETE FROM redmine_activities;
+                           DELETE FROM redmine_issues;
+                           DELETE FROM redmine_projects;
+                           """;
+        try
+        {
+            return _host.ExecRaw(sql);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     // $1=id $2=title $3=assign $4=project $5=close

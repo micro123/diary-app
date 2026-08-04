@@ -107,33 +107,6 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
                   	PRIMARY KEY (work_id, tag_id)
                   );
 
-                  CREATE TABLE IF NOT EXISTS redmine_projects (
-                  	id INTEGER NOT NULL PRIMARY KEY,
-                  	project_name CHAR(256) NOT NULL,
-                  	project_desc CHAR(2048) DEFAULT '',
-                  	is_closed INTEGER DEFAULT 0
-                  );
-
-                  CREATE TABLE IF NOT EXISTS redmine_activities (
-                  	id INTEGER PRIMARY KEY,
-                  	act_name CHAR(64) NOT NULL
-                  );
-
-                  CREATE TABLE IF NOT EXISTS redmine_issues (
-                  	id INTEGER PRIMARY KEY,
-                  	issue_title CHAR(256) NOT NULL,
-                  	assigned_to CHAR(16) DEFAULT '',
-                  	project_id INTEGER NOT NULL REFERENCES redmine_projects (id) ON DELETE CASCADE,
-                  	is_closed INTEGER DEFAULT 0
-                  );
-
-                  CREATE TABLE IF NOT EXISTS redmine_time_entries (
-                  	work_id INTEGER PRIMARY KEY REFERENCES work_items (id) ON DELETE CASCADE,
-                  	id INTEGER DEFAULT 0,
-                  	act_id INTEGER REFERENCES redmine_activities (id) ON DELETE CASCADE,
-                  	issue_id INTEGER REFERENCES redmine_issues (id) ON DELETE CASCADE
-                  );
-
                   CREATE TABLE IF NOT EXISTS data_versions (version_code INTEGER PRIMARY KEY);
 
                   -- default data version is 1.0.0 (0x10000 = 65536)
@@ -415,7 +388,12 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
     }
 
     protected override object? CreateExtension(Type extensionType)
-        => extensionType == typeof(IRedMineDb) ? new PgRedMineDb(this) : null;
+    {
+        if (extensionType != typeof(IRedMineDb))
+            return null;
+        var extension = new PgRedMineDb(this);
+        return extension.Initialize() ? extension : null;
+    }
 
     public override StatisticsResult GetStatistics(string beginDate, string endDate)
     {
@@ -548,11 +526,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
             batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM work_item_tags;"));
             batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM work_tags;"));
             batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM work_notes;"));
-            batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM redmine_time_entries;"));
-            batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM redmine_activities;"));
-            batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM redmine_issues;"));
-            batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM redmine_projects;"));
-            batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM work_items;"));
+             batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM work_items;"));
             batch.ExecuteNonQuery();
         }
         catch (Exception)

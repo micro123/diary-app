@@ -367,7 +367,12 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
     }
 
     protected override object? CreateExtension(Type extensionType)
-        => extensionType == typeof(IRedMineDb) ? new SQLiteRedMineDb(this) : null;
+    {
+        if (extensionType != typeof(IRedMineDb))
+            return null;
+        var extension = new SQLiteRedMineDb(this);
+        return extension.Initialize() ? extension : null;
+    }
 
     public override StatisticsResult GetStatistics(string beginDate, string endDate)
     {
@@ -502,10 +507,6 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
                       DELETE FROM work_item_tags;
                       DELETE FROM work_tags;
                       DELETE FROM work_notes;
-                      DELETE FROM redmine_time_entries;
-                      DELETE FROM redmine_activities;
-                      DELETE FROM redmine_issues;
-                      DELETE FROM redmine_projects;
                       DELETE FROM work_items;
                       """;
             using var cmd = _connection.CreateCommand();
