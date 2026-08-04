@@ -115,12 +115,38 @@ namespace Diary.App
 
             Services.GetRequiredService<DbShareData>().InitLoad();
             Services.GetRequiredService<IRedMineUiData>().InitLoad();
+            RegisterTrackerInstances();
             DatabaseOk = true;
 
             return true;
         }
 
         private readonly List<IDbFactory> _dbFactories = new();
+        private readonly List<ITrackerPlugin> _plugins = new();
+
+        private void RegisterTrackerInstances()
+        {
+            var plugin = _plugins.FirstOrDefault(x => x.Manifest.Id == "tracker.redmine");
+            var database = UseDb?.GetExtension<IRedMineDb>();
+            if (plugin is null || database is null)
+                return;
+
+            var registry = Services.GetRequiredService<PluginInstanceRegistry>();
+            if (registry.Get(plugin.Manifest.Id, "redmine.default") is not null)
+                return;
+
+            var result = registry.Create(
+                plugin,
+                "redmine.default",
+                new RedMineInstanceConfiguration(
+                    "redmine.default",
+                    "RedMine工具",
+                    RedMineConfigurationStore.Current,
+                    database));
+            if (!result.Success)
+                Logger.LogError("RedMine instance blocked: {Error}", result.Error);
+        }
+
         private void EnumerateDbProviders()
         {
             var dbProviders = TypeLoader.GetImplementations<IDbFactory>(FsTools.GetBinaryDirectory(), "Diary.Db.*.dll");
@@ -148,6 +174,7 @@ namespace Diary.App
             // mask add before
             services.AddSingleton(Logging.Logger);
             services.AddSingleton<BaseApp>(this);
+            services.AddSingleton<PluginInstanceRegistry>();
             var compatibility = new PluginCompatibilityContext(
                 1,
                 1,
@@ -162,6 +189,7 @@ namespace Diary.App
                 FsTools.GetBinaryDirectory(), "Diary.RedMine.dll");
             foreach (var plugin in plugins)
             {
+                _plugins.Add(plugin);
                 var result = PluginHost.Register(plugin, compatibility, services);
                 Logger.LogInformation("Plugin {PluginId}: {State}", plugin.Manifest.Id, result.State);
                 if (result.State == PluginState.Blocked)
