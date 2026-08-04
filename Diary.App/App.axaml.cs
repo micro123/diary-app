@@ -187,6 +187,8 @@ namespace Diary.App
 
             // mask add before
             services.AddSingleton(Logging.Logger);
+            services.AddSingleton<ILoggerFactory>(Logging.Factory);
+            services.AddSingleton(typeof(ILogger<>), typeof(Logger<>));
             services.AddSingleton<BaseApp>(this);
             services.AddSingleton<PluginInstanceRegistry>();
             services.AddSingleton<TrackerInstanceCoordinator>();
