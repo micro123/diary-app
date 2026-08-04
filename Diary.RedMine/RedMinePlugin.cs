@@ -26,7 +26,7 @@ public sealed class RedMinePlugin : ITrackerPlugin
         services.AddSingleton<IRedMineApi, RedMineApi>();
     }
 
-    public object CreateConfiguration() => new RedMinePluginConfig();
+    public object CreateConfiguration() => RedMineConfigurationStore.Current;
 
     public IEnumerable<IPluginMigration> GetMigrations()
         => new IPluginMigration[] { new RedMineInitialMigration(), new RedMineInstanceMigration() };
@@ -44,10 +44,12 @@ public sealed class RedMinePlugin : ITrackerPlugin
 
     public IEnumerable<PluginInstanceRegistration> GetInstanceRegistrations(object hostContext)
     {
-        if (hostContext is not DbInterfaceBase db)
+        if (hostContext is not PluginHostContext context
+            || context.Database is not DbInterfaceBase db
+            || context.Configuration is not RedMinePluginConfig configuration)
             return Array.Empty<PluginInstanceRegistration>();
 
-        return RedMineConfigurationStore.Current.Instances
+        return configuration.Instances
             .Where(x => x.Enabled)
             .Select(settings =>
             {

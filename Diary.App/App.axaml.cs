@@ -121,6 +121,7 @@ namespace Diary.App
 
         private readonly List<IDbFactory> _dbFactories = new();
         private readonly List<ITrackerPlugin> _plugins = new();
+        private readonly Dictionary<string, object> _pluginConfigurations = new();
 
         private void RegisterTrackerInstances()
         {
@@ -135,7 +136,15 @@ namespace Diary.App
             {
                 try
                 {
-                    coordinator.Register(plugin, plugin.GetInstanceRegistrations(UseDb));
+                    if (!_pluginConfigurations.TryGetValue(plugin.Manifest.Id, out var configuration))
+                    {
+                        Logger.LogWarning("Plugin {PluginId} has no loaded configuration", plugin.Manifest.Id);
+                        continue;
+                    }
+
+                    coordinator.Register(
+                        plugin,
+                        plugin.GetInstanceRegistrations(new PluginHostContext(UseDb, configuration)));
                 }
                 catch (Exception ex)
                 {
@@ -202,7 +211,17 @@ namespace Diary.App
                 Logger.LogInformation("Plugin {PluginId}: {State}", plugin.Manifest.Id, result.State);
                 if (result.State == PluginState.Compatible)
                 {
-                    _plugins.Add(plugin);
+                    try
+                    {
+                        var configuration = plugin.CreateConfiguration();
+                        EasySaveLoad.Load(configuration);
+                        _pluginConfigurations[plugin.Manifest.Id] = configuration;
+                        _plugins.Add(plugin);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError(ex, "Plugin {PluginId} configuration load failed", plugin.Manifest.Id);
+                    }
                 }
                 if (result.State == PluginState.Blocked)
                     Logger.LogError("Plugin {PluginId} blocked: {Error}", plugin.Manifest.Id, result.Error);
