@@ -81,7 +81,7 @@
 ## 阶段 4：移除 Redmine 核心耦合
 
 - [x] 将 `IRedMineDb` 和 Redmine 数据模型收敛到 Redmine 插件边界
-- [ ] 移除 `Diary.App` 对 `RedMineConfigurationStore` 等具体类型的直接依赖
+- [x] 移除 `Diary.App` 对 `RedMineConfigurationStore` 等具体类型的直接依赖
 - [x] 移除启动时对默认 `IRedMineUiData` 的预初始化，统一由实例生命周期创建
 - [x] 将数据库扩展扫描从 `Diary.RedMine.*.dll` 改为通用插件能力发现
 - [x] 核心 UI 不引用 Redmine ViewModel、配置或远程模型

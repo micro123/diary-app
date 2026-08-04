@@ -16,6 +16,13 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <TrackerPluginProject Include="..\Diary.RedMine\Diary.RedMine.csproj" />
+        <TrackerPluginProject Include="..\Diary.RedMine.UI\Diary.RedMine.UI.csproj" />
+        <TrackerPluginProject Include="..\Diary.RedMine.SQLite\Diary.RedMine.SQLite.csproj" />
+        <TrackerPluginProject Include="..\Diary.RedMine.PostgreSQL\Diary.RedMine.PostgreSQL.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
         <AvaloniaResource Include="Assets\**" />
     </ItemGroup>
 
@@ -36,8 +43,6 @@
         <ProjectReference Include="..\Diary.MigrationTool\Diary.MigrationTool.csproj" />
         <ProjectReference Include="..\Diary.PluginBase\Diary.PluginBase.csproj" />
         <ProjectReference Include="..\Diary.PluginUI\Diary.PluginUI.csproj" />
-        <ProjectReference Include="..\Diary.RedMine\Diary.RedMine.csproj" />
-        <ProjectReference Include="..\Diary.RedMine.UI\Diary.RedMine.UI.csproj" />
         <ProjectReference Include="..\Diary.Db.SQLite\Diary.Db.SQLite.csproj" />
         <ProjectReference Include="..\Diary.Script.CSharp\Diary.Script.CSharp.csproj" />
         <ProjectReference Include="..\Diary.Script.Lua\Diary.Script.Lua.csproj" />
@@ -46,6 +51,17 @@
         <ProjectReference Include="..\Diary.Survey\Diary.Survey.csproj" />
         <ProjectReference Include="..\Diary.Utils\Diary.Utils.csproj" />
     </ItemGroup>
+
+    <Target Name="BuildAndCopyTrackerPlugins" AfterTargets="Build">
+        <MSBuild Projects="@(TrackerPluginProject)"
+                 Targets="Build"
+                 BuildInParallel="true"
+                 Properties="Configuration=$(Configuration)" />
+        <MSBuild Projects="@(TrackerPluginProject)" Targets="GetTargetPath">
+            <Output TaskParameter="TargetOutputs" ItemName="TrackerPluginAssembly" />
+        </MSBuild>
+        <Copy SourceFiles="@(TrackerPluginAssembly)" DestinationFolder="$(OutputPath)" />
+    </Target>
     
     <Target Name="GenVersionInfo" BeforeTargets="BeforeBuild">
       <Exec Command="pwsh.exe &quot;$(MSBuildThisFileDirectory)Scripts\gen_version.ps1&quot; $(MSBuildProjectName) &quot;$(IntermediateOutputPath)Generated&quot; VersionInfo.cs" Condition="'$(OS)' == 'Windows_NT'"
