@@ -15,7 +15,7 @@ namespace Diary.Db.PostgreSQL;
 /// </summary>
 public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRedMineDb
 {
-    private const uint CurrentSchemaVersion = 1;
+    private const uint CurrentSchemaVersion = 2;
     private readonly IDbExtensionHost _host = host;
 
     public string InstanceId => instanceId;
@@ -41,13 +41,13 @@ public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRed
                     args.Cast<(string Name, object? Value)>().ToArray()));
             if (!PluginMigrationRunner.Upgrade(
                     "tracker.redmine", GetSchemaVersion(), CurrentSchemaVersion,
-                    new[] { new RedMineInitialMigration() }, context))
+                    new IPluginMigration[] { new RedMineInitialMigration(), new RedMineInstanceMigration() }, context))
             {
                 return false;
             }
 
             return _host.ExecRaw(
-                "INSERT INTO plugin_data_versions(plugin_id, schema_version) VALUES ('tracker.redmine', 1) ON CONFLICT(plugin_id) DO UPDATE SET schema_version=1;");
+                "INSERT INTO plugin_data_versions(plugin_id, schema_version) VALUES ('tracker.redmine', 2) ON CONFLICT(plugin_id) DO UPDATE SET schema_version=2;");
         }
         catch (Exception)
         {
@@ -59,22 +59,19 @@ public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRed
     public RedMineActivity AddRedMineActivity(int id, string title)
     {
         var sql = """
-                  INSERT INTO redmine_activities(id, act_name) VALUES ($1,$2) ON CONFLICT (id) DO UPDATE SET act_name=$2 RETURNING *;
+                  INSERT INTO redmine_activities(instance_id,id, act_name) VALUES ($1,$2,$3) ON CONFLICT (instance_id,id) DO UPDATE SET act_name=$3 RETURNING id,act_name;
                   """;
-        return _host.QueryFirst(sql, MapRedMineActivity, ("$1", id), ("$2", title)) ?? new RedMineActivity();
+        return _host.QueryFirst(sql, MapRedMineActivity, ("$1", InstanceId), ("$2", id), ("$3", title)) ?? new RedMineActivity();
     }
 
     public bool ClearData()
     {
-        const string sql = """
-                           DELETE FROM redmine_time_entries;
-                           DELETE FROM redmine_activities;
-                           DELETE FROM redmine_issues;
-                           DELETE FROM redmine_projects;
-                           """;
         try
         {
-            return _host.ExecRaw(sql);
+            return _host.Execute("DELETE FROM redmine_time_entries WHERE instance_id=$1;", ("$1", InstanceId)) >= 0
+                && _host.Execute("DELETE FROM redmine_activities WHERE instance_id=$1;", ("$1", InstanceId)) >= 0
+                && _host.Execute("DELETE FROM redmine_issues WHERE instance_id=$1;", ("$1", InstanceId)) >= 0
+                && _host.Execute("DELETE FROM redmine_projects WHERE instance_id=$1;", ("$1", InstanceId)) >= 0;
         }
         catch (Exception)
         {
@@ -95,41 +92,41 @@ public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRed
         bool closed = false)
     {
         var sql = """
-                  INSERT INTO redmine_issues(id, issue_title, assigned_to, project_id, is_closed)
-                  VALUES ($1,$2,$3,$4,$5) ON CONFLICT(id) DO UPDATE SET
-                  issue_title=$2,assigned_to=$3,project_id=$4,is_closed=$5 RETURNING *;
+                  INSERT INTO redmine_issues(instance_id,id, issue_title, assigned_to, project_id, is_closed)
+                  VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT(instance_id,id) DO UPDATE SET
+                  issue_title=$3,assigned_to=$4,project_id=$5,is_closed=$6 RETURNING id,issue_title,assigned_to,project_id,is_closed;
                   """;
         return _host.QueryFirst(sql, MapRedMineIssue,
-            ("$1", id), ("$2", title), ("$3", assignedTo),
-            ("$4", project), ("$5", closed ? 1 : 0)) ?? new RedMineIssue();
+            ("$1", InstanceId), ("$2", id), ("$3", title), ("$4", assignedTo),
+            ("$5", project), ("$6", closed ? 1 : 0)) ?? new RedMineIssue();
     }
 
     // $1=id $2=closed
     public void UpdateRedMineIssueStatus(int id, bool closed)
     {
         var sql = """
-                  UPDATE redmine_issues SET is_closed=$2 WHERE id=$1;
+                  UPDATE redmine_issues SET is_closed=$3 WHERE instance_id=$1 AND id=$2;
                   """;
-        _host.Execute(sql, ("$1", id), ("$2", closed ? 1 : 0));
+        _host.Execute(sql, ("$1", InstanceId), ("$2", id), ("$3", closed ? 1 : 0));
     }
 
     // $1=id $2=title $3=desc
     public RedMineProject AddRedMineProject(int id, string title, string description)
     {
         var sql = """
-                  INSERT INTO redmine_projects(id, project_name, project_desc)
-                  VALUES ($1,$2,$3) ON CONFLICT (id) DO UPDATE SET project_name=$2,project_desc=$3 RETURNING *;
+                  INSERT INTO redmine_projects(instance_id,id, project_name, project_desc)
+                  VALUES ($1,$2,$3,$4) ON CONFLICT (instance_id,id) DO UPDATE SET project_name=$3,project_desc=$4 RETURNING id,project_name,project_desc,is_closed;
                   """;
-        return _host.QueryFirst(sql, MapRedMineProject, ("$1", id), ("$2", title), ("$3", description)) ?? new RedMineProject();
+        return _host.QueryFirst(sql, MapRedMineProject, ("$1", InstanceId), ("$2", id), ("$3", title), ("$4", description)) ?? new RedMineProject();
     }
 
     // $1=id $2=closed
     public void UpdateRedMineProjectStatus(int id, bool closed)
     {
         var sql = """
-                  UPDATE redmine_projects SET is_closed=$2 WHERE id=$1;
+                  UPDATE redmine_projects SET is_closed=$3 WHERE instance_id=$1 AND id=$2;
                   """;
-        _host.Execute(sql, ("$1", id), ("$2", closed ? 1 : 0));
+        _host.Execute(sql, ("$1", InstanceId), ("$2", id), ("$3", closed ? 1 : 0));
     }
 
     // $1=work_id
@@ -138,20 +135,20 @@ public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRed
         if (item.Id == 0)
             throw new ArgumentNullException(nameof(item.Id));
         var sql = """
-                  SELECT * FROM redmine_time_entries WHERE work_id=$1;
+                  SELECT work_id,id,act_id,issue_id FROM redmine_time_entries WHERE instance_id=$1 AND work_id=$2;
                   """;
-        return _host.QueryFirst(sql, MapWorkTimeEntry, ("$1", item.Id));
+        return _host.QueryFirst(sql, MapWorkTimeEntry, ("$1", InstanceId), ("$2", item.Id));
     }
 
     public IDictionary<int, WorkTimeEntry> GetWorkTimeEntriesByDate(string date)
     {
         const string sql = """
-                           SELECT redmine_time_entries.*
+                           SELECT redmine_time_entries.work_id,redmine_time_entries.id,redmine_time_entries.act_id,redmine_time_entries.issue_id
                            FROM redmine_time_entries INNER JOIN work_items ON redmine_time_entries.work_id = work_items.id
-                           WHERE work_items.create_date = $1;
+                           WHERE redmine_time_entries.instance_id=$1 AND work_items.create_date = $2;
                            """;
         var result = new Dictionary<int, WorkTimeEntry>();
-        foreach (var entry in _host.Query(sql, MapWorkTimeEntry, ("$1", date)))
+        foreach (var entry in _host.Query(sql, MapWorkTimeEntry, ("$1", InstanceId), ("$2", date)))
             result[entry.WorkId] = entry;
         return result;
     }
@@ -162,17 +159,17 @@ public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRed
         if (item.Id == 0)
             throw new ArgumentNullException(nameof(item.Id));
         var sql = """
-                  SELECT * FROM redmine_time_entries WHERE work_id=$1 AND id>0;
+                  SELECT work_id,id,act_id,issue_id FROM redmine_time_entries WHERE instance_id=$1 AND work_id=$2 AND id>0;
                   """;
-        return _host.Exists(sql, ("$1", item.Id));
+        return _host.Exists(sql, ("$1", InstanceId), ("$2", item.Id));
     }
 
     public ICollection<RedMineActivity> GetRedMineActivities()
     {
         const string sql = """
-                           SELECT * FROM redmine_activities;
+                           SELECT id,act_name FROM redmine_activities WHERE instance_id=$1;
                            """;
-        return _host.Query(sql, MapRedMineActivity);
+        return _host.Query(sql, MapRedMineActivity, ("$1", InstanceId));
     }
 
     // $1=project_id（仅按项目过滤的分支用）
@@ -191,28 +188,30 @@ public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRed
         {
             var sql = """
                       SELECT redmine_issues.id,redmine_issues.issue_title,redmine_issues.assigned_to,redmine_projects.project_name,redmine_issues.is_closed
-                      FROM redmine_issues INNER JOIN redmine_projects ON redmine_issues.project_id = redmine_projects.id
+                       FROM redmine_issues INNER JOIN redmine_projects ON redmine_issues.instance_id=redmine_projects.instance_id AND redmine_issues.project_id = redmine_projects.id
+                       WHERE redmine_issues.instance_id=$1
                       ORDER BY redmine_issues.is_closed, redmine_issues.id DESC;
                       """;
-            return _host.Query(sql, MapDisplay);
+            return _host.Query(sql, MapDisplay, ("$1", InstanceId));
         }
 
         {
             var sql = """
                       SELECT redmine_issues.id,redmine_issues.issue_title,redmine_issues.assigned_to,redmine_projects.project_name,redmine_issues.is_closed
-                      FROM redmine_issues INNER JOIN redmine_projects ON redmine_issues.project_id = redmine_projects.id AND redmine_issues.project_id=$1
+                       FROM redmine_issues INNER JOIN redmine_projects ON redmine_issues.instance_id=redmine_projects.instance_id AND redmine_issues.project_id = redmine_projects.id AND redmine_issues.project_id=$2
+                       WHERE redmine_issues.instance_id=$1
                       ORDER BY redmine_issues.is_closed, redmine_issues.id DESC;
                       """;
-            return _host.Query(sql, MapDisplay, ("$1", project.Id));
+            return _host.Query(sql, MapDisplay, ("$1", InstanceId), ("$2", project.Id));
         }
     }
 
     public ICollection<RedMineProject> GetRedMineProjects()
     {
         const string sql = """
-                           SELECT * FROM redmine_projects ORDER BY id DESC;
+                           SELECT id,project_name,project_desc,is_closed FROM redmine_projects WHERE instance_id=$1 ORDER BY id DESC;
                            """;
-        return _host.Query(sql, MapRedMineProject);
+        return _host.Query(sql, MapRedMineProject, ("$1", InstanceId));
     }
 
     // $1=work $2=activity $3=issue
@@ -221,10 +220,10 @@ public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRed
         try
         {
             var sql = """
-                      INSERT INTO redmine_time_entries(work_id, act_id, issue_id) VALUES ($1, $2, $3)
-                      ON CONFLICT (work_id) DO UPDATE SET act_id=$2, issue_id=$3 RETURNING *;
+                      INSERT INTO redmine_time_entries(instance_id,work_id, act_id, issue_id) VALUES ($1, $2, $3, $4)
+                      ON CONFLICT (instance_id,work_id) DO UPDATE SET act_id=$3, issue_id=$4 RETURNING work_id,id,act_id,issue_id;
                       """;
-            return _host.QueryFirst(sql, MapWorkTimeEntry, ("$1", work), ("$2", activity), ("$3", issus));
+            return _host.QueryFirst(sql, MapWorkTimeEntry, ("$1", InstanceId), ("$2", work), ("$3", activity), ("$4", issus));
         }
         catch (Exception)
         {
@@ -238,11 +237,11 @@ public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRed
         if (timeEntry.WorkId == 0)
             throw new ArgumentException("Work time entry must have a valid id");
         var sql = """
-                  UPDATE redmine_time_entries SET id=$1,act_id=$2,issue_id=$3 WHERE work_id=$4;
+                  UPDATE redmine_time_entries SET id=$1,act_id=$2,issue_id=$3 WHERE instance_id=$5 AND work_id=$4;
                   """;
         return _host.Execute(sql,
             ("$1", timeEntry.EntryId), ("$2", timeEntry.ActivityId),
-            ("$3", timeEntry.IssueId), ("$4", timeEntry.WorkId)) > 0;
+            ("$3", timeEntry.IssueId), ("$4", timeEntry.WorkId), ("$5", InstanceId)) > 0;
     }
 
     // ---- mappers（与迁出前一致；用 _host.ReadString 封装 CHAR padding，Pg 端 TrimEnd）----
