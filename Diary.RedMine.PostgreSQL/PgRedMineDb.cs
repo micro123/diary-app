@@ -13,10 +13,12 @@ namespace Diary.Db.PostgreSQL;
 /// 由 <see cref="PgDb.BindParameter"/> 按位置绑定）。
 /// SQL 与 mapper 与迁出前逐字符一致，行为零变化。
 /// </summary>
-public sealed class PgRedMineDb(IDbExtensionHost host) : IRedMineDb
+public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRedMineDb
 {
     private const uint CurrentSchemaVersion = 1;
     private readonly IDbExtensionHost _host = host;
+
+    public string InstanceId => instanceId;
 
     public uint SchemaVersion => CurrentSchemaVersion;
 

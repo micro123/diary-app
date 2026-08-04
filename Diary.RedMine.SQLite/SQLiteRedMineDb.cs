@@ -13,10 +13,12 @@ namespace Diary.Db.SQLite;
 /// 经由中性 <see cref="IDbExtensionHost"/> 跑 SQL（<c>$name</c> 命名占位符）。
 /// SQL 与 mapper 与迁出前逐字符一致，行为零变化。
 /// </summary>
-public sealed class SQLiteRedMineDb(IDbExtensionHost host) : IRedMineDb
+public sealed class SQLiteRedMineDb(IDbExtensionHost host, string instanceId) : IRedMineDb
 {
     private const uint CurrentSchemaVersion = 1;
     private readonly IDbExtensionHost _host = host;
+
+    public string InstanceId => instanceId;
 
     public uint SchemaVersion => CurrentSchemaVersion;
 

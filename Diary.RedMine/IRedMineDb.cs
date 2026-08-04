@@ -8,6 +8,7 @@ namespace Diary.RedMine;
 /// </summary>
 public interface IRedMineDb
 {
+    string InstanceId { get; }
     uint SchemaVersion { get; }
 
     RedMineActivity AddRedMineActivity(int id, string title);

@@ -100,27 +100,28 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
     public abstract bool WorkItemCleanTags(WorkItem item);
     public abstract ICollection<WorkTag> GetWorkItemTags(WorkItem item);
 
-    private readonly Dictionary<Type, object?> _extensions = new();
+    private readonly Dictionary<(Type Type, string InstanceId), object?> _extensions = new();
 
     /// <summary>获取 provider 提供的可选数据库扩展；核心库不引用具体 tracker 类型。</summary>
-    public T? GetExtension<T>() where T : class
+    public T? GetExtension<T>(string instanceId = "redmine.default") where T : class
     {
         var type = typeof(T);
-        if (!_extensions.TryGetValue(type, out var extension))
+        var key = (type, instanceId);
+        if (!_extensions.TryGetValue(key, out var extension))
         {
-            extension = CreateExtension(type);
-            _extensions[type] = extension;
+            extension = CreateExtension(type, instanceId);
+            _extensions[key] = extension;
         }
 
         return extension as T;
     }
 
-    protected virtual object? CreateExtension(Type extensionType)
+    protected virtual object? CreateExtension(Type extensionType, string instanceId)
     {
         foreach (var factory in DbExtensionFactoryLoader.Factories)
         {
             if (factory.Supports(extensionType, ProviderName))
-                return factory.Create(this);
+                return factory.Create(this, instanceId);
         }
 
         return null;
