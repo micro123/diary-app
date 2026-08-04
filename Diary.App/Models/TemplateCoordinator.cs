@@ -1,5 +1,6 @@
 using Diary.Core.Data.App;
 using Diary.GUIBase.ViewModels;
+using Diary.PluginBase;
 using Diary.PluginUI;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
@@ -99,7 +100,8 @@ public class TemplateCoordinator
             var data = contributor.Deserialize(entry.PayloadJson, entry.SchemaVersion);
             if (data is null)
                 continue;
-            var ext = work.Extensions.FirstOrDefault(e => e.InstanceId == entry.InstanceId);
+            var key = new TrackerKey(entry.PluginId, entry.InstanceId);
+            var ext = work.Extensions.FirstOrDefault(e => e.Key == key);
             if (ext is null)
                 continue;
             contributor.ApplyTo(data, ext);

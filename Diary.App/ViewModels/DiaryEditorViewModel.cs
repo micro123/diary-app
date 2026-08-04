@@ -14,6 +14,7 @@ using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
 using Diary.PluginUI;
+using Diary.PluginBase;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -275,9 +276,12 @@ public partial class DiaryEditorViewModel : ViewModelBase
                 var tagsById = db.GetWorkTagsByDate(CurrentDateString);
                 var trackers = App.Instance.Services
                     .GetService<IEnumerable<ITrackerUiContribution>>() ?? Enumerable.Empty<ITrackerUiContribution>();
-                var bindingsByTracker = new Dictionary<string, IDictionary<int, object?>?>();
+                var bindingsByTracker = new Dictionary<TrackerKey, IDictionary<int, object?>?>();
                 foreach (var t in trackers)
-                    bindingsByTracker[t.Instance.InstanceId] = t.Instance.LoadBindingsByDate(CurrentDateString);
+                {
+                    var key = new TrackerKey(t.PluginId, t.Instance.InstanceId);
+                    bindingsByTracker[key] = t.Instance.LoadBindingsByDate(CurrentDateString);
+                }
 
                 foreach (var item in dbItems)
                 {

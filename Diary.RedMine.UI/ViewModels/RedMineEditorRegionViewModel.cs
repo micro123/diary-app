@@ -31,6 +31,7 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
 
     public bool IsLocked => Uploaded;
     public bool CanDelete => !Uploaded;
+    public TrackerKey Key => new(RedMinePluginConstants.PluginId, InstanceId);
     public string InstanceId => RedMinePluginConstants.DefaultInstanceId;
     ViewModelBase ITrackerEditorExtension.View => this;
 

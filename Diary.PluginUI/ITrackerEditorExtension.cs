@@ -10,6 +10,7 @@ namespace Diary.PluginUI;
 /// </summary>
 public interface ITrackerEditorExtension
 {
+    TrackerKey Key { get; }
     string InstanceId { get; }
 
     /// <summary>扩展区 UI 的 ViewModel，由编辑器 ContentControl 宿主。</summary>

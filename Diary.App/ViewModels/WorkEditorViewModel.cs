@@ -6,6 +6,7 @@ using Diary.Core.Data.Base;
 using Diary.Database;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
+using Diary.PluginBase;
 using Diary.PluginUI;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
@@ -68,7 +69,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         foreach (var t in trackers)
         {
             var ext = t.CreateEditorExtension(t.Instance.InstanceId);
-            if (ext is not null)
+            if (ext is not null && Extensions.All(existing => existing.Key != ext.Key))
                 Extensions.Add(ext);
         }
 
@@ -177,7 +178,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     public void SyncFromBatch(
         Dictionary<int, string> notesById,
         Dictionary<int, ICollection<WorkTag>> tagsById,
-        IReadOnlyDictionary<string, IDictionary<int, object?>?>? bindingsByTracker)
+        IReadOnlyDictionary<TrackerKey, IDictionary<int, object?>?>? bindingsByTracker)
     {
         if (WorkItem is not { Id: > 0 })
             return;
@@ -206,7 +207,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         {
             object? binding = null;
             if (bindingsByTracker != null
-                && bindingsByTracker.TryGetValue(ext.InstanceId, out var perTracker)
+                && bindingsByTracker.TryGetValue(ext.Key, out var perTracker)
                 && perTracker != null
                 && perTracker.TryGetValue(id, out var bv))
             {
@@ -259,9 +260,12 @@ public partial class WorkEditorViewModel : ViewModelBase
         {
             result.WorkTags.Add(tag);
         }
-        // tracker 扩展选择复制（同 trackers、同序，索引对齐）
-        for (var i = 0; i < Extensions.Count && i < result.Extensions.Count; i++)
-            Extensions[i].CloneTo(result.Extensions[i]);
+        var targetExtensions = result.Extensions.ToDictionary(extension => extension.Key);
+        foreach (var extension in Extensions)
+        {
+            if (targetExtensions.TryGetValue(extension.Key, out var target))
+                extension.CloneTo(target);
+        }
 
         return result;
     }
