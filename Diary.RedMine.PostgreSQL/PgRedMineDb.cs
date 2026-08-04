@@ -35,12 +35,22 @@ public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRed
             if (!_host.ExecRaw(versionTable))
                 return false;
 
+            var schemaVersion = GetSchemaVersion();
+            if (HasLegacyTables())
+            {
+                schemaVersion = HasInstanceColumn("redmine_issues") ? schemaVersion : 1;
+            }
+            else
+            {
+                schemaVersion = 0;
+            }
+
             var context = new DelegatePluginMigrationContext(
                 "PostgreSQL", 0, _host.ExecRaw,
                 (sql, map, args) => _host.Query(sql, reader => map(reader),
                     args.Cast<(string Name, object? Value)>().ToArray()));
             if (!PluginMigrationRunner.Upgrade(
-                    "tracker.redmine", GetSchemaVersion(), CurrentSchemaVersion,
+                    "tracker.redmine", schemaVersion, CurrentSchemaVersion,
                     new IPluginMigration[] { new RedMineInitialMigration(), new RedMineInstanceMigration() }, context))
             {
                 return false;
@@ -86,6 +96,16 @@ public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRed
             ("$1", "tracker.redmine"));
         return value is null ? 0 : Convert.ToUInt32(value);
     }
+
+    private bool HasLegacyTables()
+        => Convert.ToBoolean(_host.ExecuteScalar(
+            "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name=$1);",
+            ("$1", "redmine_issues")));
+
+    private bool HasInstanceColumn(string table)
+        => Convert.ToBoolean(_host.ExecuteScalar(
+            "SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name=$1 AND column_name=$2);",
+            ("$1", table), ("$2", "instance_id")));
 
     // $1=id $2=title $3=assign $4=project $5=close
     public RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project,

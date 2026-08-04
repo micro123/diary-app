@@ -35,12 +35,22 @@ public sealed class SQLiteRedMineDb(IDbExtensionHost host, string instanceId) : 
             if (!_host.ExecRaw(versionTable))
                 return false;
 
+            var schemaVersion = GetSchemaVersion();
+            if (HasLegacyTables())
+            {
+                schemaVersion = HasInstanceColumn("redmine_issues") ? schemaVersion : 1;
+            }
+            else
+            {
+                schemaVersion = 0;
+            }
+
             var context = new DelegatePluginMigrationContext(
                 "SQLite", 0, _host.ExecRaw,
                 (sql, map, args) => _host.Query(sql, reader => map(reader),
                     args.Cast<(string Name, object? Value)>().ToArray()));
             if (!PluginMigrationRunner.Upgrade(
-                    "tracker.redmine", GetSchemaVersion(), CurrentSchemaVersion,
+                    "tracker.redmine", schemaVersion, CurrentSchemaVersion,
                     new IPluginMigration[] { new RedMineInitialMigration(), new RedMineInstanceMigration() }, context))
             {
                 return false;
@@ -85,6 +95,13 @@ public sealed class SQLiteRedMineDb(IDbExtensionHost host, string instanceId) : 
             ("$pluginId", "tracker.redmine"));
         return value is null ? 0 : Convert.ToUInt32(value);
     }
+
+    private bool HasLegacyTables()
+        => _host.ExecuteScalar("SELECT 1 FROM sqlite_master WHERE type='table' AND name='redmine_issues';") is not null;
+
+    private bool HasInstanceColumn(string table)
+        => _host.Query($"PRAGMA table_info({table});", reader => _host.ReadString(reader, 1))
+            .Contains("instance_id", StringComparer.OrdinalIgnoreCase);
 
     public RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project,
         bool closed = false)
