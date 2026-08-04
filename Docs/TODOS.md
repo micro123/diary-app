@@ -39,6 +39,8 @@
 
 目标：一个工作项可以同时拥有多个 tracker 扩展。
 
+设计文档：[`MultiTrackerEditorDesign.md`](MultiTrackerEditorDesign.md)
+
 - [ ] 将编辑器中的单一 tracker 状态改为扩展集合
 - [ ] 聚合所有扩展的加载、保存、克隆、锁定和删除权限
 - [ ] 为每个实例显示独立的本地保存和远程上传状态

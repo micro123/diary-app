@@ -1,0 +1,24 @@
+@startuml
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+[DiaryEditorViewModel] as Diary
+[WorkEditorViewModel] as Work
+[PersistenceCoordinator] as Persist
+[UploadCoordinator] as Upload
+[ITrackerUiContribution] as Contribution
+[ITrackerEditorExtension] as Extension
+[DbInterfaceBase] as DB
+database "Core + tracker tables" as Store
+cloud "Tracker APIs" as API
+
+Diary --> Work : create/select/batch load
+Work --> Contribution : create per instance
+Contribution --> Extension
+Work --> Persist : save draft + bindings
+Persist --> DB
+DB --> Store
+Work --> Upload : upload
+Upload --> Extension
+Extension --> API
+@enduml

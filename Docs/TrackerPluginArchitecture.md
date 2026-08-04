@@ -1030,4 +1030,4 @@ SupportedProviders: PostgreSQL
 5. 验证插件迁移失败时核心 UI 仍可启动。
 6. 再进入多 tracker 编辑器改造。
 
-对应的执行清单维护在 `Docs/TODOS.md`；当前实现基线维护在 `Docs/CurrentArchitecture.md`。
+对应的执行清单维护在 `Docs/TODOS.md`；当前实现基线维护在 `Docs/CurrentArchitecture.md`；多 tracker 编辑器的实施设计见 `Docs/MultiTrackerEditorDesign.md`。
