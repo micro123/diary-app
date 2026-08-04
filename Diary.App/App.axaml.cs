@@ -23,6 +23,7 @@ using Diary.GUIBase;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
+using Diary.PluginBase;
 using Diary.RedMine;
 using Diary.Survey;
 using Diary.Utils;
@@ -145,7 +146,20 @@ namespace Diary.App
             // mask add before
             services.AddSingleton(Logging.Logger);
             services.AddSingleton<BaseApp>(this);
-            services.AddSingleton<IRedMineApi, RedMineApi>();
+            var redMinePlugin = new RedMinePlugin();
+            var compatibility = new PluginCompatibilityContext(
+                1,
+                1,
+                DataVersion.VersionCode,
+                new HashSet<string>
+                {
+                    PluginCapabilities.SqlTransactions,
+                    PluginCapabilities.ForeignKeys,
+                    PluginCapabilities.MultipleStatementExecution,
+                });
+            var pluginResult = PluginHost.Register(redMinePlugin, compatibility, services);
+            if (pluginResult.State == PluginState.Blocked)
+                Logger.LogError("RedMine plugin blocked: {Error}", pluginResult.Error);
             services.AddTypesFromAssembly(Assembly.GetExecutingAssembly());
             services.AddTypesFromAssembly(typeof(ViewLocator).Assembly);
 
