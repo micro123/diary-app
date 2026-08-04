@@ -1,7 +1,7 @@
 using Diary.App.ViewModels.Dialogs;
-using Diary.Core.Data.AppConfig;
 using Diary.GUIBase.ViewModels;
 using Diary.PluginUI;
+using Diary.RedMine;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -12,11 +12,11 @@ public sealed class RedMineConfigurationProvider(IServiceProvider services) : IT
 {
     public string PluginId => "tracker.redmine";
 
-    public object CreateDefaultConfiguration() => new RedMineConfig();
+    public object CreateDefaultConfiguration() => new RedMinePluginConfig();
 
     public bool Validate(object configuration, out string? error)
     {
-        if (configuration is RedMineConfig config && config.Valid())
+        if (configuration is RedMinePluginConfig config && config.Valid())
         {
             error = null;
             return true;

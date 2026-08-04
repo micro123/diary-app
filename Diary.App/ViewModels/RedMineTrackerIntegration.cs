@@ -35,7 +35,7 @@ public class RedMineTrackerIntegration : ITrackerInstance, ITrackerUiContributio
     public string InstanceId => "redmine.default";
     public string DisplayName => PageNames.RedMineTool;
     public string Icon => "fa-cloud";
-    public bool IsConfigured => App.Instance.AppConfig.RedMineSettings.Valid();
+    public bool IsConfigured => RedMineConfigurationStore.Current.Valid();
 
     public IDictionary<int, object?>? LoadBindingsByDate(string date)
     {

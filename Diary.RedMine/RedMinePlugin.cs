@@ -1,4 +1,3 @@
-using Diary.Core.Data.AppConfig;
 using Diary.PluginBase;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -25,7 +24,7 @@ public sealed class RedMinePlugin : ITrackerPlugin
         services.AddSingleton<IRedMineApi, RedMineApi>();
     }
 
-    public object CreateConfiguration() => new RedMineConfig();
+    public object CreateConfiguration() => new RedMinePluginConfig();
 
     public IEnumerable<IPluginMigration> GetMigrations()
         => new[] { new RedMineInitialMigration() };

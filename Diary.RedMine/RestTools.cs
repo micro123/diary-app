@@ -1,5 +1,4 @@
 using System.Net;
-using Diary.Core.Data.AppConfig;
 using RestSharp;
 using RestSharp.Serializers.NewtonsoftJson;
 
@@ -7,7 +6,7 @@ namespace Diary.RedMine;
 
 internal static class RestTools
 {
-    private static RedMineConfig Cfg => AllConfig.Instance.RedMineSettings;
+    private static RedMinePluginConfig Cfg => RedMineConfigurationStore.Current;
 
     private static RestClient? _cachedClient;
     private static string _cachedUrl = string.Empty;
