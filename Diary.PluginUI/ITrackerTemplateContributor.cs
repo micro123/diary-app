@@ -18,3 +18,6 @@ public interface ITrackerTemplateContributor
     object? Deserialize(string payloadJson, int schemaVersion);
     void ApplyTo(object data, ITrackerEditorExtension target);
 }
+
+/// <summary>模板编辑区域上下文（文档 §11.4 仅提及，本刀为最小占位，行为后续增量补）。</summary>
+public sealed record TemplateEditorContext(string TemplateId, string TemplateName);

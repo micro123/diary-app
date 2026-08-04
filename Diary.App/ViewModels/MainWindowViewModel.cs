@@ -8,10 +8,10 @@ using CommunityToolkit.Mvvm.Messaging;
 using Diary.Core.Constants;
 using Diary.App.Models;
 using Diary.Core.Data.AppConfig;
-using Diary.GUIBase;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
+using Diary.PluginUI;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -63,16 +63,16 @@ public partial class MainWindowViewModel : ViewModelBase
         // 导航可扩展：[日记] + tracker 贡献页 + [统计/调查/设置]。
         // 手势按最终位置分配 Alt+1..；单 tracker（RedMine）下顺序/手势与原硬编码一致。
         var built = new List<NavigateInfo>();
-        var trackers = serviceProvider.GetService<IEnumerable<ITrackerIntegration>>() ?? Enumerable.Empty<ITrackerIntegration>();
+        var trackers = serviceProvider.GetService<IEnumerable<ITrackerUiContribution>>() ?? Enumerable.Empty<ITrackerUiContribution>();
         int idx = 1;
         built.Add(new NavigateInfo(PageNames.DiaryEditor, "mdi-notebook",
             serviceProvider.GetService<DiaryEditorViewModel>(), $"Alt+{idx++}"));
         foreach (var t in trackers)
         {
-            var page = t.CreateManagePage();
+            var page = t.CreateManagementPage(t.Instance.InstanceId);
             if (page is null)
                 continue;
-            built.Add(new NavigateInfo(t.DisplayName, t.Icon, page, $"Alt+{idx++}"));
+            built.Add(new NavigateInfo(t.Instance.DisplayName, t.Instance.Icon, page, $"Alt+{idx++}"));
         }
         built.Add(new NavigateInfo(PageNames.Statistics, "fa-chart-pie",
             serviceProvider.GetRequiredService<StatisticsViewModel>(), $"Alt+{idx++}"));

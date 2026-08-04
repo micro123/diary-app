@@ -4,9 +4,10 @@ using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
 using Diary.Core.Data.Base;
 using Diary.Database;
-using Diary.GUIBase;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
+using Diary.PluginBase;
+using Diary.PluginUI;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -20,7 +21,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     private WorkItem? WorkItem { get; set; } // ref to existed db item, may null
 
     // tracker 区（RedMine 等）。无 tracker 时为 null，编辑器只渲染 generic 字段。
-    private ITrackerEditorRegion? _tracker;
+    private ITrackerEditorExtension? _tracker;
     public ViewModelBase? TrackerRegion { get; private set; }
 
     // generic data
@@ -64,8 +65,8 @@ public partial class WorkEditorViewModel : ViewModelBase
         Priority = WorkPriorities.P0;
 
         // 解析当前 tracker（首个注册的；M2 仅 RedMine），创建编辑器区。
-        var tracker = App.Instance.Services.GetService<IEnumerable<ITrackerIntegration>>()?.FirstOrDefault();
-        _tracker = tracker?.CreateEditorRegion();
+        var tracker = App.Instance.Services.GetService<IEnumerable<ITrackerUiContribution>>()?.FirstOrDefault();
+        _tracker = tracker?.CreateEditorExtension(tracker?.Instance.InstanceId ?? string.Empty);
         TrackerRegion = _tracker as ViewModelBase;
 
         WorkTags.CollectionChanged += (_, _) =>
@@ -123,7 +124,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         }
 
         // tracker 绑定（如 RedMine 的 issue/activity → CreateWorkTimeEntry）
-        _tracker?.OnSave(WorkItem);
+        _tracker?.Save(WorkItem);
 
         // 首次创建则全部添加标签
         if (created)
@@ -164,7 +165,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     {
         SyncNote();
         SyncTags();
-        _tracker?.OnWorkItemChanged(WorkItem);
+        _tracker?.Load(WorkItem);
         IsLocked = _tracker?.IsLocked ?? false;
     }
 
@@ -198,7 +199,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         var binding = bindingsById != null && bindingsById.TryGetValue(id, out var b)
             ? b
             : null;
-        _tracker?.OnWorkItemChanged(WorkItem, binding);
+        _tracker?.Load(WorkItem, binding);
         IsLocked = _tracker?.IsLocked ?? false;
     }
 
@@ -245,7 +246,7 @@ public partial class WorkEditorViewModel : ViewModelBase
             result.WorkTags.Add(tag);
         }
         // tracker 区选择复制到新 editor 的 region
-        _tracker?.OnCloneTo(result._tracker);
+        _tracker?.CloneTo(result._tracker);
 
         return result;
     }
@@ -322,9 +323,9 @@ public partial class WorkEditorViewModel : ViewModelBase
     {
         if (_tracker is null)
             return (false, "无可用 tracker");
-        var (ok, msg) = await _tracker.UploadAsync(WorkItem!);
+        var r = await _tracker.UploadAsync(WorkItem!);
         IsLocked = _tracker.IsLocked;
-        return (ok, msg);
+        return (r.Success, r.Error);
     }
 
     /// <summary>模板默认值应用：按 id 选中 activity（RedMine 语义）。</summary>

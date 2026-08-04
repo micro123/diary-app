@@ -6,18 +6,18 @@ using Diary.Core.Data.Base;
 using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
 using Diary.Database;
-using Diary.GUIBase;
 using Diary.GUIBase.ViewModels;
+using Diary.PluginBase;
+using Diary.PluginUI;
 using Diary.RedMine;
 
 namespace Diary.App.ViewModels;
 
 /// <summary>
-/// RedMine 编辑器区：issue/activity 选择 + 上传。从 <see cref="WorkEditorViewModel"/> 抽出，
-/// 实现 <see cref="ITrackerEditorRegion"/>，由编辑器经接口回调。M2 前仍直接调静态
-/// <see cref="RedMineApis"/>（M3 改为 <c>IRedMineApi</c>）。
+/// RedMine 编辑器扩展区：issue/activity 选择 + 上传。实现 <see cref="ITrackerEditorExtension"/>，
+/// 由编辑器经接口回调。远程调用经 <see cref="IRedMineApi"/>，本地绑定经 <see cref="IRedMineDb"/>。
 /// </summary>
-public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEditorRegion
+public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEditorExtension
 {
     private readonly DbShareData _shareData;
     private readonly IRedMineApi _api;
@@ -37,6 +37,10 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
     public bool IsLocked => Uploaded;
     public bool CanDelete => !Uploaded;
 
+    // ---- ITrackerEditorExtension ----
+    public string InstanceId => "redmine.default";
+    public ViewModelBase View => this;
+
     private static IRedMineDb? RedMineDb => App.Instance.UseDb?.RedMineDb;
 
     public RedMineEditorRegionViewModel(DbShareData shareData, IRedMineApi api)
@@ -45,18 +49,18 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
         _api = api;
     }
 
-    public void OnWorkItemChanged(WorkItem? item, object? preloadedBinding = null)
+    public void Load(WorkItem? item, object? binding = null)
     {
         TimeEntry = null;
         if (item is { Id: > 0 })
         {
-            TimeEntry = preloadedBinding as WorkTimeEntry ?? RedMineDb?.WorkItemGetTimeEntry(item);
+            TimeEntry = binding as WorkTimeEntry ?? RedMineDb?.WorkItemGetTimeEntry(item);
         }
 
         SyncFromEntry();
     }
 
-    public void OnSave(WorkItem item)
+    public void Save(WorkItem item)
     {
         if (item.Id <= 0)
             return;
@@ -68,7 +72,7 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
         }
     }
 
-    public void OnCloneTo(ITrackerEditorRegion? target)
+    public void CloneTo(ITrackerEditorExtension? target)
     {
         if (target is not RedMineEditorRegionViewModel r)
             return;
@@ -77,12 +81,12 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
         r.ActivityIndex = ActivityIndex;
     }
 
-    public async Task<(bool ok, string? error)> UploadAsync(WorkItem item)
+    public async Task<TrackerOperationResult> UploadAsync(WorkItem item)
     {
         if (Uploaded)
-            return (false, null);
+            return new TrackerOperationResult(false);
         if (!(IssueIndex >= 0 && ActivityIndex >= 0 && item.Time > 0))
-            return (false, "问题或活动不正确，又或者耗时是0");
+            return new TrackerOperationResult(false, "问题或活动不正确，又或者耗时是0");
         Debug.Assert(TimeEntry is not null);
 
         // 网络 API 调用与 DB 写入一并放到后台线程，避免在 UI 线程同步写库造成卡顿
@@ -96,7 +100,9 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
             RedMineDb?.UpdateWorkTimeEntry(TimeEntry); // 关联到数据库
         });
         Uploaded = entryId > 0;
-        return (Uploaded, Uploaded ? null : "可能是网络问题");
+        return Uploaded
+            ? new TrackerOperationResult(true, RemoteId: entryId.ToString())
+            : new TrackerOperationResult(false, "可能是网络问题");
     }
 
     public void SetActivity(int activityId)

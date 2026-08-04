@@ -10,10 +10,10 @@ using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.Models;
 using Diary.Core.Constants;
 using Diary.Core.Data.App;
-using Diary.GUIBase;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
+using Diary.PluginUI;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -274,8 +274,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
                 var notesById = db.GetWorkNotesByDate(CurrentDateString);
                 var tagsById = db.GetWorkTagsByDate(CurrentDateString);
                 var tracker = App.Instance.Services
-                    .GetService<IEnumerable<ITrackerIntegration>>()?.FirstOrDefault();
-                var bindingsById = tracker?.LoadBindingsByDate(CurrentDateString);
+                    .GetService<IEnumerable<ITrackerUiContribution>>()?.FirstOrDefault();
+                var bindingsById = tracker?.Instance.LoadBindingsByDate(CurrentDateString);
 
                 foreach (var item in dbItems)
                 {

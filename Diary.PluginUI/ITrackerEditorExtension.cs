@@ -15,14 +15,14 @@ public interface ITrackerEditorExtension
     /// <summary>扩展区 UI 的 ViewModel，由编辑器 ContentControl 宿主。</summary>
     ViewModelBase View { get; }
 
-    /// <summary>加载工作项的本地绑定（<paramref name="binding"/> 为批量预取，null 时扩展自行加载）。</summary>
-    void Load(WorkItem item, object? binding = null);
+    /// <summary>加载工作项的本地绑定（<paramref name="binding"/> 为批量预取，null 时扩展自行加载；新项 item 为 null）。</summary>
+    void Load(WorkItem? item, object? binding = null);
 
     /// <summary>保存时持久化本地绑定（如 CreateWorkTimeEntry）。</summary>
     void Save(WorkItem item);
 
-    /// <summary>复制当前选择到另一扩展（重复工作项用）。</summary>
-    void CloneTo(ITrackerEditorExtension target);
+    /// <summary>复制当前选择到另一扩展（重复工作项用；target 可能为 null）。</summary>
+    void CloneTo(ITrackerEditorExtension? target);
 
     /// <summary>是否锁住核心编辑字段（如已上传到远程）。</summary>
     bool IsLocked { get; }
@@ -32,6 +32,11 @@ public interface ITrackerEditorExtension
 
     /// <summary>上传到远程，返回统一结果。</summary>
     Task<TrackerOperationResult> UploadAsync(WorkItem item);
+
+    // transitional：模板默认值应用。文档 §10 将模板 apply 放到 ITrackerTemplateContributor.ApplyTo；
+    // contributor 未建前保留这两个方法避免破坏 NewWithTemplate，待落地后迁出。
+    void SetActivity(int id);
+    void SetIssue(int id);
 }
 
 /// <summary>
@@ -41,6 +46,9 @@ public interface ITrackerEditorExtension
 public interface ITrackerUiContribution
 {
     string PluginId { get; }
+
+    /// <summary>本贡献对应的 tracker 实例（元数据 + 批量绑定）。同一对象时 Instance => this。</summary>
+    ITrackerInstance Instance { get; }
 
     ViewModelBase? CreateSettingsPage(object configuration);
     ViewModelBase? CreateManagementPage(string instanceId);

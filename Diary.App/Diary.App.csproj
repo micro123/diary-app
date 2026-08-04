@@ -34,6 +34,8 @@
         <ProjectReference Include="..\Diary.Db.PostgreSQL\Diary.Db.PostgreSQL.csproj" />
         <ProjectReference Include="..\Diary.GUIBase\Diary.GUIBase.csproj" />
         <ProjectReference Include="..\Diary.MigrationTool\Diary.MigrationTool.csproj" />
+        <ProjectReference Include="..\Diary.PluginBase\Diary.PluginBase.csproj" />
+        <ProjectReference Include="..\Diary.PluginUI\Diary.PluginUI.csproj" />
         <ProjectReference Include="..\Diary.RedMine\Diary.RedMine.csproj" />
         <ProjectReference Include="..\Diary.Db.SQLite\Diary.Db.SQLite.csproj" />
         <ProjectReference Include="..\Diary.Script.CSharp\Diary.Script.CSharp.csproj" />

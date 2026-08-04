@@ -32,6 +32,8 @@ public interface ITrackerInstance
     string PluginId { get; }
     string InstanceId { get; }
     string DisplayName { get; }
+    /// <summary>导航页图标键（如 "fa-cloud"）。</summary>
+    string Icon { get; }
     bool IsConfigured { get; }
 
     /// <summary>
