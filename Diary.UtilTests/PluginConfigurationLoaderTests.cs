@@ -19,6 +19,21 @@ public sealed class PluginConfigurationLoaderTests
         Assert.AreEqual(1, plugin.CreateConfigurationCalls);
     }
 
+    [TestMethod]
+    public void HostContextCarriesLoadedConfigurationAndDatabase()
+    {
+        var plugin = new MemoryPlugin();
+        var loader = new PluginConfigurationLoader();
+        var configuration = loader.Load(plugin);
+        var database = new object();
+
+        plugin.GetInstanceRegistrations(new PluginHostContext(database, configuration));
+
+        var context = (PluginHostContext)plugin.LastContext!;
+        Assert.AreSame(database, context.Database);
+        Assert.AreSame(configuration, context.Configuration);
+    }
+
     private sealed class MemoryPlugin : ITrackerPlugin
     {
         public PluginManifest Manifest { get; } = new()
@@ -30,6 +45,7 @@ public sealed class PluginConfigurationLoaderTests
 
         public object Configuration { get; } = new();
         public int CreateConfigurationCalls { get; private set; }
+        public object? LastContext { get; private set; }
         public void RegisterServices(IServiceCollection services) { }
         public object CreateConfiguration()
         {
@@ -41,6 +57,9 @@ public sealed class PluginConfigurationLoaderTests
         public ITrackerInstance CreateInstance(string instanceId, object configuration)
             => throw new NotSupportedException();
         public IEnumerable<PluginInstanceRegistration> GetInstanceRegistrations(object hostContext)
-            => Array.Empty<PluginInstanceRegistration>();
+        {
+            LastContext = hostContext;
+            return Array.Empty<PluginInstanceRegistration>();
+        }
     }
 }
