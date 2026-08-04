@@ -6,6 +6,7 @@ namespace Diary.Database;
 
 public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
 {
+    public string ProviderName => GetType().Name;
     protected readonly IDbFactory Factory;
     protected DbInterfaceBase(IDbFactory factory) => Factory = factory;
 
@@ -114,7 +115,16 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
         return extension as T;
     }
 
-    protected abstract object? CreateExtension(Type extensionType);
+    protected virtual object? CreateExtension(Type extensionType)
+    {
+        foreach (var factory in DbExtensionFactoryLoader.Factories)
+        {
+            if (factory.Supports(extensionType, ProviderName))
+                return factory.Create(this);
+        }
+
+        return null;
+    }
 
     // statistics
     public abstract StatisticsResult GetStatistics(string beginDate, string endDate);

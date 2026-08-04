@@ -3,8 +3,6 @@ using System.Diagnostics;
 using Diary.Core.Data.Base;
 using Diary.Core.Data.Statistics;
 using Diary.Database;
-using Diary.RedMine;
-using Diary.RedMine.Models;
 using Npgsql;
 
 namespace Diary.Db.PostgreSQL;
@@ -385,14 +383,6 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
                   ORDER BY work_tags.tag_level;
                   """;
         return Query(sql, MapWorkTag, ("$1", item.Id));
-    }
-
-    protected override object? CreateExtension(Type extensionType)
-    {
-        if (extensionType != typeof(IRedMineDb))
-            return null;
-        var extension = new PgRedMineDb(this);
-        return extension.Initialize() ? extension : null;
     }
 
     public override StatisticsResult GetStatistics(string beginDate, string endDate)

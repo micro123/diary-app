@@ -14,6 +14,7 @@ namespace Diary.Database;
 /// </summary>
 public interface IDbExtensionHost
 {
+    string ProviderName { get; }
     /// <summary>执行查询，对每行调用 <paramref name="map"/> 收集为列表。</summary>
     List<T> Query<T>(string sql, Func<DbDataReader, T> map, params (string Name, object? Value)[] args);
 

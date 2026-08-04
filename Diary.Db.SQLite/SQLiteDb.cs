@@ -4,8 +4,6 @@ using System.Diagnostics;
 using Diary.Core.Data.Base;
 using Diary.Core.Data.Statistics;
 using Diary.Database;
-using Diary.RedMine;
-using Diary.RedMine.Models;
 
 namespace Diary.Db.SQLite;
 
@@ -364,14 +362,6 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
                   ORDER BY work_tags.tag_level ASC;
                   """;
         return Query(sql, MapWorkTag, ("$work_id", item.Id));
-    }
-
-    protected override object? CreateExtension(Type extensionType)
-    {
-        if (extensionType != typeof(IRedMineDb))
-            return null;
-        var extension = new SQLiteRedMineDb(this);
-        return extension.Initialize() ? extension : null;
     }
 
     public override StatisticsResult GetStatistics(string beginDate, string endDate)
