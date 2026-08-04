@@ -132,19 +132,21 @@ namespace Diary.App
                 return;
 
             var registry = Services.GetRequiredService<PluginInstanceRegistry>();
-            if (registry.Get(plugin.Manifest.Id, "redmine.default") is not null)
-                return;
-
-            var result = registry.Create(
-                plugin,
-                "redmine.default",
-                new RedMineInstanceConfiguration(
-                    "redmine.default",
-                    "RedMine工具",
-                    RedMineConfigurationStore.Current,
-                    database));
-            if (!result.Success)
-                Logger.LogError("RedMine instance blocked: {Error}", result.Error);
+            foreach (var settings in RedMineConfigurationStore.Current.Instances.Where(x => x.Enabled))
+            {
+                if (registry.Get(plugin.Manifest.Id, settings.InstanceId) is not null)
+                    continue;
+                var result = registry.Create(
+                    plugin,
+                    settings.InstanceId,
+                    new RedMineInstanceConfiguration(
+                        settings.InstanceId,
+                        settings.DisplayName,
+                        settings,
+                        database));
+                if (!result.Success)
+                    Logger.LogError("RedMine instance {InstanceId} blocked: {Error}", settings.InstanceId, result.Error);
+            }
         }
 
         private void EnumerateDbProviders()

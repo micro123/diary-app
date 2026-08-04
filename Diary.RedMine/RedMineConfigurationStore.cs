@@ -8,6 +8,14 @@ namespace Diary.RedMine;
 [StorageFile("redmine_settings.json", "diary.redmine")]
 public sealed class RedMinePluginConfig : RedMineConfig
 {
+    public IList<RedMineInstanceSettings> Instances { get; set; } = new List<RedMineInstanceSettings>();
+}
+
+public sealed class RedMineInstanceSettings : RedMineConfig
+{
+    public string InstanceId { get; set; } = "redmine.default";
+    public string DisplayName { get; set; } = "RedMine工具";
+    public bool Enabled { get; set; } = true;
 }
 
 public static class RedMineConfigurationStore
@@ -30,6 +38,19 @@ public static class RedMineConfigurationStore
                 Copy(legacy, configuration);
                 EasySaveLoad.Save(configuration);
             }
+        }
+
+        if (configuration.Instances.Count == 0)
+        {
+            var defaultInstance = new RedMineInstanceSettings
+            {
+                InstanceId = "redmine.default",
+                DisplayName = "RedMine工具",
+                Enabled = true,
+            };
+            Copy(configuration, defaultInstance);
+            configuration.Instances.Add(defaultInstance);
+            EasySaveLoad.Save(configuration);
         }
 
         return configuration;
