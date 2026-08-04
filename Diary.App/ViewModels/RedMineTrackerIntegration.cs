@@ -53,6 +53,6 @@ public class RedMineTrackerIntegration : ITrackerInstance, ITrackerUiContributio
     public ITrackerInstance Instance => this;
 
     public ViewModelBase? CreateSettingsPage(object configuration) => null;
-    public ViewModelBase? CreateManagementPage(string instanceId) => _services.GetService<RedMineManageViewModel>();
+    public ViewModelBase? CreateManagementPage(string instanceId) => _services.GetService<Diary.RedMine.UI.ViewModels.RedMineManageViewModel>();
     public ITrackerEditorExtension? CreateEditorExtension(string instanceId) => new RedMineEditorRegionViewModel(_shareData, _api);
 }
