@@ -1,26 +1,26 @@
 using System.Data.Common;
+using System.Data.SQLite;
 using Diary.Core.Data.Base;
 using Diary.Database;
 using Diary.PluginBase;
 using Diary.RedMine;
 using Diary.RedMine.Models;
 
-namespace Diary.Db.PostgreSQL;
+namespace Diary.Db.SQLite;
 
 /// <summary>
-/// PostgreSQL 的 RedMine 数据访问实现。从 <see cref="PgDb"/> 迁出，
-/// 经由中性 <see cref="IDbExtensionHost"/> 跑 SQL（<c>$1..$n</c> 位置占位符，
-/// 由 <see cref="PgDb.BindParameter"/> 按位置绑定）。
+/// SQLite 的 RedMine 数据访问实现。从 <see cref="SQLiteDb"/> 迁出，
+/// 经由中性 <see cref="IDbExtensionHost"/> 跑 SQL（<c>$name</c> 命名占位符）。
 /// SQL 与 mapper 与迁出前逐字符一致，行为零变化。
 /// </summary>
-internal sealed class PgRedMineDb(IDbExtensionHost host) : IRedMineDb
+public sealed class SQLiteRedMineDb(IDbExtensionHost host) : IRedMineDb
 {
     private const uint CurrentSchemaVersion = 1;
     private readonly IDbExtensionHost _host = host;
 
     public uint SchemaVersion => CurrentSchemaVersion;
 
-    internal bool Initialize()
+    public bool Initialize()
     {
         try
         {
@@ -34,7 +34,7 @@ internal sealed class PgRedMineDb(IDbExtensionHost host) : IRedMineDb
                 return false;
 
             var context = new DelegatePluginMigrationContext(
-                "PostgreSQL", 0, _host.ExecRaw,
+                "SQLite", 0, _host.ExecRaw,
                 (sql, map, args) => _host.Query(sql, reader => map(reader),
                     args.Cast<(string Name, object? Value)>().ToArray()));
             if (!PluginMigrationRunner.Upgrade(
@@ -47,19 +47,17 @@ internal sealed class PgRedMineDb(IDbExtensionHost host) : IRedMineDb
             return _host.ExecRaw(
                 "INSERT INTO plugin_data_versions(plugin_id, schema_version) VALUES ('tracker.redmine', 1) ON CONFLICT(plugin_id) DO UPDATE SET schema_version=1;");
         }
-        catch (Exception)
+        catch (SQLiteException)
         {
             return false;
         }
     }
 
-    // $1=id $2=title
     public RedMineActivity AddRedMineActivity(int id, string title)
     {
-        var sql = """
-                  INSERT INTO redmine_activities(id, act_name) VALUES ($1,$2) ON CONFLICT (id) DO UPDATE SET act_name=$2 RETURNING *;
-                  """;
-        return _host.QueryFirst(sql, MapRedMineActivity, ("$1", id), ("$2", title)) ?? new RedMineActivity();
+        const string sql =
+            @"INSERT INTO redmine_activities VALUES ($id,$title) ON CONFLICT(id) DO UPDATE SET act_name=$title RETURNING *;";
+        return _host.QueryFirst(sql, MapRedMineActivity, ("$id", id), ("$title", title)) ?? new RedMineActivity();
     }
 
     public bool ClearData()
@@ -74,7 +72,7 @@ internal sealed class PgRedMineDb(IDbExtensionHost host) : IRedMineDb
         {
             return _host.ExecRaw(sql);
         }
-        catch (Exception)
+        catch (SQLiteException)
         {
             return false;
         }
@@ -83,62 +81,48 @@ internal sealed class PgRedMineDb(IDbExtensionHost host) : IRedMineDb
     public uint GetSchemaVersion()
     {
         var value = _host.ExecuteScalar(
-            "SELECT schema_version FROM plugin_data_versions WHERE plugin_id=$1;",
-            ("$1", "tracker.redmine"));
+            "SELECT schema_version FROM plugin_data_versions WHERE plugin_id=$pluginId;",
+            ("$pluginId", "tracker.redmine"));
         return value is null ? 0 : Convert.ToUInt32(value);
     }
 
-    // $1=id $2=title $3=assign $4=project $5=close
     public RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project,
         bool closed = false)
     {
-        var sql = """
-                  INSERT INTO redmine_issues(id, issue_title, assigned_to, project_id, is_closed)
-                  VALUES ($1,$2,$3,$4,$5) ON CONFLICT(id) DO UPDATE SET
-                  issue_title=$2,assigned_to=$3,project_id=$4,is_closed=$5 RETURNING *;
-                  """;
+        const string sql =
+            "INSERT INTO redmine_issues(id, issue_title, assigned_to, project_id, is_closed) VALUES ($id,$title,$assign,$project,$close) ON CONFLICT(id) DO UPDATE SET issue_title=$title, assigned_to=$assign, project_id=$project, is_closed=$close RETURNING *;";
         return _host.QueryFirst(sql, MapRedMineIssue,
-            ("$1", id), ("$2", title), ("$3", assignedTo),
-            ("$4", project), ("$5", closed ? 1 : 0)) ?? new RedMineIssue();
+            ("$id", id), ("$title", title), ("$assign", assignedTo),
+            ("$project", project), ("$close", closed ? 1 : 0)) ?? new RedMineIssue();
     }
 
-    // $1=id $2=closed
     public void UpdateRedMineIssueStatus(int id, bool closed)
     {
-        var sql = """
-                  UPDATE redmine_issues SET is_closed=$2 WHERE id=$1;
-                  """;
-        _host.Execute(sql, ("$1", id), ("$2", closed ? 1 : 0));
+        const string sql = @"UPDATE redmine_issues SET is_closed=$closed WHERE id=$id;";
+        _host.Execute(sql, ("$id", id), ("$closed", closed ? 1 : 0));
     }
 
-    // $1=id $2=title $3=desc
     public RedMineProject AddRedMineProject(int id, string title, string description)
     {
-        var sql = """
-                  INSERT INTO redmine_projects(id, project_name, project_desc)
-                  VALUES ($1,$2,$3) ON CONFLICT (id) DO UPDATE SET project_name=$2,project_desc=$3 RETURNING *;
-                  """;
-        return _host.QueryFirst(sql, MapRedMineProject, ("$1", id), ("$2", title), ("$3", description)) ?? new RedMineProject();
+        const string sql =
+            @"INSERT INTO redmine_projects(id, project_name, project_desc) VALUES ($id,$title,$desc) ON CONFLICT(id) DO UPDATE SET project_name=$title, project_desc=$desc RETURNING *;";
+        return _host.QueryFirst(sql, MapRedMineProject, ("$id", id), ("$title", title), ("$desc", description)) ?? new RedMineProject();
     }
 
-    // $1=id $2=closed
     public void UpdateRedMineProjectStatus(int id, bool closed)
     {
-        var sql = """
-                  UPDATE redmine_projects SET is_closed=$2 WHERE id=$1;
-                  """;
-        _host.Execute(sql, ("$1", id), ("$2", closed ? 1 : 0));
+        const string sql = @"UPDATE redmine_projects SET is_closed=$closed WHERE id=$id;";
+        _host.Execute(sql, ("$id", id), ("$closed", closed ? 1 : 0));
     }
 
-    // $1=work_id
     public WorkTimeEntry? WorkItemGetTimeEntry(WorkItem item)
     {
         if (item.Id == 0)
-            throw new ArgumentNullException(nameof(item.Id));
+            throw new ArgumentException("work id is required");
         var sql = """
-                  SELECT * FROM redmine_time_entries WHERE work_id=$1;
+                  SELECT * FROM redmine_time_entries WHERE work_id=$id;
                   """;
-        return _host.QueryFirst(sql, MapWorkTimeEntry, ("$1", item.Id));
+        return _host.QueryFirst(sql, MapWorkTimeEntry, ("$id", item.Id));
     }
 
     public IDictionary<int, WorkTimeEntry> GetWorkTimeEntriesByDate(string date)
@@ -146,34 +130,30 @@ internal sealed class PgRedMineDb(IDbExtensionHost host) : IRedMineDb
         const string sql = """
                            SELECT redmine_time_entries.*
                            FROM redmine_time_entries INNER JOIN work_items ON redmine_time_entries.work_id = work_items.id
-                           WHERE work_items.create_date = $1;
+                           WHERE work_items.create_date = $date;
                            """;
         var result = new Dictionary<int, WorkTimeEntry>();
-        foreach (var entry in _host.Query(sql, MapWorkTimeEntry, ("$1", date)))
+        foreach (var entry in _host.Query(sql, MapWorkTimeEntry, ("$date", date)))
             result[entry.WorkId] = entry;
         return result;
     }
 
-    // $1=work_id
     public bool WorkItemWasUploaded(WorkItem item)
     {
         if (item.Id == 0)
-            throw new ArgumentNullException(nameof(item.Id));
+            throw new ArgumentException("work id is required");
         var sql = """
-                  SELECT * FROM redmine_time_entries WHERE work_id=$1 AND id>0;
+                  SELECT * FROM redmine_time_entries WHERE work_id=$id AND id>0;
                   """;
-        return _host.Exists(sql, ("$1", item.Id));
+        return _host.Exists(sql, ("$id", item.Id));
     }
 
     public ICollection<RedMineActivity> GetRedMineActivities()
     {
-        const string sql = """
-                           SELECT * FROM redmine_activities;
-                           """;
+        const string sql = @"SELECT * FROM redmine_activities;";
         return _host.Query(sql, MapRedMineActivity);
     }
 
-    // $1=project_id（仅按项目过滤的分支用）
     public ICollection<RedMineIssueDisplay> GetRedMineIssues(RedMineProject? project)
     {
         RedMineIssueDisplay MapDisplay(DbDataReader r) => new()
@@ -188,62 +168,55 @@ internal sealed class PgRedMineDb(IDbExtensionHost host) : IRedMineDb
         if (project is null)
         {
             var sql = """
-                      SELECT redmine_issues.id,redmine_issues.issue_title,redmine_issues.assigned_to,redmine_projects.project_name,redmine_issues.is_closed
-                      FROM redmine_issues INNER JOIN redmine_projects ON redmine_issues.project_id = redmine_projects.id
-                      ORDER BY redmine_issues.is_closed, redmine_issues.id DESC;
+                      SELECT redmine_issues.id AS id, redmine_issues.issue_title, redmine_issues.assigned_to, redmine_projects.project_name, redmine_issues.is_closed AS closed
+                      FROM redmine_issues INNER JOIN redmine_projects ON redmine_issues.project_id=redmine_projects.id
+                      ORDER BY closed ASC, id DESC;
                       """;
             return _host.Query(sql, MapDisplay);
         }
 
-        {
-            var sql = """
-                      SELECT redmine_issues.id,redmine_issues.issue_title,redmine_issues.assigned_to,redmine_projects.project_name,redmine_issues.is_closed
-                      FROM redmine_issues INNER JOIN redmine_projects ON redmine_issues.project_id = redmine_projects.id AND redmine_issues.project_id=$1
-                      ORDER BY redmine_issues.is_closed, redmine_issues.id DESC;
-                      """;
-            return _host.Query(sql, MapDisplay, ("$1", project.Id));
-        }
+        var sqlFiltered = """
+                          SELECT redmine_issues.id AS id, redmine_issues.issue_title, redmine_issues.assigned_to, redmine_projects.project_name, redmine_issues.is_closed AS closed
+                          FROM redmine_issues INNER JOIN redmine_projects ON redmine_issues.project_id=$projectId AND redmine_issues.project_id=redmine_projects.id
+                          ORDER BY closed ASC, id DESC;
+                          """;
+        return _host.Query(sqlFiltered, MapDisplay, ("$projectId", project.Id));
     }
 
     public ICollection<RedMineProject> GetRedMineProjects()
     {
-        const string sql = """
-                           SELECT * FROM redmine_projects ORDER BY id DESC;
-                           """;
+        const string sql = @"SELECT * FROM redmine_projects;";
         return _host.Query(sql, MapRedMineProject);
     }
 
-    // $1=work $2=activity $3=issue
-    public WorkTimeEntry? CreateWorkTimeEntry(int work, int activity, int issus)
+    public WorkTimeEntry? CreateWorkTimeEntry(int work, int activity, int issue)
     {
+        if (work == 0)
+            throw new ArgumentException($"Work ID {work} is invalid");
+        const string sql =
+            "INSERT INTO redmine_time_entries(work_id, act_id, issue_id) VALUES ($workId, $actId, $issueId) ON CONFLICT DO UPDATE SET act_id=$actId, issue_id=$issueId RETURNING *;";
         try
         {
-            var sql = """
-                      INSERT INTO redmine_time_entries(work_id, act_id, issue_id) VALUES ($1, $2, $3)
-                      ON CONFLICT (work_id) DO UPDATE SET act_id=$2, issue_id=$3 RETURNING *;
-                      """;
-            return _host.QueryFirst(sql, MapWorkTimeEntry, ("$1", work), ("$2", activity), ("$3", issus));
+            return _host.QueryFirst(sql, MapWorkTimeEntry, ("$workId", work), ("$actId", activity), ("$issueId", issue));
         }
-        catch (Exception)
+        catch (SQLiteException)
         {
             return null;
         }
     }
 
-    // $1=entryId $2=actId $3=issueId $4=workId
     public bool UpdateWorkTimeEntry(WorkTimeEntry timeEntry)
     {
         if (timeEntry.WorkId == 0)
-            throw new ArgumentException("Work time entry must have a valid id");
-        var sql = """
-                  UPDATE redmine_time_entries SET id=$1,act_id=$2,issue_id=$3 WHERE work_id=$4;
-                  """;
+            throw new ArgumentException($"Work ID {timeEntry.WorkId} is invalid");
+        const string sql =
+            "UPDATE redmine_time_entries SET act_id=$actId, issue_id=$issueId, id=$entryId WHERE work_id=$workId;";
         return _host.Execute(sql,
-            ("$1", timeEntry.EntryId), ("$2", timeEntry.ActivityId),
-            ("$3", timeEntry.IssueId), ("$4", timeEntry.WorkId)) > 0;
+            ("$actId", timeEntry.ActivityId), ("$issueId", timeEntry.IssueId),
+            ("$entryId", timeEntry.EntryId), ("$workId", timeEntry.WorkId)) > 0;
     }
 
-    // ---- mappers（与迁出前一致；用 _host.ReadString 封装 CHAR padding，Pg 端 TrimEnd）----
+    // ---- mappers（与迁出前一致；用 _host.ReadString 封装 CHAR padding）----
 
     private RedMineActivity MapRedMineActivity(DbDataReader r) => new()
     {

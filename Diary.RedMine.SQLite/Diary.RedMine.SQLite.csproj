@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Diary.Core\Diary.Core.csproj" />
+    <ProjectReference Include="..\Diary.Database\Diary.Database.csproj" />
+    <ProjectReference Include="..\Diary.PluginBase\Diary.PluginBase.csproj" />
+    <ProjectReference Include="..\Diary.RedMine\Diary.RedMine.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Data.SQLite" Version="2.0.3" />
+  </ItemGroup>
+</Project>

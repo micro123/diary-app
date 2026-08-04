@@ -1,18 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <ProjectReference Include="..\Diary.Core\Diary.Core.csproj" />
-    <ProjectReference Include="..\Diary.Database\Diary.Database.csproj" />
-    <ProjectReference Include="..\Diary.RedMine\Diary.RedMine.csproj" />
-    <ProjectReference Include="..\Diary.PluginBase\Diary.PluginBase.csproj" />
-    <ProjectReference Include="..\Diary.RedMine.PostgreSQL\Diary.RedMine.PostgreSQL.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="Npgsql" Version="10.0.3" />
-  </ItemGroup>
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <CETCompat>false</CETCompat>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Diary.Core\Diary.Core.csproj" />
+    <ProjectReference Include="..\Diary.Database\Diary.Database.csproj" />
+    <ProjectReference Include="..\Diary.PluginBase\Diary.PluginBase.csproj" />
+    <ProjectReference Include="..\Diary.RedMine\Diary.RedMine.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Npgsql" Version="10.0.3" />
+  </ItemGroup>
 </Project>
