@@ -53,6 +53,33 @@ public sealed class TemplateCoordinatorTests
         Assert.AreEqual("not-json", saved[0].PayloadJson);
     }
 
+    [TestMethod]
+    public void LegacyPayload_IsSavedAtCurrentSchemaVersion()
+    {
+        var coordinator = CreateCoordinator(new MemoryContributor());
+        var template = new Template
+        {
+            Name = "legacy",
+            Extensions = new[]
+            {
+                new TemplateExtensionData
+                {
+                    PluginId = "tracker.memory",
+                    InstanceId = "memory.default",
+                    SchemaVersion = 0,
+                    PayloadJson = "legacy",
+                },
+            },
+        };
+
+        var slots = coordinator.LoadEditors(template);
+        var saved = coordinator.SaveEditors(slots, template);
+
+        Assert.AreEqual(1, slots.Count);
+        Assert.AreEqual(1, saved[0].SchemaVersion);
+        Assert.AreEqual("current", saved[0].PayloadJson);
+    }
+
     private static TemplateCoordinator CreateCoordinator(ITrackerTemplateContributor contributor)
     {
         var registry = new TrackerTemplateContributorRegistry();
@@ -77,9 +104,9 @@ public sealed class TemplateCoordinatorTests
         public object CreateDefaultData() => new object();
         public ViewModelBase CreateEditor(object? data, TemplateEditorContext context) => new();
         public object ExtractData(ViewModelBase editor) => new object();
-        public string Serialize(object data) => "{}";
+        public string Serialize(object data) => "current";
         public object? Deserialize(string payloadJson, int schemaVersion)
-            => payloadJson == "not-json" ? null : new object();
+            => payloadJson == "not-json" || schemaVersion > CurrentSchemaVersion ? null : new object();
         public void ApplyTo(object data, ITrackerEditorExtension target) { }
     }
 

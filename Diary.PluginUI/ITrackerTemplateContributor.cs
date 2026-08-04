@@ -18,6 +18,10 @@ public interface ITrackerTemplateContributor
     /// <summary>从编辑器 VM 抽取当前数据（contributor 知道自己的 editor 类型，转型取数据）。</summary>
     object ExtractData(ViewModelBase editor);
     string Serialize(object data);
+    /// <summary>
+    /// 反序列化并按 schemaVersion 执行必要的 payload 迁移；无法迁移时返回 null，
+    /// 由宿主保留原始 JSON。
+    /// </summary>
     object? Deserialize(string payloadJson, int schemaVersion);
     void ApplyTo(object data, ITrackerEditorExtension target);
 }

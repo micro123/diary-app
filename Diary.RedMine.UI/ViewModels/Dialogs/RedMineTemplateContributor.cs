@@ -66,8 +66,37 @@ public sealed class RedMineTemplateContributor : ITrackerTemplateContributor
 
     public object? Deserialize(string payloadJson, int schemaVersion)
     {
-        try { return JsonSerializer.Deserialize<RedMineTemplateData>(payloadJson, JsonOpts); }
+        if (schemaVersion > CurrentSchemaVersion || schemaVersion < 0)
+            return null;
+
+        try
+        {
+            using var document = JsonDocument.Parse(payloadJson);
+            var root = document.RootElement;
+            if (schemaVersion == 0)
+            {
+                // v0 used shorter field names before tracker payloads were formalized.
+                return new RedMineTemplateData
+                {
+                    ActivityId = ReadInt(root, "activityId", "activity"),
+                    IssueId = ReadInt(root, "issueId", "issue"),
+                };
+            }
+
+            return root.Deserialize<RedMineTemplateData>(JsonOpts);
+        }
         catch { return null; }
+    }
+
+    private static int ReadInt(JsonElement root, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (root.TryGetProperty(name, out var value) && value.TryGetInt32(out var result))
+                return result;
+        }
+
+        return -1;
     }
 
     public void ApplyTo(object value, ITrackerEditorExtension target)
