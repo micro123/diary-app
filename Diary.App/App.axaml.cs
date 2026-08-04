@@ -199,7 +199,6 @@ namespace Diary.App
                 });
             var plugins = TypeLoader.GetImplementations<ITrackerPlugin>(
                 FsTools.GetBinaryDirectory(), "Diary.*.dll");
-            var enabledPlugin = false;
             foreach (var plugin in plugins)
             {
                 var result = PluginHost.Register(plugin, compatibility, services);
@@ -207,17 +206,32 @@ namespace Diary.App
                 if (result.State == PluginState.Compatible)
                 {
                     _plugins.Add(plugin);
-                    enabledPlugin = true;
                 }
                 if (result.State == PluginState.Blocked)
                     Logger.LogError("Plugin {PluginId} blocked: {Error}", plugin.Manifest.Id, result.Error);
             }
             services.AddTypesFromAssembly(Assembly.GetExecutingAssembly());
             services.AddTypesFromAssembly(typeof(ViewLocator).Assembly);
-            if (enabledPlugin)
-                services.AddTypesFromAssembly(typeof(Diary.RedMine.UI.IRedMineUiData).Assembly);
+            LoadPluginUiAssemblies(services);
 
             return services.BuildServiceProvider();
+        }
+
+        private void LoadPluginUiAssemblies(IServiceCollection services)
+        {
+            foreach (var path in Directory.EnumerateFiles(
+                FsTools.GetBinaryDirectory(), "Diary.*.UI.dll", SearchOption.TopDirectoryOnly))
+            {
+                try
+                {
+                    services.AddTypesFromAssembly(Assembly.LoadFrom(path));
+                    Logger.LogInformation("Plugin UI assembly loaded: {Path}", path);
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning(ex, "Plugin UI assembly skipped: {Path}", path);
+                }
+            }
         }
 
         private void SyncTheme()
