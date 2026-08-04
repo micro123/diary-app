@@ -6,7 +6,6 @@ using Diary.Core.Data.Base;
 using Diary.Database;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
-using Diary.PluginBase;
 using Diary.PluginUI;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,9 +19,8 @@ public partial class WorkEditorViewModel : ViewModelBase
     // db data fields
     private WorkItem? WorkItem { get; set; } // ref to existed db item, may null
 
-    // tracker 区（RedMine 等）。无 tracker 时为 null，编辑器只渲染 generic 字段。
-    private ITrackerEditorExtension? _tracker;
-    public ViewModelBase? TrackerRegion { get; private set; }
+    // tracker 扩展集合（RedMine 等，可多个）。无 tracker 时空集合，编辑器只渲染 generic 字段。
+    public ObservableCollection<ITrackerEditorExtension> Extensions { get; } = new();
 
     // generic data
     [ObservableProperty] private string _date;
@@ -33,7 +31,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     [ObservableProperty] private ObservableCollection<WorkTag> _workTags = new();
     [ObservableProperty] private ObservableCollection<WorkTag> _availableTags = new();
 
-    /// <summary>是否锁住 generic 编辑字段（=tracker 区已上传到远程）。</summary>
+    /// <summary>是否锁住 generic 编辑字段（任一 tracker 区已上传到远程即锁定）。</summary>
     [ObservableProperty] private bool _isLocked;
 
     public ObservableCollection<WorkTag> AllTags => _shareData.WorkTags;
@@ -64,10 +62,15 @@ public partial class WorkEditorViewModel : ViewModelBase
         Time = 0.0;
         Priority = WorkPriorities.P0;
 
-        // 解析当前 tracker（首个注册的；M2 仅 RedMine），创建编辑器区。
-        var tracker = App.Instance.Services.GetService<IEnumerable<ITrackerUiContribution>>()?.FirstOrDefault();
-        _tracker = tracker?.CreateEditorExtension(tracker?.Instance.InstanceId ?? string.Empty);
-        TrackerRegion = _tracker as ViewModelBase;
+        // 解析全部已注册 tracker，为每个创建一个编辑器扩展。
+        var trackers = App.Instance.Services.GetService<IEnumerable<ITrackerUiContribution>>()
+                       ?? Enumerable.Empty<ITrackerUiContribution>();
+        foreach (var t in trackers)
+        {
+            var ext = t.CreateEditorExtension(t.Instance.InstanceId);
+            if (ext is not null)
+                Extensions.Add(ext);
+        }
 
         WorkTags.CollectionChanged += (_, _) =>
         {
@@ -124,7 +127,8 @@ public partial class WorkEditorViewModel : ViewModelBase
         }
 
         // tracker 绑定（如 RedMine 的 issue/activity → CreateWorkTimeEntry）
-        _tracker?.Save(WorkItem);
+        foreach (var ext in Extensions)
+            ext.Save(WorkItem);
 
         // 首次创建则全部添加标签
         if (created)
@@ -146,7 +150,7 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     public bool CanDelete()
     {
-        return _tracker?.CanDelete ?? true;
+        return Extensions.Count == 0 || Extensions.All(e => e.CanDelete);
     }
 
     [RelayCommand]
@@ -165,14 +169,15 @@ public partial class WorkEditorViewModel : ViewModelBase
     {
         SyncNote();
         SyncTags();
-        _tracker?.Load(WorkItem);
-        IsLocked = _tracker?.IsLocked ?? false;
+        foreach (var ext in Extensions)
+            ext.Load(WorkItem);
+        RecomputeIsLocked();
     }
 
     public void SyncFromBatch(
         Dictionary<int, string> notesById,
         Dictionary<int, ICollection<WorkTag>> tagsById,
-        IDictionary<int, object?>? bindingsById)
+        IReadOnlyDictionary<string, IDictionary<int, object?>?>? bindingsByTracker)
     {
         if (WorkItem is not { Id: > 0 })
             return;
@@ -196,11 +201,20 @@ public partial class WorkEditorViewModel : ViewModelBase
         _syncing_tags = false;
         UpdateAvailableTags();
 
-        var binding = bindingsById != null && bindingsById.TryGetValue(id, out var b)
-            ? b
-            : null;
-        _tracker?.Load(WorkItem, binding);
-        IsLocked = _tracker?.IsLocked ?? false;
+        // 每个 tracker 扩展从 map 中按 InstanceId 取自己的 per-work 绑定
+        foreach (var ext in Extensions)
+        {
+            object? binding = null;
+            if (bindingsByTracker != null
+                && bindingsByTracker.TryGetValue(ext.InstanceId, out var perTracker)
+                && perTracker != null
+                && perTracker.TryGetValue(id, out var bv))
+            {
+                binding = bv;
+            }
+            ext.Load(WorkItem, binding);
+        }
+        RecomputeIsLocked();
     }
 
     private void SyncNote()
@@ -245,8 +259,9 @@ public partial class WorkEditorViewModel : ViewModelBase
         {
             result.WorkTags.Add(tag);
         }
-        // tracker 区选择复制到新 editor 的 region
-        _tracker?.CloneTo(result._tracker);
+        // tracker 扩展选择复制（同 trackers、同序，索引对齐）
+        for (var i = 0; i < Extensions.Count && i < result.Extensions.Count; i++)
+            Extensions[i].CloneTo(result.Extensions[i]);
 
         return result;
     }
@@ -319,18 +334,33 @@ public partial class WorkEditorViewModel : ViewModelBase
         }
     }
 
+    /// <summary>上传所有 tracker 扩展，聚合结果。任一失败即整体失败。</summary>
     public async Task<(bool, string?)> Upload()
     {
-        if (_tracker is null)
+        if (Extensions.Count == 0)
             return (false, "无可用 tracker");
-        var r = await _tracker.UploadAsync(WorkItem!);
-        IsLocked = _tracker.IsLocked;
-        return (r.Success, r.Error);
+        var allOk = true;
+        var errs = new List<string>();
+        foreach (var ext in Extensions)
+        {
+            var r = await ext.UploadAsync(WorkItem!);
+            if (!r.Success)
+            {
+                allOk = false;
+                if (!string.IsNullOrEmpty(r.Error))
+                    errs.Add(r.Error);
+            }
+        }
+        RecomputeIsLocked();
+        return (allOk, allOk ? null : string.Join("; ", errs));
     }
 
+    // transitional：模板默认值应用。TODO 应迁到 ITrackerTemplateContributor（按 pluginId 定位，而非 First）。
     /// <summary>模板默认值应用：按 id 选中 activity（RedMine 语义）。</summary>
-    public void SetRedMineActivity(int activityId) => _tracker?.SetActivity(activityId);
+    public void SetRedMineActivity(int activityId) => Extensions.FirstOrDefault()?.SetActivity(activityId);
 
     /// <summary>模板默认值应用：按 id 选中 issue（RedMine 语义）。</summary>
-    public void SetRedMineIssues(int issueId) => _tracker?.SetIssue(issueId);
+    public void SetRedMineIssues(int issueId) => Extensions.FirstOrDefault()?.SetIssue(issueId);
+
+    private void RecomputeIsLocked() => IsLocked = Extensions.Any(e => e.IsLocked);
 }

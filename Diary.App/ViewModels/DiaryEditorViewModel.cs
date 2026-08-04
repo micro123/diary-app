@@ -273,14 +273,16 @@ public partial class DiaryEditorViewModel : ViewModelBase
             {
                 var notesById = db.GetWorkNotesByDate(CurrentDateString);
                 var tagsById = db.GetWorkTagsByDate(CurrentDateString);
-                var tracker = App.Instance.Services
-                    .GetService<IEnumerable<ITrackerUiContribution>>()?.FirstOrDefault();
-                var bindingsById = tracker?.Instance.LoadBindingsByDate(CurrentDateString);
+                var trackers = App.Instance.Services
+                    .GetService<IEnumerable<ITrackerUiContribution>>() ?? Enumerable.Empty<ITrackerUiContribution>();
+                var bindingsByTracker = new Dictionary<string, IDictionary<int, object?>?>();
+                foreach (var t in trackers)
+                    bindingsByTracker[t.Instance.InstanceId] = t.Instance.LoadBindingsByDate(CurrentDateString);
 
                 foreach (var item in dbItems)
                 {
                     var x = WorkEditorViewModel.FromWorkItem(item);
-                    x.SyncFromBatch(notesById, tagsById, bindingsById);
+                    x.SyncFromBatch(notesById, tagsById, bindingsByTracker);
                     DailyWorks.Add(x);
                 }
             }

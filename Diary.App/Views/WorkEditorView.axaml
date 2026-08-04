@@ -104,8 +104,8 @@
                 </MenuFlyout>
             </Button.Flyout>
         </Button>
-        <!-- tracker 区（RedMine 等）：由 TrackerRegion 经 ViewLocator 解析对应 view 渲染；无 tracker 则空 -->
-        <ContentControl DockPanel.Dock="Top" Content="{Binding TrackerRegion}" IsEnabled="{Binding !IsLocked}" />
+        <!-- tracker 扩展区（RedMine 等，可多个）：每个扩展由全局 ViewLocator 按 runtime VM 解析 view 渲染 -->
+        <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding Extensions}" IsEnabled="{Binding !IsLocked}" />
         <!-- plm预留 -->
         <u:Divider DockPanel.Dock="Top" Content="备注（仅本地存储）" HorizontalContentAlignment="Left" />
         <TextBox Text="{Binding Note}" AcceptsReturn="True" VerticalAlignment="Stretch"
