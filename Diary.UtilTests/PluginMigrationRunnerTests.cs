@@ -7,6 +7,40 @@ namespace Diary.UtilTests;
 public class PluginMigrationRunnerTests
 {
     [TestMethod]
+    public void ManifestValidator_AcceptsSupportedPlugin()
+    {
+        var manifest = new PluginManifest
+        {
+            Id = "tracker.test",
+            Version = "1.0.0",
+            ApiVersion = 2,
+            MinCoreDataVersion = 1,
+            RequiredCapabilities = new[] { PluginCapabilities.ForeignKeys },
+        };
+        var context = new PluginCompatibilityContext(
+            1, 2, 1, new HashSet<string> { PluginCapabilities.ForeignKeys });
+
+        Assert.IsTrue(PluginCompatibilityValidator.Validate(manifest, context, out var error));
+        Assert.IsNull(error);
+    }
+
+    [TestMethod]
+    public void ManifestValidatorRejectsMissingCapability()
+    {
+        var manifest = new PluginManifest
+        {
+            Id = "tracker.test",
+            Version = "1.0.0",
+            ApiVersion = 1,
+            RequiredCapabilities = new[] { PluginCapabilities.ReturningClause },
+        };
+        var context = new PluginCompatibilityContext(1, 1, 0, new HashSet<string>());
+
+        Assert.IsFalse(PluginCompatibilityValidator.Validate(manifest, context, out var error));
+        StringAssert.Contains(error, PluginCapabilities.ReturningClause);
+    }
+
+    [TestMethod]
     public void Upgrade_AppliesVersionChainInOrder()
     {
         var applied = new List<uint>();
