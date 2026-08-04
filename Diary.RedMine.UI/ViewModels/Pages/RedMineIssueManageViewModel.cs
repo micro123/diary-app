@@ -22,10 +22,14 @@ public partial class RedMineIssueManageViewModel : PaginatedSearchViewModel<Issu
     [ObservableProperty] private bool _onlyMyIssues = true;
     private string _lastSearchMethod = string.Empty;
     private readonly IRedMineApi _api;
+    private readonly IRedMineDb _database;
     protected override int PageSize => _api.PageSize;
-    private DbInterfaceBase? Db => BaseApp.Instance.UseDb;
 
-    public RedMineIssueManageViewModel(IRedMineApi api) => _api = api;
+    public RedMineIssueManageViewModel(IRedMineApi api, IRedMineDb database)
+    {
+        _api = api;
+        _database = database;
+    }
 
     [RelayCommand]
     private async Task Search(string method)
@@ -49,14 +53,12 @@ public partial class RedMineIssueManageViewModel : PaginatedSearchViewModel<Issu
     [RelayCommand]
     private async Task Import(IssueInfo issue)
     {
-        if (Db is null) return;
         await Task.Run(() =>
         {
             _api.GetProject(out var project, issue.Project.Id);
             Debug.Assert(project is not null);
-            var db = Db.GetExtension<IRedMineDb>()!;
-            db.AddRedMineProject(project!.Id, project.Name, project.Description);
-            db.AddRedMineIssue(issue.Id, issue.Subject, issue.AssignedTo.Name, issue.Project.Id, issue.Status.IsClosed);
+            _database.AddRedMineProject(project!.Id, project.Name, project.Description);
+            _database.AddRedMineIssue(issue.Id, issue.Subject, issue.AssignedTo.Name, issue.Project.Id, issue.Status.IsClosed);
         });
     }
 }

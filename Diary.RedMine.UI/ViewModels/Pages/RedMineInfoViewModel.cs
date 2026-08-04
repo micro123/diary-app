@@ -22,7 +22,7 @@ public partial class RedMineInfoViewModel : ViewModelBase
     private readonly ILogger _logger;
     private readonly IRedMineUiData _data;
     private readonly IRedMineApi _api;
-    private DbInterfaceBase? Db => BaseApp.Instance.UseDb;
+    private readonly IRedMineDb _database;
 
     [ObservableProperty] private int _userId;
     [ObservableProperty] private string _userName = string.Empty;
@@ -31,11 +31,16 @@ public partial class RedMineInfoViewModel : ViewModelBase
     public ObservableCollection<RedMineActivity> Activities => _data.RedMineActivities;
     public ObservableCollection<RedMineIssueDisplay> Issues => _data.RedMineIssues;
 
-    public RedMineInfoViewModel(ILogger logger, IRedMineUiData data, IRedMineApi api)
+    public RedMineInfoViewModel(
+        ILogger logger,
+        IRedMineUiData data,
+        IRedMineApi api,
+        IRedMineDb database)
     {
         _logger = logger;
         _data = data;
         _api = api;
+        _database = database;
     }
 
     [RelayCommand]
@@ -44,10 +49,10 @@ public partial class RedMineInfoViewModel : ViewModelBase
         await Task.Run(() =>
         {
             _api.GetActivities(out var activities);
-            if (activities is not null && Db is not null)
+            if (activities is not null)
             {
                 foreach (var activity in activities)
-                    Db.GetExtension<IRedMineDb>()!.AddRedMineActivity(activity.Id, activity.Name);
+                    _database.AddRedMineActivity(activity.Id, activity.Name);
             }
         });
         EventDispatcher.DbChanged(RedMineUiEvents.ActivityChanged);
@@ -68,7 +73,6 @@ public partial class RedMineInfoViewModel : ViewModelBase
     {
         var changed = await Task.Run(() =>
         {
-            if (Db is null) return false;
             var batches = Issues.Where(x => !x.Disabled)
                 .Select((issue, index) => new { Issue = issue, Index = index })
                 .GroupBy(x => x.Index / _api.PageSize)
@@ -81,7 +85,7 @@ public partial class RedMineInfoViewModel : ViewModelBase
                 foreach (var issue in infos!.Where(x => x.Status.IsClosed))
                 {
                     result = true;
-                    Db.GetExtension<IRedMineDb>()!.AddRedMineIssue(
+                    _database.AddRedMineIssue(
                         issue.Id, issue.Subject, issue.AssignedTo.Name, issue.Project.Id, issue.Status.IsClosed);
                 }
             }
@@ -97,7 +101,7 @@ public partial class RedMineInfoViewModel : ViewModelBase
     [RelayCommand]
     private async Task ToggleIssue(RedMineIssueDisplay issue)
     {
-        await Task.Run(() => Db!.GetExtension<IRedMineDb>()!.UpdateRedMineIssueStatus(issue.Id, !issue.Disabled));
+        await Task.Run(() => _database.UpdateRedMineIssueStatus(issue.Id, !issue.Disabled));
         EventDispatcher.DbChanged(RedMineUiEvents.IssueChanged);
     }
 

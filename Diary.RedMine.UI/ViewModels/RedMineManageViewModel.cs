@@ -29,12 +29,18 @@ public partial class RedMineManageViewModel : ViewModelBase
     [ObservableProperty] private ObservableCollection<RedMineTabItemModel> _tabs = new();
     [ObservableProperty] private bool _serverOk;
 
-    public RedMineManageViewModel(ILogger logger, IServiceProvider services, IRedMineApi api)
+    public RedMineManageViewModel(
+        ILogger logger,
+        IServiceProvider services,
+        IRedMineApi api,
+        IRedMineUiData data,
+        IRedMineDb database)
     {
         _logger = logger;
         _services = services;
         _api = api;
-        _redmineInfo = services.GetRequiredService<RedMineInfoViewModel>();
+        _redmineInfo = ActivatorUtilities.CreateInstance<RedMineInfoViewModel>(
+            services, data, api, database);
         Tabs.Add(new RedMineTabItemModel
         {
             Title = "基本信息",
@@ -45,13 +51,15 @@ public partial class RedMineManageViewModel : ViewModelBase
         {
             Title = "问题管理",
             Icon = "fa-exclamation",
-            Content = services.GetRequiredService<RedMineIssueManageViewModel>(),
+            Content = ActivatorUtilities.CreateInstance<RedMineIssueManageViewModel>(
+                services, api, database),
         });
         Tabs.Add(new RedMineTabItemModel
         {
             Title = "项目管理",
             Icon = "fa-list-check",
-            Content = services.GetRequiredService<RedMineProjectViewModel>(),
+            Content = ActivatorUtilities.CreateInstance<RedMineProjectViewModel>(
+                services, api),
         });
 
         Task.Run(CheckServer);
