@@ -2,12 +2,12 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
-              xmlns:redMine="clr-namespace:Diary.RedMine.Models;assembly=Diary.RedMine"
-              xmlns:display="clr-namespace:Diary.RedMine.Models;assembly=Diary.RedMine"
+             xmlns:dialogs="clr-namespace:Diary.RedMine.UI.ViewModels.Dialogs"
+             xmlns:redMine="clr-namespace:Diary.RedMine.Models;assembly=Diary.RedMine"
+             xmlns:display="clr-namespace:Diary.RedMine.Models;assembly=Diary.RedMine"
              mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="80"
              x:DataType="dialogs:RedMineTemplateEditorRegionViewModel"
-             x:Class="Diary.App.Views.Dialogs.RedMineTemplateEditorRegionView">
+             x:Class="Diary.RedMine.UI.Views.Dialogs.RedMineTemplateEditorRegionView">
     <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*" RowSpacing="8" ColumnSpacing="4">
         <TextBlock Grid.Row="0" Grid.Column="0" Text="默认活动：" VerticalAlignment="Center" />
         <ComboBox Grid.Row="0" Grid.Column="1" SelectedIndex="{Binding ActivityIndex}"

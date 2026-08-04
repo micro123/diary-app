@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 
-namespace Diary.App.Views.Dialogs;
+namespace Diary.RedMine.UI.Views.Dialogs;
 
 public partial class RedMineTemplateEditorRegionView : UserControl
 {

@@ -167,6 +167,7 @@ namespace Diary.App
             }
             services.AddTypesFromAssembly(Assembly.GetExecutingAssembly());
             services.AddTypesFromAssembly(typeof(ViewLocator).Assembly);
+            services.AddTypesFromAssembly(typeof(Diary.RedMine.UI.IRedMineUiData).Assembly);
 
             return services.BuildServiceProvider();
         }
