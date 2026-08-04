@@ -1,4 +1,4 @@
-namespace Diary.Core.Data.RedMine;
+namespace Diary.RedMine.Models;
 
 public record RedMineActivity
 {

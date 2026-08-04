@@ -1,4 +1,4 @@
-namespace Diary.Core.Data.RedMine;
+namespace Diary.RedMine.Models;
 
 public record WorkTimeEntry
 {
@@ -7,4 +7,3 @@ public record WorkTimeEntry
     public int ActivityId { get; set; }
     public int IssueId { get; set; }
 }
-

@@ -1,8 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.Core.Data.Base;
-using Diary.Core.Data.Display;
-using Diary.Core.Data.RedMine;
+using Diary.RedMine.Models;
 using Diary.Database;
 using Diary.GUIBase.Events;
 using Diary.RedMine;

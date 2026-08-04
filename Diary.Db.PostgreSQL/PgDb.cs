@@ -1,11 +1,10 @@
 using System.Data.Common;
 using System.Diagnostics;
 using Diary.Core.Data.Base;
-using Diary.Core.Data.Display;
-using Diary.Core.Data.RedMine;
 using Diary.Core.Data.Statistics;
 using Diary.Database;
 using Diary.RedMine;
+using Diary.RedMine.Models;
 using Npgsql;
 
 namespace Diary.Db.PostgreSQL;

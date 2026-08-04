@@ -1,4 +1,4 @@
-namespace Diary.Core.Data.Display;
+namespace Diary.RedMine.Models;
 
 public record RedMineIssueDisplay
 {

@@ -6,8 +6,8 @@
              xmlns:u="https://irihi.tech/ursa"
              xmlns:i="https://github.com/projektanker/icons.avalonia"
              xmlns:base="clr-namespace:Diary.Core.Data.Base;assembly=Diary.Core"
-             xmlns:display="clr-namespace:Diary.Core.Data.Display;assembly=Diary.Core"
-             xmlns:redMine="clr-namespace:Diary.Core.Data.RedMine;assembly=Diary.Core"
+             xmlns:display="clr-namespace:Diary.RedMine.Models;assembly=Diary.RedMine"
+             xmlns:redMine="clr-namespace:Diary.RedMine.Models;assembly=Diary.RedMine"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:DataType="viewModels:WorkEditorViewModel"
              x:Class="Diary.App.Views.WorkEditorView" Padding="8 0 0 0">

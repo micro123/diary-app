@@ -8,6 +8,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\Diary.Core\Diary.Core.csproj" />
+      <ProjectReference Include="..\Diary.RedMine\Diary.RedMine.csproj" />
     </ItemGroup>
 
 </Project>

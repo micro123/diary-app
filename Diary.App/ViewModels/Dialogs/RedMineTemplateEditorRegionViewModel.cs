@@ -1,8 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Diary.App.Models;
-using Diary.Core.Data.Display;
-using Diary.Core.Data.RedMine;
+using Diary.RedMine.Models;
 using Diary.GUIBase.ViewModels;
 
 namespace Diary.App.ViewModels.Dialogs;

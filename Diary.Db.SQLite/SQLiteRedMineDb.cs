@@ -1,10 +1,9 @@
 using System.Data.Common;
 using System.Data.SQLite;
 using Diary.Core.Data.Base;
-using Diary.Core.Data.Display;
-using Diary.Core.Data.RedMine;
 using Diary.Database;
 using Diary.RedMine;
+using Diary.RedMine.Models;
 
 namespace Diary.Db.SQLite;
 

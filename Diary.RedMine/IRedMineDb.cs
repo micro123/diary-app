@@ -1,6 +1,5 @@
 using Diary.Core.Data.Base;
-using Diary.Core.Data.Display;
-using Diary.Core.Data.RedMine;
+using Diary.RedMine.Models;
 
 namespace Diary.RedMine;
 

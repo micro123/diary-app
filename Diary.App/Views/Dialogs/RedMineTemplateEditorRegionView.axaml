@@ -3,8 +3,8 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
-             xmlns:redMine="clr-namespace:Diary.Core.Data.RedMine;assembly=Diary.Core"
-             xmlns:display="clr-namespace:Diary.Core.Data.Display;assembly=Diary.Core"
+              xmlns:redMine="clr-namespace:Diary.RedMine.Models;assembly=Diary.RedMine"
+              xmlns:display="clr-namespace:Diary.RedMine.Models;assembly=Diary.RedMine"
              mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="80"
              x:DataType="dialogs:RedMineTemplateEditorRegionViewModel"
              x:Class="Diary.App.Views.Dialogs.RedMineTemplateEditorRegionView">

@@ -1,6 +1,5 @@
 using System.Data.Common;
 using Diary.Core.Data.Base;
-using Diary.Core.Data.Display;
 using Diary.Core.Data.Statistics;
 
 namespace Diary.Database;
