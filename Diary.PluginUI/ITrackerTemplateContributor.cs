@@ -1,4 +1,5 @@
 using Diary.GUIBase.ViewModels;
+using Diary.PluginBase;
 
 namespace Diary.PluginUI;
 
@@ -19,6 +20,12 @@ public interface ITrackerTemplateContributor
     string Serialize(object data);
     object? Deserialize(string payloadJson, int schemaVersion);
     void ApplyTo(object data, ITrackerEditorExtension target);
+}
+
+public interface ITrackerTemplateContributorFactory
+{
+    string PluginId { get; }
+    ITrackerTemplateContributor Create(ITrackerInstance instance);
 }
 
 /// <summary>模板编辑区域上下文（文档 §11.4 仅提及，本刀为最小占位，行为后续增量补）。</summary>

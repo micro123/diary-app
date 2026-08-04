@@ -26,15 +26,14 @@ public sealed record TemplateEditorSlot
 [DiAutoRegister(singleton: true)]
 public class TemplateCoordinator
 {
-    private readonly IServiceProvider _services;
+    private readonly TrackerTemplateContributorRegistry _registry;
 
-    public TemplateCoordinator(IServiceProvider services)
+    public TemplateCoordinator(TrackerTemplateContributorRegistry registry)
     {
-        _services = services;
+        _registry = registry;
     }
 
-    private IEnumerable<ITrackerTemplateContributor> Contributors
-        => _services.GetService<IEnumerable<ITrackerTemplateContributor>>() ?? Enumerable.Empty<ITrackerTemplateContributor>();
+    private IReadOnlyList<ITrackerTemplateContributor> Contributors => _registry.Contributors;
 
     /// <summary>为模板的每个 Extensions entry 创建编辑器区。找不到 contributor 的 entry 跳过（不显示编辑控件）。</summary>
     public IReadOnlyList<TemplateEditorSlot> LoadEditors(Template template)

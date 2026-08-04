@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Diary.GUIBase.ViewModels;
+using Diary.PluginBase;
 using Diary.PluginUI;
+using Diary.RedMine;
 using Diary.RedMine.UI;
 using Diary.Utils;
 
@@ -12,13 +14,35 @@ public sealed record RedMineTemplateData
     public int IssueId { get; set; } = -1;
 }
 
-[DiAutoRegister(singleton: true, serviceType: typeof(ITrackerTemplateContributor))]
-public sealed class RedMineTemplateContributor(IRedMineUiData data) : ITrackerTemplateContributor
+[DiAutoRegister(singleton: true, serviceType: typeof(ITrackerTemplateContributorFactory))]
+public sealed class RedMineTemplateContributorFactory : ITrackerTemplateContributorFactory
 {
+    public string PluginId => RedMinePluginConstants.PluginId;
+
+    public ITrackerTemplateContributor Create(ITrackerInstance instance)
+    {
+        if (instance is not RedMineInstance redmine)
+            throw new ArgumentException("RedMine instance is required", nameof(instance));
+        var data = new RedMineUiDataStore(
+            Logging.Logger, redmine.InstanceId, redmine.Database);
+        data.InitLoad();
+        return new RedMineTemplateContributor(data, redmine.InstanceId);
+    }
+}
+
+public sealed class RedMineTemplateContributor : ITrackerTemplateContributor
+{
+    private readonly IRedMineUiData _data;
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
+    public RedMineTemplateContributor(IRedMineUiData data, string instanceId)
+    {
+        _data = data;
+        InstanceId = instanceId;
+    }
+
     public string PluginId => RedMinePluginConstants.PluginId;
-    public string InstanceId => RedMinePluginConstants.DefaultInstanceId;
+    public string InstanceId { get; }
     public int CurrentSchemaVersion => 1;
 
     public object CreateDefaultData() => new RedMineTemplateData();
@@ -26,7 +50,7 @@ public sealed class RedMineTemplateContributor(IRedMineUiData data) : ITrackerTe
     public ViewModelBase CreateEditor(object? value, TemplateEditorContext context)
     {
         var template = value as RedMineTemplateData ?? new RedMineTemplateData();
-        return new RedMineTemplateEditorRegionViewModel(template, data)
+        return new RedMineTemplateEditorRegionViewModel(template, _data)
         {
             PluginId = PluginId,
             InstanceId = InstanceId,

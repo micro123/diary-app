@@ -151,6 +151,9 @@ namespace Diary.App
             Services.GetRequiredService<TrackerUiContributionRegistry>().Register(
                 Services.GetServices<ITrackerUiContributionFactory>(),
                 Services.GetRequiredService<PluginInstanceRegistry>().Instances);
+            Services.GetRequiredService<TrackerTemplateContributorRegistry>().Register(
+                Services.GetServices<ITrackerTemplateContributorFactory>(),
+                Services.GetRequiredService<PluginInstanceRegistry>().Instances);
         }
 
         private void EnumerateDbProviders()
@@ -183,6 +186,7 @@ namespace Diary.App
             services.AddSingleton<PluginInstanceRegistry>();
             services.AddSingleton<TrackerInstanceCoordinator>();
             services.AddSingleton<TrackerUiContributionRegistry>();
+            services.AddSingleton<TrackerTemplateContributorRegistry>();
             services.AddSingleton<IWorkItemPersistenceCoordinator, WorkItemPersistenceCoordinator>();
             services.AddSingleton<ITrackerUploadCoordinator, TrackerUploadCoordinator>();
             var compatibility = new PluginCompatibilityContext(
