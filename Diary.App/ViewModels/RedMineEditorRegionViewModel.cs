@@ -42,7 +42,7 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
     // 显式实现：避免与 ViewModelBase.View（Control?，ViewLocator.SetView 设置的附加控件）命名冲突
     ViewModelBase ITrackerEditorExtension.View => this;
 
-    private static IRedMineDb? RedMineDb => App.Instance.UseDb?.RedMineDb;
+    private static IRedMineDb? RedMineDb => App.Instance.UseDb?.GetExtension<IRedMineDb>();
 
     public RedMineEditorRegionViewModel(DbShareData shareData, IRedMineApi api)
     {

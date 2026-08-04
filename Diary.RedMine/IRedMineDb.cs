@@ -2,13 +2,10 @@ using Diary.Core.Data.Base;
 using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
 
-namespace Diary.Database;
+namespace Diary.RedMine;
 
 /// <summary>
-/// RedMine 数据访问契约：从 <see cref="DbInterfaceBase"/> 迁出的 RedMine 方法签名
-/// （签名一字不改）。阶段 1 中 <see cref="DbInterfaceBase"/> 仍保留这些方法作为
-/// 薄委托（经各 provider 的 RedMineDb 实现本接口），调用方与契约测试零改动。
-/// 阶段 2 将由调用方直接经注册表取本接口，删除基类上的委托。
+/// RedMine 本地数据扩展契约。核心数据库只通过 DbInterfaceBase.GetExtension&lt;T&gt; 获取它。
 /// </summary>
 public interface IRedMineDb
 {

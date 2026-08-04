@@ -3,6 +3,7 @@
     <ProjectReference Include="..\Diary.Database\Diary.Database.csproj" />
     <ProjectReference Include="..\Diary.Utils\Diary.Utils.csproj" />
     <ProjectReference Include="..\Diary.Core\Diary.Core.csproj" />
+    <ProjectReference Include="..\Diary.RedMine\Diary.RedMine.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="SourceGear.sqlite3" Version="3.53.4" />

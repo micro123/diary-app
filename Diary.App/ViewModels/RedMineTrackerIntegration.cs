@@ -39,7 +39,7 @@ public class RedMineTrackerIntegration : ITrackerInstance, ITrackerUiContributio
 
     public IDictionary<int, object?>? LoadBindingsByDate(string date)
     {
-        var entries = App.Instance.UseDb?.RedMineDb?.GetWorkTimeEntriesByDate(date);
+        var entries = App.Instance.UseDb?.GetExtension<IRedMineDb>()?.GetWorkTimeEntriesByDate(date);
         if (entries is null)
             return null;
         var dict = new Dictionary<int, object?>();

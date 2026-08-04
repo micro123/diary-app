@@ -5,7 +5,7 @@ namespace Diary.Database;
 /// <summary>
 /// 中性数据访问宿主：把 <see cref="DbInterfaceBase"/> 的 orchestration helpers
 /// （<see cref="Query{T}"/>/<see cref="QueryFirst{T}"/>/<see cref="Execute"/> 等）
-/// 与 <see cref="ReadString"/> 提升为公开接口，让独立扩展类（如 RedMineDb）
+/// 与 <see cref="ReadString"/> 提升为公开接口，让独立数据库扩展类
 /// 能跨 provider 用同一套 high-level 原语跑 SQL，而不必依赖具体的
 /// <see cref="DbInterfaceBase"/> 子类或其 protected 成员。
 ///

@@ -1,7 +1,6 @@
 using System.Data.Common;
 using Diary.Core.Data.Base;
 using Diary.Core.Data.Display;
-using Diary.Core.Data.RedMine;
 using Diary.Core.Data.Statistics;
 
 namespace Diary.Database;
@@ -101,11 +100,22 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
     public abstract bool WorkItemCleanTags(WorkItem item);
     public abstract ICollection<WorkTag> GetWorkItemTags(WorkItem item);
 
-    // redmine — 经 IRedMineDb 访问。不再强制每个 provider 实现 RedMine：
-    // provider 若支持 RedMine，override CreateRedMineDb() 返回其 RedMineDb；否则返回 null。
-    public IRedMineDb? RedMineDb => _redMine ??= CreateRedMineDb();
-    private IRedMineDb? _redMine;
-    protected abstract IRedMineDb? CreateRedMineDb();
+    private readonly Dictionary<Type, object?> _extensions = new();
+
+    /// <summary>获取 provider 提供的可选数据库扩展；核心库不引用具体 tracker 类型。</summary>
+    public T? GetExtension<T>() where T : class
+    {
+        var type = typeof(T);
+        if (!_extensions.TryGetValue(type, out var extension))
+        {
+            extension = CreateExtension(type);
+            _extensions[type] = extension;
+        }
+
+        return extension as T;
+    }
+
+    protected abstract object? CreateExtension(Type extensionType);
 
     // statistics
     public abstract StatisticsResult GetStatistics(string beginDate, string endDate);
@@ -258,15 +268,6 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
         Comment = ReadString(r, 2),
         Time = r.GetFloat(3),
         Priority = (WorkPriorities)r.GetInt32(4),
-    };
-
-    // 注：MapRedMineActivity/Project/Issue 已随 RedMine 方法迁入各 provider 的 RedMineDb。
-    protected WorkTimeEntry MapWorkTimeEntry(DbDataReader r) => new()
-    {
-        WorkId = r.GetInt32(0),
-        EntryId = r.GetInt32(1),
-        ActivityId = r.GetInt32(2),
-        IssueId = r.GetInt32(3),
     };
 
     #endregion

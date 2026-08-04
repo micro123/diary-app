@@ -20,5 +20,6 @@
     <ProjectReference Include="..\Diary.Db.PostgreSQL\Diary.Db.PostgreSQL.csproj" />
     <ProjectReference Include="..\Diary.Database\Diary.Database.csproj" />
     <ProjectReference Include="..\Diary.Core\Diary.Core.csproj" />
+    <ProjectReference Include="..\Diary.RedMine\Diary.RedMine.csproj" />
   </ItemGroup>
 </Project>

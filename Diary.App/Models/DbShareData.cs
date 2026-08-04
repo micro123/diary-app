@@ -5,6 +5,7 @@ using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
 using Diary.Database;
 using Diary.GUIBase.Events;
+using Diary.RedMine;
 using Diary.Utils;
 using Microsoft.Extensions.Logging;
 
@@ -62,7 +63,7 @@ public class DbShareData
 
     private void LoadActivities()
     {
-        var activities = DbInterface!.RedMineDb!.GetRedMineActivities();
+        var activities = DbInterface!.GetExtension<IRedMineDb>()!.GetRedMineActivities();
         RedMineActivities.Clear();
         foreach (var activity in activities)
         {
@@ -72,7 +73,7 @@ public class DbShareData
 
     private void LoadIssues()
     {
-        var issues = DbInterface!.RedMineDb!.GetRedMineIssues(null);
+        var issues = DbInterface!.GetExtension<IRedMineDb>()!.GetRedMineIssues(null);
         RedMineIssues.Clear();
         RedMineIssuesOpen.Clear();
         foreach (var issue in issues)

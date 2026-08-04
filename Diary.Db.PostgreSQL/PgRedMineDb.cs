@@ -3,6 +3,7 @@ using Diary.Core.Data.Base;
 using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
 using Diary.Database;
+using Diary.RedMine;
 
 namespace Diary.Db.PostgreSQL;
 

@@ -5,6 +5,7 @@ using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
 using Diary.Core.Data.Statistics;
 using Diary.Database;
+using Diary.RedMine;
 using Npgsql;
 
 namespace Diary.Db.PostgreSQL;
@@ -414,10 +415,8 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
         return Query(sql, MapWorkTag, ("$1", item.Id));
     }
 
-    // $1=id $2=title
-    // redmine — provider 支持 RedMine：构造 PgRedMineDb（经 base.RedMineDb 暴露）。
-    // 不支持 RedMine 的 provider 返回 null 即可。
-    protected override IRedMineDb? CreateRedMineDb() => new PgRedMineDb(this);
+    protected override object? CreateExtension(Type extensionType)
+        => extensionType == typeof(IRedMineDb) ? new PgRedMineDb(this) : null;
 
     public override StatisticsResult GetStatistics(string beginDate, string endDate)
     {

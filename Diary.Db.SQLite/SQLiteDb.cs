@@ -6,6 +6,7 @@ using Diary.Core.Data.Display;
 using Diary.Core.Data.RedMine;
 using Diary.Core.Data.Statistics;
 using Diary.Database;
+using Diary.RedMine;
 
 namespace Diary.Db.SQLite;
 
@@ -366,9 +367,8 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
         return Query(sql, MapWorkTag, ("$work_id", item.Id));
     }
 
-    // redmine — provider 支持 RedMine：构造 SQLiteRedMineDb（经 base.RedMineDb 暴露）。
-    // 不支持 RedMine 的 provider 返回 null 即可。
-    protected override IRedMineDb? CreateRedMineDb() => new SQLiteRedMineDb(this);
+    protected override object? CreateExtension(Type extensionType)
+        => extensionType == typeof(IRedMineDb) ? new SQLiteRedMineDb(this) : null;
 
     public override StatisticsResult GetStatistics(string beginDate, string endDate)
     {
