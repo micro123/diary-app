@@ -35,27 +35,58 @@ public class TemplateCoordinator
 
     private IReadOnlyList<ITrackerTemplateContributor> Contributors => _registry.Contributors;
 
-    /// <summary>为模板的每个 Extensions entry 创建编辑器区。找不到 contributor 的 entry 跳过（不显示编辑控件）。</summary>
+    /// <summary>
+    /// 为已有扩展和当前已注册 contributor 创建编辑器区。
+    /// 找不到 contributor 或 payload 无法解析时跳过编辑控件，保存时保留原始 entry。
+    /// </summary>
     public IReadOnlyList<TemplateEditorSlot> LoadEditors(Template template)
     {
         var slots = new List<TemplateEditorSlot>();
         var contributors = Contributors.ToList();
-        foreach (var entry in template.Extensions)
+        var entries = template.Extensions
+            .GroupBy(entry => (entry.PluginId, entry.InstanceId))
+            .ToDictionary(group => group.Key, group => group.First());
+
+        foreach (var contributor in contributors)
         {
-            var contributor = contributors.FirstOrDefault(c =>
-                c.PluginId == entry.PluginId && c.InstanceId == entry.InstanceId);
-            if (contributor is null)
-                continue; // §11.3：插件未安装，不显示编辑控件，payload 保留（SaveEditors 时原样写回）
-            var data = contributor.Deserialize(entry.PayloadJson, entry.SchemaVersion) ?? contributor.CreateDefaultData();
-            var editor = contributor.CreateEditor(data, new TemplateEditorContext(template.Name, template.Name));
-            slots.Add(new TemplateEditorSlot
+            var key = (contributor.PluginId, contributor.InstanceId);
+            if (entries.TryGetValue(key, out var entry))
             {
-                Editor = editor,
-                Contributor = contributor,
-                Original = entry,
-            });
+                var data = contributor.Deserialize(entry.PayloadJson, entry.SchemaVersion);
+                if (data is null)
+                    continue; // 保留损坏或未来版本 payload，避免默认值覆盖原数据
+
+                slots.Add(CreateSlot(contributor, entry, data, template));
+                continue;
+            }
+
+            var defaultData = contributor.CreateDefaultData();
+            var defaultEntry = new TemplateExtensionData
+            {
+                PluginId = contributor.PluginId,
+                InstanceId = contributor.InstanceId,
+                SchemaVersion = contributor.CurrentSchemaVersion,
+                PayloadJson = contributor.Serialize(defaultData),
+            };
+            slots.Add(CreateSlot(contributor, defaultEntry, defaultData, template));
         }
+
         return slots;
+    }
+
+    private static TemplateEditorSlot CreateSlot(
+        ITrackerTemplateContributor contributor,
+        TemplateExtensionData entry,
+        object data,
+        Template template)
+    {
+        var editor = contributor.CreateEditor(data, new TemplateEditorContext(template.Name, template.Name));
+        return new TemplateEditorSlot
+        {
+            Editor = editor,
+            Contributor = contributor,
+            Original = entry,
+        };
     }
 
     /// <summary>从编辑槽序列化回 payload；找不到 contributor 的原 entry 原样保留。</summary>

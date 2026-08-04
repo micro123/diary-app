@@ -11,7 +11,7 @@ internal static class DbExtensionFactoryLoader
     private static IReadOnlyList<IDbExtensionFactory> Load()
     {
         var result = new List<IDbExtensionFactory>();
-        foreach (var path in Directory.EnumerateFiles(AppContext.BaseDirectory, "Diary.RedMine.*.dll"))
+        foreach (var path in Directory.EnumerateFiles(AppContext.BaseDirectory, "Diary.*.dll"))
         {
             try
             {

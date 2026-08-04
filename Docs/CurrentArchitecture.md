@@ -3,7 +3,7 @@
 ## 1. 文档范围
 
 本文描述当前代码已经实现的架构，不等同于 `TrackerPluginArchitecture.md` 中的目标方案。
-代码基线：`feature/tracker-extension` 分支，tracker 插件实例和 UI/模板贡献已具备通用注册链路，Redmine 多实例开关仍未开启。
+代码基线：`feature/tracker-extension` 分支，tracker 插件实例和 UI/模板贡献已具备通用注册链路，Redmine 已开启多实例支持。
 
 当前架构的核心目标是：核心日记功能不依赖 Redmine；Redmine 通过插件契约、可选 UI 和数据库扩展接入；插件数据库可以独立迁移。
 
@@ -63,7 +63,7 @@ RedMine --> Api
 
 | 项目 | 当前职责 | 关键边界 |
 | --- | --- | --- |
-| `Diary.App` | 启动、服务容器、插件发现、数据库选择、主窗口 | 仍有 Redmine UI 数据初始化的过渡代码 |
+| `Diary.App` | 启动、服务容器、插件发现、数据库选择、主窗口 | 仍通过项目引用携带默认插件程序集 |
 | `Diary.Core` | 工作项、标签、模板、配置和统计模型 | 不应依赖具体 tracker 类型 |
 | `Diary.Database` | 核心数据库抽象、provider 原语、扩展工厂加载 | 通过 `GetExtension<T>(instanceId)` 延迟取得可选扩展 |
 | `Diary.PluginBase` | manifest、兼容性检查、插件入口、实例注册、迁移调度 | 不依赖 Avalonia 和具体 UI |
@@ -126,7 +126,7 @@ stop
 
 核心数据库由 `DbInterfaceBase` 负责连接、核心 schema 版本和工作项数据。Redmine 表不通过核心 CRUD 接口访问，而是通过数据库扩展工厂动态发现：
 
-1. `DbExtensionFactoryLoader` 从程序目录加载 `Diary.RedMine.*.dll`（当前仍是 Redmine 专用过渡实现）。
+1. `DbExtensionFactoryLoader` 从程序目录加载 `Diary.*.dll` 并发现数据库扩展工厂。
 2. 找到支持当前 provider 和 `IRedMineDb` 的 `IDbExtensionFactory`。
 3. `DbInterfaceBase.GetExtension<IRedMineDb>(instanceId)` 延迟创建扩展并按类型、实例 ID 缓存。
 4. SQLite 或 PostgreSQL 扩展使用 `IDbExtensionHost` 执行 provider 无关的查询和迁移 SQL。
@@ -193,7 +193,7 @@ Redmine：plugin_data_versions、redmine_projects、redmine_activities、
 
 Redmine 数据库扩展已经使用实例 ID 过滤所有项目、问题、活动和工时记录，默认实例 ID 为 `redmine.default`。配置层已经支持实例列表、启用状态、显示名称和单独配置。
 
-当前限制：Redmine manifest 仍未开启 `SupportsMultipleInstances`。插件宿主已经遍历所有兼容插件生成实例，UI 和模板贡献也通过实例注册表创建，但数据库扩展发现仍是 Redmine 专用过渡实现。
+当前限制：插件宿主和数据库扩展已经支持多实例，但 Redmine provider 仍保留无参数迁移入口，供旧调用方兼容；默认插件程序集仍由主程序项目引用携带。
 
 ## 8. UI 和编辑器扩展
 
@@ -223,9 +223,9 @@ Redmine UI 通过 `Diary.PluginUI` 的契约接入：
 ## 10. 当前已知缺口
 
 - `SupportsMultipleInstances` 仍为 `false`，需要完成 manifest、配置、导航和编辑器的多实例 UI 上下文。
-- `App.ConfigureCheck()` 仍直接调用 Redmine UI 数据初始化；实例注册、插件迁移和 UI/模板注册还需要收敛到统一插件生命周期。
-- 数据库扩展扫描模式仍为 `Diary.RedMine.*.dll`，未来应改为通用插件数据库扩展发现机制。
-- Redmine 专用类型仍存在于 `Diary.Database` 的 `IRedMineDb` 扩展契约路径，目标是将其完全收敛到 Redmine 插件内部。
+- 插件实例注册、数据库扩展迁移和 UI/模板注册还需要进一步收敛到统一生命周期。
+- Redmine provider 仍有无参数迁移兼容入口，最终应由所有调用方传入插件迁移链。
+- 主程序仍通过项目引用携带 Redmine 插件程序集，后续应改为独立插件部署/复制机制。
 - 插件配置持久化、配置迁移和诊断页面尚未形成完整通用协议。
 - 远程同步队列、重试和每实例操作状态仍需完善。
 

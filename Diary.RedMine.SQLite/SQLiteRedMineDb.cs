@@ -23,6 +23,9 @@ public sealed class SQLiteRedMineDb(IDbExtensionHost host, string instanceId) : 
     public uint SchemaVersion => CurrentSchemaVersion;
 
     public bool Initialize()
+        => Initialize(new RedMinePlugin().GetMigrations().ToArray());
+
+    public bool Initialize(IReadOnlyList<IPluginMigration> migrations)
     {
         try
         {
@@ -51,7 +54,7 @@ public sealed class SQLiteRedMineDb(IDbExtensionHost host, string instanceId) : 
                     args.Cast<(string Name, object? Value)>().ToArray()));
             if (!PluginMigrationRunner.Upgrade(
                     RedMinePluginConstants.PluginId, schemaVersion, CurrentSchemaVersion,
-                    new IPluginMigration[] { new RedMineInitialMigration(), new RedMineInstanceMigration() }, context))
+                    migrations, context))
             {
                 return false;
             }

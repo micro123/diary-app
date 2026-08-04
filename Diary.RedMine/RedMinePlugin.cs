@@ -11,6 +11,7 @@ public sealed class RedMinePlugin : ITrackerPlugin
         Id = RedMinePluginConstants.PluginId,
         Version = "1.0.0",
         ApiVersion = 1,
+        SupportsMultipleInstances = true,
         MinCoreDataVersion = 0,
         RequiredCapabilities = new[]
         {
@@ -45,18 +46,23 @@ public sealed class RedMinePlugin : ITrackerPlugin
     {
         if (hostContext is not DbInterfaceBase db)
             return Array.Empty<PluginInstanceRegistration>();
-        var database = db.GetExtension<IRedMineDb>();
-        if (database is null)
-            return Array.Empty<PluginInstanceRegistration>();
 
         return RedMineConfigurationStore.Current.Instances
             .Where(x => x.Enabled)
-            .Select(settings => new PluginInstanceRegistration(
-                settings.InstanceId,
-                new RedMineInstanceConfiguration(
-                    settings.InstanceId,
-                    settings.DisplayName,
-                    settings,
-                    database)));
+            .Select(settings =>
+            {
+                var database = db.GetExtension<IRedMineDb>(settings.InstanceId, GetMigrations());
+                return database is null
+                    ? null
+                    : new PluginInstanceRegistration(
+                        settings.InstanceId,
+                        new RedMineInstanceConfiguration(
+                            settings.InstanceId,
+                            settings.DisplayName,
+                            settings,
+                            database));
+            })
+            .Where(x => x is not null)
+            .Cast<PluginInstanceRegistration>();
     }
 }

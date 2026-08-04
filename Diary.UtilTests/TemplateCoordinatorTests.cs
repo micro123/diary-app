@@ -1,0 +1,95 @@
+using Diary.App;
+using Diary.App.Models;
+using Diary.Core.Data.App;
+using Diary.GUIBase.ViewModels;
+using Diary.PluginBase;
+using Diary.PluginUI;
+
+namespace Diary.UtilTests;
+
+[TestClass]
+public sealed class TemplateCoordinatorTests
+{
+    [TestMethod]
+    public void NewTemplate_CreatesDefaultContributorSlot()
+    {
+        var coordinator = CreateCoordinator(new MemoryContributor());
+        var template = new Template { Name = "new" };
+
+        var slots = coordinator.LoadEditors(template);
+        var saved = coordinator.SaveEditors(slots, template);
+
+        Assert.AreEqual(1, slots.Count);
+        Assert.AreEqual(1, saved.Count);
+        Assert.AreEqual("tracker.memory", saved[0].PluginId);
+        Assert.AreEqual("memory.default", saved[0].InstanceId);
+    }
+
+    [TestMethod]
+    public void InvalidPayload_IsPreserved()
+    {
+        var coordinator = CreateCoordinator(new MemoryContributor());
+        var template = new Template
+        {
+            Name = "broken",
+            Extensions = new[]
+            {
+                new TemplateExtensionData
+                {
+                    PluginId = "tracker.memory",
+                    InstanceId = "memory.default",
+                    SchemaVersion = 99,
+                    PayloadJson = "not-json",
+                },
+            },
+        };
+
+        var slots = coordinator.LoadEditors(template);
+        var saved = coordinator.SaveEditors(slots, template);
+
+        Assert.AreEqual(0, slots.Count);
+        Assert.AreEqual(1, saved.Count);
+        Assert.AreEqual(99, saved[0].SchemaVersion);
+        Assert.AreEqual("not-json", saved[0].PayloadJson);
+    }
+
+    private static TemplateCoordinator CreateCoordinator(ITrackerTemplateContributor contributor)
+    {
+        var registry = new TrackerTemplateContributorRegistry();
+        registry.Register(
+            new[] { new MemoryFactory(contributor) },
+            new[] { new MemoryInstance() });
+        return new TemplateCoordinator(registry);
+    }
+
+    private sealed class MemoryFactory(ITrackerTemplateContributor contributor)
+        : ITrackerTemplateContributorFactory
+    {
+        public string PluginId => "tracker.memory";
+        public ITrackerTemplateContributor Create(ITrackerInstance instance) => contributor;
+    }
+
+    private sealed class MemoryContributor : ITrackerTemplateContributor
+    {
+        public string PluginId => "tracker.memory";
+        public string InstanceId => "memory.default";
+        public int CurrentSchemaVersion => 1;
+        public object CreateDefaultData() => new object();
+        public ViewModelBase CreateEditor(object? data, TemplateEditorContext context) => new();
+        public object ExtractData(ViewModelBase editor) => new object();
+        public string Serialize(object data) => "{}";
+        public object? Deserialize(string payloadJson, int schemaVersion)
+            => payloadJson == "not-json" ? null : new object();
+        public void ApplyTo(object data, ITrackerEditorExtension target) { }
+    }
+
+    private sealed class MemoryInstance : ITrackerInstance
+    {
+        public string PluginId => "tracker.memory";
+        public string InstanceId => "memory.default";
+        public string DisplayName => "Memory";
+        public string Icon => "memory";
+        public bool IsConfigured => true;
+        public IDictionary<int, object?>? LoadBindingsByDate(string date) => null;
+    }
+}

@@ -25,7 +25,7 @@ public sealed class RedMineMigrationTests
         Assert.IsTrue(db.ExecRaw("INSERT INTO work_items(id, create_date, comment, hours, priority) VALUES (1, '2026-01-01', 'test', 1, 0);"));
         var extension = new SQLiteRedMineDb(db, "redmine.default");
 
-        Assert.IsTrue(extension.Initialize());
+        Assert.IsTrue(extension.Initialize(new RedMinePlugin().GetMigrations().ToArray()));
         Assert.AreEqual(1, extension.GetRedMineProjects().Count);
         Assert.AreEqual(1, extension.GetRedMineIssues(null).Count);
         Assert.AreEqual(2u, extension.GetSchemaVersion());
@@ -37,12 +37,30 @@ public sealed class RedMineMigrationTests
         using var db = TestDb.Create();
         var extension = new SQLiteRedMineDb(db, "redmine.default");
 
-        Assert.IsTrue(extension.Initialize());
+        Assert.IsTrue(extension.Initialize(new RedMinePlugin().GetMigrations().ToArray()));
         Assert.IsTrue(extension.AddRedMineProject(7, "Project", "").Id == 7);
-        Assert.IsTrue(extension.Initialize());
+        Assert.IsTrue(extension.Initialize(new RedMinePlugin().GetMigrations().ToArray()));
 
         Assert.AreEqual(1, extension.GetRedMineProjects().Count);
         Assert.AreEqual(2u, extension.GetSchemaVersion());
+    }
+
+    [TestMethod]
+    public void SQLite_MultipleInstances_IsolateSameRemoteIds()
+    {
+        using var db = TestDb.Create();
+        var company = db.GetExtension<IRedMineDb>("redmine.company");
+        var personal = db.GetExtension<IRedMineDb>("redmine.personal");
+
+        Assert.IsNotNull(company);
+        Assert.IsNotNull(personal);
+        Assert.AreNotSame(company, personal);
+
+        company!.AddRedMineProject(7, "Company", "");
+        personal!.AddRedMineProject(7, "Personal", "");
+
+        Assert.AreEqual("Company", company.GetRedMineProjects().Single().Title);
+        Assert.AreEqual("Personal", personal.GetRedMineProjects().Single().Title);
     }
 
     [TestMethod]
@@ -72,7 +90,7 @@ public sealed class RedMineMigrationTests
 
         var extension = new PgRedMineDb(db, "redmine.default");
 
-        Assert.IsTrue(extension.Initialize());
+        Assert.IsTrue(extension.Initialize(new RedMinePlugin().GetMigrations().ToArray()));
         Assert.AreEqual(1, extension.GetRedMineProjects().Count);
         Assert.AreEqual(2u, extension.GetSchemaVersion());
     }

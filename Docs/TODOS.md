@@ -40,9 +40,12 @@
 - [ ] 定义通用实例配置存储接口，返回所有已启用插件实例
 - [x] 将 `App.RegisterTrackerInstances()` 改为遍历插件和配置实例
 - [ ] 将实例创建、数据库初始化、迁移和 UI 注册纳入统一生命周期
+- [x] 创建实例时按 `InstanceId` 获取对应数据库扩展，禁止所有实例共享默认扩展
+- [x] 让数据库扩展工厂接收插件迁移链并统一使用 `PluginMigrationRunner`
+- [ ] 移除 Redmine provider 的无参数迁移兼容入口
 - [ ] 明确实例状态：未配置、已启用、已禁用、迁移失败、连接失败
 - [ ] 迁移失败时只禁用当前插件/实例，不影响核心日记
-- [ ] 将 `SupportsMultipleInstances` 接入实际配置、导航和编辑器流程
+- [x] 将 `SupportsMultipleInstances` 接入实际配置、导航和编辑器流程
 
 验收：新增一个测试 tracker 后，主程序无需增加 tracker 专用分支即可创建和显示其实例。
 
@@ -67,17 +70,21 @@
 - [x] 迁移旧 `DefaultActivity`/`DefaultIssue` 字段
 - [x] 插件缺失时保留未知 payload
 - [x] 支持同一 tracker 多实例模板编辑区
-- [ ] payload schema 迁移失败时保留原始 JSON
+- [x] 新建模板时为已启用 tracker 创建默认 contributor 编辑区
+- [x] 旧 Redmine 字段迁移只检查对应扩展，不能被其他 tracker 扩展阻断
+- [x] payload 反序列化或 schema 迁移失败时保留原始 JSON，禁止默认值覆盖
+- [ ] contributor 实际使用 `SchemaVersion` 执行 payload 迁移
 - [ ] 增加模板创建、编辑、应用和插件缺失测试
 
 验收：卸载 tracker 后模板核心字段仍可用，重新安装后原扩展数据可恢复。
 
 ## 阶段 4：移除 Redmine 核心耦合
 
-- [ ] 将 `IRedMineDb` 和 Redmine 数据模型收敛到 Redmine 插件边界
+- [x] 将 `IRedMineDb` 和 Redmine 数据模型收敛到 Redmine 插件边界
 - [ ] 移除 `Diary.App` 对 `RedMineConfigurationStore` 等具体类型的直接依赖
-- [ ] 将数据库扩展扫描从 `Diary.RedMine.*.dll` 改为通用插件能力发现
-- [ ] 核心 UI 不引用 Redmine ViewModel、配置或远程模型
+- [x] 移除启动时对默认 `IRedMineUiData` 的预初始化，统一由实例生命周期创建
+- [x] 将数据库扩展扫描从 `Diary.RedMine.*.dll` 改为通用插件能力发现
+- [x] 核心 UI 不引用 Redmine ViewModel、配置或远程模型
 - [ ] 插件缺失时核心数据库、编辑器、模板和主窗口均可运行
 
 验收：移除 Redmine 程序集后，核心日记可以完整启动和使用。
@@ -98,7 +105,8 @@
 - [ ] 插件缺失、版本不兼容、依赖缺失和能力缺失测试
 - [ ] SQLite/PostgreSQL 插件迁移幂等测试
 - [ ] 错误 schema 版本号但缺少列的恢复测试
-- [ ] 多实例数据隔离测试
+- [x] 多实例数据隔离测试
+- [ ] 多实例数据库扩展身份与实例注册身份一致性测试
 - [ ] 多 tracker 本地事务和远程失败测试
 - [ ] 模板未知 payload 保留测试
 - [ ] 外部 Redmine API 测试与本地契约测试分离

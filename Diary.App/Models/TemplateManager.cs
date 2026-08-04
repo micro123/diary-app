@@ -2,7 +2,6 @@ using System.Text.Json;
 using Diary.Core.Configure;
 using Diary.Core.Data.App;
 using Diary.Core.Utils;
-using Diary.RedMine;
 using Diary.Utils;
 
 namespace Diary.App.Models;
@@ -10,6 +9,8 @@ namespace Diary.App.Models;
 [StorageFile("templates.json")]
 public class TemplateManager : SingletonBase<TemplateManager>
 {
+    private const string LegacyRedMinePluginId = "tracker.redmine";
+    private const string LegacyRedMineInstanceId = "redmine.default";
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
     private TemplateManager()
@@ -29,7 +30,9 @@ public class TemplateManager : SingletonBase<TemplateManager>
     {
         foreach (var t in Templates)
         {
-            if (t.Extensions is { Count: > 0 })
+            if (t.Extensions.Any(x =>
+                    x.PluginId == LegacyRedMinePluginId
+                    && x.InstanceId == LegacyRedMineInstanceId))
                 continue;
             if (t.DefaultActivity <= 0 && t.DefaultIssue <= 0)
                 continue;
@@ -39,8 +42,8 @@ public class TemplateManager : SingletonBase<TemplateManager>
             var list = (t.Extensions as List<TemplateExtensionData>) ?? new List<TemplateExtensionData>(t.Extensions);
             list.Add(new TemplateExtensionData
             {
-                PluginId = RedMinePluginConstants.PluginId,
-                InstanceId = RedMinePluginConstants.DefaultInstanceId,
+                PluginId = LegacyRedMinePluginId,
+                InstanceId = LegacyRedMineInstanceId,
                 SchemaVersion = 1,
                 PayloadJson = payload,
             });

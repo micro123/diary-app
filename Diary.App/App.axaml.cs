@@ -25,8 +25,6 @@ using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
 using Diary.PluginBase;
 using Diary.PluginUI;
-using Diary.RedMine;
-using Diary.RedMine.UI;
 using Diary.Survey;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
@@ -115,7 +113,6 @@ namespace Diary.App
             }
 
             Services.GetRequiredService<DbShareData>().InitLoad();
-            Services.GetService<IRedMineUiData>()?.InitLoad();
             RegisterTrackerInstances();
             DatabaseOk = true;
 

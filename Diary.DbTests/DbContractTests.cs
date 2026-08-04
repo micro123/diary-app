@@ -14,6 +14,9 @@ public abstract class DbContractTests
 {
     protected abstract DbInterfaceBase CreateDb();
 
+    protected static IRedMineDb GetRedMine(DbInterfaceBase db, string instanceId = "redmine.default")
+        => db.GetExtension<IRedMineDb>(instanceId, new RedMinePlugin().GetMigrations())!;
+
     // ---------- WorkTag ----------
 
     [TestMethod]

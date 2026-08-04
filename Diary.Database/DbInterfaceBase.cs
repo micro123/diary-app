@@ -1,6 +1,7 @@
 using System.Data.Common;
 using Diary.Core.Data.Base;
 using Diary.Core.Data.Statistics;
+using Diary.PluginBase;
 
 namespace Diary.Database;
 
@@ -103,25 +104,30 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
     private readonly Dictionary<(Type Type, string InstanceId), object?> _extensions = new();
 
     /// <summary>获取 provider 提供的可选数据库扩展；核心库不引用具体 tracker 类型。</summary>
-    public T? GetExtension<T>(string instanceId = "redmine.default") where T : class
+    public T? GetExtension<T>(
+        string instanceId = "redmine.default",
+        IEnumerable<IPluginMigration>? migrations = null) where T : class
     {
         var type = typeof(T);
         var key = (type, instanceId);
         if (!_extensions.TryGetValue(key, out var extension))
         {
-            extension = CreateExtension(type, instanceId);
+            extension = CreateExtension(type, instanceId, migrations?.ToArray() ?? Array.Empty<IPluginMigration>());
             _extensions[key] = extension;
         }
 
         return extension as T;
     }
 
-    protected virtual object? CreateExtension(Type extensionType, string instanceId)
+    protected virtual object? CreateExtension(
+        Type extensionType,
+        string instanceId,
+        IReadOnlyList<IPluginMigration> migrations)
     {
         foreach (var factory in DbExtensionFactoryLoader.Factories)
         {
             if (factory.Supports(extensionType, ProviderName))
-                return factory.Create(this, instanceId);
+                return factory.Create(this, instanceId, migrations);
         }
 
         return null;
