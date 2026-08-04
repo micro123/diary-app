@@ -146,7 +146,6 @@ namespace Diary.App
             // mask add before
             services.AddSingleton(Logging.Logger);
             services.AddSingleton<BaseApp>(this);
-            var redMinePlugin = new RedMinePlugin();
             var compatibility = new PluginCompatibilityContext(
                 1,
                 1,
@@ -157,9 +156,15 @@ namespace Diary.App
                     PluginCapabilities.ForeignKeys,
                     PluginCapabilities.MultipleStatementExecution,
                 });
-            var pluginResult = PluginHost.Register(redMinePlugin, compatibility, services);
-            if (pluginResult.State == PluginState.Blocked)
-                Logger.LogError("RedMine plugin blocked: {Error}", pluginResult.Error);
+            var plugins = TypeLoader.GetImplementations<ITrackerPlugin>(
+                FsTools.GetBinaryDirectory(), "Diary.RedMine.dll");
+            foreach (var plugin in plugins)
+            {
+                var result = PluginHost.Register(plugin, compatibility, services);
+                Logger.LogInformation("Plugin {PluginId}: {State}", plugin.Manifest.Id, result.State);
+                if (result.State == PluginState.Blocked)
+                    Logger.LogError("Plugin {PluginId} blocked: {Error}", plugin.Manifest.Id, result.Error);
+            }
             services.AddTypesFromAssembly(Assembly.GetExecutingAssembly());
             services.AddTypesFromAssembly(typeof(ViewLocator).Assembly);
 
