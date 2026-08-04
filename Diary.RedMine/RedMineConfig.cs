@@ -1,6 +1,6 @@
 using Diary.Core.Configure;
 
-namespace Diary.Core.Data.AppConfig;
+namespace Diary.RedMine;
 
 public class RedMineConfig
 {
@@ -15,10 +15,10 @@ public class RedMineConfig
     [ConfigureText("代理服务器地址", helpTip: "代理服务器，通常为 http://ip:port/ 格式")]
     public string ProxyServer { get; set; } = "";
 
-    // helper for check config valid
     public bool Valid()
     {
-        return !string.IsNullOrEmpty(RedMineServerUrl) && !string.IsNullOrEmpty(RedMineApiKey) &&
-               (!EnableProxy || !string.IsNullOrEmpty(ProxyServer));
+        return !string.IsNullOrEmpty(RedMineServerUrl)
+            && !string.IsNullOrEmpty(RedMineApiKey)
+            && (!EnableProxy || !string.IsNullOrEmpty(ProxyServer));
     }
 }

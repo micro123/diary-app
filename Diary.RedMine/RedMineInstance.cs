@@ -1,4 +1,3 @@
-using Diary.Core.Data.AppConfig;
 using Diary.RedMine.Models;
 using Diary.PluginBase;
 

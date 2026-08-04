@@ -1,6 +1,7 @@
 using Diary.Core.Data.AppConfig;
 using Diary.Core.Configure;
 using Diary.Core.Utils;
+using Newtonsoft.Json.Linq;
 
 namespace Diary.RedMine;
 
@@ -20,10 +21,15 @@ public static class RedMineConfigurationStore
         var configuration = new RedMinePluginConfig();
         EasySaveLoad.Load(configuration);
 
-        if (!configuration.Valid() && AllConfig.Instance.RedMineSettings.Valid())
+        if (!configuration.Valid()
+            && AllConfig.Instance.ExtensionData.TryGetValue("RedMineSettings", out JToken? legacyToken))
         {
-            Copy(AllConfig.Instance.RedMineSettings, configuration);
-            EasySaveLoad.Save(configuration);
+            var legacy = legacyToken.ToObject<RedMineConfig>();
+            if (legacy is not null && legacy.Valid())
+            {
+                Copy(legacy, configuration);
+                EasySaveLoad.Save(configuration);
+            }
         }
 
         return configuration;
