@@ -74,7 +74,7 @@
 - [x] 旧 Redmine 字段迁移只检查对应扩展，不能被其他 tracker 扩展阻断
 - [x] payload 反序列化或 schema 迁移失败时保留原始 JSON，禁止默认值覆盖
 - [x] contributor 实际使用 `SchemaVersion` 执行 payload 迁移
-- [ ] 增加模板创建、编辑、应用和插件缺失测试
+- [x] 增加模板创建、编辑、应用和插件缺失测试
 
 验收：卸载 tracker 后模板核心字段仍可用，重新安装后原扩展数据可恢复。
 

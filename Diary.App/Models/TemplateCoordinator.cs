@@ -117,8 +117,12 @@ public class TemplateCoordinator
         return result;
     }
 
-    /// <summary>应用模板扩展到工作项编辑器的各 tracker 扩展（按 InstanceId 匹配）。</summary>
+    /// <summary>应用模板扩展到工作项编辑器的各 tracker 扩展（按实例身份匹配）。</summary>
     public void Apply(Template template, ViewModels.WorkEditorViewModel work)
+        => Apply(template, work.Extensions);
+
+    /// <summary>可独立测试的模板应用入口。</summary>
+    public void Apply(Template template, IEnumerable<ITrackerEditorExtension> extensions)
     {
         var contributors = Contributors.ToList();
         foreach (var entry in template.Extensions)
@@ -131,7 +135,7 @@ public class TemplateCoordinator
             if (data is null)
                 continue;
             var key = new TrackerKey(entry.PluginId, entry.InstanceId);
-            var ext = work.Extensions.FirstOrDefault(e => e.Key == key);
+            var ext = extensions.FirstOrDefault(e => e.Key == key);
             if (ext is null)
                 continue;
             contributor.ApplyTo(data, ext);

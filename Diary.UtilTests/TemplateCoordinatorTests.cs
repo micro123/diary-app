@@ -80,6 +80,57 @@ public sealed class TemplateCoordinatorTests
         Assert.AreEqual("current", saved[0].PayloadJson);
     }
 
+    [TestMethod]
+    public void UnknownContributorPayload_IsPreserved()
+    {
+        var coordinator = CreateCoordinator(new MemoryContributor());
+        var template = new Template
+        {
+            Name = "unknown",
+            Extensions = new[]
+            {
+                new TemplateExtensionData
+                {
+                    PluginId = "tracker.other",
+                    InstanceId = "other.default",
+                    SchemaVersion = 4,
+                    PayloadJson = "{\"value\":42}",
+                },
+            },
+        };
+
+        var saved = coordinator.SaveEditors(coordinator.LoadEditors(template), template);
+
+        var unknown = saved.Single(x => x.PluginId == "tracker.other");
+        Assert.AreEqual(2, saved.Count);
+        Assert.AreEqual("{\"value\":42}", unknown.PayloadJson);
+    }
+
+    [TestMethod]
+    public void Apply_DelegatesPayloadToMatchingExtension()
+    {
+        var coordinator = CreateCoordinator(new MemoryContributor());
+        var template = new Template
+        {
+            Name = "apply",
+            Extensions = new[]
+            {
+                new TemplateExtensionData
+                {
+                    PluginId = "tracker.memory",
+                    InstanceId = "memory.default",
+                    SchemaVersion = 1,
+                    PayloadJson = "current",
+                },
+            },
+        };
+        var extension = new MemoryExtension();
+
+        coordinator.Apply(template, new[] { extension });
+
+        Assert.IsNotNull(extension.AppliedData);
+    }
+
     private static TemplateCoordinator CreateCoordinator(ITrackerTemplateContributor contributor)
     {
         var registry = new TrackerTemplateContributorRegistry();
@@ -107,7 +158,23 @@ public sealed class TemplateCoordinatorTests
         public string Serialize(object data) => "current";
         public object? Deserialize(string payloadJson, int schemaVersion)
             => payloadJson == "not-json" || schemaVersion > CurrentSchemaVersion ? null : new object();
-        public void ApplyTo(object data, ITrackerEditorExtension target) { }
+        public void ApplyTo(object data, ITrackerEditorExtension target) => target.ApplyTemplateData(data);
+    }
+
+    private sealed class MemoryExtension : ViewModelBase, ITrackerEditorExtension
+    {
+        public TrackerKey Key => new("tracker.memory", "memory.default");
+        public string InstanceId => "memory.default";
+        ViewModelBase ITrackerEditorExtension.View => this;
+        public object? AppliedData { get; private set; }
+        public bool IsLocked => false;
+        public bool CanDelete => true;
+        public void Load(Diary.Core.Data.Base.WorkItem? item, object? binding = null) { }
+        public bool Save(Diary.Core.Data.Base.WorkItem item) => true;
+        public void CloneTo(ITrackerEditorExtension? target) { }
+        public Task<TrackerOperationResult> UploadAsync(Diary.Core.Data.Base.WorkItem item)
+            => Task.FromResult(new TrackerOperationResult(true, null));
+        public void ApplyTemplateData(object data) => AppliedData = data;
     }
 
     private sealed class MemoryInstance : ITrackerInstance
