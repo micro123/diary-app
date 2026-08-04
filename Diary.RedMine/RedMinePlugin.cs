@@ -1,4 +1,5 @@
 using Diary.PluginBase;
+using Diary.Database;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Diary.RedMine;
@@ -38,5 +39,24 @@ public sealed class RedMinePlugin : ITrackerPlugin
         }
 
         return new RedMineInstance(instanceConfiguration);
+    }
+
+    public IEnumerable<PluginInstanceRegistration> GetInstanceRegistrations(object hostContext)
+    {
+        if (hostContext is not DbInterfaceBase db)
+            return Array.Empty<PluginInstanceRegistration>();
+        var database = db.GetExtension<IRedMineDb>();
+        if (database is null)
+            return Array.Empty<PluginInstanceRegistration>();
+
+        return RedMineConfigurationStore.Current.Instances
+            .Where(x => x.Enabled)
+            .Select(settings => new PluginInstanceRegistration(
+                settings.InstanceId,
+                new RedMineInstanceConfiguration(
+                    settings.InstanceId,
+                    settings.DisplayName,
+                    settings,
+                    database)));
     }
 }

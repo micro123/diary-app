@@ -3,15 +3,13 @@ using Microsoft.Extensions.Logging;
 
 namespace Diary.App;
 
-public sealed record TrackerInstanceRegistration(string InstanceId, object Configuration);
-
 public sealed class TrackerInstanceCoordinator(
     PluginInstanceRegistry registry,
     ILogger<TrackerInstanceCoordinator> logger)
 {
     public void Register(
         ITrackerPlugin plugin,
-        IEnumerable<TrackerInstanceRegistration> registrations)
+        IEnumerable<PluginInstanceRegistration> registrations)
     {
         foreach (var registration in registrations)
         {

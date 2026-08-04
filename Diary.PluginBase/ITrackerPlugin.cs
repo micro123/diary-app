@@ -22,6 +22,9 @@ public interface ITrackerPlugin
 
     /// <summary>按实例 ID + 配置创建一个 tracker 实例。</summary>
     ITrackerInstance CreateInstance(string instanceId, object configuration);
+
+    /// <summary>从宿主上下文读取插件配置并生成启用的实例注册项。</summary>
+    IEnumerable<PluginInstanceRegistration> GetInstanceRegistrations(object hostContext);
 }
 
 /// <summary>

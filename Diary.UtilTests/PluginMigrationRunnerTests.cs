@@ -158,5 +158,7 @@ public class PluginMigrationRunnerTests
         public IEnumerable<IPluginMigration> GetMigrations()
             => new[] { new TestMigration(1, 2, new List<uint>(), shouldThrow) };
         public ITrackerInstance CreateInstance(string instanceId, object configuration) => throw new NotSupportedException();
+        public IEnumerable<PluginInstanceRegistration> GetInstanceRegistrations(object hostContext)
+            => Array.Empty<PluginInstanceRegistration>();
     }
 }

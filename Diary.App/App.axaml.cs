@@ -127,27 +127,25 @@ namespace Diary.App
 
         private void RegisterTrackerInstances()
         {
-            var plugin = _plugins.FirstOrDefault(x => x.Manifest.Id == RedMinePluginConstants.PluginId);
-            var database = UseDb?.GetExtension<IRedMineDb>();
-            if (plugin is null || database is null)
+            if (UseDb is null)
             {
-                Logger.LogWarning("RedMine tracker instance registration skipped: plugin or database extension unavailable");
+                Logger.LogWarning("Tracker instance registration skipped: database unavailable");
                 return;
             }
-            Logger.LogInformation(
-                "Tracker database extension ready: {PluginId}, schema {SchemaVersion}",
-                plugin.Manifest.Id, database.SchemaVersion);
 
-            var registrations = RedMineConfigurationStore.Current.Instances
-                .Where(x => x.Enabled)
-                .Select(settings => new TrackerInstanceRegistration(
-                    settings.InstanceId,
-                    new RedMineInstanceConfiguration(
-                        settings.InstanceId,
-                        settings.DisplayName,
-                        settings,
-                        database)));
-            Services.GetRequiredService<TrackerInstanceCoordinator>().Register(plugin, registrations);
+            var coordinator = Services.GetRequiredService<TrackerInstanceCoordinator>();
+            foreach (var plugin in _plugins)
+            {
+                try
+                {
+                    coordinator.Register(plugin, plugin.GetInstanceRegistrations(UseDb));
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "Plugin {PluginId} instance registration failed", plugin.Manifest.Id);
+                }
+            }
+
             Services.GetRequiredService<TrackerUiContributionRegistry>().Register(
                 Services.GetServices<ITrackerUiContributionFactory>(),
                 Services.GetRequiredService<PluginInstanceRegistry>().Instances);

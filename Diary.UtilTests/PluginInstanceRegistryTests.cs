@@ -45,6 +45,8 @@ public sealed class PluginInstanceRegistryTests
         public void RegisterServices(IServiceCollection services) { }
         public object CreateConfiguration() => new object();
         public IEnumerable<IPluginMigration> GetMigrations() => Array.Empty<IPluginMigration>();
+        public IEnumerable<PluginInstanceRegistration> GetInstanceRegistrations(object hostContext)
+            => Array.Empty<PluginInstanceRegistration>();
         public ITrackerInstance CreateInstance(string instanceId, object configuration)
             => new MemoryTrackerInstance(instanceId);
     }
