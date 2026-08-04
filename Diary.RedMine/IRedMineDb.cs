@@ -8,6 +8,8 @@ namespace Diary.RedMine;
 /// </summary>
 public interface IRedMineDb
 {
+    uint SchemaVersion { get; }
+
     RedMineActivity AddRedMineActivity(int id, string title);
     RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project, bool closed = false);
     void UpdateRedMineIssueStatus(int id, bool closed);
@@ -24,4 +26,5 @@ public interface IRedMineDb
     WorkTimeEntry? CreateWorkTimeEntry(int work, int activity, int issus);
     bool UpdateWorkTimeEntry(WorkTimeEntry timeEntry);
     bool ClearData();
+    uint GetSchemaVersion();
 }

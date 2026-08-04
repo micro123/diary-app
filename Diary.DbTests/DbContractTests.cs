@@ -491,6 +491,14 @@ public abstract class DbContractTests
         Assert.AreEqual(0, db.GetExtension<IRedMineDb>()!.GetRedMineActivities().Count);
     }
 
+    [TestMethod]
+    public void RedMineSchemaVersion_IsRecorded()
+    {
+        using var db = CreateDb();
+        var redmine = db.GetExtension<IRedMineDb>()!;
+        Assert.AreEqual(redmine.SchemaVersion, redmine.GetSchemaVersion());
+    }
+
     /// <summary>helper 边界：无条目时 WorkItemGetTimeEntry 返回 null。</summary>
     [TestMethod]
     public void WorkItemGetTimeEntry_NoEntry_ReturnsNull()

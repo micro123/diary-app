@@ -14,7 +14,10 @@ namespace Diary.Db.PostgreSQL;
 /// </summary>
 internal sealed class PgRedMineDb(IDbExtensionHost host) : IRedMineDb
 {
+    private const uint CurrentSchemaVersion = 1;
     private readonly IDbExtensionHost _host = host;
+
+    public uint SchemaVersion => CurrentSchemaVersion;
 
     internal bool Initialize()
     {
@@ -42,6 +45,13 @@ internal sealed class PgRedMineDb(IDbExtensionHost host) : IRedMineDb
                                act_id INTEGER REFERENCES redmine_activities (id) ON DELETE CASCADE,
                                issue_id INTEGER REFERENCES redmine_issues (id) ON DELETE CASCADE
                            );
+                           CREATE TABLE IF NOT EXISTS plugin_data_versions(
+                               plugin_id CHAR(128) PRIMARY KEY,
+                               schema_version INTEGER NOT NULL
+                           );
+                           INSERT INTO plugin_data_versions(plugin_id, schema_version)
+                           VALUES ('tracker.redmine', 1)
+                           ON CONFLICT(plugin_id) DO UPDATE SET schema_version=1;
                            """;
         try
         {
@@ -78,6 +88,14 @@ internal sealed class PgRedMineDb(IDbExtensionHost host) : IRedMineDb
         {
             return false;
         }
+    }
+
+    public uint GetSchemaVersion()
+    {
+        var value = _host.ExecuteScalar(
+            "SELECT schema_version FROM plugin_data_versions WHERE plugin_id=$1;",
+            ("$1", "tracker.redmine"));
+        return value is null ? 0 : Convert.ToUInt32(value);
     }
 
     // $1=id $2=title $3=assign $4=project $5=close

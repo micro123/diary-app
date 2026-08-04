@@ -14,7 +14,10 @@ namespace Diary.Db.SQLite;
 /// </summary>
 internal sealed class SQLiteRedMineDb(IDbExtensionHost host) : IRedMineDb
 {
+    private const uint CurrentSchemaVersion = 1;
     private readonly IDbExtensionHost _host = host;
+
+    public uint SchemaVersion => CurrentSchemaVersion;
 
     internal bool Initialize()
     {
@@ -43,6 +46,13 @@ internal sealed class SQLiteRedMineDb(IDbExtensionHost host) : IRedMineDb
                                issue_id INTEGER REFERENCES redmine_issues(id) ON DELETE CASCADE
                            );
                            CREATE INDEX IF NOT EXISTS idx_redmine_issues_project ON redmine_issues(project_id);
+                           CREATE TABLE IF NOT EXISTS plugin_data_versions(
+                               plugin_id CHAR(128) PRIMARY KEY,
+                               schema_version INTEGER NOT NULL
+                           );
+                           INSERT INTO plugin_data_versions(plugin_id, schema_version)
+                           VALUES ('tracker.redmine', 1)
+                           ON CONFLICT(plugin_id) DO UPDATE SET schema_version=1;
                            """;
         try
         {
@@ -77,6 +87,14 @@ internal sealed class SQLiteRedMineDb(IDbExtensionHost host) : IRedMineDb
         {
             return false;
         }
+    }
+
+    public uint GetSchemaVersion()
+    {
+        var value = _host.ExecuteScalar(
+            "SELECT schema_version FROM plugin_data_versions WHERE plugin_id=$pluginId;",
+            ("$pluginId", "tracker.redmine"));
+        return value is null ? 0 : Convert.ToUInt32(value);
     }
 
     public RedMineIssue AddRedMineIssue(int id, string title, string assignedTo, int project,
