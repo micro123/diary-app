@@ -51,7 +51,7 @@ public class RedMineTrackerIntegration : ITrackerInstance, ITrackerUiContributio
     // ---- ITrackerUiContribution ----
     public ITrackerInstance Instance => this;
 
-    public ViewModelBase? CreateSettingsPage(object configuration) => null; // 配置迁移是后续增量
+    public ViewModelBase? CreateSettingsPage(object configuration) => null;
     public ViewModelBase? CreateManagementPage(string instanceId) => _services.GetService<RedMineManageViewModel>();
     public ITrackerEditorExtension? CreateEditorExtension(string instanceId) => new RedMineEditorRegionViewModel(_shareData, _api);
 }
