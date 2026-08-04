@@ -35,18 +35,22 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
     public string InstanceId => RedMinePluginConstants.DefaultInstanceId;
     ViewModelBase ITrackerEditorExtension.View => this;
 
-    private static IRedMineDb? RedMineDb => BaseApp.Instance.UseDb?.GetExtension<IRedMineDb>();
+    private readonly IRedMineDb _database;
 
-    public RedMineEditorRegionViewModel(IRedMineUiData data, IRedMineApi api)
+    public RedMineEditorRegionViewModel(
+        IRedMineUiData data,
+        IRedMineApi api,
+        IRedMineDb database)
     {
         _data = data;
         _api = api;
+        _database = database;
     }
 
     public void Load(WorkItem? item, object? binding = null)
     {
         TimeEntry = item is { Id: > 0 }
-            ? binding as WorkTimeEntry ?? RedMineDb?.WorkItemGetTimeEntry(item)
+            ? binding as WorkTimeEntry ?? _database.WorkItemGetTimeEntry(item)
             : null;
         SyncFromEntry();
     }
@@ -55,7 +59,7 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
     {
         if (item.Id <= 0 || IssueIndex < 0 || ActivityIndex < 0)
             return true;
-        TimeEntry = RedMineDb?.CreateWorkTimeEntry(
+        TimeEntry = _database.CreateWorkTimeEntry(
             item.Id, RedMineActivities[ActivityIndex].Id, RedMineIssues[IssueIndex].Id);
         return TimeEntry is not null;
     }
@@ -86,7 +90,7 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
                 entryId = entry!.Id;
             }
             TimeEntry.EntryId = entryId;
-            RedMineDb?.UpdateWorkTimeEntry(TimeEntry);
+            _database.UpdateWorkTimeEntry(TimeEntry);
         });
 
         Uploaded = entryId > 0;

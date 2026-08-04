@@ -11,6 +11,8 @@ public sealed record RedMineInstanceConfiguration(
 
 public sealed class RedMineInstance(RedMineInstanceConfiguration configuration) : ITrackerInstance
 {
+    public RedMineConfig Configuration => configuration.Configuration;
+    public IRedMineDb Database => configuration.Database;
     public string PluginId => RedMinePluginConstants.PluginId;
     public string InstanceId => configuration.InstanceId;
     public string DisplayName => configuration.DisplayName;

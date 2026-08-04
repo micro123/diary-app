@@ -53,3 +53,9 @@ public interface ITrackerUiContribution
     ViewModelBase? CreateManagementPage(string instanceId);
     ITrackerEditorExtension? CreateEditorExtension(string instanceId);
 }
+
+public interface ITrackerUiContributionFactory
+{
+    string PluginId { get; }
+    ITrackerUiContribution Create(ITrackerInstance instance);
+}

@@ -279,7 +279,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
                 var notesById = db.GetWorkNotesByDate(CurrentDateString);
                 var tagsById = db.GetWorkTagsByDate(CurrentDateString);
                 var trackers = App.Instance.Services
-                    .GetService<IEnumerable<ITrackerUiContribution>>() ?? Enumerable.Empty<ITrackerUiContribution>();
+                    .GetRequiredService<TrackerUiContributionRegistry>().Contributions;
                 var bindingsByTracker = new Dictionary<TrackerKey, IDictionary<int, object?>?>();
                 foreach (var t in trackers)
                 {

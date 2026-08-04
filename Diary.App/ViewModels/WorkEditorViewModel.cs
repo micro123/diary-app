@@ -77,8 +77,8 @@ public partial class WorkEditorViewModel : ViewModelBase
         Priority = WorkPriorities.P0;
 
         // 解析全部已注册 tracker，为每个创建一个编辑器扩展。
-        var trackers = App.Instance.Services.GetService<IEnumerable<ITrackerUiContribution>>()
-                       ?? Enumerable.Empty<ITrackerUiContribution>();
+        var trackers = App.Instance.Services
+            .GetRequiredService<TrackerUiContributionRegistry>().Contributions;
         foreach (var t in trackers)
         {
             var ext = t.CreateEditorExtension(t.Instance.InstanceId);

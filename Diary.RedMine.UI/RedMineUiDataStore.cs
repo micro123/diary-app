@@ -14,13 +14,20 @@ namespace Diary.RedMine.UI;
 public sealed class RedMineUiDataStore : IRedMineUiData
 {
     private readonly ILogger _logger;
+    private readonly string _instanceId;
+    private readonly IRedMineDb? _database;
     public ObservableCollection<RedMineIssueDisplay> RedMineIssues { get; } = new();
     public ObservableCollection<RedMineIssueDisplay> RedMineIssuesOpen { get; } = new();
     public ObservableCollection<RedMineActivity> RedMineActivities { get; } = new();
 
-    public RedMineUiDataStore(ILogger logger)
+    public RedMineUiDataStore(
+        ILogger logger,
+        string? instanceId = null,
+        IRedMineDb? database = null)
     {
         _logger = logger;
+        _instanceId = instanceId ?? RedMinePluginConstants.DefaultInstanceId;
+        _database = database;
         WeakReferenceMessenger.Default.Register<DbChangedEvent>(this, (_, message) =>
         {
             if ((message.Value & RedMineUiEvents.IssueChanged) != 0) LoadIssues();
@@ -36,7 +43,7 @@ public sealed class RedMineUiDataStore : IRedMineUiData
 
     private void LoadActivities()
     {
-        var db = BaseApp.Instance.UseDb?.GetExtension<IRedMineDb>();
+        var db = _database ?? BaseApp.Instance.UseDb?.GetExtension<IRedMineDb>(_instanceId);
         if (db is null) return;
         RedMineActivities.Clear();
         foreach (var activity in db.GetRedMineActivities()) RedMineActivities.Add(activity);
@@ -44,7 +51,7 @@ public sealed class RedMineUiDataStore : IRedMineUiData
 
     private void LoadIssues()
     {
-        var db = BaseApp.Instance.UseDb?.GetExtension<IRedMineDb>();
+        var db = _database ?? BaseApp.Instance.UseDb?.GetExtension<IRedMineDb>(_instanceId);
         if (db is null) return;
         var issues = db.GetRedMineIssues(null);
         RedMineIssues.Clear();

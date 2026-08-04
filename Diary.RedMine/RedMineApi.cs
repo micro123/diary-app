@@ -14,9 +14,9 @@ namespace Diary.RedMine;
 /// </summary>
 public class RedMineApi : IRedMineApi
 {
-    private readonly RedMinePluginConfig _configuration;
+    private readonly RedMineConfig _configuration;
 
-    public RedMineApi(RedMinePluginConfig? configuration = null)
+    public RedMineApi(RedMineConfig? configuration = null)
     {
         _configuration = configuration ?? RedMineConfigurationStore.Current;
     }

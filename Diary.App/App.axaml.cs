@@ -24,6 +24,7 @@ using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
 using Diary.PluginBase;
+using Diary.PluginUI;
 using Diary.RedMine;
 using Diary.RedMine.UI;
 using Diary.Survey;
@@ -147,6 +148,9 @@ namespace Diary.App
                         settings,
                         database)));
             Services.GetRequiredService<TrackerInstanceCoordinator>().Register(plugin, registrations);
+            Services.GetRequiredService<TrackerUiContributionRegistry>().Register(
+                Services.GetServices<ITrackerUiContributionFactory>(),
+                Services.GetRequiredService<PluginInstanceRegistry>().Instances);
         }
 
         private void EnumerateDbProviders()
@@ -178,6 +182,7 @@ namespace Diary.App
             services.AddSingleton<BaseApp>(this);
             services.AddSingleton<PluginInstanceRegistry>();
             services.AddSingleton<TrackerInstanceCoordinator>();
+            services.AddSingleton<TrackerUiContributionRegistry>();
             services.AddSingleton<IWorkItemPersistenceCoordinator, WorkItemPersistenceCoordinator>();
             services.AddSingleton<ITrackerUploadCoordinator, TrackerUploadCoordinator>();
             var compatibility = new PluginCompatibilityContext(

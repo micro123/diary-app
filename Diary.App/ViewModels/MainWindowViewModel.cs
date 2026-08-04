@@ -63,7 +63,7 @@ public partial class MainWindowViewModel : ViewModelBase
         // 导航可扩展：[日记] + tracker 贡献页 + [统计/调查/设置]。
         // 手势按最终位置分配 Alt+1..；单 tracker（RedMine）下顺序/手势与原硬编码一致。
         var built = new List<NavigateInfo>();
-        var trackers = serviceProvider.GetService<IEnumerable<ITrackerUiContribution>>() ?? Enumerable.Empty<ITrackerUiContribution>();
+        var trackers = serviceProvider.GetRequiredService<TrackerUiContributionRegistry>().Contributions;
         int idx = 1;
         built.Add(new NavigateInfo(PageNames.DiaryEditor, "mdi-notebook",
             serviceProvider.GetService<DiaryEditorViewModel>(), $"Alt+{idx++}"));

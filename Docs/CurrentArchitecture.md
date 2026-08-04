@@ -224,7 +224,8 @@ Redmine UI 通过 `Diary.PluginUI` 的契约接入：
 
 - `SupportsMultipleInstances` 仍为 `false`，需要完成 manifest、配置、导航和编辑器的多实例 UI 上下文。
 - `App.RegisterTrackerInstances()` 仍硬编码 `tracker.redmine`，尚未由通用插件接口统一创建所有实例。
-- `App.ConfigureCheck()` 中 Redmine UI 数据初始化和实例注册顺序仍是过渡实现，后续应由插件生命周期统一编排。
+- `App.ConfigureCheck()` 中 Redmine UI 数据初始化和实例注册顺序仍是过渡实现，后续应由插件生命周期统一编排；UI 贡献已通过实例注册表创建。
+- Redmine 管理页内部的子 ViewModel 和模板贡献仍使用默认 DI 实例，尚未完全按实例隔离。
 - 数据库扩展扫描模式仍为 `Diary.RedMine.*.dll`，未来应改为通用插件数据库扩展发现机制。
 - Redmine 专用类型仍存在于 `Diary.Database` 的 `IRedMineDb` 扩展契约路径，目标是将其完全收敛到 Redmine 插件内部。
 - 插件配置持久化、配置迁移和诊断页面尚未形成完整通用协议。
