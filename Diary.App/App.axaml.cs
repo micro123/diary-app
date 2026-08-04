@@ -186,7 +186,7 @@ namespace Diary.App
                     PluginCapabilities.MultipleStatementExecution,
                 });
             var plugins = TypeLoader.GetImplementations<ITrackerPlugin>(
-                FsTools.GetBinaryDirectory(), "Diary.RedMine.dll");
+                FsTools.GetBinaryDirectory(), "Diary.*.dll");
             var enabledPlugin = false;
             foreach (var plugin in plugins)
             {
