@@ -104,6 +104,21 @@ public class PluginMigrationRunnerTests
     }
 
     [TestMethod]
+    public void Upgrade_ReturnsFalseWhenMigrationSourcesDuplicate()
+    {
+        var result = PluginMigrationRunner.Upgrade(
+            "tracker.test", 1, 3,
+            new IPluginMigration[]
+            {
+                new TestMigration(1, 2, new List<uint>()),
+                new TestMigration(1, 3, new List<uint>()),
+            },
+            new TestContext());
+
+        Assert.IsFalse(result);
+    }
+
+    [TestMethod]
     public void Upgrade_ReturnsFalseWhenMigrationThrows()
     {
         var result = PluginMigrationRunner.Upgrade(

@@ -42,7 +42,7 @@
 - [ ] 将实例创建、数据库初始化、迁移和 UI 注册纳入统一生命周期
 - [x] 创建实例时按 `InstanceId` 获取对应数据库扩展，禁止所有实例共享默认扩展
 - [x] 让数据库扩展工厂接收插件迁移链并统一使用 `PluginMigrationRunner`
-- [ ] 移除 Redmine provider 的无参数迁移兼容入口
+- [x] 移除 Redmine provider 的无参数迁移兼容入口
 - [ ] 明确实例状态：未配置、已启用、已禁用、迁移失败、连接失败
 - [ ] 迁移失败时只禁用当前插件/实例，不影响核心日记
 - [x] 将 `SupportsMultipleInstances` 接入实际配置、导航和编辑器流程

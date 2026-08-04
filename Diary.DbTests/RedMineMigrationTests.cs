@@ -49,8 +49,9 @@ public sealed class RedMineMigrationTests
     public void SQLite_MultipleInstances_IsolateSameRemoteIds()
     {
         using var db = TestDb.Create();
-        var company = db.GetExtension<IRedMineDb>("redmine.company");
-        var personal = db.GetExtension<IRedMineDb>("redmine.personal");
+        var migrations = new RedMinePlugin().GetMigrations().ToArray();
+        var company = db.GetExtension<IRedMineDb>("redmine.company", migrations);
+        var personal = db.GetExtension<IRedMineDb>("redmine.personal", migrations);
 
         Assert.IsNotNull(company);
         Assert.IsNotNull(personal);

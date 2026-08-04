@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Messaging;
 using Diary.Database;
 using Diary.GUIBase;
 using Diary.GUIBase.Events;
+using Diary.PluginBase;
 using Diary.RedMine;
 using Diary.RedMine.Models;
 using Diary.Utils;
@@ -13,6 +14,8 @@ namespace Diary.RedMine.UI;
 [DiAutoRegister(singleton: true, serviceType: typeof(IRedMineUiData))]
 public sealed class RedMineUiDataStore : IRedMineUiData
 {
+    private static readonly IReadOnlyList<IPluginMigration> RedMineMigrations =
+        new RedMinePlugin().GetMigrations().ToArray();
     private readonly ILogger _logger;
     private readonly string _instanceId;
     private readonly IRedMineDb? _database;
@@ -43,7 +46,7 @@ public sealed class RedMineUiDataStore : IRedMineUiData
 
     private void LoadActivities()
     {
-        var db = _database ?? BaseApp.Instance.UseDb?.GetExtension<IRedMineDb>(_instanceId);
+        var db = _database ?? BaseApp.Instance.UseDb?.GetExtension<IRedMineDb>(_instanceId, RedMineMigrations);
         if (db is null) return;
         RedMineActivities.Clear();
         foreach (var activity in db.GetRedMineActivities()) RedMineActivities.Add(activity);
@@ -51,7 +54,7 @@ public sealed class RedMineUiDataStore : IRedMineUiData
 
     private void LoadIssues()
     {
-        var db = _database ?? BaseApp.Instance.UseDb?.GetExtension<IRedMineDb>(_instanceId);
+        var db = _database ?? BaseApp.Instance.UseDb?.GetExtension<IRedMineDb>(_instanceId, RedMineMigrations);
         if (db is null) return;
         var issues = db.GetRedMineIssues(null);
         RedMineIssues.Clear();

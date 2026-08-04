@@ -22,9 +22,6 @@ public sealed class SQLiteRedMineDb(IDbExtensionHost host, string instanceId) : 
 
     public uint SchemaVersion => CurrentSchemaVersion;
 
-    public bool Initialize()
-        => Initialize(new RedMinePlugin().GetMigrations().ToArray());
-
     public bool Initialize(IReadOnlyList<IPluginMigration> migrations)
     {
         try

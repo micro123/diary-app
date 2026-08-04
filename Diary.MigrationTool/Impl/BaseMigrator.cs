@@ -1,6 +1,7 @@
 using System.Data;
 using Diary.Core.Data.Base;
 using Diary.Database;
+using Diary.PluginBase;
 using Diary.RedMine;
 using Diary.RedMine.Response;
 
@@ -13,6 +14,10 @@ internal abstract class BaseMigrator : IDisposable, IAsyncDisposable
     private readonly IDbConnection _connection;
     // RedMineApi 无状态，直接实例化（MigrationTool 不走 DI）。
     protected static readonly IRedMineApi Api = new RedMineApi();
+    private static readonly IReadOnlyList<IPluginMigration> RedMineMigrations =
+        new RedMinePlugin().GetMigrations().ToArray();
+    private IRedMineDb? RedMineDb => Db.GetExtension<IRedMineDb>(
+        RedMinePluginConstants.DefaultInstanceId, RedMineMigrations);
 
     protected BaseMigrator(DbInterfaceBase db, IDbConnection connection, Action<bool, double, string> processCallback)
     {
@@ -56,7 +61,7 @@ internal abstract class BaseMigrator : IDisposable, IAsyncDisposable
         while (reader.Read())
         {
             Ok(p, $"处理第{cnt++}条活动信息");
-            Db.GetExtension<IRedMineDb>()!.AddRedMineActivity(reader.GetInt32(0), reader.GetString(1));
+            RedMineDb!.AddRedMineActivity(reader.GetInt32(0), reader.GetString(1));
         }
 
         return true;
@@ -77,8 +82,8 @@ internal abstract class BaseMigrator : IDisposable, IAsyncDisposable
                 var project = info.Project;
                 if (Api.GetProject(out ProjectInfo? projectInfo, project.Id))
                 {
-                    Db.GetExtension<IRedMineDb>()!.AddRedMineProject(projectInfo.Id, projectInfo.Name, projectInfo.Description);
-                    Db.GetExtension<IRedMineDb>()!.AddRedMineIssue(issueId, info.Subject, info.AssignedTo.Name, projectInfo.Id, isClosed);
+                    RedMineDb!.AddRedMineProject(projectInfo.Id, projectInfo.Name, projectInfo.Description);
+                    RedMineDb!.AddRedMineIssue(issueId, info.Subject, info.AssignedTo.Name, projectInfo.Id, isClosed);
                 }
                 else
                 {
@@ -130,11 +135,11 @@ internal abstract class BaseMigrator : IDisposable, IAsyncDisposable
 
             if (actId != 0 && issueId != 0)
             {
-                var entry = Db.GetExtension<IRedMineDb>()!.CreateWorkTimeEntry(item.Id, actId, issueId);
+                var entry = RedMineDb!.CreateWorkTimeEntry(item.Id, actId, issueId);
                 if (entry != null && uploaded)
                 {
                     entry.EntryId = dummyId++;
-                    Db.GetExtension<IRedMineDb>()!.UpdateWorkTimeEntry(entry);
+                    RedMineDb!.UpdateWorkTimeEntry(entry);
                 }
             }
         }

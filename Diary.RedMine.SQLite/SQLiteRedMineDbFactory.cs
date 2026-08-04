@@ -15,9 +15,6 @@ public sealed class SQLiteRedMineDbFactory : IDbExtensionFactory
         IReadOnlyList<IPluginMigration> migrations)
     {
         var extension = new SQLiteRedMineDb(host, instanceId);
-        var effectiveMigrations = migrations.Count > 0
-            ? migrations
-            : new RedMinePlugin().GetMigrations().ToArray();
-        return extension.Initialize(effectiveMigrations) ? extension : null;
+        return extension.Initialize(migrations) ? extension : null;
     }
 }
