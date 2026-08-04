@@ -114,7 +114,7 @@ namespace Diary.App
             }
 
             Services.GetRequiredService<DbShareData>().InitLoad();
-            Services.GetRequiredService<IRedMineUiData>().InitLoad();
+            Services.GetService<IRedMineUiData>()?.InitLoad();
             RegisterTrackerInstances();
             DatabaseOk = true;
 
@@ -187,17 +187,23 @@ namespace Diary.App
                 });
             var plugins = TypeLoader.GetImplementations<ITrackerPlugin>(
                 FsTools.GetBinaryDirectory(), "Diary.RedMine.dll");
+            var enabledPlugin = false;
             foreach (var plugin in plugins)
             {
-                _plugins.Add(plugin);
                 var result = PluginHost.Register(plugin, compatibility, services);
                 Logger.LogInformation("Plugin {PluginId}: {State}", plugin.Manifest.Id, result.State);
+                if (result.State == PluginState.Compatible)
+                {
+                    _plugins.Add(plugin);
+                    enabledPlugin = true;
+                }
                 if (result.State == PluginState.Blocked)
                     Logger.LogError("Plugin {PluginId} blocked: {Error}", plugin.Manifest.Id, result.Error);
             }
             services.AddTypesFromAssembly(Assembly.GetExecutingAssembly());
             services.AddTypesFromAssembly(typeof(ViewLocator).Assembly);
-            services.AddTypesFromAssembly(typeof(Diary.RedMine.UI.IRedMineUiData).Assembly);
+            if (enabledPlugin)
+                services.AddTypesFromAssembly(typeof(Diary.RedMine.UI.IRedMineUiData).Assembly);
 
             return services.BuildServiceProvider();
         }
