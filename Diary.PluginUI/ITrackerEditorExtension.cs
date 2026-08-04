@@ -33,10 +33,8 @@ public interface ITrackerEditorExtension
     /// <summary>上传到远程，返回统一结果。</summary>
     Task<TrackerOperationResult> UploadAsync(WorkItem item);
 
-    // transitional：模板默认值应用。文档 §10 将模板 apply 放到 ITrackerTemplateContributor.ApplyTo；
-    // contributor 未建前保留这两个方法避免破坏 NewWithTemplate，待落地后迁出。
-    void SetActivity(int id);
-    void SetIssue(int id);
+    /// <summary>应用 tracker 自己解释的模板数据，核心编辑器不解析 payload。</summary>
+    void ApplyTemplateData(object data);
 }
 
 /// <summary>

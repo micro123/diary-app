@@ -355,12 +355,5 @@ public partial class WorkEditorViewModel : ViewModelBase
         return (allOk, allOk ? null : string.Join("; ", errs));
     }
 
-    // transitional：模板默认值应用。TODO 应迁到 ITrackerTemplateContributor（按 pluginId 定位，而非 First）。
-    /// <summary>模板默认值应用：按 id 选中 activity（RedMine 语义）。</summary>
-    public void SetRedMineActivity(int activityId) => Extensions.FirstOrDefault()?.SetActivity(activityId);
-
-    /// <summary>模板默认值应用：按 id 选中 issue（RedMine 语义）。</summary>
-    public void SetRedMineIssues(int issueId) => Extensions.FirstOrDefault()?.SetIssue(issueId);
-
     private void RecomputeIsLocked() => IsLocked = Extensions.Any(e => e.IsLocked);
 }

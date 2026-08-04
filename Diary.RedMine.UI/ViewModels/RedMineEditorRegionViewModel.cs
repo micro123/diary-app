@@ -8,6 +8,7 @@ using Diary.PluginBase;
 using Diary.PluginUI;
 using Diary.RedMine;
 using Diary.RedMine.Models;
+using Diary.RedMine.UI.ViewModels.Dialogs;
 
 namespace Diary.RedMine.UI.ViewModels;
 
@@ -92,16 +93,14 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
             : new TrackerOperationResult(false, "可能是网络问题");
     }
 
-    public void SetActivity(int activityId)
+    public void ApplyTemplateData(object data)
     {
+        if (data is not RedMineTemplateData template)
+            return;
         ActivityIndex = Enumerable.Range(0, RedMineActivities.Count)
-            .FirstOrDefault(i => RedMineActivities[i].Id == activityId, -1);
-    }
-
-    public void SetIssue(int issueId)
-    {
+            .FirstOrDefault(i => RedMineActivities[i].Id == template.ActivityId, -1);
         IssueIndex = Enumerable.Range(0, RedMineIssues.Count)
-            .FirstOrDefault(i => RedMineIssues[i].Id == issueId, -1);
+            .FirstOrDefault(i => RedMineIssues[i].Id == template.IssueId, -1);
         IssueText = IssueIndex >= 0
             ? $"#{RedMineIssues[IssueIndex].Id} {RedMineIssues[IssueIndex].Title} ({RedMineIssues[IssueIndex].Project})"
             : string.Empty;
@@ -117,8 +116,13 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
             return;
         }
 
-        SetIssue(TimeEntry.IssueId);
-        SetActivity(TimeEntry.ActivityId);
+        IssueIndex = Enumerable.Range(0, RedMineIssues.Count)
+            .FirstOrDefault(i => RedMineIssues[i].Id == TimeEntry.IssueId, -1);
+        ActivityIndex = Enumerable.Range(0, RedMineActivities.Count)
+            .FirstOrDefault(i => RedMineActivities[i].Id == TimeEntry.ActivityId, -1);
+        IssueText = IssueIndex >= 0
+            ? $"#{RedMineIssues[IssueIndex].Id} {RedMineIssues[IssueIndex].Title} ({RedMineIssues[IssueIndex].Project})"
+            : string.Empty;
         Uploaded = TimeEntry.EntryId > 0;
     }
 }

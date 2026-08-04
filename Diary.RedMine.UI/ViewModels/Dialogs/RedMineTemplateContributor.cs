@@ -50,8 +50,7 @@ public sealed class RedMineTemplateContributor(IRedMineUiData data) : ITrackerTe
     {
         if (value is RedMineTemplateData template)
         {
-            target.SetActivity(template.ActivityId);
-            target.SetIssue(template.IssueId);
+            target.ApplyTemplateData(template);
         }
     }
 }
