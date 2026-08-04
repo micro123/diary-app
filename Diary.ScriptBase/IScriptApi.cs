@@ -1,6 +1,5 @@
 using Diary.Core.Data.App;
 using Diary.Core.Data.Base;
-using Diary.RedMine.Models;
 
 namespace Diary.ScriptBase;
 
@@ -34,9 +33,8 @@ public interface IScriptApi
     ICollection<int> GetWorkTags(int work);
     ICollection<Template> GetTemplates();
 
-    // RedMine数据查询
-    ICollection<RedMineActivity> GetRedMineActivities();
-    ICollection<RedMineIssueDisplay> GetRedMineIssues();
+    // 可选 tracker 能力
+    ITrackerScriptApi? GetTracker(string pluginId) => null;
 
     // 事件创建
     WorkItem CreateWorkItem(string date, string title, double hours);
