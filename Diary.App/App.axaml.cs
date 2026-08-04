@@ -122,6 +122,7 @@ namespace Diary.App
         private readonly List<IDbFactory> _dbFactories = new();
         private readonly List<ITrackerPlugin> _plugins = new();
         private readonly Dictionary<string, object> _pluginConfigurations = new();
+        private readonly PluginConfigurationLoader _pluginConfigurationLoader = new();
 
         private void RegisterTrackerInstances()
         {
@@ -213,8 +214,7 @@ namespace Diary.App
                 {
                     try
                     {
-                        var configuration = plugin.CreateConfiguration();
-                        EasySaveLoad.Load(configuration);
+                        var configuration = _pluginConfigurationLoader.Load(plugin);
                         _pluginConfigurations[plugin.Manifest.Id] = configuration;
                         _plugins.Add(plugin);
                     }

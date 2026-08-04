@@ -26,6 +26,17 @@ public sealed class TrackerUiContributionRegistryTests
             registry.Contributions.Select(x => x.Instance.InstanceId).ToArray());
     }
 
+    [TestMethod]
+    public void RegistryAllowsMissingPluginUiContribution()
+    {
+        var registry = new TrackerUiContributionRegistry();
+
+        registry.Register(Array.Empty<ITrackerUiContributionFactory>(),
+            new[] { new MemoryInstance("missing-ui") });
+
+        Assert.AreEqual(0, registry.Contributions.Count);
+    }
+
     private sealed class MemoryContributionFactory : ITrackerUiContributionFactory
     {
         public string PluginId => "tracker.memory";
