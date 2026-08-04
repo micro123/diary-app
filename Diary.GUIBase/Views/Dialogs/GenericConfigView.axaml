@@ -2,20 +2,15 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:dialogs1="clr-namespace:Diary.App.ViewModels.Dialogs"
+             xmlns:dialogs1="clr-namespace:Diary.GUIBase.ViewModels.Dialogs"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-             Margin="32"
-             x:DataType="dialogs1:GenericConfigViewModel"
-             x:Class="Diary.App.Views.Dialogs.GenericConfigView">
-    <Design.DataContext>
-        <dialogs1:GenericConfigViewModel />
-    </Design.DataContext>
+             Margin="32" x:DataType="dialogs1:GenericConfigViewModel"
+             x:Class="Diary.GUIBase.Views.Dialogs.GenericConfigView">
     <Grid RowSpacing="8" RowDefinitions="Auto,Auto,*,Auto">
         <TextBlock Grid.Row="0" Text="{Binding Title}" Classes="Header" />
         <Separator Grid.Row="1" />
         <ItemsControl Grid.Row="2" Classes="Settings" ItemsSource="{Binding SettingGroup.Children}" />
-        <StackPanel Grid.Row="3" Orientation="Horizontal"
-                    HorizontalAlignment="Center" Spacing="16">
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="16">
             <Button Classes="Primary" Content="保存" Command="{Binding SaveCommand}" />
             <Button Classes="Danger" Content="放弃" Command="{Binding CancelCommand}" />
         </StackPanel>

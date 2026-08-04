@@ -18,7 +18,7 @@ using Microsoft.Extensions.Logging;
 using Ursa.Controls;
 using AboutViewModel = Diary.App.ViewModels.Dialogs.AboutViewModel;
 using DbMigrationViewModel = Diary.App.ViewModels.Dialogs.DbMigrationViewModel;
-using GenericConfigViewModel = Diary.App.ViewModels.Dialogs.GenericConfigViewModel;
+using GenericConfigViewModel = Diary.GUIBase.ViewModels.Dialogs.GenericConfigViewModel;
 using StandardMessageView = Diary.App.Views.Dialogs.StandardMessageView;
 using StandardMessageViewModel = Diary.App.ViewModels.Dialogs.StandardMessageViewModel;
 using TagEditorViewModel = Diary.App.ViewModels.Dialogs.TagEditorViewModel;
