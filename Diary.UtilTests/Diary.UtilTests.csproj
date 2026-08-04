@@ -17,6 +17,7 @@
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Diary.Utils\Diary.Utils.csproj" />
+      <ProjectReference Include="..\Diary.Utils\Diary.Utils.csproj" />
+      <ProjectReference Include="..\Diary.PluginBase\Diary.PluginBase.csproj" />
   </ItemGroup>
 </Project>
