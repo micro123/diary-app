@@ -39,7 +39,8 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
 
     // ---- ITrackerEditorExtension ----
     public string InstanceId => "redmine.default";
-    public ViewModelBase View => this;
+    // 显式实现：避免与 ViewModelBase.View（Control?，ViewLocator.SetView 设置的附加控件）命名冲突
+    ViewModelBase ITrackerEditorExtension.View => this;
 
     private static IRedMineDb? RedMineDb => App.Instance.UseDb?.RedMineDb;
 
@@ -93,9 +94,9 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
         var entryId = 0;
         await Task.Run(() =>
         {
-            if (_api.CreateTimeEntry(out var ti, TimeEntry.IssueId,
+            if (_api.CreateTimeEntry(out var ti, TimeEntry!.IssueId,
                     TimeEntry.ActivityId, item.CreateDate, item.Time, item.Comment))
-                entryId = ti.Id;
+                entryId = ti!.Id;
             TimeEntry.EntryId = entryId;
             RedMineDb?.UpdateWorkTimeEntry(TimeEntry); // 关联到数据库
         });

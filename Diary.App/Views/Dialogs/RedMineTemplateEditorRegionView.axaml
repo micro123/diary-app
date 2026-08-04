@@ -1,0 +1,37 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
+             xmlns:redMine="clr-namespace:Diary.Core.Data.RedMine;assembly=Diary.Core"
+             xmlns:display="clr-namespace:Diary.Core.Data.Display;assembly=Diary.Core"
+             mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="80"
+             x:DataType="dialogs:RedMineTemplateEditorRegionViewModel"
+             x:Class="Diary.App.Views.Dialogs.RedMineTemplateEditorRegionView">
+    <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*" RowSpacing="8" ColumnSpacing="4">
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="默认活动：" VerticalAlignment="Center" />
+        <ComboBox Grid.Row="0" Grid.Column="1" SelectedIndex="{Binding ActivityIndex}"
+                  ItemsSource="{Binding Activities}" HorizontalAlignment="Stretch">
+            <ComboBox.ItemTemplate>
+                <DataTemplate DataType="redMine:RedMineActivity">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="{Binding Id, StringFormat='#{0}'}" />
+                        <TextBlock Text="{Binding Title}" />
+                    </StackPanel>
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="默认问题：" VerticalAlignment="Center" />
+        <ComboBox Grid.Row="1" Grid.Column="1" SelectedIndex="{Binding IssueIndex}"
+                  ItemsSource="{Binding Issues}" HorizontalAlignment="Stretch">
+            <ComboBox.ItemTemplate>
+                <DataTemplate DataType="display:RedMineIssueDisplay">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="{Binding Id, StringFormat='#{0}'}" />
+                        <TextBlock Text="{Binding Title}" />
+                    </StackPanel>
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
+    </Grid>
+</UserControl>

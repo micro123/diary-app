@@ -36,6 +36,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
 {
     private readonly ILogger _logger;
     private readonly IServiceProvider _serviceProvider;
+    private readonly TemplateCoordinator _templateCoordinator;
 
     [ObservableProperty]
     private DateTime _selectedDate;
@@ -74,10 +75,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
             SelectedWork.Comment = template.DefaultTitle;
         if (template.DefaultTime > 0)
             SelectedWork.Time = template.DefaultTime;
-        if (template.DefaultActivity >= 0)
-            SelectedWork.SetRedMineActivity(template.DefaultActivity);
-        if (template.DefaultIssue >= 0)
-            SelectedWork.SetRedMineIssues(template.DefaultIssue);
+        // tracker 扩展默认值（如 RedMine activity/issue）经协调器按 InstanceId 应用到对应扩展
+        _templateCoordinator.Apply(template, SelectedWork);
         foreach (var tag in template.DefaultWorkTags)
         {
             var x = SelectedWork.AllTags.FirstOrDefault(x => x.Id == tag);
@@ -231,10 +230,11 @@ public partial class DiaryEditorViewModel : ViewModelBase
         UpdateTimeInfos();
     }
 
-    public DiaryEditorViewModel(ILogger logger, IServiceProvider serviceProvider)
+    public DiaryEditorViewModel(ILogger logger, IServiceProvider serviceProvider, TemplateCoordinator templateCoordinator)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
+        _templateCoordinator = templateCoordinator;
         SelectedDate = DateTime.Today;
 
         Messenger.Register<DbChangedEvent>(this, (r, m) =>

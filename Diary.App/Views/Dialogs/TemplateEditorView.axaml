@@ -47,39 +47,18 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="dialogs1:TemplateViewModel">
                         <Expander Header="{Binding Name}" IsExpanded="False">
-                            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto"
+                            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto"
                                   RowSpacing="8" ColumnSpacing="4">
                                 <TextBlock Grid.Column="0" Grid.Row="0" Text="默认标题：" />
                                 <TextBox Grid.Column="1" Grid.Row="0" Text="{Binding DefaultTitle}" />
                                 <TextBlock Grid.Column="0" Grid.Row="1" Text="默认时间：" />
                                 <u:NumericDoubleUpDown Grid.Column="1" Grid.Row="1" Value="{Binding Time}"
                                                        ShowButtonSpinner="False" />
-                                <TextBlock Grid.Column="0" Grid.Row="2" Text="默认活动：" />
-                                <ComboBox Grid.Column="1" Grid.Row="2" SelectedIndex="{Binding RedMineActivity}"
-                                          ItemsSource="{Binding #TemplatesView.((dialogs1:TemplateEditorViewModel)DataContext).Activities}">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate DataType="redMine:RedMineActivity">
-                                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                                <TextBlock Text="{Binding Id, StringFormat='#{0}'}" />
-                                                <TextBlock Text="{Binding Title}" />
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
-                                <TextBlock Grid.Column="0" Grid.Row="3" Text="默认问题：" />
-                                <ComboBox Grid.Column="1" Grid.Row="3" SelectedIndex="{Binding RedMineIssue}"
-                                          ItemsSource="{Binding #TemplatesView.((dialogs1:TemplateEditorViewModel)DataContext).Issues}">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate DataType="display:RedMineIssueDisplay">
-                                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                                <TextBlock Text="{Binding Id, StringFormat='#{0}'}" />
-                                                <TextBlock Text="{Binding Title}" />
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
-                                <TextBlock Grid.Column="0" Grid.Row="4" Text="标签列表：" />
-                                <Button Grid.Column="2" Grid.Row="4" Classes="Primary"
+                                <!-- tracker 扩展编辑区（各 contributor 经全局 ViewLocator 按 runtime VM 解析 view 渲染） -->
+                                <ItemsControl Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="3"
+                                              ItemsSource="{Binding TrackerEditors}" />
+                                <TextBlock Grid.Column="0" Grid.Row="3" Text="标签列表：" />
+                                <Button Grid.Column="2" Grid.Row="3" Classes="Primary"
                                         Theme="{DynamicResource BorderlessButton}">
                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                         <i:Icon Value="" />
@@ -101,7 +80,7 @@
                                         </MenuFlyout>
                                     </Button.Flyout>
                                 </Button>
-                                <ItemsControl Grid.Column="0" Grid.Row="5" Grid.ColumnSpan="2"
+                                <ItemsControl Grid.Column="0" Grid.Row="4" Grid.ColumnSpan="2"
                                               ItemsSource="{Binding Tags}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>

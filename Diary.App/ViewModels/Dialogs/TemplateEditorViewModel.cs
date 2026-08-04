@@ -1,11 +1,10 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
 using Diary.Core.Data.App;
 using Diary.Core.Data.Base;
-using Diary.Core.Data.Display;
-using Diary.Core.Data.RedMine;
 using Diary.Core.Utils;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
@@ -20,57 +19,47 @@ public partial class TemplateViewModel
 {
     public required string Name { get; set; }
     public string DefaultTitle { get; set; } = string.Empty;
-    public int RedMineActivity { get; set; } = -1;
-    public int RedMineIssue { get; set; } = -1;
     public double Time { get; set; } = 0.0;
     public required ObservableCollection<WorkTag> Tags { get; set; }
 
-    private static int FindIndex<T>(ObservableCollection<T> collection, Func<T, bool> predicate)
+    /// <summary>tracker 扩展编辑区（各 contributor 经 ViewLocator 渲染）。</summary>
+    public ObservableCollection<ViewModelBase> TrackerEditors { get; } = new();
+
+    private readonly Template _original;
+    private readonly TemplateCoordinator _coordinator;
+    private readonly List<TemplateEditorSlot> _slots;
+
+    [SetsRequiredMembers]
+    public TemplateViewModel(Template template, TemplateCoordinator coordinator, DbShareData shareData)
     {
-        for (int i = 0; i < collection.Count; i++)
+        _original = template;
+        _coordinator = coordinator;
+        Name = template.Name;
+        DefaultTitle = template.DefaultTitle;
+        Time = template.DefaultTime;
+        Tags = new ObservableCollection<WorkTag>();
+        foreach (var tagId in template.DefaultWorkTags)
         {
-            if (predicate(collection[i]))
-                return i;
+            var wt = shareData.WorkTags.FirstOrDefault(x => x.Id == tagId);
+            if (wt != null)
+                Tags.Add(wt);
         }
-        return -1;
+        _slots = coordinator.LoadEditors(template).ToList();
+        foreach (var s in _slots)
+            TrackerEditors.Add(s.Editor);
     }
 
-    public static TemplateViewModel FromTemplate(Template template, DbShareData shareData)
+    public Template ToTemplate()
     {
-        ObservableCollection<WorkTag> tags = new();
-        if (template.DefaultWorkTags.Count > 0)
-        {
-            foreach (var tag in template.DefaultWorkTags)
-            {
-                var workTag = shareData.WorkTags.FirstOrDefault(x => x.Id == tag);
-                if (workTag != null)
-                    tags.Add(workTag);
-            }
-        }
-        var result = new TemplateViewModel()
-        {
-            Name = template.Name,
-            DefaultTitle = template.DefaultTitle,
-            Time = template.DefaultTime,
-            RedMineActivity = FindIndex(shareData.RedMineActivities, x => x.Id == template.DefaultActivity),
-            RedMineIssue = FindIndex(shareData.RedMineIssues, x => x.Id == template.DefaultIssue),
-            Tags = tags,
-        };
-        return result;
-    }
-
-    public Template ToTemplate(DbShareData shareData)
-    {
-        var result = new Template()
+        return new Template
         {
             Name = Name,
             DefaultTitle = DefaultTitle,
             DefaultTime = Time,
-            DefaultActivity = RedMineActivity >= 0 ? shareData.RedMineActivities[RedMineActivity].Id : -1,
-            DefaultIssue = RedMineIssue >= 0 ? shareData.RedMineIssues[RedMineIssue].Id : -1,
             DefaultWorkTags = Tags.Select(x => x.Id).ToList(),
+            Extensions = _coordinator.SaveEditors(_slots, _original).ToList(),
+            // DefaultActivity/DefaultIssue 不再写（deprecated，留默认值；旧字段仅供旧文件迁移读）
         };
-        return result;
     }
 
     [RelayCommand]
@@ -98,6 +87,7 @@ public partial class TemplateViewModel
 public partial class TemplateEditorViewModel : ViewModelBase, IDialogContext
 {
     private readonly DbShareData _dbShareData;
+    private readonly TemplateCoordinator _coordinator;
     private readonly ILogger _logger;
 
     [ObservableProperty]
@@ -106,8 +96,6 @@ public partial class TemplateEditorViewModel : ViewModelBase, IDialogContext
 
     [ObservableProperty] private ObservableCollection<TemplateViewModel> _templates = new();
 
-    public ObservableCollection<RedMineActivity> Activities => _dbShareData.RedMineActivities;
-    public ObservableCollection<RedMineIssueDisplay> Issues => _dbShareData.RedMineIssues;
     public ObservableCollection<WorkTag> Tags => _dbShareData.WorkTags;
 
     private bool CanAdd => !string.IsNullOrWhiteSpace(NewTemplateName);
@@ -115,17 +103,14 @@ public partial class TemplateEditorViewModel : ViewModelBase, IDialogContext
     [RelayCommand(CanExecute = nameof(CanAdd))]
     private void AddTemplate()
     {
-        Templates.Add(new TemplateViewModel()
-        {
-            Name = NewTemplateName,
-            Tags = new(),
-        });
+        Templates.Add(new TemplateViewModel(new Template { Name = NewTemplateName }, _coordinator, _dbShareData));
         NewTemplateName = string.Empty;
     }
 
-    public TemplateEditorViewModel(DbShareData dbShareData, ILogger logger)
+    public TemplateEditorViewModel(DbShareData dbShareData, TemplateCoordinator coordinator, ILogger logger)
     {
         _dbShareData = dbShareData;
+        _coordinator = coordinator;
         _logger = logger;
 
         LoadTemplates();
@@ -134,7 +119,7 @@ public partial class TemplateEditorViewModel : ViewModelBase, IDialogContext
     private void LoadTemplates()
     {
         var templates = TemplateManager.Instance.Templates;
-        foreach (var item in templates.Select(t => TemplateViewModel.FromTemplate(t, _dbShareData)))
+        foreach (var item in templates.Select(t => new TemplateViewModel(t, _coordinator, _dbShareData)))
         {
             Templates.Add(item);
         }
@@ -156,7 +141,7 @@ public partial class TemplateEditorViewModel : ViewModelBase, IDialogContext
 
     private void SaveTemplates()
     {
-        var templates = Enumerable.Select<TemplateViewModel, Template>(Templates, x => x.ToTemplate(_dbShareData)).ToList();
+        var templates = Enumerable.Select<TemplateViewModel, Template>(Templates, x => x.ToTemplate()).ToList();
         TemplateManager.Instance.Templates = templates;
         EasySaveLoad.Save(TemplateManager.Instance);
         EventDispatcher.Msg(new TemplateChangedEvent());
