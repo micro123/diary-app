@@ -2,27 +2,17 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-              xmlns:redMine="clr-namespace:Diary.RedMine.Models;assembly=Diary.RedMine"
+             xmlns:redMine="clr-namespace:Diary.RedMine.Models;assembly=Diary.RedMine"
              xmlns:i="https://github.com/projektanker/icons.avalonia"
              xmlns:u="https://irihi.tech/ursa"
-             xmlns:pages1="clr-namespace:Diary.App.ViewModels.Pages"
+             xmlns:pages1="clr-namespace:Diary.RedMine.UI.ViewModels.Pages"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:DataType="pages1:RedMineInfoViewModel"
-             x:Class="Diary.App.Views.Pages.RedMineInfoView"
+             x:Class="Diary.RedMine.UI.Views.Pages.RedMineInfoView"
              Padding="8">
-    <Design.DataContext>
-        <pages1:RedMineInfoViewModel />
-    </Design.DataContext>
-    <UserControl.Styles>
-        <Style Selector="Expander > TextBlock">
-            <Setter Property="HorizontalAlignment" Value="Right" />
-        </Style>
-    </UserControl.Styles>
     <DockPanel VerticalSpacing="6">
-        <!-- 用户信息 -->
         <Expander IsExpanded="False" HorizontalContentAlignment="Left" Header="用户信息" DockPanel.Dock="Top">
-            <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto"
-                  RowSpacing="4" ColumnSpacing="4">
+            <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="4" ColumnSpacing="4">
                 <TextBlock Grid.Column="0" Grid.Row="0" Text="用户ID：" />
                 <TextBlock Grid.Column="1" Grid.Row="0" Text="{Binding UserId}" />
                 <TextBlock Grid.Column="0" Grid.Row="1" Text="登录名：" />
@@ -31,30 +21,25 @@
                 <TextBlock Grid.Column="1" Grid.Row="2" Text="{Binding UserName}" />
             </Grid>
         </Expander>
-        <!-- 活动信息 -->
         <Expander IsExpanded="False" HorizontalContentAlignment="Left" Header="活动列表" DockPanel.Dock="Top">
             <StackPanel Orientation="Vertical" Spacing="16" HorizontalAlignment="Left">
                 <ItemsControl ItemsSource="{Binding Activities}">
                     <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel Orientation="Vertical" Spacing="8" />
-                        </ItemsPanelTemplate>
+                        <ItemsPanelTemplate><StackPanel Orientation="Vertical" Spacing="8" /></ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.DataTemplates>
                         <DataTemplate DataType="{x:Type redMine:RedMineActivity}">
                             <Border BorderThickness="0 0 0 2" HorizontalAlignment="Left"
                                     BorderBrush="{DynamicResource ButtonDefaultPrimaryForeground}">
                                 <Grid ColumnDefinitions="28,Auto" ColumnSpacing="2">
-                                    <TextBlock Text="{Binding Id,StringFormat='#{0}'}"
-                                               HorizontalAlignment="Left" />
+                                    <TextBlock Text="{Binding Id,StringFormat='#{0}'}" HorizontalAlignment="Left" />
                                     <TextBlock Grid.Column="1" Text="{Binding Title}" />
                                 </Grid>
                             </Border>
                         </DataTemplate>
                     </ItemsControl.DataTemplates>
                 </ItemsControl>
-                <Button Command="{Binding SyncActivitiesCommand}"
-                        Classes="Danger">
+                <Button Command="{Binding SyncActivitiesCommand}" Classes="Danger">
                     <StackPanel Orientation="Horizontal" Spacing="4">
                         <i:Icon Value="mdi-sync" FontSize="18" />
                         <TextBlock Text="同步服务器定义" FontSize="18" />
@@ -62,15 +47,12 @@
                 </Button>
             </StackPanel>
         </Expander>
-        <!-- 问题列表 -->
         <u:Divider Content="已导入的问题" HorizontalContentAlignment="Left" DockPanel.Dock="Top" />
         <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Spacing="8">
-            <Button Content="与服务器同步" ToolTip.Tip="此操作将更新所有已导入的问题信息，可能需要花一点时间"
-                    Command="{Binding SyncIssueStateCommand}" />
+            <Button Content="与服务器同步" Command="{Binding SyncIssueStateCommand}" />
             <Button Content="重新抓取" Command="{Binding ReloadIssuesCommand}" />
         </StackPanel>
-        <DataGrid CanUserReorderColumns="False" CanUserSortColumns="False" CanUserResizeColumns="True"
-                  ItemsSource="{Binding Issues}" IsReadOnly="True" x:Name="IssueList">
+        <DataGrid ItemsSource="{Binding Issues}" IsReadOnly="True" x:Name="IssueList">
             <DataGrid.Columns>
                 <DataGridTextColumn Width="Auto" Header="ID" Binding="{Binding Id}" />
                 <DataGridTextColumn Width="*" Header="描述" Binding="{Binding Title}" />
@@ -94,5 +76,4 @@
             </DataGrid.Columns>
         </DataGrid>
     </DockPanel>
-
 </UserControl>

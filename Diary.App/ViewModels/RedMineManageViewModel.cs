@@ -7,8 +7,8 @@ using Diary.RedMine;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using RedMineInfoViewModel = Diary.App.ViewModels.Pages.RedMineInfoViewModel;
-using RedMineIssueManageViewModel = Diary.App.ViewModels.Pages.RedMineIssueManageViewModel;
+using RedMineInfoViewModel = Diary.RedMine.UI.ViewModels.Pages.RedMineInfoViewModel;
+using RedMineIssueManageViewModel = Diary.RedMine.UI.ViewModels.Pages.RedMineIssueManageViewModel;
 using RedMineProjectViewModel = Diary.App.ViewModels.Pages.RedMineProjectViewModel;
 
 namespace Diary.App.ViewModels;
