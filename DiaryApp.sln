@@ -59,6 +59,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Diary.PluginBase", "Diary.P
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Diary.PluginUI", "Diary.PluginUI\Diary.PluginUI.csproj", "{63F7FF42-841C-46D5-AA06-D061B31EE0C1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Diary.RedMine.UI", "Diary.RedMine.UI\Diary.RedMine.UI.csproj", "{8D559139-6B72-4AD2-829A-5C74F6698DDB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -321,6 +323,18 @@ Global
 		{63F7FF42-841C-46D5-AA06-D061B31EE0C1}.Release|x64.Build.0 = Release|Any CPU
 		{63F7FF42-841C-46D5-AA06-D061B31EE0C1}.Release|x86.ActiveCfg = Release|Any CPU
 		{63F7FF42-841C-46D5-AA06-D061B31EE0C1}.Release|x86.Build.0 = Release|Any CPU
+		{8D559139-6B72-4AD2-829A-5C74F6698DDB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8D559139-6B72-4AD2-829A-5C74F6698DDB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8D559139-6B72-4AD2-829A-5C74F6698DDB}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{8D559139-6B72-4AD2-829A-5C74F6698DDB}.Debug|x64.Build.0 = Debug|Any CPU
+		{8D559139-6B72-4AD2-829A-5C74F6698DDB}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{8D559139-6B72-4AD2-829A-5C74F6698DDB}.Debug|x86.Build.0 = Debug|Any CPU
+		{8D559139-6B72-4AD2-829A-5C74F6698DDB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8D559139-6B72-4AD2-829A-5C74F6698DDB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8D559139-6B72-4AD2-829A-5C74F6698DDB}.Release|x64.ActiveCfg = Release|Any CPU
+		{8D559139-6B72-4AD2-829A-5C74F6698DDB}.Release|x64.Build.0 = Release|Any CPU
+		{8D559139-6B72-4AD2-829A-5C74F6698DDB}.Release|x86.ActiveCfg = Release|Any CPU
+		{8D559139-6B72-4AD2-829A-5C74F6698DDB}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

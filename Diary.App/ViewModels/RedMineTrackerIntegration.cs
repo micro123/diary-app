@@ -4,6 +4,7 @@ using Diary.GUIBase.ViewModels;
 using Diary.PluginBase;
 using Diary.PluginUI;
 using Diary.RedMine;
+using Diary.RedMine.UI.ViewModels;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 

@@ -5,13 +5,14 @@ using Diary.RedMine.Models;
 using Diary.Database;
 using Diary.GUIBase.Events;
 using Diary.RedMine;
+using Diary.RedMine.UI;
 using Diary.Utils;
 using Microsoft.Extensions.Logging;
 
 namespace Diary.App.Models;
 
 [DiAutoRegister(singleton: true)]
-public class DbShareData
+public class DbShareData : IRedMineUiData
 {
     private readonly ILogger _logger;
     public ObservableCollection<WorkTag> WorkTags { get; } = new();

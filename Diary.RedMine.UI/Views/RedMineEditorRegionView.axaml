@@ -2,26 +2,16 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:viewModels="clr-namespace:Diary.App.ViewModels"
-             xmlns:u="https://irihi.tech/ursa"
-              xmlns:display="clr-namespace:Diary.RedMine.Models;assembly=Diary.RedMine"
-              xmlns:redMine="clr-namespace:Diary.RedMine.Models;assembly=Diary.RedMine"
+             xmlns:viewModels="clr-namespace:Diary.RedMine.UI.ViewModels"
+             xmlns:display="clr-namespace:Diary.RedMine.Models;assembly=Diary.RedMine"
+             xmlns:redMine="clr-namespace:Diary.RedMine.Models;assembly=Diary.RedMine"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="120"
              x:DataType="viewModels:RedMineEditorRegionViewModel"
-             x:Class="Diary.App.Views.RedMineEditorRegionView">
+             x:Class="Diary.RedMine.UI.Views.RedMineEditorRegionView">
     <StackPanel Spacing="8">
-        <u:Divider Content="RedMine信息" HorizontalContentAlignment="Left" />
-        <!-- redmine预留 -->
+        <TextBlock Text="RedMine信息" FontSize="16" />
         <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*"
               ColumnSpacing="8" RowSpacing="8" IsEnabled="{Binding !Uploaded}">
-            <Grid.Styles>
-                <Style Selector="TextBlock">
-                    <Setter Property="VerticalAlignment" Value="Center" />
-                </Style>
-                <Style Selector="ComboBox">
-                    <Setter Property="HorizontalAlignment" Value="Stretch"/>
-                </Style>
-            </Grid.Styles>
             <TextBlock Grid.Row="0" Grid.Column="0" Text="关联问题:" />
             <TextBlock Grid.Row="1" Grid.Column="0" Text="关联活动:" />
             <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding RedMineIssues}"
@@ -29,10 +19,9 @@
                 <ComboBox.ItemTemplate>
                     <DataTemplate DataType="display:RedMineIssueDisplay">
                         <StackPanel Orientation="Horizontal" Spacing="4">
-                            <TextBlock Text="{Binding Id, StringFormat='#{0}'}"
-                                       FontWeight="Bold"/>
+                            <TextBlock Text="{Binding Id, StringFormat='#{0}'}" FontWeight="Bold" />
                             <TextBlock Text="{Binding Title}" />
-                            <TextBlock Text="{Binding Project, StringFormat='(项目：{0})'}"/>
+                            <TextBlock Text="{Binding Project, StringFormat='(项目：{0})'}" />
                         </StackPanel>
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
@@ -41,12 +30,9 @@
                       SelectedIndex="{Binding ActivityIndex}">
                 <ComboBox.ItemTemplate>
                     <DataTemplate DataType="redMine:RedMineActivity">
-                        <StackPanel Orientation="Vertical">
-                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                <TextBlock Text="{Binding Id, StringFormat='#{0}'}"
-                                           FontWeight="Bold"/>
-                                <TextBlock Text="{Binding Title}" />
-                            </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="{Binding Id, StringFormat='#{0}'}" FontWeight="Bold" />
+                            <TextBlock Text="{Binding Title}" />
                         </StackPanel>
                     </DataTemplate>
                 </ComboBox.ItemTemplate>

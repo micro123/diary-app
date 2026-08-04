@@ -37,6 +37,7 @@
         <ProjectReference Include="..\Diary.PluginBase\Diary.PluginBase.csproj" />
         <ProjectReference Include="..\Diary.PluginUI\Diary.PluginUI.csproj" />
         <ProjectReference Include="..\Diary.RedMine\Diary.RedMine.csproj" />
+        <ProjectReference Include="..\Diary.RedMine.UI\Diary.RedMine.UI.csproj" />
         <ProjectReference Include="..\Diary.Db.SQLite\Diary.Db.SQLite.csproj" />
         <ProjectReference Include="..\Diary.Script.CSharp\Diary.Script.CSharp.csproj" />
         <ProjectReference Include="..\Diary.Script.Lua\Diary.Script.Lua.csproj" />
