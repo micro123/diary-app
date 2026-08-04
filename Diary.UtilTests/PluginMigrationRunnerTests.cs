@@ -94,7 +94,18 @@ public class PluginMigrationRunnerTests
         Assert.IsFalse(result);
     }
 
-    private sealed class TestMigration(uint from, uint to, List<uint> applied) : IPluginMigration
+    [TestMethod]
+    public void Upgrade_ReturnsFalseWhenMigrationThrows()
+    {
+        var result = PluginMigrationRunner.Upgrade(
+            "tracker.test", 1, 2,
+            new IPluginMigration[] { new TestMigration(1, 2, new List<uint>(), true) },
+            new TestContext());
+
+        Assert.IsFalse(result);
+    }
+
+    private sealed class TestMigration(uint from, uint to, List<uint> applied, bool shouldThrow = false) : IPluginMigration
     {
         public string PluginId => "tracker.test";
         public uint FromVersion { get; init; } = from;
@@ -102,6 +113,8 @@ public class PluginMigrationRunnerTests
 
         public bool Up(IPluginMigrationContext context)
         {
+            if (shouldThrow)
+                throw new InvalidOperationException("migration failed");
             applied.Add(FromVersion);
             return true;
         }
