@@ -3,7 +3,7 @@
 ## 1. 文档范围
 
 本文描述当前代码已经实现的架构，不等同于 `TrackerPluginArchitecture.md` 中的目标方案。
-代码基线：`feature/tracker-extension` 分支，Redmine 插件实例支持仍处于过渡阶段。
+代码基线：`feature/tracker-extension` 分支，tracker 插件实例和 UI/模板贡献已具备通用注册链路，Redmine 多实例开关仍未开启。
 
 当前架构的核心目标是：核心日记功能不依赖 Redmine；Redmine 通过插件契约、可选 UI 和数据库扩展接入；插件数据库可以独立迁移。
 
@@ -63,13 +63,13 @@ RedMine --> Api
 
 | 项目 | 当前职责 | 关键边界 |
 | --- | --- | --- |
-| `Diary.App` | 启动、服务容器、插件发现、数据库选择、主窗口 | 仍有 Redmine 实例注册的过渡代码 |
+| `Diary.App` | 启动、服务容器、插件发现、数据库选择、主窗口 | 仍有 Redmine UI 数据初始化的过渡代码 |
 | `Diary.Core` | 工作项、标签、模板、配置和统计模型 | 不应依赖具体 tracker 类型 |
 | `Diary.Database` | 核心数据库抽象、provider 原语、扩展工厂加载 | 通过 `GetExtension<T>(instanceId)` 延迟取得可选扩展 |
 | `Diary.PluginBase` | manifest、兼容性检查、插件入口、实例注册、迁移调度 | 不依赖 Avalonia 和具体 UI |
 | `Diary.PluginUI` | tracker 配置页、管理页、编辑器扩展和模板贡献契约 | 由宿主把插件 UI 挂载到核心 UI |
 | `Diary.RedMine` | Redmine API、模型、配置、插件迁移和插件入口 | 当前仍是 Redmine 专用插件实现 |
-| `Diary.RedMine.UI` | Redmine 设置、管理页、编辑器区域、模板扩展、缓存数据 | 通过 DI 自动注册 UI 贡献 |
+| `Diary.RedMine.UI` | Redmine 设置、管理页、编辑器区域、模板扩展、缓存数据 | 通过工厂按实例注册 UI/模板贡献 |
 | `Diary.RedMine.SQLite` | SQLite Redmine 数据访问实现 | 通过 `IDbExtensionFactory` 按 provider 加载 |
 | `Diary.RedMine.PostgreSQL` | PostgreSQL Redmine 数据访问实现 | 与 SQLite 共享数据库契约 |
 
@@ -87,14 +87,15 @@ Diary.PluginBase <- Diary.RedMine <- Diary.RedMine.UI -> Diary.PluginUI
 ## 4. 启动和插件生命周期
 
 `App.ConfigureServices()` 扫描二进制目录中的 `Diary.*.dll`，发现 `ITrackerPlugin` 实现后调用 `PluginHost.Register()`。
-兼容性检查通过才会注册服务并加入宿主插件列表。插件 UI 程序集目前在检测到至少一个插件兼容时加载。
+兼容性检查通过才会注册服务并加入宿主插件列表；所有 `Diary.*.UI.dll` 都按可选程序集扫描，加载失败不会阻断核心启动。
 
 ```plantuml
 @startuml
 start
-:创建 ServiceCollection;
-:扫描 Diary.*.dll;
-:发现 ITrackerPlugin;
+ :创建 ServiceCollection;
+ :扫描 Diary.*.dll;
+ :扫描 Diary.*.UI.dll;
+ :发现 ITrackerPlugin;
 :读取 PluginManifest;
 if (兼容性通过?) then (是)
   :PluginHost.Register();
@@ -106,11 +107,10 @@ endif
 :创建核心 ServiceProvider;
 :选择并连接数据库;
 :执行核心数据库迁移;
-:GetExtension<IRedMineDb>();
-:执行 Redmine schema 迁移;
+:按插件创建数据库扩展并执行插件迁移;
 :加载核心共享数据;
-:加载 Redmine UI 数据;
-:根据配置创建启用的插件实例;
+:插件生成实例注册项;
+:创建实例、UI 贡献和模板贡献;
 :创建主窗口和导航/UI 扩展;
 stop
 @enduml
@@ -126,7 +126,7 @@ stop
 
 核心数据库由 `DbInterfaceBase` 负责连接、核心 schema 版本和工作项数据。Redmine 表不通过核心 CRUD 接口访问，而是通过数据库扩展工厂动态发现：
 
-1. `DbExtensionFactoryLoader` 从程序目录加载 `Diary.RedMine.*.dll`。
+1. `DbExtensionFactoryLoader` 从程序目录加载 `Diary.RedMine.*.dll`（当前仍是 Redmine 专用过渡实现）。
 2. 找到支持当前 provider 和 `IRedMineDb` 的 `IDbExtensionFactory`。
 3. `DbInterfaceBase.GetExtension<IRedMineDb>(instanceId)` 延迟创建扩展并按类型、实例 ID 缓存。
 4. SQLite 或 PostgreSQL 扩展使用 `IDbExtensionHost` 执行 provider 无关的查询和迁移 SQL。
@@ -193,7 +193,7 @@ Redmine：plugin_data_versions、redmine_projects、redmine_activities、
 
 Redmine 数据库扩展已经使用实例 ID 过滤所有项目、问题、活动和工时记录，默认实例 ID 为 `redmine.default`。配置层已经支持实例列表、启用状态、显示名称和单独配置。
 
-当前限制：Redmine manifest 仍未开启 `SupportsMultipleInstances`，并且 `App.RegisterTrackerInstances()` 仍然显式查找 `tracker.redmine`。因此数据库层具备实例隔离能力，但插件宿主和 UI 还没有完全泛化。
+当前限制：Redmine manifest 仍未开启 `SupportsMultipleInstances`。插件宿主已经遍历所有兼容插件生成实例，UI 和模板贡献也通过实例注册表创建，但数据库扩展发现仍是 Redmine 专用过渡实现。
 
 ## 8. UI 和编辑器扩展
 
@@ -204,7 +204,7 @@ Redmine UI 通过 `Diary.PluginUI` 的契约接入：
 - `ITrackerEditorExtension`：将 tracker 绑定和上传能力放入工作项编辑器。
 - `ITrackerTemplateContributor`：保存和恢复 tracker 专属模板 payload。
 
-核心编辑器从 DI 获取 `ITrackerUiContribution` 集合，不应直接依赖 Redmine 具体 ViewModel。当前 Redmine UI 仍保留 `IRedMineUiData` 和部分 Redmine 专用数据缓存，用于管理页和选择器。
+核心编辑器从 `TrackerUiContributionRegistry` 获取按实例创建的 `ITrackerUiContribution`，不直接依赖 Redmine 具体 ViewModel。当前 Redmine UI 仍保留 `IRedMineUiData` 和部分 Redmine 专用数据缓存，用于管理页和选择器。
 
 ## 9. 数据保存边界
 
@@ -223,9 +223,7 @@ Redmine UI 通过 `Diary.PluginUI` 的契约接入：
 ## 10. 当前已知缺口
 
 - `SupportsMultipleInstances` 仍为 `false`，需要完成 manifest、配置、导航和编辑器的多实例 UI 上下文。
-- `App.RegisterTrackerInstances()` 仍硬编码 `tracker.redmine`，尚未由通用插件接口统一创建所有实例。
-- `App.ConfigureCheck()` 中 Redmine UI 数据初始化和实例注册顺序仍是过渡实现，后续应由插件生命周期统一编排；UI 贡献已通过实例注册表创建。
-- Redmine 管理页内部的子 ViewModel 和模板贡献仍使用默认 DI 实例，尚未完全按实例隔离。
+- `App.ConfigureCheck()` 仍直接调用 Redmine UI 数据初始化；实例注册、插件迁移和 UI/模板注册还需要收敛到统一插件生命周期。
 - 数据库扩展扫描模式仍为 `Diary.RedMine.*.dll`，未来应改为通用插件数据库扩展发现机制。
 - Redmine 专用类型仍存在于 `Diary.Database` 的 `IRedMineDb` 扩展契约路径，目标是将其完全收敛到 Redmine 插件内部。
 - 插件配置持久化、配置迁移和诊断页面尚未形成完整通用协议。

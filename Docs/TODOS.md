@@ -30,13 +30,15 @@
 - [x] 模板 contributor 工厂和按实例注册
 - [x] 宿主遍历插件生成实例配置，移除 Redmine 实例注册硬编码
 - [x] 插件 UI 程序集改为通用扫描，缺失 UI 不阻断核心启动
+- [x] 编辑器扩展集合和多 tracker 状态聚合基础
+- [x] 工作项本地保存事务和远程上传协调
 
 ## 阶段 1：通用实例生命周期
 
 目标：主程序不再硬编码只创建 Redmine 实例。
 
 - [ ] 定义通用实例配置存储接口，返回所有已启用插件实例
-- [ ] 将 `App.RegisterTrackerInstances()` 改为遍历插件和配置实例
+- [x] 将 `App.RegisterTrackerInstances()` 改为遍历插件和配置实例
 - [ ] 将实例创建、数据库初始化、迁移和 UI 注册纳入统一生命周期
 - [ ] 明确实例状态：未配置、已启用、已禁用、迁移失败、连接失败
 - [ ] 迁移失败时只禁用当前插件/实例，不影响核心日记
@@ -50,21 +52,21 @@
 
 设计文档：[`MultiTrackerEditorDesign.md`](MultiTrackerEditorDesign.md)
 
-- [ ] 将编辑器中的单一 tracker 状态改为扩展集合
-- [ ] 聚合所有扩展的加载、保存、克隆、锁定和删除权限
-- [ ] 为每个实例显示独立的本地保存和远程上传状态
-- [ ] 本地工作项与所有 tracker 绑定使用同一个本地事务
-- [ ] 远程上传移出本地事务，支持单实例失败和重试
-- [ ] 删除所有 `FirstOrDefault()` 单 tracker 选择逻辑
+- [x] 将编辑器中的单一 tracker 状态改为扩展集合
+- [x] 聚合所有扩展的加载、保存、克隆、锁定和删除权限
+- [x] 为每个实例显示独立的本地保存和远程上传状态
+- [x] 本地工作项与所有 tracker 绑定使用同一个本地事务
+- [x] 远程上传移出本地事务，支持单实例失败和重试
+- [x] 删除所有 `FirstOrDefault()` 单 tracker 选择逻辑
 
 验收：Redmine 公司实例和测试 tracker 可以同时编辑、保存、克隆和上传。
 
 ## 阶段 3：模板扩展完整落地
 
-- [ ] 完成核心模板透明 `Extensions` payload 的读写
-- [ ] 迁移旧 `DefaultActivity`/`DefaultIssue` 字段
-- [ ] 插件缺失时保留未知 payload
-- [ ] 支持同一 tracker 多实例模板编辑区
+- [x] 完成核心模板透明 `Extensions` payload 的读写
+- [x] 迁移旧 `DefaultActivity`/`DefaultIssue` 字段
+- [x] 插件缺失时保留未知 payload
+- [x] 支持同一 tracker 多实例模板编辑区
 - [ ] payload schema 迁移失败时保留原始 JSON
 - [ ] 增加模板创建、编辑、应用和插件缺失测试
 

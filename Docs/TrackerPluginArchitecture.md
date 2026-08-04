@@ -22,6 +22,8 @@
 - `Diary.PluginUI` 提供配置、管理页、编辑器和模板贡献契约。
 - `PluginHost` 已支持插件注册和迁移结果状态。
 - `PluginInstanceRegistry` 已按 `(PluginId, InstanceId)` 管理实例。
+- 宿主已遍历兼容插件生成 `PluginInstanceRegistration`，不再在实例注册处硬编码 Redmine。
+- 插件 UI 和模板贡献已通过工厂按实例注册。
 - Redmine 数据访问已拆到 `Diary.RedMine.SQLite` 和 `Diary.RedMine.PostgreSQL`。
 - SQLite 和 PostgreSQL 使用共享的数据库扩展契约测试。
 - Redmine schema 已有独立版本表和 0 -> 1 -> 2 迁移链。
@@ -29,12 +31,11 @@
 
 当前实现仍然存在以下缺口：
 
-- `App.RegisterTrackerInstances()` 仍硬编码 `tracker.redmine`。
 - Redmine manifest 尚未开启 `SupportsMultipleInstances`。
-- 实例生命周期、配置加载、数据库迁移和 UI 注册尚未统一编排。
+- `App.ConfigureCheck()` 仍保留 Redmine UI 数据初始化，实例生命周期、数据库迁移和 UI 注册尚未完全统一编排。
 - `Diary.Database` 仍保留 `IRedMineDb` 扩展路径。
 - 数据库扩展发现仍使用 `Diary.RedMine.*.dll` 文件模式。
-- 编辑器、模板和上传状态尚未完成通用多 tracker 聚合。
+- 编辑器、模板和上传状态已具备多 tracker 聚合基础，但缺少完整多实例端到端验收。
 - 插件配置迁移、诊断页面、重试和卸载流程尚未完整实现。
 
 因此当前状态是“具备可选插件和实例隔离基础”，还不是“任意 tracker 可以无核心代码改动地安装、升级、运行和移除”。
@@ -918,8 +919,8 @@ SupportedProviders: PostgreSQL
 
 当前基础：插件 manifest、`PluginHost`、`PluginInstanceRegistry` 和 Redmine 实例配置已经存在。
 
-- 定义通用实例配置存储和实例状态接口。
-- 将 `App.RegisterTrackerInstances()` 改为遍历所有插件。
+- 已将插件实例配置生成和 `App.RegisterTrackerInstances()` 改为遍历所有插件。
+- 通用实例配置存储和实例状态接口仍待定义。
 - 统一实例创建、数据库初始化、迁移和 UI 注册顺序。
 - 接入 `SupportsMultipleInstances`，贯通导航、管理页和编辑器上下文。
 
@@ -927,19 +928,16 @@ SupportedProviders: PostgreSQL
 
 ### 阶段 2：多 tracker 编辑器和保存协调
 
-- 将编辑器单一 tracker 状态改为扩展集合。
-- 聚合加载、保存、克隆、锁定、删除权限和上传状态。
-- 核心工作项与所有本地绑定使用一个本地事务。
-- 远程上传放在事务外，按实例独立重试。
+- 已将编辑器状态改为扩展集合，并完成加载、保存、克隆、锁定、删除权限和上传状态聚合。
+- 已将核心工作项与本地 tracker 绑定放入同一个本地事务。
+- 已将远程上传移出事务，并支持按实例返回结果。
 
 验收标准：Redmine 和测试 tracker 可以同时绑定一个工作项，一个 tracker 上传失败不影响另一个。
 
 ### 阶段 3：模板扩展落地
 
-- 完成透明 `Extensions` payload 的序列化和编辑器协调器。
-- 迁移旧 Redmine 模板字段。
-- 保留缺失插件的未知 payload。
-- 支持同一 tracker 多实例模板扩展。
+- 已完成透明 `Extensions` payload、旧 Redmine 字段迁移、未知 payload 保留和多实例 contributor 注册。
+- 仍需补充模板损坏 payload、创建/编辑/应用和插件缺失测试。
 
 验收标准：缺少 tracker 插件时模板核心字段仍可用，插件恢复后原 payload 可以重新编辑。
 
