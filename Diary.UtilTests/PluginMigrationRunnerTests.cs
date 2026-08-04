@@ -1,11 +1,37 @@
 using System.Data.Common;
 using Diary.PluginBase;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Diary.UtilTests;
 
 [TestClass]
 public class PluginMigrationRunnerTests
 {
+    [TestMethod]
+    public void PluginHost_BlocksIncompatiblePluginBeforeRegistration()
+    {
+        var plugin = new TestPlugin(shouldThrow: false);
+        var context = new PluginCompatibilityContext(1, 1, 0, new HashSet<string>());
+        plugin.Manifest = plugin.Manifest with { ApiVersion = 2 };
+
+        var result = PluginHost.Register(plugin, context, new ServiceCollection());
+
+        Assert.AreEqual(PluginState.Blocked, result.State);
+        Assert.IsFalse(plugin.Registered);
+    }
+
+    [TestMethod]
+    public void PluginHostReturnsBlockedWhenRegistrationThrows()
+    {
+        var plugin = new TestPlugin(shouldThrow: true);
+        var context = new PluginCompatibilityContext(1, 1, 0, new HashSet<string>());
+
+        var result = PluginHost.Register(plugin, context, new ServiceCollection());
+
+        Assert.AreEqual(PluginState.Blocked, result.State);
+        StringAssert.Contains(result.Error, "register");
+    }
+
     [TestMethod]
     public void ManifestValidator_AcceptsSupportedPlugin()
     {
@@ -87,5 +113,27 @@ public class PluginMigrationRunnerTests
         public uint CoreDataVersion => 1;
         public bool ExecRaw(string sql) => true;
         public List<T> Query<T>(string sql, Func<DbDataReader, T> map, params object[] args) => new();
+    }
+
+    private sealed class TestPlugin(bool shouldThrow) : ITrackerPlugin
+    {
+        public PluginManifest Manifest { get; set; } = new()
+        {
+            Id = "tracker.test",
+            Version = "1.0.0",
+            ApiVersion = 1,
+        };
+        public bool Registered { get; private set; }
+
+        public void RegisterServices(IServiceCollection services)
+        {
+            if (shouldThrow)
+                throw new InvalidOperationException("register failed");
+            Registered = true;
+        }
+
+        public object CreateConfiguration() => new();
+        public IEnumerable<IPluginMigration> GetMigrations() => Array.Empty<IPluginMigration>();
+        public ITrackerInstance CreateInstance(string instanceId, object configuration) => throw new NotSupportedException();
     }
 }
