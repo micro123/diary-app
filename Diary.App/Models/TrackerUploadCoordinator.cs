@@ -19,7 +19,7 @@ public sealed record WorkUploadResult(IReadOnlyList<TrackerUploadResult> Results
     public string? Error => string.Join(
         "; ",
         Results.Where(x => !x.Success && !string.IsNullOrWhiteSpace(x.Error))
-            .Select(x => $"{x.Key}: {x.Error}"));
+            .Select(x => $"{x.Key.PluginId}/{x.Key.InstanceId}: {x.Error}"));
 }
 
 public interface ITrackerUploadCoordinator

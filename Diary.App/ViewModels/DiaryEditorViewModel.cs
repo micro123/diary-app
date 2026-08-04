@@ -156,6 +156,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
         // hack: update button state
         Dispatcher.UIThread.Post(() => UploadTimeCommand.NotifyCanExecuteChanged());
+        DeleteWorkItemCommand.NotifyCanExecuteChanged();
+        UploadAllCommand.NotifyCanExecuteChanged();
     }
 
     private bool CanUpload => SelectedWork?.CanUpload() == true;
@@ -200,6 +202,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
         EventDispatcher.Notify(title, sb.ToString());
 
         UpdateTimeInfos();
+        UploadAllCommand.NotifyCanExecuteChanged();
+        DeleteWorkItemCommand.NotifyCanExecuteChanged();
     }
 
     private bool CanUploadAll => TotalTime != 0 && UploadedTime < TotalTime;

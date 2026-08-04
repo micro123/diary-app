@@ -24,6 +24,7 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     // tracker 扩展集合（RedMine 等，可多个）。无 tracker 时空集合，编辑器只渲染 generic 字段。
     public ObservableCollection<ITrackerEditorExtension> Extensions { get; } = new();
+    public ObservableCollection<TrackerUploadResult> UploadResults { get; } = new();
 
     // generic data
     [ObservableProperty] private string _date;
@@ -322,6 +323,9 @@ public partial class WorkEditorViewModel : ViewModelBase
         if (WorkItem is null)
             return (false, "工作项尚未保存");
         var result = await _uploadCoordinator.UploadAsync(WorkItem, Extensions);
+        UploadResults.Clear();
+        foreach (var uploadResult in result.Results)
+            UploadResults.Add(uploadResult);
         RecomputeIsLocked();
         return (result.Success, result.Error);
     }

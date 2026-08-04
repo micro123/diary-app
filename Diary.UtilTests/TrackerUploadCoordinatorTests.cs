@@ -21,6 +21,7 @@ public sealed class TrackerUploadCoordinatorTests
             new WorkItem { Id = 1 }, new[] { first, second });
 
         Assert.IsFalse(result.Success);
+        StringAssert.Contains(result.Error, "tracker.one/default");
         Assert.AreEqual(2, result.Results.Count);
         Assert.IsFalse(result.Results[0].Success);
         Assert.IsTrue(result.Results[1].Success);
