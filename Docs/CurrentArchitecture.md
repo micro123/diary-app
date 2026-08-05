@@ -244,6 +244,9 @@ Redmine UI 通过 `Diary.PluginUI` 的契约接入：
 核心日记和其他插件继续启动；诊断页显示错误详情。Redmine 当前提供 0 -> 1 迁移，
 将旧的单实例根字段转换为 `redmine.default` 实例，同时保留未知字段。
 
+敏感配置使用 `StorageFileAttribute` 的加密键保存，API Key 等字段通过 `ConfigureTextAttribute`
+标记为密码输入。编辑器只在用户显式修改后更新字段，配置迁移和日志导出均不输出明文密钥。
+
 ## 11. 当前已知缺口
 
 - `SupportsMultipleInstances` 已接入 Redmine manifest、实例配置、导航和编辑器上下文；其他插件仍需按自身能力声明该标志。
