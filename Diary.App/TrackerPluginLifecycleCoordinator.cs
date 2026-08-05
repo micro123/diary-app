@@ -1,5 +1,6 @@
 using Diary.PluginBase;
 using Diary.PluginUI;
+using Diary.Database;
 using Diary.Core.Utils;
 using Microsoft.Extensions.Logging;
 
@@ -100,6 +101,38 @@ public sealed class TrackerPluginLifecycleCoordinator(
                 .Where(registration => registration.InstanceId == instanceId));
         RefreshContributions();
         return instanceRegistry.GetEntry(pluginId, instanceId)?.State == TrackerInstanceState.Enabled;
+    }
+
+    /// <summary>
+    /// 卸载实例默认只禁用并保留配置和本地数据；显式要求时才删除插件数据。
+    /// </summary>
+    public bool UninstallInstance(string pluginId, string instanceId, bool deleteData = false)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceId);
+
+        var plugin = _plugins.FirstOrDefault(item => item.Manifest.Id == pluginId);
+        if (plugin is null || _database is null
+            || !_configurations.TryGetValue(pluginId, out var configuration))
+            return false;
+
+        var context = CreateContext(plugin, configuration);
+        if (!plugin.TrySetInstanceEnabled(configuration, instanceId, false))
+            return false;
+        if (!EasySaveLoad.Save(configuration))
+            return false;
+
+        if (deleteData && !plugin.TryDeleteInstanceData(context, instanceId))
+            return false;
+
+        if (_database is DbInterfaceBase database)
+        {
+            database.InvalidateExtensions(instanceId);
+        }
+
+        var disabled = instanceRegistry.Disable(pluginId, instanceId);
+        RefreshContributions();
+        return disabled;
     }
 
     /// <summary>重试实例注册，并在结束后刷新 UI/模板贡献。</summary>

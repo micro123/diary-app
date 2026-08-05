@@ -130,4 +130,13 @@ public sealed class RedMinePlugin : ITrackerPlugin
 
         return registrations;
     }
+
+    public bool TryDeleteInstanceData(PluginHostContext hostContext, string instanceId)
+    {
+        if (hostContext.Database is not DbInterfaceBase db)
+            return false;
+
+        var database = db.GetExtension<IRedMineDb>(instanceId, GetMigrations());
+        return database?.ClearData() == true;
+    }
 }

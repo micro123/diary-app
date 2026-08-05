@@ -1,4 +1,5 @@
 using Diary.App;
+using Diary.Core.Configure;
 using Diary.GUIBase.ViewModels;
 using Diary.PluginBase;
 using Diary.PluginUI;
@@ -10,6 +11,16 @@ namespace Diary.UtilTests;
 [TestClass]
 public sealed class TrackerPluginLifecycleCoordinatorTests
 {
+    [TestCleanup]
+    public void Cleanup()
+    {
+        var path = Path.Combine(
+            Diary.Utils.FsTools.GetApplicationConfigDirectory(),
+            "tracker_lifecycle_tests.json");
+        if (File.Exists(path))
+            File.Delete(path);
+    }
+
     [TestMethod]
     public void RegisterWithoutPlugins_LeavesCoreRegistriesEmpty()
     {
@@ -104,6 +115,43 @@ public sealed class TrackerPluginLifecycleCoordinatorTests
         Assert.AreEqual(2, templateRegistry.Contributors.Count);
     }
 
+    [TestMethod]
+    public void UninstallInstanceDisablesAndPreservesDataByDefault()
+    {
+        var registry = new PluginInstanceRegistry();
+        var uiRegistry = new TrackerUiContributionRegistry();
+        var templateRegistry = new TrackerTemplateContributorRegistry();
+        var plugin = new MemoryPlugin();
+        var configuration = new MemoryConfiguration();
+        var coordinator = CreateCoordinator(registry, uiRegistry, templateRegistry);
+
+        coordinator.Register(new object(), new[] { plugin },
+            new Dictionary<string, object> { [plugin.Manifest.Id] = configuration });
+
+        Assert.IsTrue(coordinator.UninstallInstance(plugin.Manifest.Id, "memory.one"));
+        Assert.IsFalse(configuration.Enabled);
+        Assert.IsFalse(configuration.DataDeleted);
+        Assert.IsNull(registry.Get(plugin.Manifest.Id, "memory.one"));
+        Assert.AreEqual(1, registry.Instances.Count);
+    }
+
+    [TestMethod]
+    public void UninstallInstanceDeletesDataOnlyWhenExplicitlyRequested()
+    {
+        var registry = new PluginInstanceRegistry();
+        var uiRegistry = new TrackerUiContributionRegistry();
+        var templateRegistry = new TrackerTemplateContributorRegistry();
+        var plugin = new MemoryPlugin();
+        var configuration = new MemoryConfiguration();
+        var coordinator = CreateCoordinator(registry, uiRegistry, templateRegistry);
+
+        coordinator.Register(new object(), new[] { plugin },
+            new Dictionary<string, object> { [plugin.Manifest.Id] = configuration });
+
+        Assert.IsTrue(coordinator.UninstallInstance(plugin.Manifest.Id, "memory.one", deleteData: true));
+        Assert.IsTrue(configuration.DataDeleted);
+    }
+
     private static TrackerPluginLifecycleCoordinator CreateCoordinator(
         PluginInstanceRegistry registry,
         TrackerUiContributionRegistry uiRegistry,
@@ -134,16 +182,27 @@ public sealed class TrackerPluginLifecycleCoordinatorTests
         public void RegisterServices(IServiceCollection services) { }
         public object CreateConfiguration() => new object();
         public IEnumerable<IPluginMigration> GetMigrations() => Array.Empty<IPluginMigration>();
+        public bool TryDeleteInstanceData(PluginHostContext hostContext, string instanceId)
+        {
+            ((MemoryConfiguration)hostContext.Configuration).DataDeleted = true;
+            return true;
+        }
         public ITrackerInstance CreateInstance(string instanceId, object configuration)
             => new MemoryInstance(instanceId);
 
         public IEnumerable<PluginInstanceConfiguration> GetInstanceConfigurations(object configuration)
             => new[]
             {
-                new PluginInstanceConfiguration("memory.one", new object()),
-                new PluginInstanceConfiguration("memory.two", new object()),
+                new PluginInstanceConfiguration("memory.one", configuration),
+                new PluginInstanceConfiguration("memory.two", configuration),
                 new PluginInstanceConfiguration("memory.disabled", new object(), Enabled: false),
             };
+
+        public bool TrySetInstanceEnabled(object configuration, string instanceId, bool enabled)
+        {
+            ((MemoryConfiguration)configuration).Enabled = enabled;
+            return true;
+        }
 
         public IEnumerable<PluginInstanceRegistration> GetInstanceRegistrations(object hostContext)
         {
@@ -169,6 +228,13 @@ public sealed class TrackerPluginLifecycleCoordinatorTests
                 }
             }
         }
+    }
+
+    [StorageFile("tracker_lifecycle_tests.json")]
+    private sealed class MemoryConfiguration
+    {
+        public bool Enabled { get; set; } = true;
+        public bool DataDeleted { get; set; }
     }
 
     private sealed class MemoryInstance(string instanceId) : ITrackerInstance

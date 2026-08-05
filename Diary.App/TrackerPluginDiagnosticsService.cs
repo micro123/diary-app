@@ -104,4 +104,7 @@ public sealed class TrackerPluginDiagnosticsService(
 
     public bool SetInstanceEnabled(string pluginId, string instanceId, bool enabled)
         => lifecycleCoordinator.SetInstanceEnabled(pluginId, instanceId, enabled);
+
+    public bool UninstallInstance(string pluginId, string instanceId, bool deleteData = false)
+        => lifecycleCoordinator.UninstallInstance(pluginId, instanceId, deleteData);
 }

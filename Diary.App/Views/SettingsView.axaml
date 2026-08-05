@@ -44,6 +44,10 @@
                                                 IsVisible="{Binding CanRetry}" />
                                         <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}"
                                                 IsVisible="{Binding CanToggle}" />
+                                        <Button Content="卸载（保留数据）" Command="{Binding UninstallCommand}"
+                                                IsVisible="{Binding CanUninstall}" />
+                                        <Button Content="删除数据并卸载" Command="{Binding DeleteDataCommand}"
+                                                IsVisible="{Binding CanUninstall}" />
                                     </StackPanel>
                                 </Grid>
                             </DataTemplate>

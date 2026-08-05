@@ -29,6 +29,10 @@ public interface ITrackerPlugin : IPluginInstanceConfigurationStore
 
     /// <summary>从宿主上下文读取插件配置并生成启用的实例注册项。</summary>
     IEnumerable<PluginInstanceRegistration> GetInstanceRegistrations(object hostContext);
+
+    /// <summary>删除指定实例的插件数据。默认不支持删除，避免卸载时误删数据。</summary>
+    bool TryDeleteInstanceData(PluginHostContext hostContext, string instanceId)
+        => false;
 }
 
 /// <summary>
