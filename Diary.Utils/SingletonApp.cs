@@ -138,5 +138,20 @@ public class SingletonApp : IDisposable
         _token = null;
         _lockStream?.Dispose();
         _lockStream = null;
+        if (_self)
+        {
+            try
+            {
+                File.Delete(_lockPath);
+            }
+            catch (IOException)
+            {
+                // 文件锁已释放；删除失败不会影响后续实例重新获取锁。
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // 文件锁已释放；删除失败不会影响后续实例重新获取锁。
+            }
+        }
     }
 }

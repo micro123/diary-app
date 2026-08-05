@@ -18,22 +18,24 @@ public sealed class RedMineConfigurationMigration : IPluginConfigurationMigratio
         if (payload["Instances"] is JArray instances)
         {
             if (instances.Count == 0)
-                instances.Add(CreateDefaultInstance(payload));
+                instances.Add(CreateDefaultInstance(payload, enabled: HasLegacyConfiguration(payload)));
             EnsureInstanceIds(instances);
             return payload;
         }
 
-        payload["Instances"] = new JArray(CreateDefaultInstance(payload));
+        // 旧配置只有根级 Redmine 字段，说明用户已经配置过该 tracker；
+        // 迁移出的唯一默认实例应保持可用，而不是被当成首次安装的空实例。
+        payload["Instances"] = new JArray(CreateDefaultInstance(payload, enabled: true));
         return payload;
     }
 
-    private static JObject CreateDefaultInstance(JObject payload)
+    private static JObject CreateDefaultInstance(JObject payload, bool enabled)
     {
         var instance = new JObject
         {
             ["InstanceId"] = RedMinePluginConstants.DefaultInstanceId,
             ["DisplayName"] = "RedMine工具",
-            ["Enabled"] = false,
+            ["Enabled"] = enabled,
         };
         foreach (var propertyName in new[]
                  {
@@ -49,6 +51,10 @@ public sealed class RedMineConfigurationMigration : IPluginConfigurationMigratio
 
         return instance;
     }
+
+    private static bool HasLegacyConfiguration(JObject payload)
+        => !string.IsNullOrWhiteSpace((string?)payload["RedMineServerUrl"])
+            || !string.IsNullOrWhiteSpace((string?)payload["RedMineApiKey"]);
 
     private static void EnsureInstanceIds(JArray instances)
     {

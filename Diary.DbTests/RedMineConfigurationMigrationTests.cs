@@ -23,7 +23,25 @@ public sealed class RedMineConfigurationMigrationTests
         Assert.AreEqual(RedMinePluginConstants.DefaultInstanceId, (string?)instance["InstanceId"]);
         Assert.AreEqual("https://redmine.example", (string?)instance["RedMineServerUrl"]);
         Assert.AreEqual("secret", (string?)instance["RedMineApiKey"]);
+        Assert.IsTrue((bool?)instance["Enabled"]);
         Assert.AreEqual(42, (int?)migrated["UnknownField"]!["value"]);
+    }
+
+    [TestMethod]
+    public void EmptyInstances_CreateEnabledDefaultInstance()
+    {
+        var payload = new JObject
+        {
+            ["Instances"] = new JArray(),
+            ["RedMineServerUrl"] = "https://redmine.example",
+            ["RedMineApiKey"] = "secret",
+        };
+
+        var migrated = (JObject)new RedMineConfigurationMigration().Migrate(payload);
+        var instance = (JObject)((JArray)migrated["Instances"]!)[0]!;
+
+        Assert.AreEqual(RedMinePluginConstants.DefaultInstanceId, (string?)instance["InstanceId"]);
+        Assert.IsTrue((bool?)instance["Enabled"]);
     }
 
     [TestMethod]

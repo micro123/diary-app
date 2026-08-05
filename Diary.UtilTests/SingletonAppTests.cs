@@ -65,4 +65,18 @@ public class SingletonAppTests
         using var again = new SingletonApp(appId);
         Assert.IsTrue(again.IsSelfInstance(), "释放锁后新实例应判定为自身");
     }
+
+    [TestMethod]
+    public void DisposeRemovesLockFile()
+    {
+        var appId = $"single_{Guid.NewGuid():N}";
+        var path = Path.Combine(FsTools.GetApplicationDataDirectory(), $"{appId}.lock");
+        using (var app = new SingletonApp(appId))
+        {
+            Assert.IsTrue(app.IsSelfInstance());
+            Assert.IsTrue(File.Exists(path));
+        }
+
+        Assert.IsFalse(File.Exists(path));
+    }
 }

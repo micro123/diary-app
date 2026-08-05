@@ -1,6 +1,8 @@
 using Diary.Db.SQLite;
+using Diary.Core.Utils;
 using Diary.PluginBase;
 using Diary.RedMine;
+using Newtonsoft.Json.Linq;
 
 namespace Diary.DbTests;
 
@@ -91,5 +93,46 @@ public sealed class RedMinePluginInstanceRegistrationTests
         var settings = (RedMineInstanceSettings)instance;
         Assert.AreEqual(config.RedMineServerUrl, settings.RedMineServerUrl);
         Assert.AreEqual(config.RedMineApiKey, settings.RedMineApiKey);
+    }
+
+    [TestMethod]
+    public void PluginConfigurationLoader_PreservesEnabledDefaultInstanceFromPackage()
+    {
+        var seed = new RedMinePluginConfig();
+        var package = new JObject
+        {
+            ["PluginId"] = RedMinePluginConstants.PluginId,
+            ["SchemaVersion"] = 1,
+            ["Payload"] = new JObject
+            {
+                ["Instances"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["InstanceId"] = RedMinePluginConstants.DefaultInstanceId,
+                        ["Enabled"] = true,
+                        ["RedMineServerUrl"] = "http://redmine.local",
+                        ["RedMineApiKey"] = "api-key",
+                    },
+                },
+            },
+        };
+
+        try
+        {
+            Assert.IsTrue(EasySaveLoad.SaveJson(seed, package));
+            var configuration = (RedMinePluginConfig)new Diary.App.PluginConfigurationLoader()
+                .Load(new RedMinePlugin());
+
+            var instance = new RedMinePlugin().GetInstanceConfigurations(configuration).Single();
+            Assert.IsTrue(instance.Enabled);
+            Assert.AreEqual(RedMinePluginConstants.DefaultInstanceId, instance.InstanceId);
+        }
+        finally
+        {
+            var path = Path.Combine(Diary.Utils.FsTools.GetApplicationConfigDirectory(), "redmine_settings.json");
+            if (File.Exists(path))
+                File.Delete(path);
+        }
     }
 }
