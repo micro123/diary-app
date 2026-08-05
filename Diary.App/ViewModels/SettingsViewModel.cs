@@ -2,7 +2,6 @@ using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
-using System.Collections.ObjectModel;
 using Diary.GUIBase;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
@@ -11,7 +10,10 @@ using Diary.Core.Utils;
 using Diary.PluginBase;
 using Diary.PluginUI;
 using Diary.Utils;
+using Diary.App.ViewModels.Dialogs;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
+using Ursa.Controls;
 
 namespace Diary.App.ViewModels;
 
@@ -21,69 +23,22 @@ public partial class SettingsViewModel : ViewModelBase
     private readonly ILogger _logger;
     private readonly TrackerPluginDiagnosticsService _diagnostics;
     private readonly DiagnosticLogExportService _logExport;
+    private readonly IServiceProvider _services;
     private readonly IReadOnlyList<(object Configuration, ITrackerConfigurationProvider Provider)> _pluginSettings;
     [ObservableProperty] private SettingGroup _settingsTree = new("Root");
-    [ObservableProperty]
-    private ObservableCollection<TrackerPluginDiagnosticViewModel> _pluginDiagnostics = new();
-
     public SettingsViewModel(
         ILogger logger,
         TrackerPluginDiagnosticsService diagnostics,
         DiagnosticLogExportService logExport,
-        IEnumerable<ITrackerConfigurationProvider> configurationProviders)
+        IEnumerable<ITrackerConfigurationProvider> configurationProviders,
+        IServiceProvider services)
     {
         _logger = logger;
         _diagnostics = diagnostics;
         _logExport = logExport;
+        _services = services;
         _pluginSettings = LoadPluginSettings(configurationProviders);
         BuildTree();
-        RefreshDiagnostics();
-    }
-
-    private void RefreshDiagnostics()
-    {
-        PluginDiagnostics = new ObservableCollection<TrackerPluginDiagnosticViewModel>(
-            _diagnostics.GetSnapshot().Select(entry =>
-                new TrackerPluginDiagnosticViewModel(
-                    entry,
-                    () => Retry(entry.PluginId, entry.InstanceId!),
-                    () => Toggle(entry.PluginId, entry.InstanceId!, entry.InstanceState != TrackerInstanceState.Enabled),
-                    () => Uninstall(entry.PluginId, entry.InstanceId!, deleteData: false),
-                    () => Uninstall(entry.PluginId, entry.InstanceId!, deleteData: true))));
-    }
-
-    private void Retry(string pluginId, string instanceId)
-    {
-        var success = _diagnostics.Retry(pluginId, instanceId);
-        RefreshDiagnostics();
-        NotificationManager?.Show(
-            success ? "插件实例已恢复" : "插件实例重试失败",
-            success ? NotificationType.Success : NotificationType.Error);
-    }
-
-    private void Toggle(string pluginId, string instanceId, bool enabled)
-    {
-        var success = _diagnostics.SetInstanceEnabled(pluginId, instanceId, enabled);
-        RefreshDiagnostics();
-        NotificationManager?.Show(
-            success ? (enabled ? "插件实例已启用" : "插件实例已禁用") : "插件实例状态更新失败",
-            success ? NotificationType.Success : NotificationType.Error);
-    }
-
-    private async void Uninstall(string pluginId, string instanceId, bool deleteData)
-    {
-        if (deleteData && !await EventDispatcher.Confirm(
-                "删除插件数据？",
-                "该操作将删除此实例的本地数据，且无法恢复。"))
-            return;
-
-        var success = _diagnostics.UninstallInstance(pluginId, instanceId, deleteData);
-        RefreshDiagnostics();
-        NotificationManager?.Show(
-            success
-                ? (deleteData ? "插件实例已卸载并删除数据" : "插件实例已卸载，配置和数据已保留")
-                : "插件实例卸载失败",
-            success ? NotificationType.Success : NotificationType.Error);
     }
 
     private void BuildTree()
@@ -96,6 +51,20 @@ public partial class SettingsViewModel : ViewModelBase
             SettingTreeBuilder.BuildTree(group, configuration, app);
             SettingsTree.Children.Add(group);
         }
+    }
+
+    [RelayCommand]
+    private async Task ShowTrackerDiagnostics()
+    {
+        var viewModel = _services.GetRequiredService<TrackerPluginDiagnosticsViewModel>();
+        var options = new OverlayDialogOptions
+        {
+            CanDragMove = false,
+            CanResize = true,
+            CanLightDismiss = false,
+            IsCloseButtonVisible = false,
+        };
+        await OverlayDialog.ShowCustomModal<object>(viewModel, options: options);
     }
 
     [RelayCommand]

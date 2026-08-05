@@ -19,47 +19,13 @@
     </Interaction.Behaviors>
 
     <!-- 内容：DataTemplate 由 Application.DataTemplates 提供 (App.axaml)，与 GenericConfigView 共享 -->
-    <Grid RowDefinitions="Auto,*,Auto">
-        <Border Padding="8" Margin="0 0 0 8" Background="#12000000">
-            <StackPanel Spacing="6">
-                <TextBlock Text="Tracker 插件状态" FontSize="16" FontWeight="SemiBold" />
-                <ScrollViewer MaxHeight="220">
-                    <ItemsControl ItemsSource="{Binding PluginDiagnostics}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto"
-                                      Margin="0 4">
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
-                                        <TextBlock Text="{Binding PluginId}" Opacity="0.7" />
-                                        <TextBlock Text="{Binding PluginVersion}" Opacity="0.7" />
-                                        <TextBlock Text="{Binding PluginState}" />
-                                        <TextBlock Text="{Binding InstanceId}" />
-                                        <TextBlock Text="{Binding InstanceState}" />
-                                        <TextBlock Text="{Binding Error}" Foreground="IndianRed"
-                                                   TextWrapping="Wrap" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                                        <Button Content="重试" Command="{Binding RetryCommand}"
-                                                IsVisible="{Binding CanRetry}" />
-                                        <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}"
-                                                IsVisible="{Binding CanToggle}" />
-                                        <Button Content="卸载（保留数据）" Command="{Binding UninstallCommand}"
-                                                IsVisible="{Binding CanUninstall}" />
-                                        <Button Content="删除数据并卸载" Command="{Binding DeleteDataCommand}"
-                                                IsVisible="{Binding CanUninstall}" />
-                                    </StackPanel>
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-            </StackPanel>
-        </Border>
-        <ItemsControl Grid.Row="1" Classes="Settings" ItemsSource="{Binding SettingsTree.Children}"/>
-        <StackPanel Grid.Row="2" Orientation="Horizontal"
+    <Grid RowDefinitions="*,Auto">
+        <ItemsControl Classes="Settings" ItemsSource="{Binding SettingsTree.Children}"/>
+        <StackPanel Grid.Row="1" Orientation="Horizontal"
                     HorizontalAlignment="Center" Spacing="16"
                     Margin="32  8 32 0">
+            <Button Classes="Large" Content="Tracker 插件状态"
+                    Command="{Binding ShowTrackerDiagnosticsCommand}" />
             <Button Classes="Large" Content="导出日志" Command="{Binding ExportLogsCommand}" />
             <Button Classes="Large Danger" Content="还原配置" Command="{Binding LoadCommand}" />
             <Button Classes="Large Primary" Content="保存配置" Command="{Binding SaveCommand}" />

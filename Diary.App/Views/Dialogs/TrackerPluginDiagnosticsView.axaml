@@ -1,0 +1,43 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:viewModels="clr-namespace:Diary.App.ViewModels"
+             xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
+             mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="480"
+             x:Class="Diary.App.Views.Dialogs.TrackerPluginDiagnosticsView"
+             x:DataType="dialogs:TrackerPluginDiagnosticsViewModel"
+             Padding="16">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
+        <TextBlock Text="Tracker 插件状态" FontSize="18" FontWeight="SemiBold" />
+        <ScrollViewer Grid.Row="1">
+            <ItemsControl ItemsSource="{Binding Entries}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="viewModels:TrackerPluginDiagnosticViewModel">
+                        <Grid ColumnDefinitions="*,Auto" Margin="0 6">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding PluginId}" Opacity="0.7" />
+                                <TextBlock Text="{Binding InstanceState}" />
+                                <TextBlock Text="{Binding Error}" Foreground="IndianRed"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <Button Content="重试" Command="{Binding RetryCommand}"
+                                        IsVisible="{Binding CanRetry}" />
+                                <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}"
+                                        IsVisible="{Binding CanToggle}" />
+                                <Button Content="卸载（保留数据）" Command="{Binding UninstallCommand}"
+                                        IsVisible="{Binding CanUninstall}" />
+                                <Button Content="删除数据并卸载" Command="{Binding DeleteDataCommand}"
+                                        IsVisible="{Binding CanUninstall}" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+        <Button Grid.Row="2" Classes="Primary" Content="关闭"
+                Command="{Binding CloseDialogCommand}" HorizontalAlignment="Center" />
+    </Grid>
+</UserControl>

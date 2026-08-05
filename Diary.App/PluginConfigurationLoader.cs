@@ -2,6 +2,7 @@ using Diary.Core.Utils;
 using Diary.PluginBase;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System.Collections;
 
 namespace Diary.App;
 
@@ -114,6 +115,7 @@ public sealed class PluginConfigurationLoader
                 $"插件配置版本 {schemaVersion} 高于当前支持版本 {targetVersion}");
         }
 
+        ClearSerializedCollections(payload, configuration);
         JsonConvert.PopulateObject(payload.ToString(Formatting.None), configuration);
         if (migrated || (isPackage && schemaVersion != originalVersion))
         {
@@ -141,6 +143,18 @@ public sealed class PluginConfigurationLoader
         }
 
         return configuration;
+    }
+
+    private static void ClearSerializedCollections(JObject payload, object configuration)
+    {
+        foreach (var property in configuration.GetType().GetProperties())
+        {
+            if (property.GetValue(configuration) is not IList collection
+                || !payload.Properties().Any(item => string.Equals(
+                    item.Name, property.Name, StringComparison.OrdinalIgnoreCase)))
+                continue;
+            collection.Clear();
+        }
     }
 
     private static JObject ToJsonObject(object value, string pluginId, int version)
