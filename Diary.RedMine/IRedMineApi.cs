@@ -1,5 +1,7 @@
 using Diary.RedMine.Response;
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Diary.RedMine;
 
 /// <summary>
@@ -11,15 +13,15 @@ public interface IRedMineApi
     /// <summary>分页大小（原 RedMineApis.PageSize）。</summary>
     int PageSize { get; }
 
-    bool SearchProject(out IEnumerable<ProjectInfo>? projects, out int total, int page = 0, string keyword = "");
-    bool GetProject(out ProjectInfo? project, int id);
-    bool SearchIssueByKeywords(out IEnumerable<IssueInfo>? issues, out int total, bool myIssues = true, bool openOnly = true, int page = 0, string keywords = "");
-    bool SearchIssueByIds(out IEnumerable<IssueInfo>? issues, out int total, bool myIssues = true, bool openOnly = true, int page = 0, string ids = "");
-    bool GetIssue(out IssueInfo? issue, int id);
-    bool CreateIssue(out IssueInfo? issue, int projectId, string subject, string description = "", bool assignedToSelf = true);
+    bool SearchProject([NotNullWhen(true)] out IEnumerable<ProjectInfo>? projects, out int total, int page = 0, string keyword = "");
+    bool GetProject([NotNullWhen(true)] out ProjectInfo? project, int id);
+    bool SearchIssueByKeywords([NotNullWhen(true)] out IEnumerable<IssueInfo>? issues, out int total, bool myIssues = true, bool openOnly = true, int page = 0, string keywords = "");
+    bool SearchIssueByIds([NotNullWhen(true)] out IEnumerable<IssueInfo>? issues, out int total, bool myIssues = true, bool openOnly = true, int page = 0, string ids = "");
+    bool GetIssue([NotNullWhen(true)] out IssueInfo? issue, int id);
+    bool CreateIssue([NotNullWhen(true)] out IssueInfo? issue, int projectId, string subject, string description = "", bool assignedToSelf = true);
     bool CloseIssue(int id);
-    bool CreateTimeEntry(out TimeInfo? timeInfo, int issue, int activity, string date, double hours, string comment);
-    bool GetMyTimeEntries(out IEnumerable<TimeInfo>? timeInfos, out int total, string dateStart = "", string dateEnd = "", int page = 0);
-    bool GetActivities(out IEnumerable<ActivityInfo>? activities);
-    bool GetUserInfo(out UserInfo? userInfo);
+    bool CreateTimeEntry([NotNullWhen(true)] out TimeInfo? timeInfo, int issue, int activity, string date, double hours, string comment);
+    bool GetMyTimeEntries([NotNullWhen(true)] out IEnumerable<TimeInfo>? timeInfos, out int total, string dateStart = "", string dateEnd = "", int page = 0);
+    bool GetActivities([NotNullWhen(true)] out IEnumerable<ActivityInfo>? activities);
+    bool GetUserInfo([NotNullWhen(true)] out UserInfo? userInfo);
 }
