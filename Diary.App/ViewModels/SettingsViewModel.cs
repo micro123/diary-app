@@ -18,16 +18,19 @@ public partial class SettingsViewModel : ViewModelBase
 {
     private readonly ILogger _logger;
     private readonly TrackerPluginDiagnosticsService _diagnostics;
+    private readonly DiagnosticLogExportService _logExport;
     [ObservableProperty] private SettingGroup _settingsTree = new("Root");
     [ObservableProperty]
     private ObservableCollection<TrackerPluginDiagnosticViewModel> _pluginDiagnostics = new();
 
     public SettingsViewModel(
         ILogger logger,
-        TrackerPluginDiagnosticsService diagnostics)
+        TrackerPluginDiagnosticsService diagnostics,
+        DiagnosticLogExportService logExport)
     {
         _logger = logger;
         _diagnostics = diagnostics;
+        _logExport = logExport;
         BuildTree();
         RefreshDiagnostics();
     }
@@ -72,6 +75,15 @@ public partial class SettingsViewModel : ViewModelBase
         SettingsTree.Save();
         NotificationManager?.Show("已保存", NotificationType.Success);
         Messenger.Send(new ConfigUpdateEvent());
+    }
+
+    [RelayCommand]
+    private void ExportLogs()
+    {
+        var path = _logExport.Export();
+        NotificationManager?.Show(
+            path is null ? "没有可导出的日志" : $"日志已导出：{path}",
+            path is null ? NotificationType.Information : NotificationType.Success);
     }
 
     [RelayCommand]

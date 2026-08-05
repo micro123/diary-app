@@ -56,6 +56,7 @@
         <StackPanel Grid.Row="2" Orientation="Horizontal"
                     HorizontalAlignment="Center" Spacing="16"
                     Margin="32  8 32 0">
+            <Button Classes="Large" Content="导出日志" Command="{Binding ExportLogsCommand}" />
             <Button Classes="Large Danger" Content="还原配置" Command="{Binding LoadCommand}" />
             <Button Classes="Large Primary" Content="保存配置" Command="{Binding SaveCommand}" />
         </StackPanel>
