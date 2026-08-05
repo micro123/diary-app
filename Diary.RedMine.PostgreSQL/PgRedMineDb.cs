@@ -23,7 +23,11 @@ public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRed
     public uint SchemaVersion => CurrentSchemaVersion;
 
     public bool Initialize(IReadOnlyList<IPluginMigration> migrations)
+        => Initialize(migrations, out _);
+
+    public bool Initialize(IReadOnlyList<IPluginMigration> migrations, out string? error)
     {
+        error = null;
         try
         {
             const string versionTable = """
@@ -33,7 +37,10 @@ public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRed
                                         );
                                         """;
             if (!_host.ExecRaw(versionTable))
+            {
+                error = "无法创建 plugin_data_versions 表";
                 return false;
+            }
 
             var schemaVersion = GetSchemaVersion();
             if (HasLegacyTables())
@@ -51,16 +58,18 @@ public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRed
                     args.Cast<(string Name, object? Value)>().ToArray()));
             if (!PluginMigrationRunner.Upgrade(
                     RedMinePluginConstants.PluginId, schemaVersion, CurrentSchemaVersion,
-                    migrations, context))
+                    migrations, context, out var migrationError))
             {
+                error = migrationError;
                 return false;
             }
 
             return _host.ExecRaw(
                 $"INSERT INTO plugin_data_versions(plugin_id, schema_version) VALUES ('{RedMinePluginConstants.PluginId}', 2) ON CONFLICT(plugin_id) DO UPDATE SET schema_version=2;");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            error = ex.Message;
             return false;
         }
     }

@@ -58,13 +58,13 @@ public sealed class RedMinePlugin : ITrackerPlugin
             {
                 database = db.GetExtension<IRedMineDb>(settings.InstanceId, migrations);
             }
-            catch (PluginExtensionInitException)
+            catch (PluginExtensionInitException ex)
             {
                 registrations.Add(new PluginInstanceRegistration(
                     settings.InstanceId,
                     null,
                     TrackerInstanceState.MigrationFailed,
-                    "数据库迁移失败"));
+                    ex.Message));
                 continue;
             }
 

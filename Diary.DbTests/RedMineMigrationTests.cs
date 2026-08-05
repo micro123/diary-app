@@ -191,6 +191,24 @@ public sealed class RedMineMigrationTests
     }
 
     [TestMethod]
+    public void SQLite_InvalidateExtensions_ForcesRecreation()
+    {
+        using var db = TestDb.Create();
+        var migrations = new RedMinePlugin().GetMigrations();
+
+        var first = db.GetExtension<IRedMineDb>("redmine.recreate", migrations);
+        var cached = db.GetExtension<IRedMineDb>("redmine.recreate", migrations);
+        Assert.IsNotNull(first);
+        Assert.AreSame(first, cached); // 命中缓存
+
+        db.InvalidateExtensions("redmine.recreate");
+
+        var recreated = db.GetExtension<IRedMineDb>("redmine.recreate", migrations);
+        Assert.IsNotNull(recreated);
+        Assert.AreNotSame(first, recreated); // 缓存被清，工厂重跑
+    }
+
+    [TestMethod]
     public void PostgreSql_InitializationIsIdempotent()
     {
         var factory = PgContainerFixture.CreateFactory();

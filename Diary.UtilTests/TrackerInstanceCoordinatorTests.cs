@@ -74,6 +74,31 @@ public sealed class TrackerInstanceCoordinatorTests
         Assert.AreEqual(TrackerInstanceState.MigrationFailed, entry.State);
     }
 
+    [TestMethod]
+    public void Retry_ClearsFailedEntryAndReRegistersOnSuccess()
+    {
+        var registry = new PluginInstanceRegistry();
+        var plugin = new TogglePlugin();
+        var coordinator = new TrackerInstanceCoordinator(registry, NullLogger<TrackerInstanceCoordinator>.Instance);
+        var hostContext = new PluginHostContext(new object(), new object());
+
+        // 首次：插件报告迁移失败
+        coordinator.Register(plugin, plugin.GetInstanceRegistrations(hostContext));
+        Assert.AreEqual(0, registry.Instances.Count);
+        var failed = registry.GetEntry(plugin.Manifest.Id, "toggle.x")!;
+        Assert.AreEqual(TrackerInstanceState.MigrationFailed, failed.State);
+        Assert.AreEqual("boom", failed.Error);
+
+        // 重试：插件本次报告 Enabled，失败条目被清除并重建为已启用
+        coordinator.Retry(plugin, "toggle.x", hostContext);
+
+        Assert.AreEqual(1, registry.Instances.Count);
+        Assert.AreEqual("toggle.x", registry.Instances.Single().InstanceId);
+        var entry = registry.GetEntry(plugin.Manifest.Id, "toggle.x")!;
+        Assert.AreEqual(TrackerInstanceState.Enabled, entry.State);
+        Assert.IsNotNull(entry.Instance);
+    }
+
     private sealed class MemoryPlugin(string pluginId) : ITrackerPlugin
     {
         public PluginManifest Manifest { get; } = new()
@@ -120,5 +145,33 @@ public sealed class TrackerInstanceCoordinatorTests
         public string Icon => "memory";
         public bool IsConfigured => true;
         public IDictionary<int, object?>? LoadBindingsByDate(string date) => new Dictionary<int, object?>();
+    }
+
+    /// <summary>首次返回 MigrationFailed、之后返回 Enabled，模拟迁移失败后修复。</summary>
+    private sealed class TogglePlugin : ITrackerPlugin
+    {
+        public PluginManifest Manifest { get; } = new()
+        {
+            Id = "tracker.toggle",
+            Version = "1.0.0",
+            ApiVersion = 1,
+            SupportsMultipleInstances = true,
+        };
+
+        private int _calls;
+
+        public void RegisterServices(IServiceCollection services) { }
+        public object CreateConfiguration() => new object();
+        public IEnumerable<IPluginMigration> GetMigrations() => Array.Empty<IPluginMigration>();
+        public ITrackerInstance CreateInstance(string instanceId, object configuration)
+            => new MemoryInstance("tracker.toggle", instanceId);
+
+        public IEnumerable<PluginInstanceRegistration> GetInstanceRegistrations(object hostContext)
+        {
+            _calls++;
+            return _calls == 1
+                ? new[] { new PluginInstanceRegistration("toggle.x", null, TrackerInstanceState.MigrationFailed, "boom") }
+                : new[] { new PluginInstanceRegistration("toggle.x", new object(), TrackerInstanceState.Enabled) };
+        }
     }
 }

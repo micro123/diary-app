@@ -74,6 +74,20 @@ public sealed class PluginInstanceRegistry
         _entries.Add(key, new PluginInstanceEntry(null, state, error));
     }
 
+    /// <summary>
+    /// 清除某实例的非 Enabled 条目（失败/禁用），使重注册可达。
+    /// 已启用实例不在此清除，避免误删正在使用的实例。
+    /// </summary>
+    public bool Clear(string pluginId, string instanceId)
+    {
+        var key = (pluginId, instanceId);
+        if (!_entries.TryGetValue(key, out var entry))
+            return false;
+        if (entry.State == TrackerInstanceState.Enabled)
+            return false;
+        return _entries.Remove(key);
+    }
+
     public PluginInstanceEntry? GetEntry(string pluginId, string instanceId)
         => _entries.GetValueOrDefault((pluginId, instanceId));
 

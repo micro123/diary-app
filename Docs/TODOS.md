@@ -37,6 +37,7 @@
 - [x] 定义 `TrackerInstanceState` 实例状态模型与失败条目存储
 - [x] DB 扩展初始化/迁移失败显式抛 `PluginExtensionInitException`，不再静默返回 null
 - [x] coordinator 按 `Enabled`/非 `Enabled` 路由，迁移失败只禁用当前实例
+- [x] 迁移失败重试管线（`Registry.Clear` + `DbInterfaceBase.InvalidateExtensions` + `Coordinator.Retry`）与迁移错误细节透传
 
 ## 阶段 1：通用实例生命周期
 
@@ -98,9 +99,9 @@
  
 - [x] 主程序统一创建、加载并向插件实例注册传入配置
 - [ ] 通用插件配置 schema 迁移
-- [ ] API Key 等敏感字段的存储、遮罩和更新策略
+- [ ] API Key 等敏感字段的存储、遮罩和更新策略 
 - [ ] 插件管理/诊断页面
-- [ ] 迁移失败重试、日志详情和导出
+- [~] 迁移失败重试、日志详情和导出（重试管线与错误细节已落地，诊断 UI 与导出待后续）
 - [ ] 禁用插件时保留配置和数据
 - [ ] 只有用户明确确认时才删除插件数据
 

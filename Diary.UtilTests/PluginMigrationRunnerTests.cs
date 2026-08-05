@@ -160,6 +160,33 @@ public class PluginMigrationRunnerTests
         Assert.IsFalse(result);
     }
 
+    [TestMethod]
+    public void Upgrade_CapturesErrorMessageWhenMigrationThrows()
+    {
+        var result = PluginMigrationRunner.Upgrade(
+            "tracker.test", 1, 2,
+            new IPluginMigration[] { new TestMigration(1, 2, new List<uint>(), true) },
+            new TestContext(),
+            out var error);
+
+        Assert.IsFalse(result);
+        StringAssert.Contains(error, "migration failed");
+    }
+
+    [TestMethod]
+    public void Upgrade_CapturesErrorWhenChainIsBroken()
+    {
+        var result = PluginMigrationRunner.Upgrade(
+            "tracker.test", 1, 3,
+            new IPluginMigration[] { new TestMigration(2, 3, new List<uint>()) },
+            new TestContext(),
+            out var error);
+
+        Assert.IsFalse(result);
+        Assert.IsFalse(string.IsNullOrEmpty(error));
+        StringAssert.Contains(error, "1");
+    }
+
     private sealed class TestMigration(uint from, uint to, List<uint> applied, bool shouldThrow = false) : IPluginMigration
     {
         public string PluginId => "tracker.test";

@@ -15,8 +15,8 @@ public sealed class SQLiteRedMineDbFactory : IDbExtensionFactory
         IReadOnlyList<IPluginMigration> migrations)
     {
         var extension = new SQLiteRedMineDb(host, instanceId);
-        if (!extension.Initialize(migrations))
-            throw new PluginExtensionInitException("RedMine 数据库初始化或迁移失败");
+        if (!extension.Initialize(migrations, out var error))
+            throw new PluginExtensionInitException(error ?? "RedMine 数据库初始化或迁移失败");
         return extension;
     }
 }

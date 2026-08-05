@@ -137,6 +137,18 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
         return null;
     }
 
+    /// <summary>
+    /// 失效某实例的所有扩展缓存（按 <paramref name="instanceId"/>，不按类型），
+    /// 使下次 <see cref="GetExtension{T}"/> 重新走工厂。重试迁移失败实例前调用。
+    /// </summary>
+    public void InvalidateExtensions(string instanceId)
+    {
+        ArgumentNullException.ThrowIfNull(instanceId);
+        var keys = _extensions.Keys.Where(k => k.InstanceId == instanceId).ToArray();
+        foreach (var key in keys)
+            _extensions.Remove(key);
+    }
+
     // statistics
     public abstract StatisticsResult GetStatistics(string beginDate, string endDate);
     public virtual StatisticsResult GetStatistics()
