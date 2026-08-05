@@ -6,57 +6,54 @@ namespace Diary.RedMine;
 
 internal static class RestTools
 {
-    private static RedMinePluginConfig Cfg => RedMineConfigurationStore.Current;
+    private sealed record CachedClient(
+        RestClient Client,
+        string Url,
+        bool UseProxy,
+        string ProxyServer);
 
-    private static RestClient? _cachedClient;
-    private static string _cachedUrl = string.Empty;
-    private static bool _cachedUseProxy;
-    private static string _cachedProxyServer = string.Empty;
+    private static readonly object CacheLock = new();
+    private static readonly Dictionary<RedMineConfig, CachedClient> CachedClients = new();
 
     public static RestClient? BasicClient(RedMineConfig cfg)
     {
-        if (!Cfg.Valid())
-        {
-            _cachedClient = null;
+        ArgumentNullException.ThrowIfNull(cfg);
+        if (!cfg.Valid())
             return null;
-        }
 
-        var url = Cfg.RedMineServerUrl;
-        var useProxy = Cfg.EnableProxy;
-        var proxyServer = useProxy ? Cfg.ProxyServer : string.Empty;
+        var url = cfg.RedMineServerUrl;
+        var useProxy = cfg.EnableProxy;
+        var proxyServer = useProxy ? cfg.ProxyServer : string.Empty;
 
-        if (_cachedClient != null
-            && _cachedUrl == url
-            && _cachedUseProxy == useProxy
-            && _cachedProxyServer == proxyServer)
+        lock (CacheLock)
         {
-            return _cachedClient;
-        }
+            if (CachedClients.TryGetValue(cfg, out var cached)
+                && cached.Url == url
+                && cached.UseProxy == useProxy
+                && cached.ProxyServer == proxyServer)
+                return cached.Client;
 
-        var options = new RestClientOptions(url);
-        if (useProxy)
-        {
-            options.Proxy = new WebProxy(proxyServer);
-        }
-        _cachedClient = new RestClient(options, configureSerialization: s => s.UseNewtonsoftJson());
-        _cachedUrl = url;
-        _cachedUseProxy = useProxy;
-        _cachedProxyServer = proxyServer;
+            var options = new RestClientOptions(url);
+            if (useProxy)
+                options.Proxy = new WebProxy(proxyServer);
+            var client = new RestClient(options, configureSerialization: s => s.UseNewtonsoftJson());
+            CachedClients[cfg] = new CachedClient(client, url, useProxy, proxyServer);
 
-        return _cachedClient;
+            return client;
+        }
     }
 
     public static RestRequest HttpGet(RedMineConfig cfg, string query)
     {
         var request = new RestRequest(query);
-        request.AddHeader("X-Redmine-API-Key", Cfg.RedMineApiKey);
+        request.AddHeader("X-Redmine-API-Key", cfg.RedMineApiKey);
         return request;
     }
 
     public static RestRequest HttpPost(RedMineConfig cfg, string query)
     {
         var request = new RestRequest(query, Method.Post);
-        request.AddHeader("X-Redmine-API-Key", Cfg.RedMineApiKey);
+        request.AddHeader("X-Redmine-API-Key", cfg.RedMineApiKey);
         return request;
     }
 }

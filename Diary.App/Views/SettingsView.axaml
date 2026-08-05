@@ -20,7 +20,18 @@
 
     <!-- 内容：DataTemplate 由 Application.DataTemplates 提供 (App.axaml)，与 GenericConfigView 共享 -->
     <Grid RowDefinitions="*,Auto">
-        <ItemsControl Classes="Settings" ItemsSource="{Binding SettingsTree.Children}"/>
+        <ScrollViewer>
+            <StackPanel Spacing="16">
+                <ItemsControl Classes="Settings" ItemsSource="{Binding SettingsTree.Children}"/>
+                <ItemsControl ItemsSource="{Binding PluginSettingsPages}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <ContentControl Content="{Binding}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
         <StackPanel Grid.Row="1" Orientation="Horizontal"
                     HorizontalAlignment="Center" Spacing="16"
                     Margin="32  8 32 0">

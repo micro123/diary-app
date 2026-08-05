@@ -24,10 +24,14 @@ public sealed class RedMineConfigurationProvider(IServiceProvider services) : IT
         return false;
     }
 
-    public ViewModelBase CreateSettingsPage(object configuration)
+    public ViewModelBase? CreateSettingsPage(object configuration)
     {
-        var viewModel = services.GetRequiredService<GenericConfigViewModel>();
-        viewModel.InitSettings("RedMine设置", configuration);
+        if (configuration is not RedMinePluginConfig config)
+            return null;
+
+        var viewModel = services.GetRequiredService<RedMineConfigurationViewModel>();
+        viewModel.InitSettings(config);
         return viewModel;
     }
+
 }

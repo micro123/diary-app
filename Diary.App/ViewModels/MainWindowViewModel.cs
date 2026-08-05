@@ -31,6 +31,7 @@ public partial class MainWindowViewModel : ViewModelBase
 {
     private readonly StatusBarViewModel _statusBarViewModel;
     private readonly IServiceProvider _serviceProvider;
+    private readonly TrackerPluginLifecycleCoordinator _lifecycle;
     private readonly ILogger _logger;
     public string VersionString => AppInfo.AppVersionString;
 
@@ -44,7 +45,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ToastManager?.Show("已复制", NotificationType.Success);
     }
 
-    [ObservableProperty] private ObservableCollection<NavigateInfo> _pages;
+    [ObservableProperty] private ObservableCollection<NavigateInfo> _pages = new();
 
     [ObservableProperty] private NavigateInfo? _selectedPage = null;
 
@@ -59,28 +60,11 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _lifecycle = serviceProvider.GetRequiredService<TrackerPluginLifecycleCoordinator>();
 
         // 导航可扩展：[日记] + tracker 贡献页 + [统计/调查/设置]。
         // 手势按最终位置分配 Alt+1..；单 tracker（RedMine）下顺序/手势与原硬编码一致。
-        var built = new List<NavigateInfo>();
-        var trackers = serviceProvider.GetRequiredService<TrackerUiContributionRegistry>().Contributions;
-        int idx = 1;
-        built.Add(new NavigateInfo(PageNames.DiaryEditor, "mdi-notebook",
-            serviceProvider.GetService<DiaryEditorViewModel>(), $"Alt+{idx++}"));
-        foreach (var t in trackers)
-        {
-            var page = t.CreateManagementPage(t.Instance.InstanceId);
-            if (page is null)
-                continue;
-            built.Add(new NavigateInfo(t.Instance.DisplayName, t.Instance.Icon, page, $"Alt+{idx++}"));
-        }
-        built.Add(new NavigateInfo(PageNames.Statistics, "fa-chart-pie",
-            serviceProvider.GetRequiredService<StatisticsViewModel>(), $"Alt+{idx++}"));
-        built.Add(new NavigateInfo(PageNames.SurveyTool, "mdi-chat-processing-outline",
-            serviceProvider.GetRequiredService<SurveyViewModel>(), $"Alt+{idx++}"));
-        built.Add(new NavigateInfo(PageNames.Settings, "mdi-cog-outline",
-            serviceProvider.GetService<SettingsViewModel>(), $"Alt+{idx++}"));
-        _pages = new ObservableCollection<NavigateInfo>(built);
+        BuildPages();
         _statusBarViewModel = _serviceProvider.GetRequiredService<StatusBarViewModel>();
 
         SelectedPage = Pages[0];
@@ -89,12 +73,17 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             var page = Pages.FirstOrDefault(x => x.Name == m.Value);
             if (page is not null)
-            {
                 SelectedPage = page;
-            }
         });
 
-        Messenger.Register<ConfigUpdateEvent>(this, (r, m) => { _logger.LogDebug("config updated!"); });
+        Messenger.Register<ConfigUpdateEvent>(this, (r, m) =>
+        {
+            var selectedName = SelectedPage?.Name;
+            _lifecycle.ReRegister();
+            BuildPages();
+            SelectedPage = Pages.FirstOrDefault(x => x.Name == selectedName) ?? Pages[0];
+            _logger.LogDebug("config updated, tracker navigation rebuilt: {Count} pages", Pages.Count);
+        });
 
         Messenger.Register<NotifyEvent>(this, (r, m) =>
         {
@@ -136,6 +125,30 @@ public partial class MainWindowViewModel : ViewModelBase
             });
             m.Reply(result);
         });
+
+    }
+
+    private void BuildPages()
+    {
+        var built = new List<NavigateInfo>();
+        var trackers = _serviceProvider.GetRequiredService<TrackerUiContributionRegistry>().Contributions;
+        int idx = 1;
+        built.Add(new NavigateInfo(PageNames.DiaryEditor, "mdi-notebook",
+            _serviceProvider.GetService<DiaryEditorViewModel>(), $"Alt+{idx++}"));
+        foreach (var t in trackers)
+        {
+            var page = t.CreateManagementPage(t.Instance.InstanceId);
+            if (page is null)
+                continue;
+            built.Add(new NavigateInfo(t.Instance.DisplayName, t.Instance.Icon, page, $"Alt+{idx++}"));
+        }
+        built.Add(new NavigateInfo(PageNames.Statistics, "fa-chart-pie",
+            _serviceProvider.GetRequiredService<StatisticsViewModel>(), $"Alt+{idx++}"));
+        built.Add(new NavigateInfo(PageNames.SurveyTool, "mdi-chat-processing-outline",
+            _serviceProvider.GetRequiredService<SurveyViewModel>(), $"Alt+{idx++}"));
+        built.Add(new NavigateInfo(PageNames.Settings, "mdi-cog-outline",
+            _serviceProvider.GetService<SettingsViewModel>(), $"Alt+{idx++}"));
+        Pages = new ObservableCollection<NavigateInfo>(built);
     }
 
     [RelayCommand]

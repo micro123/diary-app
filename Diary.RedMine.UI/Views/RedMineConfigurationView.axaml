@@ -1,0 +1,35 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:viewModels="clr-namespace:Diary.RedMine.UI.ViewModels"
+             x:Class="Diary.RedMine.UI.Views.RedMineConfigurationView"
+             x:DataType="viewModels:RedMineConfigurationViewModel"
+             Padding="8">
+    <Grid RowDefinitions="Auto,*" RowSpacing="12">
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+            <TextBlock Text="RedMine Tracker 实例" FontSize="18" FontWeight="SemiBold"
+                       VerticalAlignment="Center" />
+            <Button Grid.Column="1" Content="添加实例" Command="{Binding AddInstanceCommand}" />
+            <Button Grid.Column="2" Content="删除实例" Classes="Danger"
+                    Command="{Binding RemoveInstanceCommand}"
+                    IsEnabled="{Binding CanRemoveInstance}" />
+        </Grid>
+        <Grid Grid.Row="1" ColumnDefinitions="220,*" ColumnSpacing="16">
+            <ListBox ItemsSource="{Binding Instances}" SelectedItem="{Binding SelectedInstance}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Spacing="2" Margin="4">
+                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding InstanceId}" FontSize="11" Opacity="0.6" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+            <Expander Grid.Column="1" Header="实例配置" IsExpanded="True"
+                      IsVisible="{Binding HasSelectedInstance}">
+                <ScrollViewer>
+                    <ItemsControl Classes="Settings" ItemsSource="{Binding InstanceSettings.Children}" />
+                </ScrollViewer>
+            </Expander>
+        </Grid>
+    </Grid>
+</UserControl>

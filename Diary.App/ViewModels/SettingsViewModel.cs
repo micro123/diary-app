@@ -1,4 +1,5 @@
 using Avalonia.Controls.Notifications;
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
@@ -26,6 +27,7 @@ public partial class SettingsViewModel : ViewModelBase
     private readonly IServiceProvider _services;
     private readonly IReadOnlyList<(object Configuration, ITrackerConfigurationProvider Provider)> _pluginSettings;
     [ObservableProperty] private SettingGroup _settingsTree = new("Root");
+    public ObservableCollection<ViewModelBase> PluginSettingsPages { get; } = new();
     public SettingsViewModel(
         ILogger logger,
         TrackerPluginDiagnosticsService diagnostics,
@@ -38,6 +40,7 @@ public partial class SettingsViewModel : ViewModelBase
         _logExport = logExport;
         _services = services;
         _pluginSettings = LoadPluginSettings(configurationProviders);
+        _logger.LogDebug("设置页加载插件配置：{Count} 个", _pluginSettings.Count);
         BuildTree();
     }
 
@@ -47,9 +50,17 @@ public partial class SettingsViewModel : ViewModelBase
         SettingTreeBuilder.BuildTree(SettingsTree, app.AppConfig, app);
         foreach (var (configuration, provider) in _pluginSettings)
         {
-            var group = new SettingGroup(provider.PluginId);
-            SettingTreeBuilder.BuildTree(group, configuration, app);
-            SettingsTree.Children.Add(group);
+            var page = provider.CreateSettingsPage(configuration);
+            _logger.LogDebug("创建插件设置页：{PluginId}，配置类型：{ConfigurationType}，页面：{PageType}",
+                provider.PluginId, configuration.GetType().Name, page?.GetType().Name ?? "通用设置");
+            if (page is not null)
+                PluginSettingsPages.Add(page);
+            else
+            {
+                var group = new SettingGroup(provider.PluginId);
+                SettingTreeBuilder.BuildTree(group, configuration, app);
+                SettingsTree.Children.Add(group);
+            }
         }
     }
 
@@ -71,6 +82,11 @@ public partial class SettingsViewModel : ViewModelBase
     private void Save()
     {
         SettingsTree.Save();
+        foreach (var page in PluginSettingsPages.OfType<ITrackerSettingsPage>())
+        {
+            page.Save();
+            page.Reload();
+        }
         foreach (var (configuration, _) in _pluginSettings)
             if (!EasySaveLoad.Save(configuration))
                 _logger.LogWarning("保存插件配置失败: {PluginId}", configuration.GetType().Name);
@@ -111,6 +127,8 @@ public partial class SettingsViewModel : ViewModelBase
     private void ForceLoad()
     {
         SettingsTree.Load();
+        foreach (var page in PluginSettingsPages.OfType<ITrackerSettingsPage>())
+            page.Reload();
     }
 
     private static IReadOnlyList<(object Configuration, ITrackerConfigurationProvider Provider)> LoadPluginSettings(

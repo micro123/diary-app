@@ -14,7 +14,9 @@ public sealed class RedMinePluginConfig : RedMineConfig
 public sealed class RedMineInstanceSettings : RedMineConfig
 {
     public string InstanceId { get; set; } = RedMinePluginConstants.DefaultInstanceId;
+    [ConfigureText("显示名称")]
     public string DisplayName { get; set; } = "RedMine工具";
+    [ConfigureSwitch("启用此实例")]
     public bool Enabled { get; set; } = true;
 }
 

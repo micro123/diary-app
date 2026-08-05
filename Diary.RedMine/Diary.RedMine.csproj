@@ -18,4 +18,8 @@
     <ProjectReference Include="..\Diary.PluginBase\Diary.PluginBase.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Diary.RedMineTests" />
+  </ItemGroup>
+
 </Project>

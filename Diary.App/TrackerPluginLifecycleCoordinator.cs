@@ -76,6 +76,12 @@ public sealed class TrackerPluginLifecycleCoordinator(
         templateRegistry.Register(templateFactories, instanceRegistry.Instances);
     }
 
+    public void ReRegister()
+    {
+        if (_database is not null)
+            Register(_database, _plugins, _configurations);
+    }
+
     public bool SetInstanceEnabled(string pluginId, string instanceId, bool enabled)
     {
         var plugin = _plugins.FirstOrDefault(item => item.Manifest.Id == pluginId);
