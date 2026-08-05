@@ -33,5 +33,7 @@ public sealed class TagAutomationCoordinator : ITagAutomationCoordinator
         TagAutomationContext context,
         IReadOnlyCollection<ITrackerEditorExtension> extensions)
     {
+        foreach (var extension in extensions.OfType<ITrackerTagDefaults>())
+            extension.ApplyTagDefaults(tag);
     }
 }

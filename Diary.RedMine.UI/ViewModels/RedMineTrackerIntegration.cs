@@ -21,7 +21,7 @@ public sealed class RedMineTrackerIntegrationFactory(IServiceProvider services) 
             Logging.Logger, redmine.InstanceId, redmine.Database);
         data.InitLoad();
         return new RedMineTrackerIntegration(services, instance, data,
-            new RedMineApi(redmine.Configuration), redmine.Database);
+            new RedMineApi(redmine.Configuration), redmine.Database, redmine.Settings);
     }
 }
 
@@ -32,19 +32,22 @@ public sealed class RedMineTrackerIntegration : ITrackerUiContribution
     private readonly IRedMineUiData _data;
     private readonly IRedMineApi _api;
     private readonly IRedMineDb _database;
+    private readonly RedMineInstanceSettings _settings;
 
     public RedMineTrackerIntegration(
         IServiceProvider services,
         ITrackerInstance instance,
         IRedMineUiData data,
         IRedMineApi api,
-        IRedMineDb database)
+        IRedMineDb database,
+        RedMineInstanceSettings settings)
     {
         _services = services;
         _instance = instance;
         _data = data;
         _api = api;
         _database = database;
+        _settings = settings;
     }
 
     public string PluginId => RedMinePluginConstants.PluginId;
@@ -54,5 +57,5 @@ public sealed class RedMineTrackerIntegration : ITrackerUiContribution
         => ActivatorUtilities.CreateInstance<RedMineManageViewModel>(
             _services, _api, _data, _database);
     public ITrackerEditorExtension? CreateEditorExtension(string instanceId)
-        => new RedMineEditorRegionViewModel(_data, _api, _database);
+        => new RedMineEditorRegionViewModel(_data, _api, _database, _settings);
 }

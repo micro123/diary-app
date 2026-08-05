@@ -38,6 +38,12 @@ public interface ITrackerEditorExtension
     void ApplyTemplateData(object data);
 }
 
+/// <summary>可选的标签默认值能力。只应用当前 Tracker 实例自己的编辑器字段。</summary>
+public interface ITrackerTagDefaults
+{
+    IReadOnlyCollection<string> ApplyTagDefaults(WorkTag tag);
+}
+
 /// <summary>
 /// tracker 的 UI 贡献（文档 §9）：配置页、管理页、编辑器扩展。
 /// 由主程序按已启用实例解析并挂载。

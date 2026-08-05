@@ -47,6 +47,21 @@ public sealed class TagAutomationCoordinatorTests
         Assert.IsTrue(automation.Sources.All(source => source == TagAddSource.Template));
     }
 
+    [TestMethod]
+    public void Coordinator_AppliesDefaultsOnlyToCapableExtensions()
+    {
+        var capable = new TagDefaultsExtension();
+        var incapable = new PlainExtension();
+
+        new TagAutomationCoordinator().TagAdded(
+            null,
+            new WorkTag { Id = 7 },
+            new TagAutomationContext(TagAddSource.User, 0),
+            new ITrackerEditorExtension[] { capable, incapable });
+
+        Assert.AreEqual(7, capable.AppliedTagId);
+    }
+
     private static WorkEditorViewModel CreateEditor(ITagAutomationCoordinator automation)
         => new(
             new DbShareData(NullLogger.Instance),
@@ -71,6 +86,32 @@ public sealed class TagAutomationCoordinatorTests
             Tags.Add(tag.Id);
             Sequences.Add(context.Sequence);
             Sources.Add(context.Source);
+        }
+    }
+
+    private class PlainExtension : ITrackerEditorExtension
+    {
+        public TrackerKey Key => new("test", "default");
+        public string InstanceId => "default";
+        public Diary.GUIBase.ViewModels.ViewModelBase View { get; } = new();
+        public bool IsLocked => false;
+        public bool CanDelete => true;
+        public void Load(WorkItem? item, object? binding = null) { }
+        public bool Save(WorkItem item) => true;
+        public void CloneTo(ITrackerEditorExtension? target) { }
+        public Task<TrackerOperationResult> UploadAsync(WorkItem item)
+            => Task.FromResult(new TrackerOperationResult(false));
+        public void ApplyTemplateData(object data) { }
+    }
+
+    private sealed class TagDefaultsExtension : PlainExtension, ITrackerTagDefaults
+    {
+        public int AppliedTagId { get; private set; }
+
+        public IReadOnlyCollection<string> ApplyTagDefaults(WorkTag tag)
+        {
+            AppliedTagId = tag.Id;
+            return Array.Empty<string>();
         }
     }
 

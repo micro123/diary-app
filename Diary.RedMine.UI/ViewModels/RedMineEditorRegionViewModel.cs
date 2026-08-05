@@ -12,7 +12,7 @@ using Diary.RedMine.UI.ViewModels.Dialogs;
 
 namespace Diary.RedMine.UI.ViewModels;
 
-public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEditorExtension
+public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEditorExtension, ITrackerTagDefaults
 {
     private readonly IRedMineUiData _data;
     private readonly IRedMineApi _api;
@@ -36,15 +36,18 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
     ViewModelBase ITrackerEditorExtension.View => this;
 
     private readonly IRedMineDb _database;
+    private readonly RedMineInstanceSettings _settings;
 
     public RedMineEditorRegionViewModel(
         IRedMineUiData data,
         IRedMineApi api,
-        IRedMineDb database)
+        IRedMineDb database,
+        RedMineInstanceSettings settings)
     {
         _data = data;
         _api = api;
         _database = database;
+        _settings = settings;
     }
 
     public void Load(WorkItem? item, object? binding = null)
@@ -110,6 +113,34 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
         IssueText = IssueIndex >= 0
             ? $"#{RedMineIssues[IssueIndex].Id} {RedMineIssues[IssueIndex].Title} ({RedMineIssues[IssueIndex].Project})"
             : string.Empty;
+    }
+
+    public IReadOnlyCollection<string> ApplyTagDefaults(WorkTag tag)
+    {
+        var changed = new List<string>();
+        var currentActivityId = ActivityIndex >= 0 ? RedMineActivities[ActivityIndex].Id : (int?)null;
+        var currentIssueId = IssueIndex >= 0 ? RedMineIssues[IssueIndex].Id : (int?)null;
+        var defaults = RedMineTagDefaults.Apply(
+            _settings.TagRules,
+            tag.Id,
+            currentActivityId,
+            currentIssueId,
+            RedMineActivities.Select(activity => activity.Id).ToHashSet(),
+            RedMineIssues.Select(issue => issue.Id).ToHashSet());
+        if (currentActivityId is null && defaults.ActivityId is not null)
+        {
+            ActivityIndex = Enumerable.Range(0, RedMineActivities.Count)
+                .First(i => RedMineActivities[i].Id == defaults.ActivityId);
+            changed.Add(nameof(ActivityIndex));
+        }
+        if (currentIssueId is null && defaults.IssueId is not null)
+        {
+            IssueIndex = Enumerable.Range(0, RedMineIssues.Count)
+                .First(i => RedMineIssues[i].Id == defaults.IssueId);
+            IssueText = $"#{RedMineIssues[IssueIndex].Id} {RedMineIssues[IssueIndex].Title} ({RedMineIssues[IssueIndex].Project})";
+            changed.Add(nameof(IssueIndex));
+        }
+        return changed;
     }
 
     private void SyncFromEntry()

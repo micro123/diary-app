@@ -16,6 +16,17 @@ public sealed class RedMineInstanceSettings : RedMineConfig
     public string DisplayName { get; set; } = "RedMine工具";
     [ConfigureSwitch("启用此实例")]
     public bool Enabled { get; set; } = false;
+    public IList<RedMineTagRule> TagRules { get; set; } = new List<RedMineTagRule>();
+}
+
+public sealed class RedMineTagRule
+{
+    public string RuleId { get; set; } = Guid.NewGuid().ToString("N");
+    public int TagId { get; set; }
+    public int? ActivityId { get; set; }
+    public int? IssueId { get; set; }
+    public bool Enabled { get; set; } = true;
+    public int Priority { get; set; }
 }
 
 public static class RedMineConfigurationStore
