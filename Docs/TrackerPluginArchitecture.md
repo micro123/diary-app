@@ -962,6 +962,8 @@ SupportedProviders: PostgreSQL
 
 ### 阶段 6：完整测试和发布门槛
 
+- 已补充多 tracker 本地事务提交和失败回滚测试，远程上传失败测试已独立覆盖。
+
 - 覆盖插件缺失、版本不兼容、依赖缺失、迁移失败和恢复。
 - 覆盖 SQLite/PostgreSQL schema 迁移幂等和历史坏版本号。
 - 覆盖多实例隔离、多 tracker 保存和远程失败重试。
