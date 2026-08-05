@@ -98,35 +98,27 @@ public partial class MainWindowViewModel : ViewModelBase
 
         Messenger.Register<NotifyEvent>(this, (r, m) =>
         {
-            // async void 会让异常无法捕获导致崩溃，改 async + try/catch 记录
-            Dispatcher.UIThread.Post(async () =>
+            PostUiAsync(async () =>
             {
-                try
+                var evt = m.Value;
+                var vm = _serviceProvider.GetRequiredService<StandardMessageViewModel>();
+                vm.Body = evt.Body;
+                var options = new OverlayDialogOptions()
                 {
-                    var evt = m.Value;
-                    var vm = _serviceProvider.GetRequiredService<StandardMessageViewModel>();
-                    vm.Body = evt.Body;
-                    var options = new OverlayDialogOptions()
-                    {
-                        Title = evt.Title,
-                        CanDragMove = false,
-                        CanResize = false,
-                        CanLightDismiss = evt.LightDismiss,
-                        IsCloseButtonVisible = false,
-                        Mode = evt.Mode,
-                        Buttons = evt.Button,
-                    };
+                    Title = evt.Title,
+                    CanDragMove = false,
+                    CanResize = false,
+                    CanLightDismiss = evt.LightDismiss,
+                    IsCloseButtonVisible = false,
+                    Mode = evt.Mode,
+                    Buttons = evt.Button,
+                };
 
-                    if (m.Value.Modal)
-                        await OverlayDialog.ShowModal<StandardMessageView, StandardMessageViewModel>(vm, options: options);
-                    else
-                        OverlayDialog.Show<StandardMessageView, StandardMessageViewModel>(vm, options: options);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "NotifyEvent handler failed");
-                }
-            });
+                if (m.Value.Modal)
+                    await OverlayDialog.ShowModal<StandardMessageView, StandardMessageViewModel>(vm, options: options);
+                else
+                    OverlayDialog.Show<StandardMessageView, StandardMessageViewModel>(vm, options: options);
+            }, "通知对话框");
         });
 
         Messenger.Register<RunCommandEvent>(this, (r, m) => { ExecuteSettingCommand(m.Value); });
@@ -157,7 +149,7 @@ public partial class MainWindowViewModel : ViewModelBase
         switch (cmd)
         {
             case CommandNames.ShowDbSettings:
-                Dispatcher.UIThread.Post(async () =>
+                PostUiAsync(async () =>
                 {
                     var options = new OverlayDialogOptions()
                     {
@@ -173,10 +165,10 @@ public partial class MainWindowViewModel : ViewModelBase
                     _logger.LogInformation("db settings updated: {result}", result);
                     if (result)
                         EventDispatcher.Msg(new ConfigUpdateEvent());
-                });
+                }, "数据库设置");
                 return;
             case CommandNames.ShowMigrateGuide:
-                Dispatcher.UIThread.Post(async () =>
+                PostUiAsync(async () =>
                 {
                     if (App.Instance.UseDb is null)
                     {
@@ -197,10 +189,10 @@ public partial class MainWindowViewModel : ViewModelBase
                     _logger.LogInformation("migration result is: {result}", result);
                     if (result)
                         EventDispatcher.DbChanged();
-                });
+                }, "数据库迁移");
                 return;
             case CommandNames.EditWorkTags:
-                Dispatcher.UIThread.Post(async () =>
+                PostUiAsync(async () =>
                 {
                     if (App.Instance.UseDb is null)
                     {
@@ -218,10 +210,10 @@ public partial class MainWindowViewModel : ViewModelBase
                     };
                     var vm = _serviceProvider.GetRequiredService<TagEditorViewModel>();
                     await OverlayDialog.ShowCustomModal<object>(vm, options: options);
-                });
+                }, "编辑工作标签");
                 return;
             case CommandNames.EditWorkTemplates:
-                Dispatcher.UIThread.Post(async () =>
+                PostUiAsync(async () =>
                 {
                     if (App.Instance.UseDb is null)
                     {
@@ -239,7 +231,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     };
                     var vm = _serviceProvider.GetRequiredService<TemplateEditorViewModel>();
                     await OverlayDialog.ShowCustomModal<object>(vm, options: options);
-                });
+                }, "编辑工作模板");
                 return;
             case CommandNames.RaiseMainWindow:
                 Dispatcher.UIThread.Post(() =>
@@ -263,6 +255,21 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         throw new ArgumentOutOfRangeException(nameof(cmd));
+    }
+
+    private void PostUiAsync(Func<Task> action, string operation)
+    {
+        Dispatcher.UIThread.Post(async () =>
+        {
+            try
+            {
+                await action();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UI operation failed: {Operation}", operation);
+            }
+        });
     }
 
     private bool _quiting;

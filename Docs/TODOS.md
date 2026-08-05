@@ -127,7 +127,7 @@
 
 ## 非 tracker TODO
 
-- [ ] 修复 `MainWindowViewModel` 等 fire-and-forget UI 异常处理
+- [x] 修复 `MainWindowViewModel` 等 fire-and-forget UI 异常处理
 - [ ] 完成 `RedMineApis.CloseIssue()`
 - [ ] 完成 `ProcUtils.Restart()`
 - [ ] 完成 SQLite/PostgreSQL 其他未实现迁移
