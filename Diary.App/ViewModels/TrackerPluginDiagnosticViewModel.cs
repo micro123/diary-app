@@ -1,6 +1,7 @@
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Diary.PluginBase;
 
 namespace Diary.App.ViewModels;
 
@@ -8,10 +9,12 @@ namespace Diary.App.ViewModels;
 public sealed class TrackerPluginDiagnosticViewModel : ObservableObject
 {
     private readonly Action _retry;
+    private readonly Action _toggle;
 
     public TrackerPluginDiagnosticViewModel(
         TrackerPluginDiagnosticEntry entry,
-        Action retry)
+        Action retry,
+        Action toggle)
     {
         PluginId = entry.PluginId;
         PluginVersion = entry.PluginVersion;
@@ -21,8 +24,12 @@ public sealed class TrackerPluginDiagnosticViewModel : ObservableObject
         InstanceState = entry.InstanceState?.ToString() ?? "-";
         Error = entry.Error ?? entry.PluginError ?? string.Empty;
         CanRetry = entry.CanRetry && entry.InstanceId is not null;
+        CanToggle = entry.CanToggle && entry.InstanceId is not null;
+        IsEnabled = entry.InstanceState == TrackerInstanceState.Enabled;
         _retry = retry;
+        _toggle = toggle;
         RetryCommand = new RelayCommand(() => _retry(), () => CanRetry);
+        ToggleCommand = new RelayCommand(() => _toggle(), () => CanToggle);
     }
 
     public string PluginId { get; }
@@ -33,5 +40,9 @@ public sealed class TrackerPluginDiagnosticViewModel : ObservableObject
     public string InstanceState { get; }
     public string Error { get; }
     public bool CanRetry { get; }
+    public bool CanToggle { get; }
+    public bool IsEnabled { get; }
+    public string ToggleText => IsEnabled ? "禁用" : "启用";
     public ICommand RetryCommand { get; }
+    public ICommand ToggleCommand { get; }
 }

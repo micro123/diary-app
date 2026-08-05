@@ -39,9 +39,12 @@
                                         <TextBlock Text="{Binding Error}" Foreground="IndianRed"
                                                    TextWrapping="Wrap" />
                                     </StackPanel>
-                                    <Button Grid.Column="1" Content="重试" Command="{Binding RetryCommand}"
-                                            IsVisible="{Binding CanRetry}" VerticalAlignment="Center"
-                                            Margin="12 0 0 0" />
+                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                        <Button Content="重试" Command="{Binding RetryCommand}"
+                                                IsVisible="{Binding CanRetry}" />
+                                        <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}"
+                                                IsVisible="{Binding CanToggle}" />
+                                    </StackPanel>
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>

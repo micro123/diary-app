@@ -51,4 +51,22 @@ public sealed class RedMinePluginInstanceRegistrationTests
         Assert.AreEqual("Company", typed.DisplayName);
         Assert.IsNotNull(typed.Database);
     }
+
+    [TestMethod]
+    public void TrySetInstanceEnabled_ChangesOnlySelectedInstance()
+    {
+        var config = new RedMinePluginConfig
+        {
+            Instances = new List<RedMineInstanceSettings>
+            {
+                new() { InstanceId = "redmine.company", Enabled = true },
+                new() { InstanceId = "redmine.personal", Enabled = true },
+            },
+        };
+        var plugin = new RedMinePlugin();
+
+        Assert.IsTrue(plugin.TrySetInstanceEnabled(config, "redmine.company", false));
+        Assert.IsFalse(config.Instances[0].Enabled);
+        Assert.IsTrue(config.Instances[1].Enabled);
+    }
 }

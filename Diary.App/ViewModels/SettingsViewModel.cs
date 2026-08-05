@@ -7,6 +7,7 @@ using Diary.GUIBase;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
+using Diary.PluginBase;
 using Diary.Utils;
 using Microsoft.Extensions.Logging;
 
@@ -35,7 +36,10 @@ public partial class SettingsViewModel : ViewModelBase
     {
         PluginDiagnostics = new ObservableCollection<TrackerPluginDiagnosticViewModel>(
             _diagnostics.GetSnapshot().Select(entry =>
-                new TrackerPluginDiagnosticViewModel(entry, () => Retry(entry.PluginId, entry.InstanceId!))));
+                new TrackerPluginDiagnosticViewModel(
+                    entry,
+                    () => Retry(entry.PluginId, entry.InstanceId!),
+                    () => Toggle(entry.PluginId, entry.InstanceId!, entry.InstanceState != TrackerInstanceState.Enabled))));
     }
 
     private void Retry(string pluginId, string instanceId)
@@ -44,6 +48,15 @@ public partial class SettingsViewModel : ViewModelBase
         RefreshDiagnostics();
         NotificationManager?.Show(
             success ? "插件实例已恢复" : "插件实例重试失败",
+            success ? NotificationType.Success : NotificationType.Error);
+    }
+
+    private void Toggle(string pluginId, string instanceId, bool enabled)
+    {
+        var success = _diagnostics.SetInstanceEnabled(pluginId, instanceId, enabled);
+        RefreshDiagnostics();
+        NotificationManager?.Show(
+            success ? (enabled ? "插件实例已启用" : "插件实例已禁用") : "插件实例状态更新失败",
             success ? NotificationType.Success : NotificationType.Error);
     }
 

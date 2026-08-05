@@ -43,6 +43,17 @@ public sealed class RedMinePlugin : ITrackerPlugin
                 settings.DisplayName))
             : Array.Empty<PluginInstanceConfiguration>();
 
+    public bool TrySetInstanceEnabled(object configuration, string instanceId, bool enabled)
+    {
+        if (configuration is not RedMinePluginConfig redmine)
+            return false;
+        var settings = redmine.Instances.FirstOrDefault(item => item.InstanceId == instanceId);
+        if (settings is null)
+            return false;
+        settings.Enabled = enabled;
+        return true;
+    }
+
     public ITrackerInstance CreateInstance(string instanceId, object configuration)
     {
         if (configuration is not RedMineInstanceConfiguration instanceConfiguration

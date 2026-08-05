@@ -18,7 +18,8 @@ public sealed record TrackerPluginDiagnosticEntry(
     string? DisplayName,
     TrackerInstanceState? InstanceState,
     string? Error,
-    bool CanRetry);
+    bool CanRetry,
+    bool CanToggle);
 
 /// <summary>
 /// 汇总插件/实例状态并提供迁移失败实例重试入口。
@@ -56,6 +57,7 @@ public sealed class TrackerPluginDiagnosticsService(
                     null,
                     null,
                     state.Result.Error,
+                    false,
                     false));
                 continue;
             }
@@ -74,7 +76,9 @@ public sealed class TrackerPluginDiagnosticsService(
                     entry.Error,
                     entry.State is TrackerInstanceState.MigrationFailed
                         or TrackerInstanceState.NotConfigured
-                        or TrackerInstanceState.ConnectionFailed));
+                        or TrackerInstanceState.ConnectionFailed,
+                    entry.State is TrackerInstanceState.Enabled
+                        or TrackerInstanceState.Disabled));
             }
         }
 
@@ -97,4 +101,7 @@ public sealed class TrackerPluginDiagnosticsService(
             return false;
         }
     }
+
+    public bool SetInstanceEnabled(string pluginId, string instanceId, bool enabled)
+        => lifecycleCoordinator.SetInstanceEnabled(pluginId, instanceId, enabled);
 }

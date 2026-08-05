@@ -21,6 +21,9 @@ public interface IPluginInstanceConfigurationStore
 {
     IEnumerable<PluginInstanceConfiguration> GetInstanceConfigurations(object configuration)
         => Array.Empty<PluginInstanceConfiguration>();
+
+    bool TrySetInstanceEnabled(object configuration, string instanceId, bool enabled)
+        => false;
 }
 
 /// <summary>插件生命周期状态（文档 §6）。</summary>
@@ -46,7 +49,7 @@ public enum TrackerInstanceState
     /// <summary>已启用：实例已创建，参与编辑器、模板和 UI。</summary>
     Enabled,
 
-    /// <summary>用户主动禁用（本期不产生，预留）。</summary>
+    /// <summary>用户主动禁用，配置和本地数据仍然保留。</summary>
     Disabled,
 
     /// <summary>插件未提供对应 provider 的数据库扩展。</summary>

@@ -101,6 +101,24 @@ public sealed class PluginInstanceRegistry
         return _entries.Remove(key);
     }
 
+    public bool Disable(string pluginId, string instanceId)
+    {
+        var key = (pluginId, instanceId);
+        if (!_entries.TryGetValue(key, out var entry))
+        {
+            _entries[key] = new PluginInstanceEntry(null, TrackerInstanceState.Disabled, null);
+            return true;
+        }
+
+        if (entry.State == TrackerInstanceState.Disabled)
+            return true;
+        if (entry.State != TrackerInstanceState.Enabled)
+            return false;
+
+        _entries[key] = new PluginInstanceEntry(null, TrackerInstanceState.Disabled, null);
+        return true;
+    }
+
     public PluginInstanceEntry? GetEntry(string pluginId, string instanceId)
         => _entries.GetValueOrDefault((pluginId, instanceId));
 

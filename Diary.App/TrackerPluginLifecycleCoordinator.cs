@@ -1,5 +1,6 @@
 using Diary.PluginBase;
 using Diary.PluginUI;
+using Diary.Core.Utils;
 using Microsoft.Extensions.Logging;
 
 namespace Diary.App;
@@ -47,10 +48,10 @@ public sealed class TrackerPluginLifecycleCoordinator(
                     continue;
                 }
 
-                var instanceConfigurations = plugin
-                    .GetInstanceConfigurations(configuration)
-                    .Where(instance => instance.Enabled)
-                    .ToArray();
+                var configuredInstances = plugin.GetInstanceConfigurations(configuration).ToArray();
+                foreach (var instance in configuredInstances.Where(instance => !instance.Enabled))
+                    instanceRegistry.Record(plugin.Manifest.Id, instance.InstanceId, TrackerInstanceState.Disabled, null);
+                var instanceConfigurations = configuredInstances.Where(instance => instance.Enabled).ToArray();
                 var context = new PluginHostContext(database, configuration)
                 {
                     InstanceConfigurations = instanceConfigurations,
@@ -71,6 +72,34 @@ public sealed class TrackerPluginLifecycleCoordinator(
         // UI/模板只消费 Enabled 实例，因此失败或禁用条目不会被错误注册。
         uiRegistry.Register(uiFactories, instanceRegistry.Instances);
         templateRegistry.Register(templateFactories, instanceRegistry.Instances);
+    }
+
+    public bool SetInstanceEnabled(string pluginId, string instanceId, bool enabled)
+    {
+        var plugin = _plugins.FirstOrDefault(item => item.Manifest.Id == pluginId);
+        if (plugin is null || _database is null
+            || !_configurations.TryGetValue(pluginId, out var configuration)
+            || !plugin.TrySetInstanceEnabled(configuration, instanceId, enabled))
+            return false;
+
+        if (!EasySaveLoad.Save(configuration))
+            return false;
+
+        if (!enabled)
+        {
+            var disabled = instanceRegistry.Disable(pluginId, instanceId);
+            RefreshContributions();
+            return disabled;
+        }
+
+        instanceRegistry.Clear(pluginId, instanceId);
+        var context = CreateContext(plugin, configuration);
+        instanceCoordinator.Register(
+            plugin,
+            plugin.GetInstanceRegistrations(context)
+                .Where(registration => registration.InstanceId == instanceId));
+        RefreshContributions();
+        return instanceRegistry.GetEntry(pluginId, instanceId)?.State == TrackerInstanceState.Enabled;
     }
 
     /// <summary>重试实例注册，并在结束后刷新 UI/模板贡献。</summary>

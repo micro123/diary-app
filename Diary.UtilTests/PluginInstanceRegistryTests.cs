@@ -32,6 +32,20 @@ public sealed class PluginInstanceRegistryTests
         Assert.IsFalse(second.Success);
     }
 
+    [TestMethod]
+    public void RegistryDisablesInstanceWithoutRemovingConfigurationEntry()
+    {
+        var registry = new PluginInstanceRegistry();
+        var plugin = new MemoryTrackerPlugin(supportsMultipleInstances: true);
+
+        Assert.IsTrue(registry.Create(plugin, "memory.default", new object()).Success);
+        Assert.IsTrue(registry.Disable(plugin.Manifest.Id, "memory.default"));
+        Assert.AreEqual(0, registry.Instances.Count);
+        Assert.AreEqual(TrackerInstanceState.Disabled,
+            registry.GetEntry(plugin.Manifest.Id, "memory.default")!.State);
+        Assert.IsTrue(registry.Clear(plugin.Manifest.Id, "memory.default"));
+    }
+
     private sealed class MemoryTrackerPlugin(bool supportsMultipleInstances) : ITrackerPlugin
     {
         public PluginManifest Manifest { get; } = new()
