@@ -28,6 +28,8 @@ public partial class TrackerPluginDiagnosticsViewModel : ViewModelBase, IDialogC
 
     public event EventHandler<object?>? RequestClose;
 
+    public bool IsEmpty => Entries.Count == 0;
+
     public void Close() => RequestClose?.Invoke(this, null);
 
     [RelayCommand]

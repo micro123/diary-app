@@ -31,6 +31,9 @@ public sealed class TrackerPluginDiagnosticViewModel : ObservableObject
         CanToggle = entry.CanToggle && entry.InstanceId is not null;
         CanUninstall = entry.CanToggle && entry.InstanceId is not null;
         IsEnabled = entry.InstanceState == TrackerInstanceState.Enabled;
+        StateText = GetStateText(entry.InstanceState);
+        InstanceSummary = $"{PluginId}  ·  {InstanceId}";
+        HasError = !string.IsNullOrWhiteSpace(Error);
         _retry = retry;
         _toggle = toggle;
         _uninstall = uninstall;
@@ -52,9 +55,24 @@ public sealed class TrackerPluginDiagnosticViewModel : ObservableObject
     public bool CanToggle { get; }
     public bool CanUninstall { get; }
     public bool IsEnabled { get; }
+    public string StateText { get; }
+    public string InstanceSummary { get; }
+    public bool HasError { get; }
     public string ToggleText => IsEnabled ? "禁用" : "启用";
     public ICommand RetryCommand { get; }
     public ICommand ToggleCommand { get; }
     public ICommand UninstallCommand { get; }
     public ICommand DeleteDataCommand { get; }
+
+    private static string GetStateText(TrackerInstanceState? state)
+        => state switch
+        {
+            TrackerInstanceState.Enabled => "运行中",
+            TrackerInstanceState.Disabled => "已禁用",
+            TrackerInstanceState.NotConfigured => "未配置",
+            TrackerInstanceState.MigrationFailed => "迁移失败",
+            TrackerInstanceState.ConnectionFailed => "连接失败",
+            TrackerInstanceState.Blocked => "已阻止",
+            _ => "未知状态",
+        };
 }
