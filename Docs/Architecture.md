@@ -32,6 +32,10 @@
 脚本系统的目标架构、运行时边界、权限模型、Tracker API 和分阶段实现计划见
 [`ScriptSystemDesign.md`](ScriptSystemDesign.md)。当前脚本引擎仍处于接口草案阶段，
 尚未完成脚本管理器、实际执行入口和 Lua/Python 引擎。
+
+标签与 Tracker 默认字段的关联规则设计见
+[`TagAutomationDesign.md`](TagAutomationDesign.md)。规则属于 Tracker 实例配置，
+标签添加和应用模板添加均按实际顺序触发，但用户后续可以覆盖默认字段。
 - Test：各种单元测试放这里
 - Tools：编程工具和一些代码工具
   - Diary.Utils：程序工具，包括时间、文件、和一些属性定义
