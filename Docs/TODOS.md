@@ -122,7 +122,7 @@
 - [x] 多实例数据库扩展身份与实例注册身份一致性测试
 - [ ] 多 tracker 本地事务和远程失败测试（远程失败已覆盖；本地事务多 tracker 推迟）
 - [x] 模板未知 payload 保留测试
-- [ ] 外部 Redmine API 测试与本地契约测试分离
+- [x] 外部 Redmine API 测试与本地契约测试分离（外部测试需显式设置 `DIARY_RUN_REDMINE_EXTERNAL_TESTS=1`）
 
 ## 非 tracker TODO
 
