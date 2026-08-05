@@ -357,6 +357,61 @@ public abstract class DbContractTests
         }).Count);
     }
 
+    [TestMethod]
+    public void QueryWorkItems_TextSearchesCommentAndNoteCaseInsensitively()
+    {
+        using var db = CreateDb();
+        db.CreateWorkItem("2026-08-01", "Contains KEYWORD");
+        var noteMatch = db.CreateWorkItem("2026-08-02", "other");
+        db.WorkUpdateNote(noteMatch, "keyword in note");
+        db.CreateWorkItem("2026-08-03", "unrelated");
+
+        var items = db.QueryWorkItems(new WorkItemQuery { Text = "keyword" });
+
+        CollectionAssert.AreEqual(
+            new[] { "Contains KEYWORD", "other" },
+            items.Select(item => item.Comment).ToArray());
+    }
+
+    [TestMethod]
+    public void QueryWorkItems_PriorityCombinesWithTagFilter()
+    {
+        using var db = CreateDb();
+        var match = db.CreateWorkItem("2026-08-01", "match");
+        match.Priority = WorkPriorities.P2;
+        db.UpdateWorkItem(match);
+        var wrongPriority = db.CreateWorkItem("2026-08-02", "wrong priority");
+        var tag = db.CreateWorkTag("tag", true, 0);
+        db.WorkItemAddTag(match, tag);
+        db.WorkItemAddTag(wrongPriority, tag);
+
+        var items = db.QueryWorkItems(new WorkItemQuery
+        {
+            TagIds = new[] { tag.Id },
+            TagFilter = WorkItemTagFilter.Any,
+            Priority = WorkPriorities.P2,
+        });
+
+        Assert.AreEqual("match", items.Single().Comment);
+    }
+
+    [TestMethod]
+    public void QueryWorkItems_PaginationUsesStableDateAndIdOrder()
+    {
+        using var db = CreateDb();
+        db.CreateWorkItem("2026-08-02", "third");
+        db.CreateWorkItem("2026-08-01", "first");
+        db.CreateWorkItem("2026-08-01", "second");
+
+        var items = db.QueryWorkItems(new WorkItemQuery
+        {
+            Limit = 1,
+            Offset = 1,
+        });
+
+        Assert.AreEqual("second", items.Single().Comment);
+    }
+
     /// <summary>档 2 薄委托回归：GetWorkNotesByDate 按 workId 分组。</summary>
     [TestMethod]
     public void GetWorkNotesByDate_GroupsByWorkId()

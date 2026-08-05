@@ -14,4 +14,8 @@ public sealed record WorkItemQuery
     public string? EndDate { get; init; }
     public IReadOnlyCollection<int> TagIds { get; init; } = Array.Empty<int>();
     public WorkItemTagFilter TagFilter { get; init; } = WorkItemTagFilter.Ignore;
+    public string? Text { get; init; }
+    public WorkPriorities? Priority { get; init; }
+    public int? Limit { get; init; }
+    public int Offset { get; init; }
 }

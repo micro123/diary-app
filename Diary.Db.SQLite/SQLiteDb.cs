@@ -468,6 +468,16 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
             sql.Append(" AND work_items.create_date <= $end");
             args.Add(("$end", query.EndDate));
         }
+        if (!string.IsNullOrWhiteSpace(query.Text))
+        {
+            sql.Append(" AND (instr(lower(work_items.comment), lower($text)) > 0 OR EXISTS (SELECT 1 FROM work_notes wn WHERE wn.id = work_items.id AND instr(lower(wn.note), lower($text)) > 0))");
+            args.Add(("$text", query.Text));
+        }
+        if (query.Priority is not null)
+        {
+            sql.Append(" AND work_items.priority = $priority");
+            args.Add(("$priority", (int)query.Priority.Value));
+        }
 
         if (query.TagFilter == WorkItemTagFilter.None)
         {
@@ -488,6 +498,12 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
         }
 
         sql.Append(" ORDER BY work_items.create_date, work_items.id");
+        if (query.Limit is > 0)
+        {
+            sql.Append(" LIMIT $limit OFFSET $offset");
+            args.Add(("$limit", query.Limit.Value));
+            args.Add(("$offset", Math.Max(0, query.Offset)));
+        }
         return Query(sql.ToString(), MapWorkItem, args.ToArray());
     }
 

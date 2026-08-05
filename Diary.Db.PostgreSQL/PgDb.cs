@@ -529,6 +529,15 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
             sql.Append(" AND work_items.create_date >= ").Append(AddParameter(query.StartDate));
         if (!string.IsNullOrWhiteSpace(query.EndDate))
             sql.Append(" AND work_items.create_date <= ").Append(AddParameter(query.EndDate));
+        if (!string.IsNullOrWhiteSpace(query.Text))
+        {
+            var text = AddParameter(query.Text);
+            sql.Append(" AND (strpos(lower(work_items.comment), lower(").Append(text)
+                .Append(")) > 0 OR EXISTS (SELECT 1 FROM work_notes wn WHERE wn.id = work_items.id AND strpos(lower(wn.note), lower(")
+                .Append(text).Append(")) > 0))");
+        }
+        if (query.Priority is not null)
+            sql.Append(" AND work_items.priority = ").Append(AddParameter((int)query.Priority.Value));
 
         if (query.TagFilter == WorkItemTagFilter.None)
         {
@@ -544,6 +553,11 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
         }
 
         sql.Append(" ORDER BY work_items.create_date, work_items.id");
+        if (query.Limit is > 0)
+        {
+            sql.Append(" LIMIT ").Append(AddParameter(query.Limit.Value));
+            sql.Append(" OFFSET ").Append(AddParameter(Math.Max(0, query.Offset)));
+        }
         return Query(sql.ToString(), MapWorkItem, args.ToArray());
     }
 
