@@ -36,7 +36,7 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
 
     public ObservableCollection<WorkItemQueryTag> Tags { get; } = new();
     public ObservableCollection<WorkItemQueryResult> Results { get; } = new();
-    public IReadOnlyList<string> TagFilters { get; } = ["忽略标签", "任意标签", "全部标签", "无标签"];
+    public IReadOnlyList<string> TagFilters { get; } = ["忽略标签", "任意标签", "全部标签", "无标签", "精确匹配"];
     public IReadOnlyList<string> Priorities { get; } = ["全部优先级", .. Enum.GetNames<WorkPriorities>()];
 
     public WorkItemQueryViewModel(DbShareData shareData)

@@ -6,6 +6,7 @@ public enum WorkItemTagFilter
     Any,
     All,
     None,
+    Exact,
 }
 
 public sealed record WorkItemQuery

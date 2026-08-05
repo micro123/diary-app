@@ -479,11 +479,12 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
             args.Add(("$priority", (int)query.Priority.Value));
         }
 
-        if (query.TagFilter == WorkItemTagFilter.None)
+        if (query.TagFilter == WorkItemTagFilter.None
+            || query.TagFilter == WorkItemTagFilter.Exact && tagIds.Length == 0)
         {
             sql.Append(" AND NOT EXISTS (SELECT 1 FROM work_item_tags wit WHERE wit.work_id = work_items.id)");
         }
-        else if (query.TagFilter is WorkItemTagFilter.Any or WorkItemTagFilter.All)
+        else if (query.TagFilter is WorkItemTagFilter.Any or WorkItemTagFilter.All or WorkItemTagFilter.Exact)
         {
             var placeholders = new string[tagIds.Length];
             for (var i = 0; i < tagIds.Length; i++)
@@ -495,6 +496,8 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
                 .AppendJoin(", ", placeholders)
                 .Append("))");
             sql.Append(query.TagFilter == WorkItemTagFilter.Any ? " > 0" : $" = {tagIds.Length}");
+            if (query.TagFilter == WorkItemTagFilter.Exact)
+                sql.Append($" AND (SELECT COUNT(*) FROM work_item_tags all_tags WHERE all_tags.work_id = work_items.id) = {tagIds.Length}");
         }
 
         sql.Append(" ORDER BY work_items.create_date, work_items.id");

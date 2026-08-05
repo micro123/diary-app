@@ -342,6 +342,50 @@ public abstract class DbContractTests
     }
 
     [TestMethod]
+    public void QueryWorkItems_Exact_RequiresIdenticalTagSet()
+    {
+        using var db = CreateDb();
+        var exact = db.CreateWorkItem("2026-08-01", "exact");
+        var extra = db.CreateWorkItem("2026-08-02", "extra");
+        var missing = db.CreateWorkItem("2026-08-03", "missing");
+        var first = db.CreateWorkTag("first", true, 0);
+        var second = db.CreateWorkTag("second", false, 0);
+        var third = db.CreateWorkTag("third", false, 0);
+        foreach (var item in new[] { exact, extra })
+        {
+            db.WorkItemAddTag(item, first);
+            db.WorkItemAddTag(item, second);
+        }
+        db.WorkItemAddTag(extra, third);
+        db.WorkItemAddTag(missing, first);
+
+        var items = db.QueryWorkItems(new WorkItemQuery
+        {
+            TagIds = new[] { first.Id, second.Id },
+            TagFilter = WorkItemTagFilter.Exact,
+        });
+
+        Assert.AreEqual("exact", items.Single().Comment);
+    }
+
+    [TestMethod]
+    public void QueryWorkItems_ExactWithNoTags_ReturnsUntaggedItems()
+    {
+        using var db = CreateDb();
+        var tagged = db.CreateWorkItem("2026-08-01", "tagged");
+        db.CreateWorkItem("2026-08-02", "untagged");
+        var tag = db.CreateWorkTag("tag", true, 0);
+        db.WorkItemAddTag(tagged, tag);
+
+        var items = db.QueryWorkItems(new WorkItemQuery
+        {
+            TagFilter = WorkItemTagFilter.Exact,
+        });
+
+        Assert.AreEqual("untagged", items.Single().Comment);
+    }
+
+    [TestMethod]
     public void QueryWorkItems_AnyOrAllWithNoTags_ReturnsEmpty()
     {
         using var db = CreateDb();
