@@ -1,5 +1,6 @@
 using System.Data.Common;
 using System.Diagnostics;
+using System.Text;
 using Diary.Core.Data.Base;
 using Diary.Core.Data.Statistics;
 using Diary.Database;
@@ -506,6 +507,44 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
             return Query(sql, MapWorkItem,
                 ("$1", dateBegin), ("$2", dateEnd), ("$3", l1), ("$4", l2));
         }
+    }
+
+    public override ICollection<WorkItem> QueryWorkItems(WorkItemQuery query)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        var tagIds = query.TagIds.Distinct().ToArray();
+        if (query.TagFilter is WorkItemTagFilter.Any or WorkItemTagFilter.All && tagIds.Length == 0)
+            return Array.Empty<WorkItem>();
+
+        var sql = new StringBuilder("SELECT work_items.* FROM work_items WHERE 1=1");
+        var args = new List<(string Name, object? Value)>();
+        string AddParameter(object value)
+        {
+            var placeholder = $"${args.Count + 1}";
+            args.Add((placeholder, value));
+            return placeholder;
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.StartDate))
+            sql.Append(" AND work_items.create_date >= ").Append(AddParameter(query.StartDate));
+        if (!string.IsNullOrWhiteSpace(query.EndDate))
+            sql.Append(" AND work_items.create_date <= ").Append(AddParameter(query.EndDate));
+
+        if (query.TagFilter == WorkItemTagFilter.None)
+        {
+            sql.Append(" AND NOT EXISTS (SELECT 1 FROM work_item_tags wit WHERE wit.work_id = work_items.id)");
+        }
+        else if (query.TagFilter is WorkItemTagFilter.Any or WorkItemTagFilter.All)
+        {
+            var placeholders = tagIds.Select(tagId => AddParameter(tagId)).ToArray();
+            sql.Append(" AND (SELECT COUNT(DISTINCT wit.tag_id) FROM work_item_tags wit WHERE wit.work_id = work_items.id AND wit.tag_id IN (")
+                .AppendJoin(", ", placeholders)
+                .Append("))");
+            sql.Append(query.TagFilter == WorkItemTagFilter.Any ? " > 0" : $" = {tagIds.Length}");
+        }
+
+        sql.Append(" ORDER BY work_items.create_date, work_items.id");
+        return Query(sql.ToString(), MapWorkItem, args.ToArray());
     }
 
     public override bool DropData()

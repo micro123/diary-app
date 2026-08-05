@@ -264,6 +264,99 @@ public abstract class DbContractTests
         Assert.IsFalse(dict.ContainsKey(item2.Id));
     }
 
+    [TestMethod]
+    public void QueryWorkItems_IgnoreTags_IncludesDateRangeEnds()
+    {
+        using var db = CreateDb();
+        db.CreateWorkItem("2026-08-01", "begin");
+        db.CreateWorkItem("2026-08-05", "end");
+        db.CreateWorkItem("2026-08-06", "outside");
+
+        var items = db.QueryWorkItems(new WorkItemQuery
+        {
+            StartDate = "2026-08-01",
+            EndDate = "2026-08-05",
+        });
+
+        CollectionAssert.AreEqual(new[] { "begin", "end" }, items.Select(item => item.Comment).ToArray());
+    }
+
+    [TestMethod]
+    public void QueryWorkItems_AnyTag_ReturnsEachMatchingItemOnce()
+    {
+        using var db = CreateDb();
+        var both = db.CreateWorkItem("2026-08-01", "both");
+        var one = db.CreateWorkItem("2026-08-02", "one");
+        db.CreateWorkItem("2026-08-03", "none");
+        var first = db.CreateWorkTag("first", true, 0);
+        var second = db.CreateWorkTag("second", false, 0);
+        db.WorkItemAddTag(both, first);
+        db.WorkItemAddTag(both, second);
+        db.WorkItemAddTag(one, first);
+
+        var items = db.QueryWorkItems(new WorkItemQuery
+        {
+            TagIds = new[] { first.Id, second.Id, first.Id },
+            TagFilter = WorkItemTagFilter.Any,
+        });
+
+        CollectionAssert.AreEqual(new[] { "both", "one" }, items.Select(item => item.Comment).ToArray());
+    }
+
+    [TestMethod]
+    public void QueryWorkItems_AllTags_RequiresEverySelectedTag()
+    {
+        using var db = CreateDb();
+        var both = db.CreateWorkItem("2026-08-01", "both");
+        var one = db.CreateWorkItem("2026-08-02", "one");
+        var first = db.CreateWorkTag("first", true, 0);
+        var second = db.CreateWorkTag("second", false, 0);
+        db.WorkItemAddTag(both, first);
+        db.WorkItemAddTag(both, second);
+        db.WorkItemAddTag(one, first);
+
+        var items = db.QueryWorkItems(new WorkItemQuery
+        {
+            TagIds = new[] { first.Id, second.Id },
+            TagFilter = WorkItemTagFilter.All,
+        });
+
+        Assert.AreEqual("both", items.Single().Comment);
+    }
+
+    [TestMethod]
+    public void QueryWorkItems_None_ReturnsOnlyUntaggedItems()
+    {
+        using var db = CreateDb();
+        var tagged = db.CreateWorkItem("2026-08-01", "tagged");
+        db.CreateWorkItem("2026-08-02", "untagged");
+        var tag = db.CreateWorkTag("tag", true, 0);
+        db.WorkItemAddTag(tagged, tag);
+
+        var items = db.QueryWorkItems(new WorkItemQuery
+        {
+            TagFilter = WorkItemTagFilter.None,
+        });
+
+        Assert.AreEqual("untagged", items.Single().Comment);
+    }
+
+    [TestMethod]
+    public void QueryWorkItems_AnyOrAllWithNoTags_ReturnsEmpty()
+    {
+        using var db = CreateDb();
+        db.CreateWorkItem("2026-08-01", "item");
+
+        Assert.AreEqual(0, db.QueryWorkItems(new WorkItemQuery
+        {
+            TagFilter = WorkItemTagFilter.Any,
+        }).Count);
+        Assert.AreEqual(0, db.QueryWorkItems(new WorkItemQuery
+        {
+            TagFilter = WorkItemTagFilter.All,
+        }).Count);
+    }
+
     /// <summary>档 2 薄委托回归：GetWorkNotesByDate 按 workId 分组。</summary>
     [TestMethod]
     public void GetWorkNotesByDate_GroupsByWorkId()

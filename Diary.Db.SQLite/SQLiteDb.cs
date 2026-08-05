@@ -1,6 +1,7 @@
 using System.Data.Common;
 using System.Data.SQLite;
 using System.Diagnostics;
+using System.Text;
 using Diary.Core.Data.Base;
 using Diary.Core.Data.Statistics;
 using Diary.Database;
@@ -446,6 +447,48 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
             return Query(sql, MapWorkItem,
                 ("$begin", dateBegin), ("$end", dateEnd), ("$primary", l1), ("$secondary", l2));
         }
+    }
+
+    public override ICollection<WorkItem> QueryWorkItems(WorkItemQuery query)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        var tagIds = query.TagIds.Distinct().ToArray();
+        if (query.TagFilter is WorkItemTagFilter.Any or WorkItemTagFilter.All && tagIds.Length == 0)
+            return Array.Empty<WorkItem>();
+
+        var sql = new StringBuilder("SELECT work_items.* FROM work_items WHERE 1=1");
+        var args = new List<(string Name, object? Value)>();
+        if (!string.IsNullOrWhiteSpace(query.StartDate))
+        {
+            sql.Append(" AND work_items.create_date >= $start");
+            args.Add(("$start", query.StartDate));
+        }
+        if (!string.IsNullOrWhiteSpace(query.EndDate))
+        {
+            sql.Append(" AND work_items.create_date <= $end");
+            args.Add(("$end", query.EndDate));
+        }
+
+        if (query.TagFilter == WorkItemTagFilter.None)
+        {
+            sql.Append(" AND NOT EXISTS (SELECT 1 FROM work_item_tags wit WHERE wit.work_id = work_items.id)");
+        }
+        else if (query.TagFilter is WorkItemTagFilter.Any or WorkItemTagFilter.All)
+        {
+            var placeholders = new string[tagIds.Length];
+            for (var i = 0; i < tagIds.Length; i++)
+            {
+                placeholders[i] = $"$tag{i}";
+                args.Add((placeholders[i], tagIds[i]));
+            }
+            sql.Append(" AND (SELECT COUNT(DISTINCT wit.tag_id) FROM work_item_tags wit WHERE wit.work_id = work_items.id AND wit.tag_id IN (")
+                .AppendJoin(", ", placeholders)
+                .Append("))");
+            sql.Append(query.TagFilter == WorkItemTagFilter.Any ? " > 0" : $" = {tagIds.Length}");
+        }
+
+        sql.Append(" ORDER BY work_items.create_date, work_items.id");
+        return Query(sql.ToString(), MapWorkItem, args.ToArray());
     }
 
     public override bool DropData()

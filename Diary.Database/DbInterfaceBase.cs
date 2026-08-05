@@ -65,6 +65,7 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
     public abstract bool DeleteWorkItem(WorkItem item);
     public abstract ICollection<WorkItem> GetWorkItemByDateRange(string beginData, string endData);
     public abstract ICollection<WorkItem> GetWorkItemByDate(string data);
+    public abstract ICollection<WorkItem> QueryWorkItems(WorkItemQuery query);
     public abstract bool UpdateWorkItemId(int oldId, int newId);
 
     // work note
