@@ -63,7 +63,9 @@ public partial class WorkEditorViewModel : ViewModelBase
     public WorkEditorViewModel(
         DbShareData shareData,
         IWorkItemPersistenceCoordinator? persistence = null,
-        ITrackerUploadCoordinator? uploadCoordinator = null)
+        ITrackerUploadCoordinator? uploadCoordinator = null,
+        TrackerUiContributionRegistry? trackerRegistry = null,
+        string? defaultTaskTitle = null)
     {
         _shareData = shareData;
         _persistence = persistence
@@ -71,14 +73,14 @@ public partial class WorkEditorViewModel : ViewModelBase
         _uploadCoordinator = uploadCoordinator
             ?? App.Instance.Services.GetRequiredService<ITrackerUploadCoordinator>();
         Date = TimeTools.Today();
-        Comment = App.Instance.AppConfig.WorkSettings.DefaultTaskTitle;
+        Comment = defaultTaskTitle ?? App.Instance.AppConfig.WorkSettings.DefaultTaskTitle;
         Note = string.Empty;
         Time = 0.0;
         Priority = WorkPriorities.P0;
 
         // 解析全部已注册 tracker，为每个创建一个编辑器扩展。
-        var trackers = App.Instance.Services
-            .GetRequiredService<TrackerUiContributionRegistry>().Contributions;
+        var trackers = (trackerRegistry ?? App.Instance.Services
+            .GetRequiredService<TrackerUiContributionRegistry>()).Contributions;
         foreach (var t in trackers)
         {
             var ext = t.CreateEditorExtension(t.Instance.InstanceId);

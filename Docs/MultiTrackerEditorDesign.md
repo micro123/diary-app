@@ -24,6 +24,7 @@
 
 - 使用 `ObservableCollection<ITrackerEditorExtension> Extensions`。
 - 构造时从 `ITrackerUiContribution` 创建编辑器扩展。
+- 支持注入 tracker 注册表和核心默认值，无 tracker 时可以独立创建核心编辑器。
 - `SyncFromBatch()` 按实例加载预取的本地绑定。
 - `Save()` 遍历扩展保存本地绑定。
 - `Upload()` 遍历扩展并聚合成功/失败。
@@ -402,6 +403,7 @@ WorkEditor
 - 任意扩展锁定时核心锁定。
 - 任意扩展不可删除时核心不可删除。
 - 缺失扩展时核心克隆和保存仍成功。
+- 无 tracker 时核心编辑器可以创建，模板可以创建、加载和保存核心字段。
 
 ### 本地事务测试
 

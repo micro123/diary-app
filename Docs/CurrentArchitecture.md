@@ -205,7 +205,7 @@ Redmine UI 通过 `Diary.PluginUI` 的契约接入：
 - `ITrackerEditorExtension`：将 tracker 绑定和上传能力放入工作项编辑器。
 - `ITrackerTemplateContributor`：保存和恢复 tracker 专属模板 payload。
 
-核心编辑器从 `TrackerUiContributionRegistry` 获取按实例创建的 `ITrackerUiContribution`，不直接依赖 Redmine 具体 ViewModel。当前 Redmine UI 仍保留 `IRedMineUiData` 和部分 Redmine 专用数据缓存，用于管理页和选择器。
+核心编辑器从 `TrackerUiContributionRegistry` 获取按实例创建的 `ITrackerUiContribution`，不直接依赖 Redmine 具体 ViewModel。编辑器构造支持注入 tracker 注册表和核心默认值，因此无 tracker 时可以创建纯核心编辑器；模板协调器在没有 contributor 时保留核心模板路径和未知 payload。当前 Redmine UI 仍保留 `IRedMineUiData` 和部分 Redmine 专用数据缓存，用于管理页和选择器。
 
 ## 9. 数据保存边界
 
@@ -248,6 +248,7 @@ Redmine UI 通过 `Diary.PluginUI` 的契约接入：
 - 插件实例注册、数据库扩展迁移和 UI/模板注册已收敛到统一生命周期；数据库扩展的具体创建和迁移仍由插件实现。
 - 主程序已经通过构建目标复制 Redmine 插件程序集，后续可将复制源替换为独立插件包目录。
 - 诊断日志导出和插件启用/禁用管理尚未完成；当前配置 schema 迁移、诊断状态、错误详情和迁移重试已接入通用链路。
+- 已覆盖无 tracker 时核心编辑器和模板的单元测试；主窗口在缺失插件程序集时的完整启动仍缺少独立集成测试。
 - 远程同步队列、重试和每实例操作状态仍需完善。
 
 ## 11. 维护约定

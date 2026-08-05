@@ -1,9 +1,13 @@
 using Diary.App;
 using Diary.App.Models;
+using Diary.App.ViewModels;
+using Diary.Core.Data.Base;
 using Diary.Core.Data.App;
+using Diary.Database;
 using Diary.GUIBase.ViewModels;
 using Diary.PluginBase;
 using Diary.PluginUI;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Diary.UtilTests;
 
@@ -23,6 +27,36 @@ public sealed class TemplateCoordinatorTests
         Assert.AreEqual(1, saved.Count);
         Assert.AreEqual("tracker.memory", saved[0].PluginId);
         Assert.AreEqual("memory.default", saved[0].InstanceId);
+    }
+
+    [TestMethod]
+    public void NewTemplateWithoutTrackers_RemainsCoreOnly()
+    {
+        var coordinator = new TemplateCoordinator(new TrackerTemplateContributorRegistry());
+        var template = new Template { Name = "core-only" };
+
+        var slots = coordinator.LoadEditors(template);
+        var saved = coordinator.SaveEditors(slots, template);
+
+        Assert.AreEqual(0, slots.Count);
+        Assert.AreEqual(0, saved.Count);
+    }
+
+    [TestMethod]
+    public void WorkEditorWithoutTrackers_UsesCoreDefaults()
+    {
+        var editor = new WorkEditorViewModel(
+            new DbShareData(NullLogger.Instance),
+            new NoopPersistence(),
+            new NoopUpload(),
+            new TrackerUiContributionRegistry(),
+            "核心工作项");
+
+        Assert.AreEqual(0, editor.Extensions.Count);
+        Assert.AreEqual("核心工作项", editor.Comment);
+        Assert.IsTrue(editor.IsNewItem);
+        Assert.IsTrue(editor.CanDelete());
+        Assert.IsFalse(editor.CanUpload());
     }
 
     [TestMethod]
@@ -185,5 +219,19 @@ public sealed class TemplateCoordinatorTests
         public string Icon => "memory";
         public bool IsConfigured => true;
         public IDictionary<int, object?>? LoadBindingsByDate(string date) => null;
+    }
+
+    private sealed class NoopPersistence : IWorkItemPersistenceCoordinator
+    {
+        public WorkItemSaveResult Save(DbInterfaceBase db, WorkItemSaveRequest request)
+            => new(false, false, Error: "not used");
+    }
+
+    private sealed class NoopUpload : ITrackerUploadCoordinator
+    {
+        public Task<WorkUploadResult> UploadAsync(
+            WorkItem item,
+            IReadOnlyCollection<ITrackerEditorExtension> extensions)
+            => Task.FromResult(new WorkUploadResult(Array.Empty<TrackerUploadResult>()));
     }
 }
