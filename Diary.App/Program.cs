@@ -17,6 +17,7 @@ namespace Diary.App
         [STAThread]
         public static void Main(string[] args)
         {
+            App.StartupOptions = AppStartupOptions.Parse(args);
             // 跨平台单实例守卫：已有实例在跑则唤起它后退出，不重复启动
             using var single = new SingletonApp(AppInfo.AppName);
             if (!single.IsSelfInstance())

@@ -34,6 +34,8 @@ namespace Diary.App
 {
     public sealed partial class App : BaseApp
     {
+        public static AppStartupOptions StartupOptions { get; set; } = AppStartupOptions.Default;
+
         public App()
         {
             Name = AppInfo.AppName;
@@ -191,8 +193,10 @@ namespace Diary.App
                     PluginCapabilities.MultipleStatementExecution,
                 });
             // 两阶段注册：先发现全部插件，建立已发现 ID 集，再做依赖存在性检查（§5.2）。
-            var discovered = TypeLoader.GetImplementations<ITrackerPlugin>(
-                FsTools.GetBinaryDirectory(), "Diary.*.dll").ToList();
+            var discovered = StartupOptions.CoreOnly
+                ? new List<ITrackerPlugin>()
+                : TypeLoader.GetImplementations<ITrackerPlugin>(
+                    FsTools.GetBinaryDirectory(), "Diary.*.dll").ToList();
             var availablePlugins = discovered
                 .GroupBy(plugin => plugin.Manifest.Id, StringComparer.Ordinal)
                 .ToDictionary(group => group.Key, group => group.First().Manifest, StringComparer.Ordinal);
@@ -284,7 +288,8 @@ namespace Diary.App
             }
             services.AddTypesFromAssembly(Assembly.GetExecutingAssembly());
             services.AddTypesFromAssembly(typeof(ViewLocator).Assembly);
-            LoadPluginUiAssemblies(services);
+            if (!StartupOptions.CoreOnly)
+                LoadPluginUiAssemblies(services);
 
             return services.BuildServiceProvider();
         }

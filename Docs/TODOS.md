@@ -34,6 +34,8 @@
 - [x] 工作项本地保存事务和远程上传协调
 - [x] 通用插件配置加载器和宿主上下文传递测试
 - [x] 无 tracker 时核心编辑器和模板路径测试
+- [x] 无 tracker 时插件实例、UI 和模板生命周期测试
+- [x] 提供 `--core-only` 启动模式跳过 tracker 插件加载
 - [x] 插件 UI 缺失时安全跳过测试
 - [x] 定义 `TrackerInstanceState` 实例状态模型与失败条目存储
 - [x] DB 扩展初始化/迁移失败显式抛 `PluginExtensionInitException`，不再静默返回 null

@@ -86,7 +86,7 @@ Diary.PluginBase <- Diary.RedMine <- Diary.RedMine.UI -> Diary.PluginUI
 
 ## 4. 启动和插件生命周期
 
-`App.ConfigureServices()` 扫描二进制目录中的 `Diary.*.dll`，发现 `ITrackerPlugin` 实现后调用 `PluginHost.Register()`。
+`App.ConfigureServices()` 默认扫描二进制目录中的 `Diary.*.dll`，发现 `ITrackerPlugin` 实现后调用 `PluginHost.Register()`。使用 `--core-only` 启动参数时跳过 tracker 和 tracker UI 程序集扫描，只保留核心服务、数据库和主窗口启动链路。
 兼容性检查通过才会注册服务并加入宿主插件列表；所有 `Diary.*.UI.dll` 都按可选程序集扫描，加载失败不会阻断核心启动。
 兼容插件由宿主创建并加载配置，实例注册时通过 `PluginHostContext` 同时接收数据库、插件配置和通用实例配置项。`TrackerPluginLifecycleCoordinator` 统一枚举实例配置、调用插件实例注册、收集失败状态，并按已启用实例注册 UI/模板贡献。插件注册前，宿主会把本次发现的 manifest 集合放入兼容性上下文，校验必选依赖的存在性和版本范围；必选依赖形成环的插件不会进入服务注册。
 
@@ -122,6 +122,8 @@ stop
 ![启动生命周期](diagrams/startup-lifecycle.svg)
 
 插件状态目前使用 `PluginState` 表示兼容、阻塞、迁移失败等结果。插件迁移失败会返回 `MigrationFailed`，不会让 `PluginHost.Migrate()` 报告启用成功；核心启动仍由应用层决定是否继续使用核心功能。
+
+核心模式可通过 `Diary.App --core-only` 启动，不加载任何 tracker 插件或插件 UI，适合验证无 Redmine 程序集时的核心日记、编辑器和模板功能。该选项只影响当前进程，不修改插件配置和数据库数据。
 
 ## 5. 数据库分层和扩展
 
@@ -248,7 +250,7 @@ Redmine UI 通过 `Diary.PluginUI` 的契约接入：
 - 插件实例注册、数据库扩展迁移和 UI/模板注册已收敛到统一生命周期；数据库扩展的具体创建和迁移仍由插件实现。
 - 主程序已经通过构建目标复制 Redmine 插件程序集，后续可将复制源替换为独立插件包目录。
 - 诊断日志导出和插件启用/禁用管理尚未完成；当前配置 schema 迁移、诊断状态、错误详情和迁移重试已接入通用链路。
-- 已覆盖无 tracker 时核心编辑器和模板的单元测试；主窗口在缺失插件程序集时的完整启动仍缺少独立集成测试。
+- 已覆盖无 tracker 时插件生命周期、核心编辑器和模板的单元测试；主窗口在缺失插件程序集时的完整启动仍缺少独立集成测试。
 - 远程同步队列、重试和每实例操作状态仍需完善。
 
 ## 11. 维护约定

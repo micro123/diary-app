@@ -11,6 +11,22 @@ namespace Diary.UtilTests;
 public sealed class TrackerPluginLifecycleCoordinatorTests
 {
     [TestMethod]
+    public void RegisterWithoutPlugins_LeavesCoreRegistriesEmpty()
+    {
+        var registry = new PluginInstanceRegistry();
+        var uiRegistry = new TrackerUiContributionRegistry();
+        var templateRegistry = new TrackerTemplateContributorRegistry();
+        var coordinator = CreateCoordinator(registry, uiRegistry, templateRegistry);
+
+        coordinator.Register(new object(), Array.Empty<ITrackerPlugin>(),
+            new Dictionary<string, object>());
+
+        Assert.AreEqual(0, registry.Instances.Count);
+        Assert.AreEqual(0, uiRegistry.Contributions.Count);
+        Assert.AreEqual(0, templateRegistry.Contributors.Count);
+    }
+
+    [TestMethod]
     public void RegisterEnumeratesEnabledInstancesAndTheirUiContributions()
     {
         var registry = new PluginInstanceRegistry();
