@@ -10,6 +10,7 @@ using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.Models;
 using Diary.Core.Constants;
 using Diary.Core.Data.App;
+using Diary.Core.Data.Base;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
@@ -78,12 +79,11 @@ public partial class DiaryEditorViewModel : ViewModelBase
             SelectedWork.Time = template.DefaultTime;
         // tracker 扩展默认值（如 RedMine activity/issue）经协调器按 InstanceId 应用到对应扩展
         _templateCoordinator.Apply(template, SelectedWork);
-        foreach (var tag in template.DefaultWorkTags)
-        {
-            var x = SelectedWork.AllTags.FirstOrDefault(x => x.Id == tag);
-            if (x is not null)
-                SelectedWork.WorkTags.Add(x);
-        }
+        var tags = template.DefaultWorkTags
+            .Select(tagId => SelectedWork.AllTags.FirstOrDefault(tag => tag.Id == tagId))
+            .Where(tag => tag is not null)
+            .Cast<WorkTag>();
+        SelectedWork.AddTags(tags, TagAddSource.Template);
     }
 
     [RelayCommand(CanExecute = nameof(CanSave))]

@@ -18,6 +18,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     private readonly DbShareData _shareData;
     private readonly IWorkItemPersistenceCoordinator _persistence;
     private readonly ITrackerUploadCoordinator _uploadCoordinator;
+    private readonly ITagAutomationCoordinator _tagAutomation;
 
     // db data fields
     private WorkItem? WorkItem { get; set; } // ref to existed db item, may null
@@ -65,13 +66,16 @@ public partial class WorkEditorViewModel : ViewModelBase
         IWorkItemPersistenceCoordinator? persistence = null,
         ITrackerUploadCoordinator? uploadCoordinator = null,
         TrackerUiContributionRegistry? trackerRegistry = null,
-        string? defaultTaskTitle = null)
+        string? defaultTaskTitle = null,
+        ITagAutomationCoordinator? tagAutomation = null)
     {
         _shareData = shareData;
         _persistence = persistence
             ?? App.Instance.Services.GetRequiredService<IWorkItemPersistenceCoordinator>();
         _uploadCoordinator = uploadCoordinator
             ?? App.Instance.Services.GetRequiredService<ITrackerUploadCoordinator>();
+        _tagAutomation = tagAutomation
+            ?? App.Instance.Services.GetRequiredService<ITagAutomationCoordinator>();
         Date = TimeTools.Today();
         Comment = defaultTaskTitle ?? App.Instance.AppConfig.WorkSettings.DefaultTaskTitle;
         Note = string.Empty;
@@ -258,14 +262,26 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     [RelayCommand]
     private void AddTag(WorkTag tag)
+        => AddTags([tag], TagAddSource.User);
+
+    public void AddTags(IEnumerable<WorkTag> tags, TagAddSource source)
     {
-        if (WorkTags.Contains(tag))
-            return;
-        _syncing_tags = true;
-        if (WorkItem is { Id: > 0 })
-            Db!.WorkItemAddTag(WorkItem, tag);
-        WorkTags.Add(tag);
-        _syncing_tags = false;
+        var sequence = 0;
+        foreach (var tag in tags)
+        {
+            if (WorkTags.Any(existing => existing.Id == tag.Id))
+                continue;
+            _syncing_tags = true;
+            if (WorkItem is { Id: > 0 })
+                Db!.WorkItemAddTag(WorkItem, tag);
+            WorkTags.Add(tag);
+            _syncing_tags = false;
+            _tagAutomation.TagAdded(
+                WorkItem,
+                tag,
+                new TagAutomationContext(source, sequence++),
+                Extensions);
+        }
         UpdateAvailableTags();
     }
 
