@@ -33,7 +33,7 @@ public sealed class RedMineConfigurationMigration : IPluginConfigurationMigratio
         {
             ["InstanceId"] = RedMinePluginConstants.DefaultInstanceId,
             ["DisplayName"] = "RedMine工具",
-            ["Enabled"] = true,
+            ["Enabled"] = false,
         };
         foreach (var propertyName in new[]
                  {
@@ -66,7 +66,7 @@ public sealed class RedMineConfigurationMigration : IPluginConfigurationMigratio
             }
 
             item["DisplayName"] ??= "RedMine工具";
-            item["Enabled"] ??= true;
+            item["Enabled"] ??= false;
         }
     }
 }

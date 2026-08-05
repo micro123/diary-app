@@ -43,6 +43,6 @@ public sealed class RedMineConfigurationMigrationTests
         Assert.AreEqual("redmine.company", (string?)instances[0]!["InstanceId"]);
         Assert.AreEqual("redmine.default", (string?)instances[1]!["InstanceId"]);
         Assert.AreEqual("redmine.default.1", (string?)instances[2]!["InstanceId"]);
-        Assert.IsTrue((bool?)instances[2]!["Enabled"]);
+        Assert.IsFalse((bool?)instances[2]!["Enabled"]);
     }
 }

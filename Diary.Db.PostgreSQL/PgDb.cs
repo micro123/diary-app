@@ -107,11 +107,11 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
 
                   CREATE TABLE IF NOT EXISTS data_versions (version_code INTEGER PRIMARY KEY);
 
-                  -- default data version is 1.0.0 (0x10000 = 65536)
+                   -- default data version is 1.0.0 (0x10000 = 65536)
                   INSERT
                   	INTO data_versions
                   VALUES
-                  	(65536)
+                    (65536)
                   ON CONFLICT (version_code)
                   	DO NOTHING;
                   """;

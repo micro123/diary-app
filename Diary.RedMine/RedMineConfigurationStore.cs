@@ -17,7 +17,7 @@ public sealed class RedMineInstanceSettings : RedMineConfig
     [ConfigureText("显示名称")]
     public string DisplayName { get; set; } = "RedMine工具";
     [ConfigureSwitch("启用此实例")]
-    public bool Enabled { get; set; } = true;
+    public bool Enabled { get; set; } = false;
 }
 
 public static class RedMineConfigurationStore
@@ -49,7 +49,7 @@ public static class RedMineConfigurationStore
             {
                 InstanceId = RedMinePluginConstants.DefaultInstanceId,
                 DisplayName = "RedMine工具",
-                Enabled = true,
+                Enabled = false,
             };
             Copy(configuration, defaultInstance);
             configuration.Instances.Add(defaultInstance);

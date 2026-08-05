@@ -15,7 +15,7 @@ namespace Diary.Db.SQLite;
 /// </summary>
 public sealed class SQLiteRedMineDb(IDbExtensionHost host, string instanceId) : IRedMineDb
 {
-    private const uint CurrentSchemaVersion = 2;
+    private const uint CurrentSchemaVersion = 1;
     private readonly IDbExtensionHost _host = host;
 
     public string InstanceId => instanceId;
@@ -65,7 +65,7 @@ public sealed class SQLiteRedMineDb(IDbExtensionHost host, string instanceId) : 
             }
 
             return _host.ExecRaw(
-                $"INSERT INTO plugin_data_versions(plugin_id, schema_version) VALUES ('{RedMinePluginConstants.PluginId}', 2) ON CONFLICT(plugin_id) DO UPDATE SET schema_version=2;");
+                $"INSERT INTO plugin_data_versions(plugin_id, schema_version) VALUES ('{RedMinePluginConstants.PluginId}', 1) ON CONFLICT(plugin_id) DO UPDATE SET schema_version=1;");
         }
         catch (SQLiteException ex)
         {

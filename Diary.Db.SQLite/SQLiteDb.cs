@@ -95,7 +95,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
                                     		version_code INTEGER PRIMARY KEY
                                     	);
 
-                                    -- default data version is 1.0.0 (0x1000000)
+                                    -- default data version is 1.0.0 (0x10000)
                                     INSERT OR IGNORE INTO data_versions VALUES(0x10000);
                                     
                                     CREATE INDEX IF NOT EXISTS idx_work_items_date ON work_items(create_date);
