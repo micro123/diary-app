@@ -103,7 +103,11 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
 
     private readonly Dictionary<(Type Type, string InstanceId), object?> _extensions = new();
 
-    /// <summary>获取 provider 提供的可选数据库扩展；核心库不引用具体 tracker 类型。</summary>
+    /// <summary>
+    /// 获取 provider 提供的可选数据库扩展；核心库不引用具体 tracker 类型。
+    /// 无工厂支持时返回并缓存 null（<see cref="TrackerInstanceState.NotConfigured"/>）；
+    /// 工厂初始化或迁移失败时抛 <see cref="PluginExtensionInitException"/>（不缓存，便于重试）。
+    /// </summary>
     public T? GetExtension<T>(
         string instanceId = "redmine.default",
         IEnumerable<IPluginMigration>? migrations = null) where T : class

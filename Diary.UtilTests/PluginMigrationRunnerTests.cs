@@ -76,6 +76,37 @@ public class PluginMigrationRunnerTests
     }
 
     [TestMethod]
+    public void ManifestValidator_BlocksWhenApiVersionTooLow()
+    {
+        var manifest = new PluginManifest
+        {
+            Id = "tracker.test",
+            Version = "1.0.0",
+            ApiVersion = 0, // 低于 context.MinApiVersion=1
+        };
+        var context = new PluginCompatibilityContext(1, 1, 0, new HashSet<string>());
+
+        Assert.IsFalse(PluginCompatibilityValidator.Validate(manifest, context, out var error));
+        StringAssert.Contains(error, "API 版本");
+    }
+
+    [TestMethod]
+    public void ManifestValidator_BlocksWhenCoreDataVersionTooLow()
+    {
+        var manifest = new PluginManifest
+        {
+            Id = "tracker.test",
+            Version = "1.0.0",
+            ApiVersion = 1,
+            MinCoreDataVersion = 2, // 高于 context.CoreDataVersion=0
+        };
+        var context = new PluginCompatibilityContext(1, 1, 0, new HashSet<string>());
+
+        Assert.IsFalse(PluginCompatibilityValidator.Validate(manifest, context, out var error));
+        StringAssert.Contains(error, "核心数据库版本");
+    }
+
+    [TestMethod]
     public void Upgrade_AppliesVersionChainInOrder()
     {
         var applied = new List<uint>();

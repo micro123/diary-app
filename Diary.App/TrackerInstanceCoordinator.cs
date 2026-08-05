@@ -13,21 +13,31 @@ public sealed class TrackerInstanceCoordinator(
     {
         foreach (var registration in registrations)
         {
-            if (registry.Get(plugin.Manifest.Id, registration.InstanceId) is not null)
+            if (registry.GetEntry(plugin.Manifest.Id, registration.InstanceId) is not null)
                 continue;
 
-            var result = registry.Create(plugin, registration.InstanceId, registration.Configuration);
-            if (result.Success)
+            if (registration.State == TrackerInstanceState.Enabled)
             {
-                logger.LogInformation(
-                    "Tracker instance {PluginId}/{InstanceId} enabled",
-                    plugin.Manifest.Id, registration.InstanceId);
+                var result = registry.Create(plugin, registration.InstanceId, registration.Configuration!);
+                if (result.Success)
+                {
+                    logger.LogInformation(
+                        "Tracker instance {PluginId}/{InstanceId} enabled",
+                        plugin.Manifest.Id, registration.InstanceId);
+                }
+                else
+                {
+                    logger.LogError(
+                        "Tracker instance {PluginId}/{InstanceId} blocked: {Error}",
+                        plugin.Manifest.Id, registration.InstanceId, result.Error);
+                }
             }
             else
             {
-                logger.LogError(
-                    "Tracker instance {PluginId}/{InstanceId} blocked: {Error}",
-                    plugin.Manifest.Id, registration.InstanceId, result.Error);
+                registry.Record(plugin.Manifest.Id, registration.InstanceId, registration.State, registration.Error);
+                logger.LogWarning(
+                    "Tracker instance {PluginId}/{InstanceId} {State}: {Error}",
+                    plugin.Manifest.Id, registration.InstanceId, registration.State, registration.Error);
             }
         }
     }

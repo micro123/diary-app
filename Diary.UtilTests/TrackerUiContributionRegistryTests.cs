@@ -37,6 +37,17 @@ public sealed class TrackerUiContributionRegistryTests
         Assert.AreEqual(0, registry.Contributions.Count);
     }
 
+    [TestMethod]
+    public void RegisterWithEmptyInstancesProducesNoContributions()
+    {
+        var registry = new TrackerUiContributionRegistry();
+
+        // 无 tracker 实例时（如未安装/未配置任何 tracker），注册表应为空且不抛
+        registry.Register(new[] { new MemoryContributionFactory() }, Array.Empty<ITrackerInstance>());
+
+        Assert.AreEqual(0, registry.Contributions.Count);
+    }
+
     private sealed class MemoryContributionFactory : ITrackerUiContributionFactory
     {
         public string PluginId => "tracker.memory";

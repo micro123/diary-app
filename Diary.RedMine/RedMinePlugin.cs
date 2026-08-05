@@ -49,22 +49,45 @@ public sealed class RedMinePlugin : ITrackerPlugin
             || context.Configuration is not RedMinePluginConfig configuration)
             return Array.Empty<PluginInstanceRegistration>();
 
-        return configuration.Instances
-            .Where(x => x.Enabled)
-            .Select(settings =>
+        var migrations = GetMigrations();
+        var registrations = new List<PluginInstanceRegistration>();
+        foreach (var settings in configuration.Instances.Where(x => x.Enabled))
+        {
+            IRedMineDb? database;
+            try
             {
-                var database = db.GetExtension<IRedMineDb>(settings.InstanceId, GetMigrations());
-                return database is null
-                    ? null
-                    : new PluginInstanceRegistration(
-                        settings.InstanceId,
-                        new RedMineInstanceConfiguration(
-                            settings.InstanceId,
-                            settings.DisplayName,
-                            settings,
-                            database));
-            })
-            .Where(x => x is not null)
-            .Cast<PluginInstanceRegistration>();
+                database = db.GetExtension<IRedMineDb>(settings.InstanceId, migrations);
+            }
+            catch (PluginExtensionInitException)
+            {
+                registrations.Add(new PluginInstanceRegistration(
+                    settings.InstanceId,
+                    null,
+                    TrackerInstanceState.MigrationFailed,
+                    "数据库迁移失败"));
+                continue;
+            }
+
+            if (database is null)
+            {
+                registrations.Add(new PluginInstanceRegistration(
+                    settings.InstanceId,
+                    null,
+                    TrackerInstanceState.NotConfigured,
+                    "数据库扩展不可用"));
+                continue;
+            }
+
+            registrations.Add(new PluginInstanceRegistration(
+                settings.InstanceId,
+                new RedMineInstanceConfiguration(
+                    settings.InstanceId,
+                    settings.DisplayName,
+                    settings,
+                    database),
+                TrackerInstanceState.Enabled));
+        }
+
+        return registrations;
     }
 }

@@ -26,6 +26,16 @@ public sealed class TrackerTemplateContributorRegistryTests
             registry.Contributors.Select(x => x.InstanceId).ToArray());
     }
 
+    [TestMethod]
+    public void RegisterWithEmptyInstancesProducesNoContributors()
+    {
+        var registry = new TrackerTemplateContributorRegistry();
+
+        registry.Register(new[] { new MemoryFactory() }, Array.Empty<ITrackerInstance>());
+
+        Assert.AreEqual(0, registry.Contributors.Count);
+    }
+
     private sealed class MemoryFactory : ITrackerTemplateContributorFactory
     {
         public string PluginId => "tracker.memory";
