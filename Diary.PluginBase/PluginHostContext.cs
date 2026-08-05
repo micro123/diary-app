@@ -5,4 +5,9 @@ namespace Diary.PluginBase;
 /// </summary>
 public sealed record PluginHostContext(
     object Database,
-    object Configuration);
+    object Configuration)
+{
+    /// <summary>宿主从通用配置存储枚举出的实例项；旧调用方默认为空。</summary>
+    public IReadOnlyList<PluginInstanceConfiguration> InstanceConfigurations { get; init; }
+        = Array.Empty<PluginInstanceConfiguration>();
+}

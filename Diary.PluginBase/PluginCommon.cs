@@ -6,6 +6,23 @@ public sealed record PluginDependency(
     string VersionRange,
     bool Optional = false);
 
+/// <summary>插件配置中的一个实例项，由宿主统一枚举和传递（文档阶段 1）。</summary>
+public sealed record PluginInstanceConfiguration(
+    string InstanceId,
+    object Configuration,
+    bool Enabled = true,
+    string? DisplayName = null);
+
+/// <summary>
+/// 插件实例配置存储契约。插件可以返回全部配置项，宿主只创建 Enabled 项。
+/// 默认实现保持旧插件兼容；旧插件仍可直接实现 GetInstanceRegistrations。
+/// </summary>
+public interface IPluginInstanceConfigurationStore
+{
+    IEnumerable<PluginInstanceConfiguration> GetInstanceConfigurations(object configuration)
+        => Array.Empty<PluginInstanceConfiguration>();
+}
+
 /// <summary>插件生命周期状态（文档 §6）。</summary>
 public enum PluginState
 {

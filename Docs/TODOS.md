@@ -40,14 +40,15 @@
 - [x] 迁移失败重试管线（`Registry.Clear` + `DbInterfaceBase.InvalidateExtensions` + `Coordinator.Retry`）与迁移错误细节透传
 - [x] 必选依赖存在性校验（`PluginCompatibilityContext.AvailablePluginIds` + validator）与 App 两阶段注册
 - [x] 依赖版本范围匹配与必选依赖环检测，阻止不兼容或循环依赖插件注册
+- [x] 通用实例配置存储接口与插件实例生命周期协调器
 
 ## 阶段 1：通用实例生命周期
 
 目标：主程序不再硬编码只创建 Redmine 实例。
 
-- [ ] 定义通用实例配置存储接口，返回所有已启用插件实例
+- [x] 定义通用实例配置存储接口，返回所有已配置插件实例并由宿主筛选启用项
 - [x] 将 `App.RegisterTrackerInstances()` 改为遍历插件和配置实例
-- [ ] 将实例创建、数据库初始化、迁移和 UI 注册纳入统一生命周期
+- [x] 将实例创建、数据库初始化、迁移和 UI/模板注册纳入统一生命周期
 - [x] 创建实例时按 `InstanceId` 获取对应数据库扩展，禁止所有实例共享默认扩展
 - [x] 让数据库扩展工厂接收插件迁移链并统一使用 `PluginMigrationRunner`
 - [x] 移除 Redmine provider 的无参数迁移兼容入口

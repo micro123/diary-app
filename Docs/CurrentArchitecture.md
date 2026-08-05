@@ -88,7 +88,7 @@ Diary.PluginBase <- Diary.RedMine <- Diary.RedMine.UI -> Diary.PluginUI
 
 `App.ConfigureServices()` 扫描二进制目录中的 `Diary.*.dll`，发现 `ITrackerPlugin` 实现后调用 `PluginHost.Register()`。
 兼容性检查通过才会注册服务并加入宿主插件列表；所有 `Diary.*.UI.dll` 都按可选程序集扫描，加载失败不会阻断核心启动。
-兼容插件由宿主创建并加载配置，实例注册时通过 `PluginHostContext` 同时接收数据库和配置对象。插件注册前，宿主会把本次发现的 manifest 集合放入兼容性上下文，校验必选依赖的存在性和版本范围；必选依赖形成环的插件不会进入服务注册。
+兼容插件由宿主创建并加载配置，实例注册时通过 `PluginHostContext` 同时接收数据库、插件配置和通用实例配置项。`TrackerPluginLifecycleCoordinator` 统一枚举实例配置、调用插件实例注册、收集失败状态，并按已启用实例注册 UI/模板贡献。插件注册前，宿主会把本次发现的 manifest 集合放入兼容性上下文，校验必选依赖的存在性和版本范围；必选依赖形成环的插件不会进入服务注册。
 
 ```plantuml
 @startuml
@@ -223,8 +223,8 @@ Redmine UI 通过 `Diary.PluginUI` 的契约接入：
 
 ## 10. 当前已知缺口
 
-- `SupportsMultipleInstances` 仍为 `false`，需要完成 manifest、配置、导航和编辑器的多实例 UI 上下文。
-- 插件实例注册、数据库扩展迁移和 UI/模板注册还需要进一步收敛到统一生命周期。
+- `SupportsMultipleInstances` 已接入 Redmine manifest、实例配置、导航和编辑器上下文；其他插件仍需按自身能力声明该标志。
+- 插件实例注册、数据库扩展迁移和 UI/模板注册已收敛到统一生命周期；数据库扩展的具体创建和迁移仍由插件实现。
 - 主程序已经通过构建目标复制 Redmine 插件程序集，后续可将复制源替换为独立插件包目录。
 - 插件配置持久化、配置迁移和诊断页面尚未形成完整通用协议。
 - 远程同步队列、重试和每实例操作状态仍需完善。

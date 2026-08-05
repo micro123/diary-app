@@ -31,6 +31,15 @@ public sealed class RedMinePlugin : ITrackerPlugin
     public IEnumerable<IPluginMigration> GetMigrations()
         => new IPluginMigration[] { new RedMineInitialMigration(), new RedMineInstanceMigration() };
 
+    public IEnumerable<PluginInstanceConfiguration> GetInstanceConfigurations(object configuration)
+        => configuration is RedMinePluginConfig redmine
+            ? redmine.Instances.Select(settings => new PluginInstanceConfiguration(
+                settings.InstanceId,
+                settings,
+                settings.Enabled,
+                settings.DisplayName))
+            : Array.Empty<PluginInstanceConfiguration>();
+
     public ITrackerInstance CreateInstance(string instanceId, object configuration)
     {
         if (configuration is not RedMineInstanceConfiguration instanceConfiguration
@@ -50,9 +59,26 @@ public sealed class RedMinePlugin : ITrackerPlugin
             return Array.Empty<PluginInstanceRegistration>();
 
         var migrations = GetMigrations();
+        var configuredInstances = context.InstanceConfigurations.Count > 0
+            ? context.InstanceConfigurations
+            : configuration.Instances.Select(settings => new PluginInstanceConfiguration(
+                settings.InstanceId,
+                settings,
+                settings.Enabled,
+                settings.DisplayName)).ToArray();
         var registrations = new List<PluginInstanceRegistration>();
-        foreach (var settings in configuration.Instances.Where(x => x.Enabled))
+        foreach (var instanceConfiguration in configuredInstances.Where(x => x.Enabled))
         {
+            if (instanceConfiguration.Configuration is not RedMineInstanceSettings settings)
+            {
+                registrations.Add(new PluginInstanceRegistration(
+                    instanceConfiguration.InstanceId,
+                    null,
+                    TrackerInstanceState.Blocked,
+                    "RedMine 实例配置类型无效"));
+                continue;
+            }
+
             IRedMineDb? database;
             try
             {

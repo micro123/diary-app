@@ -920,8 +920,8 @@ SupportedProviders: PostgreSQL
 当前基础：插件 manifest、`PluginHost`、`PluginInstanceRegistry` 和 Redmine 实例配置已经存在。
 
 - 已将插件实例配置生成和 `App.RegisterTrackerInstances()` 改为遍历所有插件。
-- 通用实例配置存储和实例状态接口仍待定义。
-- 统一实例创建、数据库初始化、迁移和 UI 注册顺序。
+- 通用实例配置存储接口和实例状态模型已定义。
+- 实例创建、数据库初始化、迁移和 UI/模板注册已由宿主统一编排，数据库扩展细节仍由插件负责。
 - 接入 `SupportsMultipleInstances`，贯通导航、管理页和编辑器上下文。
 
 验收标准：新增测试 tracker 不需要修改 `Diary.App` 的 tracker 专用分支即可创建两个实例。

@@ -132,33 +132,10 @@ namespace Diary.App
                 return;
             }
 
-            var coordinator = Services.GetRequiredService<TrackerInstanceCoordinator>();
-            foreach (var plugin in _plugins)
-            {
-                try
-                {
-                    if (!_pluginConfigurations.TryGetValue(plugin.Manifest.Id, out var configuration))
-                    {
-                        Logger.LogWarning("Plugin {PluginId} has no loaded configuration", plugin.Manifest.Id);
-                        continue;
-                    }
-
-                    coordinator.Register(
-                        plugin,
-                        plugin.GetInstanceRegistrations(new PluginHostContext(UseDb, configuration)));
-                }
-                catch (Exception ex)
-                {
-                    Logger.LogError(ex, "Plugin {PluginId} instance registration failed", plugin.Manifest.Id);
-                }
-            }
-
-            Services.GetRequiredService<TrackerUiContributionRegistry>().Register(
-                Services.GetServices<ITrackerUiContributionFactory>(),
-                Services.GetRequiredService<PluginInstanceRegistry>().Instances);
-            Services.GetRequiredService<TrackerTemplateContributorRegistry>().Register(
-                Services.GetServices<ITrackerTemplateContributorFactory>(),
-                Services.GetRequiredService<PluginInstanceRegistry>().Instances);
+            Services.GetRequiredService<TrackerPluginLifecycleCoordinator>().Register(
+                UseDb,
+                _plugins,
+                _pluginConfigurations);
         }
 
         private void EnumerateDbProviders()
@@ -192,6 +169,7 @@ namespace Diary.App
             services.AddSingleton<BaseApp>(this);
             services.AddSingleton<PluginInstanceRegistry>();
             services.AddSingleton<TrackerInstanceCoordinator>();
+            services.AddSingleton<TrackerPluginLifecycleCoordinator>();
             services.AddSingleton<TrackerUiContributionRegistry>();
             services.AddSingleton<TrackerTemplateContributorRegistry>();
             services.AddSingleton<IWorkItemPersistenceCoordinator, WorkItemPersistenceCoordinator>();

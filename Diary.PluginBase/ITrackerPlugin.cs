@@ -7,7 +7,7 @@ namespace Diary.PluginBase;
 /// 据此注册服务、创建配置、获取迁移、按实例创建 tracker。
 /// 本接口不依赖 UI；UI 贡献由 <c>Diary.PluginUI.ITrackerUiContribution</c> 提供。
 /// </summary>
-public interface ITrackerPlugin
+public interface ITrackerPlugin : IPluginInstanceConfigurationStore
 {
     PluginManifest Manifest { get; }
 
