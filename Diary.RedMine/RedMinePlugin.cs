@@ -36,12 +36,28 @@ public sealed class RedMinePlugin : ITrackerPlugin
 
     public IEnumerable<PluginInstanceConfiguration> GetInstanceConfigurations(object configuration)
         => configuration is RedMinePluginConfig redmine
-            ? redmine.Instances.Select(settings => new PluginInstanceConfiguration(
+            ? GetConfiguredInstances(redmine).Select(settings => new PluginInstanceConfiguration(
                 settings.InstanceId,
                 settings,
                 settings.Enabled,
                 settings.DisplayName))
             : Array.Empty<PluginInstanceConfiguration>();
+
+    private static IEnumerable<RedMineInstanceSettings> GetConfiguredInstances(RedMinePluginConfig configuration)
+    {
+        if (configuration.Instances.Count == 1
+            && configuration.Instances[0].InstanceId == RedMinePluginConstants.DefaultInstanceId)
+            Copy(configuration, configuration.Instances[0]);
+        return configuration.Instances;
+    }
+
+    private static void Copy(RedMineConfig source, RedMineConfig target)
+    {
+        target.RedMineServerUrl = source.RedMineServerUrl;
+        target.RedMineApiKey = source.RedMineApiKey;
+        target.EnableProxy = source.EnableProxy;
+        target.ProxyServer = source.ProxyServer;
+    }
 
     public bool TrySetInstanceEnabled(object configuration, string instanceId, bool enabled)
     {

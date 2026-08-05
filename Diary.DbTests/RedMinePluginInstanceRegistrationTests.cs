@@ -69,4 +69,27 @@ public sealed class RedMinePluginInstanceRegistrationTests
         Assert.IsFalse(config.Instances[0].Enabled);
         Assert.IsTrue(config.Instances[1].Enabled);
     }
+
+    [TestMethod]
+    public void GetInstanceConfigurations_SyncsSingleDefaultInstanceFromRootSettings()
+    {
+        var config = new RedMinePluginConfig
+        {
+            RedMineServerUrl = "http://redmine.local",
+            RedMineApiKey = "api-key",
+            Instances = new List<RedMineInstanceSettings>
+            {
+                new() { InstanceId = RedMinePluginConstants.DefaultInstanceId },
+            },
+        };
+
+        var instance = new RedMinePlugin()
+            .GetInstanceConfigurations(config)
+            .Single()
+            .Configuration;
+
+        var settings = (RedMineInstanceSettings)instance;
+        Assert.AreEqual(config.RedMineServerUrl, settings.RedMineServerUrl);
+        Assert.AreEqual(config.RedMineApiKey, settings.RedMineApiKey);
+    }
 }

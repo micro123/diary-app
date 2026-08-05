@@ -159,6 +159,8 @@ namespace Diary.App
         public override IServiceProvider Services { get; protected set; }
         public override AllConfig AppConfig => AllConfig.Instance;
 
+        public IReadOnlyDictionary<string, object> PluginConfigurations => _pluginConfigurations;
+
         public ILogger Logger => Logging.Logger;
 
         public override IDbFactory? UseFactory { get; protected set; }

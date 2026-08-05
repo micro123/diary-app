@@ -82,6 +82,28 @@ public sealed class TrackerPluginLifecycleCoordinatorTests
     }
 
     [TestMethod]
+    public void RegisterAfterDatabaseReloadRecreatesInstances()
+    {
+        var registry = new PluginInstanceRegistry();
+        var uiRegistry = new TrackerUiContributionRegistry();
+        var templateRegistry = new TrackerTemplateContributorRegistry();
+        var plugin = new MemoryPlugin();
+        var coordinator = CreateCoordinator(registry, uiRegistry, templateRegistry);
+        var configuration = new MemoryConfiguration();
+
+        coordinator.Register(new object(), new[] { plugin },
+            new Dictionary<string, object> { [plugin.Manifest.Id] = configuration });
+        var first = registry.Get(plugin.Manifest.Id, "memory.one");
+
+        coordinator.Register(new object(), new[] { plugin },
+            new Dictionary<string, object> { [plugin.Manifest.Id] = configuration });
+
+        Assert.IsNotNull(first);
+        Assert.AreNotSame(first, registry.Get(plugin.Manifest.Id, "memory.one"));
+        Assert.AreEqual(2, uiRegistry.Contributions.Count);
+    }
+
+    [TestMethod]
     public void DiagnosticsSnapshotIdentifiesFailedInstanceAndRetryRestoresIt()
     {
         var registry = new PluginInstanceRegistry();

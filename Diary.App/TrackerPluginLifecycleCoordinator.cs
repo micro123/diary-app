@@ -36,6 +36,7 @@ public sealed class TrackerPluginLifecycleCoordinator(
         _database = database;
         _plugins = plugins.ToArray();
         _configurations = configurations;
+        instanceRegistry.ClearAll();
 
         foreach (var plugin in _plugins)
         {

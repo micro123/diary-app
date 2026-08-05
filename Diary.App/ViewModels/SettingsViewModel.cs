@@ -7,7 +7,9 @@ using Diary.GUIBase;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
+using Diary.Core.Utils;
 using Diary.PluginBase;
+using Diary.PluginUI;
 using Diary.Utils;
 using Microsoft.Extensions.Logging;
 
@@ -19,6 +21,7 @@ public partial class SettingsViewModel : ViewModelBase
     private readonly ILogger _logger;
     private readonly TrackerPluginDiagnosticsService _diagnostics;
     private readonly DiagnosticLogExportService _logExport;
+    private readonly IReadOnlyList<(object Configuration, ITrackerConfigurationProvider Provider)> _pluginSettings;
     [ObservableProperty] private SettingGroup _settingsTree = new("Root");
     [ObservableProperty]
     private ObservableCollection<TrackerPluginDiagnosticViewModel> _pluginDiagnostics = new();
@@ -26,11 +29,13 @@ public partial class SettingsViewModel : ViewModelBase
     public SettingsViewModel(
         ILogger logger,
         TrackerPluginDiagnosticsService diagnostics,
-        DiagnosticLogExportService logExport)
+        DiagnosticLogExportService logExport,
+        IEnumerable<ITrackerConfigurationProvider> configurationProviders)
     {
         _logger = logger;
         _diagnostics = diagnostics;
         _logExport = logExport;
+        _pluginSettings = LoadPluginSettings(configurationProviders);
         BuildTree();
         RefreshDiagnostics();
     }
@@ -85,12 +90,21 @@ public partial class SettingsViewModel : ViewModelBase
     {
         var app = BaseApp.Instance;
         SettingTreeBuilder.BuildTree(SettingsTree, app.AppConfig, app);
+        foreach (var (configuration, provider) in _pluginSettings)
+        {
+            var group = new SettingGroup(provider.PluginId);
+            SettingTreeBuilder.BuildTree(group, configuration, app);
+            SettingsTree.Children.Add(group);
+        }
     }
 
     [RelayCommand]
     private void Save()
     {
         SettingsTree.Save();
+        foreach (var (configuration, _) in _pluginSettings)
+            if (!EasySaveLoad.Save(configuration))
+                _logger.LogWarning("保存插件配置失败: {PluginId}", configuration.GetType().Name);
         NotificationManager?.Show("已保存", NotificationType.Success);
         Messenger.Send(new ConfigUpdateEvent());
     }
@@ -128,5 +142,17 @@ public partial class SettingsViewModel : ViewModelBase
     private void ForceLoad()
     {
         SettingsTree.Load();
+    }
+
+    private static IReadOnlyList<(object Configuration, ITrackerConfigurationProvider Provider)> LoadPluginSettings(
+        IEnumerable<ITrackerConfigurationProvider> providers)
+    {
+        if (BaseApp.Instance is not App app)
+            return Array.Empty<(object, ITrackerConfigurationProvider)>();
+
+        return providers
+            .Where(provider => app.PluginConfigurations.TryGetValue(provider.PluginId, out _))
+            .Select(provider => (app.PluginConfigurations[provider.PluginId], provider))
+            .ToArray();
     }
 }

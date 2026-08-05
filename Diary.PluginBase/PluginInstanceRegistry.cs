@@ -119,6 +119,9 @@ public sealed class PluginInstanceRegistry
         return true;
     }
 
+    /// <summary>清空当前生命周期快照，供数据库重载后重新创建实例。</summary>
+    public void ClearAll() => _entries.Clear();
+
     public PluginInstanceEntry? GetEntry(string pluginId, string instanceId)
         => _entries.GetValueOrDefault((pluginId, instanceId));
 
