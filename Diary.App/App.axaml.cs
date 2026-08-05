@@ -209,12 +209,52 @@ namespace Diary.App
             // 两阶段注册：先发现全部插件，建立已发现 ID 集，再做依赖存在性检查（§5.2）。
             var discovered = TypeLoader.GetImplementations<ITrackerPlugin>(
                 FsTools.GetBinaryDirectory(), "Diary.*.dll").ToList();
+            var availablePlugins = discovered
+                .GroupBy(plugin => plugin.Manifest.Id, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First().Manifest, StringComparer.Ordinal);
             compatibility = compatibility with
             {
                 AvailablePluginIds = discovered.Select(p => p.Manifest.Id).ToHashSet(),
+                AvailablePlugins = availablePlugins,
             };
-            foreach (var plugin in discovered)
+            var cyclicPluginIds = PluginDependencyGraph.FindCyclicPluginIds(
+                discovered.Select(plugin => plugin.Manifest));
+            if (cyclicPluginIds.Count > 0)
             {
+                Logger.LogError(
+                    "插件依赖存在环，相关插件将被阻止：{PluginIds}",
+                    string.Join(", ", cyclicPluginIds));
+            }
+
+            var pluginsById = discovered
+                .GroupBy(plugin => plugin.Manifest.Id, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+            var registeredPluginIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var pluginId in PluginDependencyGraph.GetRegistrationOrder(
+                         discovered.Select(plugin => plugin.Manifest)))
+            {
+                var plugin = pluginsById[pluginId];
+                if (cyclicPluginIds.Contains(plugin.Manifest.Id))
+                {
+                    Logger.LogError(
+                        "Plugin {PluginId} blocked: dependency cycle",
+                        plugin.Manifest.Id);
+                    continue;
+                }
+
+                var missingRegisteredDependency = plugin.Manifest.Dependencies
+                    .Where(dependency => !dependency.Optional)
+                    .FirstOrDefault(dependency => !registeredPluginIds.Contains(dependency.PluginId));
+                if (missingRegisteredDependency is not null
+                    && availablePlugins.ContainsKey(missingRegisteredDependency.PluginId))
+                {
+                    Logger.LogError(
+                        "Plugin {PluginId} blocked: required dependency {DependencyId} was not registered",
+                        plugin.Manifest.Id,
+                        missingRegisteredDependency.PluginId);
+                    continue;
+                }
+
                 var result = PluginHost.Register(plugin, compatibility, services);
                 Logger.LogInformation("Plugin {PluginId}: {State}", plugin.Manifest.Id, result.State);
                 if (result.State == PluginState.Compatible)
@@ -224,6 +264,7 @@ namespace Diary.App
                         var configuration = _pluginConfigurationLoader.Load(plugin);
                         _pluginConfigurations[plugin.Manifest.Id] = configuration;
                         _plugins.Add(plugin);
+                        registeredPluginIds.Add(plugin.Manifest.Id);
                     }
                     catch (Exception ex)
                     {

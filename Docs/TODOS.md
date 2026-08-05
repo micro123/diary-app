@@ -39,6 +39,7 @@
 - [x] coordinator 按 `Enabled`/非 `Enabled` 路由，迁移失败只禁用当前实例
 - [x] 迁移失败重试管线（`Registry.Clear` + `DbInterfaceBase.InvalidateExtensions` + `Coordinator.Retry`）与迁移错误细节透传
 - [x] 必选依赖存在性校验（`PluginCompatibilityContext.AvailablePluginIds` + validator）与 App 两阶段注册
+- [x] 依赖版本范围匹配与必选依赖环检测，阻止不兼容或循环依赖插件注册
 
 ## 阶段 1：通用实例生命周期
 
@@ -110,7 +111,7 @@
 
 ## 阶段 6：测试与质量门槛
 
-- [~] 插件缺失、版本不兼容、依赖缺失和能力缺失测试（版本不兼容、能力缺失、依赖缺失已覆盖；依赖 VersionRange 与环检测推迟）
+- [x] 插件缺失、版本不兼容、依赖缺失/版本不符、依赖环和能力缺失测试
 - [x] SQLite/PostgreSQL 插件迁移幂等测试
 - [x] 错误 schema 版本号但缺少列的恢复测试
 - [x] 多实例数据隔离测试

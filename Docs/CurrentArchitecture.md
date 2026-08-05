@@ -88,7 +88,7 @@ Diary.PluginBase <- Diary.RedMine <- Diary.RedMine.UI -> Diary.PluginUI
 
 `App.ConfigureServices()` 扫描二进制目录中的 `Diary.*.dll`，发现 `ITrackerPlugin` 实现后调用 `PluginHost.Register()`。
 兼容性检查通过才会注册服务并加入宿主插件列表；所有 `Diary.*.UI.dll` 都按可选程序集扫描，加载失败不会阻断核心启动。
-兼容插件由宿主创建并加载配置，实例注册时通过 `PluginHostContext` 同时接收数据库和配置对象。
+兼容插件由宿主创建并加载配置，实例注册时通过 `PluginHostContext` 同时接收数据库和配置对象。插件注册前，宿主会把本次发现的 manifest 集合放入兼容性上下文，校验必选依赖的存在性和版本范围；必选依赖形成环的插件不会进入服务注册。
 
 ```plantuml
 @startuml

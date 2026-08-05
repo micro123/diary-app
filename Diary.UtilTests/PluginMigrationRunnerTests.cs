@@ -185,6 +185,112 @@ public class PluginMigrationRunnerTests
     }
 
     [TestMethod]
+    public void ManifestValidator_BlocksWhenDependencyVersionIsOutsideRange()
+    {
+        var manifest = new PluginManifest
+        {
+            Id = "tracker.consumer",
+            Version = "1.0.0",
+            ApiVersion = 1,
+            Dependencies = new[] { new PluginDependency("tracker.provider", ">=2.0.0 <3.0.0") },
+        };
+        var provider = new PluginManifest
+        {
+            Id = "tracker.provider",
+            Version = "1.5.0",
+            ApiVersion = 1,
+        };
+        var context = new PluginCompatibilityContext(1, 1, 0, new HashSet<string>())
+        {
+            AvailablePluginIds = new HashSet<string> { provider.Id },
+            AvailablePlugins = new Dictionary<string, PluginManifest> { [provider.Id] = provider },
+        };
+
+        Assert.IsFalse(PluginCompatibilityValidator.Validate(manifest, context, out var error));
+        StringAssert.Contains(error, "tracker.provider");
+        StringAssert.Contains(error, "版本不满足");
+    }
+
+    [TestMethod]
+    public void VersionRangeSupportsExactPartialWildcardAndCaretRanges()
+    {
+        Assert.IsTrue(PluginVersionRange.IsSatisfied("1.2.7", "1.2", out _));
+        Assert.IsTrue(PluginVersionRange.IsSatisfied("1.9.0", "^1.2.0", out _));
+        Assert.IsFalse(PluginVersionRange.IsSatisfied("2.0.0", "^1.2.0", out _));
+        Assert.IsTrue(PluginVersionRange.IsSatisfied("1.4.9", ">=1.2.0 <1.5.0", out _));
+        Assert.IsFalse(PluginVersionRange.IsSatisfied("1.5.0", ">=1.2.0 <1.5.0", out _));
+    }
+
+    [TestMethod]
+    public void VersionRangeRejectsMalformedCondition()
+    {
+        Assert.IsFalse(PluginVersionRange.IsSatisfied("1.0.0", ">=1.0", out var error));
+        StringAssert.Contains(error, "完整版本号");
+    }
+
+    [TestMethod]
+    public void DependencyGraphFindsRequiredDependencyCycle()
+    {
+        var first = new PluginManifest
+        {
+            Id = "tracker.first",
+            Version = "1.0.0",
+            Dependencies = new[] { new PluginDependency("tracker.second", "*") },
+        };
+        var second = new PluginManifest
+        {
+            Id = "tracker.second",
+            Version = "1.0.0",
+            Dependencies = new[] { new PluginDependency("tracker.first", "*") },
+        };
+
+        var cycle = PluginDependencyGraph.FindCyclicPluginIds(new[] { first, second });
+
+        CollectionAssert.AreEquivalent(new[] { first.Id, second.Id }, cycle.ToArray());
+    }
+
+    [TestMethod]
+    public void DependencyGraphIgnoresOptionalDependencyCycle()
+    {
+        var first = new PluginManifest
+        {
+            Id = "tracker.first",
+            Version = "1.0.0",
+            Dependencies = new[] { new PluginDependency("tracker.second", "*", Optional: true) },
+        };
+        var second = new PluginManifest
+        {
+            Id = "tracker.second",
+            Version = "1.0.0",
+            Dependencies = new[] { new PluginDependency("tracker.first", "*", Optional: true) },
+        };
+
+        Assert.AreEqual(0, PluginDependencyGraph.FindCyclicPluginIds(new[] { first, second }).Count);
+    }
+
+    [TestMethod]
+    public void DependencyGraphOrdersDependenciesBeforeDependents()
+    {
+        var dependent = new PluginManifest
+        {
+            Id = "tracker.dependent",
+            Version = "1.0.0",
+            Dependencies = new[] { new PluginDependency("tracker.provider", "*") },
+        };
+        var provider = new PluginManifest
+        {
+            Id = "tracker.provider",
+            Version = "1.0.0",
+        };
+
+        var order = PluginDependencyGraph.GetRegistrationOrder(new[] { dependent, provider });
+
+        CollectionAssert.AreEqual(
+            new[] { provider.Id, dependent.Id },
+            order.ToArray());
+    }
+
+    [TestMethod]
     public void Upgrade_AppliesVersionChainInOrder()
     {
         var applied = new List<uint>();
