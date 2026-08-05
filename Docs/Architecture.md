@@ -36,6 +36,9 @@
 标签与 Tracker 默认字段的关联规则设计见
 [`TagAutomationDesign.md`](TagAutomationDesign.md)。规则属于 Tracker 实例配置，
 标签添加和应用模板添加均按实际顺序触发，但用户后续可以覆盖默认字段。
+
+自定义事项查询的模型、标签匹配语义、数据库实现和页面能力见
+[`WorkItemQueryDesign.md`](WorkItemQueryDesign.md)。当前 SQLite/PostgreSQL、查询页面和统计复用已经落地。
 - Test：各种单元测试放这里
 - Tools：编程工具和一些代码工具
   - Diary.Utils：程序工具，包括时间、文件、和一些属性定义

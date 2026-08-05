@@ -255,7 +255,32 @@ Redmine UI 通过 `Diary.PluginUI` 的契约接入：
 - 已覆盖无 tracker 时插件生命周期、核心编辑器和模板的单元测试；主窗口在缺失插件程序集时的完整启动仍缺少独立集成测试。
 - 远程同步队列、重试和每实例操作状态仍需完善。
 
-## 11. 维护约定
+## 12. 自定义事项查询
+
+核心查询使用 `WorkItemQuery`，由 `DbInterfaceBase.QueryWorkItems()` 统一定义 provider 契约。
+SQLite 和 PostgreSQL 都支持日期范围、标题/备注关键字、优先级、分页以及五种标签模式：
+`Ignore`、`Any`、`All`、`None`、`Exact`。
+
+查询使用参数绑定和相关子查询，结果按日期和事项 ID 稳定排序。共享 `DbContractTests` 同时验证两个 provider。
+左侧导航已经提供“事项查询”页面；统计标签详情也已迁移到该接口。
+
+详细设计见 [`WorkItemQueryDesign.md`](WorkItemQueryDesign.md)。当前尚未实现保存查询、结果跳转和脚本只读查询。
+
+## 13. 标签自动化规则
+
+`WorkEditorViewModel.AddTags()` 统一用户、模板和批量标签添加。只有实际新增标签才按输入顺序调用
+`ITagAutomationCoordinator`；数据库加载、重新同步和删除标签不会触发规则。
+
+Tracker 编辑器可以选择实现 `ITrackerTagDefaults`。当前 Redmine 编辑器实现该能力，并从对应
+`RedMineInstanceSettings.TagRules` 读取实例级规则。规则按优先级为 Activity 和 Issue 填充默认值，
+已有字段不会被覆盖，删除标签也不会反向清除字段。
+
+Redmine 实例设置页已经提供规则新增、编辑、删除、启用/禁用和优先级调整。当前尚未实现核心标签编辑器贡献入口、
+结构化冲突结果和规则配置 schema 迁移。
+
+详细设计见 [`TagAutomationDesign.md`](TagAutomationDesign.md)。
+
+## 14. 维护约定
 
 - 新增 tracker 不得把具体类型加入 `Diary.Core` 或核心编辑器。
 - 新增数据库扩展必须实现 provider 契约测试，并验证缺失程序集时核心数据库仍可启动。

@@ -1,0 +1,32 @@
+@startuml
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+actor User
+component "WorkItemQueryView" as View
+component "WorkItemQueryViewModel" as VM
+rectangle "WorkItemQuery\n- StartDate / EndDate\n- TagIds / TagFilter\n- Text / Priority\n- Limit / Offset" as Query
+component "DbInterfaceBase.QueryWorkItems" as Contract
+component "SQLiteDb" as SQLite
+component "PgDb" as Pg
+database "work_items\nwork_notes\nwork_item_tags" as Store
+component "StatisticsTabData" as Statistics
+
+User --> View : choose filters
+View --> VM : QueryCommand
+VM --> Query : create
+VM --> Contract : query
+Statistics --> Query : create tag query
+Statistics --> Contract : query
+Contract <|.. SQLite
+Contract <|.. Pg
+SQLite --> Store : parameterized SQL
+Pg --> Store : parameterized SQL
+Contract --> VM : ordered WorkItem list
+VM --> View : results + tags
+
+note right of Query
+Tag modes:
+Ignore / Any / All / None / Exact
+end note
+@enduml
