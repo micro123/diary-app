@@ -27,8 +27,7 @@ public static class RedMineConfigurationStore
     private static RedMinePluginConfig Load()
     {
         var configuration = new RedMinePluginConfig();
-        EasySaveLoad.Load(configuration);
-
+        var loaded = EasySaveLoad.Load(configuration);
         if (!configuration.Valid()
             && AllConfig.Instance.ExtensionData.TryGetValue("RedMineSettings", out JToken? legacyToken))
         {
@@ -36,7 +35,6 @@ public static class RedMineConfigurationStore
             if (legacy is not null && legacy.Valid())
             {
                 Copy(legacy, configuration);
-                EasySaveLoad.Save(configuration);
             }
         }
 
@@ -50,8 +48,12 @@ public static class RedMineConfigurationStore
             };
             Copy(configuration, defaultInstance);
             configuration.Instances.Add(defaultInstance);
-            EasySaveLoad.Save(configuration);
         }
+
+        // 让宿主配置加载器能够看到旧的 AllConfig 单实例配置或首次启动的默认配置，
+        // 随后由 0 -> 1 schema 迁移统一写成配置包。
+        if (!loaded)
+            EasySaveLoad.Save(configuration);
 
         return configuration;
     }

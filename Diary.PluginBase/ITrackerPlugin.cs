@@ -20,6 +20,10 @@ public interface ITrackerPlugin : IPluginInstanceConfigurationStore
     /// <summary>插件数据库迁移链（按 FromVersion→ToVersion 排序由主程序调度）。</summary>
     IEnumerable<IPluginMigration> GetMigrations();
 
+    /// <summary>插件配置 JSON schema 迁移链；默认空实现保持旧插件兼容。</summary>
+    IEnumerable<IPluginConfigurationMigration> GetConfigurationMigrations()
+        => Array.Empty<IPluginConfigurationMigration>();
+
     /// <summary>按实例 ID + 配置创建一个 tracker 实例。</summary>
     ITrackerInstance CreateInstance(string instanceId, object configuration);
 

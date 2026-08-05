@@ -6,6 +6,7 @@ using Diary.Core.Configure;
 using Diary.Utils;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace Diary.Core.Utils;
 
@@ -96,51 +97,69 @@ public static class EasySaveLoad
 
     public static bool Save(object obj)
     {
-        if (GetSaveConfig(obj, out var storageFileAttribute))
+        return SaveJson(obj, JObject.FromObject(obj));
+    }
+
+    /// <summary>读取配置文件的原始 JSON，供宿主执行 schema 迁移时保留未知字段。</summary>
+    public static bool LoadJson(object obj, out JObject json)
+    {
+        json = new JObject();
+        if (!GetSaveConfig(obj, out var storageFileAttribute))
+            return false;
+
+        var filePath = Path.Combine(FsTools.GetApplicationConfigDirectory(), storageFileAttribute.FileName);
+        var content = ReadContent(filePath, storageFileAttribute);
+        if (string.IsNullOrWhiteSpace(content))
+            return false;
+
+        json = JObject.Parse(content);
+        return true;
+    }
+
+    /// <summary>以配置对象声明的文件名保存原始 JSON。</summary>
+    public static bool SaveJson(object obj, JObject json)
+    {
+        ArgumentNullException.ThrowIfNull(json);
+        if (!GetSaveConfig(obj, out var storageFileAttribute))
+            return false;
+
+        var filePath = Path.Combine(FsTools.GetApplicationConfigDirectory(), storageFileAttribute.FileName);
+        var content = json.ToString(Formatting.None);
+        if (storageFileAttribute.Encrypted)
         {
-            var filePath = Path.Combine(FsTools.GetApplicationConfigDirectory(), storageFileAttribute.FileName);
-            var content = JsonConvert.SerializeObject(obj);
-            if (storageFileAttribute.Encrypted)
-            {
-                var data = AesEncrypt(content, storageFileAttribute.EncryptKey);
-                IoUtils.WriteAllBytes(filePath, data);
-                return true;
-            }
-            else
-            {
-                IoUtils.WriteAllText(filePath, content);
-                return true;
-            }
+            var data = AesEncrypt(content, storageFileAttribute.EncryptKey);
+            IoUtils.WriteAllBytes(filePath, data);
         }
-        return false;
+        else
+        {
+            IoUtils.WriteAllText(filePath, content);
+        }
+
+        return true;
     }
 
     public static bool Load(object obj)
     {
-        if (GetSaveConfig(obj, out var storageFileAttribute))
-        {
-            var filePath = Path.Combine(FsTools.GetApplicationConfigDirectory(), storageFileAttribute.FileName);
-            if (File.Exists(filePath))
-            {
-                string? content = null;
-                if (storageFileAttribute.Encrypted)
-                {
-                    var data = IoUtils.ReadAllBytes(filePath);
-                    if (data.Length > 0)
-                        content = AesDecrypt(data, storageFileAttribute.EncryptKey);
-                }
-                else
-                {
-                    content = IoUtils.ReadAllText(filePath);
-                }
+        if (!LoadJson(obj, out var json))
+            return false;
 
-                if (!string.IsNullOrEmpty(content))
-                {
-                    JsonConvert.PopulateObject(content, obj);
-                    return true;
-                }
-            }
+        JsonConvert.PopulateObject(json.ToString(Formatting.None), obj);
+        return true;
+    }
+
+    private static string? ReadContent(string filePath, StorageFileAttribute storageFileAttribute)
+    {
+        if (!File.Exists(filePath))
+            return null;
+
+        if (storageFileAttribute.Encrypted)
+        {
+            var data = IoUtils.ReadAllBytes(filePath);
+            return data.Length > 0
+                ? AesDecrypt(data, storageFileAttribute.EncryptKey)
+                : null;
         }
-        return false;
+
+        return IoUtils.ReadAllText(filePath);
     }
 }

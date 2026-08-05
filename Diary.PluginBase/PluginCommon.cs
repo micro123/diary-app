@@ -34,6 +34,7 @@ public enum PluginState
     Disabled,
     Blocked,
     MigrationFailed,
+    ConfigurationMigrationFailed,
 }
 
 /// <summary>

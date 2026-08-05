@@ -31,6 +31,9 @@ public sealed class RedMinePlugin : ITrackerPlugin
     public IEnumerable<IPluginMigration> GetMigrations()
         => new IPluginMigration[] { new RedMineInitialMigration(), new RedMineInstanceMigration() };
 
+    public IEnumerable<IPluginConfigurationMigration> GetConfigurationMigrations()
+        => new[] { new RedMineConfigurationMigration() };
+
     public IEnumerable<PluginInstanceConfiguration> GetInstanceConfigurations(object configuration)
         => configuration is RedMinePluginConfig redmine
             ? redmine.Instances.Select(settings => new PluginInstanceConfiguration(

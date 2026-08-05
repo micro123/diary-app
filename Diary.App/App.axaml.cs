@@ -259,6 +259,18 @@ namespace Diary.App
                         _plugins.Add(plugin);
                         registeredPluginIds.Add(plugin.Manifest.Id);
                     }
+                    catch (PluginConfigurationMigrationException ex)
+                    {
+                        _pluginLoadDiagnostics[plugin.Manifest.Id] = new(
+                            plugin,
+                            new PluginLoadResult(PluginState.ConfigurationMigrationFailed, ex.Message));
+                        Logger.LogError(
+                            ex,
+                            "Plugin {PluginId} configuration migration failed at {FromVersion} -> {TargetVersion}",
+                            plugin.Manifest.Id,
+                            ex.FromVersion,
+                            ex.TargetVersion);
+                    }
                     catch (Exception ex)
                     {
                         _pluginLoadDiagnostics[plugin.Manifest.Id] = new(
