@@ -138,6 +138,8 @@ public partial class MainWindowViewModel : ViewModelBase
         int idx = 1;
         built.Add(new NavigateInfo(PageNames.DiaryEditor, "mdi-notebook",
             _serviceProvider.GetService<DiaryEditorViewModel>(), $"Alt+{idx++}"));
+        built.Add(new NavigateInfo(PageNames.WorkItemQuery, "fa-magnifying-glass",
+            _serviceProvider.GetRequiredService<WorkItemQueryViewModel>(), $"Alt+{idx++}"));
         foreach (var t in trackers)
         {
             var page = t.CreateManagementPage(t.Instance.InstanceId);
