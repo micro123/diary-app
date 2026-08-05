@@ -262,17 +262,24 @@ public partial class StatisticsTabData : ObservableObject
     [RelayCommand]
     private void ShowTagDetails(StatisticsTimeNode parameter)
     {
-        ICollection<WorkItem>? items;
+        int[] tagIds;
         if (parameter.Parent is null)
         {
             Debug.Assert(parameter.Id != 0);
-            items = Db!.GetWorkItemsByTagAndDate(TimeTools.FormatDateTime(DateBegin), TimeTools.FormatDateTime(DateEnd), parameter.Id);
+            tagIds = [parameter.Id];
         }
         else
         {
             Debug.Assert(parameter.Parent.Id != 0 && parameter.Id != 0);
-            items = Db!.GetWorkItemsByTagAndDate(TimeTools.FormatDateTime(DateBegin), TimeTools.FormatDateTime(DateEnd), parameter.Parent.Id, parameter.Id);
+            tagIds = [parameter.Parent.Id, parameter.Id];
         }
+        var items = Db!.QueryWorkItems(new WorkItemQuery
+        {
+            StartDate = TimeTools.FormatDateTime(DateBegin),
+            EndDate = TimeTools.FormatDateTime(DateEnd),
+            TagIds = tagIds,
+            TagFilter = tagIds.Length == 1 ? WorkItemTagFilter.Any : WorkItemTagFilter.All,
+        });
 
         var sb = new StringBuilder();
         foreach (var item in items)
