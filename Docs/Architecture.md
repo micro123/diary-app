@@ -13,8 +13,17 @@
   - Diary.Core：定义主要数据结构和程序配置，也带有一些数据工具
   - Diary.Database：数据库的接口定义，所有数据库实现都是实现此接口
   - Diary.ScriptBase：脚本接口定义，已经脚本管理器实现
+- Plugin：插件稳定契约和插件 UI 扩展
+  - Diary.PluginBase：插件 manifest、生命周期、实例和迁移契约
+  - Diary.PluginUI：配置、管理页、编辑器和模板贡献契约
+- Database：核心数据库 provider 和 Redmine 数据库扩展
+  - Diary.Db.SQLite：SQLite 核心数据库实现
+  - Diary.Db.PostgreSQL：PostgreSQL 核心数据库实现
+  - Diary.RedMine.SQLite：SQLite Redmine 扩展
+  - Diary.RedMine.PostgreSQL：PostgreSQL Redmine 扩展
 - Integrations：整合的各种工时提交系统，后续需要优化为可选件，因为当前组件`RedMine`可能会被弃用
   - Diary.RedMine：`RedMine`整合，支持提交工时和创建问题
+  - Diary.RedMine.UI：Redmine 设置、管理页和编辑器 UI 扩展
 - Scripting：各种脚本支持的实现
   - Diary.Script.CSharp：`C#`脚本支持
   - Diary.Script.Lua：`Lua`脚本支持
@@ -31,11 +40,11 @@
 使用`MVVM`架构实现数据和界面分离。各个文件夹的作用如下：
 
 - Assets：资源文件，包含字体、图标等
-- Converters：`XAMAL`中用到的数值转换工具
+- Converters：`XAML`中用到的数值转换工具
 - Dialogs：一些弹出式对话框放在这里，同时对应的`ViewModel`也在这
 - Messages：程序中解耦使用的消息类型定义。
 - Models：一些子页面的`ViewModel`,如统计、调查，也有一些通用的模型。
-- Pages：`RedMine`的一些页面在这里，`ViewModel`也在这里
+- Pages：主程序核心页面；Redmine 页面位于 `Diary.RedMine.UI`
 - Resources：额外的资源和样式文件
 - Scripts：构建用到的脚本
 - Utils：一些程序内使用工具

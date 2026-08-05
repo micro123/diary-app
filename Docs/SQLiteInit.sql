@@ -1,3 +1,8 @@
+-- 历史 SQLite schema，仅用于参考旧版数据库结构，不可用于当前版本初始化。
+-- 当前核心表由 Diary.Db.SQLite/SQLiteDb.cs 创建；Redmine 表由
+-- Diary.RedMine/RedMineInitialMigration.cs 以版本 0 -> 1 创建。
+-- 当前 Redmine 表使用 instance_id 和复合主键，不能使用下面的旧表定义。
+
 CREATE TABLE IF NOT EXISTS
 	WorkTags(
 		Id INTEGER PRIMARY KEY AUTOINCREMENT,

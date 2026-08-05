@@ -26,16 +26,16 @@
 - 插件 UI 和模板贡献已通过工厂按实例注册。
 - Redmine 数据访问已拆到 `Diary.RedMine.SQLite` 和 `Diary.RedMine.PostgreSQL`。
 - SQLite 和 PostgreSQL 使用共享的数据库扩展契约测试。
-- Redmine schema 已有独立版本表和 0 -> 1 -> 2 迁移链。
+- Redmine schema 已有独立版本表和 0 -> 1 迁移链；当前版本为 1。
 - Redmine 表已经使用 `instance_id` 做数据隔离。
 
 当前实现仍然存在以下缺口：
 
-- Redmine manifest 尚未开启 `SupportsMultipleInstances`。
-- `App.ConfigureCheck()` 仍保留 Redmine UI 数据初始化，实例生命周期、数据库迁移和 UI 注册尚未完全统一编排。
+- Redmine manifest 已开启 `SupportsMultipleInstances`；其他插件仍需按自身能力声明该标志。
+- 实例生命周期、数据库迁移和 UI/模板注册已经由宿主统一编排；数据库扩展的具体创建和迁移仍由插件实现。
 - `Diary.Database` 仍保留 `IRedMineDb` 扩展路径。
 - 数据库扩展发现仍使用 `Diary.RedMine.*.dll` 文件模式。
-- 编辑器、模板和上传状态已具备多 tracker 聚合基础，但缺少完整多实例端到端验收。
+- 编辑器、模板和上传状态已经具备多 tracker 聚合能力，完整多实例端到端验收仍需继续补充。
 - 无 tracker 时插件生命周期、核心编辑器和模板路径已有单元测试；主窗口完整启动和移除插件程序集的集成验收仍待补充。
 - 已提供 `--core-only` 启动模式，可在不加载 tracker 程序集和 UI 的情况下运行核心应用并进行手工验收。
 - 插件配置迁移、实例状态、错误详情、迁移重试、启用/禁用、实例卸载和诊断日志导出已有通用链路。

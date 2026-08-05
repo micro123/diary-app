@@ -20,7 +20,7 @@
 
 ## 2. 当前实现基线
 
-当前 `WorkEditorViewModel` 已经具备部分目标能力：
+当前 `WorkEditorViewModel` 已经具备目标能力的主要部分：
 
 - 使用 `ObservableCollection<ITrackerEditorExtension> Extensions`。
 - 构造时从 `ITrackerUiContribution` 创建编辑器扩展。
@@ -31,14 +31,14 @@
 - `IsLocked` 使用任意扩展锁定即锁定核心字段。
 - `CanDelete` 使用所有扩展允许删除才允许删除。
 
-当前仍存在的问题：
+以下是早期设计中记录的问题，其中大部分已经在当前实现中解决；剩余改造项见后文路线图：
 
-- 扩展只有 `InstanceId`，跨插件实例可能发生身份冲突。
-- `Clone()` 通过集合索引对齐扩展，不保证实例顺序稳定时仍正确。
-- `Save()` 直接操作核心数据库和 tracker 扩展，没有统一事务协调器。
-- 绑定预取使用 `Dictionary<string, ...>`，key 只有 `InstanceId`。
-- `Upload()` 失败信息没有结构化到每个扩展，UI 只能得到拼接字符串。
-- `ITrackerUiContribution` 当前以单一实例实现，真正的多实例 UI 工厂边界还不完整。
+- 扩展身份已使用 `TrackerKey(PluginId, InstanceId)`，不再只依赖 `InstanceId`。
+- `Clone()` 已按 `TrackerKey` 对齐扩展，不依赖集合顺序。
+- `Save()` 已通过 `IWorkItemPersistenceCoordinator` 统一处理核心数据和扩展保存事务。
+- 绑定预取已使用 `TrackerKey` 作为 key。
+- 上传结果已按扩展返回结构化的 `TrackerUploadResult`。
+- UI 贡献已通过工厂按实例注册；仍需继续完善更广泛的多实例端到端验收。
 
 ## 3. 核心对象模型
 
@@ -389,7 +389,7 @@ WorkEditor
 ### 第五步：多实例 UI
 
 - 让每个已启用实例创建独立 `ITrackerUiContribution`。
-- Redmine manifest 开启多实例前，先确保 UI、数据库和模板均按 `TrackerKey` 工作。
+- Redmine manifest 已开启多实例；UI、数据库和模板当前均按 `TrackerKey` 工作，仍需继续补充多实例端到端验收。
 
 ## 12. 测试设计
 
