@@ -4,7 +4,11 @@ public sealed record PluginCompatibilityContext(
     int MinApiVersion,
     int MaxApiVersion,
     uint CoreDataVersion,
-    IReadOnlySet<string> Capabilities);
+    IReadOnlySet<string> Capabilities)
+{
+    /// <summary>本次启动已发现的插件 ID 集合，用于必选依赖存在性检查（文档 §5.2）。</summary>
+    public IReadOnlySet<string> AvailablePluginIds { get; init; } = new HashSet<string>();
+}
 
 public static class PluginCompatibilityValidator
 {
@@ -38,6 +42,18 @@ public static class PluginCompatibilityValidator
         {
             error = $"缺少数据库能力：{string.Join(", ", missing)}";
             return false;
+        }
+
+        // 必选依赖必须已发现；可选依赖缺失时降级，不阻断（§5.2）
+        foreach (var dep in manifest.Dependencies)
+        {
+            if (dep.Optional)
+                continue;
+            if (!context.AvailablePluginIds.Contains(dep.PluginId))
+            {
+                error = $"缺少必选依赖：{dep.PluginId}";
+                return false;
+            }
         }
 
         error = null;

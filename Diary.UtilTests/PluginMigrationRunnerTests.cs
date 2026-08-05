@@ -107,6 +107,84 @@ public class PluginMigrationRunnerTests
     }
 
     [TestMethod]
+    public void ManifestValidator_BlocksWhenRequiredDependencyMissing()
+    {
+        var manifest = new PluginManifest
+        {
+            Id = "tracker.test",
+            Version = "1.0.0",
+            ApiVersion = 1,
+            Dependencies = new[] { new PluginDependency("tracker.missing", "1.0") },
+        };
+        var context = new PluginCompatibilityContext(1, 1, 0, new HashSet<string>())
+        {
+            AvailablePluginIds = new HashSet<string> { "tracker.real" },
+        };
+
+        Assert.IsFalse(PluginCompatibilityValidator.Validate(manifest, context, out var error));
+        StringAssert.Contains(error, "tracker.missing");
+    }
+
+    [TestMethod]
+    public void ManifestValidator_AcceptsWhenRequiredDependencyPresent()
+    {
+        var manifest = new PluginManifest
+        {
+            Id = "tracker.test",
+            Version = "1.0.0",
+            ApiVersion = 1,
+            Dependencies = new[] { new PluginDependency("tracker.real", "1.0") },
+        };
+        var context = new PluginCompatibilityContext(1, 1, 0, new HashSet<string>())
+        {
+            AvailablePluginIds = new HashSet<string> { "tracker.real" },
+        };
+
+        Assert.IsTrue(PluginCompatibilityValidator.Validate(manifest, context, out var error));
+        Assert.IsNull(error);
+    }
+
+    [TestMethod]
+    public void ManifestValidator_AcceptsWhenOptionalDependencyMissing()
+    {
+        var manifest = new PluginManifest
+        {
+            Id = "tracker.test",
+            Version = "1.0.0",
+            ApiVersion = 1,
+            Dependencies = new[] { new PluginDependency("tracker.optional", "1.0", Optional: true) },
+        };
+        var context = new PluginCompatibilityContext(1, 1, 0, new HashSet<string>())
+        {
+            AvailablePluginIds = new HashSet<string> { "tracker.real" },
+        };
+
+        // 可选依赖缺失 → 降级，不阻断
+        Assert.IsTrue(PluginCompatibilityValidator.Validate(manifest, context, out var error));
+        Assert.IsNull(error);
+    }
+
+    [TestMethod]
+    public void PluginHost_BlocksPluginWithMissingRequiredDependency()
+    {
+        var plugin = new TestPlugin(shouldThrow: false);
+        plugin.Manifest = plugin.Manifest with
+        {
+            Dependencies = new[] { new PluginDependency("tracker.missing", "1.0") },
+        };
+        var context = new PluginCompatibilityContext(1, 1, 0, new HashSet<string>())
+        {
+            AvailablePluginIds = new HashSet<string> { "tracker.real" },
+        };
+
+        var result = PluginHost.Register(plugin, context, new ServiceCollection());
+
+        Assert.AreEqual(PluginState.Blocked, result.State);
+        Assert.IsFalse(plugin.Registered); // RegisterServices 不应被调用
+        StringAssert.Contains(result.Error, "tracker.missing");
+    }
+
+    [TestMethod]
     public void Upgrade_AppliesVersionChainInOrder()
     {
         var applied = new List<uint>();

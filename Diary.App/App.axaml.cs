@@ -206,9 +206,14 @@ namespace Diary.App
                     PluginCapabilities.ForeignKeys,
                     PluginCapabilities.MultipleStatementExecution,
                 });
-            var plugins = TypeLoader.GetImplementations<ITrackerPlugin>(
-                FsTools.GetBinaryDirectory(), "Diary.*.dll");
-            foreach (var plugin in plugins)
+            // 两阶段注册：先发现全部插件，建立已发现 ID 集，再做依赖存在性检查（§5.2）。
+            var discovered = TypeLoader.GetImplementations<ITrackerPlugin>(
+                FsTools.GetBinaryDirectory(), "Diary.*.dll").ToList();
+            compatibility = compatibility with
+            {
+                AvailablePluginIds = discovered.Select(p => p.Manifest.Id).ToHashSet(),
+            };
+            foreach (var plugin in discovered)
             {
                 var result = PluginHost.Register(plugin, compatibility, services);
                 Logger.LogInformation("Plugin {PluginId}: {State}", plugin.Manifest.Id, result.State);
