@@ -54,6 +54,8 @@ namespace Diary.App
         {
             EnumerateDbProviders();
             LoadConfigurations();
+            Services.GetRequiredService<TrackerPluginDiagnosticsService>().SetPluginStates(
+                _pluginLoadDiagnostics.Values);
 
             AvaloniaXamlLoader.Load(this);
             DataContext = Services.GetRequiredService<AppModel>();
@@ -122,6 +124,7 @@ namespace Diary.App
         private readonly List<IDbFactory> _dbFactories = new();
         private readonly List<ITrackerPlugin> _plugins = new();
         private readonly Dictionary<string, object> _pluginConfigurations = new();
+        private readonly Dictionary<string, TrackerPluginLoadDiagnostic> _pluginLoadDiagnostics = new();
         private readonly PluginConfigurationLoader _pluginConfigurationLoader = new();
 
         private void RegisterTrackerInstances()
@@ -132,6 +135,8 @@ namespace Diary.App
                 return;
             }
 
+            Services.GetRequiredService<TrackerPluginDiagnosticsService>().SetPluginStates(
+                _pluginLoadDiagnostics.Values);
             Services.GetRequiredService<TrackerPluginLifecycleCoordinator>().Register(
                 UseDb,
                 _plugins,
@@ -170,6 +175,7 @@ namespace Diary.App
             services.AddSingleton<PluginInstanceRegistry>();
             services.AddSingleton<TrackerInstanceCoordinator>();
             services.AddSingleton<TrackerPluginLifecycleCoordinator>();
+            services.AddSingleton<TrackerPluginDiagnosticsService>();
             services.AddSingleton<TrackerUiContributionRegistry>();
             services.AddSingleton<TrackerTemplateContributorRegistry>();
             services.AddSingleton<IWorkItemPersistenceCoordinator, WorkItemPersistenceCoordinator>();
@@ -214,6 +220,9 @@ namespace Diary.App
                 var plugin = pluginsById[pluginId];
                 if (cyclicPluginIds.Contains(plugin.Manifest.Id))
                 {
+                    _pluginLoadDiagnostics[plugin.Manifest.Id] = new(
+                        plugin,
+                        new PluginLoadResult(PluginState.Blocked, "插件必选依赖存在环"));
                     Logger.LogError(
                         "Plugin {PluginId} blocked: dependency cycle",
                         plugin.Manifest.Id);
@@ -226,6 +235,11 @@ namespace Diary.App
                 if (missingRegisteredDependency is not null
                     && availablePlugins.ContainsKey(missingRegisteredDependency.PluginId))
                 {
+                    _pluginLoadDiagnostics[plugin.Manifest.Id] = new(
+                        plugin,
+                        new PluginLoadResult(
+                            PluginState.Blocked,
+                            $"必选依赖未注册：{missingRegisteredDependency.PluginId}"));
                     Logger.LogError(
                         "Plugin {PluginId} blocked: required dependency {DependencyId} was not registered",
                         plugin.Manifest.Id,
@@ -234,6 +248,7 @@ namespace Diary.App
                 }
 
                 var result = PluginHost.Register(plugin, compatibility, services);
+                _pluginLoadDiagnostics[plugin.Manifest.Id] = new(plugin, result);
                 Logger.LogInformation("Plugin {PluginId}: {State}", plugin.Manifest.Id, result.State);
                 if (result.State == PluginState.Compatible)
                 {
@@ -246,6 +261,9 @@ namespace Diary.App
                     }
                     catch (Exception ex)
                     {
+                        _pluginLoadDiagnostics[plugin.Manifest.Id] = new(
+                            plugin,
+                            new PluginLoadResult(PluginState.Blocked, ex.Message));
                         Logger.LogError(ex, "Plugin {PluginId} configuration load failed", plugin.Manifest.Id);
                     }
                 }

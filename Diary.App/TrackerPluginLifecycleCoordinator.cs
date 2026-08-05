@@ -17,6 +17,11 @@ public sealed class TrackerPluginLifecycleCoordinator(
     PluginInstanceRegistry instanceRegistry,
     ILogger<TrackerPluginLifecycleCoordinator> logger)
 {
+    private object? _database;
+    private IReadOnlyList<ITrackerPlugin> _plugins = Array.Empty<ITrackerPlugin>();
+    private IReadOnlyDictionary<string, object> _configurations
+        = new Dictionary<string, object>();
+
     public void Register(
         object database,
         IEnumerable<ITrackerPlugin> plugins,
@@ -26,7 +31,11 @@ public sealed class TrackerPluginLifecycleCoordinator(
         ArgumentNullException.ThrowIfNull(plugins);
         ArgumentNullException.ThrowIfNull(configurations);
 
-        foreach (var plugin in plugins)
+        _database = database;
+        _plugins = plugins.ToArray();
+        _configurations = configurations;
+
+        foreach (var plugin in _plugins)
         {
             try
             {
@@ -60,6 +69,65 @@ public sealed class TrackerPluginLifecycleCoordinator(
         }
 
         // UI/模板只消费 Enabled 实例，因此失败或禁用条目不会被错误注册。
+        uiRegistry.Register(uiFactories, instanceRegistry.Instances);
+        templateRegistry.Register(templateFactories, instanceRegistry.Instances);
+    }
+
+    /// <summary>重试实例注册，并在结束后刷新 UI/模板贡献。</summary>
+    public bool Retry(string pluginId, string instanceId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceId);
+
+        var plugin = _plugins.FirstOrDefault(item => item.Manifest.Id == pluginId);
+        if (plugin is null || _database is null
+            || !_configurations.TryGetValue(pluginId, out var configuration))
+            return false;
+
+        try
+        {
+            var context = CreateContext(plugin, configuration);
+            instanceCoordinator.Retry(plugin, instanceId, context);
+            if (instanceRegistry.GetEntry(pluginId, instanceId) is null)
+            {
+                instanceRegistry.Record(
+                    pluginId,
+                    instanceId,
+                    TrackerInstanceState.MigrationFailed,
+                    "插件未返回该实例的注册项");
+            }
+        }
+        catch (Exception ex)
+        {
+            instanceRegistry.Clear(pluginId, instanceId);
+            instanceRegistry.Record(
+                pluginId,
+                instanceId,
+                TrackerInstanceState.MigrationFailed,
+                ex.Message);
+            logger.LogError(
+                ex,
+                "Retry tracker instance {PluginId}/{InstanceId} failed",
+                pluginId,
+                instanceId);
+        }
+
+        RefreshContributions();
+        return instanceRegistry.GetEntry(pluginId, instanceId)?.State
+            == TrackerInstanceState.Enabled;
+    }
+
+    private PluginHostContext CreateContext(ITrackerPlugin plugin, object configuration)
+        => new(_database!, configuration)
+        {
+            InstanceConfigurations = plugin
+                .GetInstanceConfigurations(configuration)
+                .Where(instance => instance.Enabled)
+                .ToArray(),
+        };
+
+    private void RefreshContributions()
+    {
         uiRegistry.Register(uiFactories, instanceRegistry.Instances);
         templateRegistry.Register(templateFactories, instanceRegistry.Instances);
     }

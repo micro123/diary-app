@@ -19,6 +19,12 @@ public sealed record PluginInstanceEntry(
     TrackerInstanceState State,
     string? Error);
 
+/// <summary>带插件和实例身份的注册表条目，供诊断和管理 UI 使用。</summary>
+public sealed record PluginInstanceRegistryEntry(
+    string PluginId,
+    string InstanceId,
+    PluginInstanceEntry Entry);
+
 public sealed class PluginInstanceRegistry
 {
     private readonly Dictionary<(string PluginId, string InstanceId), PluginInstanceEntry> _entries = new();
@@ -32,6 +38,13 @@ public sealed class PluginInstanceRegistry
 
     /// <summary>所有条目（含失败/禁用），供诊断页使用。</summary>
     public IReadOnlyCollection<PluginInstanceEntry> AllEntries => _entries.Values;
+
+    /// <summary>所有带稳定身份的条目，避免诊断页依赖字典枚举顺序或实例显示名。</summary>
+    public IReadOnlyCollection<PluginInstanceRegistryEntry> AllEntriesWithIdentity
+        => _entries.Select(pair => new PluginInstanceRegistryEntry(
+            pair.Key.PluginId,
+            pair.Key.InstanceId,
+            pair.Value)).ToList();
 
     public PluginInstanceCreationResult Create(
         ITrackerPlugin plugin,

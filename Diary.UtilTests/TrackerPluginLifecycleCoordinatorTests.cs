@@ -54,6 +54,40 @@ public sealed class TrackerPluginLifecycleCoordinatorTests
             registry.GetEntry(plugin.Manifest.Id, "memory.one")!.State);
     }
 
+    [TestMethod]
+    public void DiagnosticsSnapshotIdentifiesFailedInstanceAndRetryRestoresIt()
+    {
+        var registry = new PluginInstanceRegistry();
+        var uiRegistry = new TrackerUiContributionRegistry();
+        var templateRegistry = new TrackerTemplateContributorRegistry();
+        var plugin = new MemoryPlugin("memory.one", failOnce: true);
+        var coordinator = CreateCoordinator(registry, uiRegistry, templateRegistry);
+        var diagnostics = new TrackerPluginDiagnosticsService(
+            registry,
+            coordinator,
+            NullLogger<TrackerPluginDiagnosticsService>.Instance);
+        diagnostics.SetPluginStates(new[]
+        {
+            new TrackerPluginLoadDiagnostic(
+                plugin,
+                new PluginLoadResult(PluginState.Compatible)),
+        });
+
+        coordinator.Register(new object(), new[] { plugin },
+            new Dictionary<string, object> { [plugin.Manifest.Id] = new object() });
+
+        var failed = diagnostics.GetSnapshot()
+            .Single(entry => entry.InstanceId == "memory.one");
+        Assert.AreEqual(TrackerInstanceState.MigrationFailed, failed.InstanceState);
+        Assert.IsTrue(failed.CanRetry);
+        Assert.IsTrue(diagnostics.Retry(plugin.Manifest.Id, "memory.one"));
+        Assert.AreEqual(
+            TrackerInstanceState.Enabled,
+            registry.GetEntry(plugin.Manifest.Id, "memory.one")!.State);
+        Assert.AreEqual(2, uiRegistry.Contributions.Count);
+        Assert.AreEqual(2, templateRegistry.Contributors.Count);
+    }
+
     private static TrackerPluginLifecycleCoordinator CreateCoordinator(
         PluginInstanceRegistry registry,
         TrackerUiContributionRegistry uiRegistry,
@@ -67,8 +101,12 @@ public sealed class TrackerPluginLifecycleCoordinatorTests
             registry,
             NullLogger<TrackerPluginLifecycleCoordinator>.Instance);
 
-    private sealed class MemoryPlugin(string? failingInstanceId = null) : ITrackerPlugin
+    private sealed class MemoryPlugin(
+        string? failingInstanceId = null,
+        bool failOnce = false) : ITrackerPlugin
     {
+        private bool _failurePending = failingInstanceId is not null;
+
         public PluginManifest Manifest { get; } = new()
         {
             Id = "tracker.memory.lifecycle",
@@ -96,8 +134,10 @@ public sealed class TrackerPluginLifecycleCoordinatorTests
             var context = (PluginHostContext)hostContext;
             foreach (var item in context.InstanceConfigurations.Where(item => item.Enabled))
             {
-                if (item.InstanceId == failingInstanceId)
+                if (item.InstanceId == failingInstanceId && _failurePending)
                 {
+                    if (failOnce)
+                        _failurePending = false;
                     yield return new PluginInstanceRegistration(
                         item.InstanceId,
                         null,

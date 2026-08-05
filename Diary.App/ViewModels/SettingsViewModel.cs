@@ -2,6 +2,7 @@ using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
+using System.Collections.ObjectModel;
 using Diary.GUIBase;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
@@ -15,12 +16,35 @@ namespace Diary.App.ViewModels;
 public partial class SettingsViewModel : ViewModelBase
 {
     private readonly ILogger _logger;
+    private readonly TrackerPluginDiagnosticsService _diagnostics;
     [ObservableProperty] private SettingGroup _settingsTree = new("Root");
+    [ObservableProperty]
+    private ObservableCollection<TrackerPluginDiagnosticViewModel> _pluginDiagnostics = new();
 
-    public SettingsViewModel(ILogger logger)
+    public SettingsViewModel(
+        ILogger logger,
+        TrackerPluginDiagnosticsService diagnostics)
     {
         _logger = logger;
+        _diagnostics = diagnostics;
         BuildTree();
+        RefreshDiagnostics();
+    }
+
+    private void RefreshDiagnostics()
+    {
+        PluginDiagnostics = new ObservableCollection<TrackerPluginDiagnosticViewModel>(
+            _diagnostics.GetSnapshot().Select(entry =>
+                new TrackerPluginDiagnosticViewModel(entry, () => Retry(entry.PluginId, entry.InstanceId!))));
+    }
+
+    private void Retry(string pluginId, string instanceId)
+    {
+        var success = _diagnostics.Retry(pluginId, instanceId);
+        RefreshDiagnostics();
+        NotificationManager?.Show(
+            success ? "插件实例已恢复" : "插件实例重试失败",
+            success ? NotificationType.Success : NotificationType.Error);
     }
 
     private void BuildTree()
