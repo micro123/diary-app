@@ -88,6 +88,32 @@ public sealed class PluginConfigurationLoaderTests
         Assert.AreEqual(originalText, File.ReadAllText(path));
     }
 
+    [TestMethod]
+    public void Save_PreservesPluginConfigurationPackage()
+    {
+        var seed = new TestConfiguration { Value = "saved" };
+        EasySaveLoad.SaveJson(seed, new JObject
+        {
+            ["PluginId"] = "tracker.test.migrating",
+            ["SchemaVersion"] = 2,
+            ["Payload"] = new JObject
+            {
+                ["Value"] = "before",
+                ["Unknown"] = new JObject { ["Keep"] = true },
+            },
+        });
+
+        var plugin = new NonMigratingPlugin(seed);
+        Assert.IsTrue(new PluginConfigurationLoader().Save(plugin, seed));
+
+        var saved = JObject.Parse(File.ReadAllText(
+            Path.Combine(Diary.Utils.FsTools.GetApplicationConfigDirectory(), TestFileName)));
+        Assert.AreEqual("tracker.test.migrating", (string?)saved["PluginId"]);
+        Assert.AreEqual(2, (int?)saved["SchemaVersion"]);
+        Assert.AreEqual("saved", (string?)saved["Payload"]!["Value"]);
+        Assert.AreEqual(true, (bool?)saved["Payload"]!["Unknown"]!["Keep"]);
+    }
+
     private sealed class MemoryPlugin : ITrackerPlugin
     {
         public PluginManifest Manifest { get; } = new()
@@ -115,6 +141,26 @@ public sealed class PluginConfigurationLoaderTests
             LastContext = hostContext;
             return Array.Empty<PluginInstanceRegistration>();
         }
+    }
+
+    private sealed class NonMigratingPlugin(TestConfiguration configuration) : ITrackerPlugin
+    {
+        public PluginManifest Manifest { get; } = new()
+        {
+            Id = "tracker.test.migrating",
+            Version = "1.0.0",
+            ApiVersion = 1,
+        };
+
+        public object CreateConfiguration() => configuration;
+        public void RegisterServices(IServiceCollection services) { }
+        public IEnumerable<IPluginMigration> GetMigrations() => Array.Empty<IPluginMigration>();
+        public IEnumerable<IPluginConfigurationMigration> GetConfigurationMigrations()
+            => Array.Empty<IPluginConfigurationMigration>();
+        public ITrackerInstance CreateInstance(string instanceId, object configuration)
+            => throw new NotSupportedException();
+        public IEnumerable<PluginInstanceRegistration> GetInstanceRegistrations(object hostContext)
+            => Array.Empty<PluginInstanceRegistration>();
     }
 
     [StorageFile(TestFileName)]

@@ -70,60 +70,123 @@ namespace Diary.App
         private bool ConfigureCheck(out string message)
         {
             message = string.Empty;
-            // do not change existing database
-            // if (UseDb != null)
-            //     return true;
-            UseDb?.Close();
-            UseDb = null;
+            Logger.LogDebug("数据库检查开始：配置驱动 {ConfiguredDriver}，当前连接驱动 {ConnectedDriver}，数据库已连接 {DatabaseOk}",
+                AppConfig.DbSettings.DatabaseDriver, _connectedDriver ?? "<none>", DatabaseOk);
+            // Tracker 配置更新不应关闭正在使用的数据库连接；插件重注册会复用该连接。
+            if (UseDb is not null && DatabaseOk)
+            {
+                if (string.Equals(_connectedDriver, AppConfig.DbSettings.DatabaseDriver, StringComparison.Ordinal))
+                {
+                    Logger.LogDebug("数据库检查跳过：继续使用 {Driver}", _connectedDriver);
+                    return true;
+                }
+                Logger.LogInformation("检测到数据库驱动变化：{OldDriver} -> {NewDriver}",
+                    _connectedDriver ?? "<none>", AppConfig.DbSettings.DatabaseDriver);
+                return ReconfigureDatabase(out message);
+            }
+
+            if (!TryConnectDatabase(out message, out var database))
+                return false;
+
+            UseDb = database;
+            DatabaseOk = true;
+            Services.GetRequiredService<DbShareData>().InitLoad();
+            return true;
+        }
+
+        private bool TryConnectDatabase(out string message, out DbInterfaceBase? database)
+        {
+            database = null;
+            message = string.Empty;
 
             // 从配置获取当前的数据库提供程序
-            UseFactory = _dbFactories.FirstOrDefault(x => x.Name == AppConfig.DbSettings.DatabaseDriver);
-            if (UseFactory == null)
+            var factory = _dbFactories.FirstOrDefault(x => x.Name == AppConfig.DbSettings.DatabaseDriver);
+            if (factory == null)
             {
                 message = $"数据库{AppConfig.DbSettings.DatabaseDriver}不支持，请检查设置";
+                Logger.LogWarning("数据库驱动不可用：{Driver}", AppConfig.DbSettings.DatabaseDriver);
                 return false;
             }
 
             // 创建数据库
-            UseDb = UseFactory.Create();
-            Debug.Assert(UseDb != null);
-            var dbConfig = UseFactory.GetConfig();
+            Logger.LogDebug("创建数据库实例：工厂 {Factory}，类型 {DatabaseType}",
+                factory.Name, factory.GetType().FullName);
+            database = factory.Create();
+            Debug.Assert(database != null);
+            var dbConfig = factory.GetConfig();
             EasySaveLoad.Load(dbConfig); // 加载数据库配置
+            Logger.LogDebug("数据库配置已加载：驱动 {Driver}，配置类型 {ConfigType}",
+                factory.Name, dbConfig.GetType().FullName);
 
             // open
-            if (!UseDb.Connect())
+            Logger.LogInformation("开始连接数据库：驱动 {Driver}", factory.Name);
+            if (!database.Connect())
             {
-                UseDb = null;
+                database.Dispose();
+                database = null;
                 message = "数据库连接失败！";
+                Logger.LogWarning("数据库连接失败：驱动 {Driver}", factory.Name);
                 return false;
             }
+            Logger.LogInformation("数据库连接成功：驱动 {Driver}", factory.Name);
 
             // init
-            if (!UseDb.Initialized())
+            if (!database.Initialized())
             {
-                UseDb = null;
+                database.Dispose();
+                database = null;
                 message = "数据库初始化失败！";
+                Logger.LogWarning("数据库初始化失败：驱动 {Driver}", factory.Name);
+                return false;
+            }
+            Logger.LogDebug("数据库结构初始化成功：驱动 {Driver}", factory.Name);
+
+            // version check
+            if (database.GetDataVersion() != DataVersion.VersionCode)
+            {
+                if (!database.UpdateTables(DataVersion.VersionCode))
+                {
+                    database.Dispose();
+                    database = null;
+                    message = "数据库升级失败了，可能是程序bug！";
+                    Logger.LogWarning("数据库迁移失败：驱动 {Driver}，目标版本 {Version}",
+                        factory.Name, DataVersion.VersionCode);
+                    return false;
+                }
+                Logger.LogDebug("数据库迁移成功：驱动 {Driver}，目标版本 {Version}",
+                    factory.Name, DataVersion.VersionCode);
+            }
+            UseFactory = factory;
+            _connectedDriver = factory.Name;
+            Logger.LogInformation("数据库连接候选已验证：驱动 {Driver}", _connectedDriver);
+            return true;
+        }
+
+        public bool ReconfigureDatabase(out string message)
+        {
+            var oldDriver = AppConfig.DbSettings.DatabaseDriver;
+            var oldDatabase = UseDb;
+            Logger.LogInformation("开始切换数据库：当前驱动 {OldDriver}，目标驱动 {NewDriver}",
+                _connectedDriver ?? "<none>", oldDriver);
+            if (!TryConnectDatabase(out message, out var newDatabase))
+            {
+                AppConfig.DbSettings.DatabaseDriver = UseFactory?.Name ?? oldDriver;
+                Logger.LogWarning("数据库切换失败，保留旧连接：驱动恢复为 {Driver}，原因 {Reason}",
+                    AppConfig.DbSettings.DatabaseDriver, message);
                 return false;
             }
 
-            // version check
-            if (UseDb.GetDataVersion() != DataVersion.VersionCode)
-            {
-                if (!UseDb.UpdateTables(DataVersion.VersionCode))
-                {
-                    message = "数据库升级失败了，可能是程序bug！";
-                    return false;
-                }
-            }
-
+            UseDb = newDatabase;
+            DatabaseOk = true;
+            oldDatabase?.Close();
             Services.GetRequiredService<DbShareData>().InitLoad();
             RegisterTrackerInstances();
-            DatabaseOk = true;
-
+            Logger.LogInformation("数据库切换完成：当前驱动 {Driver}", _connectedDriver);
             return true;
         }
 
         private readonly List<IDbFactory> _dbFactories = new();
+        private string? _connectedDriver;
         private readonly List<ITrackerPlugin> _plugins = new();
         private readonly Dictionary<string, object> _pluginConfigurations = new();
         private readonly Dictionary<string, TrackerPluginLoadDiagnostic> _pluginLoadDiagnostics = new();
@@ -160,6 +223,11 @@ namespace Diary.App
         public override AllConfig AppConfig => AllConfig.Instance;
 
         public IReadOnlyDictionary<string, object> PluginConfigurations => _pluginConfigurations;
+
+        public IReadOnlyList<ITrackerPlugin> Plugins => _plugins;
+
+        public IDbFactory? GetDbFactory(string name)
+            => _dbFactories.FirstOrDefault(factory => factory.Name == name);
 
         public ILogger Logger => Logging.Logger;
 
@@ -335,6 +403,8 @@ namespace Diary.App
             try
             {
                 success = ConfigureCheck(out message);
+                if (success)
+                    RegisterTrackerInstances();
             }
             catch (Exception ex)
             {
@@ -362,11 +432,19 @@ namespace Diary.App
             {
                 Dispatcher.UIThread.Post(() =>
                 {
+                    if (UseDb is not null && DatabaseOk
+                        && !string.Equals(_connectedDriver, AppConfig.DbSettings.DatabaseDriver, StringComparison.Ordinal))
+                    {
+                        SurveyEnabled = AppConfig.SurveySettings.IsServerEnabled;
+                        return;
+                    }
                     if (!ConfigureCheck(out var msg))
                     {
                         EventDispatcher.RouteToPage(PageNames.Settings);
                         EventDispatcher.Notify("错误", msg);
+                        return;
                     }
+                    RegisterTrackerInstances();
                     SurveyEnabled = AppConfig.SurveySettings.IsServerEnabled;
                 });
 
@@ -420,6 +498,7 @@ namespace Diary.App
             _respondent.Shutdown();
             _timer.Stop();
             SaveConfigurations();
+            SavePluginConfigurations();
             (Services as IDisposable)?.Dispose();
             Logging.Shutdown();
         }
@@ -473,6 +552,18 @@ namespace Diary.App
         private void SaveConfigurations()
         {
             EasySaveLoad.Save(AppConfig);
+        }
+
+        private void SavePluginConfigurations()
+        {
+            foreach (var plugin in _plugins)
+            {
+                if (!_pluginConfigurations.TryGetValue(plugin.Manifest.Id, out var configuration))
+                    continue;
+
+                if (!_pluginConfigurationLoader.Save(plugin, configuration))
+                    Logger.LogWarning("退出时保存插件配置失败：{PluginId}", plugin.Manifest.Id);
+            }
         }
 
         private void LoadConfigurations()

@@ -53,8 +53,6 @@ public partial class RedMineConfigurationViewModel : ViewModelBase, ITrackerSett
 
     partial void OnSelectedInstanceChanged(RedMineInstanceSettings? value)
     {
-        if (value is not null)
-            InstanceSettings.Save();
         RebuildInstanceSettings();
     }
 
@@ -83,10 +81,6 @@ public partial class RedMineConfigurationViewModel : ViewModelBase, ITrackerSett
             InstanceId = CreateInstanceId(),
             DisplayName = $"RedMine实例 {Instances.Count + 1}",
             Enabled = false,
-            RedMineServerUrl = _configuration.RedMineServerUrl,
-            RedMineApiKey = _configuration.RedMineApiKey,
-            EnableProxy = _configuration.EnableProxy,
-            ProxyServer = _configuration.ProxyServer,
         };
         _configuration.Instances.Add(instance);
         Instances.Add(instance);

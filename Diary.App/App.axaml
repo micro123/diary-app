@@ -80,7 +80,7 @@
         <DataTemplate DataType="{x:Type giBaseVm:SettingSwitch}">
             <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,Auto,*" VerticalAlignment="Center">
                 <TextBlock Classes="SettingLineCaption" />
-                <ToggleSwitch Grid.Column="1" Classes="SLV" IsChecked="{Binding Value}"
+            <ToggleSwitch Grid.Column="1" Classes="SLV" IsChecked="{Binding Value, Mode=TwoWay}"
                               VerticalAlignment="Center" OnContent="" OffContent=""
                               HorizontalContentAlignment="Left" />
                 <Border Grid.Column="2"
@@ -91,7 +91,7 @@
         <DataTemplate DataType="{x:Type giBaseVm:SettingChoice}">
             <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,Auto,*" VerticalAlignment="Center">
                 <TextBlock Classes="SettingLineCaption" />
-                <ComboBox Grid.Column="1" Classes="SLV Bordered" SelectedIndex="{Binding SelectedIndex}"
+                <ComboBox Grid.Column="1" Classes="SLV Bordered" SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}"
                           ItemsSource="{Binding Options}" />
                 <Border Grid.Column="2"
                         IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"

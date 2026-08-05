@@ -128,14 +128,29 @@ public static class EasySaveLoad
         if (storageFileAttribute.Encrypted)
         {
             var data = AesEncrypt(content, storageFileAttribute.EncryptKey);
-            IoUtils.WriteAllBytes(filePath, data);
+            WriteAtomically(filePath, () => IoUtils.WriteAllBytes(filePath + ".tmp", data));
         }
         else
         {
-            IoUtils.WriteAllText(filePath, content);
+            WriteAtomically(filePath, () => IoUtils.WriteAllText(filePath + ".tmp", content));
         }
 
         return true;
+    }
+
+    private static void WriteAtomically(string filePath, Action writeTemp)
+    {
+        var tempPath = filePath + ".tmp";
+        try
+        {
+            writeTemp();
+            File.Move(tempPath, filePath, true);
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+                File.Delete(tempPath);
+        }
     }
 
     public static bool Load(object obj)

@@ -3,6 +3,8 @@ using System.Reflection;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Diary.Utils;
+using Microsoft.Extensions.Logging;
 using Ursa.Controls;
 
 namespace Diary.GUIBase.ViewModels;
@@ -210,20 +212,40 @@ public sealed partial class SettingSwitch(string title, string helpTip, object o
 public sealed partial class SettingChoice(string title, string helpTip, IEnumerable<string> options, object o, PropertyInfo p)
     : EditableItemModel(title, helpTip, o, p, EnsureString)
 {
-    [ObservableProperty] private int _selectedIndex;
+    [ObservableProperty] private int _selectedIndex = -1;
+    private bool _loading;
     public ObservableCollection<string> Options { get; } = [.. options];
+
+    partial void OnSelectedIndexChanged(int value)
+    {
+        if (!_loading && value >= 0 && value < Options.Count)
+            Prop.SetValue(Obj, Options[value]);
+    }
 
     // TODO: save and load
     protected override void LoadAction()
     {
         var value = Prop.GetValue(Obj) as string;
-        SelectedIndex = Options.IndexOf(value!);
+        Logging.Logger.LogDebug("加载设置选项：属性 {Property}，当前值 {Value}", Prop.Name, value ?? "<null>");
+        _loading = true;
+        try
+        {
+            SelectedIndex = Options.IndexOf(value!);
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     protected override void SaveAction()
     {
         if (SelectedIndex >= 0 && SelectedIndex < Options.Count)
+        {
+            Logging.Logger.LogDebug("保存设置选项：属性 {Property}，新值 {Value}",
+                Prop.Name, Options[SelectedIndex]);
             Prop.SetValue(Obj, Options[SelectedIndex]);
+        }
     }
 }
 

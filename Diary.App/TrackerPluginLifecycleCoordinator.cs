@@ -19,6 +19,7 @@ public sealed class TrackerPluginLifecycleCoordinator(
     PluginInstanceRegistry instanceRegistry,
     ILogger<TrackerPluginLifecycleCoordinator> logger)
 {
+    private readonly PluginConfigurationLoader _configurationLoader = new();
     private object? _database;
     private IReadOnlyList<ITrackerPlugin> _plugins = Array.Empty<ITrackerPlugin>();
     private IReadOnlyDictionary<string, object> _configurations
@@ -90,7 +91,7 @@ public sealed class TrackerPluginLifecycleCoordinator(
             || !plugin.TrySetInstanceEnabled(configuration, instanceId, enabled))
             return false;
 
-        if (!EasySaveLoad.Save(configuration))
+        if (!_configurationLoader.Save(plugin, configuration))
             return false;
 
         if (!enabled)
@@ -126,7 +127,7 @@ public sealed class TrackerPluginLifecycleCoordinator(
         var context = CreateContext(plugin, configuration);
         if (!plugin.TrySetInstanceEnabled(configuration, instanceId, false))
             return false;
-        if (!EasySaveLoad.Save(configuration))
+        if (!_configurationLoader.Save(plugin, configuration))
             return false;
 
         if (deleteData && !plugin.TryDeleteInstanceData(context, instanceId))

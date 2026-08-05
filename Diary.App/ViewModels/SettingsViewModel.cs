@@ -25,6 +25,7 @@ public partial class SettingsViewModel : ViewModelBase
     private readonly TrackerPluginDiagnosticsService _diagnostics;
     private readonly DiagnosticLogExportService _logExport;
     private readonly IServiceProvider _services;
+    private readonly PluginConfigurationLoader _pluginConfigurationLoader = new();
     private readonly IReadOnlyList<(object Configuration, ITrackerConfigurationProvider Provider)> _pluginSettings;
     [ObservableProperty] private SettingGroup _settingsTree = new("Root");
     public ObservableCollection<ViewModelBase> PluginSettingsPages { get; } = new();
@@ -85,11 +86,14 @@ public partial class SettingsViewModel : ViewModelBase
         foreach (var page in PluginSettingsPages.OfType<ITrackerSettingsPage>())
         {
             page.Save();
-            page.Reload();
         }
-        foreach (var (configuration, _) in _pluginSettings)
-            if (!EasySaveLoad.Save(configuration))
-                _logger.LogWarning("保存插件配置失败: {PluginId}", configuration.GetType().Name);
+        foreach (var (configuration, provider) in _pluginSettings)
+        {
+            var plugin = (BaseApp.Instance as App)?.Plugins
+                .FirstOrDefault(item => item.Manifest.Id == provider.PluginId);
+            if (plugin is null || !_pluginConfigurationLoader.Save(plugin, configuration))
+                _logger.LogWarning("保存插件配置失败: {PluginId}", provider.PluginId);
+        }
         NotificationManager?.Show("已保存", NotificationType.Success);
         Messenger.Send(new ConfigUpdateEvent());
     }

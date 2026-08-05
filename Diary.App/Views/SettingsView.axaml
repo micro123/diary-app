@@ -11,13 +11,6 @@
         <viewModels:SettingsViewModel/>
     </Design.DataContext>
 
-    <!-- 一些事件 -->
-    <Interaction.Behaviors>
-        <EventTriggerBehavior EventName="Loaded">
-            <InvokeCommandAction Command="{Binding ForceLoadCommand}" />
-        </EventTriggerBehavior>
-    </Interaction.Behaviors>
-
     <!-- 内容：DataTemplate 由 Application.DataTemplates 提供 (App.axaml)，与 GenericConfigView 共享 -->
     <Grid RowDefinitions="*,Auto">
         <ScrollViewer>

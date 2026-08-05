@@ -18,7 +18,9 @@ public class RedMineApi : IRedMineApi
 
     public RedMineApi(RedMineConfig? configuration = null)
     {
-        _configuration = configuration ?? RedMineConfigurationStore.Current;
+        _configuration = configuration
+            ?? RedMineConfigurationStore.Current.Instances.FirstOrDefault()
+            ?? new RedMineInstanceSettings();
     }
 
     private static ILogger Logger => Logging.Logger;

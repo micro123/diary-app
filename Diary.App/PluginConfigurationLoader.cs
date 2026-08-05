@@ -11,6 +11,7 @@ namespace Diary.App;
 /// </summary>
 public sealed class PluginConfigurationLoader
 {
+    private static readonly object SaveLock = new();
     public object Load(ITrackerPlugin plugin)
     {
         ArgumentNullException.ThrowIfNull(plugin);
@@ -144,6 +145,59 @@ public sealed class PluginConfigurationLoader
 
         return configuration;
     }
+
+    public bool Save(ITrackerPlugin plugin, object configuration)
+    {
+        ArgumentNullException.ThrowIfNull(plugin);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        lock (SaveLock)
+        {
+            return SaveCore(plugin, configuration);
+        }
+    }
+
+    private static bool SaveCore(ITrackerPlugin plugin, object configuration)
+    {
+        var hasRawJson = EasySaveLoad.LoadJson(configuration, out var rawJson);
+        if (!hasRawJson)
+            rawJson = new JObject();
+
+        var isPackage = rawJson["PluginId"]?.Type == JTokenType.String
+            && rawJson["Payload"] is JObject;
+        var payload = isPackage
+            ? (JObject)rawJson["Payload"]!.DeepClone()
+            : new JObject();
+        foreach (var property in JObject.FromObject(configuration).Properties())
+            payload[property.Name] = property.Value.DeepClone();
+        var schemaVersion = isPackage && int.TryParse((string?)rawJson["SchemaVersion"], out var savedVersion)
+            ? savedVersion
+            : GetSchemaVersion(plugin);
+        var package = new JObject
+        {
+            ["PluginId"] = plugin.Manifest.Id,
+            ["SchemaVersion"] = schemaVersion,
+            ["Payload"] = payload,
+        };
+
+        if (isPackage)
+        {
+            foreach (var property in rawJson.Properties())
+            {
+                if (property.Name is "PluginId" or "SchemaVersion" or "Payload")
+                    continue;
+                package[property.Name] = property.Value.DeepClone();
+            }
+        }
+
+        return EasySaveLoad.SaveJson(configuration, package);
+    }
+
+    private static int GetSchemaVersion(ITrackerPlugin plugin)
+        => plugin.GetConfigurationMigrations()
+            .Select(migration => migration.ToVersion)
+            .DefaultIfEmpty(0)
+            .Max();
 
     private static void ClearSerializedCollections(JObject payload, object configuration)
     {

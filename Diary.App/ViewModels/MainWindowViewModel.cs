@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Messaging;
 using Diary.Core.Constants;
 using Diary.App.Models;
 using Diary.Core.Data.AppConfig;
+using Diary.Core.Utils;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
@@ -15,6 +16,8 @@ using Diary.PluginUI;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Ursa.Controls;
 using AboutViewModel = Diary.App.ViewModels.Dialogs.AboutViewModel;
 using DbMigrationViewModel = Diary.App.ViewModels.Dialogs.DbMigrationViewModel;
@@ -173,11 +176,35 @@ public partial class MainWindowViewModel : ViewModelBase
                         IsCloseButtonVisible = false,
                     };
                     var vm = _serviceProvider.GetRequiredService<GenericConfigViewModel>();
-                    vm.InitSettings("数据库设置", App.Instance.UseFactory!.GetConfig());
+                    var oldDriver = App.Instance.AppConfig.DbSettings.DatabaseDriver;
+                    _logger.LogDebug("打开数据库配置：目标驱动 {Driver}", oldDriver);
+                    var targetFactory = ((App)App.Instance).GetDbFactory(oldDriver);
+                    if (targetFactory is null)
+                    {
+                        EventDispatcher.Notify("错误", $"数据库驱动 {oldDriver} 不可用");
+                        return;
+                    }
+
+                    var dbConfig = targetFactory.GetConfig();
+                    _logger.LogDebug("打开数据库配置对象：驱动 {Driver}，类型 {ConfigType}",
+                        targetFactory.Name, dbConfig.GetType().FullName);
+                    var oldDbConfig = JObject.FromObject(dbConfig);
+                    vm.InitSettings("数据库设置", dbConfig);
                     bool result = await OverlayDialog.ShowCustomModal<bool>(vm, options: options);
                     _logger.LogInformation("db settings updated: {result}", result);
                     if (result)
+                    {
+                        if (!((App)App.Instance).ReconfigureDatabase(out var error))
+                        {
+                            App.Instance.AppConfig.DbSettings.DatabaseDriver = oldDriver;
+                            JsonConvert.PopulateObject(oldDbConfig.ToString(Formatting.None), dbConfig);
+                            EasySaveLoad.Save(dbConfig);
+                            EventDispatcher.Notify("错误", error);
+                            return;
+                        }
+
                         EventDispatcher.Msg(new ConfigUpdateEvent());
+                    }
                 }, "数据库设置");
                 return;
             case CommandNames.ShowMigrateGuide:

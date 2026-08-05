@@ -15,7 +15,8 @@ public sealed class RedMineConfigurationProvider(IServiceProvider services) : IT
 
     public bool Validate(object configuration, out string? error)
     {
-        if (configuration is RedMinePluginConfig config && config.Valid())
+        if (configuration is RedMinePluginConfig config
+            && config.Instances.Any(instance => instance.Enabled && instance.Valid()))
         {
             error = null;
             return true;
