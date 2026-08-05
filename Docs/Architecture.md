@@ -28,6 +28,10 @@
   - Diary.Script.CSharp：`C#`脚本支持
   - Diary.Script.Lua：`Lua`脚本支持
   - Diary.Script.Python：`Python`脚本支持，只支持`python3`
+
+脚本系统的目标架构、运行时边界、权限模型、Tracker API 和分阶段实现计划见
+[`ScriptSystemDesign.md`](ScriptSystemDesign.md)。当前脚本引擎仍处于接口草案阶段，
+尚未完成脚本管理器、实际执行入口和 Lua/Python 引擎。
 - Test：各种单元测试放这里
 - Tools：编程工具和一些代码工具
   - Diary.Utils：程序工具，包括时间、文件、和一些属性定义

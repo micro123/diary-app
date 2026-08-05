@@ -1,0 +1,45 @@
+@startuml
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+actor User
+component "Script UI / Command" as UI
+component ScriptManager as Manager
+component "ScriptExecutor" as Executor
+component "IContextScript" as Script
+component "IScriptApi" as Api
+component "Diary API" as Diary
+component "Tracker API" as Tracker
+database "Core diary data" as DB
+cloud "Tracker services" as Remote
+
+rectangle "EditorScriptContext\n- Scope: ScriptScope\n- Target: ScriptTarget\n- Parameters" as Context
+rectangle "ScriptScope\n- Granularity\n- StartDate\n- EndDate" as Scope
+rectangle "ScriptTarget\n- Kind\n- PluginId\n- InstanceId\n- TargetId" as Target
+
+User --> UI : choose script and scope
+UI --> Manager : ExecuteContext
+Manager --> Manager : validate scope and target
+Manager --> Executor : create execution context
+Executor --> Script : Execute(context, api)
+Executor --> Api : create restricted host API
+Api --> Diary
+Api --> Tracker
+Diary --> DB
+Tracker --> Remote
+
+UI ..> Context : constructs
+Context *-- Scope
+Context *-- Target
+
+note right of Context
+Template is intentionally absent.
+Templates are selected and applied
+by the host/editor, not scripts.
+end note
+
+note right of Target
+Tracker targets use the composite identity:
+PluginId + InstanceId + optional TargetId
+end note
+@enduml
