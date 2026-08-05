@@ -57,5 +57,7 @@ public sealed class RedMineTrackerIntegration : ITrackerUiContribution
         => ActivatorUtilities.CreateInstance<RedMineManageViewModel>(
             _services, _api, _data, _database);
     public ITrackerEditorExtension? CreateEditorExtension(string instanceId)
-        => new RedMineEditorRegionViewModel(_data, _api, _database, _settings);
+        => instanceId == _settings.InstanceId
+            ? new RedMineEditorRegionViewModel(_data, _api, _database, _settings)
+            : null;
 }
