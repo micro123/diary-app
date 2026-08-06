@@ -37,7 +37,6 @@ public interface IScriptDirectoryLoader
         string rootDirectory,
         CancellationToken cancellationToken = default);
 
-    ValueTask SetEnabledAsync(string sourcePath, bool enabled, CancellationToken cancellationToken = default);
 }
 
 public sealed class ScriptDirectoryLoader(
@@ -85,12 +84,6 @@ public sealed class ScriptDirectoryLoader(
                     var metadata = candidate.Metadata
                         ?? await ReadMetadataAsync(sourcePath, diagnostics, cancellationToken);
                     if (metadata is null)
-                    {
-                        entries.Add(new ScriptDirectoryEntry(sourcePath, scope, false));
-                        continue;
-                    }
-
-                    if (!metadata.Enabled)
                     {
                         entries.Add(new ScriptDirectoryEntry(sourcePath, scope, false));
                         continue;
@@ -166,7 +159,8 @@ public sealed class ScriptDirectoryLoader(
                             _registeredIds.Add(result.Program.Descriptor.Id);
                     }
 
-                    entries.Add(new ScriptDirectoryEntry(sourcePath, scope, true, result));
+                    var loaded = result.Succeeded && result.Program is not null;
+                    entries.Add(new ScriptDirectoryEntry(sourcePath, scope, loaded, result));
                     diagnostics.AddRange(result.Diagnostics);
                 }
             }
@@ -182,69 +176,6 @@ public sealed class ScriptDirectoryLoader(
             }
 
             return new ScriptDirectoryLoadResult(entries.ToImmutable(), diagnostics.ToImmutable());
-        }
-        finally
-        {
-            _loadGate.Release();
-        }
-    }
-
-    public async ValueTask SetEnabledAsync(
-        string sourcePath,
-        bool enabled,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
-        await _loadGate.WaitAsync(cancellationToken);
-        try
-        {
-            var metadataPath = sourcePath + ".json";
-            object updated;
-            var packageManifestPath = Path.Combine(Path.GetDirectoryName(sourcePath)!, "manifest.json");
-            if (File.Exists(packageManifestPath))
-            {
-                var json = await File.ReadAllTextAsync(packageManifestPath, cancellationToken);
-                var manifest = JsonSerializer.Deserialize<ScriptPackageManifest>(json, JsonOptions)
-                    ?? throw new JsonException();
-                var packageRoot = Path.GetFullPath(Path.GetDirectoryName(packageManifestPath)!);
-                var entryPath = Path.GetFullPath(Path.Combine(packageRoot, manifest.Entry));
-                if (!string.Equals(entryPath, Path.GetFullPath(sourcePath),
-                        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
-                {
-                    throw new InvalidDataException("The source path does not match the package manifest.");
-                }
-                metadataPath = packageManifestPath;
-                updated = manifest with { Enabled = enabled };
-            }
-            else
-            {
-                ScriptFileMetadata metadata;
-                if (File.Exists(metadataPath))
-                {
-                    var json = await File.ReadAllTextAsync(metadataPath, cancellationToken);
-                    metadata = JsonSerializer.Deserialize<ScriptFileMetadata>(json, JsonOptions)
-                        ?? new ScriptFileMetadata();
-                }
-                else
-                {
-                    metadata = new ScriptFileMetadata();
-                }
-                updated = metadata with { Enabled = enabled };
-            }
-
-            var temporaryPath = metadataPath + $".{Guid.NewGuid():N}.tmp";
-            try
-            {
-                await File.WriteAllTextAsync(
-                    temporaryPath,
-                    JsonSerializer.Serialize(updated, JsonOptions),
-                    cancellationToken);
-                File.Move(temporaryPath, metadataPath, true);
-            }
-            finally
-            {
-                TryDelete(temporaryPath);
-            }
         }
         finally
         {

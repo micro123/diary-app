@@ -106,6 +106,21 @@
                                 <Border Theme="{DynamicResource CardBorder}" Padding="4"
                                         CornerRadius="6"
                                         ToolTip.Tip="{Binding Comment}">
+                                    <Border.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="脚本" ItemsSource="{Binding EditorScriptActions}">
+                                                <MenuItem.ItemContainerTheme>
+                                                    <ControlTheme TargetType="MenuItem"
+                                                                  BasedOn="{StaticResource {x:Type MenuItem}}"
+                                                                  x:DataType="viewModels:WorkEditorScriptMenuItem">
+                                                        <Setter Property="Header" Value="{Binding Header}" />
+                                                        <Setter Property="Command" Value="{Binding Command}" />
+                                                        <Setter Property="IsEnabled" Value="{Binding IsEnabled}" />
+                                                    </ControlTheme>
+                                                </MenuItem.ItemContainerTheme>
+                                            </MenuItem>
+                                        </ContextMenu>
+                                    </Border.ContextMenu>
                                     <StackPanel Orientation="Vertical" Spacing="2">
                                         <StackPanel Orientation="Horizontal" Spacing="4">
                                             <TextBlock Text="{Binding WorkId, StringFormat='#{0}'}" />

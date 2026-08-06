@@ -37,7 +37,7 @@ public sealed class ScriptDirectoryLoaderTests
     }
 
     [TestMethod]
-    public async Task LoadAsync_DoesNotBuildDisabledScript()
+    public async Task LoadAsync_DoesNotUseLegacyManualEnabledState()
     {
         var loader = CreateLoader(out var catalog);
         var sourcePath = await WriteScriptAsync("application", "disabled.fake", "disabled");
@@ -46,13 +46,8 @@ public sealed class ScriptDirectoryLoaderTests
         var result = await loader.LoadAsync(_root);
 
         Assert.AreEqual(1, result.Entries.Length);
-        Assert.IsFalse(result.Entries[0].Enabled);
-        Assert.IsNull(result.Entries[0].BuildResult);
-        Assert.IsFalse(catalog.TryGet("disabled", out _));
-
-        await loader.SetEnabledAsync(sourcePath, true);
-        var enabledResult = await loader.LoadAsync(_root);
-        Assert.IsTrue(enabledResult.Entries[0].BuildResult!.Succeeded);
+        Assert.IsTrue(result.Entries[0].Enabled);
+        Assert.IsTrue(result.Entries[0].BuildResult!.Succeeded);
         Assert.IsTrue(catalog.TryGet("disabled", out _));
     }
 
@@ -81,6 +76,7 @@ public sealed class ScriptDirectoryLoaderTests
         var result = await loader.LoadAsync(_root);
 
         Assert.IsTrue(result.Diagnostics.Any(item => item.Code == "SCRIPT_METADATA_MISMATCH"));
+        Assert.IsFalse(result.Entries.Single().Enabled);
         Assert.IsFalse(catalog.TryGet("actual", out _));
     }
 
@@ -93,6 +89,7 @@ public sealed class ScriptDirectoryLoaderTests
         var result = await loader.LoadAsync(_root);
 
         Assert.AreEqual("SCRIPT_SCOPE_MISMATCH", result.Diagnostics.Single().Code);
+        Assert.IsFalse(result.Entries.Single().Enabled);
         Assert.IsFalse(catalog.TryGet("wrong", out _));
     }
 
@@ -131,11 +128,8 @@ public sealed class ScriptDirectoryLoaderTests
 
         Assert.IsTrue(catalog.TryGet("packaged", out _));
         Assert.IsTrue(result.Diagnostics.Any(item => item.Code == "SCRIPT_PACKAGE_INVALID"));
-        var sourcePath = Path.Combine(packageDirectory, "main.fake");
-        await loader.SetEnabledAsync(sourcePath, false);
-        var disabled = await loader.LoadAsync(_root);
-        Assert.IsFalse(disabled.Entries.Single().Enabled);
-        Assert.IsFalse(catalog.TryGet("packaged", out _));
+        Assert.IsTrue(result.Entries.Any(entry => entry.Enabled));
+        Assert.IsTrue(catalog.TryGet("packaged", out _));
     }
 
     private static ScriptDirectoryLoader CreateLoader(out ScriptCatalog catalog)

@@ -45,7 +45,7 @@
 - `ScriptExecutionContext`：按能力暴露宿主 API。
 - `ScriptExecutor`：目标校验、独立执行 ID、取消、超时和异常隔离。
 - `ScriptManager`：组合构建、注册和执行的最小入口。
-- `ScriptDirectoryLoader`：扫描 application/editor 目录，读取元数据、原子保存启用状态并隔离单个脚本失败。
+- `ScriptDirectoryLoader`：扫描 application/editor 目录，读取元数据，按加载结果标记可执行状态并隔离单个脚本失败。
 
 `Diary.ScriptHost` 当前提供 `IWorkItemQueryScriptApi`，只返回不可变事项、备注和标签 DTO，
 复用核心 `WorkItemQuery` 的校验和查询语义，并返回权限、输入、数据库和取消错误。
@@ -79,7 +79,7 @@ Worker 进程边界、消息封装、生命周期和重启语义见
        v
 ScriptManager
        |
-       +-- ScriptCatalog       脚本发现、元数据和启用状态
+       +-- ScriptCatalog       脚本发现、元数据和加载状态
        +-- ScriptBuildService  选择引擎、编译、缓存和诊断
        +-- ScriptExecutor      执行、取消、超时和异常隔离
        +-- ScriptPermission    权限检查和用户授权
@@ -268,10 +268,10 @@ public interface IScriptManager
 }
 ```
 
-当前管理器已经负责构建、注册、按 ID 查找和统一执行；目录加载器负责发现、重载和启用状态保存。目标职责还包括：
+当前管理器已经负责构建、注册、按 ID 查找和统一执行；目录加载器负责发现、重载和按加载结果管理可执行状态。目标职责还包括：
 
 - [已完成] 扫描 `scripts/application` 和 `scripts/editor` 目录。
-- [已完成] 根据扩展名选择引擎，读取相邻 JSON 元数据并处理启用状态。
+- [已完成] 根据扩展名选择引擎，读取相邻 JSON 元数据并按加载结果处理可执行状态；旧 Enabled 字段仅作兼容读取。
 - 扫描脚本包。
 - 维护脚本 ID、显示名称、类型、状态和错误信息。
 - [已完成] 使用源码哈希、引擎版本、契约版本和权限策略管理 C# 编译缓存。
@@ -484,7 +484,8 @@ ScriptBase API 版本
 - 执行 ID。
 - 内部异常摘要。
 
-UI 可以提供脚本列表、启用/禁用、重新加载、编译检查、最近执行状态和错误详情。
+UI 可以提供脚本列表、重新加载、编译检查、最近执行状态和错误详情。脚本加载失败时自动标记为不可执行，
+修复源码或元数据后重新加载即可重试，不提供手动启用/禁用操作。
 
 ## 14. 引擎实施顺序
 
@@ -520,7 +521,7 @@ Diary.App <-> JSON/RPC stdin/stdout <-> python worker
 - 不支持的脚本不会被加载。
 - 编译成功返回正确脚本类型。
 - 编译失败返回结构化诊断。
-- 脚本管理器发现、启用和禁用脚本。
+- 脚本管理器发现脚本，加载失败的脚本自动禁用。
 - 源码变化后缓存失效。
 - 引擎版本变化后缓存失效。
 - 应用脚本和编辑器脚本分发到正确入口。
@@ -547,7 +548,7 @@ Diary.App <-> JSON/RPC stdin/stdout <-> python worker
 ### 第二阶段：应用集成
 
 - 增加脚本设置页和脚本列表。
-- 支持启用/禁用和手动重新加载。
+- 支持手动重新加载，并在脚本加载失败时自动禁用。
 - 支持应用脚本和编辑器脚本命令。
 - 增加后台任务、取消和超时。
 

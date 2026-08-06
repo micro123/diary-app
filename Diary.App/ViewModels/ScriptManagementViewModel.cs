@@ -19,7 +19,31 @@ public sealed record ScriptListItem(
     bool Enabled,
     bool BuildSucceeded,
     string Status,
-    IReadOnlyList<string> Diagnostics);
+    IReadOnlyList<string> Diagnostics)
+{
+    public string ScopeLabel => Scope switch
+    {
+        ScriptScope.Application => "应用脚本",
+        ScriptScope.Editor => "编辑器脚本",
+        _ => "未知类型",
+    };
+
+    public string CapabilityLabel => Capabilities == ScriptCapability.None
+        ? "无额外能力"
+        : string.Join("、", Enum.GetValues<ScriptCapability>()
+            .Where(capability => capability != ScriptCapability.None && Capabilities.HasFlag(capability))
+            .Select(GetCapabilityLabel));
+
+    private static string GetCapabilityLabel(ScriptCapability capability) => capability switch
+    {
+        ScriptCapability.ReadDiary => "读取日记",
+        ScriptCapability.WriteDiary => "写入日记",
+        ScriptCapability.UserInteraction => "用户交互",
+        ScriptCapability.Clipboard => "剪贴板",
+        ScriptCapability.Tracker => "Tracker",
+        _ => capability.ToString(),
+    };
+}
 
 public sealed record ScriptHistoryListItem(
     string ScriptId,
@@ -42,12 +66,23 @@ public partial class ScriptManagementViewModel(
     public ObservableCollection<ScriptHistoryListItem> History { get; } = new();
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ToggleEnabledCommand))]
     [NotifyCanExecuteChangedFor(nameof(RunCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
     private ScriptListItem? _selectedScript;
 
     [ObservableProperty] private string _status = "尚未加载脚本目录";
     [ObservableProperty] private bool _loading;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RunCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
+    private bool _isExecuting;
+    private CancellationTokenSource? _executionCancellation;
+
+    public bool CanReload => !Loading && !IsExecuting;
+
+    partial void OnLoadingChanged(bool value) => OnPropertyChanged(nameof(CanReload));
+
+    partial void OnIsExecutingChanged(bool value) => OnPropertyChanged(nameof(CanReload));
 
     public override void OnShow()
     {
@@ -65,11 +100,12 @@ public partial class ScriptManagementViewModel(
         try
         {
             var result = await directoryLoader.LoadAsync(_scriptRoot);
-            Scripts.Clear();
+            var selectedId = SelectedScript?.Id;
+            var loadedScripts = new List<ScriptListItem>();
             foreach (var entry in result.Entries)
             {
                 var descriptor = entry.BuildResult?.Program?.Descriptor;
-                Scripts.Add(new ScriptListItem(
+                loadedScripts.Add(new ScriptListItem(
                     entry.SourcePath,
                     descriptor?.Id ?? Path.GetFileNameWithoutExtension(entry.SourcePath),
                     descriptor?.Name ?? Path.GetFileName(entry.SourcePath),
@@ -80,8 +116,14 @@ public partial class ScriptManagementViewModel(
                     FormatStatus(entry),
                     FormatDiagnostics(entry.BuildResult?.Diagnostics)));
             }
+            Scripts.Clear();
+            foreach (var script in loadedScripts)
+                Scripts.Add(script);
+            SelectedScript = Scripts.FirstOrDefault(script => script.Id == selectedId);
             RefreshHistory();
-            Status = $"发现 {Scripts.Count} 个脚本，{result.Diagnostics.Count(item => item.Severity == ScriptDiagnosticSeverity.Error)} 个错误";
+            Status = result.Diagnostics.Count(item => item.Severity == ScriptDiagnosticSeverity.Error) is var errors && errors > 0
+                ? $"发现 {Scripts.Count} 个脚本，{errors} 个错误"
+                : Scripts.Count == 0 ? "尚未发现脚本" : $"已加载 {Scripts.Count} 个脚本";
         }
         catch (Exception exception)
         {
@@ -94,20 +136,10 @@ public partial class ScriptManagementViewModel(
         }
     }
 
-    private bool CanToggleEnabled() => SelectedScript is not null;
-
-    [RelayCommand(CanExecute = nameof(CanToggleEnabled))]
-    private async Task ToggleEnabled()
-    {
-        var script = SelectedScript;
-        if (script is null)
-            return;
-        await directoryLoader.SetEnabledAsync(script.SourcePath, !script.Enabled);
-        await ReloadAsync();
-    }
-
     private bool CanRun() =>
-        SelectedScript is { Enabled: true, BuildSucceeded: true, Scope: ScriptScope.Application };
+        !IsExecuting && SelectedScript is { Enabled: true, BuildSucceeded: true, Scope: ScriptScope.Application };
+
+    private bool CanCancel() => IsExecuting;
 
     [RelayCommand(CanExecute = nameof(CanRun))]
     private async Task Run()
@@ -115,33 +147,64 @@ public partial class ScriptManagementViewModel(
         var script = SelectedScript;
         if (script is null)
             return;
-        var outcome = await Task.Run(async () => await scriptManager.ExecuteAsync(
-            script.Id,
-            new ScriptExecutionRequest(
-                new ScriptTarget(ScriptScope.Application),
-                Source: ScriptExecutionSource.Manual)));
-        Status = outcome.Result.Status == ScriptExecutionStatus.Succeeded
-            ? $"{script.Name} 执行成功"
-            : $"{script.Name} 执行失败：{outcome.Result.Diagnostics.FirstOrDefault()?.Message}";
-        NotificationManager?.Show(
-            Status,
-            outcome.Result.Status == ScriptExecutionStatus.Succeeded
-                ? NotificationType.Success
-                : NotificationType.Error);
-        RefreshHistory();
+        IsExecuting = true;
+        Status = $"正在运行 {script.Name}";
+        using var cancellation = new CancellationTokenSource();
+        _executionCancellation = cancellation;
+        try
+        {
+            var outcome = await Task.Run(async () => await scriptManager.ExecuteAsync(
+                script.Id,
+                new ScriptExecutionRequest(
+                    new ScriptTarget(ScriptScope.Application),
+                    Source: ScriptExecutionSource.Manual),
+                TimeSpan.FromMinutes(5),
+                cancellation.Token), cancellation.Token);
+            Status = outcome.Result.Status switch
+            {
+                ScriptExecutionStatus.Succeeded => $"{script.Name} 执行成功（{outcome.Duration.TotalSeconds:0.##} 秒）",
+                ScriptExecutionStatus.Cancelled => $"{script.Name} 已取消",
+                ScriptExecutionStatus.TimedOut => $"{script.Name} 执行超时",
+                _ => $"{script.Name} 执行失败：{outcome.Result.Diagnostics.FirstOrDefault()?.Message ?? "请查看诊断详情"}",
+            };
+            NotificationManager?.Show(
+                Status,
+                outcome.Result.Status == ScriptExecutionStatus.Succeeded
+                    ? NotificationType.Success
+                    : NotificationType.Error);
+            RefreshHistory();
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "运行脚本失败：{ScriptId}", script.Id);
+            Status = $"{script.Name} 执行失败，请查看日志";
+            NotificationManager?.Show(Status, NotificationType.Error);
+        }
+        finally
+        {
+            _executionCancellation = null;
+            IsExecuting = false;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCancel))]
+    private void Cancel()
+    {
+        if (_executionCancellation is null)
+            return;
+        Status = "正在取消脚本...";
+        _executionCancellation.Cancel();
     }
 
     private static string FormatStatus(ScriptDirectoryEntry entry)
     {
-        if (!entry.Enabled)
-            return "已禁用";
         if (entry.BuildResult is null)
-            return "未构建";
+            return "未加载";
         if (entry.BuildResult.Succeeded)
             return entry.BuildResult.Diagnostics.Any(item => item.Code == "SCRIPT_CACHE_HIT")
                 ? "已加载（缓存）"
                 : "已加载";
-        return entry.BuildResult.Diagnostics.FirstOrDefault()?.Message ?? "构建失败";
+        return "加载失败（已禁用）";
     }
 
     private void RefreshHistory()

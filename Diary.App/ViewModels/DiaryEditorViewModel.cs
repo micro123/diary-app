@@ -65,6 +65,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         {
             Date = CurrentDateString,
         };
+        ConfigureEditorScriptActions(SelectedWork);
         _creating = false;
         SelectedWork.SyncAll();
     }
@@ -94,6 +95,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
     {
         var newDate = SelectedWork!.IsDateChanged;
         SelectedWork.Save(out var created);
+        ConfigureEditorScriptActions(SelectedWork);
         if (created)
         {
             if (CurrentDateString == SelectedWork.Date)
@@ -133,6 +135,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         SelectedWork = null;
         _creating = true;
         SelectedWork = item;
+        ConfigureEditorScriptActions(SelectedWork);
         _creating = false;
     }
 
@@ -321,6 +324,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
                 foreach (var item in dbItems)
                 {
                     var x = WorkEditorViewModel.FromWorkItem(item);
+                    ConfigureEditorScriptActions(x);
                     x.SyncFromBatch(notesById, tagsById, bindingsByTracker);
                     DailyWorks.Add(x);
                 }
@@ -400,9 +404,19 @@ public partial class DiaryEditorViewModel : ViewModelBase
             EventDispatcher.Msg(new QuickSurveyEvent(date, part));
         });
 
-    private IAsyncRelayCommand CreateEditorScriptCommand(string scriptId, DateTime startDate, DateTime endDate) =>
+    private IAsyncRelayCommand CreateEditorScriptCommand(
+        string scriptId,
+        DateTime startDate,
+        DateTime endDate,
+        WorkEditorViewModel? workItem = null) =>
         new AsyncRelayCommand(async () =>
         {
+            if (workItem is not null)
+            {
+                startDate = TimeTools.FromFormatedDate(workItem.Date);
+                endDate = startDate;
+            }
+            var workItemId = workItem?.WorkId;
             var outcome = await Task.Run(async () => await _scriptManager.ExecuteAsync(
                 scriptId,
                 new ScriptExecutionRequest(new ScriptTarget(
@@ -410,13 +424,35 @@ public partial class DiaryEditorViewModel : ViewModelBase
                     new EditorScriptContext(
                         TimeTools.FormatDateTime(startDate),
                         TimeTools.FormatDateTime(endDate),
-                        GetGranularity(startDate, endDate))),
+                        GetGranularity(startDate, endDate)),
+                    workItemId is > 0
+                        ? new ScriptBusinessTarget(
+                            ScriptBusinessTargetKind.WorkItem,
+                            workItemId.Value.ToString())
+                        : null),
                     Source: ScriptExecutionSource.Editor)));
             EventDispatcher.ShowToast(
                 outcome.Result.Status == ScriptExecutionStatus.Succeeded
                     ? $"脚本 {scriptId} 执行成功"
                     : $"脚本 {scriptId} 执行失败：{outcome.Result.Diagnostics.FirstOrDefault()?.Message}");
         });
+
+    private void ConfigureEditorScriptActions(WorkEditorViewModel workItem)
+    {
+        var actions = _scriptCatalog.GetAll()
+            .Where(program => program.Descriptor.Scope == ScriptScope.Editor)
+            .OrderBy(program => program.Descriptor.Name, StringComparer.Ordinal)
+            .Select(program => new WorkEditorScriptMenuItem(
+                workItem.WorkId > 0 ? program.Descriptor.Name : $"{program.Descriptor.Name}（请先保存）",
+                CreateEditorScriptCommand(
+                    program.Descriptor.Id,
+                    TimeTools.FromFormatedDate(workItem.Date),
+                    TimeTools.FromFormatedDate(workItem.Date),
+                    workItem: workItem),
+                workItem.WorkId > 0))
+            .ToArray();
+        workItem.SetEditorScriptActions(actions);
+    }
 
     private static ScriptTimeGranularity GetGranularity(DateTime startDate, DateTime endDate)
     {
@@ -449,10 +485,18 @@ public partial class DiaryEditorViewModel : ViewModelBase
         foreach (var script in scripts)
         {
             AddMenuAction(
-                script.Descriptor.Name,
+                $"对{GetScriptRangeLabel(startDate, endDate)}运行：{script.Descriptor.Name}",
                 CreateEditorScriptCommand(script.Descriptor.Id, startDate, endDate));
         }
     }
+
+    private static string GetScriptRangeLabel(DateTime startDate, DateTime endDate) =>
+        startDate.Date == endDate.Date
+            ? "当天"
+            : startDate.Day == 1 && endDate.Day == DateTime.DaysInMonth(endDate.Year, endDate.Month)
+                && startDate.Year == endDate.Year && startDate.Month == endDate.Month
+                ? "当前月份"
+                : "当前年份";
 
     private void FillDayMenus(DateTime date)
     {

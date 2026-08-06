@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
@@ -13,6 +14,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Diary.App.ViewModels;
 
+public sealed record WorkEditorScriptMenuItem(string Header, ICommand Command, bool IsEnabled);
+
 public partial class WorkEditorViewModel : ViewModelBase
 {
     private readonly DbShareData _shareData;
@@ -26,6 +29,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     // tracker 扩展集合（RedMine 等，可多个）。无 tracker 时空集合，编辑器只渲染 generic 字段。
     public ObservableCollection<ITrackerEditorExtension> Extensions { get; } = new();
     public ObservableCollection<TrackerUploadResult> UploadResults { get; } = new();
+    public ObservableCollection<WorkEditorScriptMenuItem> EditorScriptActions { get; } = new();
     [ObservableProperty] private TagAutomationResult? _lastTagAutomationResult;
 
     // generic data
@@ -122,6 +126,13 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     // public int WorkId => WorkItem?.Id ?? 0;
     [ObservableProperty] private int _workId;
+
+    public void SetEditorScriptActions(IEnumerable<WorkEditorScriptMenuItem> actions)
+    {
+        EditorScriptActions.Clear();
+        foreach (var action in actions)
+            EditorScriptActions.Add(action);
+    }
 
     public void Save(out bool created)
     {

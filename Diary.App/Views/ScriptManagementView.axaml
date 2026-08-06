@@ -11,11 +11,11 @@
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
             <StackPanel>
                 <TextBlock Text="脚本工作台" FontSize="30" FontWeight="Bold" />
-                <TextBlock Text="本地 C# 脚本在受信任进程内执行；启用前请确认来源。"
+                <TextBlock Text="管理本机脚本，支持应用自动化和编辑器操作。"
                            Opacity="0.68" />
             </StackPanel>
             <Button Grid.Column="1" Content="重新加载" Command="{Binding ReloadCommand}"
-                    Classes="Primary" IsEnabled="{Binding !Loading}" />
+                    Classes="Primary" IsEnabled="{Binding CanReload}" />
         </Grid>
 
         <Border Grid.Row="1" Padding="12" CornerRadius="8"
@@ -34,8 +34,8 @@
                                 <TextBlock Text="{Binding Status}" Opacity="0.78" />
                             </StackPanel>
                             <StackPanel Grid.Column="1" HorizontalAlignment="Right">
-                                <TextBlock Text="{Binding Scope}" />
-                                <TextBlock Text="{Binding Capabilities}" Opacity="0.68" />
+                                <TextBlock Text="{Binding ScopeLabel}" />
+                                <TextBlock Text="{Binding CapabilityLabel}" Opacity="0.68" />
                             </StackPanel>
                         </Grid>
                     </DataTemplate>
@@ -74,8 +74,8 @@
         </Grid>
 
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
-            <Button Content="启用 / 禁用" Command="{Binding ToggleEnabledCommand}" />
-            <Button Content="运行应用脚本" Command="{Binding RunCommand}" Classes="Primary" />
+            <Button Content="取消" Command="{Binding CancelCommand}" IsVisible="{Binding IsExecuting}" />
+            <Button Content="运行" Command="{Binding RunCommand}" Classes="Primary" />
         </StackPanel>
     </Grid>
 </UserControl>
