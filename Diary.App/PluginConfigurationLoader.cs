@@ -168,8 +168,7 @@ public sealed class PluginConfigurationLoader
         var payload = isPackage
             ? (JObject)rawJson["Payload"]!.DeepClone()
             : new JObject();
-        foreach (var property in JObject.FromObject(configuration).Properties())
-            payload[property.Name] = property.Value.DeepClone();
+        MergeKnownProperties(payload, JObject.FromObject(configuration));
         var schemaVersion = isPackage && int.TryParse((string?)rawJson["SchemaVersion"], out var savedVersion)
             ? savedVersion
             : GetSchemaVersion(plugin);
@@ -198,6 +197,65 @@ public sealed class PluginConfigurationLoader
             .Select(migration => migration.ToVersion)
             .DefaultIfEmpty(0)
             .Max();
+
+    private static void MergeKnownProperties(JObject target, JObject source)
+    {
+        foreach (var sourceProperty in source.Properties())
+        {
+            var targetProperty = target.Properties().FirstOrDefault(property =>
+                string.Equals(property.Name, sourceProperty.Name, StringComparison.OrdinalIgnoreCase));
+            if (targetProperty?.Value is JObject targetObject
+                && sourceProperty.Value is JObject sourceObject)
+            {
+                MergeKnownProperties(targetObject, sourceObject);
+                continue;
+            }
+
+            if (targetProperty?.Value is JArray targetArray
+                && sourceProperty.Value is JArray sourceArray)
+            {
+                MergeArray(targetArray, sourceArray);
+                continue;
+            }
+
+            target[sourceProperty.Name] = sourceProperty.Value.DeepClone();
+            if (targetProperty is not null && targetProperty.Name != sourceProperty.Name)
+                targetProperty.Remove();
+        }
+    }
+
+    private static void MergeArray(JArray target, JArray source)
+    {
+        var merged = new JArray();
+        for (var index = 0; index < source.Count; index++)
+        {
+            var sourceItem = source[index];
+            if (sourceItem is not JObject sourceObject)
+            {
+                merged.Add(sourceItem.DeepClone());
+                continue;
+            }
+
+            var targetObject = FindMatchingObject(target, sourceObject, index);
+            var item = targetObject is null ? new JObject() : (JObject)targetObject.DeepClone();
+            MergeKnownProperties(item, sourceObject);
+            merged.Add(item);
+        }
+        target.Replace(merged);
+    }
+
+    private static JObject? FindMatchingObject(JArray target, JObject source, int index)
+    {
+        foreach (var identity in new[] { "InstanceId", "RuleId" })
+        {
+            var value = source[identity]?.ToString();
+            if (string.IsNullOrEmpty(value))
+                continue;
+            return target.OfType<JObject>().FirstOrDefault(item =>
+                string.Equals(item[identity]?.ToString(), value, StringComparison.Ordinal));
+        }
+        return index < target.Count ? target[index] as JObject : null;
+    }
 
     private static void ClearSerializedCollections(JObject payload, object configuration)
     {

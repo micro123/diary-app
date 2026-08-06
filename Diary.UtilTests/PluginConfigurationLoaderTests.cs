@@ -114,6 +114,61 @@ public sealed class PluginConfigurationLoaderTests
         Assert.AreEqual(true, (bool?)saved["Payload"]!["Unknown"]!["Keep"]);
     }
 
+    [TestMethod]
+    public void Save_PreservesUnknownFieldsInsideIdentifiedCollections()
+    {
+        var configuration = new TestConfiguration
+        {
+            Instances = new List<TestInstance>
+            {
+                new()
+                {
+                    InstanceId = "company",
+                    Value = "updated",
+                    Rules = new List<TestRule> { new() { RuleId = "rule-1", Enabled = false } },
+                },
+            },
+        };
+        EasySaveLoad.SaveJson(configuration, new JObject
+        {
+            ["PluginId"] = "tracker.test.migrating",
+            ["SchemaVersion"] = 2,
+            ["Payload"] = new JObject
+            {
+                ["Instances"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["InstanceId"] = "company",
+                        ["Value"] = "old",
+                        ["InstanceUnknown"] = "keep-instance",
+                        ["Rules"] = new JArray
+                        {
+                            new JObject
+                            {
+                                ["RuleId"] = "rule-1",
+                                ["Enabled"] = true,
+                                ["RuleUnknown"] = "keep-rule",
+                            },
+                        },
+                    },
+                },
+            },
+        });
+
+        Assert.IsTrue(new PluginConfigurationLoader().Save(
+            new NonMigratingPlugin(configuration), configuration));
+
+        var saved = JObject.Parse(File.ReadAllText(
+            Path.Combine(Diary.Utils.FsTools.GetApplicationConfigDirectory(), TestFileName)));
+        var instance = (JObject)saved["Payload"]!["Instances"]![0]!;
+        var rule = (JObject)instance["Rules"]![0]!;
+        Assert.AreEqual("updated", (string?)instance["Value"]);
+        Assert.AreEqual("keep-instance", (string?)instance["InstanceUnknown"]);
+        Assert.AreEqual(false, (bool?)rule["Enabled"]);
+        Assert.AreEqual("keep-rule", (string?)rule["RuleUnknown"]);
+    }
+
     private sealed class MemoryPlugin : ITrackerPlugin
     {
         public PluginManifest Manifest { get; } = new()
@@ -168,6 +223,20 @@ public sealed class PluginConfigurationLoaderTests
     {
         public string Value { get; set; } = "default";
         public string Added { get; set; } = "";
+        public IList<TestInstance> Instances { get; set; } = new List<TestInstance>();
+    }
+
+    private sealed class TestInstance
+    {
+        public string InstanceId { get; set; } = "";
+        public string Value { get; set; } = "";
+        public IList<TestRule> Rules { get; set; } = new List<TestRule>();
+    }
+
+    private sealed class TestRule
+    {
+        public string RuleId { get; set; } = "";
+        public bool Enabled { get; set; }
     }
 
     private sealed class MigratingPlugin : TestMigrationPluginBase
