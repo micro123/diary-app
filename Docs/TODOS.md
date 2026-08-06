@@ -470,6 +470,7 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 
 - [x] 完成语言无关的 worker 生命周期、消息封装和重启契约设计。
 - [x] 定义并实现 `diary.script.worker` 握手、版本协商和能力协商。
+- [x] 增加 UTF-8 JSON 行消息编解码和单条消息大小限制。
 - [ ] 实现 supervisor 的启动、常驻、空闲回收、心跳和进程退出处理。
 - [ ] 实现 `execute`、`execute.result`、`cancel`、`host.call` 和 `host.result` 消息。
 - [ ] 实现消息大小、请求数量、输出大小和宿主调用数量限制。

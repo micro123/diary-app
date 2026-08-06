@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text;
 using Diary.ScriptBase;
 
 namespace Diary.Script.Runtime;
@@ -111,5 +112,57 @@ public static class WorkerHandshake
             options.MaxMessageBytes,
             options.HeartbeatSeconds,
             hostApis));
+    }
+}
+
+public static class WorkerMessageCodec
+{
+    public static async ValueTask WriteAsync<TPayload>(
+        Stream stream,
+        WorkerMessage<TPayload> message,
+        int maxMessageBytes = WorkerProtocol.DefaultMaxMessageBytes,
+        CancellationToken cancellationToken = default)
+    {
+        var json = JsonSerializer.Serialize(message, WorkerProtocol.JsonOptions);
+        var bytes = Encoding.UTF8.GetBytes(json + "\n");
+        if (bytes.Length > maxMessageBytes)
+            throw new InvalidDataException("Worker 消息超过大小限制。");
+        await stream.WriteAsync(bytes, cancellationToken);
+        await stream.FlushAsync(cancellationToken);
+    }
+
+    public static async ValueTask<WorkerMessage<TPayload>> ReadAsync<TPayload>(
+        Stream stream,
+        int maxMessageBytes = WorkerProtocol.DefaultMaxMessageBytes,
+        CancellationToken cancellationToken = default)
+    {
+        using var buffer = new MemoryStream();
+        var oneByte = new byte[1];
+        while (true)
+        {
+            var count = await stream.ReadAsync(oneByte, cancellationToken);
+            if (count == 0)
+            {
+                if (buffer.Length == 0)
+                    throw new EndOfStreamException("Worker 通道已关闭。");
+                throw new InvalidDataException("Worker 消息缺少换行结束符。");
+            }
+            if (oneByte[0] == (byte)'\n')
+                break;
+            buffer.WriteByte(oneByte[0]);
+            if (buffer.Length + 1 > maxMessageBytes)
+                throw new InvalidDataException("Worker 消息超过大小限制。");
+        }
+
+        var json = Encoding.UTF8.GetString(buffer.ToArray()).TrimEnd('\r');
+        try
+        {
+            return JsonSerializer.Deserialize<WorkerMessage<TPayload>>(json, WorkerProtocol.JsonOptions)
+                ?? throw new InvalidDataException("Worker 消息为空。");
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidDataException("Worker 消息不是有效 JSON。", exception);
+        }
     }
 }
