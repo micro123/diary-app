@@ -2,11 +2,9 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Diary.Core.Data.Base;
-using Diary.GUIBase;
 using Diary.GUIBase.ViewModels;
 using Diary.PluginBase;
 using Diary.PluginUI;
-using Diary.RedMine;
 using Diary.RedMine.Models;
 using Diary.RedMine.UI.ViewModels.Dialogs;
 
@@ -18,8 +16,8 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
     private readonly IRedMineApi _api;
     private WorkTimeEntry? TimeEntry { get; set; }
 
-    public ObservableCollection<RedMineIssueDisplay> RedMineIssues => _data.RedMineIssuesOpen;
-    public ObservableCollection<RedMineActivity> RedMineActivities => _data.RedMineActivities;
+    public ObservableCollection<RedMineIssueDisplay> RedMineIssues { get; } = new();
+    public ObservableCollection<RedMineActivity> RedMineActivities { get; } = new();
 
     [ObservableProperty] private int _issueIndex = -1;
     [ObservableProperty] private int _activityIndex = -1;
@@ -55,6 +53,7 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
         TimeEntry = item is { Id: > 0 }
             ? binding as WorkTimeEntry ?? _database.WorkItemGetTimeEntry(item)
             : null;
+        RefreshOptions();
         SyncFromEntry();
     }
 
@@ -82,6 +81,9 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
             return new TrackerOperationResult(false);
         if (IssueIndex < 0 || ActivityIndex < 0 || item.Time <= 0)
             return new TrackerOperationResult(false, "问题或活动不正确，又或者耗时是0");
+        if (RedMineIssues[IssueIndex].Disabled || RedMineIssues[IssueIndex].Invalid
+            || RedMineActivities[ActivityIndex].Invalid)
+            return new TrackerOperationResult(false, "问题或活动已失效");
         Debug.Assert(TimeEntry is not null);
 
         var entryId = 0;
@@ -115,7 +117,7 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
             : string.Empty;
     }
 
-    public IReadOnlyCollection<string> ApplyTagDefaults(WorkTag tag)
+    public TrackerTagDefaultsResult ApplyTagDefaults(WorkTag tag)
     {
         var changed = new List<string>();
         var currentActivityId = ActivityIndex >= 0 ? RedMineActivities[ActivityIndex].Id : (int?)null;
@@ -125,8 +127,8 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
             tag.Id,
             currentActivityId,
             currentIssueId,
-            RedMineActivities.Select(activity => activity.Id).ToHashSet(),
-            RedMineIssues.Select(issue => issue.Id).ToHashSet());
+            RedMineActivities.Where(activity => !activity.Invalid).Select(activity => activity.Id).ToHashSet(),
+            RedMineIssues.Where(issue => !issue.Disabled && !issue.Invalid).Select(issue => issue.Id).ToHashSet());
         if (currentActivityId is null && defaults.ActivityId is not null)
         {
             ActivityIndex = Enumerable.Range(0, RedMineActivities.Count)
@@ -140,7 +142,15 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
             IssueText = $"#{RedMineIssues[IssueIndex].Id} {RedMineIssues[IssueIndex].Title} ({RedMineIssues[IssueIndex].Project})";
             changed.Add(nameof(IssueIndex));
         }
-        return changed;
+        return new TrackerTagDefaultsResult(
+            changed,
+            defaults.Conflicts.Select(conflict => new TrackerTagDefaultConflict(
+                conflict.Field,
+                conflict.RuleIds)).ToArray(),
+            defaults.InvalidTargets.Select(target => new TrackerTagDefaultInvalidTarget(
+                target.Field,
+                target.TargetId.ToString(),
+                target.RuleId)).ToArray());
     }
 
     private void SyncFromEntry()
@@ -161,5 +171,49 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
             ? $"#{RedMineIssues[IssueIndex].Id} {RedMineIssues[IssueIndex].Title} ({RedMineIssues[IssueIndex].Project})"
             : string.Empty;
         Uploaded = TimeEntry.EntryId > 0;
+    }
+
+    private void RefreshOptions()
+    {
+        RedMineActivities.Clear();
+        foreach (var activity in _data.RedMineActivities)
+            RedMineActivities.Add(activity);
+        RedMineIssues.Clear();
+        foreach (var issue in _data.RedMineIssuesOpen)
+            RedMineIssues.Add(issue);
+
+        if (TimeEntry is null)
+            return;
+        if (RedMineActivities.All(activity => activity.Id != TimeEntry.ActivityId))
+        {
+            RedMineActivities.Add(new RedMineActivity
+            {
+                Id = TimeEntry.ActivityId,
+                Title = $"活动 #{TimeEntry.ActivityId}",
+                Invalid = true,
+            });
+        }
+        if (RedMineIssues.All(issue => issue.Id != TimeEntry.IssueId))
+        {
+            var stored = _data.RedMineIssues.FirstOrDefault(issue => issue.Id == TimeEntry.IssueId);
+            RedMineIssues.Add(stored is null
+                ? new RedMineIssueDisplay
+                {
+                    Id = TimeEntry.IssueId,
+                    Title = $"问题 #{TimeEntry.IssueId}",
+                    AssignedTo = string.Empty,
+                    Project = string.Empty,
+                    Invalid = true,
+                }
+                : new RedMineIssueDisplay
+                {
+                    Id = stored.Id,
+                    Title = stored.Title,
+                    AssignedTo = stored.AssignedTo,
+                    Project = stored.Project,
+                    Disabled = stored.Disabled,
+                    Invalid = true,
+                });
+        }
     }
 }

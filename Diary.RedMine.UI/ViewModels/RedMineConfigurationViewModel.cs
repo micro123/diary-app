@@ -13,7 +13,8 @@ namespace Diary.RedMine.UI.ViewModels;
 [DiAutoRegister]
 public partial class RedMineConfigurationViewModel : ViewModelBase, ITrackerSettingsPage
 {
-    private RedMinePluginConfig? _configuration;
+    private RedMinePluginConfigurationEditSession? _session;
+    private RedMinePluginConfig? Configuration => _session?.WorkingCopy;
 
     public ObservableCollection<RedMineInstanceSettings> Instances { get; } = new();
     [ObservableProperty] private RedMineTagRuleEditorViewModel? _tagRuleEditor;
@@ -28,21 +29,23 @@ public partial class RedMineConfigurationViewModel : ViewModelBase, ITrackerSett
     public bool CanRemoveInstance => SelectedInstance is not null && Instances.Count > 1;
     public bool HasSelectedInstance => SelectedInstance is not null;
 
-    public void InitSettings(RedMinePluginConfig configuration)
+    public void InitSettings(RedMinePluginConfigurationEditSession session)
     {
-        _configuration = configuration;
-        Logging.Logger.LogDebug("初始化 RedMine 多实例设置：配置实例数 {Count}", configuration.Instances.Count);
+        _session = session;
+        Logging.Logger.LogDebug("初始化 RedMine 多实例设置：配置实例数 {Count}", session.WorkingCopy.Instances.Count);
         Reload();
     }
 
     public void Reload()
     {
-        if (_configuration is null)
+        if (_session is null)
             return;
 
-        Logging.Logger.LogDebug("重载 RedMine 多实例设置：重载前配置实例数 {Count}", _configuration.Instances.Count);
+        _session.Reload();
+        var configuration = _session.WorkingCopy;
+        Logging.Logger.LogDebug("重载 RedMine 多实例设置：重载前配置实例数 {Count}", configuration.Instances.Count);
         Instances.Clear();
-        foreach (var instance in _configuration.Instances)
+        foreach (var instance in configuration.Instances)
             Instances.Add(instance);
         SelectedInstance = Instances.FirstOrDefault();
         RebuildInstanceSettings();
@@ -57,7 +60,11 @@ public partial class RedMineConfigurationViewModel : ViewModelBase, ITrackerSett
     }
 
     public void Save()
-        => InstanceSettings.Save();
+    {
+        InstanceSettings.Save();
+        _session?.Commit();
+        Reload();
+    }
 
     private void RebuildInstanceSettings()
     {
@@ -73,7 +80,7 @@ public partial class RedMineConfigurationViewModel : ViewModelBase, ITrackerSett
     [RelayCommand]
     private void AddInstance()
     {
-        if (_configuration is null)
+        if (Configuration is null)
             return;
 
         var instance = new RedMineInstanceSettings
@@ -82,7 +89,7 @@ public partial class RedMineConfigurationViewModel : ViewModelBase, ITrackerSett
             DisplayName = $"RedMine实例 {Instances.Count + 1}",
             Enabled = false,
         };
-        _configuration.Instances.Add(instance);
+        Configuration.Instances.Add(instance);
         Instances.Add(instance);
         SelectedInstance = instance;
     }
@@ -90,11 +97,11 @@ public partial class RedMineConfigurationViewModel : ViewModelBase, ITrackerSett
     [RelayCommand]
     private void RemoveInstance()
     {
-        if (_configuration is null || SelectedInstance is null || !CanRemoveInstance)
+        if (Configuration is null || SelectedInstance is null || !CanRemoveInstance)
             return;
 
         var index = Instances.IndexOf(SelectedInstance);
-        _configuration.Instances.Remove(SelectedInstance);
+        Configuration.Instances.Remove(SelectedInstance);
         Instances.Remove(SelectedInstance);
         SelectedInstance = Instances[Math.Clamp(index, 0, Instances.Count - 1)];
     }

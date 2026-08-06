@@ -26,6 +26,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     // tracker 扩展集合（RedMine 等，可多个）。无 tracker 时空集合，编辑器只渲染 generic 字段。
     public ObservableCollection<ITrackerEditorExtension> Extensions { get; } = new();
     public ObservableCollection<TrackerUploadResult> UploadResults { get; } = new();
+    [ObservableProperty] private TagAutomationResult? _lastTagAutomationResult;
 
     // generic data
     [ObservableProperty] private string _date;
@@ -87,9 +88,24 @@ public partial class WorkEditorViewModel : ViewModelBase
             .GetRequiredService<TrackerUiContributionRegistry>()).Contributions;
         foreach (var t in trackers)
         {
-            var ext = t.CreateEditorExtension(t.Instance.InstanceId);
-            if (ext is not null && Extensions.All(existing => existing.Key != ext.Key))
-                Extensions.Add(ext);
+            try
+            {
+                var ext = t.CreateEditorExtension(t.Instance.InstanceId);
+                if (ext is not null && Extensions.All(existing => existing.Key != ext.Key))
+                    Extensions.Add(ext);
+            }
+            catch (Exception ex)
+            {
+                LastTagAutomationResult = new TagAutomationResult([
+                    new TagAutomationInstanceResult(
+                        new TrackerKey(t.PluginId, t.Instance.InstanceId),
+                        false,
+                        Array.Empty<string>(),
+                        Array.Empty<TrackerTagDefaultConflict>(),
+                        Array.Empty<TrackerTagDefaultInvalidTarget>(),
+                        $"创建编辑扩展失败: {ex.Message}")
+                ]);
+            }
         }
 
         WorkTags.CollectionChanged += (_, _) =>
@@ -276,7 +292,7 @@ public partial class WorkEditorViewModel : ViewModelBase
                 Db!.WorkItemAddTag(WorkItem, tag);
             WorkTags.Add(tag);
             _syncing_tags = false;
-            _tagAutomation.TagAdded(
+            LastTagAutomationResult = _tagAutomation.TagAdded(
                 WorkItem,
                 tag,
                 new TagAutomationContext(source, sequence++),

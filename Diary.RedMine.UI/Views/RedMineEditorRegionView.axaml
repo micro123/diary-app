@@ -20,7 +20,7 @@
                     <DataTemplate DataType="display:RedMineIssueDisplay">
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <TextBlock Text="{Binding Id, StringFormat='#{0}'}" FontWeight="Bold" />
-                            <TextBlock Text="{Binding Title}" />
+                            <TextBlock Text="{Binding DisplayTitle}" />
                             <TextBlock Text="{Binding Project, StringFormat='(项目：{0})'}" />
                         </StackPanel>
                     </DataTemplate>
@@ -32,7 +32,7 @@
                     <DataTemplate DataType="redMine:RedMineActivity">
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <TextBlock Text="{Binding Id, StringFormat='#{0}'}" FontWeight="Bold" />
-                            <TextBlock Text="{Binding Title}" />
+                            <TextBlock Text="{Binding DisplayTitle}" />
                         </StackPanel>
                     </DataTemplate>
                 </ComboBox.ItemTemplate>

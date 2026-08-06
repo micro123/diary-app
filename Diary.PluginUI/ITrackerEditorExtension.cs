@@ -41,7 +41,27 @@ public interface ITrackerEditorExtension
 /// <summary>可选的标签默认值能力。只应用当前 Tracker 实例自己的编辑器字段。</summary>
 public interface ITrackerTagDefaults
 {
-    IReadOnlyCollection<string> ApplyTagDefaults(WorkTag tag);
+    TrackerTagDefaultsResult ApplyTagDefaults(WorkTag tag);
+}
+
+public sealed record TrackerTagDefaultConflict(
+    string Field,
+    IReadOnlyCollection<string> RuleIds);
+
+public sealed record TrackerTagDefaultInvalidTarget(
+    string Field,
+    string TargetId,
+    string RuleId);
+
+public sealed record TrackerTagDefaultsResult(
+    IReadOnlyCollection<string> ChangedFields,
+    IReadOnlyCollection<TrackerTagDefaultConflict> Conflicts,
+    IReadOnlyCollection<TrackerTagDefaultInvalidTarget> InvalidTargets)
+{
+    public static TrackerTagDefaultsResult Empty { get; } = new(
+        Array.Empty<string>(),
+        Array.Empty<TrackerTagDefaultConflict>(),
+        Array.Empty<TrackerTagDefaultInvalidTarget>());
 }
 
 public interface ITagRuleEditorContribution
@@ -50,6 +70,8 @@ public interface ITagRuleEditorContribution
     string InstanceId { get; }
     ViewModelBase View { get; }
     void SelectTag(WorkTag tag);
+    void Commit();
+    void Reload();
 }
 
 /// <summary>

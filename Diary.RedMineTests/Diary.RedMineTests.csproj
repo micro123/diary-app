@@ -20,6 +20,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\Diary.RedMine\Diary.RedMine.csproj" />
+      <ProjectReference Include="..\Diary.RedMine.UI\Diary.RedMine.UI.csproj" />
     </ItemGroup>
 
 </Project>

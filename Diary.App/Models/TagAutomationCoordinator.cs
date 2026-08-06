@@ -1,4 +1,5 @@
 using Diary.Core.Data.Base;
+using Diary.PluginBase;
 using Diary.PluginUI;
 using Diary.Utils;
 
@@ -16,9 +17,11 @@ public sealed record TagAutomationContext(
     int Sequence);
 
 public sealed record TagAutomationInstanceResult(
-    string InstanceId,
+    TrackerKey TrackerKey,
     bool Succeeded,
-    IReadOnlyCollection<string> AppliedFields,
+    IReadOnlyCollection<string> ChangedFields,
+    IReadOnlyCollection<TrackerTagDefaultConflict> Conflicts,
+    IReadOnlyCollection<TrackerTagDefaultInvalidTarget> InvalidTargets,
     string? Error = null);
 
 public sealed record TagAutomationResult(
@@ -48,20 +51,25 @@ public sealed class TagAutomationCoordinator : ITagAutomationCoordinator
         var results = new List<TagAutomationInstanceResult>();
         foreach (var extension in extensions.OfType<ITrackerTagDefaults>())
         {
-            var instanceId = ((ITrackerEditorExtension)extension).InstanceId;
+            var key = ((ITrackerEditorExtension)extension).Key;
             try
             {
+                var applied = extension.ApplyTagDefaults(tag);
                 results.Add(new TagAutomationInstanceResult(
-                    instanceId,
+                    key,
                     true,
-                    extension.ApplyTagDefaults(tag)));
+                    applied.ChangedFields,
+                    applied.Conflicts,
+                    applied.InvalidTargets));
             }
             catch (Exception ex)
             {
                 results.Add(new TagAutomationInstanceResult(
-                    instanceId,
+                    key,
                     false,
                     Array.Empty<string>(),
+                    Array.Empty<TrackerTagDefaultConflict>(),
+                    Array.Empty<TrackerTagDefaultInvalidTarget>(),
                     ex.Message));
             }
         }

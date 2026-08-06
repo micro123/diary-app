@@ -42,12 +42,12 @@ public sealed partial class RedMineTagRuleViewModel : ObservableObject
         IReadOnlyList<RedMineTagRuleOption> issues)
     {
         Rule = rule;
-        Tags = tags;
-        Activities = activities;
-        Issues = issues;
-        SelectedTag = ResolveOption(tags, rule.TagId, "已删除标签");
-        SelectedActivity = ResolveOption(activities, rule.ActivityId ?? 0, "无效活动");
-        SelectedIssue = ResolveOption(issues, rule.IssueId ?? 0, "无效问题");
+        Tags = AddMissingOption(tags, rule.TagId, "已删除标签");
+        Activities = AddMissingOption(activities, rule.ActivityId ?? 0, "无效活动");
+        Issues = AddMissingOption(issues, rule.IssueId ?? 0, "无效问题");
+        SelectedTag = ResolveOption(Tags, rule.TagId);
+        SelectedActivity = ResolveOption(Activities, rule.ActivityId ?? 0);
+        SelectedIssue = ResolveOption(Issues, rule.IssueId ?? 0);
     }
 
     partial void OnSelectedTagChanged(RedMineTagRuleOption? value)
@@ -59,17 +59,23 @@ public sealed partial class RedMineTagRuleViewModel : ObservableObject
     partial void OnSelectedIssueChanged(RedMineTagRuleOption? value)
         => Rule.IssueId = value is { Id: > 0 } ? value.Id : null;
 
-    private static RedMineTagRuleOption? ResolveOption(
+    private static IReadOnlyList<RedMineTagRuleOption> AddMissingOption(
         IReadOnlyList<RedMineTagRuleOption> options,
         int id,
         string missingName)
-        => options.FirstOrDefault(option => option.Id == id)
-           ?? (id > 0 ? new RedMineTagRuleOption(id, $"{missingName} #{id}") : options.FirstOrDefault());
+        => id <= 0 || options.Any(option => option.Id == id)
+            ? options
+            : options.Append(new RedMineTagRuleOption(id, $"{missingName} #{id}")).ToArray();
+
+    private static RedMineTagRuleOption? ResolveOption(
+        IReadOnlyList<RedMineTagRuleOption> options,
+        int id)
+        => options.FirstOrDefault(option => option.Id == id) ?? options.FirstOrDefault();
 }
 
 public sealed partial class RedMineTagRuleEditorViewModel : ViewModelBase
 {
-    private readonly RedMineInstanceSettings _settings;
+    private RedMineInstanceSettings _settings;
     private int? _tagId;
 
     public ObservableCollection<RedMineTagRuleViewModel> TagRules { get; } = new();
@@ -85,6 +91,13 @@ public sealed partial class RedMineTagRuleEditorViewModel : ViewModelBase
     public void SelectTag(WorkTag tag)
     {
         _tagId = tag.Id;
+        OnPropertyChanged(nameof(Title));
+        Reload();
+    }
+
+    public void Reset(RedMineInstanceSettings settings)
+    {
+        _settings = settings;
         OnPropertyChanged(nameof(Title));
         Reload();
     }
@@ -108,7 +121,9 @@ public sealed partial class RedMineTagRuleEditorViewModel : ViewModelBase
                 activities.AddRange(database.GetRedMineActivities()
                     .Select(activity => new RedMineTagRuleOption(activity.Id, activity.Title)));
                 issues.AddRange(database.GetRedMineIssues(null)
-                    .Select(issue => new RedMineTagRuleOption(issue.Id, $"#{issue.Id} {issue.Title}")));
+                    .Select(issue => new RedMineTagRuleOption(
+                        issue.Id,
+                        $"#{issue.Id} {issue.Title}{(issue.Disabled ? " [无效]" : string.Empty)}")));
             }
         }
         catch (Exception ex)
@@ -139,13 +154,29 @@ public sealed partial class RedMineTagRuleEditorViewModel : ViewModelBase
     }
 }
 
-public sealed class RedMineTagRuleEditorContribution(
-    RedMineInstanceSettings settings) : ITagRuleEditorContribution
+public sealed class RedMineTagRuleEditorContribution : ITagRuleEditorContribution
 {
-    private readonly RedMineTagRuleEditorViewModel _view = new(settings);
+    private readonly RedMineInstanceConfigurationEditSession _session;
+    private readonly RedMineTagRuleEditorViewModel _view;
+
+    public RedMineTagRuleEditorContribution(RedMineInstanceConfigurationEditSession session)
+    {
+        _session = session;
+        _view = new RedMineTagRuleEditorViewModel(session.WorkingCopy);
+    }
 
     public string PluginId => RedMinePluginConstants.PluginId;
-    public string InstanceId => settings.InstanceId;
+    public string InstanceId => _session.WorkingCopy.InstanceId;
     public ViewModelBase View => _view;
     public void SelectTag(WorkTag tag) => _view.SelectTag(tag);
+    public void Commit()
+    {
+        _session.Commit();
+        _view.Reset(_session.WorkingCopy);
+    }
+    public void Reload()
+    {
+        _session.Reload();
+        _view.Reset(_session.WorkingCopy);
+    }
 }

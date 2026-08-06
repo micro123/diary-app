@@ -20,6 +20,9 @@ public sealed class RedMineTagDefaultsTests
 
         Assert.AreEqual(20, result.ActivityId);
         Assert.AreEqual(200, result.IssueId);
+        CollectionAssert.AreEqual(
+            new[] { rules[1].RuleId, rules[1].RuleId },
+            result.Winners.Select(winner => winner.RuleId).ToArray());
     }
 
     [TestMethod]
@@ -52,5 +55,37 @@ public sealed class RedMineTagDefaultsTests
 
         Assert.IsNull(result.ActivityId);
         Assert.IsNull(result.IssueId);
+        Assert.AreEqual(2, result.InvalidTargets.Count);
+    }
+
+    [TestMethod]
+    public void Apply_InvalidHighPriorityFallsBackToLowerValidTarget()
+    {
+        var invalid = new RedMineTagRule { TagId = 1, ActivityId = 99, Priority = 100 };
+        var valid = new RedMineTagRule { TagId = 1, ActivityId = 10, Priority = 10 };
+
+        var result = RedMineTagDefaults.Apply(
+            [invalid, valid], 1, null, null, new HashSet<int> { 10 }, new HashSet<int>());
+
+        Assert.AreEqual(10, result.ActivityId);
+        Assert.AreEqual(valid.RuleId, result.Winners.Single().RuleId);
+        Assert.AreEqual(invalid.RuleId, result.InvalidTargets.Single().RuleId);
+    }
+
+    [TestMethod]
+    public void Apply_SamePriorityUsesInputOrderAndReportsConflict()
+    {
+        var first = new RedMineTagRule { TagId = 1, ActivityId = 10, Priority = 20 };
+        var second = new RedMineTagRule { TagId = 1, ActivityId = 20, Priority = 20 };
+
+        var result = RedMineTagDefaults.Apply(
+            [first, second], 1, null, null, new HashSet<int> { 10, 20 }, new HashSet<int>());
+
+        Assert.AreEqual(10, result.ActivityId);
+        Assert.AreEqual(first.RuleId, result.Winners.Single().RuleId);
+        Assert.AreEqual(first.RuleId, result.Conflicts.Single().WinningRuleId);
+        CollectionAssert.AreEqual(
+            new[] { first.RuleId, second.RuleId },
+            result.Conflicts.Single().RuleIds.ToArray());
     }
 }

@@ -1,14 +1,14 @@
 using Diary.GUIBase.ViewModels;
-using Diary.GUIBase.ViewModels.Dialogs;
 using Diary.PluginUI;
-using Diary.RedMine;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Diary.RedMine.UI.ViewModels;
 
 [DiAutoRegister(singleton: true, serviceType: typeof(ITrackerConfigurationProvider))]
-public sealed class RedMineConfigurationProvider(IServiceProvider services) : ITrackerConfigurationProvider
+public sealed class RedMineConfigurationProvider(
+    IServiceProvider services,
+    IRedMineConfigurationEditService editService) : ITrackerConfigurationProvider
 {
     public string PluginId => RedMinePluginConstants.PluginId;
     public object CreateDefaultConfiguration() => new RedMinePluginConfig();
@@ -31,7 +31,7 @@ public sealed class RedMineConfigurationProvider(IServiceProvider services) : IT
             return null;
 
         var viewModel = services.GetRequiredService<RedMineConfigurationViewModel>();
-        viewModel.InitSettings(config);
+        viewModel.InitSettings(editService.Open(config));
         return viewModel;
     }
 

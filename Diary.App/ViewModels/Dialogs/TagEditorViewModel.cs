@@ -59,6 +59,7 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
 
     public void Close()
     {
+        ReloadRules();
         RequestClose?.Invoke(this, null);
     }
 
@@ -76,10 +77,18 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
             EventDispatcher.DbChanged(DbChangedEvent.WorkTags);
         foreach (var pluginId in RuleContributions.Select(item => item.PluginId).Distinct())
         {
+            foreach (var contribution in RuleContributions.Where(item => item.PluginId == pluginId))
+                contribution.Commit();
             if (!_lifecycleCoordinator.SaveConfiguration(pluginId))
                 _logger.LogWarning("保存标签规则配置失败: {PluginId}", pluginId);
         }
         RequestClose?.Invoke(this, null);
+    }
+
+    public void ReloadRules()
+    {
+        foreach (var contribution in RuleContributions)
+            contribution.Reload();
     }
 
     [RelayCommand]

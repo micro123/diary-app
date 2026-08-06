@@ -59,5 +59,6 @@ public sealed class RedMineTrackerIntegration : ITrackerUiContribution
             ? new RedMineEditorRegionViewModel(_data, _api, _database, _settings)
             : null;
     public ITagRuleEditorContribution CreateTagRuleEditorContribution()
-        => new RedMineTagRuleEditorContribution(_settings);
+        => new RedMineTagRuleEditorContribution(
+            _services.GetRequiredService<IRedMineConfigurationEditService>().Open(_settings));
 }

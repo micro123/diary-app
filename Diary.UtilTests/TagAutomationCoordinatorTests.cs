@@ -77,8 +77,30 @@ public sealed class TagAutomationCoordinatorTests
 
         Assert.IsFalse(result.Succeeded);
         Assert.AreEqual(9, succeeding.AppliedTagId);
-        Assert.AreEqual("failed", result.Instances.Single(item => item.InstanceId == "failing").Error);
-        Assert.IsTrue(result.Instances.Single(item => item.InstanceId == "succeeding").Succeeded);
+        Assert.AreEqual("failed", result.Instances.Single(item => item.TrackerKey.InstanceId == "failing").Error);
+        Assert.IsTrue(result.Instances.Single(item => item.TrackerKey.InstanceId == "succeeding").Succeeded);
+    }
+
+    [TestMethod]
+    public void AddTags_PreservesLatestAutomationDiagnostics()
+    {
+        var expected = new TagAutomationResult([
+            new TagAutomationInstanceResult(
+                new TrackerKey("test", "default"),
+                true,
+                ["ActivityIndex"],
+                [new TrackerTagDefaultConflict("ActivityId", ["first", "second"])],
+                [new TrackerTagDefaultInvalidTarget("IssueId", "99", "invalid")])
+        ]);
+        var automation = new RecordingAutomation(expected);
+        var editor = CreateEditor(automation);
+
+        editor.AddTags([new WorkTag { Id = 12 }], TagAddSource.User);
+
+        Assert.AreSame(expected, editor.LastTagAutomationResult);
+        CollectionAssert.AreEqual(
+            new[] { "ActivityIndex" },
+            editor.LastTagAutomationResult!.Instances.Single().ChangedFields.ToArray());
     }
 
     private static WorkEditorViewModel CreateEditor(ITagAutomationCoordinator automation)
@@ -90,7 +112,7 @@ public sealed class TagAutomationCoordinatorTests
             "test",
             automation);
 
-    private sealed class RecordingAutomation : ITagAutomationCoordinator
+    private sealed class RecordingAutomation(TagAutomationResult? result = null) : ITagAutomationCoordinator
     {
         public List<int> Tags { get; } = new();
         public List<int> Sequences { get; } = new();
@@ -105,13 +127,13 @@ public sealed class TagAutomationCoordinatorTests
             Tags.Add(tag.Id);
             Sequences.Add(context.Sequence);
             Sources.Add(context.Source);
-            return new TagAutomationResult(Array.Empty<TagAutomationInstanceResult>());
+            return result ?? new TagAutomationResult(Array.Empty<TagAutomationInstanceResult>());
         }
     }
 
     private class PlainExtension : ITrackerEditorExtension
     {
-        public TrackerKey Key => new("test", "default");
+        public TrackerKey Key => new("test", InstanceId);
         public virtual string InstanceId => "default";
         public Diary.GUIBase.ViewModels.ViewModelBase View { get; } = new();
         public bool IsLocked => false;
@@ -131,12 +153,12 @@ public sealed class TagAutomationCoordinatorTests
         public override string InstanceId => instanceId;
         public int AppliedTagId { get; private set; }
 
-        public IReadOnlyCollection<string> ApplyTagDefaults(WorkTag tag)
+        public TrackerTagDefaultsResult ApplyTagDefaults(WorkTag tag)
         {
             if (throws)
                 throw new InvalidOperationException("failed");
             AppliedTagId = tag.Id;
-            return Array.Empty<string>();
+            return TrackerTagDefaultsResult.Empty;
         }
     }
 
