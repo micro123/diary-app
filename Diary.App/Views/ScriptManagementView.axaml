@@ -176,7 +176,14 @@
                     </Grid>
                 </TabItem>
                 <TabItem Header="执行历史">
-                    <ListBox ItemsSource="{Binding History}">
+                    <Grid RowDefinitions="Auto,*" RowSpacing="8">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <ComboBox Width="130" ItemsSource="{Binding HistoryStatusFilters}"
+                                      SelectedItem="{Binding SelectedHistoryStatusFilter, Mode=TwoWay}" />
+                            <ComboBox Width="130" ItemsSource="{Binding HistorySourceFilters}"
+                                      SelectedItem="{Binding SelectedHistorySourceFilter, Mode=TwoWay}" />
+                        </StackPanel>
+                    <ListBox Grid.Row="1" ItemsSource="{Binding VisibleHistory}">
                         <ListBox.ItemTemplate>
                             <DataTemplate x:DataType="vm:ScriptHistoryListItem">
                                 <StackPanel Margin="4" Spacing="2">
@@ -191,6 +198,7 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
+                    </Grid>
                 </TabItem>
             </TabControl>
         </Grid>

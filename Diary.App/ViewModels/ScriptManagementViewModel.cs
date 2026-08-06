@@ -108,10 +108,13 @@ public partial class ScriptManagementViewModel(
     public ObservableCollection<ScriptListItem> Scripts { get; } = new();
     public ObservableCollection<ScriptListItem> VisibleScripts { get; } = new();
     public ObservableCollection<ScriptHistoryListItem> History { get; } = new();
+    public ObservableCollection<ScriptHistoryListItem> VisibleHistory { get; } = new();
     public ObservableCollection<ScriptDiagnosticListItem> DirectoryDiagnostics { get; } = new();
     public ObservableCollection<ScriptDiagnosticListItem> StartupDiagnostics => startupDiagnostics.Diagnostics;
     public IReadOnlyList<string> ScopeFilters { get; } = ["全部类型", "应用脚本", "编辑器脚本"];
     public IReadOnlyList<string> StatusFilters { get; } = ["全部状态", "已加载", "加载失败"];
+    public IReadOnlyList<string> HistoryStatusFilters { get; } = ["全部结果", "成功", "失败", "已取消", "已超时", "已拒绝"];
+    public IReadOnlyList<string> HistorySourceFilters { get; } = ["全部来源", "手动执行", "编辑器调用", "启动加载", "自动化调用"];
     public IReadOnlyList<string> ExecutionRanges { get; } =
         ["当前日期", "本周", "本月", "本季度", "本年度", "自定义范围"];
 
@@ -126,6 +129,8 @@ public partial class ScriptManagementViewModel(
     [ObservableProperty] private string _searchText = string.Empty;
     [ObservableProperty] private string _selectedScopeFilter = "全部类型";
     [ObservableProperty] private string _selectedStatusFilter = "全部状态";
+    [ObservableProperty] private string _selectedHistoryStatusFilter = "全部结果";
+    [ObservableProperty] private string _selectedHistorySourceFilter = "全部来源";
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RunCommand))]
     private string _selectedExecutionRange = "当前日期";
@@ -165,6 +170,10 @@ public partial class ScriptManagementViewModel(
     partial void OnSelectedScopeFilterChanged(string value) => RefreshVisibleScripts();
 
     partial void OnSelectedStatusFilterChanged(string value) => RefreshVisibleScripts();
+
+    partial void OnSelectedHistoryStatusFilterChanged(string value) => RefreshVisibleHistory();
+
+    partial void OnSelectedHistorySourceFilterChanged(string value) => RefreshVisibleHistory();
 
     partial void OnSelectedScriptChanged(ScriptListItem? value)
     {
@@ -225,8 +234,6 @@ public partial class ScriptManagementViewModel(
             foreach (var diagnostic in result.Diagnostics)
                 DirectoryDiagnostics.Add(FormatDiagnostic(diagnostic));
             OnPropertyChanged(nameof(HasDirectoryDiagnostics));
-            startupDiagnostics.Replace(result.Diagnostics.Select(FormatDiagnostic));
-            OnPropertyChanged(nameof(HasStartupDiagnostics));
             var selectedId = SelectedScript?.Id;
             var loadedScripts = new List<ScriptListItem>();
             foreach (var entry in result.Entries)
@@ -267,8 +274,6 @@ public partial class ScriptManagementViewModel(
                 "脚本目录加载失败，请查看日志或重试。",
                 string.Empty));
             OnPropertyChanged(nameof(HasDirectoryDiagnostics));
-            startupDiagnostics.Replace(DirectoryDiagnostics, loadFailed: true);
-            OnPropertyChanged(nameof(HasStartupDiagnostics));
         }
         finally
         {
@@ -465,6 +470,18 @@ public partial class ScriptManagementViewModel(
                 $"{entry.Outcome.Duration.TotalMilliseconds:0} ms",
                 FormatDiagnostics(entry.Outcome.Result.Diagnostics)));
         }
+        RefreshVisibleHistory();
+    }
+
+    private void RefreshVisibleHistory()
+    {
+        var visible = History.Where(entry =>
+                (SelectedHistoryStatusFilter == "全部结果" || entry.StatusLabel == SelectedHistoryStatusFilter)
+                && (SelectedHistorySourceFilter == "全部来源" || entry.SourceLabel == SelectedHistorySourceFilter))
+            .ToArray();
+        VisibleHistory.Clear();
+        foreach (var entry in visible)
+            VisibleHistory.Add(entry);
     }
 
     private static IReadOnlyList<string> FormatDiagnostics(IEnumerable<ScriptDiagnostic>? diagnostics) =>
