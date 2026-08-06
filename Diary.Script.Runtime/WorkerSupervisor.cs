@@ -114,7 +114,8 @@ public sealed class WorkerSupervisor(IWorkerTransportFactory transportFactory)
         }
         finally
         {
-            State = State == WorkerState.Busy ? WorkerState.Ready : State;
+            if (State == WorkerState.Busy)
+                State = WorkerState.Ready;
             _executionGate.Release();
         }
     }
