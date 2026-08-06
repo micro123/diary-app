@@ -111,6 +111,33 @@ public sealed class ScriptDirectoryLoaderTests
         Assert.IsTrue(catalog.TryGet("same", out _));
     }
 
+    [TestMethod]
+    public async Task LoadAsync_LoadsPackageAndRejectsEntryOutsidePackage()
+    {
+        var loader = CreateLoader(out var catalog);
+        var packageDirectory = Path.Combine(_root, "application", "package");
+        Directory.CreateDirectory(packageDirectory);
+        await File.WriteAllTextAsync(Path.Combine(packageDirectory, "main.fake"), "packaged");
+        await File.WriteAllTextAsync(
+            Path.Combine(packageDirectory, "manifest.json"),
+            """{"entry":"main.fake","id":"packaged"}""");
+        var invalidPackage = Path.Combine(_root, "application", "invalid");
+        Directory.CreateDirectory(invalidPackage);
+        await File.WriteAllTextAsync(
+            Path.Combine(invalidPackage, "manifest.json"),
+            """{"entry":"../outside.fake"}""");
+
+        var result = await loader.LoadAsync(_root);
+
+        Assert.IsTrue(catalog.TryGet("packaged", out _));
+        Assert.IsTrue(result.Diagnostics.Any(item => item.Code == "SCRIPT_PACKAGE_INVALID"));
+        var sourcePath = Path.Combine(packageDirectory, "main.fake");
+        await loader.SetEnabledAsync(sourcePath, false);
+        var disabled = await loader.LoadAsync(_root);
+        Assert.IsFalse(disabled.Entries.Single().Enabled);
+        Assert.IsFalse(catalog.TryGet("packaged", out _));
+    }
+
     private static ScriptDirectoryLoader CreateLoader(out ScriptCatalog catalog)
     {
         var registry = new ScriptEngineRegistry();

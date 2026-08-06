@@ -23,23 +23,55 @@
             <TextBlock Text="{Binding Status}" />
         </Border>
 
-        <ListBox Grid.Row="2" ItemsSource="{Binding Scripts}" SelectedItem="{Binding SelectedScript}">
-            <ListBox.ItemTemplate>
-                <DataTemplate x:DataType="vm:ScriptListItem">
-                    <Grid ColumnDefinitions="*,Auto" Margin="8" ColumnSpacing="20">
-                        <StackPanel Spacing="3">
-                            <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold" />
-                            <TextBlock Text="{Binding SourcePath}" Opacity="0.58" />
-                            <TextBlock Text="{Binding Status}" Opacity="0.78" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" HorizontalAlignment="Right">
-                            <TextBlock Text="{Binding Scope}" />
-                            <TextBlock Text="{Binding Capabilities}" Opacity="0.68" />
-                        </StackPanel>
-                    </Grid>
-                </DataTemplate>
-            </ListBox.ItemTemplate>
-        </ListBox>
+        <Grid Grid.Row="2" ColumnDefinitions="3*,2*" ColumnSpacing="16">
+            <ListBox ItemsSource="{Binding Scripts}" SelectedItem="{Binding SelectedScript}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ScriptListItem">
+                        <Grid ColumnDefinitions="*,Auto" Margin="8" ColumnSpacing="20">
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding SourcePath}" Opacity="0.58" />
+                                <TextBlock Text="{Binding Status}" Opacity="0.78" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                                <TextBlock Text="{Binding Scope}" />
+                                <TextBlock Text="{Binding Capabilities}" Opacity="0.68" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <TabControl Grid.Column="1">
+                <TabItem Header="诊断详情">
+                    <ScrollViewer>
+                        <ItemsControl ItemsSource="{Binding SelectedScript.Diagnostics}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="4" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </TabItem>
+                <TabItem Header="执行历史">
+                    <ListBox ItemsSource="{Binding History}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ScriptHistoryListItem">
+                                <StackPanel Margin="4" Spacing="2">
+                                    <TextBlock Text="{Binding ScriptId}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding Status}" />
+                                    <TextBlock Text="{Binding Source}" Opacity="0.68" />
+                                    <TextBlock Text="{Binding StartedAt}" Opacity="0.68" />
+                                    <TextBlock Text="{Binding Duration}" Opacity="0.68" />
+                                    <ItemsControl ItemsSource="{Binding Diagnostics}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </TabItem>
+            </TabControl>
+        </Grid>
 
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
             <Button Content="启用 / 禁用" Command="{Binding ToggleEnabledCommand}" />

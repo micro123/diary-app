@@ -1,9 +1,13 @@
-using System.Collections.Immutable;
 using Diary.ScriptBase;
 
 namespace Diary.Script.Runtime;
 
-public sealed record ScriptExecutionOutcome(Guid ExecutionId, ScriptExecutionResult Result);
+public sealed record ScriptExecutionOutcome(
+    Guid ExecutionId,
+    ScriptExecutionResult Result,
+    DateTimeOffset? StartedAt = null,
+    TimeSpan Duration = default,
+    ScriptExecutionSource Source = ScriptExecutionSource.Unknown);
 
 public interface IScriptExecutor
 {
@@ -12,7 +16,8 @@ public interface IScriptExecutor
         ScriptExecutionRequest request,
         IScriptExecutionContext context,
         TimeSpan? timeout = null,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        Guid? executionId = null);
 }
 
 public sealed class ScriptExecutor : IScriptExecutor
@@ -22,17 +27,18 @@ public sealed class ScriptExecutor : IScriptExecutor
         ScriptExecutionRequest request,
         IScriptExecutionContext context,
         TimeSpan? timeout = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Guid? executionId = null)
     {
         ArgumentNullException.ThrowIfNull(program);
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(context);
-        var executionId = Guid.NewGuid();
+        var actualExecutionId = executionId ?? Guid.NewGuid();
 
         if (cancellationToken.IsCancellationRequested)
-            return new(executionId, ScriptExecutionResult.Cancelled());
+            return new(actualExecutionId, ScriptExecutionResult.Cancelled());
         if (timeout is { } invalidTimeout && invalidTimeout <= TimeSpan.Zero)
-            return Rejected(executionId, "SCRIPT_TIMEOUT_INVALID", "The execution timeout must be positive.");
+            return Rejected(actualExecutionId, "SCRIPT_TIMEOUT_INVALID", "The execution timeout must be positive.");
 
         ScriptDescriptor descriptor;
         try
@@ -41,13 +47,13 @@ public sealed class ScriptExecutor : IScriptExecutor
         }
         catch (Exception)
         {
-            return Rejected(executionId, "SCRIPT_DESCRIPTOR_EXCEPTION", "The script descriptor could not be read.");
+            return Rejected(actualExecutionId, "SCRIPT_DESCRIPTOR_EXCEPTION", "The script descriptor could not be read.");
         }
 
         if (!IsValidTarget(descriptor, request.Target))
-            return Rejected(executionId, "SCRIPT_TARGET_INVALID", "The execution target does not match the script descriptor.");
+            return Rejected(actualExecutionId, "SCRIPT_TARGET_INVALID", "The execution target does not match the script descriptor.");
         if ((descriptor.Capabilities & ~context.Capabilities) != 0)
-            return Rejected(executionId, "SCRIPT_CAPABILITY_DENIED", "The script requests capabilities that are not granted.");
+            return Rejected(actualExecutionId, "SCRIPT_CAPABILITY_DENIED", "The script requests capabilities that are not granted.");
 
         using var executionCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         Task<ScriptExecutionResult> executionTask;
@@ -57,11 +63,11 @@ public sealed class ScriptExecutor : IScriptExecutor
         }
         catch (OperationCanceledException)
         {
-            return new(executionId, ScriptExecutionResult.Cancelled());
+            return new(actualExecutionId, ScriptExecutionResult.Cancelled());
         }
         catch (Exception)
         {
-            return Failed(executionId);
+            return Failed(actualExecutionId);
         }
 
         var cancellationTask = Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
@@ -74,24 +80,24 @@ public sealed class ScriptExecutor : IScriptExecutor
             try
             {
                 var result = await executionTask;
-                return result is null ? Failed(executionId) : new(executionId, Normalize(result));
+                return result is null ? Failed(actualExecutionId) : new(actualExecutionId, Normalize(result));
             }
             catch (OperationCanceledException)
             {
-                return new(executionId, ScriptExecutionResult.Cancelled());
+                return new(actualExecutionId, ScriptExecutionResult.Cancelled());
             }
             catch (Exception)
             {
-                return Failed(executionId);
+                return Failed(actualExecutionId);
             }
         }
 
         executionCancellation.Cancel();
         ObserveFault(executionTask);
         if (completed == cancellationTask)
-            return new(executionId, ScriptExecutionResult.Cancelled());
+            return new(actualExecutionId, ScriptExecutionResult.Cancelled());
 
-        return new(executionId, new ScriptExecutionResult(
+        return new(actualExecutionId, new ScriptExecutionResult(
             ScriptExecutionStatus.TimedOut,
             [RuntimeDiagnostic("SCRIPT_EXECUTION_TIMED_OUT", "The script execution timed out.")]));
     }
@@ -100,16 +106,53 @@ public sealed class ScriptExecutor : IScriptExecutor
     {
         if (descriptor is null || target is null || descriptor.Scope != target.Scope)
             return false;
+        if (!IsValidBusinessTarget(target.Business))
+            return false;
         return target.Scope switch
         {
             ScriptScope.Application => target.Editor is null,
-            ScriptScope.Editor => target.Editor is { StartDate.Length: > 0, EndDate.Length: > 0 },
+            ScriptScope.Editor => IsValidEditorTarget(target.Editor),
             _ => false,
         };
     }
 
+    private static bool IsValidEditorTarget(EditorScriptContext? editor)
+    {
+        if (editor is null
+            || !DateOnly.TryParseExact(editor.StartDate, "yyyy-MM-dd", out var start)
+            || !DateOnly.TryParseExact(editor.EndDate, "yyyy-MM-dd", out var end)
+            || start > end)
+        {
+            return false;
+        }
+
+        return editor.Granularity switch
+        {
+            ScriptTimeGranularity.Custom => true,
+            ScriptTimeGranularity.Day => start == end,
+            ScriptTimeGranularity.Week => start.DayOfWeek == DayOfWeek.Monday && end == start.AddDays(6),
+            ScriptTimeGranularity.Month => start.Day == 1 && end.Year == start.Year && end.Month == start.Month
+                && end.Day == DateTime.DaysInMonth(end.Year, end.Month),
+            ScriptTimeGranularity.Quarter => start.Day == 1 && (start.Month is 1 or 4 or 7 or 10)
+                && end == start.AddMonths(3).AddDays(-1),
+            ScriptTimeGranularity.Year => start.Month == 1 && start.Day == 1 && end == new DateOnly(start.Year, 12, 31),
+            _ => false,
+        };
+    }
+
+    private static bool IsValidBusinessTarget(ScriptBusinessTarget? target)
+    {
+        if (target is null || string.IsNullOrWhiteSpace(target.TargetId))
+            return target is null;
+        if (!Enum.IsDefined(target.Kind))
+            return false;
+        var trackerTarget = target.Kind is ScriptBusinessTargetKind.TrackerIssue or ScriptBusinessTargetKind.TrackerInstance;
+        return !trackerTarget || (!string.IsNullOrWhiteSpace(target.PluginId)
+            && !string.IsNullOrWhiteSpace(target.InstanceId));
+    }
+
     private static ScriptExecutionResult Normalize(ScriptExecutionResult result) =>
-        result.Diagnostics.IsDefault ? result with { Diagnostics = ImmutableArray<ScriptDiagnostic>.Empty } : result;
+        ScriptDiagnosticSanitizer.Sanitize(result);
 
     private static void ObserveFault(Task task) =>
         _ = task.ContinueWith(

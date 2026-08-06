@@ -18,17 +18,28 @@ public sealed record ScriptListItem(
     ScriptCapability Capabilities,
     bool Enabled,
     bool BuildSucceeded,
-    string Status);
+    string Status,
+    IReadOnlyList<string> Diagnostics);
+
+public sealed record ScriptHistoryListItem(
+    string ScriptId,
+    string Status,
+    string Source,
+    string StartedAt,
+    string Duration,
+    IReadOnlyList<string> Diagnostics);
 
 [DiAutoRegister(singleton: true)]
 public partial class ScriptManagementViewModel(
     IScriptDirectoryLoader directoryLoader,
     IScriptManager scriptManager,
+    IScriptExecutionHistory executionHistory,
     ILogger logger) : ViewModelBase
 {
     private readonly string _scriptRoot = Path.Combine(FsTools.GetApplicationConfigDirectory(), "scripts");
 
     public ObservableCollection<ScriptListItem> Scripts { get; } = new();
+    public ObservableCollection<ScriptHistoryListItem> History { get; } = new();
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ToggleEnabledCommand))]
@@ -66,8 +77,10 @@ public partial class ScriptManagementViewModel(
                     descriptor?.Capabilities ?? ScriptCapability.None,
                     entry.Enabled,
                     entry.BuildResult?.Succeeded == true,
-                    FormatStatus(entry)));
+                    FormatStatus(entry),
+                    FormatDiagnostics(entry.BuildResult?.Diagnostics)));
             }
+            RefreshHistory();
             Status = $"发现 {Scripts.Count} 个脚本，{result.Diagnostics.Count(item => item.Severity == ScriptDiagnosticSeverity.Error)} 个错误";
         }
         catch (Exception exception)
@@ -104,7 +117,9 @@ public partial class ScriptManagementViewModel(
             return;
         var outcome = await Task.Run(async () => await scriptManager.ExecuteAsync(
             script.Id,
-            new ScriptExecutionRequest(new ScriptTarget(ScriptScope.Application))));
+            new ScriptExecutionRequest(
+                new ScriptTarget(ScriptScope.Application),
+                Source: ScriptExecutionSource.Manual)));
         Status = outcome.Result.Status == ScriptExecutionStatus.Succeeded
             ? $"{script.Name} 执行成功"
             : $"{script.Name} 执行失败：{outcome.Result.Diagnostics.FirstOrDefault()?.Message}";
@@ -113,6 +128,7 @@ public partial class ScriptManagementViewModel(
             outcome.Result.Status == ScriptExecutionStatus.Succeeded
                 ? NotificationType.Success
                 : NotificationType.Error);
+        RefreshHistory();
     }
 
     private static string FormatStatus(ScriptDirectoryEntry entry)
@@ -127,4 +143,26 @@ public partial class ScriptManagementViewModel(
                 : "已加载";
         return entry.BuildResult.Diagnostics.FirstOrDefault()?.Message ?? "构建失败";
     }
+
+    private void RefreshHistory()
+    {
+        History.Clear();
+        foreach (var entry in executionHistory.GetRecent())
+        {
+            History.Add(new ScriptHistoryListItem(
+                entry.ScriptId,
+                entry.Outcome.Result.Status.ToString(),
+                entry.Outcome.Source.ToString(),
+                (entry.Outcome.StartedAt ?? entry.RecordedAt).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"),
+                $"{entry.Outcome.Duration.TotalMilliseconds:0} ms",
+                FormatDiagnostics(entry.Outcome.Result.Diagnostics)));
+        }
+    }
+
+    private static IReadOnlyList<string> FormatDiagnostics(IEnumerable<ScriptDiagnostic>? diagnostics) =>
+        diagnostics?.Select(item => item.SourcePath is null
+                ? $"[{item.Code}] {item.Message}"
+                : $"[{item.Code}] {item.SourcePath}:{item.Line}:{item.Column} {item.Message}")
+            .ToArray()
+        ?? Array.Empty<string>();
 }

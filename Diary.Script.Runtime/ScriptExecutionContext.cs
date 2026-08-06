@@ -4,20 +4,24 @@ namespace Diary.Script.Runtime;
 
 public interface IScriptExecutionContextFactory
 {
-    IScriptExecutionContext Create(ScriptCapability capabilities);
+    IScriptExecutionContext Create(ScriptCapability capabilities, ScriptExecutionMetadata metadata);
 }
 
 public sealed class ScriptExecutionContextFactory(
-    Func<ScriptCapability, IScriptExecutionContext> factory) : IScriptExecutionContextFactory
+    Func<ScriptCapability, ScriptExecutionMetadata, IScriptExecutionContext> factory) : IScriptExecutionContextFactory
 {
-    public IScriptExecutionContext Create(ScriptCapability capabilities) => factory(capabilities);
+    public IScriptExecutionContext Create(ScriptCapability capabilities, ScriptExecutionMetadata metadata) =>
+        factory(capabilities, metadata);
 }
 
-public sealed class ScriptExecutionContext(ScriptCapability capabilities) : IScriptExecutionContext
+public sealed class ScriptExecutionContext(
+    ScriptCapability capabilities,
+    ScriptExecutionMetadata? metadata = null) : IScriptExecutionContext
 {
     private readonly Dictionary<Type, ApiRegistration> _apis = [];
 
     public ScriptCapability Capabilities { get; } = capabilities;
+    public ScriptExecutionMetadata? Metadata { get; } = metadata;
 
     public void RegisterApi<TApi>(TApi api, ScriptCapability requiredCapability = ScriptCapability.None)
         where TApi : class

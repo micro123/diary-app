@@ -409,12 +409,31 @@ public partial class DiaryEditorViewModel : ViewModelBase
                     ScriptScope.Editor,
                     new EditorScriptContext(
                         TimeTools.FormatDateTime(startDate),
-                        TimeTools.FormatDateTime(endDate))))));
+                        TimeTools.FormatDateTime(endDate),
+                        GetGranularity(startDate, endDate))),
+                    Source: ScriptExecutionSource.Editor)));
             EventDispatcher.ShowToast(
                 outcome.Result.Status == ScriptExecutionStatus.Succeeded
                     ? $"脚本 {scriptId} 执行成功"
                     : $"脚本 {scriptId} 执行失败：{outcome.Result.Diagnostics.FirstOrDefault()?.Message}");
         });
+
+    private static ScriptTimeGranularity GetGranularity(DateTime startDate, DateTime endDate)
+    {
+        if (startDate.Date == endDate.Date)
+            return ScriptTimeGranularity.Day;
+        if (startDate.Day == 1 && startDate.Year == endDate.Year && startDate.Month == endDate.Month
+            && endDate.Day == DateTime.DaysInMonth(endDate.Year, endDate.Month))
+        {
+            return ScriptTimeGranularity.Month;
+        }
+        if (startDate.Month == 1 && startDate.Day == 1 && endDate.Month == 12 && endDate.Day == 31
+            && startDate.Year == endDate.Year)
+        {
+            return ScriptTimeGranularity.Year;
+        }
+        return ScriptTimeGranularity.Custom;
+    }
 
     private void AddEditorScriptActions(DateTime startDate, DateTime endDate)
     {

@@ -231,6 +231,42 @@ public sealed class ScriptRuntimeTests
     }
 
     [TestMethod]
+    public async Task Executor_ValidatesEditorGranularityAndTrackerIdentity()
+    {
+        var editorProgram = new FakeProgram(
+            "editor",
+            descriptor: new ScriptDescriptor(
+                "editor",
+                "Editor",
+                ScriptApiVersion.V1,
+                ScriptScope.Editor,
+                ScriptCapability.None));
+        var invalidDay = await new ScriptExecutor().ExecuteAsync(
+            editorProgram,
+            new ScriptExecutionRequest(new ScriptTarget(
+                ScriptScope.Editor,
+                new EditorScriptContext("2026-08-01", "2026-08-02", ScriptTimeGranularity.Day))),
+            EmptyContext());
+
+        var invalidTracker = await new ScriptExecutor().ExecuteAsync(
+            new FakeProgram(
+                "tracker",
+                descriptor: new ScriptDescriptor(
+                    "tracker",
+                    "Tracker",
+                    ScriptApiVersion.V1,
+                    ScriptScope.Application,
+                    ScriptCapability.None)),
+            new ScriptExecutionRequest(new ScriptTarget(
+                ScriptScope.Application,
+                Business: new ScriptBusinessTarget(ScriptBusinessTargetKind.TrackerIssue, "42"))),
+            EmptyContext());
+
+        Assert.AreEqual("SCRIPT_TARGET_INVALID", invalidDay.Result.Diagnostics.Single().Code);
+        Assert.AreEqual("SCRIPT_TARGET_INVALID", invalidTracker.Result.Diagnostics.Single().Code);
+    }
+
+    [TestMethod]
     public async Task Executor_RejectsCapabilitiesNotGrantedByContext()
     {
         var program = new FakeProgram(
@@ -296,7 +332,8 @@ public sealed class ScriptRuntimeTests
             new ScriptBuildService(registry),
             catalog,
             new ScriptExecutor(),
-            new ScriptExecutionContextFactory(_ => new ScriptExecutionContext(ScriptCapability.None)));
+            new ScriptExecutionContextFactory((_, metadata) =>
+                new ScriptExecutionContext(ScriptCapability.None, metadata)));
         await manager.BuildAndRegisterAsync(new ScriptBuildRequest("fresh.fake", "fresh"));
 
         await manager.ExecuteAsync("fresh", ApplicationRequest);
@@ -304,6 +341,46 @@ public sealed class ScriptRuntimeTests
 
         Assert.AreEqual(2, contexts.Count);
         Assert.AreNotSame(contexts[0], contexts[1]);
+    }
+
+    [TestMethod]
+    public async Task Manager_RecordsDurationAndSanitizesHistory()
+    {
+        var registry = new ScriptEngineRegistry();
+        registry.Register(new FakeEngine(
+            "fake",
+            _ => new(true),
+            _ => ValueTask.FromResult(ScriptBuildResult.Success(new FakeProgram(
+                "history",
+                (_, _, _) => ValueTask.FromResult(new ScriptExecutionResult(
+                    ScriptExecutionStatus.Failed,
+                    [new ScriptDiagnostic(
+                        "FAILURE",
+                        "token=super-secret",
+                        ScriptDiagnosticSeverity.Error,
+                        ScriptDiagnosticCategory.Runtime)])))))));
+        var history = new ScriptExecutionHistory();
+        var manager = new ScriptManager(
+            new ScriptBuildService(registry),
+            new ScriptCatalog(),
+            new ScriptExecutor(),
+            new ScriptExecutionContextFactory((_, metadata) =>
+                new ScriptExecutionContext(ScriptCapability.None, metadata)),
+            history);
+        await manager.BuildAndRegisterAsync(new ScriptBuildRequest("history.fake", "history"));
+
+        var outcome = await manager.ExecuteAsync(
+            "history",
+            new ScriptExecutionRequest(
+                new ScriptTarget(ScriptScope.Application),
+                Source: ScriptExecutionSource.Manual));
+        var entry = history.GetRecent(1).Single();
+
+        Assert.AreEqual(ScriptExecutionStatus.Failed, outcome.Result.Status);
+        Assert.IsNotNull(entry.Outcome.StartedAt);
+        Assert.IsTrue(entry.Outcome.Duration >= TimeSpan.Zero);
+        StringAssert.Contains(entry.Outcome.Result.Diagnostics.Single().Message, "<redacted>");
+        Assert.IsFalse(entry.Outcome.Result.Diagnostics.Single().Message.Contains("super-secret", StringComparison.Ordinal));
     }
 
     private static ScriptExecutionContext EmptyContext() => new(ScriptCapability.None);

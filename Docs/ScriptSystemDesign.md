@@ -58,10 +58,9 @@
 
 当前尚未完成：
 
-- 脚本包格式。
 - 后台任务调度和执行日志上下文。
 - 更细粒度的 Tracker、网络和文件系统权限。
-- 执行状态历史和更丰富的快捷入口。
+- 执行状态历史持久化和更丰富的快捷入口。
 - Lua 和 Python 实际引擎。
 
 `Diary.ScriptTests` 当前覆盖契约、引擎选择、构建隔离、目录项注册、目标校验、异常、
@@ -280,6 +279,7 @@ public interface IScriptManager
 - `Granularity` 与范围是否一致。
 - 目标类型是否需要 `PluginId`、`InstanceId` 或 `TargetId`。
 - 当前脚本是否允许访问目标 Tracker。
+- `ScriptExecutionContext.Metadata` 提供执行 ID、来源、脚本 ID 和开始时间，供宿主日志关联。
 
 模板相关校验和应用不属于脚本管理器职责。
 
@@ -287,7 +287,7 @@ ViewModel 不应直接调用 `IScriptEngine` 或具体脚本类型。
 
 ## 8. 脚本元数据和目录
 
-第一阶段可以使用源码文件旁的元数据文件，后续再支持脚本包：
+当前支持源码文件旁的元数据文件和包含 `manifest.json` 的脚本包：
 
 ```text
 配置目录/scripts/
@@ -311,7 +311,7 @@ public sealed record ScriptDescriptor(
 
 脚本 ID 必须稳定且唯一。不能直接使用显示名称作为 ID。
 
-后续脚本包可以包含：
+脚本包可以包含：
 
 ```text
 manifest.json
@@ -319,6 +319,8 @@ main.cs / main.lua / main.py
 README.md
 assets/
 ```
+
+`manifest.json` 的 `entry` 必须指向包目录内的源码文件，不能使用 `../` 越界路径。
 
 脚本包应校验路径，禁止通过 `../` 访问脚本目录外的文件。
 
@@ -335,22 +337,15 @@ assets/
 - 日志上下文。
 - 当前用户操作来源。
 
-建议结果模型：
+当前执行结果由 `ScriptExecutionOutcome` 携带执行时间和耗时，结果本身携带状态与诊断：
 
 ```csharp
-public enum ScriptExecutionStatus
-{
-    Succeeded,
-    Failed,
-    Cancelled,
-    TimedOut,
-    PermissionDenied,
-}
-
-public sealed record ScriptExecutionResult(
-    ScriptExecutionStatus Status,
+public sealed record ScriptExecutionOutcome(
+    Guid ExecutionId,
+    ScriptExecutionResult Result,
+    DateTimeOffset? StartedAt,
     TimeSpan Duration,
-    IReadOnlyList<ScriptDiagnostic> Diagnostics);
+    ScriptExecutionSource Source);
 ```
 
 宿主必须捕获脚本异常。脚本异常只能结束当前执行，不得让异常传播到应用主循环。

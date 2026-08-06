@@ -29,6 +29,34 @@ public enum ScriptScope
     Editor = 2,
 }
 
+public enum ScriptExecutionSource
+{
+    Unknown = 0,
+    Manual = 1,
+    Editor = 2,
+    Startup = 3,
+    Automation = 4,
+}
+
+public enum ScriptTimeGranularity
+{
+    Custom = 0,
+    Day = 1,
+    Week = 2,
+    Month = 3,
+    Quarter = 4,
+    Year = 5,
+}
+
+public enum ScriptBusinessTargetKind
+{
+    Diary = 1,
+    WorkItem = 2,
+    Project = 3,
+    TrackerIssue = 4,
+    TrackerInstance = 5,
+}
+
 public sealed record ScriptDescriptor(
     string Id,
     string Name,
@@ -89,13 +117,32 @@ public enum ScriptExecutionStatus
     TimedOut = 5,
 }
 
-public sealed record EditorScriptContext(string StartDate, string EndDate);
+public sealed record EditorScriptContext(
+    string StartDate,
+    string EndDate,
+    ScriptTimeGranularity Granularity = ScriptTimeGranularity.Custom);
 
-public sealed record ScriptTarget(ScriptScope Scope, EditorScriptContext? Editor = null);
+public sealed record ScriptBusinessTarget(
+    ScriptBusinessTargetKind Kind,
+    string TargetId,
+    string? PluginId = null,
+    string? InstanceId = null);
+
+public sealed record ScriptTarget(
+    ScriptScope Scope,
+    EditorScriptContext? Editor = null,
+    ScriptBusinessTarget? Business = null);
 
 public sealed record ScriptExecutionRequest(
     ScriptTarget Target,
-    ImmutableDictionary<string, string>? Arguments = null);
+    ImmutableDictionary<string, string>? Arguments = null,
+    ScriptExecutionSource Source = ScriptExecutionSource.Unknown);
+
+public sealed record ScriptExecutionMetadata(
+    Guid ExecutionId,
+    DateTimeOffset StartedAt,
+    ScriptExecutionSource Source,
+    string ScriptId);
 
 public sealed record ScriptExecutionResult(
     ScriptExecutionStatus Status,
@@ -115,6 +162,7 @@ public sealed record ScriptMatchResult(bool IsMatch, int Priority = 0);
 public interface IScriptExecutionContext
 {
     ScriptCapability Capabilities { get; }
+    ScriptExecutionMetadata? Metadata { get; }
 
     TApi? GetApi<TApi>() where TApi : class;
 }

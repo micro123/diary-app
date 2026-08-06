@@ -299,18 +299,19 @@ namespace Diary.App
             services.AddSingleton<IScriptCatalog, ScriptCatalog>();
             services.AddSingleton<IScriptBuildService, ScriptBuildService>();
             services.AddSingleton<IScriptExecutor, ScriptExecutor>();
+            services.AddSingleton<IScriptExecutionHistory, ScriptExecutionHistory>();
             services.AddSingleton<IScriptManager, ScriptManager>();
             services.AddSingleton<IScriptDirectoryLoader, ScriptDirectoryLoader>();
             services.AddSingleton<IScriptExecutionContextFactory>(_ =>
-                new ScriptExecutionContextFactory(capabilities =>
-            {
-                var grantedCapabilities = capabilities & ScriptCapability.ReadDiary;
-                var context = new ScriptExecutionContext(grantedCapabilities);
-                context.RegisterApi<IWorkItemQueryScriptApi>(
-                    new WorkItemQueryScriptApi(() => UseDb, grantedCapabilities),
-                    ScriptCapability.ReadDiary);
-                return context;
-            }));
+                new ScriptExecutionContextFactory((capabilities, metadata) =>
+                {
+                    var grantedCapabilities = capabilities & ScriptCapability.ReadDiary;
+                    var context = new ScriptExecutionContext(grantedCapabilities, metadata);
+                    context.RegisterApi<IWorkItemQueryScriptApi>(
+                        new WorkItemQueryScriptApi(() => UseDb, grantedCapabilities),
+                        ScriptCapability.ReadDiary);
+                    return context;
+                }));
             var compatibility = new PluginCompatibilityContext(
                 1,
                 1,

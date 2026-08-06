@@ -12,6 +12,15 @@ public sealed record ScriptFileMetadata(
     string? Description = null,
     ScriptCapability? Capabilities = null);
 
+public sealed record ScriptPackageManifest(
+    string Entry,
+    bool Enabled = true,
+    ScriptApiVersion ApiVersion = ScriptApiVersion.V1,
+    string? Id = null,
+    string? Name = null,
+    string? Description = null,
+    ScriptCapability? Capabilities = null);
+
 public sealed record ScriptDirectoryEntry(
     string SourcePath,
     ScriptScope Scope,
@@ -63,17 +72,18 @@ public sealed class ScriptDirectoryLoader(
             {
                 var directory = Path.Combine(rootDirectory, directoryName);
                 Directory.CreateDirectory(directory);
-                foreach (var sourcePath in Directory.EnumerateFiles(directory, "*", SearchOption.TopDirectoryOnly)
-                             .Order(StringComparer.Ordinal))
+                foreach (var candidate in await DiscoverCandidatesAsync(directory, diagnostics, cancellationToken))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    var sourcePath = candidate.SourcePath;
                     if (sourcePath.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
                         || engines.Select(new ScriptMatchRequest(sourcePath)).Engine is null)
                     {
                         continue;
                     }
 
-                    var metadata = await ReadMetadataAsync(sourcePath, diagnostics, cancellationToken);
+                    var metadata = candidate.Metadata
+                        ?? await ReadMetadataAsync(sourcePath, diagnostics, cancellationToken);
                     if (metadata is null)
                     {
                         entries.Add(new ScriptDirectoryEntry(sourcePath, scope, false));
@@ -189,19 +199,39 @@ public sealed class ScriptDirectoryLoader(
         try
         {
             var metadataPath = sourcePath + ".json";
-            ScriptFileMetadata metadata;
-            if (File.Exists(metadataPath))
+            object updated;
+            var packageManifestPath = Path.Combine(Path.GetDirectoryName(sourcePath)!, "manifest.json");
+            if (File.Exists(packageManifestPath))
             {
-                var json = await File.ReadAllTextAsync(metadataPath, cancellationToken);
-                metadata = JsonSerializer.Deserialize<ScriptFileMetadata>(json, JsonOptions)
-                    ?? new ScriptFileMetadata();
+                var json = await File.ReadAllTextAsync(packageManifestPath, cancellationToken);
+                var manifest = JsonSerializer.Deserialize<ScriptPackageManifest>(json, JsonOptions)
+                    ?? throw new JsonException();
+                var packageRoot = Path.GetFullPath(Path.GetDirectoryName(packageManifestPath)!);
+                var entryPath = Path.GetFullPath(Path.Combine(packageRoot, manifest.Entry));
+                if (!string.Equals(entryPath, Path.GetFullPath(sourcePath),
+                        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                {
+                    throw new InvalidDataException("The source path does not match the package manifest.");
+                }
+                metadataPath = packageManifestPath;
+                updated = manifest with { Enabled = enabled };
             }
             else
             {
-                metadata = new ScriptFileMetadata();
+                ScriptFileMetadata metadata;
+                if (File.Exists(metadataPath))
+                {
+                    var json = await File.ReadAllTextAsync(metadataPath, cancellationToken);
+                    metadata = JsonSerializer.Deserialize<ScriptFileMetadata>(json, JsonOptions)
+                        ?? new ScriptFileMetadata();
+                }
+                else
+                {
+                    metadata = new ScriptFileMetadata();
+                }
+                updated = metadata with { Enabled = enabled };
             }
 
-            var updated = metadata with { Enabled = enabled };
             var temporaryPath = metadataPath + $".{Guid.NewGuid():N}.tmp";
             try
             {
@@ -249,6 +279,63 @@ public sealed class ScriptDirectoryLoader(
         }
     }
 
+    private static async ValueTask<IReadOnlyList<ScriptSourceCandidate>> DiscoverCandidatesAsync(
+        string directory,
+        ImmutableArray<ScriptDiagnostic>.Builder diagnostics,
+        CancellationToken cancellationToken)
+    {
+        var candidates = Directory.EnumerateFiles(directory, "*", SearchOption.TopDirectoryOnly)
+            .Where(path => !path.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            .Select(path => new ScriptSourceCandidate(path, null))
+            .ToList();
+        foreach (var packageDirectory in Directory.EnumerateDirectories(directory, "*", SearchOption.TopDirectoryOnly)
+                     .Order(StringComparer.Ordinal))
+        {
+            var manifestPath = Path.Combine(packageDirectory, "manifest.json");
+            if (!File.Exists(manifestPath))
+                continue;
+
+            try
+            {
+                var json = await File.ReadAllTextAsync(manifestPath, cancellationToken);
+                var manifest = JsonSerializer.Deserialize<ScriptPackageManifest>(json, JsonOptions)
+                    ?? throw new JsonException();
+                var packageRoot = Path.GetFullPath(packageDirectory);
+                if (string.IsNullOrWhiteSpace(manifest.Entry))
+                    throw new InvalidDataException("The package entry is required.");
+                var entryPath = Path.GetFullPath(Path.Combine(packageRoot, manifest.Entry));
+                if (!entryPath.StartsWith(packageRoot + Path.DirectorySeparatorChar,
+                        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)
+                    || !File.Exists(entryPath)
+                    || File.GetAttributes(entryPath).HasFlag(FileAttributes.ReparsePoint))
+                {
+                    throw new InvalidDataException("The package entry must stay inside the package directory.");
+                }
+
+                candidates.Add(new ScriptSourceCandidate(
+                    entryPath,
+                    new ScriptFileMetadata(
+                        manifest.Enabled,
+                        manifest.ApiVersion,
+                        manifest.Id,
+                        manifest.Name,
+                        manifest.Description,
+                        manifest.Capabilities)));
+            }
+            catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException or InvalidDataException)
+            {
+                diagnostics.Add(new ScriptDiagnostic(
+                    "SCRIPT_PACKAGE_INVALID",
+                    "The script package manifest or entry path is invalid.",
+                    ScriptDiagnosticSeverity.Error,
+                    ScriptDiagnosticCategory.Validation,
+                    manifestPath));
+            }
+        }
+
+        return candidates.OrderBy(candidate => candidate.SourcePath, StringComparer.Ordinal).ToArray();
+    }
+
     private static ScriptBuildResult Failure(string code, string message, string sourcePath) =>
         ScriptBuildResult.Failure(new ScriptDiagnostic(
             code,
@@ -289,4 +376,6 @@ public sealed class ScriptDirectoryLoader(
         {
         }
     }
+
+    private sealed record ScriptSourceCandidate(string SourcePath, ScriptFileMetadata? Metadata);
 }

@@ -26,7 +26,8 @@ public sealed class ScriptManager(
     IScriptBuildService buildService,
     IScriptCatalog catalog,
     IScriptExecutor executor,
-    IScriptExecutionContextFactory? contextFactory = null) : IScriptManager
+    IScriptExecutionContextFactory? contextFactory = null,
+    IScriptExecutionHistory? history = null) : IScriptManager
 {
     public async ValueTask<ScriptBuildResult> BuildAndRegisterAsync(
         ScriptBuildRequest request,
@@ -42,7 +43,7 @@ public sealed class ScriptManager(
             : new ScriptBuildResult(false, null, result.Diagnostics.AddRange(registration.Diagnostics));
     }
 
-    public ValueTask<ScriptExecutionOutcome> ExecuteAsync(
+    public async ValueTask<ScriptExecutionOutcome> ExecuteAsync(
         string scriptId,
         ScriptExecutionRequest request,
         IScriptExecutionContext context,
@@ -51,7 +52,7 @@ public sealed class ScriptManager(
     {
         if (!catalog.TryGet(scriptId, out var program) || program is null)
         {
-            return ValueTask.FromResult(new ScriptExecutionOutcome(
+            var missing = new ScriptExecutionOutcome(
                 Guid.NewGuid(),
                 new ScriptExecutionResult(
                     ScriptExecutionStatus.Rejected,
@@ -59,29 +60,59 @@ public sealed class ScriptManager(
                         "SCRIPT_NOT_FOUND",
                         $"No script with ID '{scriptId}' is registered.",
                         ScriptDiagnosticSeverity.Error,
-                        ScriptDiagnosticCategory.Runtime)])));
+                         ScriptDiagnosticCategory.Runtime)]));
+            missing = missing with { Source = request.Source };
+            Record(scriptId, missing);
+            return missing;
         }
 
-        return executor.ExecuteAsync(program, request, context, timeout, cancellationToken);
+        var startedAt = DateTimeOffset.UtcNow;
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var outcome = await executor.ExecuteAsync(program, request, context, timeout, cancellationToken);
+        outcome = outcome with { StartedAt = startedAt, Duration = stopwatch.Elapsed, Source = request.Source };
+        Record(scriptId, outcome);
+        return outcome;
     }
 
-    public ValueTask<ScriptExecutionOutcome> ExecuteAsync(
+    public async ValueTask<ScriptExecutionOutcome> ExecuteAsync(
         string scriptId,
         ScriptExecutionRequest request,
         TimeSpan? timeout = null,
         CancellationToken cancellationToken = default)
     {
         if (!catalog.TryGet(scriptId, out var program) || program is null)
-            return ExecuteAsync(scriptId, request, new ScriptExecutionContext(ScriptCapability.None), timeout, cancellationToken);
+        {
+            var missing = new ScriptExecutionOutcome(
+                Guid.NewGuid(),
+                new ScriptExecutionResult(
+                    ScriptExecutionStatus.Rejected,
+                    [new ScriptDiagnostic(
+                        "SCRIPT_NOT_FOUND",
+                        $"No script with ID '{scriptId}' is registered.",
+                        ScriptDiagnosticSeverity.Error,
+                        ScriptDiagnosticCategory.Runtime)]));
+            missing = missing with { Source = request.Source };
+            Record(scriptId, missing);
+            return missing;
+        }
 
-        if (contextFactory is null)
-            return ExecuteAsync(scriptId, request, new ScriptExecutionContext(ScriptCapability.None), timeout, cancellationToken);
-
-        return executor.ExecuteAsync(
+        var executionId = Guid.NewGuid();
+        var startedAt = DateTimeOffset.UtcNow;
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var metadata = new ScriptExecutionMetadata(executionId, startedAt, request.Source, scriptId);
+        var context = contextFactory?.Create(program.Descriptor.Capabilities, metadata)
+            ?? new ScriptExecutionContext(ScriptCapability.None, metadata);
+        var outcome = await executor.ExecuteAsync(
             program,
             request,
-            contextFactory.Create(program.Descriptor.Capabilities),
+            context,
             timeout,
-            cancellationToken);
+            cancellationToken,
+            executionId);
+        outcome = outcome with { StartedAt = startedAt, Duration = stopwatch.Elapsed, Source = request.Source };
+        Record(scriptId, outcome);
+        return outcome;
     }
+
+    private void Record(string scriptId, ScriptExecutionOutcome outcome) => history?.Record(scriptId, outcome);
 }
