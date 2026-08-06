@@ -6,5 +6,6 @@ namespace Diary.DbTests;
 [TestClass]
 public class SqliteContractTests : DbContractTests
 {
-    protected override DbInterfaceBase CreateDb() => TestDb.Create();
+    protected override DbInterfaceBase CreateDb(Func<uint, Migration?>? getMigration = null)
+        => TestDb.Create(getMigration);
 }

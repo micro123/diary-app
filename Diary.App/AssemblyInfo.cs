@@ -7,3 +7,4 @@ using Diary.Core;
 [assembly: AssemblyFileVersion(DataVersion.VersionString)]
 [assembly: AssemblyDescription(AppInfo.AppName)]
 [assembly: InternalsVisibleTo("Diary.DbTests")]
+[assembly: InternalsVisibleTo("Diary.UtilTests")]

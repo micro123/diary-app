@@ -39,7 +39,7 @@ public class PgContainerFixture
             await _container.DisposeAsync();
     }
 
-    public static IDbFactory? CreateFactory()
+    public static IDbFactory? CreateFactory(Func<uint, Migration?>? getMigration = null)
     {
         if (_container is null)
             return null;
@@ -52,6 +52,6 @@ public class PgContainerFixture
             User = cs.Username ?? "",
             Password = cs.Password ?? "",
         };
-        return new TestPgFactory(cfg);
+        return new TestPgFactory(cfg, getMigration);
     }
 }

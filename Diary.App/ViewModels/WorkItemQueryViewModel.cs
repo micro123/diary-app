@@ -30,10 +30,13 @@ public sealed record WorkItemQueryResult(WorkItem Item, string Tags)
 [DiAutoRegister(singleton: true)]
 public sealed partial class WorkItemQueryViewModel : ViewModelBase
 {
+    internal const int DefaultResultLimit = 200;
+
     private readonly DbShareData _shareData;
     private readonly ILogger _logger;
     private readonly SavedWorkItemQueryStore _savedQueryStore;
     private readonly Func<DbInterfaceBase?> _databaseProvider;
+    private readonly Func<string, string, Task<bool>> _confirmDelete;
 
     [ObservableProperty] private DateTime _startDate;
     [ObservableProperty] private DateTime _endDate;
@@ -53,7 +56,12 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
     public IReadOnlyList<string> Priorities { get; } = ["全部优先级", .. Enum.GetNames<WorkPriorities>()];
 
     public WorkItemQueryViewModel(DbShareData shareData, ILogger logger)
-        : this(shareData, logger, new SavedWorkItemQueryStore(), () => App.Instance.UseDb)
+        : this(
+            shareData,
+            logger,
+            new SavedWorkItemQueryStore(availableTags: shareData.WorkTags),
+            () => App.Instance.UseDb,
+            EventDispatcher.Confirm)
     {
     }
 
@@ -61,16 +69,19 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
         DbShareData shareData,
         ILogger logger,
         SavedWorkItemQueryStore savedQueryStore,
-        Func<DbInterfaceBase?> databaseProvider)
+        Func<DbInterfaceBase?> databaseProvider,
+        Func<string, string, Task<bool>>? confirmDelete = null)
     {
         _shareData = shareData;
         _logger = logger;
         _savedQueryStore = savedQueryStore;
         _databaseProvider = databaseProvider;
+        _confirmDelete = confirmDelete ?? EventDispatcher.Confirm;
         StartDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
         EndDate = StartDate.AddMonths(1).AddDays(-1);
         ReloadTags();
         RefreshSavedQueries();
+        SavedQueryStatus = _savedQueryStore.LoadWarning;
     }
 
     public override void OnShow() => ReloadTags();
@@ -102,7 +113,9 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
                     : string.Empty));
             Results = new ObservableCollection<WorkItemQueryResult>(nextResults);
             HasQueryError = false;
-            ResultSummary = $"共找到 {Results.Count} 项";
+            ResultSummary = Results.Count == DefaultResultLimit
+                ? $"已显示前 {DefaultResultLimit} 项，结果可能已截断"
+                : $"共找到 {Results.Count} 项";
         }
         catch (Exception ex)
         {
@@ -126,7 +139,7 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
             SavedQueryStatus = validationError;
             return;
         }
-        if (!_savedQueryStore.TryAdd(SavedQueryName, query, out var error))
+        if (!_savedQueryStore.TryAdd(SavedQueryName, query, out var error, _shareData.WorkTags))
         {
             SavedQueryStatus = error;
             return;
@@ -156,14 +169,19 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
             TagFilterIndex = (int)query.TagFilter;
             PriorityIndex = query.Priority is null ? 0 : (int)query.Priority.Value + 1;
             ReloadTags();
-            var availableIds = Tags.Select(tag => tag.Tag.Id).ToHashSet();
-            var selectedIds = query.TagIds.ToHashSet();
+            var snapshots = SelectedSavedQuery.Tags ?? Array.Empty<SavedWorkItemQueryTag>();
+            var selectedIds = snapshots
+                .Where(snapshot => Tags.Any(tag => tag.Tag.Id == snapshot.Id
+                    && tag.Tag.Level == snapshot.Level
+                    && string.Equals(tag.Tag.Name, snapshot.Name, StringComparison.Ordinal)))
+                .Select(snapshot => snapshot.Id)
+                .ToHashSet();
             foreach (var tag in Tags)
                 tag.Selected = selectedIds.Contains(tag.Tag.Id);
-            var unavailableCount = selectedIds.Count(id => !availableIds.Contains(id));
-            SavedQueryStatus = unavailableCount == 0
+            var unmatchedCount = snapshots.Length - selectedIds.Count;
+            SavedQueryStatus = unmatchedCount == 0
                 ? "已应用查询条件"
-                : $"已应用；{unavailableCount} 个已删除或禁用的标签被忽略";
+                : $"已应用；{unmatchedCount} 个标签缺失或同 ID 名称/层级不一致，未选择";
         }
         catch (Exception ex)
         {
@@ -186,7 +204,7 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
             return;
         }
         var id = SelectedSavedQuery.Id;
-        if (!_savedQueryStore.TryUpdate(id, query, out var error))
+        if (!_savedQueryStore.TryUpdate(id, query, out var error, _shareData.WorkTags))
         {
             SavedQueryStatus = error;
             return;
@@ -214,14 +232,20 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void DeleteSavedQuery()
+    private async Task DeleteSavedQuery()
     {
-        if (SelectedSavedQuery is null)
+        var selected = SelectedSavedQuery;
+        if (selected is null)
         {
             SavedQueryStatus = "请先选择保存的查询";
             return;
         }
-        if (!_savedQueryStore.TryDelete(SelectedSavedQuery.Id, out var error))
+        if (!await _confirmDelete("删除保存的查询", $"确认删除“{selected.Name}”吗？"))
+        {
+            SavedQueryStatus = "已取消删除";
+            return;
+        }
+        if (!_savedQueryStore.TryDelete(selected.Id, out var error))
         {
             SavedQueryStatus = error;
             return;
@@ -238,30 +262,19 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
 
     private bool TryBuildQuery(out WorkItemQuery query, out string error)
     {
-        query = new WorkItemQuery();
-        if (StartDate > EndDate)
-        {
-            error = "开始日期不能晚于结束日期";
-            return false;
-        }
         var filter = (WorkItemTagFilter)TagFilterIndex;
         var selectedTags = Tags.Where(tag => tag.Selected).Select(tag => tag.Tag.Id).ToArray();
-        if (filter is WorkItemTagFilter.Any or WorkItemTagFilter.All && selectedTags.Length == 0)
-        {
-            error = "请至少选择一个标签";
-            return false;
-        }
-        query = new WorkItemQuery
+        var candidate = new WorkItemQuery
         {
             StartDate = TimeTools.FormatDateTime(StartDate),
             EndDate = TimeTools.FormatDateTime(EndDate),
             Text = string.IsNullOrWhiteSpace(Text) ? null : Text.Trim(),
             TagIds = selectedTags,
             TagFilter = filter,
-            Priority = PriorityIndex > 0 ? (WorkPriorities)(PriorityIndex - 1) : null,
+            Priority = PriorityIndex == 0 ? null : (WorkPriorities)(PriorityIndex - 1),
+            Limit = DefaultResultLimit,
         };
-        error = string.Empty;
-        return true;
+        return WorkItemQueryNormalizer.TryNormalize(candidate, out query, out error);
     }
 
     private void SetQueryError(string message)

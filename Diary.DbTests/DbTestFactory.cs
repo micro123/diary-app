@@ -9,11 +9,16 @@ namespace Diary.DbTests;
 /// </summary>
 internal sealed class DbTestFactory : IDbFactory
 {
+    private readonly Func<uint, Migration?> _getMigration;
+
+    public DbTestFactory(Func<uint, Migration?>? getMigration = null)
+        => _getMigration = getMigration ?? (_ => null);
+
     public string Name => "SQLite";
     public bool Usable => true;
     private readonly Config _config = new() { FilePath = ":memory:" };
     public DbInterfaceBase Create() => new SQLiteDb(this);
-    public Migration? GetMigration(uint version) => null;
+    public Migration? GetMigration(uint version) => _getMigration(version);
     public object GetConfig() => _config;
 }
 
@@ -22,9 +27,9 @@ internal sealed class DbTestFactory : IDbFactory
 /// </summary>
 internal static class TestDb
 {
-    public static SQLiteDb Create()
+    public static SQLiteDb Create(Func<uint, Migration?>? getMigration = null)
     {
-        var db = new SQLiteDb(new DbTestFactory());
+        var db = new SQLiteDb(new DbTestFactory(getMigration));
         Assert.IsTrue(db.Connect(), "Connect 失败");
         Assert.IsTrue(db.Initialized(), "Initialized 失败");
         return db;

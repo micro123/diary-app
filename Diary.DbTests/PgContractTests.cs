@@ -1,5 +1,4 @@
 using Diary.Database;
-using Diary.RedMine;
 
 namespace Diary.DbTests;
 
@@ -7,9 +6,9 @@ namespace Diary.DbTests;
 [TestClass]
 public class PgContractTests : DbContractTests
 {
-    protected override DbInterfaceBase CreateDb()
+    protected override DbInterfaceBase CreateDb(Func<uint, Migration?>? getMigration = null)
     {
-        var factory = PgContainerFixture.CreateFactory();
+        var factory = PgContainerFixture.CreateFactory(getMigration);
         if (factory is null)
         {
             Assert.Inconclusive("PostgreSQL 容器不可用（Docker 未运行？）");
@@ -18,6 +17,8 @@ public class PgContractTests : DbContractTests
         var db = factory.Create();
         Assert.IsTrue(db.Connect(), "Pg Connect 失败");
         Assert.IsTrue(db.Initialized(), "Pg Initialized 失败");
+        Assert.IsTrue(db.ExecRaw("DELETE FROM data_versions; INSERT INTO data_versions VALUES(65536);"),
+            "Pg data_versions 重置失败");
         Assert.IsTrue(db.DropData(), "Pg DropData 失败（每测清空数据）");
         Assert.IsTrue(GetRedMine(db).ClearData(), "RedMine DropData 失败（每测清空数据）");
         return db;

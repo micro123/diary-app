@@ -10,6 +10,7 @@ namespace Diary.Db.PostgreSQL;
 
 public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDisposable, IAsyncDisposable
 {
+    private const int WorkTagQueryBatchSize = 500;
     private NpgsqlDataSource? _dataSource;
     private NpgsqlConnection? _connection;
     private NpgsqlTransaction? _transaction;
@@ -307,6 +308,29 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
         return result;
     }
 
+    public override Dictionary<int, string> GetWorkNotesByWorkItemIds(
+        IReadOnlyCollection<int> workItemIds)
+    {
+        ArgumentNullException.ThrowIfNull(workItemIds);
+        var ids = workItemIds.Where(id => id != 0).Distinct().ToArray();
+        var result = new Dictionary<int, string>();
+        foreach (var batch in ids.Chunk(WorkTagQueryBatchSize))
+        {
+            var placeholders = new string[batch.Length];
+            var args = new (string Name, object? Value)[batch.Length];
+            for (var i = 0; i < batch.Length; i++)
+            {
+                placeholders[i] = $"${i + 1}";
+                args[i] = (placeholders[i], batch[i]);
+            }
+            var sql = $"SELECT id, note FROM work_notes WHERE id IN ({string.Join(", ", placeholders)});";
+            foreach (var (id, note) in Query<(int Id, string Note)>(
+                         sql, r => (r.GetInt32(0), ReadString(r, 1)), args))
+                result[id] = note;
+        }
+        return result;
+    }
+
     public override Dictionary<int, ICollection<WorkTag>> GetWorkTagsByDate(string date)
     {
         var sql = """
@@ -340,22 +364,33 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
         if (ids.Length == 0)
             return new Dictionary<int, ICollection<WorkTag>>();
 
-        var args = new (string Name, object? Value)[ids.Length];
-        var placeholders = new string[ids.Length];
-        for (var i = 0; i < ids.Length; i++)
-        {
-            placeholders[i] = $"${i + 1}";
-            args[i] = (placeholders[i], ids[i]);
-        }
-        var sql = $"""
-                   SELECT work_tags.*, work_item_tags.work_id
-                   FROM work_item_tags INNER JOIN work_tags ON work_item_tags.tag_id = work_tags.id
-                   WHERE work_item_tags.work_id IN ({string.Join(", ", placeholders)})
-                   ORDER BY work_item_tags.work_id, work_tags.tag_level;
-                   """;
-        var rows = Query<(WorkTag Tag, int WorkId)>(
-            sql, r => (MapWorkTag(r), r.GetInt32(5)), args);
         var result = new Dictionary<int, ICollection<WorkTag>>();
+        foreach (var batch in ids.Chunk(WorkTagQueryBatchSize))
+        {
+            var args = new (string Name, object? Value)[batch.Length];
+            var placeholders = new string[batch.Length];
+            for (var i = 0; i < batch.Length; i++)
+            {
+                placeholders[i] = $"${i + 1}";
+                args[i] = (placeholders[i], batch[i]);
+            }
+            var sql = $"""
+                       SELECT work_tags.*, work_item_tags.work_id
+                       FROM work_item_tags INNER JOIN work_tags ON work_item_tags.tag_id = work_tags.id
+                       WHERE work_item_tags.work_id IN ({string.Join(", ", placeholders)})
+                       ORDER BY work_item_tags.work_id, work_tags.tag_level, work_tags.id;
+                       """;
+            var rows = Query<(WorkTag Tag, int WorkId)>(
+                sql, r => (MapWorkTag(r), r.GetInt32(5)), args);
+            AddGroupedWorkTags(result, rows);
+        }
+        return result;
+    }
+
+    private static void AddGroupedWorkTags(
+        Dictionary<int, ICollection<WorkTag>> result,
+        IEnumerable<(WorkTag Tag, int WorkId)> rows)
+    {
         foreach (var (tag, workId) in rows)
         {
             if (!result.TryGetValue(workId, out var tags))
@@ -365,7 +400,6 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
             }
             tags.Add(tag);
         }
-        return result;
     }
 
     // $1=work_id $2=tag_id
@@ -547,7 +581,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
 
     public override ICollection<WorkItem> QueryWorkItems(WorkItemQuery query)
     {
-        ArgumentNullException.ThrowIfNull(query);
+        query = WorkItemQueryNormalizer.Normalize(query);
         var tagIds = query.TagIds.Distinct().ToArray();
         if (query.TagFilter is WorkItemTagFilter.Any or WorkItemTagFilter.All && tagIds.Length == 0)
             return Array.Empty<WorkItem>();

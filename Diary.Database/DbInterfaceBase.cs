@@ -29,13 +29,53 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
     public virtual bool UpdateTables(uint targetVersion)
     {
         var currentVersion = GetDataVersion();
-        while (currentVersion != targetVersion)
+        if (targetVersion < currentVersion)
+            return false;
+
+        while (currentVersion < targetVersion)
         {
             var migration = Factory.GetMigration(currentVersion);
-            if (migration == null)
+            if (migration == null ||
+                migration.VersionFrom != currentVersion ||
+                migration.VersionTo <= currentVersion ||
+                migration.VersionTo > targetVersion)
                 return false;
-            migration.Up(this);
-            currentVersion = GetDataVersion();
+
+            var transactionStarted = false;
+            var committed = false;
+            try
+            {
+                transactionStarted = BeginTransaction();
+                if (!transactionStarted || !migration.Up(this))
+                    return false;
+
+                var migratedVersion = GetDataVersion();
+                if (migratedVersion != migration.VersionTo)
+                    return false;
+
+                committed = CommitTransaction();
+                if (!committed)
+                    return false;
+
+                currentVersion = migratedVersion;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+            finally
+            {
+                if (transactionStarted && !committed)
+                {
+                    try
+                    {
+                        RollbackTransaction();
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
+            }
         }
 
         return true;
@@ -82,6 +122,20 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
             var note = WorkGetNote(item);
             if (note != null)
                 result[item.Id] = note;
+        }
+        return result;
+    }
+
+    public virtual Dictionary<int, string> GetWorkNotesByWorkItemIds(
+        IReadOnlyCollection<int> workItemIds)
+    {
+        ArgumentNullException.ThrowIfNull(workItemIds);
+        var result = new Dictionary<int, string>();
+        foreach (var id in workItemIds.Where(id => id != 0).Distinct())
+        {
+            var note = WorkGetNote(new WorkItem { Id = id });
+            if (note is not null)
+                result[id] = note;
         }
         return result;
     }

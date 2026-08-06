@@ -12,7 +12,7 @@ namespace Diary.DbTests;
 [TestClass]
 public abstract class DbContractTests
 {
-    protected abstract DbInterfaceBase CreateDb();
+    protected abstract DbInterfaceBase CreateDb(Func<uint, Migration?>? getMigration = null);
 
     protected static IRedMineDb GetRedMine(DbInterfaceBase db, string instanceId = "redmine.default")
         => db.GetExtension<IRedMineDb>(instanceId, new RedMinePlugin().GetMigrations())!;
@@ -296,6 +296,26 @@ public abstract class DbContractTests
     }
 
     [TestMethod]
+    public void GetWorkTagsByWorkItemIds_LargeInputUsesSafeBatchesAndStableTagOrder()
+    {
+        using var db = CreateDb();
+        var item = db.CreateWorkItem("2026-08-01", "tagged");
+        var secondaryFirst = db.CreateWorkTag("secondary-first", false, 0);
+        var primary = db.CreateWorkTag("primary", true, 0);
+        var secondarySecond = db.CreateWorkTag("secondary-second", false, 0);
+        db.WorkItemAddTag(item, secondarySecond);
+        db.WorkItemAddTag(item, primary);
+        db.WorkItemAddTag(item, secondaryFirst);
+        var ids = Enumerable.Range(100_000, 1_200).Append(item.Id).ToArray();
+
+        var result = db.GetWorkTagsByWorkItemIds(ids);
+
+        CollectionAssert.AreEqual(
+            new[] { "primary", "secondary-first", "secondary-second" },
+            result[item.Id].Select(tag => tag.Name).ToArray());
+    }
+
+    [TestMethod]
     public void QueryWorkItems_IgnoreTags_IncludesDateRangeEnds()
     {
         using var db = CreateDb();
@@ -310,6 +330,18 @@ public abstract class DbContractTests
         });
 
         CollectionAssert.AreEqual(new[] { "begin", "end" }, items.Select(item => item.Comment).ToArray());
+    }
+
+    [TestMethod]
+    public void QueryWorkItems_InvalidTagFilterIsRejectedInsteadOfIgnored()
+    {
+        using var db = CreateDb();
+        db.CreateWorkItem("2026-08-01", "must not leak");
+
+        Assert.ThrowsExactly<ArgumentException>(() => db.QueryWorkItems(new WorkItemQuery
+        {
+            TagFilter = (WorkItemTagFilter)99,
+        }));
     }
 
     [TestMethod]
@@ -417,19 +449,19 @@ public abstract class DbContractTests
     }
 
     [TestMethod]
-    public void QueryWorkItems_AnyOrAllWithNoTags_ReturnsEmpty()
+    public void QueryWorkItems_AnyOrAllWithNoTags_IsRejected()
     {
         using var db = CreateDb();
         db.CreateWorkItem("2026-08-01", "item");
 
-        Assert.AreEqual(0, db.QueryWorkItems(new WorkItemQuery
+        Assert.ThrowsExactly<ArgumentException>(() => db.QueryWorkItems(new WorkItemQuery
         {
             TagFilter = WorkItemTagFilter.Any,
-        }).Count);
-        Assert.AreEqual(0, db.QueryWorkItems(new WorkItemQuery
+        }));
+        Assert.ThrowsExactly<ArgumentException>(() => db.QueryWorkItems(new WorkItemQuery
         {
             TagFilter = WorkItemTagFilter.All,
-        }).Count);
+        }));
     }
 
     [TestMethod]
@@ -692,6 +724,85 @@ public abstract class DbContractTests
     }
 
     [TestMethod]
+    public void UpdateTables_ContinuousMigrations_CommitsEveryStep()
+    {
+        var migrations = new Dictionary<uint, Migration>
+        {
+            [0x10000] = new TestMigration(0x10000, 0x10001, MigrationResult.Success),
+            [0x10001] = new TestMigration(0x10001, 0x10002, MigrationResult.Success),
+        };
+        using var db = CreateDb(version => migrations.GetValueOrDefault(version));
+
+        Assert.IsTrue(db.UpdateTables(0x10002));
+        Assert.AreEqual(0x10002u, db.GetDataVersion());
+    }
+
+    [TestMethod]
+    public void UpdateTables_UpReturnsFalse_RollsBackVersionWrite()
+    {
+        using var db = CreateDb(_ =>
+            new TestMigration(0x10000, 0x10001, MigrationResult.FalseAfterWrite));
+
+        Assert.IsFalse(db.UpdateTables(0x10001));
+        Assert.AreEqual(0x10000u, db.GetDataVersion());
+    }
+
+    [TestMethod]
+    public void UpdateTables_UpThrows_RollsBackVersionWrite()
+    {
+        using var db = CreateDb(_ =>
+            new TestMigration(0x10000, 0x10001, MigrationResult.ThrowAfterWrite));
+
+        Assert.IsFalse(db.UpdateTables(0x10001));
+        Assert.AreEqual(0x10000u, db.GetDataVersion());
+    }
+
+    [TestMethod]
+    public void UpdateTables_UpDoesNotAdvanceVersion_RollsBackAndStops()
+    {
+        var calls = 0;
+        using var db = CreateDb(_ =>
+            new TestMigration(0x10000, 0x10001, MigrationResult.NoVersionWrite, () => calls++));
+
+        Assert.IsFalse(db.UpdateTables(0x10001));
+        Assert.AreEqual(1, calls);
+        Assert.AreEqual(0x10000u, db.GetDataVersion());
+    }
+
+    [TestMethod]
+    public void UpdateTables_MigrationFromDoesNotMatchCurrent_RejectsBrokenChain()
+    {
+        var called = false;
+        using var db = CreateDb(_ =>
+            new TestMigration(0x10001, 0x10002, MigrationResult.Success, () => called = true));
+
+        Assert.IsFalse(db.UpdateTables(0x10002));
+        Assert.IsFalse(called);
+        Assert.AreEqual(0x10000u, db.GetDataVersion());
+    }
+
+    [TestMethod]
+    public void UpdateTables_DowngradeTarget_IsRejected()
+    {
+        using var db = CreateDb();
+
+        Assert.IsFalse(db.UpdateTables(0x0FFFF));
+        Assert.AreEqual(0x10000u, db.GetDataVersion());
+    }
+
+    [TestMethod]
+    public void UpdateTables_MigrationOvershootsTarget_IsRejected()
+    {
+        var called = false;
+        using var db = CreateDb(_ =>
+            new TestMigration(0x10000, 0x10002, MigrationResult.Success, () => called = true));
+
+        Assert.IsFalse(db.UpdateTables(0x10001));
+        Assert.IsFalse(called);
+        Assert.AreEqual(0x10000u, db.GetDataVersion());
+    }
+
+    [TestMethod]
     public void ExecRaw_RunsAndIsObservable()
     {
         using var db = CreateDb();
@@ -708,6 +819,37 @@ public abstract class DbContractTests
         Assert.IsTrue(db.CommitTransaction());
         Assert.IsTrue(db.BeginTransaction());
         Assert.IsTrue(db.RollbackTransaction());
+    }
+
+    private enum MigrationResult
+    {
+        Success,
+        FalseAfterWrite,
+        ThrowAfterWrite,
+        NoVersionWrite,
+    }
+
+    private sealed class TestMigration(
+        uint from,
+        uint to,
+        MigrationResult result,
+        Action? onUp = null) : Migration(from, to)
+    {
+        public override bool Up(DbInterfaceBase db)
+        {
+            onUp?.Invoke();
+            if (result == MigrationResult.NoVersionWrite)
+                return true;
+
+            db.ExecRaw($"INSERT INTO data_versions VALUES({VersionTo});");
+            return result switch
+            {
+                MigrationResult.Success => true,
+                MigrationResult.FalseAfterWrite => false,
+                MigrationResult.ThrowAfterWrite => throw new InvalidOperationException("migration failed"),
+                _ => throw new InvalidOperationException("unexpected migration result"),
+            };
+        }
     }
 
     [TestMethod]

@@ -1,5 +1,4 @@
 using Diary.Database;
-using Diary.Db.SQLite;
 
 namespace Diary.DbTests;
 
