@@ -287,6 +287,48 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
         return result;
     }
 
+    public override Dictionary<int, ICollection<WorkTag>> GetWorkTagsByWorkItemIds(
+        IReadOnlyCollection<int> workItemIds)
+    {
+        ArgumentNullException.ThrowIfNull(workItemIds);
+        var ids = workItemIds.Where(id => id != 0).Distinct().ToArray();
+        if (ids.Length == 0)
+            return new Dictionary<int, ICollection<WorkTag>>();
+
+        var placeholders = new string[ids.Length];
+        var args = new (string Name, object? Value)[ids.Length];
+        for (var i = 0; i < ids.Length; i++)
+        {
+            placeholders[i] = $"$id{i}";
+            args[i] = (placeholders[i], ids[i]);
+        }
+        var sql = $"""
+                   SELECT work_tags.*, work_item_tags.work_id
+                   FROM work_item_tags INNER JOIN work_tags ON work_item_tags.tag_id = work_tags.id
+                   WHERE work_item_tags.work_id IN ({string.Join(", ", placeholders)})
+                   ORDER BY work_item_tags.work_id, work_tags.tag_level;
+                   """;
+        var rows = Query<(WorkTag Tag, int WorkId)>(
+            sql, r => (MapWorkTag(r), r.GetInt32(5)), args);
+        return GroupWorkTags(rows);
+    }
+
+    private static Dictionary<int, ICollection<WorkTag>> GroupWorkTags(
+        IEnumerable<(WorkTag Tag, int WorkId)> rows)
+    {
+        var result = new Dictionary<int, ICollection<WorkTag>>();
+        foreach (var (tag, workId) in rows)
+        {
+            if (!result.TryGetValue(workId, out var tags))
+            {
+                tags = new List<WorkTag>();
+                result[workId] = tags;
+            }
+            tags.Add(tag);
+        }
+        return result;
+    }
+
     public override bool WorkItemAddTag(WorkItem item, WorkTag tag)
     {
         const string sql = @"INSERT INTO work_item_tags VALUES($work_id, $tag_id) RETURNING *;";

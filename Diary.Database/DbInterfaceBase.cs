@@ -96,6 +96,20 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
         return result;
     }
 
+    public virtual Dictionary<int, ICollection<WorkTag>> GetWorkTagsByWorkItemIds(
+        IReadOnlyCollection<int> workItemIds)
+    {
+        ArgumentNullException.ThrowIfNull(workItemIds);
+        var result = new Dictionary<int, ICollection<WorkTag>>();
+        foreach (var id in workItemIds.Where(id => id != 0).Distinct())
+        {
+            var tags = GetWorkItemTags(new WorkItem { Id = id });
+            if (tags.Count > 0)
+                result[id] = tags;
+        }
+        return result;
+    }
+
     // work item - work tag
     public abstract bool WorkItemAddTag(WorkItem item, WorkTag tag);
     public abstract bool WorkItemRemoveTag(WorkItem item, WorkTag tag);

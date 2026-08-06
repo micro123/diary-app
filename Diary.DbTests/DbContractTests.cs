@@ -265,6 +265,37 @@ public abstract class DbContractTests
     }
 
     [TestMethod]
+    public void GetWorkTagsByWorkItemIds_GroupsRequestedItemsInOneContract()
+    {
+        using var db = CreateDb();
+        var tagged = db.CreateWorkItem("2026-08-01", "tagged");
+        var untagged = db.CreateWorkItem("2026-08-02", "untagged");
+        var primary = db.CreateWorkTag("primary", true, 0);
+        var secondary = db.CreateWorkTag("secondary", false, 0);
+        db.WorkItemAddTag(tagged, primary);
+        db.WorkItemAddTag(tagged, secondary);
+
+        var result = db.GetWorkTagsByWorkItemIds(
+            new[] { tagged.Id, untagged.Id, tagged.Id, int.MaxValue });
+
+        Assert.AreEqual(1, result.Count);
+        CollectionAssert.AreEqual(
+            new[] { "primary", "secondary" },
+            result[tagged.Id].Select(tag => tag.Name).ToArray());
+        Assert.IsFalse(result.ContainsKey(untagged.Id));
+    }
+
+    [TestMethod]
+    public void GetWorkTagsByWorkItemIds_EmptyInputReturnsEmptyResult()
+    {
+        using var db = CreateDb();
+
+        var result = db.GetWorkTagsByWorkItemIds(Array.Empty<int>());
+
+        Assert.AreEqual(0, result.Count);
+    }
+
+    [TestMethod]
     public void QueryWorkItems_IgnoreTags_IncludesDateRangeEnds()
     {
         using var db = CreateDb();

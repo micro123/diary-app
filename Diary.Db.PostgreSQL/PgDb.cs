@@ -332,6 +332,42 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
         return result;
     }
 
+    public override Dictionary<int, ICollection<WorkTag>> GetWorkTagsByWorkItemIds(
+        IReadOnlyCollection<int> workItemIds)
+    {
+        ArgumentNullException.ThrowIfNull(workItemIds);
+        var ids = workItemIds.Where(id => id != 0).Distinct().ToArray();
+        if (ids.Length == 0)
+            return new Dictionary<int, ICollection<WorkTag>>();
+
+        var args = new (string Name, object? Value)[ids.Length];
+        var placeholders = new string[ids.Length];
+        for (var i = 0; i < ids.Length; i++)
+        {
+            placeholders[i] = $"${i + 1}";
+            args[i] = (placeholders[i], ids[i]);
+        }
+        var sql = $"""
+                   SELECT work_tags.*, work_item_tags.work_id
+                   FROM work_item_tags INNER JOIN work_tags ON work_item_tags.tag_id = work_tags.id
+                   WHERE work_item_tags.work_id IN ({string.Join(", ", placeholders)})
+                   ORDER BY work_item_tags.work_id, work_tags.tag_level;
+                   """;
+        var rows = Query<(WorkTag Tag, int WorkId)>(
+            sql, r => (MapWorkTag(r), r.GetInt32(5)), args);
+        var result = new Dictionary<int, ICollection<WorkTag>>();
+        foreach (var (tag, workId) in rows)
+        {
+            if (!result.TryGetValue(workId, out var tags))
+            {
+                tags = new List<WorkTag>();
+                result[workId] = tags;
+            }
+            tags.Add(tag);
+        }
+        return result;
+    }
+
     // $1=work_id $2=tag_id
     public override bool WorkItemAddTag(WorkItem item, WorkTag tag)
     {
@@ -572,7 +608,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
             batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM work_item_tags;"));
             batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM work_tags;"));
             batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM work_notes;"));
-             batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM work_items;"));
+            batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM work_items;"));
             batch.ExecuteNonQuery();
         }
         catch (Exception)
