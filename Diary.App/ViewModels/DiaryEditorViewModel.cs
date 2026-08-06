@@ -417,21 +417,14 @@ public partial class DiaryEditorViewModel : ViewModelBase
                 startDate = TimeTools.FromFormatedDate(workItem.Date);
                 endDate = startDate;
             }
-            var workItemId = workItem?.WorkId;
+            var request = EditorScriptMenuPolicy.CreateRequest(
+                TimeTools.FormatDateTime(startDate),
+                TimeTools.FormatDateTime(endDate),
+                GetGranularity(startDate, endDate),
+                workItem?.WorkId);
             var outcome = await Task.Run(async () => await _scriptManager.ExecuteAsync(
                 scriptId,
-                new ScriptExecutionRequest(new ScriptTarget(
-                    ScriptScope.Editor,
-                    new EditorScriptContext(
-                        TimeTools.FormatDateTime(startDate),
-                        TimeTools.FormatDateTime(endDate),
-                        GetGranularity(startDate, endDate)),
-                    workItemId is > 0
-                        ? new ScriptBusinessTarget(
-                            ScriptBusinessTargetKind.WorkItem,
-                            workItemId.Value.ToString())
-                        : null),
-                    Source: ScriptExecutionSource.Editor)));
+                request));
             EventDispatcher.ShowToast(
                 outcome.Result.Status switch
                 {
@@ -444,9 +437,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     private void ConfigureEditorScriptActions(WorkEditorViewModel workItem)
     {
-        var actions = _scriptCatalog.GetAll()
-            .Where(program => program.Descriptor.Scope == ScriptScope.Editor)
-            .OrderBy(program => program.Descriptor.Name, StringComparer.Ordinal)
+        var actions = EditorScriptMenuPolicy.GetRunnableScripts(_scriptCatalog)
             .Select(program => new WorkEditorScriptMenuItem(
                 workItem.WorkId > 0 ? program.Descriptor.Name : $"{program.Descriptor.Name}（请先保存）",
                 CreateEditorScriptCommand(
@@ -478,11 +469,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     private void AddEditorScriptActions(DateTime startDate, DateTime endDate)
     {
-        var scripts = _scriptCatalog.GetAll()
-            .Where(program => program.Descriptor.Scope == ScriptScope.Editor)
-            .OrderBy(program => program.Descriptor.Name, StringComparer.Ordinal)
-            .ToArray();
-        if (scripts.Length == 0)
+        var scripts = EditorScriptMenuPolicy.GetRunnableScripts(_scriptCatalog);
+        if (scripts.Count == 0)
             return;
 
         var scriptMenu = new DayMenuItem { Header = "脚本", Enabled = true };
@@ -490,21 +478,13 @@ public partial class DiaryEditorViewModel : ViewModelBase
         {
             scriptMenu.Children.Add(new DayMenuItem
             {
-                Header = $"对{GetScriptRangeLabel(startDate, endDate)}运行：{script.Descriptor.Name}",
+                Header = $"对{EditorScriptMenuPolicy.GetRangeLabel(GetGranularity(startDate, endDate))}运行：{script.Descriptor.Name}",
                 Command = CreateEditorScriptCommand(script.Descriptor.Id, startDate, endDate),
                 Enabled = true,
             });
         }
         QuickMenuItems.Add(scriptMenu);
     }
-
-    private static string GetScriptRangeLabel(DateTime startDate, DateTime endDate) =>
-        startDate.Date == endDate.Date
-            ? "当天"
-            : startDate.Day == 1 && endDate.Day == DateTime.DaysInMonth(endDate.Year, endDate.Month)
-                && startDate.Year == endDate.Year && startDate.Month == endDate.Month
-                ? "当前月份"
-                : "当前年份";
 
     private void FillDayMenus(DateTime date)
     {

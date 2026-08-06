@@ -444,7 +444,7 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [x] 传入当前工作项日期、`ScriptBusinessTargetKind.WorkItem` 和工作项 ID。
 - [x] 新建未保存工作项的脚本操作禁用，并提示先保存。
 - [x] 当前工作项已锁定时，仍允许只读脚本运行，但不开放任何写入操作。
-- [ ] 增加菜单脚本过滤、上下文参数和执行失败测试。
+- [x] 增加菜单脚本过滤、上下文参数和执行失败测试。
 
 脚本创建和编辑：
 
