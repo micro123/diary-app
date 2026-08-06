@@ -29,6 +29,7 @@ public sealed class DayMenuItem
     public required string Header { get; set; }
     public bool Enabled { get; set; } = false;
     public ICommand? Command { get; set; } = null;
+    public ObservableCollection<DayMenuItem> Children { get; } = new();
 
     public static DayMenuItem Separator { get; } = new DayMenuItem() { Header = "-" };
 }
@@ -432,9 +433,13 @@ public partial class DiaryEditorViewModel : ViewModelBase
                         : null),
                     Source: ScriptExecutionSource.Editor)));
             EventDispatcher.ShowToast(
-                outcome.Result.Status == ScriptExecutionStatus.Succeeded
-                    ? $"脚本 {scriptId} 执行成功"
-                    : $"脚本 {scriptId} 执行失败：{outcome.Result.Diagnostics.FirstOrDefault()?.Message}");
+                outcome.Result.Status switch
+                {
+                    ScriptExecutionStatus.Succeeded => $"脚本 {scriptId} 执行成功",
+                    ScriptExecutionStatus.Cancelled => $"脚本 {scriptId} 已取消",
+                    ScriptExecutionStatus.TimedOut => $"脚本 {scriptId} 执行超时",
+                    _ => $"脚本 {scriptId} 执行失败：{outcome.Result.Diagnostics.FirstOrDefault()?.Message ?? "请查看脚本诊断"}",
+                });
         });
 
     private void ConfigureEditorScriptActions(WorkEditorViewModel workItem)
@@ -480,14 +485,17 @@ public partial class DiaryEditorViewModel : ViewModelBase
         if (scripts.Length == 0)
             return;
 
-        AddMenuSeparator();
-        AddMenuHeader("编辑器脚本");
+        var scriptMenu = new DayMenuItem { Header = "脚本", Enabled = true };
         foreach (var script in scripts)
         {
-            AddMenuAction(
-                $"对{GetScriptRangeLabel(startDate, endDate)}运行：{script.Descriptor.Name}",
-                CreateEditorScriptCommand(script.Descriptor.Id, startDate, endDate));
+            scriptMenu.Children.Add(new DayMenuItem
+            {
+                Header = $"对{GetScriptRangeLabel(startDate, endDate)}运行：{script.Descriptor.Name}",
+                Command = CreateEditorScriptCommand(script.Descriptor.Id, startDate, endDate),
+                Enabled = true,
+            });
         }
+        QuickMenuItems.Add(scriptMenu);
     }
 
     private static string GetScriptRangeLabel(DateTime startDate, DateTime endDate) =>
