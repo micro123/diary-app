@@ -1,0 +1,29 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:dialogs="using:Diary.App.ViewModels.Dialogs"
+             x:Class="Diary.App.Views.Dialogs.ScriptCreationView"
+             x:DataType="dialogs:ScriptCreationViewModel"
+             MinWidth="520" MinHeight="420" Padding="24">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="18">
+        <StackPanel Spacing="4">
+            <TextBlock Text="新建脚本" FontSize="24" FontWeight="Bold" />
+            <TextBlock Text="创建一个可立即加载的 C# 脚本模板。" Opacity="0.68" />
+        </StackPanel>
+        <StackPanel Grid.Row="1" Spacing="12">
+            <TextBlock Text="脚本名称" />
+            <TextBox Text="{Binding Name, Mode=TwoWay}" Watermark="例如：每日摘要" />
+            <TextBlock Text="稳定 ID" />
+            <TextBox Text="{Binding Id, Mode=TwoWay}" Watermark="例如：daily-summary" />
+            <TextBlock Text="只允许字母、数字、点、短横线和下划线，且以字母开头。" FontSize="12" Opacity="0.6" />
+            <TextBlock Text="脚本类型" />
+            <ComboBox ItemsSource="{Binding Scopes}" SelectedItem="{Binding SelectedScope, Mode=TwoWay}" />
+            <TextBlock Text="描述" />
+            <TextBox Text="{Binding Description, Mode=TwoWay}" AcceptsReturn="True" TextWrapping="Wrap" Height="70" />
+            <TextBlock Text="{Binding Error}" Foreground="IndianRed" TextWrapping="Wrap" IsVisible="{Binding HasError}" />
+        </StackPanel>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="取消" Command="{Binding CloseCommand}" />
+            <Button Content="创建" Classes="Primary" Command="{Binding CreateCommand}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

@@ -2,11 +2,14 @@ using System.Collections.ObjectModel;
 using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Diary.App.ViewModels.Dialogs;
 using Diary.GUIBase.ViewModels;
 using Diary.Script.Runtime;
 using Diary.ScriptBase;
 using Diary.Utils;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Ursa.Controls;
 
 namespace Diary.App.ViewModels;
 
@@ -93,7 +96,8 @@ public partial class ScriptManagementViewModel(
     IScriptManager scriptManager,
     IScriptCatalog scriptCatalog,
     IScriptExecutionHistory executionHistory,
-    ILogger logger) : ViewModelBase
+    ILogger logger,
+    IServiceProvider services) : ViewModelBase
 {
     private readonly string _scriptRoot = Path.Combine(FsTools.GetApplicationConfigDirectory(), "scripts");
 
@@ -350,6 +354,25 @@ public partial class ScriptManagementViewModel(
             return;
         if (await CopyStringToClipboardAsync(string.Join(Environment.NewLine, DirectoryDiagnostics.Select(item => item.Summary))))
             NotificationManager?.Show("目录诊断已复制", NotificationType.Success);
+    }
+
+    [RelayCommand]
+    private async Task CreateScript()
+    {
+        var viewModel = services.GetRequiredService<ScriptCreationViewModel>();
+        var options = new OverlayDialogOptions
+        {
+            CanDragMove = false,
+            CanResize = false,
+            CanLightDismiss = false,
+            IsCloseButtonVisible = false,
+        };
+        var sourcePath = await OverlayDialog.ShowCustomModal<string>(viewModel, options: options);
+        if (!string.IsNullOrWhiteSpace(sourcePath))
+        {
+            Status = "脚本已创建，正在重新加载";
+            await ReloadAsync();
+        }
     }
 
     [RelayCommand]

@@ -15,9 +15,10 @@
                            Opacity="0.68" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button Content="新建脚本" Command="{Binding CreateScriptCommand}" Classes="Primary" />
                 <Button Content="打开脚本目录" Command="{Binding OpenScriptsFolderCommand}" />
                 <Button Content="重新加载" Command="{Binding ReloadCommand}"
-                        Classes="Primary" IsEnabled="{Binding CanReload}" />
+                        IsEnabled="{Binding CanReload}" />
             </StackPanel>
         </Grid>
 
