@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Diary.Script.Runtime;
 using Diary.ScriptBase;
 
@@ -91,7 +92,8 @@ public sealed class WorkerSupervisorTests
         {
             if (DelayExecute && _responses.Count == 0)
                 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
-            return (WorkerMessage<TPayload>)_responses.Dequeue();
+            var json = JsonSerializer.Serialize(_responses.Dequeue(), WorkerProtocol.JsonOptions);
+            return JsonSerializer.Deserialize<WorkerMessage<TPayload>>(json, WorkerProtocol.JsonOptions)!;
         }
 
         public Task StopAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
