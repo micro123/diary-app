@@ -50,7 +50,8 @@ public sealed class TemplateCoordinatorTests
             new NoopPersistence(),
             new NoopUpload(),
             new TrackerUiContributionRegistry(),
-            "核心工作项");
+            "核心工作项",
+            new TagAutomationCoordinator());
 
         Assert.AreEqual(0, editor.Extensions.Count);
         Assert.AreEqual("核心工作项", editor.Comment);

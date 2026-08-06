@@ -24,7 +24,6 @@ using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
 using Diary.PluginBase;
-using Diary.PluginUI;
 using Diary.Survey;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
@@ -35,9 +34,15 @@ namespace Diary.App
     public sealed partial class App : BaseApp
     {
         public static AppStartupOptions StartupOptions { get; set; } = AppStartupOptions.Default;
+        private readonly IReadOnlyList<IDbFactory>? _startupDbFactories;
 
-        public App()
+        public App() : this(null)
         {
+        }
+
+        internal App(IEnumerable<IDbFactory>? startupDbFactories)
+        {
+            _startupDbFactories = startupDbFactories?.ToArray();
             Name = AppInfo.AppName;
             Services = ConfigureServices();
 
@@ -210,7 +215,8 @@ namespace Diary.App
 
         private void EnumerateDbProviders()
         {
-            var dbProviders = TypeLoader.GetImplementations<IDbFactory>(FsTools.GetBinaryDirectory(), "Diary.Db.*.dll");
+            var dbProviders = _startupDbFactories
+                ?? TypeLoader.GetImplementations<IDbFactory>(FsTools.GetBinaryDirectory(), "Diary.Db.*.dll").ToArray();
             foreach (var dbProvider in dbProviders)
             {
                 Logger.LogInformation("Db provider: {Name}, Usable? {Usable}", dbProvider.Name, dbProvider.Usable);

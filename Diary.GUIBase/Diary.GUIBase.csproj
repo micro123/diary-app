@@ -8,6 +8,7 @@
 
     <ItemGroup>
       <PackageReference Include="Avalonia" Version="11.3.18" />
+      <PackageReference Include="Avalonia.Controls.ColorPicker" Version="11.3.18" />
       <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.3.13" />
       <PackageReference Include="TreeDataGrid.Avalonia" Version="11.3.1" />
       <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />

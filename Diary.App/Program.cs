@@ -33,12 +33,18 @@ namespace Diary.App
 
         // Avalonia configuration, don't remove; also used by visual designer.
         public static AppBuilder BuildAvaloniaApp()
+            => BuildAvaloniaApp(null);
+
+        internal static AppBuilder BuildAvaloniaApp(Func<App>? appFactory)
         {
             IconProvider.Current
                 .Register<FontAwesomeIconProvider>()
                 .Register<MaterialDesignIconProvider>();
 
-            return AppBuilder.Configure<App>()
+            var builder = appFactory is null
+                ? AppBuilder.Configure<App>()
+                : AppBuilder.Configure(appFactory);
+            return builder
                 .UsePlatformDetect()
                 .With(new FontManagerOptions
                 {
