@@ -162,7 +162,12 @@ public sealed class ScriptDirectoryLoader(
                             result = new ScriptBuildResult(false, null, result.Diagnostics.AddRange(registration.Diagnostics));
                         }
                         else
+                        {
                             _registeredIds.Add(result.Program.Descriptor.Id);
+                            catalog.SetSource(result.Program.Descriptor.Id, new ScriptSourceInfo(
+                                sourcePath,
+                                await File.ReadAllTextAsync(sourcePath, cancellationToken)));
+                        }
                     }
 
                     var loaded = result.Succeeded && result.Program is not null;

@@ -9,12 +9,17 @@ public interface IScriptCatalog
     IReadOnlyList<IScriptProgramV1> GetAll();
     bool Remove(string id);
     bool TryGet(string id, out IScriptProgramV1? program);
+    bool TryGetSource(string id, out ScriptSourceInfo? source);
+    void SetSource(string id, ScriptSourceInfo source);
 }
+
+public sealed record ScriptSourceInfo(string SourcePath, string Source);
 
 public sealed class ScriptCatalog : IScriptCatalog
 {
     private readonly object _gate = new();
     private readonly Dictionary<string, IScriptProgramV1> _programs = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ScriptSourceInfo> _sources = new(StringComparer.Ordinal);
 
     public ScriptRegistrationResult Register(IScriptProgramV1 program)
     {
@@ -87,6 +92,21 @@ public sealed class ScriptCatalog : IScriptCatalog
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         lock (_gate)
             return _programs.TryGetValue(id, out program);
+    }
+
+    public bool TryGetSource(string id, out ScriptSourceInfo? source)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        lock (_gate)
+            return _sources.TryGetValue(id, out source);
+    }
+
+    public void SetSource(string id, ScriptSourceInfo source)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        ArgumentNullException.ThrowIfNull(source);
+        lock (_gate)
+            _sources[id] = source;
     }
 
     private static void DisposeProgram(IScriptProgramV1? program)

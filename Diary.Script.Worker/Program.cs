@@ -81,8 +81,8 @@ internal sealed class CSharpWorker(Stream input, Stream output)
 
             var executionId = Guid.TryParse(message.ExecutionId, out var parsedId) ? parsedId : Guid.NewGuid();
             var metadata = new ScriptExecutionMetadata(executionId, DateTimeOffset.UtcNow, ScriptExecutionSource.Editor, payload.ScriptId);
-            var context = new ScriptExecutionContext(payload.GrantedCapabilities, metadata);
-            if ((payload.GrantedCapabilities & ScriptCapability.ReadDiary) != 0)
+            var context = new ScriptExecutionContext(build.Program.Descriptor.Capabilities, metadata);
+            if ((build.Program.Descriptor.Capabilities & ScriptCapability.ReadDiary) != 0)
                 context.RegisterApi<IWorkItemQueryScriptApi>(new WorkerWorkItemQueryProxy(CallHostAsync), ScriptCapability.ReadDiary);
             var outcome = await _executor.ExecuteAsync(build.Program, payload.Request, context, cancellationToken: CancellationToken.None, executionId: executionId);
             await WriteResultAsync(message, new(outcome.Result.Status, outcome.Result.Diagnostics, DurationMilliseconds: (long)outcome.Duration.TotalMilliseconds));
@@ -113,12 +113,5 @@ internal sealed class CSharpWorker(Stream input, Stream output)
         }
     }
 }
-
-internal sealed record WorkerExecutePayload(
-    string ScriptId,
-    string SourcePath,
-    string Source,
-    ScriptExecutionRequest Request,
-    ScriptCapability GrantedCapabilities = ScriptCapability.None);
 
 internal sealed record WorkerExecuteEnvelope(string ScriptId, JsonElement Payload);

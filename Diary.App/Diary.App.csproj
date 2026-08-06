@@ -48,6 +48,7 @@
         <ProjectReference Include="..\Diary.Script.Lua\Diary.Script.Lua.csproj" />
         <ProjectReference Include="..\Diary.Script.Python\Diary.Script.Python.csproj" />
         <ProjectReference Include="..\Diary.Script.Runtime\Diary.Script.Runtime.csproj" />
+        <ProjectReference Include="..\Diary.Script.Worker\Diary.Script.Worker.csproj" ReferenceOutputAssembly="false" />
         <ProjectReference Include="..\Diary.ScriptHost\Diary.ScriptHost.csproj" />
         <ProjectReference Include="..\Diary.ScriptBase\Diary.ScriptBase.csproj" />
         <ProjectReference Include="..\Diary.Survey\Diary.Survey.csproj" />
@@ -63,6 +64,18 @@
             <Output TaskParameter="TargetOutputs" ItemName="TrackerPluginAssembly" />
         </MSBuild>
         <Copy SourceFiles="@(TrackerPluginAssembly)" DestinationFolder="$(OutputPath)" />
+    </Target>
+
+    <Target Name="BuildAndCopyScriptWorker" AfterTargets="Build">
+        <MSBuild Projects="..\Diary.Script.Worker\Diary.Script.Worker.csproj"
+                 Targets="Build"
+                 Properties="Configuration=$(Configuration)" />
+        <ItemGroup>
+            <ScriptWorkerOutput Include="..\Diary.Script.Worker\bin\$(Configuration)\net10.0\**\*" />
+        </ItemGroup>
+        <Copy SourceFiles="@(ScriptWorkerOutput)"
+              DestinationFiles="@(ScriptWorkerOutput->'$(OutputPath)%(RecursiveDir)%(Filename)%(Extension)')"
+              SkipUnchangedFiles="true" />
     </Target>
     
     <Target Name="GenVersionInfo" BeforeTargets="BeforeBuild">

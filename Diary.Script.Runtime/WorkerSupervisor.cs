@@ -131,22 +131,30 @@ public sealed class WorkerSupervisor(
             }
             catch (OperationCanceledException) when (timeoutCancellation?.IsCancellationRequested == true)
             {
-                await SendCancelAsync(executionId, "Timeout", DateTimeOffset.UtcNow, cancellationToken);
+                await TrySendCancelAsync(executionId, "Timeout", DateTimeOffset.UtcNow, cancellationToken);
                 State = WorkerState.Failed;
-                return new WorkerMessage<WorkerExecutionResultPayload>(
-                    WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.ExecuteResult,
-                    requestId, executionId,
-                    new(ScriptExecutionStatus.TimedOut, [new ScriptDiagnostic(
-                        "SCRIPT_EXECUTION_TIMED_OUT", "Worker 执行超时。", ScriptDiagnosticSeverity.Error,
-                        ScriptDiagnosticCategory.Runtime)]));
+                return Result(requestId, executionId, ScriptExecutionStatus.TimedOut,
+                    new ScriptDiagnostic("SCRIPT_EXECUTION_TIMED_OUT", "Worker 执行超时。",
+                        ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Runtime));
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                await SendCancelAsync(executionId, "Cancelled", null, CancellationToken.None);
-                return new WorkerMessage<WorkerExecutionResultPayload>(
-                    WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.ExecuteResult,
-                    requestId, executionId,
-                    new(ScriptExecutionStatus.Cancelled, []));
+                await TrySendCancelAsync(executionId, "Cancelled", null, CancellationToken.None);
+                return Result(requestId, executionId, ScriptExecutionStatus.Cancelled);
+            }
+            catch (EndOfStreamException)
+            {
+                State = WorkerState.Failed;
+                return Result(requestId, executionId, ScriptExecutionStatus.Failed,
+                    new ScriptDiagnostic("WORKER_TERMINATED", "Worker 进程意外退出。",
+                        ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Runtime));
+            }
+            catch (IOException)
+            {
+                State = WorkerState.Failed;
+                return Result(requestId, executionId, ScriptExecutionStatus.Failed,
+                    new ScriptDiagnostic("WORKER_TERMINATED", "Worker 通道意外断开。",
+                        ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Runtime));
             }
             if (result.RequestId != requestId || result.ExecutionId != executionId)
                 throw new WorkerProtocolException(new ScriptDiagnostic(
@@ -186,14 +194,34 @@ public sealed class WorkerSupervisor(
         await StartAsync(options, cancellationToken);
     }
 
-    private ValueTask SendCancelAsync(
+    private async ValueTask TrySendCancelAsync(
         string executionId,
         string reason,
         DateTimeOffset? deadline,
-        CancellationToken cancellationToken) =>
-        _transport!.SendAsync(new WorkerMessage<WorkerCancelPayload>(
-            WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.Cancel,
-            Guid.NewGuid().ToString("N"), executionId, new(reason, deadline)), cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (_transport is not null)
+                await _transport.SendAsync(new WorkerMessage<WorkerCancelPayload>(
+                    WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.Cancel,
+                    Guid.NewGuid().ToString("N"), executionId, new(reason, deadline)), cancellationToken);
+        }
+        catch (IOException)
+        {
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
+
+    private static WorkerMessage<WorkerExecutionResultPayload> Result(
+        string requestId,
+        string executionId,
+        ScriptExecutionStatus status,
+        params ScriptDiagnostic[] diagnostics) =>
+        new(WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.ExecuteResult,
+            requestId, executionId, new(status, diagnostics));
 
     private async ValueTask StopTransportAsync(CancellationToken cancellationToken)
     {

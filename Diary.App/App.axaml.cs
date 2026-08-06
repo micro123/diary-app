@@ -320,6 +320,28 @@ namespace Diary.App
             services.AddSingleton<IScriptCatalog, ScriptCatalog>();
             services.AddSingleton<IScriptBuildService, ScriptBuildService>();
             services.AddSingleton<IScriptExecutor, ScriptExecutor>();
+            services.AddSingleton<IWorkerTransportFactory>(_ =>
+            {
+                var workerName = OperatingSystem.IsWindows()
+                    ? "Diary.Script.Worker.exe"
+                    : "Diary.Script.Worker";
+                return new ProcessWorkerTransportFactory(new WorkerProcessOptions(
+                    Path.Combine(AppContext.BaseDirectory, workerName),
+                    [],
+                    AppContext.BaseDirectory));
+            });
+            services.AddSingleton<WorkerSupervisor>();
+            services.AddSingleton<IWorkerHostCallDispatcher>(_ =>
+                new WorkItemQueryWorkerDispatcher(capabilities =>
+                    new WorkItemQueryScriptApi(() => UseDb, capabilities)));
+            services.AddSingleton<IWorkerScriptExecutor>(services =>
+                new WorkerScriptExecutor(
+                    services.GetRequiredService<IScriptCatalog>(),
+                    services.GetRequiredService<WorkerSupervisor>(),
+                    new WorkerHandshakeOptions(
+                        "csharp",
+                        [ScriptApiVersion.V1],
+                        ["workItems.query"])));
             services.AddSingleton<IScriptExecutionHistory, ScriptExecutionHistory>();
             services.AddSingleton<IScriptManager, ScriptManager>();
             services.AddSingleton<IScriptDirectoryLoader, ScriptDirectoryLoader>();

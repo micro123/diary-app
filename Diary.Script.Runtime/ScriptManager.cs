@@ -27,7 +27,8 @@ public sealed class ScriptManager(
     IScriptCatalog catalog,
     IScriptExecutor executor,
     IScriptExecutionContextFactory? contextFactory = null,
-    IScriptExecutionHistory? history = null) : IScriptManager
+    IScriptExecutionHistory? history = null,
+    IWorkerScriptExecutor? workerExecutor = null) : IScriptManager
 {
     public async ValueTask<ScriptBuildResult> BuildAndRegisterAsync(
         ScriptBuildRequest request,
@@ -38,6 +39,8 @@ public sealed class ScriptManager(
             return result;
 
         var registration = catalog.Register(result.Program);
+        if (registration.Succeeded)
+            catalog.SetSource(result.Program.Descriptor.Id, new ScriptSourceInfo(request.SourcePath, request.Source));
         return registration.Succeeded
             ? result
             : new ScriptBuildResult(false, null, result.Diagnostics.AddRange(registration.Diagnostics));
@@ -68,7 +71,14 @@ public sealed class ScriptManager(
 
         var startedAt = DateTimeOffset.UtcNow;
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        var outcome = await executor.ExecuteAsync(program, request, context, timeout, cancellationToken);
+        var outcome = workerExecutor is null
+            ? await executor.ExecuteAsync(program, request, context, timeout, cancellationToken)
+            : await workerExecutor.ExecuteAsync(
+                scriptId,
+                request,
+                context.Capabilities,
+                timeout,
+                cancellationToken);
         outcome = outcome with { StartedAt = startedAt, Duration = stopwatch.Elapsed, Source = request.Source };
         Record(scriptId, outcome);
         return outcome;
@@ -102,13 +112,20 @@ public sealed class ScriptManager(
         var metadata = new ScriptExecutionMetadata(executionId, startedAt, request.Source, scriptId);
         var context = contextFactory?.Create(program.Descriptor.Capabilities, metadata)
             ?? new ScriptExecutionContext(ScriptCapability.None, metadata);
-        var outcome = await executor.ExecuteAsync(
-            program,
-            request,
-            context,
-            timeout,
-            cancellationToken,
-            executionId);
+        var outcome = workerExecutor is null
+            ? await executor.ExecuteAsync(
+                program,
+                request,
+                context,
+                timeout,
+                cancellationToken,
+                executionId)
+            : await workerExecutor.ExecuteAsync(
+                scriptId,
+                request,
+                context.Capabilities,
+                timeout,
+                cancellationToken);
         outcome = outcome with { StartedAt = startedAt, Duration = stopwatch.Elapsed, Source = request.Source };
         Record(scriptId, outcome);
         return outcome;
