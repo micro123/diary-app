@@ -49,6 +49,8 @@ public sealed record ScriptListItem(
         ScriptCapability.Tracker => "Tracker",
         _ => capability.ToString(),
     };
+
+    public string EnabledLabel => Enabled ? "已启用" : "已禁用";
 }
 
 public sealed record ScriptHistoryListItem(
@@ -334,7 +336,7 @@ public partial class ScriptManagementViewModel(
             return entry.BuildResult.Diagnostics.Any(item => item.Code == "SCRIPT_CACHE_HIT")
                 ? "已加载（缓存）"
                 : "已加载";
-        return "加载失败（已禁用）";
+        return entry.Enabled ? "加载失败" : "已禁用";
     }
 
     [RelayCommand]

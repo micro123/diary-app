@@ -89,6 +89,12 @@ public sealed class ScriptDirectoryLoader(
                         continue;
                     }
 
+                    if (!metadata.Enabled)
+                    {
+                        entries.Add(new ScriptDirectoryEntry(sourcePath, scope, false));
+                        continue;
+                    }
+
                     ScriptBuildResult result;
                     try
                     {

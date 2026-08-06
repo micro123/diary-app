@@ -37,7 +37,7 @@ public sealed class ScriptDirectoryLoaderTests
     }
 
     [TestMethod]
-    public async Task LoadAsync_DoesNotUseLegacyManualEnabledState()
+    public async Task LoadAsync_DoesNotRegisterDisabledScript()
     {
         var loader = CreateLoader(out var catalog);
         var sourcePath = await WriteScriptAsync("application", "disabled.fake", "disabled");
@@ -46,9 +46,28 @@ public sealed class ScriptDirectoryLoaderTests
         var result = await loader.LoadAsync(_root);
 
         Assert.AreEqual(1, result.Entries.Length);
-        Assert.IsTrue(result.Entries[0].Enabled);
-        Assert.IsTrue(result.Entries[0].BuildResult!.Succeeded);
-        Assert.IsTrue(catalog.TryGet("disabled", out _));
+        Assert.IsFalse(result.Entries[0].Enabled);
+        Assert.IsNull(result.Entries[0].BuildResult);
+        Assert.IsFalse(catalog.TryGet("disabled", out _));
+    }
+
+    [TestMethod]
+    public async Task LoadAsync_DoesNotRegisterDisabledPackage()
+    {
+        var loader = CreateLoader(out var catalog);
+        var packageDirectory = Path.Combine(_root, "application", "disabled-package");
+        Directory.CreateDirectory(packageDirectory);
+        await File.WriteAllTextAsync(Path.Combine(packageDirectory, "main.fake"), "disabled-package");
+        await File.WriteAllTextAsync(
+            Path.Combine(packageDirectory, "manifest.json"),
+            """{"entry":"main.fake","id":"disabled-package","enabled":false}""");
+
+        var result = await loader.LoadAsync(_root);
+
+        var entry = result.Entries.Single(item => item.SourcePath.EndsWith("main.fake", StringComparison.Ordinal));
+        Assert.IsFalse(entry.Enabled);
+        Assert.IsNull(entry.BuildResult);
+        Assert.IsFalse(catalog.TryGet("disabled-package", out _));
     }
 
     [TestMethod]

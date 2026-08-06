@@ -60,6 +60,7 @@
                                     <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold" />
                                     <TextBlock Text="{Binding SourcePath}" Opacity="0.58" />
                                     <TextBlock Text="{Binding Status}" Opacity="0.78" />
+                                    <TextBlock Text="{Binding EnabledLabel}" Opacity="0.68" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" HorizontalAlignment="Right">
                                     <TextBlock Text="{Binding ScopeLabel}" />
@@ -95,6 +96,7 @@
                         <TextBlock Text="{Binding SelectedScript.Name}" FontSize="22" FontWeight="SemiBold" />
                         <TextBlock Text="{Binding SelectedScript.ScopeLabel}" Opacity="0.68" />
                         <TextBlock Text="{Binding SelectedScript.Status}" />
+                        <TextBlock Text="{Binding SelectedScript.EnabledLabel}" Opacity="0.68" />
                         <TextBlock Text="{Binding SelectedScript.SourcePath}" TextWrapping="Wrap" Opacity="0.68" />
                         <TextBlock Text="{Binding SelectedScript.CapabilityLabel}" Opacity="0.68" />
                     </StackPanel>
