@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.GUIBase.ViewModels;
@@ -44,7 +43,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
 
     private bool CanCreate() => !Creating
         && !string.IsNullOrWhiteSpace(Name)
-        && Regex.IsMatch(Id, "^[a-z][a-z0-9._-]{1,63}$", RegexOptions.IgnoreCase);
+        && ScriptCreationPolicy.IsValidId(Id);
 
     [RelayCommand(CanExecute = nameof(CanCreate))]
     private async Task Create()
@@ -58,7 +57,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
             var folder = Path.Combine(_scriptRoot, scope == ScriptScope.Editor ? "editor" : "application");
             var root = Path.GetFullPath(_scriptRoot);
             var fullFolder = Path.GetFullPath(folder);
-            if (!fullFolder.StartsWith(root + Path.DirectorySeparatorChar, GetPathComparison()))
+            if (!ScriptCreationPolicy.IsInsideDirectory(fullFolder, root))
             {
                 Error = "脚本目标目录无效。";
                 return;
@@ -66,7 +65,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
 
             Directory.CreateDirectory(fullFolder);
             var sourcePath = Path.GetFullPath(Path.Combine(fullFolder, $"{Id}.cs"));
-            if (!sourcePath.StartsWith(fullFolder + Path.DirectorySeparatorChar, GetPathComparison()))
+            if (!ScriptCreationPolicy.IsInsideDirectory(sourcePath, fullFolder))
             {
                 Error = "脚本 ID 生成的文件路径无效。";
                 return;
@@ -134,9 +133,6 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
     }
 
     private static string Escape(string value) => value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", " ").Replace("\n", " ");
-
-    private static StringComparison GetPathComparison() =>
-        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 
     private static async Task WriteFilesAtomicallyAsync(
         string sourcePath,
