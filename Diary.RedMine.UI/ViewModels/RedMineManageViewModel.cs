@@ -3,7 +3,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.ViewModels;
-using Diary.RedMine;
 using Diary.RedMine.UI.ViewModels.Pages;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;

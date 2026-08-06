@@ -1,11 +1,7 @@
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Diary.Database;
-using Diary.GUIBase;
-using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
-using Diary.RedMine;
 using Diary.RedMine.Response;
 using Diary.Utils;
 

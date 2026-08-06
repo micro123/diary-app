@@ -1,7 +1,6 @@
 using Diary.App;
 using Diary.PluginBase;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Diary.UtilTests;

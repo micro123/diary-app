@@ -1,4 +1,3 @@
-using Diary.Db.SQLite;
 using Diary.Core.Utils;
 using Diary.PluginBase;
 using Diary.RedMine;

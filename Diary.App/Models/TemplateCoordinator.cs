@@ -3,7 +3,6 @@ using Diary.GUIBase.ViewModels;
 using Diary.PluginBase;
 using Diary.PluginUI;
 using Diary.Utils;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Diary.App.Models;
 

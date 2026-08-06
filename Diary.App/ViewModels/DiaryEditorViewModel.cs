@@ -14,7 +14,6 @@ using Diary.Core.Data.Base;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
-using Diary.PluginUI;
 using Diary.PluginBase;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;

@@ -2,8 +2,6 @@ using System.Text.Json;
 using Diary.GUIBase.ViewModels;
 using Diary.PluginBase;
 using Diary.PluginUI;
-using Diary.RedMine;
-using Diary.RedMine.UI;
 using Diary.Utils;
 
 namespace Diary.RedMine.UI.ViewModels.Dialogs;

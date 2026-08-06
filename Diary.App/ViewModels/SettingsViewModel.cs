@@ -7,8 +7,6 @@ using Diary.GUIBase;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
-using Diary.Core.Utils;
-using Diary.PluginBase;
 using Diary.PluginUI;
 using Diary.Utils;
 using Diary.App.ViewModels.Dialogs;

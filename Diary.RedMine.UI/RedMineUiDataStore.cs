@@ -1,10 +1,8 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.Messaging;
-using Diary.Database;
 using Diary.GUIBase;
 using Diary.GUIBase.Events;
 using Diary.PluginBase;
-using Diary.RedMine;
 using Diary.RedMine.Models;
 using Diary.Utils;
 using Microsoft.Extensions.Logging;

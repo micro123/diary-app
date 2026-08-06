@@ -2,8 +2,6 @@ using System.Collections.ObjectModel;
 using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Diary.GUIBase;
-using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
 using Diary.PluginBase;

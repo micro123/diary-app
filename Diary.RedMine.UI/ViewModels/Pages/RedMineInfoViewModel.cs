@@ -2,15 +2,10 @@ using System.Collections.ObjectModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Diary.Database;
-using Diary.GUIBase.Events;
-using Diary.GUIBase;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
-using Diary.RedMine;
 using Diary.RedMine.Models;
 using Diary.RedMine.Response;
-using Diary.RedMine.UI;
 using Diary.Utils;
 using Microsoft.Extensions.Logging;
 
