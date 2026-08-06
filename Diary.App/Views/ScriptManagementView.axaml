@@ -7,15 +7,18 @@
              x:DataType="vm:ScriptManagementViewModel"
              mc:Ignorable="d" d:DesignWidth="960" d:DesignHeight="640"
              Padding="16">
-    <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" RowSpacing="12">
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
             <StackPanel>
                 <TextBlock Text="脚本工作台" FontSize="30" FontWeight="Bold" />
                 <TextBlock Text="管理本机脚本，支持应用自动化和编辑器操作。"
                            Opacity="0.68" />
             </StackPanel>
-            <Button Grid.Column="1" Content="重新加载" Command="{Binding ReloadCommand}"
-                    Classes="Primary" IsEnabled="{Binding CanReload}" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button Content="打开脚本目录" Command="{Binding OpenScriptsFolderCommand}" />
+                <Button Content="重新加载" Command="{Binding ReloadCommand}"
+                        Classes="Primary" IsEnabled="{Binding CanReload}" />
+            </StackPanel>
         </Grid>
 
         <Border Grid.Row="1" Padding="12" CornerRadius="8"
@@ -23,35 +26,92 @@
             <TextBlock Text="{Binding Status}" />
         </Border>
 
-        <Grid Grid.Row="2" ColumnDefinitions="3*,2*" ColumnSpacing="16">
-            <ListBox ItemsSource="{Binding Scripts}" SelectedItem="{Binding SelectedScript}">
-                <ListBox.ItemTemplate>
-                    <DataTemplate x:DataType="vm:ScriptListItem">
-                        <Grid ColumnDefinitions="*,Auto" Margin="8" ColumnSpacing="20">
-                            <StackPanel Spacing="3">
-                                <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold" />
-                                <TextBlock Text="{Binding SourcePath}" Opacity="0.58" />
-                                <TextBlock Text="{Binding Status}" Opacity="0.78" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="1" HorizontalAlignment="Right">
-                                <TextBlock Text="{Binding ScopeLabel}" />
-                                <TextBlock Text="{Binding CapabilityLabel}" Opacity="0.68" />
-                            </StackPanel>
-                        </Grid>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+            <TextBox Text="{Binding SearchText, Mode=TwoWay}" Watermark="搜索脚本名称或 ID" />
+            <ComboBox Grid.Column="1" Width="140" ItemsSource="{Binding ScopeFilters}"
+                      SelectedItem="{Binding SelectedScopeFilter, Mode=TwoWay}" />
+            <ComboBox Grid.Column="2" Width="140" ItemsSource="{Binding StatusFilters}"
+                      SelectedItem="{Binding SelectedStatusFilter, Mode=TwoWay}" />
+        </Grid>
+
+        <Border Grid.Row="3" Padding="10" CornerRadius="8" IsVisible="{Binding ShowEditorRange}"
+                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+            <Grid ColumnDefinitions="Auto,180,*,Auto,Auto" ColumnSpacing="8">
+                <TextBlock Text="执行范围" VerticalAlignment="Center" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding ExecutionRanges}"
+                          SelectedItem="{Binding SelectedExecutionRange, Mode=TwoWay}" />
+                <TextBlock Grid.Column="2" Text="{Binding ExecutionRangeSummary}"
+                           VerticalAlignment="Center" Opacity="0.68" />
+                <CalendarDatePicker Grid.Column="3" SelectedDate="{Binding ExecutionStartDate, Mode=TwoWay}"
+                                    IsVisible="{Binding ShowCustomRange}" />
+                <CalendarDatePicker Grid.Column="4" SelectedDate="{Binding ExecutionEndDate, Mode=TwoWay}"
+                                    IsVisible="{Binding ShowCustomRange}" />
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="4" ColumnDefinitions="3*,2*" ColumnSpacing="16">
+            <Grid>
+                <ListBox ItemsSource="{Binding VisibleScripts}" SelectedItem="{Binding SelectedScript}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ScriptListItem">
+                            <Grid ColumnDefinitions="*,Auto" Margin="8" ColumnSpacing="20">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding SourcePath}" Opacity="0.58" />
+                                    <TextBlock Text="{Binding Status}" Opacity="0.78" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                                    <TextBlock Text="{Binding ScopeLabel}" />
+                                    <TextBlock Text="{Binding CapabilityLabel}" Opacity="0.68" />
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6"
+                            IsVisible="{Binding ShowEmptyState}">
+                    <TextBlock Text="还没有脚本" FontSize="20" FontWeight="SemiBold"
+                               HorizontalAlignment="Center" />
+                    <TextBlock Text="将脚本放入脚本目录后点击重新加载。" Opacity="0.68"
+                               HorizontalAlignment="Center" />
+                    <Button Content="打开脚本目录" Command="{Binding OpenScriptsFolderCommand}"
+                            HorizontalAlignment="Center" />
+                </StackPanel>
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6"
+                            IsVisible="{Binding ShowNoResultsState}">
+                    <TextBlock Text="没有匹配的脚本" FontSize="20" FontWeight="SemiBold"
+                               HorizontalAlignment="Center" />
+                    <TextBlock Text="尝试调整搜索关键词或筛选条件。" Opacity="0.68"
+                               HorizontalAlignment="Center" />
+                </StackPanel>
+                <ProgressBar IsIndeterminate="True" Height="3" VerticalAlignment="Top"
+                             IsVisible="{Binding Loading}" />
+            </Grid>
 
             <TabControl Grid.Column="1">
+                <TabItem Header="概览">
+                    <StackPanel Margin="8" Spacing="8">
+                        <TextBlock Text="{Binding SelectedScript.Name}" FontSize="22" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding SelectedScript.ScopeLabel}" Opacity="0.68" />
+                        <TextBlock Text="{Binding SelectedScript.Status}" />
+                        <TextBlock Text="{Binding SelectedScript.SourcePath}" TextWrapping="Wrap" Opacity="0.68" />
+                        <TextBlock Text="{Binding SelectedScript.CapabilityLabel}" Opacity="0.68" />
+                    </StackPanel>
+                </TabItem>
                 <TabItem Header="诊断详情">
                     <ScrollViewer>
-                        <ItemsControl ItemsSource="{Binding SelectedScript.Diagnostics}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="4" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        <Grid>
+                            <ItemsControl ItemsSource="{Binding SelectedScript.Diagnostics}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="4" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="没有诊断信息" Opacity="0.68"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       IsVisible="{Binding !HasSelectedDiagnostics}" />
+                        </Grid>
                     </ScrollViewer>
                 </TabItem>
                 <TabItem Header="执行历史">
@@ -59,9 +119,10 @@
                         <ListBox.ItemTemplate>
                             <DataTemplate x:DataType="vm:ScriptHistoryListItem">
                                 <StackPanel Margin="4" Spacing="2">
-                                    <TextBlock Text="{Binding ScriptId}" FontWeight="SemiBold" />
-                                    <TextBlock Text="{Binding Status}" />
-                                    <TextBlock Text="{Binding Source}" Opacity="0.68" />
+                                    <TextBlock Text="{Binding ScriptName}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding ScriptId}" Opacity="0.58" />
+                                    <TextBlock Text="{Binding StatusLabel}" />
+                                    <TextBlock Text="{Binding SourceLabel}" Opacity="0.68" />
                                     <TextBlock Text="{Binding StartedAt}" Opacity="0.68" />
                                     <TextBlock Text="{Binding Duration}" Opacity="0.68" />
                                     <ItemsControl ItemsSource="{Binding Diagnostics}" />
@@ -73,7 +134,7 @@
             </TabControl>
         </Grid>
 
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
             <Button Content="取消" Command="{Binding CancelCommand}" IsVisible="{Binding IsExecuting}" />
             <Button Content="运行" Command="{Binding RunCommand}" Classes="Primary" />
         </StackPanel>
