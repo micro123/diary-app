@@ -3,6 +3,7 @@ using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.ViewModels.Dialogs;
+using Diary.App.Models;
 using Diary.GUIBase.ViewModels;
 using Diary.Script.Runtime;
 using Diary.ScriptBase;
@@ -98,6 +99,7 @@ public partial class ScriptManagementViewModel(
     IScriptManager scriptManager,
     IScriptCatalog scriptCatalog,
     IScriptExecutionHistory executionHistory,
+    ScriptStartupDiagnosticsStore startupDiagnostics,
     ILogger logger,
     IServiceProvider services) : ViewModelBase
 {
@@ -107,6 +109,7 @@ public partial class ScriptManagementViewModel(
     public ObservableCollection<ScriptListItem> VisibleScripts { get; } = new();
     public ObservableCollection<ScriptHistoryListItem> History { get; } = new();
     public ObservableCollection<ScriptDiagnosticListItem> DirectoryDiagnostics { get; } = new();
+    public ObservableCollection<ScriptDiagnosticListItem> StartupDiagnostics => startupDiagnostics.Diagnostics;
     public IReadOnlyList<string> ScopeFilters { get; } = ["全部类型", "应用脚本", "编辑器脚本"];
     public IReadOnlyList<string> StatusFilters { get; } = ["全部状态", "已加载", "加载失败"];
     public IReadOnlyList<string> ExecutionRanges { get; } =
@@ -115,6 +118,7 @@ public partial class ScriptManagementViewModel(
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RunCommand))]
     [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
+    [NotifyCanExecuteChangedFor(nameof(OpenSelectedScriptCommand))]
     private ScriptListItem? _selectedScript;
 
     [ObservableProperty] private string _status = "尚未加载脚本目录";
@@ -138,12 +142,14 @@ public partial class ScriptManagementViewModel(
     private CancellationTokenSource? _executionCancellation;
 
     public bool CanReload => !Loading && !IsExecuting;
+    public bool CanOpenSelectedScript => SelectedScript is not null;
     public bool HasScripts => Scripts.Count > 0;
     public bool HasVisibleScripts => VisibleScripts.Count > 0;
     public bool ShowEmptyState => !Loading && !HasScripts;
     public bool ShowNoResultsState => !Loading && HasScripts && !HasVisibleScripts;
     public bool HasSelectedDiagnostics => SelectedScript?.Diagnostics.Count > 0;
     public bool HasDirectoryDiagnostics => DirectoryDiagnostics.Count > 0;
+    public bool HasStartupDiagnostics => StartupDiagnostics.Count > 0;
     public bool ShowEditorRange => SelectedScript?.Scope == ScriptScope.Editor;
     public bool ShowCustomRange => ShowEditorRange && SelectedExecutionRange == "自定义范围";
     public string ExecutionRangeSummary => ShowEditorRange
@@ -167,6 +173,7 @@ public partial class ScriptManagementViewModel(
         OnPropertyChanged(nameof(ShowCustomRange));
         OnPropertyChanged(nameof(ExecutionRangeSummary));
         RunCommand.NotifyCanExecuteChanged();
+        OpenSelectedScriptCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSelectedExecutionRangeChanged(string value)
@@ -218,6 +225,8 @@ public partial class ScriptManagementViewModel(
             foreach (var diagnostic in result.Diagnostics)
                 DirectoryDiagnostics.Add(FormatDiagnostic(diagnostic));
             OnPropertyChanged(nameof(HasDirectoryDiagnostics));
+            startupDiagnostics.Replace(result.Diagnostics.Select(FormatDiagnostic));
+            OnPropertyChanged(nameof(HasStartupDiagnostics));
             var selectedId = SelectedScript?.Id;
             var loadedScripts = new List<ScriptListItem>();
             foreach (var entry in result.Entries)
@@ -258,6 +267,8 @@ public partial class ScriptManagementViewModel(
                 "脚本目录加载失败，请查看日志或重试。",
                 string.Empty));
             OnPropertyChanged(nameof(HasDirectoryDiagnostics));
+            startupDiagnostics.Replace(DirectoryDiagnostics, loadFailed: true);
+            OnPropertyChanged(nameof(HasStartupDiagnostics));
         }
         finally
         {
@@ -292,18 +303,14 @@ public partial class ScriptManagementViewModel(
                 CreateExecutionRequest(script),
                 TimeSpan.FromMinutes(5),
                 cancellation.Token), cancellation.Token);
-            Status = outcome.Result.Status switch
-            {
-                ScriptExecutionStatus.Succeeded => $"{script.Name} 执行成功（{outcome.Duration.TotalSeconds:0.##} 秒）",
-                ScriptExecutionStatus.Cancelled => $"{script.Name} 已取消",
-                ScriptExecutionStatus.TimedOut => $"{script.Name} 执行超时",
-                _ => $"{script.Name} 执行失败：{outcome.Result.Diagnostics.FirstOrDefault()?.Message ?? "请查看诊断详情"}",
-            };
+            Status = FormatExecutionStatus(script.Name, outcome.Result.Status, outcome.Result.Diagnostics, outcome.Duration);
             NotificationManager?.Show(
                 Status,
                 outcome.Result.Status == ScriptExecutionStatus.Succeeded
                     ? NotificationType.Success
-                    : NotificationType.Error);
+                    : outcome.Result.Status == ScriptExecutionStatus.Cancelled
+                        ? NotificationType.Information
+                        : NotificationType.Error);
             RefreshHistory();
         }
         catch (Exception exception)
@@ -359,6 +366,15 @@ public partial class ScriptManagementViewModel(
     }
 
     [RelayCommand]
+    private async Task CopyStartupDiagnostics()
+    {
+        if (!HasStartupDiagnostics)
+            return;
+        if (await CopyStringToClipboardAsync(string.Join(Environment.NewLine, StartupDiagnostics.Select(item => item.Summary))))
+            NotificationManager?.Show("启动诊断已复制", NotificationType.Success);
+    }
+
+    [RelayCommand]
     private async Task CreateScript()
     {
         var viewModel = services.GetRequiredService<ScriptCreationViewModel>();
@@ -374,6 +390,27 @@ public partial class ScriptManagementViewModel(
         {
             Status = "脚本已创建，正在重新加载";
             await ReloadAsync();
+            SelectedScript = Scripts.FirstOrDefault(script =>
+                string.Equals(Path.GetFullPath(script.SourcePath), Path.GetFullPath(sourcePath),
+                    OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal));
+            Status = SelectedScript is null ? "脚本已创建并完成检查" : $"脚本已创建并完成检查：{SelectedScript.Name}";
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanOpenSelectedScript))]
+    private void OpenSelectedScript()
+    {
+        if (SelectedScript is null)
+            return;
+        try
+        {
+            ProcUtils.OpenFileCrossPlatform(SelectedScript.SourcePath);
+            Status = $"已打开脚本：{SelectedScript.Name}";
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "打开脚本文件失败：{SourcePath}", SelectedScript.SourcePath);
+            Status = "无法打开脚本文件";
         }
     }
 
@@ -435,7 +472,20 @@ public partial class ScriptManagementViewModel(
                 ? $"[{item.Code}] {item.Message}"
                 : $"[{item.Code}] {item.SourcePath}:{item.Line}:{item.Column} {item.Message}")
             .ToArray()
-        ?? Array.Empty<string>();
+            ?? Array.Empty<string>();
+
+    private static string FormatExecutionStatus(
+        string scriptName,
+        ScriptExecutionStatus status,
+        IReadOnlyList<ScriptDiagnostic> diagnostics,
+        TimeSpan duration) => status switch
+        {
+            ScriptExecutionStatus.Succeeded => $"{scriptName} 执行成功（{duration.TotalSeconds:0.##} 秒）",
+            ScriptExecutionStatus.Cancelled => $"{scriptName} 已取消",
+            ScriptExecutionStatus.TimedOut => $"{scriptName} 执行超时，请查看诊断详情",
+            ScriptExecutionStatus.Rejected => $"{scriptName} 未执行：{diagnostics.FirstOrDefault()?.Message ?? "请求被拒绝"}",
+            _ => $"{scriptName} 执行失败：{diagnostics.FirstOrDefault()?.Message ?? "请查看诊断详情"}",
+        };
 
     private static IReadOnlyList<ScriptDiagnosticListItem> FormatDiagnosticDetails(
         IEnumerable<ScriptDiagnostic>? diagnostics) =>
