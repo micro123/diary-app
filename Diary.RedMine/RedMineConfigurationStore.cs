@@ -1,4 +1,3 @@
-using Diary.Core.Data.AppConfig;
 using Diary.Core.Configure;
 
 namespace Diary.RedMine;
@@ -14,6 +13,8 @@ public sealed class RedMineInstanceSettings : RedMineConfig
     public string InstanceId { get; set; } = RedMinePluginConstants.DefaultInstanceId;
     [ConfigureText("显示名称")]
     public string DisplayName { get; set; } = "RedMine工具";
+    [ConfigureText("导航图标")]
+    public string Icon { get; set; } = RedMinePluginConstants.DefaultIcon;
     [ConfigureSwitch("启用此实例")]
     public bool Enabled { get; set; } = false;
     public IList<RedMineTagRule> TagRules { get; set; } = new List<RedMineTagRule>();
@@ -44,6 +45,7 @@ public static class RedMineConfigurationStore
         {
             InstanceId = RedMinePluginConstants.DefaultInstanceId,
             DisplayName = "RedMine工具",
+            Icon = RedMinePluginConstants.DefaultIcon,
             Enabled = false,
         };
     }

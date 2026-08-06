@@ -42,13 +42,45 @@ public sealed class RedMineConfigurationMigrationTests
     }
 
     [TestMethod]
-    public void Plugin_DeclaresVersionOneConfigurationSchema()
+    public void Plugin_DeclaresContinuousVersionTwoConfigurationSchema()
     {
-        var migration = new RedMinePlugin().GetConfigurationMigrations().Single();
+        var migrations = new RedMinePlugin().GetConfigurationMigrations().ToArray();
 
-        Assert.AreEqual(RedMinePluginConstants.PluginId, migration.PluginId);
-        Assert.AreEqual(0, migration.FromVersion);
-        Assert.AreEqual(1, migration.ToVersion);
+        Assert.AreEqual(2, migrations.Length);
+        CollectionAssert.AreEqual(new[] { 0, 1 }, migrations.Select(item => item.FromVersion).ToArray());
+        CollectionAssert.AreEqual(new[] { 1, 2 }, migrations.Select(item => item.ToVersion).ToArray());
+        Assert.IsTrue(migrations.All(item => item.PluginId == RedMinePluginConstants.PluginId));
+    }
+
+    [TestMethod]
+    public void IconMigration_AddsDefaultAndPreservesConfiguredIcon()
+    {
+        var payload = new JObject
+        {
+            ["Instances"] = new JArray
+            {
+                new JObject { ["InstanceId"] = "default" },
+                new JObject { ["InstanceId"] = "custom", ["Icon"] = "mdi-server" },
+            },
+        };
+
+        var migrated = (JObject)new RedMineIconConfigurationMigration().Migrate(payload);
+
+        Assert.AreEqual(RedMinePluginConstants.DefaultIcon, (string?)migrated["Instances"]![0]!["Icon"]);
+        Assert.AreEqual("mdi-server", (string?)migrated["Instances"]![1]!["Icon"]);
+    }
+
+    [TestMethod]
+    public void Instance_InvalidIconFallsBackToDefault()
+    {
+        var settings = new RedMineInstanceSettings { Icon = "invalid icon" };
+        var instance = new RedMineInstance(new RedMineInstanceConfiguration(
+            settings.InstanceId,
+            settings.DisplayName,
+            settings,
+            null!));
+
+        Assert.AreEqual(RedMinePluginConstants.DefaultIcon, instance.Icon);
     }
 
     [TestMethod]
