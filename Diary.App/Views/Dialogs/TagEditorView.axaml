@@ -35,8 +35,9 @@
             <Button Content="添加" Command="{Binding NewTagCommand}"/>
         </StackPanel>
         <u:Divider Content="已有标签" Grid.Row="3" HorizontalContentAlignment="Left" />
-        <ScrollViewer Grid.Row="4" x:Name="TagContainer">
-            <ItemsControl ItemsSource="{Binding AllTags}">
+        <Grid Grid.Row="4" ColumnDefinitions="*,*" ColumnSpacing="12">
+        <ScrollViewer x:Name="TagContainer">
+            <ListBox ItemsSource="{Binding AllTags}" SelectedItem="{Binding SelectedTag}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <WrapPanel Orientation="Horizontal" />
@@ -79,8 +80,18 @@
                         </Border>
                     </DataTemplate>
                 </ItemsControl.DataTemplates>
+            </ListBox>
+        </ScrollViewer>
+        <ScrollViewer Grid.Column="1">
+            <ItemsControl ItemsSource="{Binding RuleContributions}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <ContentControl Content="{Binding View}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
             </ItemsControl>
         </ScrollViewer>
+        </Grid>
         <u:Divider Grid.Row="5" />
         <StackPanel Grid.Row="6" Orientation="Horizontal"
                     HorizontalAlignment="Center" Spacing="16">

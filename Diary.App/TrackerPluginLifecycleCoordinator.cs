@@ -1,7 +1,6 @@
 using Diary.PluginBase;
 using Diary.PluginUI;
 using Diary.Database;
-using Diary.Core.Utils;
 using Microsoft.Extensions.Logging;
 
 namespace Diary.App;
@@ -81,6 +80,14 @@ public sealed class TrackerPluginLifecycleCoordinator(
     {
         if (_database is not null)
             Register(_database, _plugins, _configurations);
+    }
+
+    public bool SaveConfiguration(string pluginId)
+    {
+        var plugin = _plugins.FirstOrDefault(item => item.Manifest.Id == pluginId);
+        return plugin is not null
+            && _configurations.TryGetValue(pluginId, out var configuration)
+            && _configurationLoader.Save(plugin, configuration);
     }
 
     public bool SetInstanceEnabled(string pluginId, string instanceId, bool enabled)

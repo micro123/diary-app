@@ -7,6 +7,7 @@ using Diary.GUIBase.Converters;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
+using Diary.PluginUI;
 using Diary.Utils;
 using Irihi.Avalonia.Shared.Contracts;
 using Microsoft.Extensions.Logging;
@@ -17,6 +18,7 @@ namespace Diary.App.ViewModels.Dialogs;
 public partial class TagEditorViewModel : ViewModelBase, IDialogContext
 {
     private readonly ILogger _logger;
+    private readonly TrackerPluginLifecycleCoordinator _lifecycleCoordinator;
     public string Title => "标签编辑器";
 
     [ObservableProperty]
@@ -26,13 +28,33 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
     [ObservableProperty] private HsvColor _newTagColor = default;
 
     [ObservableProperty] private ObservableCollection<EditableWorkTag> _allTags = new();
+    [ObservableProperty] private EditableWorkTag? _selectedTag;
+    public ObservableCollection<ITagRuleEditorContribution> RuleContributions { get; } = new();
 
     private bool _changed = false;
 
-    public TagEditorViewModel(ILogger logger)
+    public TagEditorViewModel(
+        ILogger logger,
+        TrackerUiContributionRegistry trackerRegistry,
+        TrackerPluginLifecycleCoordinator lifecycleCoordinator)
     {
         _logger = logger;
+        _lifecycleCoordinator = lifecycleCoordinator;
+        foreach (var contribution in trackerRegistry.Contributions)
+        {
+            var ruleContribution = contribution.CreateTagRuleEditorContribution();
+            if (ruleContribution is not null)
+                RuleContributions.Add(ruleContribution);
+        }
         LoadTags();
+    }
+
+    partial void OnSelectedTagChanged(EditableWorkTag? value)
+    {
+        if (value is null)
+            return;
+        foreach (var contribution in RuleContributions)
+            contribution.SelectTag(value.Tag);
     }
 
     public void Close()
@@ -52,6 +74,11 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
         }
         if (changed)
             EventDispatcher.DbChanged(DbChangedEvent.WorkTags);
+        foreach (var pluginId in RuleContributions.Select(item => item.PluginId).Distinct())
+        {
+            if (!_lifecycleCoordinator.SaveConfiguration(pluginId))
+                _logger.LogWarning("保存标签规则配置失败: {PluginId}", pluginId);
+        }
         RequestClose?.Invoke(this, null);
     }
 
@@ -97,5 +124,6 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
         {
             AllTags.Add(new EditableWorkTag(tag));
         }
+        SelectedTag = AllTags.FirstOrDefault();
     }
 }

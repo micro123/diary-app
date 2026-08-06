@@ -44,6 +44,14 @@ public interface ITrackerTagDefaults
     IReadOnlyCollection<string> ApplyTagDefaults(WorkTag tag);
 }
 
+public interface ITagRuleEditorContribution
+{
+    string PluginId { get; }
+    string InstanceId { get; }
+    ViewModelBase View { get; }
+    void SelectTag(WorkTag tag);
+}
+
 /// <summary>
 /// tracker 的 UI 贡献（文档 §9）：配置页、管理页、编辑器扩展。
 /// 由主程序按已启用实例解析并挂载。
@@ -58,6 +66,7 @@ public interface ITrackerUiContribution
     ViewModelBase? CreateSettingsPage(object configuration);
     ViewModelBase? CreateManagementPage(string instanceId);
     ITrackerEditorExtension? CreateEditorExtension(string instanceId);
+    ITagRuleEditorContribution? CreateTagRuleEditorContribution() => null;
 }
 
 public interface ITrackerUiContributionFactory

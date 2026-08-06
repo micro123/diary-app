@@ -7,6 +7,7 @@ public partial class EditableWorkTag(WorkTag tag) : ObservableObject
 {
     private readonly WorkTag _tag = tag;
 
+    public WorkTag Tag => _tag;
     public int Id => _tag.Id;
     [ObservableProperty] private string _name = tag.Name;
     [ObservableProperty] private int _color = tag.Color;

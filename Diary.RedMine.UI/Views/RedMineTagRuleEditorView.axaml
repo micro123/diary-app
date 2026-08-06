@@ -1,0 +1,35 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:viewModels="clr-namespace:Diary.RedMine.UI.ViewModels"
+             x:Class="Diary.RedMine.UI.Views.RedMineTagRuleEditorView"
+             x:DataType="viewModels:RedMineTagRuleEditorViewModel">
+    <StackPanel Spacing="8">
+        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+        <Button Content="添加规则" HorizontalAlignment="Left" Command="{Binding AddTagRuleCommand}" />
+        <ItemsControl ItemsSource="{Binding TagRules}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="viewModels:RedMineTagRuleViewModel">
+                    <Border Padding="8" Margin="0,0,0,6" CornerRadius="6"
+                            Background="{DynamicResource SemiColorFill2}">
+                        <StackPanel Spacing="6">
+                            <CheckBox Content="启用" IsChecked="{Binding Enabled}" />
+                            <ComboBox ItemsSource="{Binding Tags}" SelectedItem="{Binding SelectedTag}">
+                                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <ComboBox ItemsSource="{Binding Activities}" SelectedItem="{Binding SelectedActivity}">
+                                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <ComboBox ItemsSource="{Binding Issues}" SelectedItem="{Binding SelectedIssue}">
+                                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <NumericUpDown Value="{Binding Priority}" Minimum="-1000" Maximum="1000" />
+                            <Button Content="删除" HorizontalAlignment="Left"
+                                    Command="{Binding $parent[UserControl].((viewModels:RedMineTagRuleEditorViewModel)DataContext).RemoveTagRuleCommand}"
+                                    CommandParameter="{Binding}" />
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
+</UserControl>

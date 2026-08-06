@@ -1,8 +1,6 @@
-using Diary.GUIBase;
 using Diary.GUIBase.ViewModels;
 using Diary.PluginBase;
 using Diary.PluginUI;
-using Diary.RedMine;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -60,4 +58,6 @@ public sealed class RedMineTrackerIntegration : ITrackerUiContribution
         => instanceId == _settings.InstanceId
             ? new RedMineEditorRegionViewModel(_data, _api, _database, _settings)
             : null;
+    public ITagRuleEditorContribution CreateTagRuleEditorContribution()
+        => new RedMineTagRuleEditorContribution(_settings);
 }
