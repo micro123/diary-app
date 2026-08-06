@@ -36,6 +36,11 @@ public interface IWorkerBoundedTransport
     int MaxMessageBytes { get; }
 }
 
+public interface IWorkerResourceUsage
+{
+    long? WorkingSetBytes { get; }
+}
+
 public interface IWorkerTransportFactory
 {
     ValueTask<IWorkerTransport> CreateAsync(CancellationToken cancellationToken = default);
@@ -58,7 +63,8 @@ public sealed class WorkerSupervisor(
     TimeSpan? idleTimeout = null,
     TimeSpan? restartBaseDelay = null,
     int maxRequestsPerWorker = 1000,
-    int maxResultMessageBytes = 16 * 1024 * 1024)
+    int maxResultMessageBytes = 16 * 1024 * 1024,
+    long? maxWorkingSetBytes = null)
 {
     private readonly SemaphoreSlim _executionGate = new(1, 1);
     private IWorkerTransport? _transport;
@@ -66,6 +72,8 @@ public sealed class WorkerSupervisor(
     private DateTimeOffset _lastActivity = DateTimeOffset.UtcNow;
     private int _restartAttempts;
     private int _requestCount;
+    private CancellationTokenSource? _lifetimeCancellation;
+    private Task? _idleMonitor;
 
     public WorkerState State { get; private set; } = WorkerState.Stopped;
     public string? WorkerId { get; private set; }
@@ -86,6 +94,9 @@ public sealed class WorkerSupervisor(
     public int MaxResultMessageBytes { get; } = maxResultMessageBytes > 0
         ? maxResultMessageBytes
         : throw new ArgumentOutOfRangeException(nameof(maxResultMessageBytes));
+    public long? MaxWorkingSetBytes { get; } = maxWorkingSetBytes is null or > 0
+        ? maxWorkingSetBytes
+        : throw new ArgumentOutOfRangeException(nameof(maxWorkingSetBytes));
 
     public async ValueTask StartAsync(WorkerHandshakeOptions options, CancellationToken cancellationToken = default)
     {
@@ -123,6 +134,7 @@ public sealed class WorkerSupervisor(
             State = WorkerState.Ready;
             _restartAttempts = 0;
             _requestCount = 0;
+            StartIdleMonitor();
         }
         catch
         {
@@ -266,6 +278,10 @@ public sealed class WorkerSupervisor(
 
     public async ValueTask StopAsync(CancellationToken cancellationToken = default)
     {
+        _lifetimeCancellation?.Cancel();
+        _lifetimeCancellation?.Dispose();
+        _lifetimeCancellation = null;
+        _idleMonitor = null;
         await StopTransportAsync(cancellationToken);
         WorkerId = null;
         State = WorkerState.Stopped;
@@ -306,6 +322,44 @@ public sealed class WorkerSupervisor(
                 ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Runtime)
             : new ScriptDiagnostic("WORKER_TERMINATED", message,
                 ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Runtime);
+
+    private void StartIdleMonitor()
+    {
+        if (IdleTimeout == Timeout.InfiniteTimeSpan)
+            return;
+        _lifetimeCancellation?.Cancel();
+        _lifetimeCancellation?.Dispose();
+        _lifetimeCancellation = new CancellationTokenSource();
+        _idleMonitor = MonitorIdleAsync(_lifetimeCancellation.Token);
+    }
+
+    private async Task MonitorIdleAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                await Task.Delay(IdleTimeout, cancellationToken);
+                if (State == WorkerState.Ready && DateTimeOffset.UtcNow - _lastActivity >= IdleTimeout)
+                {
+                    await StopAsync(CancellationToken.None);
+                    return;
+                }
+                if (_transport is IWorkerResourceUsage usage
+                    && MaxWorkingSetBytes is { } limit
+                    && usage.WorkingSetBytes is { } workingSet
+                    && workingSet > limit)
+                {
+                    State = WorkerState.Failed;
+                    await StopTransportAsync(CancellationToken.None);
+                    return;
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
 
     private ValueTask<WorkerMessage<JsonElement>> ReceiveMessageAsync(CancellationToken cancellationToken)
     {

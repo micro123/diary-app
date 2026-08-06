@@ -383,6 +383,23 @@ public sealed class ScriptRuntimeTests
         Assert.IsFalse(entry.Outcome.Result.Diagnostics.Single().Message.Contains("super-secret", StringComparison.Ordinal));
     }
 
+    [TestMethod]
+    public void History_PreservesWorkerCorrelationFields()
+    {
+        var history = new ScriptExecutionHistory();
+        var outcome = new ScriptExecutionOutcome(
+            Guid.NewGuid(),
+            ScriptExecutionResult.Succeeded(),
+            WorkerId: "worker-1",
+            WorkerRequestId: "request-1");
+
+        history.Record("demo", outcome);
+
+        var recorded = history.GetRecent(1).Single().Outcome;
+        Assert.AreEqual("worker-1", recorded.WorkerId);
+        Assert.AreEqual("request-1", recorded.WorkerRequestId);
+    }
+
     private static ScriptExecutionContext EmptyContext() => new(ScriptCapability.None);
 
     private static ScriptDiagnostic Diagnostic(string code) =>

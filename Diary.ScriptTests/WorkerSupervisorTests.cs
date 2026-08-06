@@ -89,6 +89,18 @@ public sealed class WorkerSupervisorTests
         Assert.IsFalse(transport.Sent.Any(message => message.Type == WorkerMessageType.Execute));
     }
 
+    [TestMethod]
+    public async Task Supervisor_ReclaimsIdleWorkerInBackground()
+    {
+        var transport = new FakeTransport();
+        var supervisor = new WorkerSupervisor(new FakeFactory(transport), idleTimeout: TimeSpan.FromMilliseconds(20));
+        await supervisor.StartAsync(new("csharp", [ScriptApiVersion.V1], []));
+
+        await Task.Delay(100);
+
+        Assert.AreEqual(WorkerState.Stopped, supervisor.State);
+    }
+
     private sealed class FakeFactory(FakeTransport transport) : IWorkerTransportFactory
     {
         public ValueTask<IWorkerTransport> CreateAsync(CancellationToken cancellationToken = default) => ValueTask.FromResult<IWorkerTransport>(transport);

@@ -7,7 +7,9 @@ public sealed record ScriptExecutionOutcome(
     ScriptExecutionResult Result,
     DateTimeOffset? StartedAt = null,
     TimeSpan Duration = default,
-    ScriptExecutionSource Source = ScriptExecutionSource.Unknown);
+    ScriptExecutionSource Source = ScriptExecutionSource.Unknown,
+    string? WorkerId = null,
+    string? WorkerRequestId = null);
 
 public interface IScriptExecutor
 {

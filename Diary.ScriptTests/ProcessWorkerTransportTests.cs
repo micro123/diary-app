@@ -38,7 +38,36 @@ public sealed class ProcessWorkerTransportTests
 
         Assert.AreEqual(ScriptExecutionStatus.Succeeded, result.Payload.Status,
             string.Join("; ", result.Payload.Diagnostics.Select(item => $"{item.Code}: {item.Message}")));
+        Assert.IsFalse(string.IsNullOrWhiteSpace(supervisor.WorkerId));
         await supervisor.StopAsync();
+    }
+
+    [TestMethod]
+    public async Task ProcessTransport_ReportsExitCodeWhenProcessTerminates()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            Assert.Inconclusive("当前集成测试使用 Linux shell 退出码。");
+            return;
+        }
+
+        var process = new System.Diagnostics.Process
+        {
+            StartInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "/bin/sh",
+                ArgumentList = { "-c", "exit 7" },
+                UseShellExecute = false,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            },
+        };
+        process.Start();
+        await process.WaitForExitAsync();
+        await using var transport = new ProcessWorkerTransport(process);
+
+        Assert.AreEqual(7, ((IWorkerTerminationNotification)transport).ExitCode);
     }
 
     [TestMethod]

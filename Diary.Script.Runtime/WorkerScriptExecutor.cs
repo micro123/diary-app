@@ -42,6 +42,7 @@ public sealed class WorkerScriptExecutor(
             return new(executionId, new ScriptExecutionResult(
                 result.Payload.Status,
                 result.Payload.Diagnostics.ToImmutableArray()), Source: request.Source,
+                WorkerId: supervisor.WorkerId, WorkerRequestId: result.RequestId,
                 Duration: TimeSpan.FromMilliseconds(result.Payload.DurationMilliseconds));
         }
         catch (Exception exception)

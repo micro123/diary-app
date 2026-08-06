@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text;
 using Diary.Script.CSharp;
 using Diary.Script.Runtime;
 using Diary.ScriptBase;
@@ -21,6 +22,7 @@ internal sealed class CSharpWorker(Stream input, Stream output)
             Guid.NewGuid().ToString("N"),
             null,
             new("csharp", "0.1", [ScriptApiVersion.V1], [], Environment.ProcessId));
+        Console.SetOut(new BoundedTextWriter(1 * 1024 * 1024));
         await WorkerMessageCodec.WriteAsync(output, hello);
         var accepted = await WorkerMessageCodec.ReadAsync<WorkerHelloAcceptedPayload>(input);
         if (accepted.Type != WorkerMessageType.HelloAccepted)
@@ -115,3 +117,23 @@ internal sealed class CSharpWorker(Stream input, Stream output)
 }
 
 internal sealed record WorkerExecuteEnvelope(string ScriptId, JsonElement Payload);
+
+internal sealed class BoundedTextWriter(int maxBytes) : TextWriter
+{
+    private int _bytes;
+    public override Encoding Encoding => Encoding.UTF8;
+
+    public override void Write(char value) => Add(value.ToString());
+    public override void Write(string? value)
+    {
+        if (value is not null)
+            Add(value);
+    }
+
+    private void Add(string value)
+    {
+        var bytes = Encoding.GetByteCount(value);
+        if (Interlocked.Add(ref _bytes, bytes) > maxBytes)
+            throw new InvalidDataException("Worker 标准输出超过大小限制。");
+    }
+}

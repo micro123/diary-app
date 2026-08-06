@@ -45,7 +45,7 @@ public sealed class ProcessWorkerTransportFactory(WorkerProcessOptions options) 
     }
 }
 
-public sealed class ProcessWorkerTransport : IWorkerTransport, IWorkerTerminationNotification, IWorkerBoundedTransport
+public sealed class ProcessWorkerTransport : IWorkerTransport, IWorkerTerminationNotification, IWorkerBoundedTransport, IWorkerResourceUsage
 {
     private readonly Process _process;
     private readonly Stream _input;
@@ -56,6 +56,7 @@ public sealed class ProcessWorkerTransport : IWorkerTransport, IWorkerTerminatio
     public int MaxMessageBytes { get; }
     public int? ExitCode => _process.HasExited ? _process.ExitCode : null;
     public bool StderrLimitExceeded { get; private set; }
+    public long? WorkingSetBytes => _process.HasExited ? null : _process.WorkingSet64;
 
     public ProcessWorkerTransport(Process process, int maxMessageBytes = WorkerProtocol.DefaultMaxMessageBytes, int maxStderrBytes = 1 * 1024 * 1024)
     {
