@@ -8,6 +8,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Diary.Script.Runtime\Diary.Script.Runtime.csproj" />
     <ProjectReference Include="..\Diary.Script.CSharp\Diary.Script.CSharp.csproj" />
+    <ProjectReference Include="..\Diary.ScriptHost\Diary.ScriptHost.csproj" />
     <ProjectReference Include="..\Diary.ScriptBase\Diary.ScriptBase.csproj" />
   </ItemGroup>
 </Project>

@@ -2,6 +2,7 @@ using System.Text.Json;
 using Diary.Script.CSharp;
 using Diary.Script.Runtime;
 using Diary.ScriptBase;
+using Diary.ScriptHost;
 
 var worker = new CSharpWorker(Console.OpenStandardInput(), Console.OpenStandardOutput());
 await worker.RunAsync();
@@ -80,7 +81,9 @@ internal sealed class CSharpWorker(Stream input, Stream output)
 
             var executionId = Guid.TryParse(message.ExecutionId, out var parsedId) ? parsedId : Guid.NewGuid();
             var metadata = new ScriptExecutionMetadata(executionId, DateTimeOffset.UtcNow, ScriptExecutionSource.Editor, payload.ScriptId);
-            var context = new ScriptExecutionContext(ScriptCapability.None, metadata);
+            var context = new ScriptExecutionContext(payload.GrantedCapabilities, metadata);
+            if ((payload.GrantedCapabilities & ScriptCapability.ReadDiary) != 0)
+                context.RegisterApi<IWorkItemQueryScriptApi>(new WorkerWorkItemQueryProxy(CallHostAsync), ScriptCapability.ReadDiary);
             var outcome = await _executor.ExecuteAsync(build.Program, payload.Request, context, cancellationToken: CancellationToken.None, executionId: executionId);
             await WriteResultAsync(message, new(outcome.Result.Status, outcome.Result.Diagnostics, DurationMilliseconds: (long)outcome.Duration.TotalMilliseconds));
         }
@@ -95,12 +98,27 @@ internal sealed class CSharpWorker(Stream input, Stream output)
         WorkerMessageCodec.WriteAsync(output, new WorkerMessage<WorkerExecutionResultPayload>(
             WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.ExecuteResult,
             request.RequestId, request.ExecutionId, payload)).AsTask();
+
+    private async ValueTask<WorkerHostResultPayload> CallHostAsync(WorkerHostCallPayload call, CancellationToken cancellationToken)
+    {
+        var requestId = Guid.NewGuid().ToString("N");
+        await WorkerMessageCodec.WriteAsync(output, new WorkerMessage<WorkerHostCallPayload>(
+            WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.HostCall,
+            requestId, null, call), cancellationToken: cancellationToken);
+        while (true)
+        {
+            var response = await WorkerMessageCodec.ReadAsync<WorkerHostResultPayload>(input, cancellationToken: cancellationToken);
+            if (response.Type == WorkerMessageType.HostResult && response.RequestId == requestId)
+                return response.Payload;
+        }
+    }
 }
 
 internal sealed record WorkerExecutePayload(
     string ScriptId,
     string SourcePath,
     string Source,
-    ScriptExecutionRequest Request);
+    ScriptExecutionRequest Request,
+    ScriptCapability GrantedCapabilities = ScriptCapability.None);
 
 internal sealed record WorkerExecuteEnvelope(string ScriptId, JsonElement Payload);

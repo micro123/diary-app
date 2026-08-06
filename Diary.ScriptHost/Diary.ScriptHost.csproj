@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Diary.Script.Runtime\Diary.Script.Runtime.csproj" />
     <ProjectReference Include="..\Diary.ScriptBase\Diary.ScriptBase.csproj" />
     <ProjectReference Include="..\Diary.Database\Diary.Database.csproj" />
     <ProjectReference Include="..\Diary.Core\Diary.Core.csproj" />

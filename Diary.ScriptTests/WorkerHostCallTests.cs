@@ -26,7 +26,7 @@ public sealed class WorkerHostCallTests
     {
         public string? Method { get; private set; }
 
-        public ValueTask<WorkerHostResultPayload> DispatchAsync(string executionId, WorkerHostCallPayload call, CancellationToken cancellationToken = default)
+        public ValueTask<WorkerHostResultPayload> DispatchAsync(string executionId, ScriptCapability grantedCapabilities, WorkerHostCallPayload call, CancellationToken cancellationToken = default)
         {
             Method = call.Method;
             return ValueTask.FromResult(new WorkerHostResultPayload(true, JsonSerializer.SerializeToElement(new { items = Array.Empty<object>() })));
