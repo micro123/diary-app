@@ -32,8 +32,8 @@
   - Diary.Script.Python：`Python`脚本支持，只支持`python3`
 
 脚本系统的目标架构、运行时边界、权限模型、Tracker API 和分阶段实现计划见
-[`ScriptSystemDesign.md`](ScriptSystemDesign.md)。当前已经完成最小脚本管理器、构建/执行抽象和只读查询宿主；
-脚本目录扫描、Roslyn 构建、脚本 UI 以及 Lua/Python 引擎仍未完成。
+[`ScriptSystemDesign.md`](ScriptSystemDesign.md)。当前已经完成 C# 脚本目录扫描、Roslyn 构建、脚本管理页、
+构建/执行抽象和只读查询宿主；Lua/Python 引擎、独立进程强隔离和执行历史持久化仍未完成。
 
 标签与 Tracker 默认字段的关联规则设计见
 [`TagAutomationDesign.md`](TagAutomationDesign.md)。规则属于 Tracker 实例配置，
