@@ -13,33 +13,37 @@ public static class ProcUtils
         if (!File.Exists(filePath))
             throw new FileNotFoundException($"文件不存在: {filePath}");
 
-        try
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            _ = Process.Start(new ProcessStartInfo
             {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = filePath,
-                    UseShellExecute = true
-                });
-            }
-            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            {
-                Process.Start("xdg-open", $"\"{filePath}\"");
-            }
-            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                Process.Start("open", $"\"{filePath}\"");
-            }
-            else
-            {
-                throw new PlatformNotSupportedException("不支持的操作系统平台");
-            }
+                FileName = filePath,
+                UseShellExecute = true,
+            }) ?? throw new InvalidOperationException("无法启动文件关联程序。");
+            return;
         }
-        catch (Exception ex)
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
-            Debug.WriteLine($"打开文件失败: {ex.Message}");
+            StartOpenCommand("xdg-open", filePath);
+            return;
         }
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            StartOpenCommand("open", filePath);
+            return;
+        }
+        throw new PlatformNotSupportedException("不支持的操作系统平台");
+    }
+
+    private static void StartOpenCommand(string executable, string path)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = executable,
+            UseShellExecute = false,
+        };
+        startInfo.ArgumentList.Add(path);
+        _ = Process.Start(startInfo) ?? throw new InvalidOperationException("无法启动文件关联程序。");
     }
 
     public static void OpenDirectoryCrossPlatform(string directoryPath)

@@ -26,6 +26,22 @@ public sealed record ScriptListItem(
     IReadOnlyList<string> Diagnostics,
     IReadOnlyList<ScriptDiagnosticListItem> DiagnosticDetails)
 {
+    public string Language => Path.GetExtension(SourcePath).ToLowerInvariant() switch
+    {
+        ".cs" => "C#",
+        ".lua" => "Lua",
+        ".py" => "Python",
+        _ => "未知语言",
+    };
+
+    public string LanguageIcon => Language switch
+    {
+        "C#" => "mdi-language-csharp",
+        "Lua" => "mdi-language-lua",
+        "Python" => "mdi-language-python",
+        _ => "mdi-file-code-outline",
+    };
+
     public string ScopeLabel => Scope switch
     {
         ScriptScope.Application => "应用脚本",
@@ -122,6 +138,7 @@ public partial class ScriptManagementViewModel(
     [NotifyCanExecuteChangedFor(nameof(RunCommand))]
     [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
     [NotifyCanExecuteChangedFor(nameof(OpenSelectedScriptCommand))]
+    [NotifyPropertyChangedFor(nameof(CanOpenSelectedScript))]
     private ScriptListItem? _selectedScript;
 
     [ObservableProperty] private string _status = "尚未加载脚本目录";
@@ -417,6 +434,53 @@ public partial class ScriptManagementViewModel(
             logger.LogError(exception, "打开脚本文件失败：{SourcePath}", SelectedScript.SourcePath);
             Status = "无法打开脚本文件";
         }
+    }
+
+    [RelayCommand]
+    private void OpenScript(ScriptListItem? script)
+    {
+        if (script is null)
+            return;
+        SelectedScript = script;
+        OpenSelectedScript();
+    }
+
+    [RelayCommand]
+    private void OpenScriptDirectory(ScriptListItem? script)
+    {
+        if (script is null)
+            return;
+        try
+        {
+            ProcUtils.OpenDirectoryCrossPlatform(Path.GetDirectoryName(script.SourcePath) ?? _scriptRoot);
+            Status = $"已打开脚本目录：{script.Name}";
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "打开脚本目录失败：{SourcePath}", script.SourcePath);
+            Status = "无法打开脚本目录";
+        }
+    }
+
+    [RelayCommand]
+    private async Task RunScript(ScriptListItem? script)
+    {
+        if (script is null)
+            return;
+        SelectedScript = script;
+        if (CanRun())
+            await Run();
+        else
+            Status = $"脚本不可运行：{script.Name}";
+    }
+
+    [RelayCommand]
+    private async Task RecheckScript(ScriptListItem? script)
+    {
+        if (script is null || Loading || IsExecuting)
+            return;
+        SelectedScript = script;
+        await ReloadAsync();
     }
 
     [RelayCommand]

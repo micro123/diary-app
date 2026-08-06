@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:Diary.App.ViewModels"
+             xmlns:i="https://github.com/projektanker/icons.avalonia"
              x:Class="Diary.App.Views.ScriptManagementView"
              x:DataType="vm:ScriptManagementViewModel"
              mc:Ignorable="d" d:DesignWidth="960" d:DesignHeight="640"
@@ -53,20 +54,48 @@
         <Grid Grid.Row="4" ColumnDefinitions="3*,2*" ColumnSpacing="16">
             <Grid>
                 <ListBox ItemsSource="{Binding VisibleScripts}" SelectedItem="{Binding SelectedScript}">
+                    <ListBox.ItemContainerTheme>
+                        <ControlTheme TargetType="ListBoxItem"
+                                      BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        </ControlTheme>
+                    </ListBox.ItemContainerTheme>
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:ScriptListItem">
-                            <Grid ColumnDefinitions="*,Auto" Margin="8" ColumnSpacing="20">
-                                <StackPanel Spacing="3">
+                            <Border Theme="{DynamicResource CardBorder}" Padding="8"
+                                    HorizontalAlignment="Stretch">
+                                <Border.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="打开源码"
+                                                  Command="{Binding $parent[UserControl].((vm:ScriptManagementViewModel)DataContext).OpenScriptCommand}"
+                                                  CommandParameter="{Binding}" />
+                                        <MenuItem Header="打开所在目录"
+                                                  Command="{Binding $parent[UserControl].((vm:ScriptManagementViewModel)DataContext).OpenScriptDirectoryCommand}"
+                                                  CommandParameter="{Binding}" />
+                                        <Separator />
+                                        <MenuItem Header="重新检查"
+                                                  Command="{Binding $parent[UserControl].((vm:ScriptManagementViewModel)DataContext).RecheckScriptCommand}"
+                                                  CommandParameter="{Binding}" />
+                                        <MenuItem Header="运行脚本"
+                                                  Command="{Binding $parent[UserControl].((vm:ScriptManagementViewModel)DataContext).RunScriptCommand}"
+                                                  CommandParameter="{Binding}" />
+                                    </ContextMenu>
+                                </Border.ContextMenu>
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                <i:Icon Value="{Binding LanguageIcon}" FontSize="28"
+                                        VerticalAlignment="Top" ToolTip.Tip="{Binding Language}" />
+                                <StackPanel Grid.Column="1" Spacing="3">
                                     <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold" />
                                     <TextBlock Text="{Binding SourcePath}" Opacity="0.58" />
                                     <TextBlock Text="{Binding Status}" Opacity="0.78" />
                                     <TextBlock Text="{Binding EnabledLabel}" Opacity="0.68" />
                                 </StackPanel>
-                                <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                                <StackPanel Grid.Column="2" HorizontalAlignment="Right">
                                     <TextBlock Text="{Binding ScopeLabel}" />
                                     <TextBlock Text="{Binding CapabilityLabel}" Opacity="0.68" />
                                 </StackPanel>
-                            </Grid>
+                                </Grid>
+                            </Border>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
