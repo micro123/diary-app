@@ -17,6 +17,9 @@ public static class WorkerProtocol
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         Converters = { new JsonStringEnumConverter() },
     };
+
+    public static int GetMessageSize<TPayload>(WorkerMessage<TPayload> message) =>
+        Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(message, JsonOptions)) + 1;
 }
 
 public enum WorkerMessageType

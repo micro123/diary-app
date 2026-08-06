@@ -35,13 +35,23 @@ public interface IWorkerHostCallDispatcher
 
 public sealed class WorkerSupervisor(
     IWorkerTransportFactory transportFactory,
-    IWorkerHostCallDispatcher? hostCallDispatcher = null)
+    IWorkerHostCallDispatcher? hostCallDispatcher = null,
+    int maxHostCallsPerExecution = 100,
+    int maxExecuteMessageBytes = WorkerProtocol.DefaultMaxMessageBytes)
 {
     private readonly SemaphoreSlim _executionGate = new(1, 1);
     private IWorkerTransport? _transport;
 
     public WorkerState State { get; private set; } = WorkerState.Stopped;
     public string? WorkerId { get; private set; }
+
+    public int MaxHostCallsPerExecution { get; } = maxHostCallsPerExecution > 0
+        ? maxHostCallsPerExecution
+        : throw new ArgumentOutOfRangeException(nameof(maxHostCallsPerExecution));
+
+    public int MaxExecuteMessageBytes { get; } = maxExecuteMessageBytes > 0
+        ? maxExecuteMessageBytes
+        : throw new ArgumentOutOfRangeException(nameof(maxExecuteMessageBytes));
 
     public async ValueTask StartAsync(WorkerHandshakeOptions options, CancellationToken cancellationToken = default)
     {
@@ -89,13 +99,23 @@ public sealed class WorkerSupervisor(
         {
             State = WorkerState.Busy;
             var requestId = Guid.NewGuid().ToString("N");
-            await _transport!.SendAsync(new WorkerMessage<object>(
+            var executeMessage = new WorkerMessage<object>(
                 WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.Execute,
-                requestId, executionId, new { scriptId, payload }), cancellationToken);
+                requestId, executionId, new { scriptId, payload });
+            var messageBytes = JsonSerializer.SerializeToUtf8Bytes(executeMessage, WorkerProtocol.JsonOptions);
+            if (messageBytes.Length + 1 > MaxExecuteMessageBytes)
+            {
+                State = WorkerState.Failed;
+                return Result(requestId, executionId, ScriptExecutionStatus.Failed,
+                    new ScriptDiagnostic("WORKER_MESSAGE_TOO_LARGE", "Worker 执行消息超过大小限制。",
+                        ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Validation));
+            }
+            await _transport!.SendAsync(executeMessage, cancellationToken);
             using var timeoutCancellation = timeout is null ? null : new CancellationTokenSource(timeout.Value);
             using var receiveCancellation = CancellationTokenSource.CreateLinkedTokenSource(
                 cancellationToken, timeoutCancellation?.Token ?? CancellationToken.None);
             WorkerMessage<WorkerExecutionResultPayload> result;
+            var hostCallCount = 0;
             try
             {
                 while (true)
@@ -103,6 +123,14 @@ public sealed class WorkerSupervisor(
                     var message = await _transport.ReceiveAsync<JsonElement>(receiveCancellation.Token);
                     if (message.Type == WorkerMessageType.HostCall)
                     {
+                        hostCallCount++;
+                        if (hostCallCount > MaxHostCallsPerExecution)
+                        {
+                            State = WorkerState.Failed;
+                            return Result(requestId, executionId, ScriptExecutionStatus.Failed,
+                                new ScriptDiagnostic("WORKER_HOST_CALL_LIMIT", "Worker 宿主调用次数超过限制。",
+                                    ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Security));
+                        }
                         var call = message.Payload.Deserialize<WorkerHostCallPayload>(WorkerProtocol.JsonOptions)
                             ?? throw new WorkerProtocolException(new ScriptDiagnostic(
                                 "WORKER_HOST_CALL_INVALID", "Worker 宿主调用载荷无效。", ScriptDiagnosticSeverity.Error,

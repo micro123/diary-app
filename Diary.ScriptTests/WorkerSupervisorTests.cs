@@ -74,6 +74,21 @@ public sealed class WorkerSupervisorTests
         Assert.AreEqual(WorkerState.Failed, supervisor.State);
     }
 
+    [TestMethod]
+    public async Task ExecuteAsync_RejectsOversizedMessageBeforeSending()
+    {
+        var transport = new FakeTransport();
+        var supervisor = new WorkerSupervisor(new FakeFactory(transport), maxExecuteMessageBytes: 100);
+        await supervisor.StartAsync(new("csharp", [ScriptApiVersion.V1], []));
+
+        var result = await supervisor.ExecuteAsync("demo", "exec-large", new { value = new string('x', 200) });
+
+        Assert.AreEqual(ScriptExecutionStatus.Failed, result.Payload.Status);
+        Assert.AreEqual("WORKER_MESSAGE_TOO_LARGE", result.Payload.Diagnostics.Single().Code);
+        Assert.AreEqual(WorkerState.Failed, supervisor.State);
+        Assert.IsFalse(transport.Sent.Any(message => message.Type == WorkerMessageType.Execute));
+    }
+
     private sealed class FakeFactory(FakeTransport transport) : IWorkerTransportFactory
     {
         public ValueTask<IWorkerTransport> CreateAsync(CancellationToken cancellationToken = default) => ValueTask.FromResult<IWorkerTransport>(transport);
