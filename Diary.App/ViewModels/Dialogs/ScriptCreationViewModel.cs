@@ -56,8 +56,21 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
         {
             var scope = SelectedScope == "编辑器脚本" ? ScriptScope.Editor : ScriptScope.Application;
             var folder = Path.Combine(_scriptRoot, scope == ScriptScope.Editor ? "editor" : "application");
-            Directory.CreateDirectory(folder);
-            var sourcePath = Path.Combine(folder, $"{Id}.cs");
+            var root = Path.GetFullPath(_scriptRoot);
+            var fullFolder = Path.GetFullPath(folder);
+            if (!fullFolder.StartsWith(root + Path.DirectorySeparatorChar, GetPathComparison()))
+            {
+                Error = "脚本目标目录无效。";
+                return;
+            }
+
+            Directory.CreateDirectory(fullFolder);
+            var sourcePath = Path.GetFullPath(Path.Combine(fullFolder, $"{Id}.cs"));
+            if (!sourcePath.StartsWith(fullFolder + Path.DirectorySeparatorChar, GetPathComparison()))
+            {
+                Error = "脚本 ID 生成的文件路径无效。";
+                return;
+            }
             var metadataPath = sourcePath + ".json";
             if (File.Exists(sourcePath) || File.Exists(metadataPath))
             {
@@ -86,8 +99,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
                 Name: Name,
                 Description: Description,
                 Capabilities: SelectedCapabilities), new JsonSerializerOptions { WriteIndented = true });
-            await File.WriteAllTextAsync(sourcePath, source);
-            await File.WriteAllTextAsync(metadataPath, metadata);
+            await WriteFilesAtomicallyAsync(sourcePath, source, metadataPath, metadata);
             RequestClose?.Invoke(this, sourcePath);
         }
         catch (Exception exception)
@@ -122,4 +134,41 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
     }
 
     private static string Escape(string value) => value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", " ").Replace("\n", " ");
+
+    private static StringComparison GetPathComparison() =>
+        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+
+    private static async Task WriteFilesAtomicallyAsync(
+        string sourcePath,
+        string source,
+        string metadataPath,
+        string metadata)
+    {
+        var sourceTempPath = sourcePath + $".{Guid.NewGuid():N}.tmp";
+        var metadataTempPath = metadataPath + $".{Guid.NewGuid():N}.tmp";
+        var sourceCreated = false;
+        var metadataCreated = false;
+        try
+        {
+            await File.WriteAllTextAsync(sourceTempPath, source);
+            await File.WriteAllTextAsync(metadataTempPath, metadata);
+            File.Move(sourceTempPath, sourcePath);
+            sourceCreated = true;
+            File.Move(metadataTempPath, metadataPath);
+            metadataCreated = true;
+        }
+        finally
+        {
+            DeleteIfExists(sourceTempPath);
+            DeleteIfExists(metadataTempPath);
+            if (sourceCreated && !metadataCreated)
+                DeleteIfExists(sourcePath);
+        }
+    }
+
+    private static void DeleteIfExists(string path)
+    {
+        if (File.Exists(path))
+            File.Delete(path);
+    }
 }

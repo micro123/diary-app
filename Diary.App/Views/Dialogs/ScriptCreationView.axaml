@@ -14,7 +14,7 @@
             <TextBox Text="{Binding Name, Mode=TwoWay}" Watermark="例如：每日摘要" />
             <TextBlock Text="稳定 ID" />
             <TextBox Text="{Binding Id, Mode=TwoWay}" Watermark="例如：daily-summary" />
-            <TextBlock Text="只允许字母、数字、点、短横线和下划线，且以字母开头。" FontSize="12" Opacity="0.6" />
+            <TextBlock Text="只允许字母、数字、点、短横线和下划线，长度为 2-64 个字符且以字母开头。" FontSize="12" Opacity="0.6" />
             <TextBlock Text="脚本类型" />
             <ComboBox ItemsSource="{Binding Scopes}" SelectedItem="{Binding SelectedScope, Mode=TwoWay}" />
             <TextBlock Text="描述" />
