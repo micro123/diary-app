@@ -12,7 +12,9 @@
 - Core：核心数据结构定义
   - Diary.Core：定义主要数据结构和程序配置，也带有一些数据工具
   - Diary.Database：数据库的接口定义，所有数据库实现都是实现此接口
-  - Diary.ScriptBase：脚本接口定义，已经脚本管理器实现
+  - Diary.ScriptBase：版本化脚本契约、诊断、能力和执行模型
+  - Diary.ScriptHost：受限只读事项查询宿主
+  - Diary.Script.Runtime：脚本目录项、引擎注册、构建和执行运行时
 - Plugin：插件稳定契约和插件 UI 扩展
   - Diary.PluginBase：插件 manifest、生命周期、实例和迁移契约
   - Diary.PluginUI：配置、管理页、编辑器和模板贡献契约
@@ -30,8 +32,8 @@
   - Diary.Script.Python：`Python`脚本支持，只支持`python3`
 
 脚本系统的目标架构、运行时边界、权限模型、Tracker API 和分阶段实现计划见
-[`ScriptSystemDesign.md`](ScriptSystemDesign.md)。当前脚本引擎仍处于接口草案阶段，
-尚未完成脚本管理器、实际执行入口和 Lua/Python 引擎。
+[`ScriptSystemDesign.md`](ScriptSystemDesign.md)。当前已经完成最小脚本管理器、构建/执行抽象和只读查询宿主；
+脚本目录扫描、Roslyn 构建、脚本 UI 以及 Lua/Python 引擎仍未完成。
 
 标签与 Tracker 默认字段的关联规则设计见
 [`TagAutomationDesign.md`](TagAutomationDesign.md)。规则属于 Tracker 实例配置，

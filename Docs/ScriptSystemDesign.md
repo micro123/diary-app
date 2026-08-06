@@ -4,8 +4,8 @@
 
 本文描述 Diary.App 脚本系统的目标设计、运行时边界和分阶段实现计划。
 
-本文是目标设计，不代表所有内容已经实现。当前代码已经定义了基础脚本契约，
-但脚本管理器、脚本目录扫描、实际执行入口和 Lua/Python 引擎仍未完成。
+本文同时记录目标设计和当前实现。当前代码已经定义版本化基础契约、最小脚本管理器、
+构建与执行边界以及受限只读事项查询宿主；脚本目录扫描、语言引擎和 UI 集成仍未完成。
 
 ## 2. 设计目标
 
@@ -29,14 +29,25 @@
 
 ## 3. 当前实现
 
-当前基础契约位于 `Diary.ScriptBase`：
+当前版本化契约位于 `Diary.ScriptBase`：
 
-- `IScriptEngine`：脚本引擎名称、源码匹配和构建。
-- `IScript`：脚本使用类型。
-- `IApplicationScript`：应用级脚本入口。
-- `IEditorScript`：按日期或日期范围处理编辑器数据；后续应逐步统一为上下文执行入口。
-- `IScriptApi`：应用信息、日志、交互、进度、日记数据和 Tracker 入口。
-- `ITrackerScriptApi`：按键读取 Tracker 扩展数据。
+- `ScriptApiVersion.V1`、`IScriptProgramV1` 和 `IScriptEngineV1`：稳定的执行与引擎边界。
+- `ScriptDescriptor`：稳定 ID、名称、API 版本、应用/编辑器范围和能力声明。
+- `ScriptDiagnostic`、`ScriptBuildResult` 和 `ScriptExecutionResult`：结构化构建与运行诊断。
+- `ScriptTarget`、`EditorScriptContext` 和 `ScriptExecutionRequest`：最小上下文式执行入口。
+- `LegacyScriptAdapters`：保留现有应用脚本和日期/范围编辑器脚本的兼容适配。
+
+`Diary.Script.Runtime` 当前提供：
+
+- `ScriptEngineRegistry`：注册引擎并按匹配优先级选择。
+- `ScriptBuildService`：选择引擎、构建并规范化失败诊断。
+- `ScriptCatalog`：按稳定脚本 ID 注册和读取构建后的程序。
+- `ScriptExecutionContext`：按能力暴露宿主 API。
+- `ScriptExecutor`：目标校验、独立执行 ID、取消、超时和异常隔离。
+- `ScriptManager`：组合构建、注册和执行的最小入口。
+
+`Diary.ScriptHost` 当前提供 `IWorkItemQueryScriptApi`，只返回不可变事项、备注和标签 DTO，
+复用核心 `WorkItemQuery` 的校验和查询语义，并返回权限、输入、数据库和取消错误。
 
 当前引擎项目为：
 
@@ -47,13 +58,16 @@
 当前尚未完成：
 
 - 脚本目录和脚本包格式。
-- 脚本管理器和生命周期。
-- 引擎发现和脚本加载。
+- 文件系统扫描、元数据读取和启用状态持久化。
+- 具体语言引擎发现、构建和脚本加载。
 - 编译缓存。
-- 统一诊断和执行结果。
-- 超时、取消和权限控制。
+- 后台任务调度和执行日志上下文。
+- 更细粒度的 Tracker、网络和文件系统权限。
 - 脚本 UI 和快捷入口。
-- 脚本专用单元测试。
+- C#、Lua 和 Python 实际引擎。
+
+`Diary.ScriptTests` 当前覆盖契约、引擎选择、构建隔离、目录项注册、目标校验、异常、
+取消、超时、能力拒绝、只读查询结果一致性和敏感信息边界。
 
 ## 4. 分层架构
 
@@ -234,21 +248,25 @@ public sealed record ScriptBuildResult(
 
 ## 7. 脚本管理器
 
-建议新增 `IScriptManager`，统一对外提供脚本发现、重新加载和执行能力：
+当前 `IScriptManager` 统一提供构建注册和执行入口；目录发现与重新加载仍属于下一阶段：
 
 ```csharp
 public interface IScriptManager
 {
-    IReadOnlyList<ScriptDescriptor> Scripts { get; }
+    ValueTask<ScriptBuildResult> BuildAndRegisterAsync(
+        ScriptBuildRequest request,
+        CancellationToken cancellationToken = default);
 
-    void Reload();
-    bool TryBuild(string sourcePath, out IScript? script);
-    ScriptExecutionResult ExecuteApplication(string scriptId);
-    ScriptExecutionResult ExecuteContext(string scriptId, EditorScriptContext context);
+    ValueTask<ScriptExecutionOutcome> ExecuteAsync(
+        string scriptId,
+        ScriptExecutionRequest request,
+        IScriptExecutionContext context,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default);
 }
 ```
 
-管理器的职责：
+当前管理器已经负责构建、注册、按 ID 查找和统一执行。目标职责还包括：
 
 - 扫描脚本目录和脚本包。
 - 根据路径或包声明选择引擎。
@@ -520,10 +538,10 @@ Diary.App <-> JSON/RPC stdin/stdout <-> python worker
 ### 第一阶段：最小可用运行时
 
 - 实现脚本目录扫描。
-- 实现 `ScriptDescriptor`、诊断和执行结果。
-- 实现 `ScriptManager`、构建服务和执行服务。
+- [已完成] 实现 `ScriptDescriptor`、诊断和执行结果。
+- [已完成] 实现最小 `ScriptManager`、构建服务和执行服务。
 - 实现 C# Roslyn 引擎。
-- 增加编译失败和执行异常测试。
+- [已完成] 增加构建失败、执行异常、取消和超时测试。
 
 ### 第二阶段：应用集成
 

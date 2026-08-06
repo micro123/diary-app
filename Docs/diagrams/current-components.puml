@@ -11,6 +11,9 @@ package "Contracts" {
   [Diary.Database] as DB
   [Diary.PluginBase] as PB
   [Diary.PluginUI] as PUI
+  [Diary.ScriptBase] as SB
+  [Diary.ScriptHost] as SH
+  [Diary.Script.Runtime] as SR
 }
 package "Redmine" {
   [Diary.RedMine] as RM
@@ -24,6 +27,11 @@ App --> Host
 App --> UI
 Host --> PB
 Host --> PUI
+App --> SB
+SR --> SB
+SH --> SB
+SH --> Core
+SH --> DB
 UI --> Core
 UI --> DB
 RM --> PB

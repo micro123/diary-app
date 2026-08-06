@@ -9,13 +9,13 @@
 
 本文同时记录目标设计和当前实现。当前已经实现标签新增统一入口、基础协调器、
 Redmine 实例规则存储、`OnlyIfUnset` 默认值应用和 Redmine 实例设置页规则编辑器。
-按实例结构化结果、核心标签编辑器贡献入口和配置 schema 迁移已经完成；同字段冲突诊断仍未完成。
+按实例结构化结果、核心标签编辑器贡献入口、配置 schema 迁移、异常隔离、同字段冲突和无效目标诊断已经完成。
 
 ### 1.1 当前实现摘要
 
 - `WorkEditorViewModel.AddTags()` 统一用户、模板和批量标签添加来源。
 - 只有标签 ID 从不存在变为存在时才调用协调器。
-- `TagAutomationContext` 当前包含来源和批次内顺序，协调器按实例返回应用字段和错误。
+- `TagAutomationContext` 当前包含来源和批次内顺序，协调器按实例返回应用字段、冲突、无效目标和错误。
 - `TagAutomationCoordinator` 调用实现 `ITrackerTagDefaults` 的编辑器扩展。
 - Redmine 每个 `RedMineInstanceSettings` 独立保存多条 `RedMineTagRule`。
 - Redmine 规则支持标签、Activity、Issue、启用状态和优先级。
@@ -26,7 +26,7 @@ Redmine 实例规则存储、`OnlyIfUnset` 默认值应用和 Redmine 实例设�
 - Redmine 配置 0 -> 1 迁移补齐规则 ID，保存时保留实例和规则级未知字段。
 - Redmine 编辑器扩展使用真实实例 ID，非默认实例不会落到默认 `TrackerKey`。
 
-当前实现与后文目标接口仍存在差异：结果尚未表达同字段冲突和无效目标的结构化原因。
+当前实现仍未提供按 Tracker 能力拆分的更细粒度脚本写入接口；标签自动化本身已经保留在 Tracker 编辑器扩展边界内。
 
 ## 2. 核心原则
 
@@ -247,7 +247,7 @@ public interface ITagAutomationCoordinator
 
 核心协调器负责顺序、异常隔离和结果汇总；Tracker Provider 负责读取实例配置、匹配规则和修改自己的编辑器扩展。
 
-当前实现只完成顺序通知和能力分发，异常隔离、结构化冲突和结果汇总仍是后续工作。
+当前实现负责顺序通知、能力分发、异常隔离和结果汇总；每个实例结果包含变更字段、冲突和无效目标诊断。
 
 ## 7. 默认应用和用户覆盖
 
@@ -311,7 +311,7 @@ public enum TagAutomationMode
 3. 按 `Priority` 从高到低排序。
 4. 同一个字段只接受第一条有效规则。
 5. 当前字段已有值时，默认不覆盖。
-6. 冲突写入 `TagAutomationResult.Conflicts` 并记录诊断。
+6. 冲突写入实例结果的 `Conflicts` 并记录诊断。
 7. 冲突不应阻止用户添加标签。
 
 多个标签按添加顺序依次处理，每一步都基于前一步更新后的编辑器状态。
@@ -344,7 +344,7 @@ public enum TagAutomationMode
 - 选择核心标签。
 - 选择 Redmine 活动或 Issue。
 - 校验目标活动/Issue 是否仍然存在。
-- 显示规则冲突和无效目标。
+- 显示规则冲突和无效目标；无效目标保留原始 ID，避免配置被静默改写。
 
 ### 9.2 核心标签编辑器中的 Tracker 扩展
 
