@@ -19,6 +19,23 @@ public interface IWorkerTransport : IAsyncDisposable
     Task StopAsync(CancellationToken cancellationToken = default);
 }
 
+public interface IWorkerTerminationNotification
+{
+    event EventHandler<WorkerTerminatedEventArgs>? Terminated;
+    int? ExitCode { get; }
+    bool StderrLimitExceeded { get; }
+}
+
+public sealed class WorkerTerminatedEventArgs(int? exitCode) : EventArgs
+{
+    public int? ExitCode { get; } = exitCode;
+}
+
+public interface IWorkerBoundedTransport
+{
+    int MaxMessageBytes { get; }
+}
+
 public interface IWorkerTransportFactory
 {
     ValueTask<IWorkerTransport> CreateAsync(CancellationToken cancellationToken = default);
@@ -37,10 +54,18 @@ public sealed class WorkerSupervisor(
     IWorkerTransportFactory transportFactory,
     IWorkerHostCallDispatcher? hostCallDispatcher = null,
     int maxHostCallsPerExecution = 100,
-    int maxExecuteMessageBytes = WorkerProtocol.DefaultMaxMessageBytes)
+    int maxExecuteMessageBytes = WorkerProtocol.DefaultMaxMessageBytes,
+    TimeSpan? idleTimeout = null,
+    TimeSpan? restartBaseDelay = null,
+    int maxRequestsPerWorker = 1000,
+    int maxResultMessageBytes = 16 * 1024 * 1024)
 {
     private readonly SemaphoreSlim _executionGate = new(1, 1);
     private IWorkerTransport? _transport;
+    private WorkerHandshakeOptions? _handshakeOptions;
+    private DateTimeOffset _lastActivity = DateTimeOffset.UtcNow;
+    private int _restartAttempts;
+    private int _requestCount;
 
     public WorkerState State { get; private set; } = WorkerState.Stopped;
     public string? WorkerId { get; private set; }
@@ -53,15 +78,36 @@ public sealed class WorkerSupervisor(
         ? maxExecuteMessageBytes
         : throw new ArgumentOutOfRangeException(nameof(maxExecuteMessageBytes));
 
+    public TimeSpan IdleTimeout { get; } = idleTimeout ?? TimeSpan.FromMinutes(10);
+    public TimeSpan RestartBaseDelay { get; } = restartBaseDelay ?? TimeSpan.FromMilliseconds(250);
+    public int MaxRequestsPerWorker { get; } = maxRequestsPerWorker > 0
+        ? maxRequestsPerWorker
+        : throw new ArgumentOutOfRangeException(nameof(maxRequestsPerWorker));
+    public int MaxResultMessageBytes { get; } = maxResultMessageBytes > 0
+        ? maxResultMessageBytes
+        : throw new ArgumentOutOfRangeException(nameof(maxResultMessageBytes));
+
     public async ValueTask StartAsync(WorkerHandshakeOptions options, CancellationToken cancellationToken = default)
     {
         if (State is WorkerState.Ready or WorkerState.Busy)
-            return;
-        await StopAsync(cancellationToken);
+        {
+            if (State == WorkerState.Ready && DateTimeOffset.UtcNow - _lastActivity >= IdleTimeout)
+                await StopAsync(cancellationToken);
+            else
+                return;
+        }
+        if (_restartAttempts > 0)
+            await Task.Delay(GetRestartDelay(), cancellationToken);
+        if (_transport is not null)
+            await StopTransportAsync(cancellationToken);
+        _handshakeOptions = options;
+        _lastActivity = DateTimeOffset.UtcNow;
         State = WorkerState.Handshaking;
         try
         {
             _transport = await transportFactory.CreateAsync(cancellationToken);
+            if (_transport is IWorkerTerminationNotification notification)
+                notification.Terminated += OnTransportTerminated;
             var hello = await _transport.ReceiveAsync<WorkerHelloPayload>(cancellationToken);
             var handshake = WorkerHandshake.Negotiate(hello, options);
             if (!handshake.Accepted)
@@ -75,10 +121,13 @@ public sealed class WorkerSupervisor(
                 handshake.AcceptedPayload!), cancellationToken);
             WorkerId = Guid.NewGuid().ToString("N");
             State = WorkerState.Ready;
+            _restartAttempts = 0;
+            _requestCount = 0;
         }
         catch
         {
             State = WorkerState.Failed;
+            _restartAttempts++;
             await StopTransportAsync(cancellationToken);
             throw;
         }
@@ -98,6 +147,7 @@ public sealed class WorkerSupervisor(
         try
         {
             State = WorkerState.Busy;
+            _lastActivity = DateTimeOffset.UtcNow;
             var requestId = Guid.NewGuid().ToString("N");
             var executeMessage = new WorkerMessage<object>(
                 WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.Execute,
@@ -111,6 +161,7 @@ public sealed class WorkerSupervisor(
                         ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Validation));
             }
             await _transport!.SendAsync(executeMessage, cancellationToken);
+            _requestCount++;
             using var timeoutCancellation = timeout is null ? null : new CancellationTokenSource(timeout.Value);
             using var receiveCancellation = CancellationTokenSource.CreateLinkedTokenSource(
                 cancellationToken, timeoutCancellation?.Token ?? CancellationToken.None);
@@ -120,7 +171,7 @@ public sealed class WorkerSupervisor(
             {
                 while (true)
                 {
-                    var message = await _transport.ReceiveAsync<JsonElement>(receiveCancellation.Token);
+                    var message = await ReceiveMessageAsync(receiveCancellation.Token);
                     if (message.Type == WorkerMessageType.HostCall)
                     {
                         hostCallCount++;
@@ -151,9 +202,16 @@ public sealed class WorkerSupervisor(
                     result = new WorkerMessage<WorkerExecutionResultPayload>(
                         message.Protocol, message.Version, message.Type, message.RequestId, message.ExecutionId,
                         message.Payload.Deserialize<WorkerExecutionResultPayload>(WorkerProtocol.JsonOptions)
-                            ?? throw new WorkerProtocolException(new ScriptDiagnostic(
+                             ?? throw new WorkerProtocolException(new ScriptDiagnostic(
                                 "WORKER_RESULT_INVALID", "Worker 执行结果载荷无效。", ScriptDiagnosticSeverity.Error,
-                                ScriptDiagnosticCategory.Validation)));
+                                 ScriptDiagnosticCategory.Validation)));
+                    if (WorkerProtocol.GetMessageSize(result) > MaxResultMessageBytes)
+                    {
+                        State = WorkerState.Failed;
+                        return Result(requestId, executionId, ScriptExecutionStatus.Failed,
+                            new ScriptDiagnostic("WORKER_RESULT_TOO_LARGE", "Worker 执行结果超过大小限制。",
+                                ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Runtime));
+                    }
                     break;
                 }
             }
@@ -174,26 +232,34 @@ public sealed class WorkerSupervisor(
             {
                 State = WorkerState.Failed;
                 return Result(requestId, executionId, ScriptExecutionStatus.Failed,
-                    new ScriptDiagnostic("WORKER_TERMINATED", "Worker 进程意外退出。",
-                        ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Runtime));
+                    TerminationDiagnostic("Worker 进程意外退出。"));
             }
             catch (IOException)
             {
                 State = WorkerState.Failed;
                 return Result(requestId, executionId, ScriptExecutionStatus.Failed,
-                    new ScriptDiagnostic("WORKER_TERMINATED", "Worker 通道意外断开。",
+                    TerminationDiagnostic("Worker 通道意外断开。"));
+            }
+            catch (InvalidDataException exception)
+            {
+                State = WorkerState.Failed;
+                return Result(requestId, executionId, ScriptExecutionStatus.Failed,
+                    new ScriptDiagnostic("WORKER_MESSAGE_TOO_LARGE", exception.Message,
                         ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Runtime));
             }
             if (result.RequestId != requestId || result.ExecutionId != executionId)
                 throw new WorkerProtocolException(new ScriptDiagnostic(
                     "WORKER_REQUEST_MISMATCH", "Worker 返回的 requestId 或 executionId 不匹配。",
                     ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Validation));
+            if (_requestCount >= MaxRequestsPerWorker)
+                State = WorkerState.Failed;
             return result;
         }
         finally
         {
             if (State == WorkerState.Busy)
                 State = WorkerState.Ready;
+            _lastActivity = DateTimeOffset.UtcNow;
             _executionGate.Release();
         }
     }
@@ -220,6 +286,35 @@ public sealed class WorkerSupervisor(
     {
         await StopAsync(cancellationToken);
         await StartAsync(options, cancellationToken);
+    }
+
+    private TimeSpan GetRestartDelay() =>
+        TimeSpan.FromMilliseconds(Math.Min(RestartBaseDelay.TotalMilliseconds * Math.Pow(2, _restartAttempts - 1), 30_000));
+
+    private void OnTransportTerminated(object? sender, WorkerTerminatedEventArgs args)
+    {
+        if (ReferenceEquals(sender, _transport) && State is WorkerState.Ready or WorkerState.Busy)
+        {
+            State = WorkerState.Failed;
+            _restartAttempts++;
+        }
+    }
+
+    private ScriptDiagnostic TerminationDiagnostic(string message) =>
+        _transport is IWorkerTerminationNotification notification && notification.ExitCode is { } exitCode
+            ? new ScriptDiagnostic("WORKER_TERMINATED", $"{message}（退出码：{exitCode}）。",
+                ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Runtime)
+            : new ScriptDiagnostic("WORKER_TERMINATED", message,
+                ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Runtime);
+
+    private ValueTask<WorkerMessage<JsonElement>> ReceiveMessageAsync(CancellationToken cancellationToken)
+    {
+        if (_transport is IWorkerTerminationNotification notification && notification.StderrLimitExceeded)
+        {
+            State = WorkerState.Failed;
+            throw new IOException("Worker stderr 输出超过限制。");
+        }
+        return _transport!.ReceiveAsync<JsonElement>(cancellationToken);
     }
 
     private async ValueTask TrySendCancelAsync(
@@ -257,6 +352,8 @@ public sealed class WorkerSupervisor(
             return;
         var transport = _transport;
         _transport = null;
+        if (transport is IWorkerTerminationNotification notification)
+            notification.Terminated -= OnTransportTerminated;
         await transport.StopAsync(cancellationToken);
         await transport.DisposeAsync();
     }

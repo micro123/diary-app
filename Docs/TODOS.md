@@ -472,9 +472,9 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [x] 定义并实现 `diary.script.worker` 握手、版本协商和能力协商。
 - [x] 增加 UTF-8 JSON 行消息编解码和单条消息大小限制。
 - [x] 实现本机进程管道 Worker transport，使用绝对路径、独立标准流和受控环境变量。
-- [~] 已实现 supervisor 启动、握手、串行执行、停止、心跳、取消、超时和执行通道终止检测；主动进程退出事件监听与常驻回收待完成。
+- [~] 已实现 supervisor 启动、握手、串行执行、停止、心跳、取消、超时、执行通道终止事件监听和惰性空闲回收；完整后台回收策略待完成。
 - [x] 已实现 `execute`、`execute.result`、`cancel` 以及 supervisor 侧和 C# Worker 侧 `host.call`/`host.result` 路由。
-- [~] 已实现协议单条消息、执行请求消息和单次宿主调用数量限制；请求总数、输出大小、内存和空闲回收限制待完成。
+- [~] 已实现协议单条消息、执行请求消息、执行结果消息、单次宿主调用数量和每个 Worker 请求总数限制；stderr 输出超限检测已实现，stdout 脚本输出、内存和后台回收限制待完成。
 - [x] 将只读 `workItems.query` 接入 Worker 宿主 API和主程序查询 dispatcher。
 - [x] 将 C# Worker 接入应用默认脚本执行链路，构建时复制 Worker 可执行文件和运行时依赖。
 - [x] worker 执行通道意外终止时将当前请求转换为 `WORKER_TERMINATED` 结构化失败，不自动重复请求。
@@ -482,7 +482,7 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [x] 已实现 C# Worker 协议适配器、握手、心跳、取消、基础脚本执行器和宿主 API 转发；Tracker/多语言 Worker 仍待完成。
 - [ ] 实现 Lua worker，默认关闭文件、网络和进程能力。
 - [ ] 实现 Python worker，处理解释器发现、环境隔离、标准输出污染和退出码错误。
-- [~] 已增加 C# Linux 进程启动、握手、心跳、执行、取消、超时、通道终止和资源超限测试；跨平台、主动退出监听及重启退避测试待完成。
+- [~] 已增加 C# Linux 进程启动、握手、心跳、执行、取消、超时、通道终止和资源超限测试；跨平台及更完整的 stdout/stderr 和重启退避测试待完成。
 
 验收：脚本 worker 崩溃、协议失步、超时或被强制终止时，主程序和其他语言 worker 继续运行；
 脚本执行历史可以关联 worker ID、请求 ID 和执行 ID；只读宿主调用跨 C#、Lua、Python 使用一致协议。
