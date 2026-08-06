@@ -14,6 +14,7 @@ namespace Diary.RedMine;
 /// </summary>
 public class RedMineApi : IRedMineApi
 {
+    private const int ClosedStatusId = 5;
     private readonly RedMineConfig _configuration;
 
     public RedMineApi(RedMineConfig? configuration = null)
@@ -199,8 +200,24 @@ public class RedMineApi : IRedMineApi
     // 关闭问题: PUT {base}/issues/{id}.json <json_data contains: status_id = closed>
     public bool CloseIssue(int id)
     {
-        // things broken
-        return false;
+        if (id <= 0)
+            return false;
+
+        var client = RestTools.BasicClient(_configuration);
+        if (client is null)
+            return false;
+
+        var request = RestTools.HttpPut(_configuration, IssueInfo.Fetch(id));
+        request.AddJsonBody(new IssueInfo.PutRes(ClosedStatusId));
+        var response = client.Execute(request);
+        if (response.StatusCode is not (HttpStatusCode.OK or HttpStatusCode.NoContent))
+        {
+            Logger.LogError("http status code {StatusCode}: {ErrorMessage}", response.StatusCode, response.ErrorMessage);
+            return false;
+        }
+
+        Logger.LogDebug("closed issue {IssueId}", id);
+        return true;
     }
 
     // 提交工时: POST {base}/time_entries.json <json_data contains: issue_id,spent_on,hours,activity_id,comments>

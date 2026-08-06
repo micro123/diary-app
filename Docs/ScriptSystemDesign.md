@@ -5,7 +5,7 @@
 本文描述 Diary.App 脚本系统的目标设计、运行时边界和分阶段实现计划。
 
 本文同时记录目标设计和当前实现。当前代码已经定义版本化基础契约、最小脚本管理器、
-构建与执行边界以及受限只读事项查询宿主；脚本目录扫描、语言引擎和 UI 集成仍未完成。
+构建与执行边界、受限只读事项查询宿主和脚本目录自动加载；脚本 UI、Lua/Python 引擎仍未完成。
 
 ## 2. 设计目标
 
@@ -45,26 +45,27 @@
 - `ScriptExecutionContext`：按能力暴露宿主 API。
 - `ScriptExecutor`：目标校验、独立执行 ID、取消、超时和异常隔离。
 - `ScriptManager`：组合构建、注册和执行的最小入口。
+- `ScriptDirectoryLoader`：扫描 application/editor 目录，读取元数据并隔离单个脚本失败。
 
 `Diary.ScriptHost` 当前提供 `IWorkItemQueryScriptApi`，只返回不可变事项、备注和标签 DTO，
 复用核心 `WorkItemQuery` 的校验和查询语义，并返回权限、输入、数据库和取消错误。
 
 当前引擎项目为：
 
-- `Diary.Script.CSharp`：已定义 C# 引擎类型，但 `Build` 尚未实现。
+- `Diary.Script.CSharp`：已实现基于 Roslyn 的 V1 构建、入口发现和行列诊断；当前为受信任进程内执行。
 - `Diary.Script.Lua`：当前为占位项目。
 - `Diary.Script.Python`：当前为占位项目。
 
 当前尚未完成：
 
-- 脚本目录和脚本包格式。
-- 文件系统扫描、元数据读取和启用状态持久化。
-- 具体语言引擎发现、构建和脚本加载。
+- 脚本包格式。
+- 启用状态持久化编辑入口。
 - 编译缓存。
 - 后台任务调度和执行日志上下文。
 - 更细粒度的 Tracker、网络和文件系统权限。
 - 脚本 UI 和快捷入口。
-- C#、Lua 和 Python 实际引擎。
+- Lua 和 Python 实际引擎。
+- Diary.App 中的脚本执行 UI 和命令入口。
 
 `Diary.ScriptTests` 当前覆盖契约、引擎选择、构建隔离、目录项注册、目标校验、异常、
 取消、超时、能力拒绝、只读查询结果一致性和敏感信息边界。
@@ -248,7 +249,7 @@ public sealed record ScriptBuildResult(
 
 ## 7. 脚本管理器
 
-当前 `IScriptManager` 统一提供构建注册和执行入口；目录发现与重新加载仍属于下一阶段：
+当前 `IScriptManager` 统一提供构建注册和执行入口；`IScriptDirectoryLoader` 负责启动时目录发现和注册：
 
 ```csharp
 public interface IScriptManager
@@ -268,8 +269,9 @@ public interface IScriptManager
 
 当前管理器已经负责构建、注册、按 ID 查找和统一执行。目标职责还包括：
 
-- 扫描脚本目录和脚本包。
-- 根据路径或包声明选择引擎。
+- [已完成] 扫描 `scripts/application` 和 `scripts/editor` 目录。
+- [已完成] 根据扩展名选择引擎，读取相邻 JSON 元数据并处理启用状态。
+- 扫描脚本包。
 - 维护脚本 ID、显示名称、类型、状态和错误信息。
 - 使用源码哈希和引擎版本管理缓存。
 - 创建每次执行独立的上下文。
@@ -540,7 +542,7 @@ Diary.App <-> JSON/RPC stdin/stdout <-> python worker
 - 实现脚本目录扫描。
 - [已完成] 实现 `ScriptDescriptor`、诊断和执行结果。
 - [已完成] 实现最小 `ScriptManager`、构建服务和执行服务。
-- 实现 C# Roslyn 引擎。
+- [已完成] 实现 C# Roslyn 引擎。
 - [已完成] 增加构建失败、执行异常、取消和超时测试。
 
 ### 第二阶段：应用集成

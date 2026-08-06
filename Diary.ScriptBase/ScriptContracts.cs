@@ -114,6 +114,8 @@ public sealed record ScriptMatchResult(bool IsMatch, int Priority = 0);
 
 public interface IScriptExecutionContext
 {
+    ScriptCapability Capabilities { get; }
+
     TApi? GetApi<TApi>() where TApi : class;
 }
 

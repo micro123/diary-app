@@ -54,4 +54,16 @@ public class IssueInfo
     {
         [JsonProperty("issue")] public PostData Data { get; set; } = new() { ProjectId = projectId, Subject = subject };
     }
+
+    public class PutData
+    {
+        [JsonProperty("status_id")]
+        public int StatusId { get; set; }
+    }
+
+    public class PutRes(int statusId)
+    {
+        [JsonProperty("issue")]
+        public PutData Data { get; set; } = new() { StatusId = statusId };
+    }
 }

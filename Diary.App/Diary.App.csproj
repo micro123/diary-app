@@ -47,6 +47,8 @@
         <ProjectReference Include="..\Diary.Script.CSharp\Diary.Script.CSharp.csproj" />
         <ProjectReference Include="..\Diary.Script.Lua\Diary.Script.Lua.csproj" />
         <ProjectReference Include="..\Diary.Script.Python\Diary.Script.Python.csproj" />
+        <ProjectReference Include="..\Diary.Script.Runtime\Diary.Script.Runtime.csproj" />
+        <ProjectReference Include="..\Diary.ScriptHost\Diary.ScriptHost.csproj" />
         <ProjectReference Include="..\Diary.ScriptBase\Diary.ScriptBase.csproj" />
         <ProjectReference Include="..\Diary.Survey\Diary.Survey.csproj" />
         <ProjectReference Include="..\Diary.Utils\Diary.Utils.csproj" />

@@ -215,6 +215,27 @@ public sealed class ScriptRuntimeTests
     }
 
     [TestMethod]
+    public async Task Executor_RejectsCapabilitiesNotGrantedByContext()
+    {
+        var program = new FakeProgram(
+            "read",
+            descriptor: new ScriptDescriptor(
+                "read",
+                "Read",
+                ScriptApiVersion.V1,
+                ScriptScope.Application,
+                ScriptCapability.ReadDiary));
+
+        var outcome = await new ScriptExecutor().ExecuteAsync(
+            program,
+            ApplicationRequest,
+            EmptyContext());
+
+        Assert.AreEqual(ScriptExecutionStatus.Rejected, outcome.Result.Status);
+        Assert.AreEqual("SCRIPT_CAPABILITY_DENIED", outcome.Result.Diagnostics.Single().Code);
+    }
+
+    [TestMethod]
     public async Task Manager_BadScriptDoesNotAffectGoodScript()
     {
         var registry = new ScriptEngineRegistry();

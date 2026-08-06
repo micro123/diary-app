@@ -24,6 +24,10 @@ using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
 using Diary.PluginBase;
+using Diary.Script.CSharp;
+using Diary.Script.Runtime;
+using Diary.ScriptBase;
+using Diary.ScriptHost;
 using Diary.Survey;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
@@ -70,6 +74,32 @@ namespace Diary.App
             // 同步主题设置
             SyncTheme();
             UpdateSurveyObjects();
+            _ = Task.Run(LoadScriptsAsync);
+        }
+
+        private async Task LoadScriptsAsync()
+        {
+            try
+            {
+                var root = Path.Combine(FsTools.GetApplicationConfigDirectory(), "scripts");
+                var result = await Services.GetRequiredService<IScriptDirectoryLoader>().LoadAsync(root);
+                Logger.LogInformation(
+                    "脚本目录加载完成：发现 {Count} 个脚本，诊断 {DiagnosticCount} 条",
+                    result.Entries.Length,
+                    result.Diagnostics.Length);
+                foreach (var diagnostic in result.Diagnostics)
+                {
+                    Logger.LogWarning(
+                        "脚本诊断 {Code}：{Message}（{SourcePath}）",
+                        diagnostic.Code,
+                        diagnostic.Message,
+                        diagnostic.SourcePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "脚本目录加载失败");
+            }
         }
 
         private bool ConfigureCheck(out string message)
@@ -258,6 +288,26 @@ namespace Diary.App
             services.AddSingleton<TrackerTemplateContributorRegistry>();
             services.AddSingleton<IWorkItemPersistenceCoordinator, WorkItemPersistenceCoordinator>();
             services.AddSingleton<ITrackerUploadCoordinator, TrackerUploadCoordinator>();
+            services.AddSingleton<CSharpEngine>();
+            services.AddSingleton<IScriptEngineRegistry>(services =>
+            {
+                var registry = new ScriptEngineRegistry();
+                registry.Register(services.GetRequiredService<CSharpEngine>());
+                return registry;
+            });
+            services.AddSingleton<IScriptCatalog, ScriptCatalog>();
+            services.AddSingleton<IScriptBuildService, ScriptBuildService>();
+            services.AddSingleton<IScriptExecutor, ScriptExecutor>();
+            services.AddSingleton<IScriptManager, ScriptManager>();
+            services.AddSingleton<IScriptDirectoryLoader, ScriptDirectoryLoader>();
+            services.AddSingleton<ScriptExecutionContext>(services =>
+            {
+                var context = new ScriptExecutionContext(ScriptCapability.ReadDiary);
+                context.RegisterApi<IWorkItemQueryScriptApi>(
+                    new WorkItemQueryScriptApi(() => UseDb, ScriptCapability.ReadDiary),
+                    ScriptCapability.ReadDiary);
+                return context;
+            });
             var compatibility = new PluginCompatibilityContext(
                 1,
                 1,
@@ -441,7 +491,7 @@ namespace Diary.App
                     if (UseDb is not null && DatabaseOk
                         && !string.Equals(_connectedDriver, AppConfig.DbSettings.DatabaseDriver, StringComparison.Ordinal))
                     {
-                        SurveyEnabled = AppConfig.SurveySettings.IsServerEnabled;
+                        SurveyEnabled = AppConfig.SurveySettings.Enabled;
                         return;
                     }
                     if (!ConfigureCheck(out var msg))
@@ -451,7 +501,7 @@ namespace Diary.App
                         return;
                     }
                     RegisterTrackerInstances();
-                    SurveyEnabled = AppConfig.SurveySettings.IsServerEnabled;
+                    SurveyEnabled = AppConfig.SurveySettings.Enabled;
                 });
 
                 UpdateSurveyObjects();
@@ -575,7 +625,7 @@ namespace Diary.App
         private void LoadConfigurations()
         {
             // EasySaveLoad.Load(AppConfig); // already loaded by instance
-            SurveyEnabled = AppConfig.SurveySettings.IsServerEnabled;
+            SurveyEnabled = AppConfig.SurveySettings.Enabled;
         }
 
         private void DisableAvaloniaDataAnnotationValidation()

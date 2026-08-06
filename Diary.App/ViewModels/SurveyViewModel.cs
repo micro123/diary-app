@@ -77,6 +77,17 @@ public sealed partial class SurveyResult
 
     private void UpdatePercent(double total)
     {
+        if (total <= 0)
+        {
+            foreach (var tag in _data.Tags)
+            {
+                tag.Percent = 0;
+                foreach (var subTag in tag.SubTags)
+                    subTag.Percent = 0;
+            }
+            return;
+        }
+
         foreach (var tag in _data.Tags)
         {
             tag.Percent = tag.TagTime / total * 100.0;
@@ -184,49 +195,62 @@ public partial class SurveyViewModel : ViewModelBase
         {
             Task.Run(() =>
             {
-                var statistics = Db!.GetStatistics(parts[0], parts[1]);
-                var data = new RespondData
+                try
                 {
-                    Hostname = SysInfo.GetHostname(),
-                    Username = SysInfo.GetUsername(),
-                    DateStart = parts[0],
-                    DateEnd = parts[1],
-                    TotalTime = statistics.Total,
-                };
-
-                var sum1 = 0.0;
-                var sum2 = 0.0;
-                foreach (var tagTime in statistics.PrimaryTags)
-                {
-                    var primaryTag = new RespondTag
+                    var db = Db;
+                    if (db is null)
                     {
-                        TagName = tagTime.TagName,
-                        TagTime = tagTime.Time,
+                        _logger.LogWarning("Survey 查询被忽略：数据库不可用");
+                        return;
+                    }
+                    var statistics = db.GetStatistics(parts[0], parts[1]);
+                    var data = new RespondData
+                    {
+                        Hostname = SysInfo.GetHostname(),
+                        Username = SysInfo.GetUsername(),
+                        DateStart = parts[0],
+                        DateEnd = parts[1],
+                        TotalTime = statistics.Total,
                     };
-                    sum2 = 0.0;
-                    if (tagTime.Nested.Count > 0)
+
+                    var sum1 = 0.0;
+                    var sum2 = 0.0;
+                    foreach (var tagTime in statistics.PrimaryTags)
                     {
-                        var list = primaryTag.SubTags;
-                        foreach (var nested in tagTime.Nested)
+                        var primaryTag = new RespondTag
                         {
-                            sum2 += nested.Time;
-                            list.Add(new RespondTag { TagName = nested.TagName, TagTime = nested.Time });
+                            TagName = tagTime.TagName,
+                            TagTime = tagTime.Time,
+                        };
+                        sum2 = 0.0;
+                        if (tagTime.Nested.Count > 0)
+                        {
+                            var list = primaryTag.SubTags;
+                            foreach (var nested in tagTime.Nested)
+                            {
+                                sum2 += nested.Time;
+                                list.Add(new RespondTag { TagName = nested.TagName, TagTime = nested.Time });
+                            }
                         }
+
+                        if (sum2 < tagTime.Time && primaryTag.SubTags.Count > 0)
+                            primaryTag.SubTags.Add(new RespondTag { TagTime = tagTime.Time - sum2 });
+
+                        sum1 += tagTime.Time;
+                        data.Tags.Add(primaryTag);
                     }
 
-                    if (sum2 < tagTime.Time && primaryTag.SubTags.Count > 0) // 当有分类的时候，所有分类时间加起来又不够的时候才添加
-                        primaryTag.SubTags.Add(new RespondTag { TagTime = tagTime.Time - sum2 });
+                    if (sum1 < statistics.Total)
+                        data.Tags.Add(new RespondTag { TagTime = statistics.Total - sum1 });
 
-                    sum1 += tagTime.Time;
-                    data.Tags.Add(primaryTag);
+                    var content = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = false });
+                    _logger.LogDebug("respond content: {Content}", content);
+                    EventDispatcher.Msg(new SurveyResultEvent(content));
                 }
-
-                if (sum1 < statistics.Total)
-                    data.Tags.Add(new RespondTag { TagTime = statistics.Total - sum1 });
-
-                var content = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = false });
-                _logger.LogDebug("respond content: {Content}", content);
-                EventDispatcher.Msg(new SurveyResultEvent(content));
+                catch (Exception exception)
+                {
+                    _logger.LogError(exception, "Survey 查询失败");
+                }
             });
         }
     }

@@ -289,7 +289,22 @@ public partial class WorkEditorViewModel : ViewModelBase
                 continue;
             _syncing_tags = true;
             if (WorkItem is { Id: > 0 })
-                Db!.WorkItemAddTag(WorkItem, tag);
+            {
+                if (Db is null || !Db.WorkItemAddTag(WorkItem, tag))
+                {
+                    _syncing_tags = false;
+                    LastTagAutomationResult = new TagAutomationResult([
+                        new TagAutomationInstanceResult(
+                            new TrackerKey("core", "local"),
+                            false,
+                            Array.Empty<string>(),
+                            Array.Empty<TrackerTagDefaultConflict>(),
+                            Array.Empty<TrackerTagDefaultInvalidTarget>(),
+                            "标签保存失败")
+                    ]);
+                    continue;
+                }
+            }
             WorkTags.Add(tag);
             _syncing_tags = false;
             LastTagAutomationResult = _tagAutomation.TagAdded(

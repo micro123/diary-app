@@ -56,4 +56,11 @@ internal static class RestTools
         request.AddHeader("X-Redmine-API-Key", cfg.RedMineApiKey);
         return request;
     }
+
+    public static RestRequest HttpPut(RedMineConfig cfg, string query)
+    {
+        var request = new RestRequest(query, Method.Put);
+        request.AddHeader("X-Redmine-API-Key", cfg.RedMineApiKey);
+        return request;
+    }
 }

@@ -78,7 +78,7 @@ RedMine --> Api
 | `Diary.PluginUI` | tracker 配置页、管理页、编辑器扩展和模板贡献契约 | 由宿主把插件 UI 挂载到核心 UI |
 | `Diary.ScriptBase` | 脚本版本化契约、描述符、诊断、执行请求和能力模型 | 不依赖核心数据库、DI 或 UI |
 | `Diary.ScriptHost` | 受限脚本宿主 API，当前提供只读事项查询 | 只暴露不可变 DTO 和结构化错误 |
-| `Diary.Script.Runtime` | 引擎注册、构建服务、脚本目录项、执行器和脚本管理器 | 当前为最小运行时，尚未接入应用和语言引擎 |
+| `Diary.Script.Runtime` | 引擎注册、构建服务、目录加载、执行器和脚本管理器 | 已接入 App DI，启动时后台加载 application/editor 脚本 |
 | `Diary.RedMine` | Redmine API、模型、配置、插件迁移和插件入口 | 当前仍是 Redmine 专用插件实现 |
 | `Diary.RedMine.UI` | Redmine 设置、管理页、编辑器区域、模板扩展、缓存数据 | 通过工厂按实例注册 UI/模板贡献 |
 | `Diary.RedMine.SQLite` | SQLite Redmine 数据访问实现 | 通过 `IDbExtensionFactory` 按 provider 加载 |
@@ -300,7 +300,7 @@ Redmine 实例设置页和核心标签编辑器复用规则编辑 ViewModel，�
 隔离脚本异常，并返回成功、失败、取消、超时或拒绝状态；能力检查由
 `ScriptExecutionContext` 和 `Diary.ScriptHost` 的只读 API 执行。
 
-当前尚未接入应用启动、脚本目录扫描、Roslyn 构建、后台任务调度、脚本设置 UI、Lua 或 Python 引擎。
+当前尚未接入后台任务调度、脚本设置 UI、Lua 或 Python 引擎；元数据启用状态尚未提供持久化编辑入口。
 
 ## 15. 维护约定
 
