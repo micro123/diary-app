@@ -469,7 +469,7 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 目标：通过常驻 worker 隔离脚本崩溃、超时和资源问题，同时复用统一宿主 API。
 
 - [x] 完成语言无关的 worker 生命周期、消息封装和重启契约设计。
-- [ ] 定义并实现 `diary.script.worker` 握手、版本协商和能力协商。
+- [x] 定义并实现 `diary.script.worker` 握手、版本协商和能力协商。
 - [ ] 实现 supervisor 的启动、常驻、空闲回收、心跳和进程退出处理。
 - [ ] 实现 `execute`、`execute.result`、`cancel`、`host.call` 和 `host.result` 消息。
 - [ ] 实现消息大小、请求数量、输出大小和宿主调用数量限制。
