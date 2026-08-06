@@ -473,12 +473,12 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [x] 增加 UTF-8 JSON 行消息编解码和单条消息大小限制。
 - [x] 实现本机进程管道 Worker transport，使用绝对路径、独立标准流和受控环境变量。
 - [~] 已实现 supervisor 启动、握手、串行执行、停止、心跳、取消和超时；常驻回收与进程退出监听待完成。
-- [~] 已实现 `execute`、`execute.result` 和 `cancel` 消息；`host.call` 与 `host.result` 待完成。
+- [~] 已实现 `execute`、`execute.result`、`cancel` 以及 supervisor 侧 `host.call`/`host.result` 路由；Worker 侧宿主代理待完成。
 - [ ] 实现消息大小、请求数量、输出大小和宿主调用数量限制。
-- [ ] 将只读 `workItems.query` 接入 worker 宿主 API。
+- [ ] 将只读 `workItems.query` 接入 Worker 宿主 API和主程序查询 dispatcher。
 - [ ] worker 崩溃时将未完成请求转换为结构化失败，禁止自动重复副作用操作。
 - [ ] 默认同语言脚本共享 worker；高风险或无法清理状态的脚本支持独立 worker。
-- [x] 已实现 C# Worker 协议适配器、握手、心跳、取消和基础脚本执行器接入；宿主 API 转发待完成。
+- [~] 已实现 C# Worker 协议适配器、握手、心跳、取消、基础脚本执行器和 supervisor 宿主调用路由；Worker 侧宿主 API 转发待完成。
 - [ ] 实现 Lua worker，默认关闭文件、网络和进程能力。
 - [ ] 实现 Python worker，处理解释器发现、环境隔离、标准输出污染和退出码错误。
 - [~] 已增加 C# Linux 进程启动、握手、心跳、执行、取消和超时测试；跨平台及崩溃重启测试待完成。
