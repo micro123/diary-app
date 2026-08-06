@@ -2,31 +2,50 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:i="https://github.com/projektanker/icons.avalonia"
-             xmlns:viewModels="clr-namespace:Diary.App.ViewModels"
+              xmlns:i="https://github.com/projektanker/icons.avalonia"
+              xmlns:models="clr-namespace:Diary.App.Models"
+              xmlns:viewModels="clr-namespace:Diary.App.ViewModels"
              x:Class="Diary.App.Views.WorkItemQueryView"
              x:DataType="viewModels:WorkItemQueryViewModel"
              mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700">
     <Grid RowDefinitions="Auto,*" Margin="16" RowSpacing="12">
         <Border Grid.Row="0" Padding="16" CornerRadius="8" Background="{DynamicResource SemiColorFill2}">
-            <Grid ColumnDefinitions="Auto,180,Auto,180,*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="10">
-                <TextBlock Grid.Row="0" Grid.Column="0" Text="日期" VerticalAlignment="Center" />
-                <CalendarDatePicker Grid.Row="0" Grid.Column="1" SelectedDate="{Binding StartDate}" />
-                <TextBlock Grid.Row="0" Grid.Column="2" Text="至" VerticalAlignment="Center" />
-                <CalendarDatePicker Grid.Row="0" Grid.Column="3" SelectedDate="{Binding EndDate}" />
-                <TextBox Grid.Row="0" Grid.Column="4" Text="{Binding Text}" Watermark="搜索事项标题或备注" />
-                <Button Grid.Row="0" Grid.Column="5" Classes="Primary" Command="{Binding QueryCommand}">
+            <Grid ColumnDefinitions="Auto,180,Auto,180,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="10">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="保存查询" VerticalAlignment="Center" />
+                <ComboBox Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
+                          ItemsSource="{Binding SavedQueries}" SelectedItem="{Binding SelectedSavedQuery}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="models:SavedWorkItemQuery">
+                            <TextBlock Text="{Binding Name}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBox Grid.Row="0" Grid.Column="3" Grid.ColumnSpan="2" Text="{Binding SavedQueryName}" Watermark="查询名称" />
+                <StackPanel Grid.Row="0" Grid.Column="5" Orientation="Horizontal" Spacing="4">
+                    <Button Content="新增" Command="{Binding AddSavedQueryCommand}" />
+                    <Button Content="应用" Command="{Binding ApplySavedQueryCommand}" />
+                    <Button Content="更新" Command="{Binding UpdateSavedQueryCommand}" />
+                    <Button Content="重命名" Command="{Binding RenameSavedQueryCommand}" />
+                    <Button Content="删除" Command="{Binding DeleteSavedQueryCommand}" />
+                </StackPanel>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="日期" VerticalAlignment="Center" />
+                <CalendarDatePicker Grid.Row="1" Grid.Column="1" SelectedDate="{Binding StartDate}" />
+                <TextBlock Grid.Row="1" Grid.Column="2" Text="至" VerticalAlignment="Center" />
+                <CalendarDatePicker Grid.Row="1" Grid.Column="3" SelectedDate="{Binding EndDate}" />
+                <TextBox Grid.Row="1" Grid.Column="4" Text="{Binding Text}" Watermark="搜索事项标题或备注" />
+                <Button Grid.Row="1" Grid.Column="5" Classes="Primary" Command="{Binding QueryCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <i:Icon Value="fa-magnifying-glass" />
                         <TextBlock Text="查询" />
                     </StackPanel>
                 </Button>
 
-                <TextBlock Grid.Row="1" Grid.Column="0" Text="标签" VerticalAlignment="Center" />
-                <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding TagFilters}" SelectedIndex="{Binding TagFilterIndex}" />
-                <TextBlock Grid.Row="1" Grid.Column="2" Text="优先级" VerticalAlignment="Center" />
-                <ComboBox Grid.Row="1" Grid.Column="3" ItemsSource="{Binding Priorities}" SelectedIndex="{Binding PriorityIndex}" />
-                <ScrollViewer Grid.Row="1" Grid.Column="4" Grid.ColumnSpan="2" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="标签" VerticalAlignment="Center" />
+                <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding TagFilters}" SelectedIndex="{Binding TagFilterIndex}" />
+                <TextBlock Grid.Row="2" Grid.Column="2" Text="优先级" VerticalAlignment="Center" />
+                <ComboBox Grid.Row="2" Grid.Column="3" ItemsSource="{Binding Priorities}" SelectedIndex="{Binding PriorityIndex}" />
+                <ScrollViewer Grid.Row="2" Grid.Column="4" Grid.ColumnSpan="2" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                     <ItemsControl ItemsSource="{Binding Tags}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
@@ -38,19 +57,21 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </ScrollViewer>
-                <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="6" Text="{Binding ResultSummary}" Opacity="0.7" />
+                <TextBlock Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="6" Text="{Binding SavedQueryStatus}" Opacity="0.7" />
+                <TextBlock Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="6" Text="{Binding ResultSummary}" Opacity="0.7" />
             </Grid>
         </Border>
 
         <Border Grid.Row="1" CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource SemiColorBorder}">
             <Grid RowDefinitions="Auto,*">
                 <Border Grid.Row="0" Background="{DynamicResource SemiColorFill2}" Margin="1" Padding="12,8">
-                    <Grid ColumnDefinitions="110,*,100,90,220">
+                    <Grid ColumnDefinitions="110,*,100,90,220,70">
                         <TextBlock Grid.Column="0" Text="日期" FontWeight="SemiBold" />
                         <TextBlock Grid.Column="1" Text="事项" FontWeight="SemiBold" />
                         <TextBlock Grid.Column="2" Text="耗时" FontWeight="SemiBold" />
                         <TextBlock Grid.Column="3" Text="优先级" FontWeight="SemiBold" />
                         <TextBlock Grid.Column="4" Text="标签" FontWeight="SemiBold" />
+                        <TextBlock Grid.Column="5" Text="操作" FontWeight="SemiBold" />
                     </Grid>
                 </Border>
                 <ScrollViewer Grid.Row="1">
@@ -58,12 +79,15 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="viewModels:WorkItemQueryResult">
                                 <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SemiColorBorder}" Padding="12,9">
-                                    <Grid ColumnDefinitions="110,*,100,90,220">
+                                    <Grid ColumnDefinitions="110,*,100,90,220,70">
                                         <TextBlock Grid.Column="0" Text="{Binding Date}" />
                                         <TextBlock Grid.Column="1" Text="{Binding Comment}" TextTrimming="CharacterEllipsis" />
                                         <TextBlock Grid.Column="2" Text="{Binding Time, StringFormat='{}{0:0.##} 小时'}" />
                                         <TextBlock Grid.Column="3" Text="{Binding Priority}" />
                                         <TextBlock Grid.Column="4" Text="{Binding Tags}" TextTrimming="CharacterEllipsis" />
+                                        <Button Grid.Column="5" Content="打开"
+                                                Command="{Binding $parent[UserControl].((viewModels:WorkItemQueryViewModel)DataContext).OpenResultCommand}"
+                                                CommandParameter="{Binding}" />
                                     </Grid>
                                 </Border>
                             </DataTemplate>

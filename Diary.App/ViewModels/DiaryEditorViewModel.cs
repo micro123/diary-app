@@ -253,7 +253,28 @@ public partial class DiaryEditorViewModel : ViewModelBase
             Dispatcher.UIThread.Post(FetchTemplates);
         });
 
+        Messenger.Register<OpenWorkItemEvent>(this, (r, m) =>
+        {
+            Dispatcher.UIThread.Post(() => OpenWorkItem(m.Value.Date, m.Value.WorkItemId));
+        });
+
         FetchTemplates();
+    }
+
+    private void OpenWorkItem(string date, int workItemId)
+    {
+        try
+        {
+            GoDate(TimeTools.FromFormatedDate(date));
+            SelectWorkById(workItemId);
+            if (SelectedWork?.WorkId != workItemId)
+                EventDispatcher.ShowToast("未找到要打开的事项，数据可能已变更");
+        }
+        catch (FormatException)
+        {
+            _logger.LogWarning("Cannot open work item {WorkItemId}: invalid date", workItemId);
+            EventDispatcher.ShowToast("无法定位到该事项");
+        }
     }
 
     private void FetchTemplates()
