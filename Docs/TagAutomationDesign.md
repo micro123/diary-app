@@ -9,22 +9,24 @@
 
 本文同时记录目标设计和当前实现。当前已经实现标签新增统一入口、基础协调器、
 Redmine 实例规则存储、`OnlyIfUnset` 默认值应用和 Redmine 实例设置页规则编辑器。
-结构化冲突结果、核心标签编辑器贡献入口和配置 schema 迁移仍未完成。
+按实例结构化结果、核心标签编辑器贡献入口和配置 schema 迁移已经完成；同字段冲突诊断仍未完成。
 
 ### 1.1 当前实现摘要
 
 - `WorkEditorViewModel.AddTags()` 统一用户、模板和批量标签添加来源。
 - 只有标签 ID 从不存在变为存在时才调用协调器。
-- `TagAutomationContext` 当前包含来源和批次内顺序。
+- `TagAutomationContext` 当前包含来源和批次内顺序，协调器按实例返回应用字段和错误。
 - `TagAutomationCoordinator` 调用实现 `ITrackerTagDefaults` 的编辑器扩展。
 - Redmine 每个 `RedMineInstanceSettings` 独立保存多条 `RedMineTagRule`。
 - Redmine 规则支持标签、Activity、Issue、启用状态和优先级。
 - Redmine 规则算法位于纯逻辑 `RedMineTagDefaults`，默认不覆盖已有字段。
 - Redmine 实例设置页可以新增、编辑和删除当前实例规则。
+- 核心标签编辑器可以挂载已启用 Tracker 实例的规则贡献。
+- 两个入口复用 `RedMineTagRuleEditorViewModel`，并保存同一份实例配置。
+- Redmine 配置 0 -> 1 迁移补齐规则 ID，保存时保留实例和规则级未知字段。
 - Redmine 编辑器扩展使用真实实例 ID，非默认实例不会落到默认 `TrackerKey`。
 
-当前实现与后文目标接口存在差异：协调器尚未返回 `TagAutomationResult`，
-规则编辑入口目前只有 Tracker 实例设置页，尚未接入核心标签编辑器。
+当前实现与后文目标接口仍存在差异：结果尚未表达同字段冲突和无效目标的结构化原因。
 
 ## 2. 核心原则
 
@@ -208,7 +210,7 @@ public interface ITrackerTagDefaults
 }
 ```
 
-当前协调器遍历编辑器扩展并调用这个可选能力。返回的字段名称尚未聚合成用户可见诊断。
+当前协调器遍历编辑器扩展并调用这个可选能力，按实例聚合字段名称和异常；结果尚未展示为用户可见诊断。
 
 长期建议的 Tracker Provider 接口：
 
@@ -346,7 +348,7 @@ public enum TagAutomationMode
 
 ### 9.2 核心标签编辑器中的 Tracker 扩展
 
-当前尚未实现此入口，以下内容保留为目标设计。
+当前已通过通用贡献契约实现此入口，以下内容保留为交互设计说明。
 
 编辑“加班”标签时，可以查看各 Tracker 实例关联的规则：
 
@@ -389,8 +391,7 @@ public interface ITrackerTagRuleEditor
 
 ### 9.3 共享编辑服务
 
-当前规则编辑逻辑位于 Redmine 配置 ViewModel。接入核心标签编辑器前，需要先提取共享规则编辑服务或共享 ViewModel，
-避免两个入口分别维护和保存规则。
+规则编辑逻辑已提取到共享 `RedMineTagRuleEditorViewModel`，Tracker 设置页和核心标签编辑器使用同一实现。
 
 两个入口必须共享同一个插件规则编辑 ViewModel 或规则编辑服务，避免一个页面保存后被另一个页面覆盖。
 
@@ -499,12 +500,12 @@ AddTag(tag);      // 事实上的新增，触发规则
 ## 14. 实施顺序
 
 1. [已完成] 定义标签添加入口，区分用户、模板、批量来源和静默加载路径。
-2. [部分完成] 定义 `TagAutomationContext` 和协调器；结构化结果待补。
-3. [部分完成] 为 Redmine 实例配置增加规则集合；配置 schema 迁移待补。
+2. [已完成] 定义 `TagAutomationContext`、协调器和按实例结构化结果。
+3. [已完成] 为 Redmine 实例配置增加规则集合及配置 schema 迁移。
 4. [已完成] 实现 Redmine 标签规则匹配和 `OnlyIfUnset` 默认应用。
 5. [已完成] 将手动添加标签和模板添加标签统一接入添加入口。
 6. [已完成] 增加 Tracker 实例设置页的规则编辑器。
-7. [待完成] 增加标签编辑器的插件规则贡献入口，并复用规则编辑服务。
+7. [已完成] 增加标签编辑器的插件规则贡献入口，并复用规则编辑 ViewModel。
 8. [部分完成] 增加多规则、顺序和用户覆盖测试；完整多实例 UI 验收待补。
 9. [待完成] 为 GitHub、Linear 等后续 Tracker 复用通用规则边界。
 

@@ -968,7 +968,7 @@ SupportedProviders: PostgreSQL
 - 覆盖 SQLite/PostgreSQL schema 迁移幂等和历史坏版本号。
 - 覆盖多实例隔离、多 tracker 保存和远程失败重试。
 - 将外部 Redmine API 测试与本地契约测试分离。
-- 增加无 tracker 核心编辑器、模板和主窗口启动验收。
+- 已增加无 tracker 核心编辑器、模板和 Headless 主窗口启动验收。
 
 验收标准：核心测试不依赖远程 Redmine 服务，插件失败不会阻止核心日记启动。
 

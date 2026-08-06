@@ -252,7 +252,7 @@ Redmine UI 通过 `Diary.PluginUI` 的契约接入：
 - 插件实例注册、数据库扩展迁移和 UI/模板注册已收敛到统一生命周期；数据库扩展的具体创建和迁移仍由插件实现。
 - 主程序已经通过构建目标复制 Redmine 插件程序集，后续可将复制源替换为独立插件包目录。
 - 配置 schema 迁移、诊断状态、错误详情、迁移重试、实例启用/禁用和诊断日志 ZIP 导出已接入通用链路。
-- 已覆盖无 tracker 时插件生命周期、核心编辑器和模板的单元测试；主窗口在缺失插件程序集时的完整启动仍缺少独立集成测试。
+- 已覆盖无 tracker 时插件生命周期、核心编辑器和模板测试，并通过 Headless 桌面生命周期验收 core-only 主窗口构建。
 - 远程同步队列、重试和每实例操作状态仍需完善。
 
 ## 12. 自定义事项查询
@@ -264,7 +264,8 @@ SQLite 和 PostgreSQL 都支持日期范围、标题/备注关键字、优先级
 查询使用参数绑定和相关子查询，结果按日期和事项 ID 稳定排序。共享 `DbContractTests` 同时验证两个 provider。
 左侧导航已经提供“事项查询”页面；统计标签详情也已迁移到该接口。
 
-详细设计见 [`WorkItemQueryDesign.md`](WorkItemQueryDesign.md)。当前尚未实现保存查询、结果跳转和脚本只读查询。
+查询页面支持失败时保留结果、批量标签加载、结果跳转和保存查询条件。详细设计见
+[`WorkItemQueryDesign.md`](WorkItemQueryDesign.md)。当前尚未实现脚本只读查询。
 
 ## 13. 标签自动化规则
 
@@ -275,8 +276,8 @@ Tracker 编辑器可以选择实现 `ITrackerTagDefaults`。当前 Redmine 编�
 `RedMineInstanceSettings.TagRules` 读取实例级规则。规则按优先级为 Activity 和 Issue 填充默认值，
 已有字段不会被覆盖，删除标签也不会反向清除字段。
 
-Redmine 实例设置页已经提供规则新增、编辑、删除、启用/禁用和优先级调整。当前尚未实现核心标签编辑器贡献入口、
-结构化冲突结果和规则配置 schema 迁移。
+Redmine 实例设置页和核心标签编辑器复用规则编辑 ViewModel，配置支持 schema 迁移及嵌套未知字段保留。
+协调器按实例隔离异常并返回应用字段和错误；同字段冲突的结构化诊断仍待补。
 
 详细设计见 [`TagAutomationDesign.md`](TagAutomationDesign.md)。
 
