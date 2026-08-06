@@ -288,7 +288,8 @@ namespace Diary.App
             services.AddSingleton<TrackerTemplateContributorRegistry>();
             services.AddSingleton<IWorkItemPersistenceCoordinator, WorkItemPersistenceCoordinator>();
             services.AddSingleton<ITrackerUploadCoordinator, TrackerUploadCoordinator>();
-            services.AddSingleton<CSharpEngine>();
+            services.AddSingleton(_ => new CSharpEngine(
+                Path.Combine(FsTools.GetApplicationConfigDirectory(), "scripts", "cache")));
             services.AddSingleton<IScriptEngineRegistry>(services =>
             {
                 var registry = new ScriptEngineRegistry();
@@ -300,14 +301,16 @@ namespace Diary.App
             services.AddSingleton<IScriptExecutor, ScriptExecutor>();
             services.AddSingleton<IScriptManager, ScriptManager>();
             services.AddSingleton<IScriptDirectoryLoader, ScriptDirectoryLoader>();
-            services.AddSingleton<ScriptExecutionContext>(services =>
+            services.AddSingleton<IScriptExecutionContextFactory>(_ =>
+                new ScriptExecutionContextFactory(capabilities =>
             {
-                var context = new ScriptExecutionContext(ScriptCapability.ReadDiary);
+                var grantedCapabilities = capabilities & ScriptCapability.ReadDiary;
+                var context = new ScriptExecutionContext(grantedCapabilities);
                 context.RegisterApi<IWorkItemQueryScriptApi>(
-                    new WorkItemQueryScriptApi(() => UseDb, ScriptCapability.ReadDiary),
+                    new WorkItemQueryScriptApi(() => UseDb, grantedCapabilities),
                     ScriptCapability.ReadDiary);
                 return context;
-            });
+            }));
             var compatibility = new PluginCompatibilityContext(
                 1,
                 1,

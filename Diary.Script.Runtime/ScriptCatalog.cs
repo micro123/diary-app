@@ -5,6 +5,9 @@ namespace Diary.Script.Runtime;
 public interface IScriptCatalog
 {
     ScriptRegistrationResult Register(IScriptProgramV1 program);
+    ScriptRegistrationResult RegisterOrReplace(IScriptProgramV1 program);
+    IReadOnlyList<IScriptProgramV1> GetAll();
+    bool Remove(string id);
     bool TryGet(string id, out IScriptProgramV1? program);
 }
 
@@ -41,10 +44,54 @@ public sealed class ScriptCatalog : IScriptCatalog
         return ScriptRegistrationResult.Success();
     }
 
+    public ScriptRegistrationResult RegisterOrReplace(IScriptProgramV1 program)
+    {
+        ArgumentNullException.ThrowIfNull(program);
+        var id = program.Descriptor.Id;
+        if (string.IsNullOrWhiteSpace(id))
+            return Register(program);
+
+        IScriptProgramV1? previous;
+        lock (_gate)
+        {
+            _programs.TryGetValue(id, out previous);
+            _programs[id] = program;
+        }
+
+        DisposeProgram(previous);
+        return ScriptRegistrationResult.Success();
+    }
+
+    public IReadOnlyList<IScriptProgramV1> GetAll()
+    {
+        lock (_gate)
+            return _programs.Values.ToArray();
+    }
+
+    public bool Remove(string id)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        IScriptProgramV1? program;
+        lock (_gate)
+        {
+            if (!_programs.Remove(id, out program))
+                return false;
+        }
+
+        DisposeProgram(program);
+        return true;
+    }
+
     public bool TryGet(string id, out IScriptProgramV1? program)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         lock (_gate)
             return _programs.TryGetValue(id, out program);
+    }
+
+    private static void DisposeProgram(IScriptProgramV1? program)
+    {
+        if (program is IDisposable disposable)
+            disposable.Dispose();
     }
 }

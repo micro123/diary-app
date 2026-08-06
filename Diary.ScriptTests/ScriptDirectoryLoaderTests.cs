@@ -49,6 +49,11 @@ public sealed class ScriptDirectoryLoaderTests
         Assert.IsFalse(result.Entries[0].Enabled);
         Assert.IsNull(result.Entries[0].BuildResult);
         Assert.IsFalse(catalog.TryGet("disabled", out _));
+
+        await loader.SetEnabledAsync(sourcePath, true);
+        var enabledResult = await loader.LoadAsync(_root);
+        Assert.IsTrue(enabledResult.Entries[0].BuildResult!.Succeeded);
+        Assert.IsTrue(catalog.TryGet("disabled", out _));
     }
 
     [TestMethod]
@@ -64,6 +69,19 @@ public sealed class ScriptDirectoryLoaderTests
         Assert.IsTrue(result.Diagnostics.Any(item => item.Code == "SCRIPT_METADATA_INVALID"));
         Assert.IsTrue(catalog.TryGet("good", out _));
         Assert.IsFalse(catalog.TryGet("broken", out _));
+    }
+
+    [TestMethod]
+    public async Task LoadAsync_RejectsMetadataThatDoesNotMatchDescriptor()
+    {
+        var loader = CreateLoader(out var catalog);
+        var sourcePath = await WriteScriptAsync("application", "mismatch.fake", "actual");
+        await File.WriteAllTextAsync(sourcePath + ".json", """{"id":"declared"}""");
+
+        var result = await loader.LoadAsync(_root);
+
+        Assert.IsTrue(result.Diagnostics.Any(item => item.Code == "SCRIPT_METADATA_MISMATCH"));
+        Assert.IsFalse(catalog.TryGet("actual", out _));
     }
 
     [TestMethod]

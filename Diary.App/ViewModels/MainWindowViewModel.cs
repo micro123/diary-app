@@ -150,6 +150,8 @@ public partial class MainWindowViewModel : ViewModelBase
             _serviceProvider.GetRequiredService<StatisticsViewModel>(), $"Alt+{idx++}"));
         built.Add(new NavigateInfo(PageNames.SurveyTool, "mdi-chat-processing-outline",
             _serviceProvider.GetRequiredService<SurveyViewModel>(), $"Alt+{idx++}"));
+        built.Add(new NavigateInfo(PageNames.Scripts, "mdi-script-text-outline",
+            _serviceProvider.GetRequiredService<ScriptManagementViewModel>(), $"Alt+{idx++}"));
         built.Add(new NavigateInfo(PageNames.Settings, "mdi-cog-outline",
             _serviceProvider.GetService<SettingsViewModel>(), $"Alt+{idx++}"));
         Pages = new ObservableCollection<NavigateInfo>(built);

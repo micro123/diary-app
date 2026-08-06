@@ -114,6 +114,22 @@ public sealed class ScriptRuntimeTests
     }
 
     [TestMethod]
+    public void Catalog_ReplacementAndRemovalDisposePrograms()
+    {
+        var catalog = new ScriptCatalog();
+        var original = new DisposableProgram("replace");
+        var replacement = new DisposableProgram("replace");
+        catalog.Register(original);
+
+        catalog.RegisterOrReplace(replacement);
+        var removed = catalog.Remove("replace");
+
+        Assert.IsTrue(original.Disposed);
+        Assert.IsTrue(replacement.Disposed);
+        Assert.IsTrue(removed);
+    }
+
+    [TestMethod]
     public void ExecutionContext_ExposesOnlyRegisteredAndPermittedApis()
     {
         var readable = new ScriptExecutionContext(ScriptCapability.ReadDiary);
@@ -259,6 +275,37 @@ public sealed class ScriptRuntimeTests
         Assert.AreEqual(ScriptExecutionStatus.Succeeded, executed.Result.Status);
     }
 
+    [TestMethod]
+    public async Task Manager_CreatesFreshContextForEachExecution()
+    {
+        var contexts = new List<IScriptExecutionContext>();
+        var registry = new ScriptEngineRegistry();
+        registry.Register(new FakeEngine(
+            "fake",
+            _ => new(true),
+            _ => ValueTask.FromResult(ScriptBuildResult.Success(new FakeProgram(
+                "fresh",
+                (_, context, _) =>
+                {
+                    contexts.Add(context);
+                    return ValueTask.FromResult(ScriptExecutionResult.Succeeded());
+                },
+                new ScriptDescriptor("fresh", "Fresh", ScriptApiVersion.V1, ScriptScope.Application, ScriptCapability.None))))));
+        var catalog = new ScriptCatalog();
+        var manager = new ScriptManager(
+            new ScriptBuildService(registry),
+            catalog,
+            new ScriptExecutor(),
+            new ScriptExecutionContextFactory(_ => new ScriptExecutionContext(ScriptCapability.None)));
+        await manager.BuildAndRegisterAsync(new ScriptBuildRequest("fresh.fake", "fresh"));
+
+        await manager.ExecuteAsync("fresh", ApplicationRequest);
+        await manager.ExecuteAsync("fresh", ApplicationRequest);
+
+        Assert.AreEqual(2, contexts.Count);
+        Assert.AreNotSame(contexts[0], contexts[1]);
+    }
+
     private static ScriptExecutionContext EmptyContext() => new(ScriptCapability.None);
 
     private static ScriptDiagnostic Diagnostic(string code) =>
@@ -271,6 +318,25 @@ public sealed class ScriptRuntimeTests
     private sealed class FakeServiceProvider : IServiceProvider
     {
         public object? GetService(Type serviceType) => null;
+    }
+
+    private sealed class DisposableProgram(string id) : IScriptProgramV1, IDisposable
+    {
+        public bool Disposed { get; private set; }
+        public ScriptDescriptor Descriptor { get; } = new(
+            id,
+            id,
+            ScriptApiVersion.V1,
+            ScriptScope.Application,
+            ScriptCapability.None);
+
+        public ValueTask<ScriptExecutionResult> ExecuteAsync(
+            ScriptExecutionRequest request,
+            IScriptExecutionContext context,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(ScriptExecutionResult.Succeeded());
+
+        public void Dispose() => Disposed = true;
     }
 
     private sealed class FakeEngine(

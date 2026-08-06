@@ -2,6 +2,17 @@ using Diary.ScriptBase;
 
 namespace Diary.Script.Runtime;
 
+public interface IScriptExecutionContextFactory
+{
+    IScriptExecutionContext Create(ScriptCapability capabilities);
+}
+
+public sealed class ScriptExecutionContextFactory(
+    Func<ScriptCapability, IScriptExecutionContext> factory) : IScriptExecutionContextFactory
+{
+    public IScriptExecutionContext Create(ScriptCapability capabilities) => factory(capabilities);
+}
+
 public sealed class ScriptExecutionContext(ScriptCapability capabilities) : IScriptExecutionContext
 {
     private readonly Dictionary<Type, ApiRegistration> _apis = [];

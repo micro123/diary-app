@@ -14,12 +14,19 @@ public interface IScriptManager
         IScriptExecutionContext context,
         TimeSpan? timeout = null,
         CancellationToken cancellationToken = default);
+
+    ValueTask<ScriptExecutionOutcome> ExecuteAsync(
+        string scriptId,
+        ScriptExecutionRequest request,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class ScriptManager(
     IScriptBuildService buildService,
     IScriptCatalog catalog,
-    IScriptExecutor executor) : IScriptManager
+    IScriptExecutor executor,
+    IScriptExecutionContextFactory? contextFactory = null) : IScriptManager
 {
     public async ValueTask<ScriptBuildResult> BuildAndRegisterAsync(
         ScriptBuildRequest request,
@@ -56,5 +63,25 @@ public sealed class ScriptManager(
         }
 
         return executor.ExecuteAsync(program, request, context, timeout, cancellationToken);
+    }
+
+    public ValueTask<ScriptExecutionOutcome> ExecuteAsync(
+        string scriptId,
+        ScriptExecutionRequest request,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!catalog.TryGet(scriptId, out var program) || program is null)
+            return ExecuteAsync(scriptId, request, new ScriptExecutionContext(ScriptCapability.None), timeout, cancellationToken);
+
+        if (contextFactory is null)
+            return ExecuteAsync(scriptId, request, new ScriptExecutionContext(ScriptCapability.None), timeout, cancellationToken);
+
+        return executor.ExecuteAsync(
+            program,
+            request,
+            contextFactory.Create(program.Descriptor.Capabilities),
+            timeout,
+            cancellationToken);
     }
 }

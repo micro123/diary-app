@@ -5,7 +5,7 @@
 本文描述 Diary.App 脚本系统的目标设计、运行时边界和分阶段实现计划。
 
 本文同时记录目标设计和当前实现。当前代码已经定义版本化基础契约、最小脚本管理器、
-构建与执行边界、受限只读事项查询宿主和脚本目录自动加载；脚本 UI、Lua/Python 引擎仍未完成。
+构建与执行边界、受限只读事项查询宿主、脚本目录自动加载和脚本管理页；Lua/Python 引擎仍未完成。
 
 ## 2. 设计目标
 
@@ -45,7 +45,7 @@
 - `ScriptExecutionContext`：按能力暴露宿主 API。
 - `ScriptExecutor`：目标校验、独立执行 ID、取消、超时和异常隔离。
 - `ScriptManager`：组合构建、注册和执行的最小入口。
-- `ScriptDirectoryLoader`：扫描 application/editor 目录，读取元数据并隔离单个脚本失败。
+- `ScriptDirectoryLoader`：扫描 application/editor 目录，读取元数据、原子保存启用状态并隔离单个脚本失败。
 
 `Diary.ScriptHost` 当前提供 `IWorkItemQueryScriptApi`，只返回不可变事项、备注和标签 DTO，
 复用核心 `WorkItemQuery` 的校验和查询语义，并返回权限、输入、数据库和取消错误。
@@ -59,13 +59,10 @@
 当前尚未完成：
 
 - 脚本包格式。
-- 启用状态持久化编辑入口。
-- 编译缓存。
 - 后台任务调度和执行日志上下文。
 - 更细粒度的 Tracker、网络和文件系统权限。
-- 脚本 UI 和快捷入口。
+- 执行状态历史和更丰富的快捷入口。
 - Lua 和 Python 实际引擎。
-- Diary.App 中的脚本执行 UI 和命令入口。
 
 `Diary.ScriptTests` 当前覆盖契约、引擎选择、构建隔离、目录项注册、目标校验、异常、
 取消、超时、能力拒绝、只读查询结果一致性和敏感信息边界。
@@ -267,14 +264,14 @@ public interface IScriptManager
 }
 ```
 
-当前管理器已经负责构建、注册、按 ID 查找和统一执行。目标职责还包括：
+当前管理器已经负责构建、注册、按 ID 查找和统一执行；目录加载器负责发现、重载和启用状态保存。目标职责还包括：
 
 - [已完成] 扫描 `scripts/application` 和 `scripts/editor` 目录。
 - [已完成] 根据扩展名选择引擎，读取相邻 JSON 元数据并处理启用状态。
 - 扫描脚本包。
 - 维护脚本 ID、显示名称、类型、状态和错误信息。
-- 使用源码哈希和引擎版本管理缓存。
-- 创建每次执行独立的上下文。
+- [已完成] 使用源码哈希、引擎版本、契约版本和权限策略管理 C# 编译缓存。
+- [已完成] 创建每次执行独立的上下文。
 - 统一处理取消、超时、异常和执行结果。
 
 脚本管理器还应校验上下文：
@@ -329,7 +326,7 @@ assets/
 
 脚本默认在后台线程执行，禁止直接阻塞 UI 线程。
 
-每次执行应创建独立的 `ScriptExecutionContext`，包含：
+通过 `IScriptExecutionContextFactory` 为每次执行创建独立的 `ScriptExecutionContext`，包含：
 
 - 脚本 ID和执行 ID。
 - 取消令牌。

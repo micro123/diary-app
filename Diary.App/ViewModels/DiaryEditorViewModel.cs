@@ -15,6 +15,8 @@ using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
 using Diary.PluginBase;
+using Diary.Script.Runtime;
+using Diary.ScriptBase;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -38,6 +40,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private readonly ILogger _logger;
     private readonly IServiceProvider _serviceProvider;
     private readonly TemplateCoordinator _templateCoordinator;
+    private readonly IScriptCatalog _scriptCatalog;
+    private readonly IScriptManager _scriptManager;
 
     [ObservableProperty]
     private DateTime _selectedDate;
@@ -234,11 +238,18 @@ public partial class DiaryEditorViewModel : ViewModelBase
         UpdateTimeInfos();
     }
 
-    public DiaryEditorViewModel(ILogger logger, IServiceProvider serviceProvider, TemplateCoordinator templateCoordinator)
+    public DiaryEditorViewModel(
+        ILogger logger,
+        IServiceProvider serviceProvider,
+        TemplateCoordinator templateCoordinator,
+        IScriptCatalog scriptCatalog,
+        IScriptManager scriptManager)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
         _templateCoordinator = templateCoordinator;
+        _scriptCatalog = scriptCatalog;
+        _scriptManager = scriptManager;
         SelectedDate = DateTime.Today;
 
         Messenger.Register<DbChangedEvent>(this, (r, m) =>
@@ -389,6 +400,41 @@ public partial class DiaryEditorViewModel : ViewModelBase
             EventDispatcher.Msg(new QuickSurveyEvent(date, part));
         });
 
+    private IAsyncRelayCommand CreateEditorScriptCommand(string scriptId, DateTime startDate, DateTime endDate) =>
+        new AsyncRelayCommand(async () =>
+        {
+            var outcome = await Task.Run(async () => await _scriptManager.ExecuteAsync(
+                scriptId,
+                new ScriptExecutionRequest(new ScriptTarget(
+                    ScriptScope.Editor,
+                    new EditorScriptContext(
+                        TimeTools.FormatDateTime(startDate),
+                        TimeTools.FormatDateTime(endDate))))));
+            EventDispatcher.ShowToast(
+                outcome.Result.Status == ScriptExecutionStatus.Succeeded
+                    ? $"脚本 {scriptId} 执行成功"
+                    : $"脚本 {scriptId} 执行失败：{outcome.Result.Diagnostics.FirstOrDefault()?.Message}");
+        });
+
+    private void AddEditorScriptActions(DateTime startDate, DateTime endDate)
+    {
+        var scripts = _scriptCatalog.GetAll()
+            .Where(program => program.Descriptor.Scope == ScriptScope.Editor)
+            .OrderBy(program => program.Descriptor.Name, StringComparer.Ordinal)
+            .ToArray();
+        if (scripts.Length == 0)
+            return;
+
+        AddMenuSeparator();
+        AddMenuHeader("编辑器脚本");
+        foreach (var script in scripts)
+        {
+            AddMenuAction(
+                script.Descriptor.Name,
+                CreateEditorScriptCommand(script.Descriptor.Id, startDate, endDate));
+        }
+    }
+
     private void FillDayMenus(DateTime date)
     {
         if (date != SelectedDate)
@@ -407,6 +453,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
             AddMenuSeparator();
             AddMenuAction("调查本周工时情况", CreateSurveyCommand(date, AdjustPart.Week));
         }
+        AddEditorScriptActions(date.Date, date.Date);
     }
 
     private void FillMonthMenus(DateTime date)
@@ -423,6 +470,9 @@ public partial class DiaryEditorViewModel : ViewModelBase
             AddMenuAction("调查本月工时情况", CreateSurveyCommand(date, AdjustPart.Month));
             AddMenuAction("调查本季度工时情况", CreateSurveyCommand(date, AdjustPart.Quarter));
         }
+        AddEditorScriptActions(
+            new DateTime(date.Year, date.Month, 1),
+            new DateTime(date.Year, date.Month, DateTime.DaysInMonth(date.Year, date.Month)));
     }
 
     private void FillYearMenus(DateTime date)
@@ -436,6 +486,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
             AddMenuSeparator();
             AddMenuAction("调查此年工时情况", CreateSurveyCommand(date, AdjustPart.Week));
         }
+        AddEditorScriptActions(new DateTime(date.Year, 1, 1), new DateTime(date.Year, 12, 31));
     }
 
     public override void OnHide()

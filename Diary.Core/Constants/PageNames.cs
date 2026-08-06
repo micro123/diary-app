@@ -6,5 +6,6 @@ public static class PageNames
     public const string WorkItemQuery = "事项查询";
     public const string Statistics = "统计工具";
     public const string SurveyTool = "调查工具";
+    public const string Scripts = "脚本管理";
     public const string Settings = "程序设置";
 }

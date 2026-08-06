@@ -1,0 +1,49 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Diary.App.ViewModels"
+             x:Class="Diary.App.Views.ScriptManagementView"
+             x:DataType="vm:ScriptManagementViewModel"
+             mc:Ignorable="d" d:DesignWidth="960" d:DesignHeight="640"
+             Padding="16">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+            <StackPanel>
+                <TextBlock Text="脚本工作台" FontSize="30" FontWeight="Bold" />
+                <TextBlock Text="本地 C# 脚本在受信任进程内执行；启用前请确认来源。"
+                           Opacity="0.68" />
+            </StackPanel>
+            <Button Grid.Column="1" Content="重新加载" Command="{Binding ReloadCommand}"
+                    Classes="Primary" IsEnabled="{Binding !Loading}" />
+        </Grid>
+
+        <Border Grid.Row="1" Padding="12" CornerRadius="8"
+                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+            <TextBlock Text="{Binding Status}" />
+        </Border>
+
+        <ListBox Grid.Row="2" ItemsSource="{Binding Scripts}" SelectedItem="{Binding SelectedScript}">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:ScriptListItem">
+                    <Grid ColumnDefinitions="*,Auto" Margin="8" ColumnSpacing="20">
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding SourcePath}" Opacity="0.58" />
+                            <TextBlock Text="{Binding Status}" Opacity="0.78" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                            <TextBlock Text="{Binding Scope}" />
+                            <TextBlock Text="{Binding Capabilities}" Opacity="0.68" />
+                        </StackPanel>
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+            <Button Content="启用 / 禁用" Command="{Binding ToggleEnabledCommand}" />
+            <Button Content="运行应用脚本" Command="{Binding RunCommand}" Classes="Primary" />
+        </StackPanel>
+    </Grid>
+</UserControl>

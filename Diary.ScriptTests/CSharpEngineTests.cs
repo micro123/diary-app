@@ -68,6 +68,54 @@ public sealed class CSharpEngineTests
     }
 
     [TestMethod]
+    public async Task BuildAsync_UsesCacheAndRebuildsChangedOrCorruptedSource()
+    {
+        var cacheDirectory = Path.Combine(Path.GetTempPath(), $"diary-script-cache-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(cacheDirectory);
+        try
+        {
+            var source = """
+                using System.Threading;
+                using System.Threading.Tasks;
+                using Diary.ScriptBase;
+                public sealed class CachedProgram : IScriptProgramV1
+                {
+                    public ScriptDescriptor Descriptor => new("cached", "Cached", ScriptApiVersion.V1, ScriptScope.Application, ScriptCapability.None);
+                    public ValueTask<ScriptExecutionResult> ExecuteAsync(ScriptExecutionRequest request, IScriptExecutionContext context, CancellationToken cancellationToken = default)
+                        => ValueTask.FromResult(ScriptExecutionResult.Succeeded());
+                }
+                """;
+            var engine = new CSharpEngine(cacheDirectory);
+            var first = await engine.BuildAsync(new ScriptBuildRequest("cached.cs", source));
+            (first.Program as IDisposable)?.Dispose();
+            var second = await engine.BuildAsync(new ScriptBuildRequest("cached.cs", source));
+            (second.Program as IDisposable)?.Dispose();
+
+            var result = await engine.BuildAsync(new ScriptBuildRequest("cached.cs", source));
+
+            Assert.IsTrue(result.Succeeded);
+            Assert.IsTrue(result.Diagnostics.Any(item => item.Code == "SCRIPT_CACHE_HIT"));
+            var cachePath = Directory.EnumerateFiles(cacheDirectory, "*.dll").Single();
+            var changed = await engine.BuildAsync(new ScriptBuildRequest(
+                "cached.cs",
+                source.Replace("\"Cached\"", "\"Changed\"", StringComparison.Ordinal)));
+            Assert.IsTrue(changed.Succeeded);
+            Assert.IsFalse(changed.Diagnostics.Any(item => item.Code == "SCRIPT_CACHE_HIT"));
+            (changed.Program as IDisposable)?.Dispose();
+            await File.WriteAllTextAsync(cachePath, "broken");
+            var rebuilt = await engine.BuildAsync(new ScriptBuildRequest("cached.cs", source));
+            Assert.IsTrue(rebuilt.Succeeded);
+            Assert.IsFalse(rebuilt.Diagnostics.Any(item => item.Code == "SCRIPT_CACHE_HIT"));
+            (rebuilt.Program as IDisposable)?.Dispose();
+        }
+        finally
+        {
+            if (Directory.Exists(cacheDirectory))
+                Directory.Delete(cacheDirectory, true);
+        }
+    }
+
+    [TestMethod]
     public async Task BuildAsync_ReturnsSourceLocationForSyntaxError()
     {
         var result = await _engine.BuildAsync(new ScriptBuildRequest("broken.cs", "public class Broken {"));
@@ -78,6 +126,33 @@ public sealed class CSharpEngineTests
             && diagnostic.SourcePath == "broken.cs"
             && diagnostic.Line is > 0
             && diagnostic.Column is > 0));
+    }
+
+    [TestMethod]
+    public async Task BuildAsync_RejectsDangerousProcessApi()
+    {
+        var source = """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Diary.ScriptBase;
+            public sealed class DangerousProgram : IScriptProgramV1
+            {
+                public ScriptDescriptor Descriptor => new("dangerous", "Dangerous", ScriptApiVersion.V1, ScriptScope.Application, ScriptCapability.None);
+                public ValueTask<ScriptExecutionResult> ExecuteAsync(ScriptExecutionRequest request, IScriptExecutionContext context, CancellationToken cancellationToken = default)
+                {
+                    _ = System.Environment.ProcessPath;
+                    return ValueTask.FromResult(ScriptExecutionResult.Succeeded());
+                }
+            }
+            """;
+
+        var result = await _engine.BuildAsync(new ScriptBuildRequest("dangerous.cs", source));
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.IsTrue(result.Diagnostics.Any(item =>
+            item.Code == "CSHARP_API_FORBIDDEN"
+            && item.Category == ScriptDiagnosticCategory.Security
+            && item.Line is > 0));
     }
 
     [TestMethod]
