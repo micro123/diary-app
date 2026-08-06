@@ -156,6 +156,36 @@ public sealed class CSharpEngineTests
     }
 
     [TestMethod]
+    [DataRow("dynamic value = new object(); value.ToString();")]
+    [DataRow("_ = new object().GetType();")]
+    [DataRow("_ = Task.Run(() => { });")]
+    public async Task BuildAsync_RejectsExecutionEscapeHatches(string statement)
+    {
+        var source = $$"""
+            using System;
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Diary.ScriptBase;
+            public sealed class EscapeProgram : IScriptProgramV1
+            {
+                public ScriptDescriptor Descriptor => new("escape", "Escape", ScriptApiVersion.V1, ScriptScope.Application, ScriptCapability.None);
+                public ValueTask<ScriptExecutionResult> ExecuteAsync(ScriptExecutionRequest request, IScriptExecutionContext context, CancellationToken cancellationToken = default)
+                {
+                    {{statement}}
+                    return ValueTask.FromResult(ScriptExecutionResult.Succeeded());
+                }
+            }
+            """;
+
+        var result = await _engine.BuildAsync(new ScriptBuildRequest("escape.cs", source));
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.IsTrue(result.Diagnostics.Any(item =>
+            item.Code == "CSHARP_API_FORBIDDEN"
+            && item.Category == ScriptDiagnosticCategory.Security));
+    }
+
+    [TestMethod]
     public async Task BuildAsync_RejectsMissingEntrypoint()
     {
         var result = await _engine.BuildAsync(new ScriptBuildRequest("empty.cs", "public sealed class Empty { }"));

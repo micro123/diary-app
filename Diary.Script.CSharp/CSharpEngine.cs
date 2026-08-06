@@ -28,7 +28,28 @@ public sealed class CSharpEngine : IScriptEngineV1
         "System.AppDomain",
         "System.Environment",
         "System.Diagnostics.Process",
+        "System.Diagnostics.ProcessStartInfo",
+        "System.Threading.Thread",
+        "System.Threading.ThreadPool",
+        "System.Threading.Timer",
+        "System.Threading.PeriodicTimer",
+        "System.Threading.Tasks.TaskFactory",
+        "System.Threading.Tasks.TaskScheduler",
         "System.Type",
+        "System.Activator",
+        "System.Runtime.CompilerServices.RuntimeHelpers",
+    };
+
+    private static readonly HashSet<string> ForbiddenMembers = new(StringComparer.Ordinal)
+    {
+        "System.Object.GetType",
+        "System.Type.GetType",
+        "System.Activator.CreateInstance",
+        "System.Delegate.DynamicInvoke",
+        "System.Threading.Tasks.Task.Run",
+        "System.Threading.Tasks.TaskFactory.StartNew",
+        "System.Threading.Tasks.TaskFactory.ContinueWhenAll",
+        "System.Threading.Tasks.TaskFactory.ContinueWhenAny",
     };
 
     private static readonly string[] ReferenceNames =
@@ -175,7 +196,7 @@ public sealed class CSharpEngine : IScriptEngineV1
     {
         if (string.IsNullOrWhiteSpace(_cacheDirectory))
             return null;
-        var cacheInput = $"{StableName}\n{Version}\n{request.ApiVersion}\ntrusted-v1\n{request.Source}";
+        var cacheInput = $"{StableName}\n{Version}\n{request.ApiVersion}\nsecurity-policy-v2\n{request.Source}";
         var hash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(cacheInput)));
         return Path.Combine(_cacheDirectory, hash + ".dll");
     }
@@ -266,16 +287,33 @@ public sealed class CSharpEngine : IScriptEngineV1
         var semanticModel = compilation.GetSemanticModel(syntaxTree);
         var diagnostics = ImmutableArray.CreateBuilder<ScriptDiagnostic>();
         var locations = new HashSet<int>();
-        foreach (var node in syntaxTree.GetRoot().DescendantNodes()
-                     .Where(node => node is IdentifierNameSyntax or MemberAccessExpressionSyntax or UsingDirectiveSyntax))
+        var root = syntaxTree.GetRoot();
+        foreach (var token in root.DescendantTokens()
+                     .Where(token => token.ValueText == "dynamic"
+                         || token.IsKind(SyntaxKind.UnsafeKeyword)
+                         || token.IsKind(SyntaxKind.ExternKeyword)))
+        {
+            AddPolicyDiagnostic(diagnostics, locations, token.GetLocation(), sourcePath);
+        }
+
+        foreach (var node in root.DescendantNodes()
+                     .Where(node => node is IdentifierNameSyntax or MemberAccessExpressionSyntax or UsingDirectiveSyntax
+                         || node.Kind().ToString().StartsWith("Dynamic", StringComparison.Ordinal)))
         {
             var symbol = semanticModel.GetSymbolInfo(node).Symbol;
-            if (symbol is null)
+            if (symbol is null && !node.Kind().ToString().StartsWith("Dynamic", StringComparison.Ordinal))
                 continue;
-            var type = symbol as INamedTypeSymbol ?? symbol.ContainingType;
-            var typeName = type?.ToDisplayString();
-            var namespaceName = (type ?? symbol).ContainingNamespace?.ToDisplayString() ?? string.Empty;
-            if (!ForbiddenTypes.Contains(typeName ?? string.Empty)
+            var type = symbol as INamedTypeSymbol ?? symbol?.ContainingType;
+            var typeName = type is null
+                ? null
+                : $"{type.ContainingNamespace?.ToDisplayString()}.{type.MetadataName}";
+            var namespaceName = (type ?? symbol)?.ContainingNamespace?.ToDisplayString() ?? string.Empty;
+            var memberName = symbol is null || typeName is null
+                ? null
+                : $"{typeName}.{symbol.Name}";
+            if (!node.Kind().ToString().StartsWith("Dynamic", StringComparison.Ordinal)
+                && !ForbiddenMembers.Contains(memberName ?? string.Empty)
+                && !ForbiddenTypes.Contains(typeName ?? string.Empty)
                 && !ForbiddenNamespacePrefixes.Any(prefix =>
                     namespaceName.Equals(prefix, StringComparison.Ordinal)
                     || namespaceName.StartsWith(prefix + ".", StringComparison.Ordinal)))
@@ -283,19 +321,28 @@ public sealed class CSharpEngine : IScriptEngineV1
                 continue;
             }
 
-            var lineSpan = node.GetLocation().GetLineSpan();
-            if (!locations.Add(node.SpanStart))
-                continue;
-            diagnostics.Add(new ScriptDiagnostic(
-                "CSHARP_API_FORBIDDEN",
-                "The script uses an API that is not allowed by the host policy.",
-                ScriptDiagnosticSeverity.Error,
-                ScriptDiagnosticCategory.Security,
-                sourcePath,
-                lineSpan.StartLinePosition.Line + 1,
-                lineSpan.StartLinePosition.Character + 1));
+            AddPolicyDiagnostic(diagnostics, locations, node.GetLocation(), sourcePath);
         }
         return diagnostics.ToImmutable();
+    }
+
+    private static void AddPolicyDiagnostic(
+        ImmutableArray<ScriptDiagnostic>.Builder diagnostics,
+        HashSet<int> locations,
+        Location location,
+        string sourcePath)
+    {
+        var lineSpan = location.GetLineSpan();
+        if (!locations.Add(location.SourceSpan.Start))
+            return;
+        diagnostics.Add(new ScriptDiagnostic(
+            "CSHARP_API_FORBIDDEN",
+            "The script uses an API or language feature that is not allowed by the host policy.",
+            ScriptDiagnosticSeverity.Error,
+            ScriptDiagnosticCategory.Security,
+            sourcePath,
+            lineSpan.StartLinePosition.Line + 1,
+            lineSpan.StartLinePosition.Character + 1));
     }
 
     private sealed class ScriptLoadContext() : AssemblyLoadContext(isCollectible: true)
