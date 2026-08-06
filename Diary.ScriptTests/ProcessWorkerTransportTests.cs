@@ -28,10 +28,16 @@ public sealed class ProcessWorkerTransportTests
 
         await supervisor.StartAsync(new("csharp", [ScriptApiVersion.V1], []));
         Assert.IsTrue(await supervisor.CheckHealthAsync());
-        var result = await supervisor.ExecuteAsync("demo", "exec-1", new { });
+        var result = await supervisor.ExecuteAsync("demo", "exec-1", new
+        {
+            ScriptId = "demo",
+            SourcePath = "demo.cs",
+            Source = "public sealed class Demo : Diary.ScriptBase.IScriptProgramV1 { public Diary.ScriptBase.ScriptDescriptor Descriptor { get; } = new(\"demo\", \"Demo\", Diary.ScriptBase.ScriptApiVersion.V1, Diary.ScriptBase.ScriptScope.Application, Diary.ScriptBase.ScriptCapability.None); public System.Threading.Tasks.ValueTask<Diary.ScriptBase.ScriptExecutionResult> ExecuteAsync(Diary.ScriptBase.ScriptExecutionRequest request, Diary.ScriptBase.IScriptExecutionContext context, System.Threading.CancellationToken cancellationToken = default) => System.Threading.Tasks.ValueTask.FromResult(Diary.ScriptBase.ScriptExecutionResult.Succeeded()); }",
+            Request = new ScriptExecutionRequest(new ScriptTarget(ScriptScope.Application), Source: ScriptExecutionSource.Manual),
+        });
 
-        Assert.AreEqual(ScriptExecutionStatus.Failed, result.Payload.Status);
-        Assert.AreEqual("WORKER_EXECUTOR_NOT_CONFIGURED", result.Payload.Diagnostics.Single().Code);
+        Assert.AreEqual(ScriptExecutionStatus.Succeeded, result.Payload.Status,
+            string.Join("; ", result.Payload.Diagnostics.Select(item => $"{item.Code}: {item.Message}")));
         await supervisor.StopAsync();
     }
 
