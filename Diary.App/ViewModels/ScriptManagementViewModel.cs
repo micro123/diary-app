@@ -19,7 +19,8 @@ public sealed record ScriptListItem(
     bool Enabled,
     bool BuildSucceeded,
     string Status,
-    IReadOnlyList<string> Diagnostics)
+    IReadOnlyList<string> Diagnostics,
+    IReadOnlyList<ScriptDiagnosticListItem> DiagnosticDetails)
 {
     public string ScopeLabel => Scope switch
     {
@@ -75,6 +76,17 @@ public sealed record ScriptHistoryListItem(
     };
 }
 
+public sealed record ScriptDiagnosticListItem(
+    string SeverityLabel,
+    string Code,
+    string Message,
+    string Location)
+{
+    public string Summary => string.IsNullOrWhiteSpace(Location)
+        ? $"[{Code}] {Message}"
+        : $"[{Code}] {Location} {Message}";
+}
+
 [DiAutoRegister(singleton: true)]
 public partial class ScriptManagementViewModel(
     IScriptDirectoryLoader directoryLoader,
@@ -88,6 +100,7 @@ public partial class ScriptManagementViewModel(
     public ObservableCollection<ScriptListItem> Scripts { get; } = new();
     public ObservableCollection<ScriptListItem> VisibleScripts { get; } = new();
     public ObservableCollection<ScriptHistoryListItem> History { get; } = new();
+    public ObservableCollection<ScriptDiagnosticListItem> DirectoryDiagnostics { get; } = new();
     public IReadOnlyList<string> ScopeFilters { get; } = ["全部类型", "应用脚本", "编辑器脚本"];
     public IReadOnlyList<string> StatusFilters { get; } = ["全部状态", "已加载", "加载失败"];
     public IReadOnlyList<string> ExecutionRanges { get; } =
@@ -124,6 +137,7 @@ public partial class ScriptManagementViewModel(
     public bool ShowEmptyState => !Loading && !HasScripts;
     public bool ShowNoResultsState => !Loading && HasScripts && !HasVisibleScripts;
     public bool HasSelectedDiagnostics => SelectedScript?.Diagnostics.Count > 0;
+    public bool HasDirectoryDiagnostics => DirectoryDiagnostics.Count > 0;
     public bool ShowEditorRange => SelectedScript?.Scope == ScriptScope.Editor;
     public bool ShowCustomRange => ShowEditorRange && SelectedExecutionRange == "自定义范围";
     public string ExecutionRangeSummary => ShowEditorRange
@@ -194,6 +208,10 @@ public partial class ScriptManagementViewModel(
         try
         {
             var result = await directoryLoader.LoadAsync(_scriptRoot);
+            DirectoryDiagnostics.Clear();
+            foreach (var diagnostic in result.Diagnostics)
+                DirectoryDiagnostics.Add(FormatDiagnostic(diagnostic));
+            OnPropertyChanged(nameof(HasDirectoryDiagnostics));
             var selectedId = SelectedScript?.Id;
             var loadedScripts = new List<ScriptListItem>();
             foreach (var entry in result.Entries)
@@ -208,7 +226,8 @@ public partial class ScriptManagementViewModel(
                     entry.Enabled,
                     entry.BuildResult?.Succeeded == true,
                     FormatStatus(entry),
-                    FormatDiagnostics(entry.BuildResult?.Diagnostics)));
+                    FormatDiagnostics(entry.BuildResult?.Diagnostics),
+                    FormatDiagnosticDetails(entry.BuildResult?.Diagnostics)));
             }
             Scripts.Clear();
             foreach (var script in loadedScripts)
@@ -226,6 +245,13 @@ public partial class ScriptManagementViewModel(
         {
             logger.LogError(exception, "重新加载脚本目录失败");
             Status = "脚本目录加载失败";
+            DirectoryDiagnostics.Clear();
+            DirectoryDiagnostics.Add(new ScriptDiagnosticListItem(
+                "错误",
+                "SCRIPT_DIRECTORY_LOAD_FAILED",
+                "脚本目录加载失败，请查看日志或重试。",
+                string.Empty));
+            OnPropertyChanged(nameof(HasDirectoryDiagnostics));
         }
         finally
         {
@@ -308,6 +334,25 @@ public partial class ScriptManagementViewModel(
     }
 
     [RelayCommand]
+    private async Task CopySelectedDiagnostics()
+    {
+        var script = SelectedScript;
+        if (script is null || script.DiagnosticDetails.Count == 0)
+            return;
+        if (await CopyStringToClipboardAsync(string.Join(Environment.NewLine, script.DiagnosticDetails.Select(item => item.Summary))))
+            NotificationManager?.Show("诊断信息已复制", NotificationType.Success);
+    }
+
+    [RelayCommand]
+    private async Task CopyDirectoryDiagnostics()
+    {
+        if (DirectoryDiagnostics.Count == 0)
+            return;
+        if (await CopyStringToClipboardAsync(string.Join(Environment.NewLine, DirectoryDiagnostics.Select(item => item.Summary))))
+            NotificationManager?.Show("目录诊断已复制", NotificationType.Success);
+    }
+
+    [RelayCommand]
     private void OpenScriptsFolder()
     {
         try
@@ -366,6 +411,24 @@ public partial class ScriptManagementViewModel(
                 : $"[{item.Code}] {item.SourcePath}:{item.Line}:{item.Column} {item.Message}")
             .ToArray()
         ?? Array.Empty<string>();
+
+    private static IReadOnlyList<ScriptDiagnosticListItem> FormatDiagnosticDetails(
+        IEnumerable<ScriptDiagnostic>? diagnostics) =>
+        diagnostics?.Select(FormatDiagnostic).ToArray() ?? Array.Empty<ScriptDiagnosticListItem>();
+
+    private static ScriptDiagnosticListItem FormatDiagnostic(ScriptDiagnostic diagnostic) =>
+        new(
+            diagnostic.Severity switch
+            {
+                ScriptDiagnosticSeverity.Error => "错误",
+                ScriptDiagnosticSeverity.Warning => "警告",
+                _ => "信息",
+            },
+            diagnostic.Code,
+            diagnostic.Message,
+            diagnostic.SourcePath is null
+                ? string.Empty
+                : $"{diagnostic.SourcePath}:{diagnostic.Line}:{diagnostic.Column}");
 
     private ScriptExecutionRequest CreateExecutionRequest(ScriptListItem script)
     {

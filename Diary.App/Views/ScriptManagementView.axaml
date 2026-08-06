@@ -99,20 +99,50 @@
                     </StackPanel>
                 </TabItem>
                 <TabItem Header="诊断详情">
-                    <ScrollViewer>
-                        <Grid>
-                            <ItemsControl ItemsSource="{Binding SelectedScript.Diagnostics}">
+                    <Grid RowDefinitions="Auto,*">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                            <Button Content="复制诊断" Command="{Binding CopySelectedDiagnosticsCommand}"
+                                    IsEnabled="{Binding HasSelectedDiagnostics}" />
+                        </StackPanel>
+                        <ScrollViewer Grid.Row="1">
+                            <Grid>
+                            <ItemsControl ItemsSource="{Binding SelectedScript.DiagnosticDetails}">
                                 <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="4" />
+                                    <DataTemplate x:DataType="vm:ScriptDiagnosticListItem">
+                                        <StackPanel Margin="4" Spacing="2">
+                                            <TextBlock Text="{Binding SeverityLabel}" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
+                                        </StackPanel>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                             <TextBlock Text="没有诊断信息" Opacity="0.68"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"
                                        IsVisible="{Binding !HasSelectedDiagnostics}" />
-                        </Grid>
-                    </ScrollViewer>
+                            </Grid>
+                        </ScrollViewer>
+                    </Grid>
+                </TabItem>
+                <TabItem Header="目录诊断">
+                    <Grid RowDefinitions="Auto,*">
+                        <Button Content="复制目录诊断" HorizontalAlignment="Right"
+                                Command="{Binding CopyDirectoryDiagnosticsCommand}"
+                                IsEnabled="{Binding HasDirectoryDiagnostics}" />
+                        <ScrollViewer Grid.Row="1">
+                            <Grid>
+                                <ItemsControl ItemsSource="{Binding DirectoryDiagnostics}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ScriptDiagnosticListItem">
+                                            <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" Margin="4" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="没有目录诊断" Opacity="0.68"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           IsVisible="{Binding !HasDirectoryDiagnostics}" />
+                            </Grid>
+                        </ScrollViewer>
+                    </Grid>
                 </TabItem>
                 <TabItem Header="执行历史">
                     <ListBox ItemsSource="{Binding History}">
