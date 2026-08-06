@@ -1,23 +1,33 @@
-using System.Diagnostics;
 using Diary.Survey;
 
 namespace Diary.SurveyTests;
 
 [TestClass]
-public class RespondentTests
+public sealed class RespondentTests
 {
     [TestMethod]
-    public async Task Connect()
+    public void ConnectAndShutdownAreIdempotent()
     {
         var respondent = new AppRespondent();
-        respondent.Connect("127.0.0.1");
 
-        respondent.ReceiveMessage += (o, s) =>
-        {
-            Debug.WriteLine(s);
-        };
-        await Task.Delay(10000);
-
+        Assert.IsTrue(respondent.Connect("127.0.0.1"));
+        Assert.IsFalse(respondent.Connect("127.0.0.1"));
         respondent.Shutdown();
+        respondent.Shutdown();
+
+        Assert.IsTrue(respondent.Connect("127.0.0.1"));
+        respondent.Shutdown();
+    }
+
+    [TestMethod]
+    public void RapidConnectAndShutdownDoesNotRaceReceiveLoop()
+    {
+        var respondent = new AppRespondent();
+
+        for (var i = 0; i < 20; i++)
+        {
+            Assert.IsTrue(respondent.Connect("127.0.0.1"));
+            respondent.Shutdown();
+        }
     }
 }

@@ -12,106 +12,192 @@ public class AppRespondent
     private INngDialer? _dialer;
     private ISurveyorAsyncContext<INngMsg>? _respondentCtx;
     private CancellationTokenSource? _cts;
+    private Task? _receiveTask;
+    private bool _isStopping;
     private readonly Queue<string> _msgToSend = new();
-    private readonly Lock _lock = new();
+    private readonly SemaphoreSlim _sendAvailable = new(0);
+    private readonly Lock _messageLock = new();
+    private readonly Lock _lifecycleLock = new();
     private ILogger Logger => Logging.Logger;
 
     public event EventHandler<string>? ReceiveMessage;
+    public event EventHandler<Exception>? ReceiveMessageHandlerError;
 
     public bool Connect(string hostIpAddress)
     {
-        if (_respondent != null)
-            return false;
+        lock (_lifecycleLock)
+        {
+            if (_respondent != null || _isStopping)
+                return false;
 
-        _respondent = NngManager.Factory.RespondentOpen().Ok();
-        _respondent.SetOpt(Defines.NNG_OPT_RECVTIMEO, new nng_duration() { TimeMs = 250 });
-        _respondent.SetOpt(Defines.NNG_OPT_RECONNMAXT, new nng_duration() { TimeMs = 0 });
-        _respondent.SetOpt(Defines.NNG_OPT_RECONNMINT, new nng_duration() { TimeMs = 1500 });
-        _dialer = _respondent.DialWithDialer($"tcp://{hostIpAddress}:{NngManager.ListenPort}", Defines.NngFlag.NNG_FLAG_NONBLOCK).Unwrap();
-        _dialer.SetOpt(Defines.NNG_OPT_RECONNMINT, new nng_duration() { TimeMs = 1500 });
-        _dialer.SetOpt(Defines.NNG_OPT_RECONNMAXT, new nng_duration() { TimeMs = 0 });
-        _respondentCtx = _respondent.CreateAsyncContext(NngManager.Factory).Unwrap();
-        _respondentCtx.Aio.SetTimeout(250);
+            _respondent = NngManager.Factory.RespondentOpen().Ok();
+            _respondent.SetOpt(Defines.NNG_OPT_RECVTIMEO, new nng_duration() { TimeMs = 250 });
+            _respondent.SetOpt(Defines.NNG_OPT_RECONNMAXT, new nng_duration() { TimeMs = 0 });
+            _respondent.SetOpt(Defines.NNG_OPT_RECONNMINT, new nng_duration() { TimeMs = 1500 });
+            _dialer = _respondent.DialWithDialer($"tcp://{hostIpAddress}:{NngManager.ListenPort}", Defines.NngFlag.NNG_FLAG_NONBLOCK).Unwrap();
+            _dialer.SetOpt(Defines.NNG_OPT_RECONNMINT, new nng_duration() { TimeMs = 1500 });
+            _dialer.SetOpt(Defines.NNG_OPT_RECONNMAXT, new nng_duration() { TimeMs = 0 });
+            _respondentCtx = _respondent.CreateAsyncContext(NngManager.Factory).Unwrap();
+            _respondentCtx.Aio.SetTimeout(250);
 
-        StartReceive();
-
-        return _respondentCtx != null;
+            StartReceive(_respondentCtx);
+            return true;
+        }
     }
 
     public void Shutdown()
     {
-        StopReceive();
+        Task? receiveTask;
+        CancellationTokenSource? cts;
+        ISurveyorAsyncContext<INngMsg>? context;
 
-        lock (_lock)
+        lock (_lifecycleLock)
         {
-            _msgToSend.Clear();
+            if (_isStopping)
+                return;
+
+            _isStopping = true;
+            receiveTask = _receiveTask;
+            cts = _cts;
+            context = _respondentCtx;
+            cts?.Cancel();
+            context?.Aio.Cancel();
         }
-        _respondentCtx?.Aio.Cancel();
-        _respondentCtx?.Aio.Wait();
-        _respondentCtx?.Dispose();
-        _respondentCtx = null;
-        _dialer?.Dispose();
-        _dialer = null;
-        _respondent?.Dispose();
-        _respondent = null;
+
+        receiveTask?.GetAwaiter().GetResult();
+
+        lock (_lifecycleLock)
+        {
+            lock (_messageLock)
+            {
+                _msgToSend.Clear();
+                while (_sendAvailable.Wait(0))
+                {
+                }
+            }
+
+            context?.Aio.Wait();
+            context?.Dispose();
+            _respondentCtx = null;
+            _dialer?.Dispose();
+            _dialer = null;
+            _respondent?.Dispose();
+            _respondent = null;
+            _receiveTask = null;
+            _cts = null;
+            cts?.Dispose();
+            _isStopping = false;
+        }
     }
 
-    private void StartReceive()
+    private void StartReceive(ISurveyorAsyncContext<INngMsg> context)
     {
-        if (_respondentCtx is null)
-            return;
-        if (_cts is not null)
+        if (_receiveTask is { IsCompleted: false })
             return;
 
-        _cts = new CancellationTokenSource();
-        Task.Run(async () =>
+        _cts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _cts = cts;
+        _receiveTask = Task.Run(() => ReceiveLoop(context, cts.Token));
+    }
+
+    private async Task ReceiveLoop(ISurveyorAsyncContext<INngMsg> context, CancellationToken token)
+    {
+        try
         {
-            var token = _cts.Token;
             while (!token.IsCancellationRequested)
             {
-                string? msgToSend = null;
-                lock (_lock)
+                var msg = await context.Receive(CancellationToken.None);
+                if (!msg.TryOk(out var data))
                 {
-                    if (_msgToSend.Count > 0)
-                        msgToSend = _msgToSend.Dequeue();
+                    if (token.IsCancellationRequested)
+                        break;
+                    if (msg.Err() != Defines.NngErrno.EAGAIN && msg.Err() != Defines.NngErrno.ETIMEDOUT)
+                        Logger.LogError("Respondent receive failed with code {Code}", msg.Err());
+                    continue;
                 }
 
-                var msg = await _respondentCtx.Receive(token);
-                if (msg.TryOk(out var data))
-                {
-                    var bytes = data.AsSpan();
-                    var str = Encoding.UTF8.GetString(bytes);
-                    ReceiveMessage?.Invoke(this, str);
-                }
+                DispatchReceiveMessage(Encoding.UTF8.GetString(data.AsSpan()));
+                var response = await DequeueResponse(token);
+                var nngMsg = NngManager.Factory.CreateMessage();
+                nngMsg.Append(Encoding.UTF8.GetBytes(response));
+                var result = await context.Send(nngMsg);
+                if (!result.IsOk() && !token.IsCancellationRequested)
+                    Logger.LogError("Respondent send failed with code {Code}", result.Err());
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Respondent receive loop stopped unexpectedly");
+        }
+    }
 
-                if (msgToSend != null)
+    private async Task<string> DequeueResponse(CancellationToken token)
+    {
+        await _sendAvailable.WaitAsync(token);
+        lock (_messageLock)
+        {
+            return _msgToSend.Dequeue();
+        }
+    }
+
+    private void DispatchReceiveMessage(string message)
+    {
+        var handlers = ReceiveMessage;
+        if (handlers == null)
+            return;
+
+        _ = Task.Run(() =>
+        {
+            foreach (EventHandler<string> handler in handlers.GetInvocationList())
+            {
+                try
                 {
-                    var nngMsg = NngManager.Factory.CreateMessage();
-                    nngMsg.Append(Encoding.UTF8.GetBytes(msgToSend));
-                    var result = await _respondentCtx.Send(nngMsg);
-                    if (!result.IsOk())
-                    {
-                        Logger.LogError("send failed {Msg}", msg.Err());
-                    }
+                    handler(this, message);
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "Respondent ReceiveMessage subscriber failed");
+                    DispatchHandlerError(ex);
                 }
             }
         });
     }
 
-    private void StopReceive()
+    private void DispatchHandlerError(Exception exception)
     {
-        _cts?.Cancel();
-        _cts = null;
+        var handlers = ReceiveMessageHandlerError;
+        if (handlers == null)
+            return;
+
+        foreach (EventHandler<Exception> handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                handler(this, exception);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Respondent ReceiveMessageHandlerError subscriber failed");
+            }
+        }
     }
 
     public void Send(string msg)
     {
-        if (_respondentCtx is null)
-            return;
-
-        lock (_lock)
+        lock (_lifecycleLock)
         {
-            _msgToSend.Enqueue(msg);
+            if (_respondentCtx is null || _isStopping)
+                return;
+
+            lock (_messageLock)
+            {
+                _msgToSend.Enqueue(msg);
+                _sendAvailable.Release();
+            }
         }
     }
 }
