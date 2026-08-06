@@ -6,7 +6,9 @@
 取消和超时语义。本文适用于 C#、Lua 和 Python worker；语言实现不应把自己的对象模型
 暴露给 `Diary.App` 或 `Diary.Core`。
 
-本文是目标设计，不代表所有内容已经实现。现有脚本 V1 类型和执行结果见
+本文是目标设计，不代表所有内容已经实现。当前已实现协议握手、版本/能力协商、UTF-8 JSON 行编解码、
+可注入传输层、单 Worker supervisor、本机进程 transport 和最小 C# Worker 执行适配器；
+宿主 API 转发、完整故障恢复和多语言 worker 仍在后续阶段。现有脚本 V1 类型和执行结果见
 [`ScriptSystemDesign.md`](ScriptSystemDesign.md) 及 `Diary.ScriptBase`。
 
 ## 2. 设计结论
@@ -546,14 +548,14 @@ worker 重启后不会自动重复未确认的副作用操作。
 
 ### 第一阶段：协议骨架
 
-- 定义 `WorkerMessage`、握手、执行、结果、错误和取消消息。
-- 实现本机 stdin/stdout 管道和消息大小限制。
-- 实现 supervisor 单 worker 串行队列。
-- 实现 C# worker 最小适配器。
+- [x] 定义 `WorkerMessage`、握手、执行、结果、错误和取消消息。
+- [x] 实现本机 stdin/stdout 管道和消息大小限制。
+- [x] 实现 supervisor 单 worker 串行队列。
+- [x] 实现 C# worker 最小适配器。
 
 ### 第二阶段：宿主 API 和恢复
 
-- 实现双向 `host.call`/`host.result`。
+- [ ] 实现双向 `host.call`/`host.result`。
 - 接入只读 `workItems.query`。
 - 实现心跳、超时、终止、退出码和重启。
 - 增加执行历史和 worker 诊断关联。
