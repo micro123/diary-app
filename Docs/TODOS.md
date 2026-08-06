@@ -478,7 +478,7 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [ ] 将只读 `workItems.query` 接入 worker 宿主 API。
 - [ ] worker 崩溃时将未完成请求转换为结构化失败，禁止自动重复副作用操作。
 - [ ] 默认同语言脚本共享 worker；高风险或无法清理状态的脚本支持独立 worker。
-- [ ] 实现 C# worker 适配器并保留现有脚本契约和诊断映射。
+- [~] 已实现 C# Worker 协议适配器、握手、心跳和取消；脚本执行器接入待完成。
 - [ ] 实现 Lua worker，默认关闭文件、网络和进程能力。
 - [ ] 实现 Python worker，处理解释器发现、环境隔离、标准输出污染和退出码错误。
 - [ ] 增加跨平台 worker 启动、取消、超时、崩溃、重启和协议错误测试。

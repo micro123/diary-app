@@ -172,6 +172,8 @@ public sealed record WorkerExecutionResultPayload(
 
 public sealed record WorkerCancelPayload(string Reason, DateTimeOffset? Deadline = null);
 
+public sealed record WorkerErrorPayload(string Code, string Message);
+
 public sealed class WorkerProtocolException(ScriptDiagnostic diagnostic) : Exception(diagnostic.Message)
 {
     public ScriptDiagnostic Diagnostic { get; } = diagnostic;
