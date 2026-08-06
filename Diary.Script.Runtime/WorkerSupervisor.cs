@@ -66,6 +66,7 @@ public sealed class WorkerSupervisor(IWorkerTransportFactory transportFactory)
         string scriptId,
         string executionId,
         object payload,
+        TimeSpan? timeout = null,
         CancellationToken cancellationToken = default)
     {
         if (State != WorkerState.Ready)
@@ -78,7 +79,33 @@ public sealed class WorkerSupervisor(IWorkerTransportFactory transportFactory)
             await _transport!.SendAsync(new WorkerMessage<object>(
                 WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.Execute,
                 requestId, executionId, new { scriptId, payload }), cancellationToken);
-            var result = await _transport.ReceiveAsync<WorkerExecutionResultPayload>(cancellationToken);
+            using var timeoutCancellation = timeout is null ? null : new CancellationTokenSource(timeout.Value);
+            using var receiveCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken, timeoutCancellation?.Token ?? CancellationToken.None);
+            WorkerMessage<WorkerExecutionResultPayload> result;
+            try
+            {
+                result = await _transport.ReceiveAsync<WorkerExecutionResultPayload>(receiveCancellation.Token);
+            }
+            catch (OperationCanceledException) when (timeoutCancellation?.IsCancellationRequested == true)
+            {
+                await SendCancelAsync(executionId, "Timeout", DateTimeOffset.UtcNow, cancellationToken);
+                State = WorkerState.Failed;
+                return new WorkerMessage<WorkerExecutionResultPayload>(
+                    WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.ExecuteResult,
+                    requestId, executionId,
+                    new(ScriptExecutionStatus.TimedOut, [new ScriptDiagnostic(
+                        "SCRIPT_EXECUTION_TIMED_OUT", "Worker 执行超时。", ScriptDiagnosticSeverity.Error,
+                        ScriptDiagnosticCategory.Runtime)]));
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                await SendCancelAsync(executionId, "Cancelled", null, CancellationToken.None);
+                return new WorkerMessage<WorkerExecutionResultPayload>(
+                    WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.ExecuteResult,
+                    requestId, executionId,
+                    new(ScriptExecutionStatus.Cancelled, []));
+            }
             if (result.RequestId != requestId || result.ExecutionId != executionId)
                 throw new WorkerProtocolException(new ScriptDiagnostic(
                     "WORKER_REQUEST_MISMATCH", "Worker 返回的 requestId 或 executionId 不匹配。",
@@ -99,6 +126,32 @@ public sealed class WorkerSupervisor(IWorkerTransportFactory transportFactory)
         State = WorkerState.Stopped;
     }
 
+    public async ValueTask<bool> CheckHealthAsync(CancellationToken cancellationToken = default)
+    {
+        if (State is not (WorkerState.Ready or WorkerState.Busy) || _transport is null)
+            return false;
+        var requestId = Guid.NewGuid().ToString("N");
+        await _transport.SendAsync(new WorkerMessage<object>(
+            WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.Ping, requestId, null, new { }), cancellationToken);
+        var response = await _transport.ReceiveAsync<object>(cancellationToken);
+        return response.Type == WorkerMessageType.Pong && response.RequestId == requestId;
+    }
+
+    public async ValueTask RestartAsync(WorkerHandshakeOptions options, CancellationToken cancellationToken = default)
+    {
+        await StopAsync(cancellationToken);
+        await StartAsync(options, cancellationToken);
+    }
+
+    private ValueTask SendCancelAsync(
+        string executionId,
+        string reason,
+        DateTimeOffset? deadline,
+        CancellationToken cancellationToken) =>
+        _transport!.SendAsync(new WorkerMessage<WorkerCancelPayload>(
+            WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.Cancel,
+            Guid.NewGuid().ToString("N"), executionId, new(reason, deadline)), cancellationToken);
+
     private async ValueTask StopTransportAsync(CancellationToken cancellationToken)
     {
         if (_transport is null)
@@ -115,6 +168,8 @@ public sealed record WorkerExecutionResultPayload(
     IReadOnlyCollection<ScriptDiagnostic> Diagnostics,
     object? Value = null,
     long DurationMilliseconds = 0);
+
+public sealed record WorkerCancelPayload(string Reason, DateTimeOffset? Deadline = null);
 
 public sealed class WorkerProtocolException(ScriptDiagnostic diagnostic) : Exception(diagnostic.Message)
 {

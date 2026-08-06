@@ -35,6 +35,16 @@ public sealed class WorkerSupervisorTests
         Assert.AreEqual(WorkerState.Failed, supervisor.State);
     }
 
+    [TestMethod]
+    public async Task CheckHealthAsync_RequiresMatchingPong()
+    {
+        var transport = new FakeTransport();
+        var supervisor = new WorkerSupervisor(new FakeFactory(transport));
+        await supervisor.StartAsync(new("csharp", [ScriptApiVersion.V1], []));
+
+        Assert.IsTrue(await supervisor.CheckHealthAsync());
+    }
+
     private sealed class FakeFactory(FakeTransport transport) : IWorkerTransportFactory
     {
         public ValueTask<IWorkerTransport> CreateAsync(CancellationToken cancellationToken = default) => ValueTask.FromResult<IWorkerTransport>(transport);
@@ -53,6 +63,9 @@ public sealed class WorkerSupervisorTests
             if (message.Type == WorkerMessageType.Execute)
                 _responses.Enqueue(new WorkerMessage<WorkerExecutionResultPayload>(WorkerProtocol.Name, 1, WorkerMessageType.ExecuteResult,
                     message.RequestId, message.ExecutionId, new(ScriptExecutionStatus.Succeeded, [])));
+            else if (message.Type == WorkerMessageType.Ping)
+                _responses.Enqueue(new WorkerMessage<object>(WorkerProtocol.Name, 1, WorkerMessageType.Pong,
+                    message.RequestId, null, new { }));
             return ValueTask.CompletedTask;
         }
 
