@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Diary.ScriptBase;
 
 namespace Diary.Script.Runtime;
@@ -23,7 +24,17 @@ public interface IWorkerTransportFactory
     ValueTask<IWorkerTransport> CreateAsync(CancellationToken cancellationToken = default);
 }
 
-public sealed class WorkerSupervisor(IWorkerTransportFactory transportFactory)
+public interface IWorkerHostCallDispatcher
+{
+    ValueTask<WorkerHostResultPayload> DispatchAsync(
+        string executionId,
+        WorkerHostCallPayload call,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class WorkerSupervisor(
+    IWorkerTransportFactory transportFactory,
+    IWorkerHostCallDispatcher? hostCallDispatcher = null)
 {
     private readonly SemaphoreSlim _executionGate = new(1, 1);
     private IWorkerTransport? _transport;
@@ -85,7 +96,36 @@ public sealed class WorkerSupervisor(IWorkerTransportFactory transportFactory)
             WorkerMessage<WorkerExecutionResultPayload> result;
             try
             {
-                result = await _transport.ReceiveAsync<WorkerExecutionResultPayload>(receiveCancellation.Token);
+                while (true)
+                {
+                    var message = await _transport.ReceiveAsync<JsonElement>(receiveCancellation.Token);
+                    if (message.Type == WorkerMessageType.HostCall)
+                    {
+                        var call = message.Payload.Deserialize<WorkerHostCallPayload>(WorkerProtocol.JsonOptions)
+                            ?? throw new WorkerProtocolException(new ScriptDiagnostic(
+                                "WORKER_HOST_CALL_INVALID", "Worker 宿主调用载荷无效。", ScriptDiagnosticSeverity.Error,
+                                ScriptDiagnosticCategory.Validation));
+                        var hostResult = hostCallDispatcher is null
+                            ? new WorkerHostResultPayload(false, Error: new("PermissionDenied", "当前 Worker 未配置宿主 API。"))
+                            : await hostCallDispatcher.DispatchAsync(executionId, call, receiveCancellation.Token);
+                        await _transport.SendAsync(new WorkerMessage<WorkerHostResultPayload>(
+                            WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.HostResult,
+                            message.RequestId, executionId, hostResult), receiveCancellation.Token);
+                        continue;
+                    }
+
+                    if (message.Type != WorkerMessageType.ExecuteResult)
+                        throw new WorkerProtocolException(new ScriptDiagnostic(
+                            "WORKER_MESSAGE_UNEXPECTED", "Worker 在执行期间返回了意外消息。", ScriptDiagnosticSeverity.Error,
+                            ScriptDiagnosticCategory.Validation));
+                    result = new WorkerMessage<WorkerExecutionResultPayload>(
+                        message.Protocol, message.Version, message.Type, message.RequestId, message.ExecutionId,
+                        message.Payload.Deserialize<WorkerExecutionResultPayload>(WorkerProtocol.JsonOptions)
+                            ?? throw new WorkerProtocolException(new ScriptDiagnostic(
+                                "WORKER_RESULT_INVALID", "Worker 执行结果载荷无效。", ScriptDiagnosticSeverity.Error,
+                                ScriptDiagnosticCategory.Validation)));
+                    break;
+                }
             }
             catch (OperationCanceledException) when (timeoutCancellation?.IsCancellationRequested == true)
             {
@@ -173,6 +213,10 @@ public sealed record WorkerExecutionResultPayload(
 public sealed record WorkerCancelPayload(string Reason, DateTimeOffset? Deadline = null);
 
 public sealed record WorkerErrorPayload(string Code, string Message);
+
+public sealed record WorkerHostCallPayload(string Method, JsonElement Params);
+
+public sealed record WorkerHostResultPayload(bool Success, JsonElement? Result = null, WorkerErrorPayload? Error = null);
 
 public sealed class WorkerProtocolException(ScriptDiagnostic diagnostic) : Exception(diagnostic.Message)
 {
