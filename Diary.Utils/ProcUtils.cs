@@ -42,6 +42,40 @@ public static class ProcUtils
         }
     }
 
+    public static void OpenDirectoryCrossPlatform(string directoryPath)
+    {
+        if (!Directory.Exists(directoryPath))
+            throw new DirectoryNotFoundException($"目录不存在: {directoryPath}");
+
+        try
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = directoryPath,
+                    UseShellExecute = true
+                });
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                Process.Start("xdg-open", $"\"{directoryPath}\"");
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                Process.Start("open", $"\"{directoryPath}\"");
+            }
+            else
+            {
+                throw new PlatformNotSupportedException("不支持的操作系统平台");
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"打开目录失败: {ex.Message}");
+        }
+    }
+
     /// <summary>
     /// 跨平台打开URL
     /// </summary>
