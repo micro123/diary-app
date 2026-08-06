@@ -25,6 +25,11 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
     private string _id = string.Empty;
     [ObservableProperty] private string _description = string.Empty;
     [ObservableProperty] private string _selectedScope = "应用脚本";
+    [ObservableProperty] private bool _readDiary;
+    [ObservableProperty] private bool _writeDiary;
+    [ObservableProperty] private bool _userInteraction;
+    [ObservableProperty] private bool _clipboard;
+    [ObservableProperty] private bool _tracker;
     [ObservableProperty] private string _error = string.Empty;
     [ObservableProperty] private bool _creating;
 
@@ -62,13 +67,13 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
 
             var className = ToClassName(Id);
             var source = string.Join(Environment.NewLine, [
-                "using System;", "using System.Threading;", "using Diary.ScriptBase;", "",
+                "using System;", "using System.Threading;", "using System.Threading.Tasks;", "using Diary.ScriptBase;", "",
                 "namespace Diary.UserScripts;", "",
                 $"public sealed class {className} : IScriptProgramV1", "{",
                 "    public ScriptDescriptor Descriptor { get; } = new(",
                 $"        \"{Escape(Id)}\",", $"        \"{Escape(Name)}\",",
                 "        ScriptApiVersion.V1,", $"        ScriptScope.{scope},",
-                "        ScriptCapability.None,", $"        \"{Escape(Description)}\");", "",
+                $"        {FormatCapabilities()},", $"        \"{Escape(Description)}\");", "",
                 "    public ValueTask<ScriptExecutionResult> ExecuteAsync(",
                 "        ScriptExecutionRequest request,",
                 "        IScriptExecutionContext context,",
@@ -80,7 +85,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
                 Id: Id,
                 Name: Name,
                 Description: Description,
-                Capabilities: ScriptCapability.None), new JsonSerializerOptions { WriteIndented = true });
+                Capabilities: SelectedCapabilities), new JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(sourcePath, source);
             await File.WriteAllTextAsync(metadataPath, metadata);
             RequestClose?.Invoke(this, sourcePath);
@@ -99,6 +104,22 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
     private static string ToClassName(string value) => string.Concat(value
         .Split(['-', '.', '_'], StringSplitOptions.RemoveEmptyEntries)
         .Select(part => char.ToUpperInvariant(part[0]) + part[1..]));
+
+    private ScriptCapability SelectedCapabilities =>
+        (ReadDiary ? ScriptCapability.ReadDiary : ScriptCapability.None)
+        | (WriteDiary ? ScriptCapability.WriteDiary : ScriptCapability.None)
+        | (UserInteraction ? ScriptCapability.UserInteraction : ScriptCapability.None)
+        | (Clipboard ? ScriptCapability.Clipboard : ScriptCapability.None)
+        | (Tracker ? ScriptCapability.Tracker : ScriptCapability.None);
+
+    private string FormatCapabilities()
+    {
+        if (SelectedCapabilities == ScriptCapability.None)
+            return "ScriptCapability.None";
+        return string.Join(" | ", Enum.GetValues<ScriptCapability>()
+            .Where(capability => capability != ScriptCapability.None && SelectedCapabilities.HasFlag(capability))
+            .Select(capability => $"ScriptCapability.{capability}"));
+    }
 
     private static string Escape(string value) => value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", " ").Replace("\n", " ");
 }
