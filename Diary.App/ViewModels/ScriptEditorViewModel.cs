@@ -8,7 +8,6 @@ using Diary.Script.Runtime;
 using Diary.ScriptBase;
 using Diary.Utils;
 using Microsoft.Extensions.Logging;
-using Irihi.Avalonia.Shared.Contracts;
 
 namespace Diary.App.ViewModels;
 

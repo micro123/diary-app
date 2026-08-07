@@ -1,7 +1,5 @@
-using System.Collections.Immutable;
 using System.Text.RegularExpressions;
 using Diary.ScriptBase;
-using NLua;
 using LuaState = NLua.Lua;
 
 namespace Diary.Script.Lua;

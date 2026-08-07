@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using Diary.Core.Data.Base;
 using Diary.Database;
-using Diary.ScriptBase;
 
 namespace Diary.ScriptHost;
 

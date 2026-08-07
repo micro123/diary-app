@@ -1,5 +1,4 @@
 using Diary.ScriptBase;
-using NLua;
 
 namespace Diary.Script.Lua;
 

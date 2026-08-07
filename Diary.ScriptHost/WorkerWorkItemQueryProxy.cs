@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Diary.Script.Runtime;
-using Diary.ScriptBase;
 
 namespace Diary.ScriptHost;
 

@@ -1,5 +1,4 @@
 using Diary.PluginBase;
-using Diary.ScriptBase;
 
 namespace Diary.ScriptHost;
 

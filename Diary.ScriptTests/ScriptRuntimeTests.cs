@@ -397,20 +397,20 @@ public sealed class ScriptRuntimeTests
     public void History_StoresSanitizedEntriesInMemory()
     {
         var history = new ScriptExecutionHistory();
-            history.Record("demo", new ScriptExecutionOutcome(
-                Guid.NewGuid(),
-                new ScriptExecutionResult(ScriptExecutionStatus.Failed, [new ScriptDiagnostic(
+        history.Record("demo", new ScriptExecutionOutcome(
+            Guid.NewGuid(),
+            new ScriptExecutionResult(ScriptExecutionStatus.Failed, [new ScriptDiagnostic(
                     "FAILURE", "token=super-secret", ScriptDiagnosticSeverity.Error,
                     ScriptDiagnosticCategory.Runtime)]),
-                WorkerId: "worker-1",
-                WorkerRequestId: "request-1"));
+            WorkerId: "worker-1",
+            WorkerRequestId: "request-1"));
 
-            var entry = history.GetRecent(1).Single();
+        var entry = history.GetRecent(1).Single();
 
-            Assert.AreEqual("worker-1", entry.Outcome.WorkerId);
-            Assert.AreEqual("request-1", entry.Outcome.WorkerRequestId);
-            StringAssert.Contains(entry.Outcome.Result.Diagnostics.Single().Message, "<redacted>");
-            Assert.IsFalse(entry.Outcome.Result.Diagnostics.Single().Message.Contains("super-secret", StringComparison.Ordinal));
+        Assert.AreEqual("worker-1", entry.Outcome.WorkerId);
+        Assert.AreEqual("request-1", entry.Outcome.WorkerRequestId);
+        StringAssert.Contains(entry.Outcome.Result.Diagnostics.Single().Message, "<redacted>");
+        Assert.IsFalse(entry.Outcome.Result.Diagnostics.Single().Message.Contains("super-secret", StringComparison.Ordinal));
     }
 
     [TestMethod]

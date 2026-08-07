@@ -1,5 +1,4 @@
 using Diary.PluginBase;
-using Diary.ScriptBase;
 using Diary.ScriptHost;
 using Microsoft.Extensions.DependencyInjection;
 

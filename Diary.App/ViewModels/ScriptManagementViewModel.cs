@@ -6,7 +6,6 @@ using Diary.App.ViewModels.Dialogs;
 using Diary.App.Views;
 using Diary.App.Models;
 using Diary.GUIBase.ViewModels;
-using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.Script.Runtime;
 using Diary.ScriptBase;

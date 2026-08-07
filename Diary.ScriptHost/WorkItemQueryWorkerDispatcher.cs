@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Diary.Script.Runtime;
-using Diary.ScriptBase;
 
 namespace Diary.ScriptHost;
 
@@ -133,7 +132,7 @@ public sealed class WorkItemQueryWorkerDispatcher(
         {
             var request = call.Params.Deserialize<TrackerInstanceRequest>(WorkerProtocol.JsonOptions)
                 ?? throw new JsonException();
-             var result = factory().Get(request.PluginId, request.InstanceId);
+            var result = factory().Get(request.PluginId, request.InstanceId);
             return ValueTask.FromResult(result.Succeeded
                 ? new WorkerHostResultPayload(true, JsonSerializer.SerializeToElement(result.Instance, WorkerProtocol.JsonOptions))
                 : new WorkerHostResultPayload(false, Error: new(result.ErrorCode?.ToString() ?? "ProviderFailure", result.ErrorMessage ?? "Tracker 查询失败。")));

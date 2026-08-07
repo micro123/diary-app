@@ -1,7 +1,6 @@
 using Diary.Core.Data.Base;
 using Diary.Database;
 using Diary.Db.SQLite;
-using Diary.ScriptBase;
 using Diary.ScriptHost;
 
 namespace Diary.ScriptTests;
