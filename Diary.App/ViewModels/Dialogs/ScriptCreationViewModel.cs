@@ -12,6 +12,8 @@ namespace Diary.App.ViewModels.Dialogs;
 [DiAutoRegister]
 public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
 {
+    private const string BlankTemplate = "空白脚本";
+    private const string WorkItemQueryTemplate = "查询工作项";
     private readonly string _scriptRoot;
 
     public ScriptCreationViewModel(string? scriptRoot = null)
@@ -21,6 +23,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
 
     public IReadOnlyList<string> Scopes { get; } = ["应用脚本", "编辑器脚本"];
     public IReadOnlyList<string> Languages { get; } = ["C#", "Lua", "Python"];
+    public IReadOnlyList<string> Templates { get; } = [BlankTemplate, WorkItemQueryTemplate];
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CreateCommand))]
@@ -31,6 +34,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
     [ObservableProperty] private string _description = string.Empty;
     [ObservableProperty] private string _selectedScope = "应用脚本";
     [ObservableProperty] private string _selectedLanguage = "C#";
+    [ObservableProperty] private string _selectedTemplate = BlankTemplate;
     [ObservableProperty] private bool _readDiary;
     [ObservableProperty] private bool _writeDiary;
     [ObservableProperty] private bool _userInteraction;
@@ -42,6 +46,12 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
     public bool HasError => !string.IsNullOrWhiteSpace(Error);
 
     partial void OnErrorChanged(string value) => OnPropertyChanged(nameof(HasError));
+
+    partial void OnSelectedTemplateChanged(string value)
+    {
+        if (value == WorkItemQueryTemplate)
+            ReadDiary = true;
+    }
 
     [RelayCommand]
     public void Close() => RequestClose?.Invoke(this, null);
@@ -130,13 +140,26 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
     private string CreateSource(ScriptScope scope) => SelectedLanguage switch
     {
         "C#" => CreateCSharpSource(scope),
+        "Lua" when SelectedTemplate == WorkItemQueryTemplate => string.Join(Environment.NewLine, [
+            "function main(context)",
+            "    local result = diary.workItems.query({ limit = 100 })",
+            "    if not result.succeeded then",
+            "        error(result.error.message)",
+            "    end",
+            "end", ""]),
         "Lua" => string.Join(Environment.NewLine, [
             "function main(context)",
-            "    -- context.request contains the selected execution range.",
+            "    -- context.request 包含本次执行目标。",
             "end", ""]),
+        "Python" when SelectedTemplate == WorkItemQueryTemplate => string.Join(Environment.NewLine, [
+            "def main(context):",
+            "    result = context.diary.workItems.query(limit=100)",
+            "    if not result[\"succeeded\"]:",
+            "        raise RuntimeError(result[\"error\"][\"message\"])",
+            "    return None", ""]),
         "Python" => string.Join(Environment.NewLine, [
             "def main(context):",
-            "    # context.target contains the selected execution range.",
+            "    # context.target 包含本次执行目标。",
             "    return None", ""]),
         _ => throw new InvalidOperationException($"不支持的脚本语言：{SelectedLanguage}"),
     };
@@ -144,20 +167,43 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
     private string CreateCSharpSource(ScriptScope scope)
     {
         var className = ToClassName(Id);
-        return string.Join(Environment.NewLine, [
-            "using System;", "using System.Threading;", "using System.Threading.Tasks;", "using Diary.ScriptBase;", "",
+        var lines = new List<string>
+        {
+            "using System;", "using System.Threading;", "using System.Threading.Tasks;", "using Diary.ScriptBase;",
+        };
+        if (SelectedTemplate == WorkItemQueryTemplate)
+            lines.Add("using Diary.ScriptHost;");
+        lines.AddRange([
+            "",
             "namespace Diary.UserScripts;", "",
             $"public sealed class {className} : IScriptProgramV1", "{",
             "    public ScriptDescriptor Descriptor { get; } = new(",
             $"        \"{Escape(Id)}\",", $"        \"{Escape(Name)}\",",
             "        ScriptApiVersion.V1,", $"        ScriptScope.{scope},",
             $"        {FormatCapabilities()},", $"        \"{Escape(Description)}\");", "",
-            "    public ValueTask<ScriptExecutionResult> ExecuteAsync(",
+            $"    public {(SelectedTemplate == WorkItemQueryTemplate ? "async " : string.Empty)}ValueTask<ScriptExecutionResult> ExecuteAsync(",
             "        ScriptExecutionRequest request,",
             "        IScriptExecutionContext context,",
             "        CancellationToken cancellationToken = default)", "    {",
-            "        return ValueTask.FromResult(ScriptExecutionResult.Succeeded());",
-            "    }", "}", ""]);
+        ]);
+        if (SelectedTemplate == WorkItemQueryTemplate)
+        {
+            lines.AddRange([
+                "        var api = context.GetApi<IWorkItemQueryScriptApi>();",
+                "        if (api is null)",
+                "            return new ScriptExecutionResult(ScriptExecutionStatus.Rejected, []);",
+                "        var result = await api.QueryAsync(new ScriptWorkItemQuery { Limit = 100 }, cancellationToken);",
+                "        return result.Succeeded",
+                "            ? ScriptExecutionResult.Succeeded()",
+                "            : new ScriptExecutionResult(ScriptExecutionStatus.Failed, []);",
+            ]);
+        }
+        else
+        {
+            lines.Add("        return ValueTask.FromResult(ScriptExecutionResult.Succeeded());");
+        }
+        lines.AddRange(["    }", "}", ""]);
+        return string.Join(Environment.NewLine, lines);
     }
 
     private ScriptCapability SelectedCapabilities =>

@@ -467,6 +467,9 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [x] 使用 Semi.Avalonia.AvaloniaEdit + AvaloniaEdit.TextMate 实现 C# 内置编辑器和语法高亮。
 - [x] 内置编辑器已支持未保存状态、保存、同目录另存为（同步移动源码 metadata）、外部修改冲突、编译诊断和诊断行列跳转；窗口内容已避让系统标题栏，Avalonia Headless UI 测试已覆盖保存、另存为、跳转和关闭保护。
 - [x] 增加语言无关的 token 补全，覆盖 C#、Lua、Python 的关键字、当前文件符号和简单宿主成员提示；后续可替换为 Roslyn/LSP 语义补全。
+- [x] 脚本编辑器支持按住 `Ctrl` 滚动鼠标滚轮缩放字号，并限制合理字号范围。
+- [x] 脚本编辑器提供 `API Reference` 快捷入口，并随应用发布 C#、Lua、Python 各自的入口、上下文、查询 API 和沙箱限制文档。
+- [x] 新建脚本流程提供 C#、Lua、Python 的“空白脚本”和“查询工作项”样板，并自动启用样板所需的读取能力。
 
 验收：用户可以在脚本管理页搜索脚本、创建 C# 脚本、选择固定或自定义范围执行并查看结果；
 用户可以从日历右键菜单按天/月/年执行编辑器脚本，也可以从当前日期工作项的右键菜单对已保存工作项执行脚本；

@@ -24,6 +24,8 @@
 
     <ItemGroup>
         <AvaloniaResource Include="Assets\**" />
+        <Content Include="..\Docs\ScriptApi\*.md" Link="Docs\ScriptApi\%(Filename)%(Extension)"
+                 CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     </ItemGroup>
 
     <ItemGroup>

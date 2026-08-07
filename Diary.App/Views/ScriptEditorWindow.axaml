@@ -15,6 +15,7 @@
                 <TextBlock Text="{Binding SourcePath}" Opacity="0.62" TextWrapping="Wrap" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button Content="API Reference" Click="OnOpenApiReference" />
                 <Button x:Name="CheckButton" Content="编译检查" Command="{Binding CheckCommand}" />
                 <Button x:Name="SaveButton" Content="保存" Command="{Binding SaveCommand}" Classes="Primary" />
                 <Button x:Name="SaveAsButton" Content="另存为" Command="{Binding SaveAsCommand}" />

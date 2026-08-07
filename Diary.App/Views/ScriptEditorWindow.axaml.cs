@@ -9,6 +9,7 @@ using Avalonia.Input;
 using Avalonia.Media;
 using System.ComponentModel;
 using Diary.App.ViewModels;
+using Diary.Utils;
 using TextMateSharp.Grammars;
 using Ursa.Controls;
 
@@ -48,6 +49,7 @@ public partial class ScriptEditorWindow : UrsaWindow
         _editor.TextChanged += OnEditorTextChanged;
         _editor.TextArea.TextEntered += OnTextEntered;
         _editor.TextArea.KeyDown += OnEditorKeyDown;
+        _editor.PointerWheelChanged += OnEditorPointerWheelChanged;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         _viewModel.SaveAsRequested += OnSaveAsRequested;
         _viewModel.DiagnosticSelected += OnDiagnosticSelected;
@@ -69,6 +71,36 @@ public partial class ScriptEditorWindow : UrsaWindow
         {
             ShowCompletion();
             e.Handled = true;
+        }
+    }
+
+    private void OnEditorPointerWheelChanged(object? sender, PointerWheelEventArgs e)
+    {
+        if (_editor is null || !e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.Delta.Y == 0)
+            return;
+        _editor.FontSize = Math.Clamp(_editor.FontSize + Math.Sign(e.Delta.Y), 8, 40);
+        e.Handled = true;
+    }
+
+    private void OnOpenApiReference(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_viewModel is null)
+            return;
+        var documentName = Path.GetExtension(_viewModel.SourcePath).ToLowerInvariant() switch
+        {
+            ".lua" => "Lua.md",
+            ".py" => "Python.md",
+            _ => "CSharp.md",
+        };
+        try
+        {
+            ProcUtils.OpenFileCrossPlatform(Path.Combine(
+                AppContext.BaseDirectory, "Docs", "ScriptApi", documentName));
+            _viewModel.Status = $"已打开 {Path.GetFileNameWithoutExtension(documentName)} API Reference";
+        }
+        catch (Exception exception)
+        {
+            _viewModel.Error = $"无法打开 API Reference：{exception.Message}";
         }
     }
 
@@ -179,6 +211,7 @@ public partial class ScriptEditorWindow : UrsaWindow
             _editor.TextChanged -= OnEditorTextChanged;
             _editor.TextArea.TextEntered -= OnTextEntered;
             _editor.TextArea.KeyDown -= OnEditorKeyDown;
+            _editor.PointerWheelChanged -= OnEditorPointerWheelChanged;
         }
         _completionWindow?.Close();
         _textMateInstallation?.Dispose();

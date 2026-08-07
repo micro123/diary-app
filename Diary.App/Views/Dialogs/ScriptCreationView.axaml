@@ -3,7 +3,7 @@
              xmlns:dialogs="using:Diary.App.ViewModels.Dialogs"
              x:Class="Diary.App.Views.Dialogs.ScriptCreationView"
              x:DataType="dialogs:ScriptCreationViewModel"
-             MinWidth="520" MinHeight="460" Padding="24">
+             MinWidth="520" MinHeight="520" Padding="24">
     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="18">
         <StackPanel Spacing="4">
             <TextBlock Text="新建脚本" FontSize="24" FontWeight="Bold" />
@@ -19,6 +19,8 @@
             <ComboBox ItemsSource="{Binding Scopes}" SelectedItem="{Binding SelectedScope, Mode=TwoWay}" />
             <TextBlock Text="脚本语言" />
             <ComboBox ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}" />
+            <TextBlock Text="脚本样板" />
+            <ComboBox ItemsSource="{Binding Templates}" SelectedItem="{Binding SelectedTemplate, Mode=TwoWay}" />
             <TextBlock Text="描述" />
             <TextBox Text="{Binding Description, Mode=TwoWay}" AcceptsReturn="True" TextWrapping="Wrap" Height="70" />
             <TextBlock Text="脚本能力" />
