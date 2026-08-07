@@ -58,7 +58,9 @@ public sealed record ScriptListItem(
         _ => "未知类型",
     };
 
-    public bool IsLoadFailed => !BuildSucceeded;
+    public bool IsLoadFailed => Enabled && !BuildSucceeded;
+
+    public bool IsDisabled => !Enabled;
 
     public string CapabilityLabel => Capabilities == ScriptCapability.None
         ? "无额外能力"
@@ -137,7 +139,7 @@ public partial class ScriptManagementViewModel(
     public ObservableCollection<ScriptDiagnosticListItem> DirectoryDiagnostics { get; } = new();
     public ObservableCollection<ScriptDiagnosticListItem> StartupDiagnostics => startupDiagnostics.Diagnostics;
     public IReadOnlyList<string> ScopeFilters { get; } = ["全部类型", "应用脚本", "编辑器脚本"];
-    public IReadOnlyList<string> StatusFilters { get; } = ["全部状态", "已加载", "加载失败"];
+    public IReadOnlyList<string> StatusFilters { get; } = ["全部状态", "已加载", "加载失败", "已禁用"];
     public IReadOnlyList<string> HistoryStatusFilters { get; } = ["全部结果", "成功", "失败", "已取消", "已超时", "已拒绝"];
     public IReadOnlyList<string> HistorySourceFilters { get; } = ["全部来源", "手动执行", "编辑器调用", "启动加载", "自动化调用"];
     public IReadOnlyList<string> ExecutionRanges { get; } =
@@ -281,7 +283,8 @@ public partial class ScriptManagementViewModel(
             foreach (var script in loadedScripts)
                 Scripts.Add(script);
             RefreshVisibleScripts();
-            SelectedScript = Scripts.FirstOrDefault(script => script.Id == selectedId);
+            SelectedScript = VisibleScripts.FirstOrDefault(script => script.Id == selectedId)
+                ?? VisibleScripts.FirstOrDefault();
             OnPropertyChanged(nameof(HasScripts));
             OnPropertyChanged(nameof(ShowEmptyState));
             RefreshHistory();
@@ -529,11 +532,14 @@ public partial class ScriptManagementViewModel(
                 && (SelectedScopeFilter == "全部类型" || script.ScopeLabel == SelectedScopeFilter)
                 && (SelectedStatusFilter == "全部状态"
                     || SelectedStatusFilter == "加载失败" && script.IsLoadFailed
-                    || SelectedStatusFilter == "已加载" && !script.IsLoadFailed))
+                    || SelectedStatusFilter == "已加载" && script.BuildSucceeded
+                    || SelectedStatusFilter == "已禁用" && script.IsDisabled))
             .ToArray();
         VisibleScripts.Clear();
         foreach (var script in visible)
             VisibleScripts.Add(script);
+        if (SelectedScript is not null && !VisibleScripts.Contains(SelectedScript))
+            SelectedScript = VisibleScripts.FirstOrDefault();
         OnPropertyChanged(nameof(HasVisibleScripts));
         OnPropertyChanged(nameof(ShowNoResultsState));
     }

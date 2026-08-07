@@ -99,7 +99,9 @@
                                 </Grid>
                                 <StackPanel Grid.Column="1" Spacing="3">
                                     <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding Id}" Opacity="0.58" />
                                     <TextBlock Text="{Binding SourcePath}" Opacity="0.58" />
+                                    <TextBlock Text="{Binding Language}" Opacity="0.68" />
                                     <TextBlock Text="{Binding Status}" Opacity="0.78" />
                                     <TextBlock Text="{Binding EnabledLabel}" Opacity="0.68" />
                                 </StackPanel>
@@ -135,6 +137,8 @@
                 <TabItem Header="概览">
                     <StackPanel Margin="8" Spacing="8">
                         <TextBlock Text="{Binding SelectedScript.Name}" FontSize="22" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding SelectedScript.Id}" Opacity="0.58" />
+                        <TextBlock Text="{Binding SelectedScript.Language}" Opacity="0.68" />
                         <TextBlock Text="{Binding SelectedScript.ScopeLabel}" Opacity="0.68" />
                         <TextBlock Text="{Binding SelectedScript.Status}" />
                         <TextBlock Text="{Binding SelectedScript.EnabledLabel}" Opacity="0.68" />

@@ -3,11 +3,11 @@
              xmlns:dialogs="using:Diary.App.ViewModels.Dialogs"
              x:Class="Diary.App.Views.Dialogs.ScriptCreationView"
              x:DataType="dialogs:ScriptCreationViewModel"
-             MinWidth="520" MinHeight="420" Padding="24">
+             MinWidth="520" MinHeight="460" Padding="24">
     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="18">
         <StackPanel Spacing="4">
             <TextBlock Text="新建脚本" FontSize="24" FontWeight="Bold" />
-            <TextBlock Text="创建一个可立即加载的 C# 脚本模板。" Opacity="0.68" />
+            <TextBlock Text="创建一个可立即加载的脚本模板。" Opacity="0.68" />
         </StackPanel>
         <StackPanel Grid.Row="1" Spacing="12">
             <TextBlock Text="脚本名称" />
@@ -17,6 +17,8 @@
             <TextBlock Text="只允许字母、数字、点、短横线和下划线，长度为 2-64 个字符且以字母开头。" FontSize="12" Opacity="0.6" />
             <TextBlock Text="脚本类型" />
             <ComboBox ItemsSource="{Binding Scopes}" SelectedItem="{Binding SelectedScope, Mode=TwoWay}" />
+            <TextBlock Text="脚本语言" />
+            <ComboBox ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}" />
             <TextBlock Text="描述" />
             <TextBox Text="{Binding Description, Mode=TwoWay}" AcceptsReturn="True" TextWrapping="Wrap" Height="70" />
             <TextBlock Text="脚本能力" />

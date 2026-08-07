@@ -12,9 +12,15 @@ namespace Diary.App.ViewModels.Dialogs;
 [DiAutoRegister]
 public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
 {
-    private readonly string _scriptRoot = Path.Combine(FsTools.GetApplicationConfigDirectory(), "scripts");
+    private readonly string _scriptRoot;
+
+    public ScriptCreationViewModel(string? scriptRoot = null)
+    {
+        _scriptRoot = scriptRoot ?? Path.Combine(FsTools.GetApplicationConfigDirectory(), "scripts");
+    }
 
     public IReadOnlyList<string> Scopes { get; } = ["应用脚本", "编辑器脚本"];
+    public IReadOnlyList<string> Languages { get; } = ["C#", "Lua", "Python"];
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CreateCommand))]
@@ -24,6 +30,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
     private string _id = string.Empty;
     [ObservableProperty] private string _description = string.Empty;
     [ObservableProperty] private string _selectedScope = "应用脚本";
+    [ObservableProperty] private string _selectedLanguage = "C#";
     [ObservableProperty] private bool _readDiary;
     [ObservableProperty] private bool _writeDiary;
     [ObservableProperty] private bool _userInteraction;
@@ -64,7 +71,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
             }
 
             Directory.CreateDirectory(fullFolder);
-            var sourcePath = Path.GetFullPath(Path.Combine(fullFolder, $"{Id}.cs"));
+            var sourcePath = Path.GetFullPath(Path.Combine(fullFolder, $"{Id}{GetLanguageExtension()}"));
             if (!ScriptCreationPolicy.IsInsideDirectory(sourcePath, fullFolder))
             {
                 Error = "脚本 ID 生成的文件路径无效。";
@@ -77,27 +84,15 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
                 return;
             }
 
-            var className = ToClassName(Id);
-            var source = string.Join(Environment.NewLine, [
-                "using System;", "using System.Threading;", "using System.Threading.Tasks;", "using Diary.ScriptBase;", "",
-                "namespace Diary.UserScripts;", "",
-                $"public sealed class {className} : IScriptProgramV1", "{",
-                "    public ScriptDescriptor Descriptor { get; } = new(",
-                $"        \"{Escape(Id)}\",", $"        \"{Escape(Name)}\",",
-                "        ScriptApiVersion.V1,", $"        ScriptScope.{scope},",
-                $"        {FormatCapabilities()},", $"        \"{Escape(Description)}\");", "",
-                "    public ValueTask<ScriptExecutionResult> ExecuteAsync(",
-                "        ScriptExecutionRequest request,",
-                "        IScriptExecutionContext context,",
-                "        CancellationToken cancellationToken = default)", "    {",
-                "        return ValueTask.FromResult(ScriptExecutionResult.Succeeded());",
-                "    }", "}", ""]);
+            var source = CreateSource(scope);
             var metadata = JsonSerializer.Serialize(new ScriptFileMetadata(
                 ApiVersion: ScriptApiVersion.V1,
                 Id: Id,
                 Name: Name,
                 Description: Description,
-                Capabilities: SelectedCapabilities), new JsonSerializerOptions { WriteIndented = true });
+                Capabilities: SelectedCapabilities,
+                Engine: GetEngineName(),
+                Scope: scope), new JsonSerializerOptions { WriteIndented = true });
             await WriteFilesAtomicallyAsync(sourcePath, source, metadataPath, metadata);
             RequestClose?.Invoke(this, sourcePath);
         }
@@ -115,6 +110,55 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
     private static string ToClassName(string value) => string.Concat(value
         .Split(['-', '.', '_'], StringSplitOptions.RemoveEmptyEntries)
         .Select(part => char.ToUpperInvariant(part[0]) + part[1..]));
+
+    private string GetLanguageExtension() => SelectedLanguage switch
+    {
+        "C#" => ".cs",
+        "Lua" => ".lua",
+        "Python" => ".py",
+        _ => throw new InvalidOperationException($"不支持的脚本语言：{SelectedLanguage}"),
+    };
+
+    private string GetEngineName() => SelectedLanguage switch
+    {
+        "C#" => "csharp",
+        "Lua" => "lua",
+        "Python" => "python",
+        _ => throw new InvalidOperationException($"不支持的脚本语言：{SelectedLanguage}"),
+    };
+
+    private string CreateSource(ScriptScope scope) => SelectedLanguage switch
+    {
+        "C#" => CreateCSharpSource(scope),
+        "Lua" => string.Join(Environment.NewLine, [
+            "function main(context)",
+            "    -- context.request contains the selected execution range.",
+            "end", ""]),
+        "Python" => string.Join(Environment.NewLine, [
+            "def main(context):",
+            "    # context.target contains the selected execution range.",
+            "    return None", ""]),
+        _ => throw new InvalidOperationException($"不支持的脚本语言：{SelectedLanguage}"),
+    };
+
+    private string CreateCSharpSource(ScriptScope scope)
+    {
+        var className = ToClassName(Id);
+        return string.Join(Environment.NewLine, [
+            "using System;", "using System.Threading;", "using System.Threading.Tasks;", "using Diary.ScriptBase;", "",
+            "namespace Diary.UserScripts;", "",
+            $"public sealed class {className} : IScriptProgramV1", "{",
+            "    public ScriptDescriptor Descriptor { get; } = new(",
+            $"        \"{Escape(Id)}\",", $"        \"{Escape(Name)}\",",
+            "        ScriptApiVersion.V1,", $"        ScriptScope.{scope},",
+            $"        {FormatCapabilities()},", $"        \"{Escape(Description)}\");", "",
+            "    public ValueTask<ScriptExecutionResult> ExecuteAsync(",
+            "        ScriptExecutionRequest request,",
+            "        IScriptExecutionContext context,",
+            "        CancellationToken cancellationToken = default)", "    {",
+            "        return ValueTask.FromResult(ScriptExecutionResult.Succeeded());",
+            "    }", "}", ""]);
+    }
 
     private ScriptCapability SelectedCapabilities =>
         (ReadDiary ? ScriptCapability.ReadDiary : ScriptCapability.None)

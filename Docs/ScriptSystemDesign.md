@@ -75,6 +75,7 @@ Worker 进程边界、消息封装、生命周期和重启语义见
 metadata 随源码移动、外部修改冲突保护、编译诊断和按行列跳转，窗口内容避让系统标题栏；对应窗口交互由 Avalonia Headless 测试覆盖。
 脚本管理列表中的 C#、Python 和 Lua 脚本使用官方 SVG 图标（[C#](https://github.com/dotnet/brand/blob/main/logo/language-icons/csharp-72.svg)、
 [Python](https://s3.dualstack.us-east-2.amazonaws.com/pythondotorg-assets/media/files/python-logo-only.svg)、[Lua](https://upload.wikimedia.org/wikipedia/commons/c/cf/Lua-Logo.svg)），未知语言继续使用 Material 图标回退。
+脚本管理页的新建向导支持 C#、Lua 和 Python，并为源码写入对应扩展名和引擎元数据；Lua/Python 模板提供 `main(context)` 入口。
 
 ## 4. 分层架构
 
@@ -627,6 +628,7 @@ Python 运行时发现只属于 `Diary.Script.Python`，不下沉到通用 trans
 - 取消和超时返回正确状态。
 - 权限不足时 API 调用被拒绝。
 - 日记读写 API 的成功和失败路径。
+- 新建脚本向导为 C#、Lua 和 Python 生成正确扩展名、入口和 metadata。
 - Tracker 使用 `PluginId + InstanceId` 定位正确实例。
 - 日志和诊断不会泄露敏感配置。
 - Python worker 崩溃和退出码错误可以被宿主识别。
