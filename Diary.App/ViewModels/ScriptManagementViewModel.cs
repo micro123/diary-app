@@ -6,6 +6,8 @@ using Diary.App.ViewModels.Dialogs;
 using Diary.App.Views;
 using Diary.App.Models;
 using Diary.GUIBase.ViewModels;
+using Diary.GUIBase.Events;
+using Diary.GUIBase.Utils;
 using Diary.Script.Runtime;
 using Diary.ScriptBase;
 using Diary.Utils;
@@ -25,7 +27,8 @@ public sealed record ScriptListItem(
     bool BuildSucceeded,
     string Status,
     IReadOnlyList<string> Diagnostics,
-    IReadOnlyList<ScriptDiagnosticListItem> DiagnosticDetails)
+    IReadOnlyList<ScriptDiagnosticListItem> DiagnosticDetails,
+    string Description = "")
 {
     public string Language => Path.GetExtension(SourcePath).ToLowerInvariant() switch
     {
@@ -58,9 +61,7 @@ public sealed record ScriptListItem(
         _ => "未知类型",
     };
 
-    public bool IsLoadFailed => Enabled && !BuildSucceeded;
-
-    public bool IsDisabled => !Enabled;
+    public bool IsLoadFailed => !BuildSucceeded;
 
     public string CapabilityLabel => Capabilities == ScriptCapability.None
         ? "无额外能力"
@@ -78,7 +79,6 @@ public sealed record ScriptListItem(
         _ => capability.ToString(),
     };
 
-    public string EnabledLabel => Enabled ? "已启用" : "已禁用";
 }
 
 public sealed record ScriptHistoryListItem(
@@ -88,7 +88,8 @@ public sealed record ScriptHistoryListItem(
     string Source,
     string StartedAt,
     string Duration,
-    IReadOnlyList<string> Diagnostics)
+    IReadOnlyList<string> Diagnostics,
+    string Log)
 {
     public string StatusLabel => Status switch
     {
@@ -139,7 +140,7 @@ public partial class ScriptManagementViewModel(
     public ObservableCollection<ScriptDiagnosticListItem> DirectoryDiagnostics { get; } = new();
     public ObservableCollection<ScriptDiagnosticListItem> StartupDiagnostics => startupDiagnostics.Diagnostics;
     public IReadOnlyList<string> ScopeFilters { get; } = ["全部类型", "应用脚本", "编辑器脚本"];
-    public IReadOnlyList<string> StatusFilters { get; } = ["全部状态", "已加载", "加载失败", "已禁用"];
+    public IReadOnlyList<string> StatusFilters { get; } = ["全部状态", "已加载", "加载失败"];
     public IReadOnlyList<string> HistoryStatusFilters { get; } = ["全部结果", "成功", "失败", "已取消", "已超时", "已拒绝"];
     public IReadOnlyList<string> HistorySourceFilters { get; } = ["全部来源", "手动执行", "编辑器调用", "启动加载", "自动化调用"];
     public IReadOnlyList<string> ExecutionRanges { get; } =
@@ -277,7 +278,8 @@ public partial class ScriptManagementViewModel(
                     entry.BuildResult?.Succeeded == true,
                     FormatStatus(entry),
                     FormatDiagnostics(entry.BuildResult?.Diagnostics),
-                    FormatDiagnosticDetails(entry.BuildResult?.Diagnostics)));
+                     FormatDiagnosticDetails(entry.BuildResult?.Diagnostics),
+                     descriptor?.Description ?? string.Empty));
             }
             Scripts.Clear();
             foreach (var script in loadedScripts)
@@ -314,7 +316,7 @@ public partial class ScriptManagementViewModel(
 
     private bool CanRun() =>
         !IsExecuting
-        && SelectedScript is { Enabled: true, BuildSucceeded: true }
+        && SelectedScript is { BuildSucceeded: true }
         && (SelectedScript.Scope == ScriptScope.Application
             || ExecutionStartDate is not null && ExecutionEndDate is not null && ExecutionStartDate <= ExecutionEndDate);
 
@@ -377,7 +379,7 @@ public partial class ScriptManagementViewModel(
             return entry.BuildResult.Diagnostics.Any(item => item.Code == "SCRIPT_CACHE_HIT")
                 ? "已加载（缓存）"
                 : "已加载";
-        return entry.Enabled ? "加载失败" : "已禁用";
+        return "加载失败";
     }
 
     [RelayCommand]
@@ -409,20 +411,28 @@ public partial class ScriptManagementViewModel(
     }
 
     [RelayCommand]
-    private async Task ExportExecutionHistory()
+    private async Task CopyHistoryLog(ScriptHistoryListItem? history)
     {
-        var exportPath = Path.Combine(_scriptRoot, "execution-history-export.json");
+        if (history is null)
+            return;
+        if (await CopyStringToClipboardAsync(history.Log))
+            NotificationManager?.Show("执行日志已复制", NotificationType.Success);
+    }
+
+    [RelayCommand]
+    private Task ClearExecutionHistory()
+    {
         try
         {
-            await executionHistory.ExportAsync(exportPath);
-            Status = $"执行历史已导出：{exportPath}";
-            ProcUtils.OpenDirectoryCrossPlatform(_scriptRoot);
+            executionHistory.Clear();
+            RefreshHistory();
+            Status = "执行历史已清空";
         }
         catch (Exception exception)
         {
-            logger.LogError(exception, "导出脚本执行历史失败：{ExportPath}", exportPath);
-            Status = "无法导出脚本执行历史";
+            logger.LogDebug(exception, "清空脚本执行历史失败");
         }
+        return Task.CompletedTask;
     }
 
     [RelayCommand]
@@ -525,6 +535,49 @@ public partial class ScriptManagementViewModel(
     }
 
     [RelayCommand]
+    private async Task DeleteScript(ScriptListItem? script)
+    {
+        if (script is null || !IsPathInsideScriptRoot(script.SourcePath))
+            return;
+        if (!await EventDispatcher.Confirm("删除脚本", $"确认删除“{script.Name}”吗？源码和 metadata 将被永久删除。"))
+        {
+            Status = "已取消删除脚本";
+            return;
+        }
+        try
+        {
+            var directory = Path.GetDirectoryName(Path.GetFullPath(script.SourcePath));
+            var packagePath = directory is not null
+                && !string.Equals(directory, Path.GetFullPath(_scriptRoot), GetPathComparison())
+                && File.Exists(Path.Combine(directory, "manifest.json"))
+                ? directory
+                : null;
+            if (packagePath is not null)
+                Directory.Delete(packagePath, true);
+            else
+            {
+                File.Delete(script.SourcePath);
+                var metadataPath = script.SourcePath + ".json";
+                if (File.Exists(metadataPath))
+                    File.Delete(metadataPath);
+            }
+            await ReloadAsync();
+            Status = $"脚本已删除：{script.Name}";
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "删除脚本失败：{SourcePath}", script.SourcePath);
+            Status = "删除脚本失败";
+        }
+    }
+
+    private bool IsPathInsideScriptRoot(string path) =>
+        ScriptCreationPolicy.IsInsideDirectory(Path.GetFullPath(path), Path.GetFullPath(_scriptRoot));
+
+    private static StringComparison GetPathComparison() =>
+        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+
+    [RelayCommand]
     private void OpenScriptsFolder()
     {
         try
@@ -549,8 +602,7 @@ public partial class ScriptManagementViewModel(
                 && (SelectedScopeFilter == "全部类型" || script.ScopeLabel == SelectedScopeFilter)
                 && (SelectedStatusFilter == "全部状态"
                     || SelectedStatusFilter == "加载失败" && script.IsLoadFailed
-                    || SelectedStatusFilter == "已加载" && script.BuildSucceeded
-                    || SelectedStatusFilter == "已禁用" && script.IsDisabled))
+                    || SelectedStatusFilter == "已加载" && script.BuildSucceeded))
             .ToArray();
         VisibleScripts.Clear();
         foreach (var script in visible)
@@ -576,7 +628,8 @@ public partial class ScriptManagementViewModel(
                 entry.Outcome.Source.ToString(),
                 (entry.Outcome.StartedAt ?? entry.RecordedAt).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"),
                 $"{entry.Outcome.Duration.TotalMilliseconds:0} ms",
-                FormatDiagnostics(entry.Outcome.Result.Diagnostics)));
+                FormatDiagnostics(entry.Outcome.Result.Diagnostics),
+                FormatHistoryLog(entry, scriptName)));
         }
         RefreshVisibleHistory();
     }
@@ -598,6 +651,27 @@ public partial class ScriptManagementViewModel(
                 : $"[{item.Code}] {item.SourcePath}:{item.Line}:{item.Column} {item.Message}")
             .ToArray()
             ?? Array.Empty<string>();
+
+    private static string FormatHistoryLog(ScriptExecutionHistoryEntry entry, string scriptName)
+    {
+        var outcome = entry.Outcome;
+        var lines = new List<string>
+        {
+            $"脚本：{scriptName} ({entry.ScriptId})",
+            $"状态：{outcome.Result.Status}",
+            $"来源：{outcome.Source}",
+            $"开始时间：{(outcome.StartedAt ?? entry.RecordedAt).ToLocalTime():yyyy-MM-dd HH:mm:ss}",
+            $"耗时：{outcome.Duration.TotalMilliseconds:0} ms",
+            $"执行 ID：{outcome.ExecutionId}",
+        };
+        if (!string.IsNullOrWhiteSpace(outcome.WorkerId))
+            lines.Add($"Worker ID：{outcome.WorkerId}");
+        if (!string.IsNullOrWhiteSpace(outcome.WorkerRequestId))
+            lines.Add($"Worker 请求 ID：{outcome.WorkerRequestId}");
+        lines.Add("诊断：");
+        lines.AddRange(FormatDiagnostics(outcome.Result.Diagnostics));
+        return string.Join(Environment.NewLine, lines);
+    }
 
     private static string FormatExecutionStatus(
         string scriptName,

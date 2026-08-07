@@ -77,9 +77,12 @@
                                         <MenuItem Header="重新检查"
                                                   Command="{Binding $parent[UserControl].((vm:ScriptManagementViewModel)DataContext).RecheckScriptCommand}"
                                                   CommandParameter="{Binding}" />
-                                        <MenuItem Header="运行脚本"
-                                                  Command="{Binding $parent[UserControl].((vm:ScriptManagementViewModel)DataContext).RunScriptCommand}"
-                                                  CommandParameter="{Binding}" />
+                                         <MenuItem Header="运行脚本"
+                                                   Command="{Binding $parent[UserControl].((vm:ScriptManagementViewModel)DataContext).RunScriptCommand}"
+                                                   CommandParameter="{Binding}" />
+                                         <MenuItem Header="删除脚本"
+                                                   Command="{Binding $parent[UserControl].((vm:ScriptManagementViewModel)DataContext).DeleteScriptCommand}"
+                                                   CommandParameter="{Binding}" />
                                     </ContextMenu>
                                 </Grid.ContextMenu>
                                 <Grid Grid.Column="0" Width="28" Height="28"
@@ -100,15 +103,20 @@
                                 <StackPanel Grid.Column="1" Spacing="3">
                                     <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold" />
                                     <TextBlock Text="{Binding Id}" Opacity="0.58" />
-                                    <TextBlock Text="{Binding SourcePath}" Opacity="0.58" />
-                                    <TextBlock Text="{Binding Language}" Opacity="0.68" />
-                                    <TextBlock Text="{Binding Status}" Opacity="0.78" />
-                                    <TextBlock Text="{Binding EnabledLabel}" Opacity="0.68" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" HorizontalAlignment="Right">
-                                    <TextBlock Text="{Binding ScopeLabel}" />
-                                    <TextBlock Text="{Binding CapabilityLabel}" Opacity="0.68" />
-                                </StackPanel>
+                                     <StackPanel Orientation="Horizontal" Spacing="8">
+                                          <TextBlock Text="{Binding Language}" Opacity="0.68" />
+                                          <TextBlock Text="{Binding ScopeLabel}" Opacity="0.68" />
+                                       </StackPanel>
+                                     <TextBlock Text="{Binding Status}" Opacity="0.78" />
+                                 </StackPanel>
+                                  <StackPanel Grid.Column="2" Spacing="6" VerticalAlignment="Center">
+                                      <Button Content="执行" MinWidth="54"
+                                           Command="{Binding $parent[UserControl].((vm:ScriptManagementViewModel)DataContext).RunScriptCommand}"
+                                           CommandParameter="{Binding}" />
+                                      <Button Content="删除" MinWidth="54"
+                                              Command="{Binding $parent[UserControl].((vm:ScriptManagementViewModel)DataContext).DeleteScriptCommand}"
+                                              CommandParameter="{Binding}" />
+                                  </StackPanel>
                             </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
@@ -141,9 +149,9 @@
                         <TextBlock Text="{Binding SelectedScript.Language}" Opacity="0.68" />
                         <TextBlock Text="{Binding SelectedScript.ScopeLabel}" Opacity="0.68" />
                         <TextBlock Text="{Binding SelectedScript.Status}" />
-                        <TextBlock Text="{Binding SelectedScript.EnabledLabel}" Opacity="0.68" />
-                        <TextBlock Text="{Binding SelectedScript.SourcePath}" TextWrapping="Wrap" Opacity="0.68" />
-                        <TextBlock Text="{Binding SelectedScript.CapabilityLabel}" Opacity="0.68" />
+                         <TextBlock Text="{Binding SelectedScript.SourcePath}" TextWrapping="Wrap" Opacity="0.68" />
+                         <TextBlock Text="{Binding SelectedScript.Description}" TextWrapping="Wrap" />
+                         <TextBlock Text="{Binding SelectedScript.CapabilityLabel}" Opacity="0.68" />
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <Button Content="打开源码" Command="{Binding OpenSelectedScriptCommand}"
                                     IsEnabled="{Binding CanOpenSelectedScript}" />
@@ -227,7 +235,7 @@
                                       SelectedItem="{Binding SelectedHistoryStatusFilter, Mode=TwoWay}" />
                             <ComboBox Width="130" ItemsSource="{Binding HistorySourceFilters}"
                                       SelectedItem="{Binding SelectedHistorySourceFilter, Mode=TwoWay}" />
-                            <Button Content="导出诊断" Command="{Binding ExportExecutionHistoryCommand}" />
+                            <Button Content="清空历史" Command="{Binding ClearExecutionHistoryCommand}" />
                         </StackPanel>
                     <ListBox Grid.Row="1" ItemsSource="{Binding VisibleHistory}">
                         <ListBox.ItemTemplate>
@@ -238,8 +246,11 @@
                                     <TextBlock Text="{Binding StatusLabel}" />
                                     <TextBlock Text="{Binding SourceLabel}" Opacity="0.68" />
                                     <TextBlock Text="{Binding StartedAt}" Opacity="0.68" />
-                                    <TextBlock Text="{Binding Duration}" Opacity="0.68" />
-                                    <ItemsControl ItemsSource="{Binding Diagnostics}" />
+                                     <TextBlock Text="{Binding Duration}" Opacity="0.68" />
+                                     <Button Content="复制日志" HorizontalAlignment="Right"
+                                             Command="{Binding $parent[UserControl].((vm:ScriptManagementViewModel)DataContext).CopyHistoryLogCommand}"
+                                             CommandParameter="{Binding}" />
+                                     <ItemsControl ItemsSource="{Binding Diagnostics}" />
                                 </StackPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>

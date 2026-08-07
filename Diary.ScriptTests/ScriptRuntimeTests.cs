@@ -401,14 +401,9 @@ public sealed class ScriptRuntimeTests
     }
 
     [TestMethod]
-    public async Task History_PersistsReloadsAndExportsSanitizedEntries()
+    public void History_StoresSanitizedEntriesInMemory()
     {
-        var directory = Path.Combine(Path.GetTempPath(), $"diary-history-{Guid.NewGuid():N}");
-        var path = Path.Combine(directory, "history.json");
-        var exportPath = Path.Combine(directory, "export.json");
-        try
-        {
-            var history = new ScriptExecutionHistory(persistencePath: path);
+        var history = new ScriptExecutionHistory();
             history.Record("demo", new ScriptExecutionOutcome(
                 Guid.NewGuid(),
                 new ScriptExecutionResult(ScriptExecutionStatus.Failed, [new ScriptDiagnostic(
@@ -417,41 +412,26 @@ public sealed class ScriptRuntimeTests
                 WorkerId: "worker-1",
                 WorkerRequestId: "request-1"));
 
-            var reloaded = new ScriptExecutionHistory(persistencePath: path);
-            await reloaded.ExportAsync(exportPath);
-            var entry = reloaded.GetRecent(1).Single();
-            var exported = await File.ReadAllTextAsync(exportPath);
+            var entry = history.GetRecent(1).Single();
 
             Assert.AreEqual("worker-1", entry.Outcome.WorkerId);
             Assert.AreEqual("request-1", entry.Outcome.WorkerRequestId);
             StringAssert.Contains(entry.Outcome.Result.Diagnostics.Single().Message, "<redacted>");
-            Assert.IsFalse(exported.Contains("super-secret", StringComparison.Ordinal));
-        }
-        finally
-        {
-            if (Directory.Exists(directory))
-                Directory.Delete(directory, true);
-        }
+            Assert.IsFalse(entry.Outcome.Result.Diagnostics.Single().Message.Contains("super-secret", StringComparison.Ordinal));
     }
 
     [TestMethod]
-    public async Task History_IgnoresCorruptPersistenceFile()
+    public void History_LimitsToThirtyEntriesAndCanClear()
     {
-        var directory = Path.Combine(Path.GetTempPath(), $"diary-history-{Guid.NewGuid():N}");
-        var path = Path.Combine(directory, "history.json");
-        Directory.CreateDirectory(directory);
-        try
-        {
-            await File.WriteAllTextAsync(path, "{");
+        var history = new ScriptExecutionHistory();
+        for (var index = 0; index < 35; index++)
+            history.Record($"script-{index}", new ScriptExecutionOutcome(
+                Guid.NewGuid(), ScriptExecutionResult.Succeeded()));
 
-            var history = new ScriptExecutionHistory(persistencePath: path);
-
-            Assert.AreEqual(0, history.GetRecent().Count);
-        }
-        finally
-        {
-            Directory.Delete(directory, true);
-        }
+        Assert.AreEqual(30, history.GetRecent().Count);
+        Assert.AreEqual("script-34", history.GetRecent(1).Single().ScriptId);
+        history.Clear();
+        Assert.AreEqual(0, history.GetRecent().Count);
     }
 
     private static ScriptExecutionContext EmptyContext() => new(ScriptCapability.None);

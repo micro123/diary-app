@@ -108,7 +108,11 @@ public sealed class ScriptBuildService(IScriptEngineRegistry engines) : IScriptB
                 request.SourcePath));
         }
 
-        return new ScriptBuildResult(true, result.Program, diagnostics);
+        return result with
+        {
+            Diagnostics = diagnostics,
+            EngineName = selection.Engine.StableName,
+        };
     }
 
     private static ScriptBuildResult Failure(string code, string message, string sourcePath) =>

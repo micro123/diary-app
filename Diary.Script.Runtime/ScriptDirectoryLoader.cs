@@ -94,12 +94,6 @@ public sealed class ScriptDirectoryLoader(
                         continue;
                     }
 
-                    if (!metadata.Enabled)
-                    {
-                        entries.Add(new ScriptDirectoryEntry(sourcePath, scope, false));
-                        continue;
-                    }
-
                     if (metadata.Engine is not null
                         && !string.Equals(metadata.Engine, selection.Engine.StableName, StringComparison.Ordinal))
                     {

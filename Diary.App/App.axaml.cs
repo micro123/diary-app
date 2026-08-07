@@ -365,11 +365,7 @@ namespace Diary.App
                         [pythonRuntime.EngineName] = pythonRuntime,
                     });
             });
-            services.AddSingleton<IScriptExecutionHistory>(_ => new ScriptExecutionHistory(
-                persistencePath: Path.Combine(
-                    FsTools.GetApplicationConfigDirectory(),
-                    "scripts",
-                    "execution-history.json")));
+            services.AddSingleton<IScriptExecutionHistory, ScriptExecutionHistory>();
             services.AddSingleton<IScriptManager, ScriptManager>();
             services.AddSingleton<IScriptDirectoryLoader, ScriptDirectoryLoader>();
             services.AddSingleton<ScriptStartupDiagnosticsStore>();

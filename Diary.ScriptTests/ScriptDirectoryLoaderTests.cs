@@ -37,7 +37,7 @@ public sealed class ScriptDirectoryLoaderTests
     }
 
     [TestMethod]
-    public async Task LoadAsync_DoesNotRegisterDisabledScript()
+    public async Task LoadAsync_IgnoresLegacyDisabledFlag()
     {
         var loader = CreateLoader(out var catalog);
         var sourcePath = await WriteScriptAsync("application", "disabled.fake", "disabled");
@@ -46,13 +46,13 @@ public sealed class ScriptDirectoryLoaderTests
         var result = await loader.LoadAsync(_root);
 
         Assert.AreEqual(1, result.Entries.Length);
-        Assert.IsFalse(result.Entries[0].Enabled);
-        Assert.IsNull(result.Entries[0].BuildResult);
-        Assert.IsFalse(catalog.TryGet("disabled", out _));
+        Assert.IsTrue(result.Entries[0].Enabled);
+        Assert.IsTrue(result.Entries[0].BuildResult!.Succeeded);
+        Assert.IsTrue(catalog.TryGet("disabled", out _));
     }
 
     [TestMethod]
-    public async Task LoadAsync_DoesNotRegisterDisabledPackage()
+    public async Task LoadAsync_IgnoresLegacyDisabledPackageFlag()
     {
         var loader = CreateLoader(out var catalog);
         var packageDirectory = Path.Combine(_root, "application", "disabled-package");
@@ -65,9 +65,9 @@ public sealed class ScriptDirectoryLoaderTests
         var result = await loader.LoadAsync(_root);
 
         var entry = result.Entries.Single(item => item.SourcePath.EndsWith("main.fake", StringComparison.Ordinal));
-        Assert.IsFalse(entry.Enabled);
-        Assert.IsNull(entry.BuildResult);
-        Assert.IsFalse(catalog.TryGet("disabled-package", out _));
+        Assert.IsTrue(entry.Enabled);
+        Assert.IsTrue(entry.BuildResult!.Succeeded);
+        Assert.IsTrue(catalog.TryGet("disabled-package", out _));
     }
 
     [TestMethod]
@@ -151,6 +151,30 @@ public sealed class ScriptDirectoryLoaderTests
         Assert.IsTrue(catalog.TryGet("packaged", out _));
     }
 
+    [TestMethod]
+    public async Task LoadAsync_PreservesSelectedEngineForWorkerRouting()
+    {
+        var registry = new ScriptEngineRegistry();
+        registry.Register(new EngineProbe("lua", ".lua"));
+        registry.Register(new EngineProbe("python", ".py"));
+        var catalog = new ScriptCatalog();
+        var loader = new ScriptDirectoryLoader(registry, new ScriptBuildService(registry), catalog);
+        await WriteScriptAsync("application", "lua-app.lua", "lua-app");
+        await WriteScriptAsync("application", "python-app.py", "python-app");
+
+        var result = await loader.LoadAsync(_root);
+
+        Assert.IsTrue(result.Entries.All(entry => entry.Enabled));
+        Assert.AreEqual("lua", CatalogSource(catalog, "lua-app").EngineName);
+        Assert.AreEqual("python", CatalogSource(catalog, "python-app").EngineName);
+    }
+
+    private static ScriptSourceInfo CatalogSource(ScriptCatalog catalog, string id)
+    {
+        Assert.IsTrue(catalog.TryGetSource(id, out var source));
+        return source!;
+    }
+
     private static ScriptDirectoryLoader CreateLoader(out ScriptCatalog catalog)
     {
         var registry = new ScriptEngineRegistry();
@@ -191,6 +215,25 @@ public sealed class ScriptDirectoryLoaderTests
                     editor ? ScriptScope.Editor : ScriptScope.Application,
                     ScriptCapability.None))));
         }
+    }
+
+    private sealed class EngineProbe(string name, string extension) : IScriptEngineV1
+    {
+        public string Name => name;
+        public string Version => "1.0";
+
+        public ScriptMatchResult Match(ScriptMatchRequest request) =>
+            new(request.SourcePath.EndsWith(extension, StringComparison.OrdinalIgnoreCase));
+
+        public ValueTask<ScriptBuildResult> BuildAsync(
+            ScriptBuildRequest request,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(ScriptBuildResult.Success(new FakeProgram(new(
+                Path.GetFileNameWithoutExtension(request.SourcePath),
+                Path.GetFileNameWithoutExtension(request.SourcePath),
+                request.ApiVersion,
+                ScriptScope.Application,
+                ScriptCapability.None))));
     }
 
     private sealed class FakeProgram(ScriptDescriptor descriptor) : IScriptProgramV1

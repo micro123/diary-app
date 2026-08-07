@@ -117,6 +117,76 @@ public sealed class ProcessWorkerTransportTests
     }
 
     [TestMethod]
+    public async Task WorkerScriptExecutor_RoutesLuaAndPythonLikeApplication()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            Assert.Inconclusive("当前集成测试使用 Linux Worker 产物。");
+            return;
+        }
+
+        var workerPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../Diary.App/bin/Debug/net10.0/Diary.Script.Worker"));
+        Assert.IsTrue(File.Exists(workerPath), $"App Worker 文件不存在：{workerPath}");
+        var pythonResolver = new Diary.Script.Py.PythonRuntimeResolver();
+        var python = await pythonResolver.ResolveAsync();
+        if (!python.Succeeded)
+        {
+            Assert.Inconclusive("当前环境没有可用的 Python 3.10+ runtime。");
+            return;
+        }
+
+        var catalog = new ScriptCatalog();
+        RegisterSource(catalog, "lua-app", "lua", "demo.lua", "function main(context) return nil end");
+        RegisterSource(catalog, "python-app", "python", "demo.py", "def main(context):\n    return None\n");
+        var runtimes = new Dictionary<string, WorkerRuntime>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["lua"] = new("lua", new WorkerSupervisor(new ProcessWorkerTransportFactory(new(
+                workerPath, ["--language", "lua"], Path.GetDirectoryName(workerPath)!))),
+                new("lua", [ScriptApiVersion.V1], ["workItems.query"])),
+            ["python"] = new("python", new WorkerSupervisor(
+                new Diary.Script.Py.PythonWorkerTransportFactory(pythonResolver), maxRequestsPerWorker: 1),
+                new("python", [ScriptApiVersion.V1], ["workItems.query"])),
+        };
+        var executor = new WorkerScriptExecutor(catalog, runtimes);
+        try
+        {
+            foreach (var scriptId in new[] { "lua-app", "python-app" })
+            {
+                var outcome = await executor.ExecuteAsync(scriptId,
+                    new(new ScriptTarget(ScriptScope.Application), Source: ScriptExecutionSource.Manual),
+                    ScriptCapability.None);
+                Assert.AreEqual(ScriptExecutionStatus.Succeeded, outcome.Result.Status,
+                    string.Join("; ", outcome.Result.Diagnostics.Select(item => $"{item.Code}: {item.Message}")));
+            }
+        }
+        finally
+        {
+            foreach (var runtime in runtimes.Values)
+                await runtime.Supervisor.StopAsync();
+        }
+    }
+
+    private static void RegisterSource(ScriptCatalog catalog, string id, string engine, string path, string source)
+    {
+        catalog.Register(new TestProgram(id));
+        catalog.SetSource(id, new(path, source, engine));
+    }
+
+    private sealed class TestProgram(string id) : IScriptProgramV1
+    {
+        public ScriptDescriptor Descriptor { get; } = new(
+            id, id, ScriptApiVersion.V1, ScriptScope.Application, ScriptCapability.None);
+
+        public ValueTask<ScriptExecutionResult> ExecuteAsync(
+            ScriptExecutionRequest request,
+            IScriptExecutionContext context,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(ScriptExecutionResult.Succeeded());
+    }
+
+    [TestMethod]
     public async Task ProcessTransport_ReportsExitCodeWhenProcessTerminates()
     {
         if (!OperatingSystem.IsLinux())
