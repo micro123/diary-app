@@ -10,7 +10,9 @@ public sealed record ScriptFileMetadata(
     string? Id = null,
     string? Name = null,
     string? Description = null,
-    ScriptCapability? Capabilities = null);
+    ScriptCapability? Capabilities = null,
+    string? Engine = null,
+    ScriptScope? Scope = null);
 
 public sealed record ScriptPackageManifest(
     string Entry,
@@ -19,7 +21,9 @@ public sealed record ScriptPackageManifest(
     string? Id = null,
     string? Name = null,
     string? Description = null,
-    ScriptCapability? Capabilities = null);
+    ScriptCapability? Capabilities = null,
+    string? Engine = null,
+    ScriptScope? Scope = null);
 
 public sealed record ScriptDirectoryEntry(
     string SourcePath,
@@ -75,8 +79,9 @@ public sealed class ScriptDirectoryLoader(
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     var sourcePath = candidate.SourcePath;
+                    var selection = engines.Select(new ScriptMatchRequest(sourcePath));
                     if (sourcePath.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
-                        || engines.Select(new ScriptMatchRequest(sourcePath)).Engine is null)
+                        || selection.Engine is null)
                     {
                         continue;
                     }
@@ -95,12 +100,34 @@ public sealed class ScriptDirectoryLoader(
                         continue;
                     }
 
+                    if (metadata.Engine is not null
+                        && !string.Equals(metadata.Engine, selection.Engine.StableName, StringComparison.Ordinal))
+                    {
+                        var engineMismatch = Failure(
+                            "SCRIPT_ENGINE_MISMATCH",
+                            "The script metadata engine does not match the source extension.",
+                            sourcePath);
+                        entries.Add(new ScriptDirectoryEntry(sourcePath, scope, false, engineMismatch));
+                        diagnostics.AddRange(engineMismatch.Diagnostics);
+                        continue;
+                    }
+
                     ScriptBuildResult result;
                     try
                     {
                         var source = await File.ReadAllTextAsync(sourcePath, cancellationToken);
                         result = await buildService.BuildAsync(
-                            new ScriptBuildRequest(sourcePath, source, metadata.ApiVersion),
+                            new ScriptBuildRequest(
+                                sourcePath,
+                                source,
+                                metadata.ApiVersion,
+                                new ScriptDescriptorHint(
+                                    metadata.Id,
+                                    metadata.Name,
+                                    metadata.Scope ?? scope,
+                                    metadata.Capabilities,
+                                    metadata.Description,
+                                    metadata.Engine ?? selection.Engine.StableName)),
                             cancellationToken);
                     }
                     catch (IOException)
@@ -166,7 +193,8 @@ public sealed class ScriptDirectoryLoader(
                             _registeredIds.Add(result.Program.Descriptor.Id);
                             catalog.SetSource(result.Program.Descriptor.Id, new ScriptSourceInfo(
                                 sourcePath,
-                                await File.ReadAllTextAsync(sourcePath, cancellationToken)));
+                                await File.ReadAllTextAsync(sourcePath, cancellationToken),
+                                result.EngineName));
                         }
                     }
 
@@ -262,7 +290,9 @@ public sealed class ScriptDirectoryLoader(
                         manifest.Id,
                         manifest.Name,
                         manifest.Description,
-                        manifest.Capabilities)));
+                        manifest.Capabilities,
+                        manifest.Engine,
+                        manifest.Scope)));
             }
             catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException or InvalidDataException)
             {
@@ -297,6 +327,8 @@ public sealed class ScriptDirectoryLoader(
         if (metadata.Description is not null && !string.Equals(metadata.Description, descriptor.Description, StringComparison.Ordinal))
             return false;
         if (metadata.Capabilities is not null && metadata.Capabilities.Value != descriptor.Capabilities)
+            return false;
+        if (metadata.Scope is not null && metadata.Scope.Value != descriptor.Scope)
             return false;
         return true;
     }

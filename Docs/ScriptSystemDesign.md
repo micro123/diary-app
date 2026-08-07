@@ -5,7 +5,7 @@
 本文描述 Diary.App 脚本系统的目标设计、运行时边界和分阶段实现计划。
 
 本文同时记录目标设计和当前实现。当前代码已经定义版本化基础契约、最小脚本管理器、
-构建与执行边界、受限只读事项查询宿主、脚本目录自动加载和脚本管理页；Lua/Python 的实现方案已经确定，运行时接入仍未完成。
+构建与执行边界、受限只读事项查询宿主、脚本目录自动加载和脚本管理页；C#、Lua 和 Python 已接入独立 Worker 执行链路。
 
 ## 2. 设计目标
 
@@ -55,8 +55,8 @@
 - `Diary.Script.CSharp`：已实现基于 Roslyn 的 V1 构建、入口发现和行列诊断，并拒绝动态绑定、
   类型反射入口、线程、脱离生命周期的任务调度及文件、网络、进程、原生调用等危险 API；
   当前仍为受信任进程内执行，静态策略不构成安全沙箱。
-- `Diary.Script.Lua`：当前为占位项目；目标是使用 `NLua 1.7.9 + KeraLua` 接入独立 .NET worker。
-- `Diary.Script.Python`：当前为占位项目；目标是发现本机 Python 3 解释器并接入独立 Python worker。
+- `Diary.Script.Lua`：使用 `NLua 1.7.9 + KeraLua` 做语法构建和 descriptor 校验，运行时由独立 .NET worker 承载。
+- `Diary.Script.Python`：通过 `PythonRuntimeResolver` 发现本机 Python 3 解释器，使用受控 `worker.py` 做语法检查和独立进程执行。
 
 Worker 进程边界、消息封装、生命周期和重启语义见
 [`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)。
@@ -66,7 +66,7 @@ Worker 进程边界、消息封装、生命周期和重启语义见
 - 后台任务调度和执行日志上下文。
 - 更细粒度的 Tracker、网络和文件系统权限。
 - 执行状态历史持久化和更丰富的快捷入口。
-- Lua 和 Python 实际引擎及其多语言 worker 路由。
+- 更细粒度的运行时资源限制和跨平台强制终止策略。
 
 `Diary.ScriptTests` 当前覆盖契约、引擎选择、构建隔离、目录项注册、目标校验、异常、
 取消、超时、能力拒绝、只读查询结果一致性和敏感信息边界。
@@ -564,6 +564,7 @@ worker。C#、Lua、Python 使用相互独立的 supervisor；某一种语言 wo
 #### 14.4.3 Python
 
 - 使用独立的 Python 3 解释器进程和项目内受控 worker 脚本，不嵌入 CPython，也不自动创建或修改虚拟环境。
+- `worker.py` 作为 `Diary.Script.Python.dll` 的嵌入资源，通过 `python -I -c` 启动，不以可替换的松散文件形式进入应用输出目录。
 - Windows 正式发行包优先随应用携带官方 embeddable distribution；该 ZIP 只解压到应用运行时目录，不写入系统 Python 注册表或 PATH。
 - Linux 正式发行包不携带 Python，优先使用发行版提供的 `python3`/`python3.X` 系统包；应用不负责调用 apt、dnf、apk 或其他包管理器安装运行时。
 - macOS 暂不携带官方 Python runtime，沿用显式配置路径或系统/用户提供的 `python3`，后续再单独评估发行策略。
@@ -574,6 +575,7 @@ worker。C#、Lua、Python 使用相互独立的 supervisor；某一种语言 wo
 - Python worker 只通过 `diary.workItems.query` 发起 HostCall，不直接读取宿主文件、数据库、环境中的凭据或网络服务。
 - Windows embeddable distribution 不包含 pip；第一版只使用 Python 标准库，后续第三方依赖必须由应用发布包固定携带并经过兼容性验证，禁止运行时自动安装。
 - 运行时缺失、版本不支持、语法错误、worker 启动失败、握手失败、非零退出、超时和取消必须映射为稳定诊断码。
+- 嵌入资源只能降低单独替换 Worker 文件的风险，不能替代发布包签名或程序集完整性校验。
 
 #### 14.4.4 运行时发现、路由和降级
 

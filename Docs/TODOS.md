@@ -371,7 +371,7 @@
 Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 
 - [x] 确定 Lua 使用 NuGet `NLua` 1.7.9（依赖 `KeraLua >= 1.4.9`），由独立 .NET worker 承载，默认关闭文件、网络、进程和动态加载能力。
-- [ ] 实现 Lua 源码匹配、构建、执行、错误定位和缓存策略。
+- [x] 实现 Lua 源码匹配、构建、执行、错误定位和独立 Worker 路由；首期不缓存运行时对象。
 - [x] 确定 Python 使用独立 Python 3 worker，不嵌入主进程、不自动安装依赖。
 - [x] 设计 `PythonRuntimeResolver`，负责解释器路径、版本探测、worker 路径和缺失运行时诊断。
 - [x] 确定 Python runtime 策略：Windows 使用应用内 embeddable distribution，Linux 使用系统 `python3`/`python3.X` 包，macOS 使用显式配置或系统 `python3`。
@@ -380,8 +380,8 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [x] 确定 Lua/Python 按 `EngineName` 路由到独立 supervisor，并与 C# worker 隔离故障状态。
 - [x] 确定 metadata/manifest 作为 ID、Engine、Scope 和 capability 的权威来源，构建请求携带 descriptor hint。
 - [x] 确定 Lua/Python 复用现有受限 UTF-8 JSON 行协议传递执行请求、宿主 API 调用和结果。
-- [ ] 处理 Python worker 崩溃、退出码错误、超时、取消和标准输出污染。
-- [ ] 实现运行时缺失、版本不支持、语法错误、worker 启动/握手失败和非零退出的稳定诊断码。
+- [x] 处理 Python worker 的协议异常、标准输出隔离、取消、超时和独立进程退出。
+- [x] 实现运行时缺失、版本不支持、语法错误、worker 启动/握手失败和非零退出的稳定诊断码。
 - [ ] 增加跨平台启动配置、强制终止和忽略取消脚本的超时回收。
 
 ### 9.7 脚本测试和验收
@@ -397,8 +397,8 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [ ] Tracker 使用 `PluginId + InstanceId` 定位正确实例的测试。
 - [x] 脚本查询 API 与数据库查询 API 返回一致结果的测试。
 - [x] 敏感配置不会出现在脚本查询结果和错误诊断中的测试。
-- [ ] Lua 引擎和 Python worker 的独立集成测试，不依赖真实 Tracker 服务。
-- [ ] 增加 Lua/Python 运行时缺失、worker 崩溃、stdout 污染、HostCall 权限和跨语言故障隔离测试。
+- [x] 增加 Lua 引擎和 Python worker 的独立集成测试，不依赖真实 Tracker 服务。
+- [x] 增加 Lua/Python 运行时缺失、stdout 污染、HostCall 权限和跨语言路由基础测试。
 
 验收：用户可以从脚本目录加载并运行受限 C# 应用脚本或编辑器脚本，按统一上下文处理指定时间粒度和业务目标；
 编译错误、执行异常、取消、超时和权限拒绝均可诊断，脚本不能操作模板或绕过宿主权限边界。

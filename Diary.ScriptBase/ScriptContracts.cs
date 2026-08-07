@@ -65,6 +65,14 @@ public sealed record ScriptDescriptor(
     ScriptCapability Capabilities,
     string? Description = null);
 
+public sealed record ScriptDescriptorHint(
+    string? Id = null,
+    string? Name = null,
+    ScriptScope? Scope = null,
+    ScriptCapability? Capabilities = null,
+    string? Description = null,
+    string? EngineName = null);
+
 public enum ScriptDiagnosticSeverity
 {
     Info = 1,
@@ -94,13 +102,16 @@ public sealed record ScriptDiagnostic(
 public sealed record ScriptBuildRequest(
     string SourcePath,
     string Source,
-    ScriptApiVersion ApiVersion = ScriptApiVersion.V1);
+    ScriptApiVersion ApiVersion = ScriptApiVersion.V1,
+    ScriptDescriptorHint? DescriptorHint = null);
 
 public sealed record ScriptBuildResult(
     bool Succeeded,
     IScriptProgramV1? Program,
     ImmutableArray<ScriptDiagnostic> Diagnostics)
 {
+    public string? EngineName { get; init; }
+
     public static ScriptBuildResult Success(IScriptProgramV1 program) =>
         new(true, program, ImmutableArray<ScriptDiagnostic>.Empty);
 

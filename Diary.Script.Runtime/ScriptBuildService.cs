@@ -53,6 +53,8 @@ public sealed class ScriptBuildService(IScriptEngineRegistry engines) : IScriptB
         if (result is null)
             return MergeFailure(selection.Diagnostics, InvalidResult(request.SourcePath));
 
+        result = result with { EngineName = selection.Engine.StableName };
+
         var buildDiagnostics = result.Diagnostics.IsDefault
             ? ImmutableArray<ScriptDiagnostic>.Empty
             : result.Diagnostics;
@@ -94,6 +96,7 @@ public sealed class ScriptBuildService(IScriptEngineRegistry engines) : IScriptB
                     ScriptDiagnosticCategory.Validation,
                     request.SourcePath));
             }
+
         }
         catch (Exception)
         {

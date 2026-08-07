@@ -5,8 +5,30 @@ using Diary.Script.Runtime;
 using Diary.ScriptBase;
 using Diary.ScriptHost;
 
-var worker = new CSharpWorker(Console.OpenStandardInput(), Console.OpenStandardOutput());
-await worker.RunAsync();
+var language = GetLanguage(args);
+if (language == "csharp")
+{
+    await new CSharpWorker(Console.OpenStandardInput(), Console.OpenStandardOutput()).RunAsync();
+}
+else if (language == "lua")
+{
+    await new LuaWorker(Console.OpenStandardInput(), Console.OpenStandardOutput()).RunAsync();
+}
+else
+{
+    throw new ArgumentException($"Unsupported worker language: {language}");
+}
+
+static string GetLanguage(string[] args)
+{
+    for (var index = 0; index < args.Length - 1; index++)
+    {
+        if (string.Equals(args[index], "--language", StringComparison.OrdinalIgnoreCase))
+            return args[index + 1].ToLowerInvariant();
+    }
+
+    return "csharp";
+}
 
 internal sealed class CSharpWorker(Stream input, Stream output)
 {
@@ -21,7 +43,7 @@ internal sealed class CSharpWorker(Stream input, Stream output)
             WorkerMessageType.Hello,
             Guid.NewGuid().ToString("N"),
             null,
-            new("csharp", "0.1", [ScriptApiVersion.V1], [], Environment.ProcessId));
+            new("csharp", "0.1", [ScriptApiVersion.V1], ["workItems.query"], Environment.ProcessId));
         Console.SetOut(new BoundedTextWriter(1 * 1024 * 1024));
         await WorkerMessageCodec.WriteAsync(output, hello);
         var accepted = await WorkerMessageCodec.ReadAsync<WorkerHelloAcceptedPayload>(input);
@@ -74,7 +96,10 @@ internal sealed class CSharpWorker(Stream input, Stream output)
                 ?? throw new InvalidDataException("Worker 执行载荷为空。");
             var payload = envelope.Payload.Deserialize<WorkerExecutePayload>(WorkerProtocol.JsonOptions)
                 ?? throw new InvalidDataException("Worker 执行参数为空。");
-            var build = await _engine.BuildAsync(new ScriptBuildRequest(payload.SourcePath, payload.Source));
+            var build = await _engine.BuildAsync(new ScriptBuildRequest(
+                payload.SourcePath,
+                payload.Source,
+                DescriptorHint: payload.DescriptorHint));
             if (!build.Succeeded || build.Program is null)
             {
                 await WriteResultAsync(message, new(ScriptExecutionStatus.Failed, build.Diagnostics));
@@ -82,9 +107,9 @@ internal sealed class CSharpWorker(Stream input, Stream output)
             }
 
             var executionId = Guid.TryParse(message.ExecutionId, out var parsedId) ? parsedId : Guid.NewGuid();
-            var metadata = new ScriptExecutionMetadata(executionId, DateTimeOffset.UtcNow, ScriptExecutionSource.Editor, payload.ScriptId);
-            var context = new ScriptExecutionContext(build.Program.Descriptor.Capabilities, metadata);
-            if ((build.Program.Descriptor.Capabilities & ScriptCapability.ReadDiary) != 0)
+            var metadata = new ScriptExecutionMetadata(executionId, DateTimeOffset.UtcNow, payload.Request.Source, payload.ScriptId);
+            var context = new ScriptExecutionContext(payload.GrantedCapabilities, metadata);
+            if ((payload.GrantedCapabilities & ScriptCapability.ReadDiary) != 0)
                 context.RegisterApi<IWorkItemQueryScriptApi>(new WorkerWorkItemQueryProxy(CallHostAsync), ScriptCapability.ReadDiary);
             var outcome = await _executor.ExecuteAsync(build.Program, payload.Request, context, cancellationToken: CancellationToken.None, executionId: executionId);
             await WriteResultAsync(message, new(outcome.Result.Status, outcome.Result.Diagnostics, DurationMilliseconds: (long)outcome.Duration.TotalMilliseconds));

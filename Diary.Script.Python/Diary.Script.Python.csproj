@@ -7,4 +7,15 @@
         <RootNamespace>Diary.Script.Py</RootNamespace>
     </PropertyGroup>
 
+    <ItemGroup>
+        <ProjectReference Include="..\Diary.Script.Runtime\Diary.Script.Runtime.csproj" />
+        <ProjectReference Include="..\Diary.ScriptBase\Diary.ScriptBase.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Include="worker.py">
+            <LogicalName>Diary.Script.Py.worker.py</LogicalName>
+        </EmbeddedResource>
+    </ItemGroup>
+
 </Project>

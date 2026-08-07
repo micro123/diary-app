@@ -25,6 +25,8 @@ using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
 using Diary.PluginBase;
 using Diary.Script.CSharp;
+using Diary.Script.Lua;
+using Diary.Script.Py;
 using Diary.Script.Runtime;
 using Diary.ScriptBase;
 using Diary.ScriptHost;
@@ -311,37 +313,58 @@ namespace Diary.App
             services.AddSingleton<ITrackerUploadCoordinator, TrackerUploadCoordinator>();
             services.AddSingleton(_ => new CSharpEngine(
                 Path.Combine(FsTools.GetApplicationConfigDirectory(), "scripts", "cache")));
+            services.AddSingleton<LuaEngine>();
+            services.AddSingleton<PythonRuntimeResolver>();
+            services.AddSingleton<PythonEngine>(services => new PythonEngine(
+                services.GetRequiredService<PythonRuntimeResolver>()));
             services.AddSingleton<IScriptEngineRegistry>(services =>
             {
                 var registry = new ScriptEngineRegistry();
                 registry.Register(services.GetRequiredService<CSharpEngine>());
+                registry.Register(services.GetRequiredService<LuaEngine>());
+                registry.Register(services.GetRequiredService<PythonEngine>());
                 return registry;
             });
             services.AddSingleton<IScriptCatalog, ScriptCatalog>();
             services.AddSingleton<IScriptBuildService, ScriptBuildService>();
             services.AddSingleton<IScriptExecutor, ScriptExecutor>();
-            services.AddSingleton<IWorkerTransportFactory>(_ =>
-            {
-                var workerName = OperatingSystem.IsWindows()
-                    ? "Diary.Script.Worker.exe"
-                    : "Diary.Script.Worker";
-                return new ProcessWorkerTransportFactory(new WorkerProcessOptions(
-                    Path.Combine(AppContext.BaseDirectory, workerName),
-                    [],
-                    AppContext.BaseDirectory));
-            });
-            services.AddSingleton<WorkerSupervisor>();
             services.AddSingleton<IWorkerHostCallDispatcher>(_ =>
                 new WorkItemQueryWorkerDispatcher(capabilities =>
                     new WorkItemQueryScriptApi(() => UseDb, capabilities)));
             services.AddSingleton<IWorkerScriptExecutor>(services =>
-                new WorkerScriptExecutor(
+            {
+                var workerName = OperatingSystem.IsWindows()
+                    ? "Diary.Script.Worker.exe"
+                    : "Diary.Script.Worker";
+                var workerPath = Path.Combine(AppContext.BaseDirectory, workerName);
+                var hostDispatcher = services.GetRequiredService<IWorkerHostCallDispatcher>();
+                var csharpOptions = new WorkerProcessOptions(workerPath, [], AppContext.BaseDirectory);
+                var luaOptions = new WorkerProcessOptions(workerPath, ["--language", "lua"], AppContext.BaseDirectory);
+                var csharpRuntime = new WorkerRuntime(
+                    "csharp",
+                    new WorkerSupervisor(new ProcessWorkerTransportFactory(csharpOptions), hostDispatcher),
+                    new WorkerHandshakeOptions("csharp", [ScriptApiVersion.V1], ["workItems.query"]));
+                var luaRuntime = new WorkerRuntime(
+                    "lua",
+                    new WorkerSupervisor(new ProcessWorkerTransportFactory(luaOptions), hostDispatcher),
+                    new WorkerHandshakeOptions("lua", [ScriptApiVersion.V1], ["workItems.query"]));
+                var pythonRuntime = new WorkerRuntime(
+                    "python",
+                    new WorkerSupervisor(
+                        new PythonWorkerTransportFactory(
+                            services.GetRequiredService<PythonRuntimeResolver>()),
+                        hostDispatcher,
+                        maxRequestsPerWorker: 1),
+                    new WorkerHandshakeOptions("python", [ScriptApiVersion.V1], ["workItems.query"]));
+                return new WorkerScriptExecutor(
                     services.GetRequiredService<IScriptCatalog>(),
-                    services.GetRequiredService<WorkerSupervisor>(),
-                    new WorkerHandshakeOptions(
-                        "csharp",
-                        [ScriptApiVersion.V1],
-                        ["workItems.query"])));
+                    new Dictionary<string, WorkerRuntime>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        [csharpRuntime.EngineName] = csharpRuntime,
+                        [luaRuntime.EngineName] = luaRuntime,
+                        [pythonRuntime.EngineName] = pythonRuntime,
+                    });
+            });
             services.AddSingleton<IScriptExecutionHistory, ScriptExecutionHistory>();
             services.AddSingleton<IScriptManager, ScriptManager>();
             services.AddSingleton<IScriptDirectoryLoader, ScriptDirectoryLoader>();

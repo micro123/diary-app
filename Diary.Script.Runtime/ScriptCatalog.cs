@@ -13,7 +13,7 @@ public interface IScriptCatalog
     void SetSource(string id, ScriptSourceInfo source);
 }
 
-public sealed record ScriptSourceInfo(string SourcePath, string Source);
+public sealed record ScriptSourceInfo(string SourcePath, string Source, string? EngineName = null);
 
 public sealed class ScriptCatalog : IScriptCatalog
 {

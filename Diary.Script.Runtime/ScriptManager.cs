@@ -40,7 +40,10 @@ public sealed class ScriptManager(
 
         var registration = catalog.Register(result.Program);
         if (registration.Succeeded)
-            catalog.SetSource(result.Program.Descriptor.Id, new ScriptSourceInfo(request.SourcePath, request.Source));
+            catalog.SetSource(result.Program.Descriptor.Id, new ScriptSourceInfo(
+                request.SourcePath,
+                request.Source,
+                result.EngineName));
         return registration.Succeeded
             ? result
             : new ScriptBuildResult(false, null, result.Diagnostics.AddRange(registration.Diagnostics));

@@ -43,6 +43,80 @@ public sealed class ProcessWorkerTransportTests
     }
 
     [TestMethod]
+    public async Task ProcessTransport_LuaWorkerExecutesScript()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            Assert.Inconclusive("当前集成测试使用 Linux dotnet 路径。");
+            return;
+        }
+
+        var workerPath = GetWorkerPath();
+        var supervisor = CreateDotnetSupervisor(workerPath, "lua");
+        try
+        {
+            await supervisor.StartAsync(new("lua", [ScriptApiVersion.V1], ["workItems.query"]));
+            var result = await supervisor.ExecuteAsync("lua-demo", "lua-exec-1", new WorkerExecutePayload(
+                "lua-demo",
+                "demo.lua",
+                "function main(context) return nil end",
+                new ScriptExecutionRequest(new ScriptTarget(ScriptScope.Application), Source: ScriptExecutionSource.Manual),
+                new ScriptDescriptorHint("lua-demo", "Lua Demo", ScriptScope.Application, ScriptCapability.None, EngineName: "lua")));
+
+            Assert.AreEqual(ScriptExecutionStatus.Succeeded, result.Payload.Status,
+                string.Join("; ", result.Payload.Diagnostics.Select(item => $"{item.Code}: {item.Message}")));
+        }
+        finally
+        {
+            await supervisor.StopAsync();
+        }
+    }
+
+    [TestMethod]
+    public async Task ProcessTransport_PythonWorkerExecutesScriptAndIsolatesPrint()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            Assert.Inconclusive("当前集成测试使用 Linux Python 路径。");
+            return;
+        }
+
+        var runtime = await new Diary.Script.Py.PythonRuntimeResolver().ResolveAsync();
+        if (!runtime.Succeeded || runtime.ExecutablePath is null)
+        {
+            Assert.Inconclusive("当前环境没有可用的 Python 3.10+ runtime。");
+            return;
+        }
+
+        var supervisor = new WorkerSupervisor(new ProcessWorkerTransportFactory(new WorkerProcessOptions(
+            runtime.ExecutablePath,
+            Diary.Script.Py.PythonWorkerSource.CreateArguments(),
+            AppContext.BaseDirectory,
+            new Dictionary<string, string>
+            {
+                ["PYTHONIOENCODING"] = "utf-8",
+                ["PYTHONUNBUFFERED"] = "1",
+            })));
+        try
+        {
+            await supervisor.StartAsync(new("python", [ScriptApiVersion.V1], ["workItems.query"]));
+            var result = await supervisor.ExecuteAsync("python-demo", "python-exec-1", new WorkerExecutePayload(
+                "python-demo",
+                "demo.py",
+                "def main(context):\n    print(\"not protocol\")\n    return None\n",
+                new ScriptExecutionRequest(new ScriptTarget(ScriptScope.Application), Source: ScriptExecutionSource.Manual),
+                new ScriptDescriptorHint("python-demo", "Python Demo", ScriptScope.Application, ScriptCapability.None, EngineName: "python")));
+
+            Assert.AreEqual(ScriptExecutionStatus.Succeeded, result.Payload.Status,
+                string.Join("; ", result.Payload.Diagnostics.Select(item => $"{item.Code}: {item.Message}")));
+        }
+        finally
+        {
+            await supervisor.StopAsync();
+        }
+    }
+
+    [TestMethod]
     public async Task ProcessTransport_ReportsExitCodeWhenProcessTerminates()
     {
         if (!OperatingSystem.IsLinux())
@@ -78,4 +152,15 @@ public sealed class ProcessWorkerTransportTests
         await Assert.ThrowsExactlyAsync<ArgumentException>(() =>
             new ProcessWorkerTransportFactory(new("/bin/sh", [], "tmp")).CreateAsync().AsTask());
     }
+
+    private static WorkerSupervisor CreateDotnetSupervisor(string workerPath, string language) =>
+        new(new ProcessWorkerTransportFactory(new(
+            "/usr/share/dotnet/dotnet",
+            [workerPath, "--language", language],
+            Path.GetDirectoryName(workerPath)!,
+            new Dictionary<string, string> { ["DOTNET_CLI_UI_LANGUAGE"] = "en-US" })));
+
+    private static string GetWorkerPath() => Path.GetFullPath(Path.Combine(
+        AppContext.BaseDirectory,
+        "../../../../Diary.Script.Worker/bin/Debug/net10.0/Diary.Script.Worker.dll"));
 }

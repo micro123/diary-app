@@ -15,8 +15,7 @@ public interface IWorkerScriptExecutor
 
 public sealed class WorkerScriptExecutor(
     IScriptCatalog catalog,
-    WorkerSupervisor supervisor,
-    WorkerHandshakeOptions handshakeOptions) : IWorkerScriptExecutor
+    IReadOnlyDictionary<string, WorkerRuntime> runtimes) : IWorkerScriptExecutor
 {
     public async ValueTask<ScriptExecutionOutcome> ExecuteAsync(
         string scriptId,
@@ -27,22 +26,41 @@ public sealed class WorkerScriptExecutor(
     {
         if (!catalog.TryGetSource(scriptId, out var source) || source is null)
             return Failed(scriptId, request.Source, "SCRIPT_SOURCE_NOT_FOUND", "找不到脚本源码。");
+        if (!catalog.TryGet(scriptId, out var program) || program is null)
+            return Failed(scriptId, request.Source, "SCRIPT_NOT_FOUND", "找不到脚本程序。");
+        var engineName = source.EngineName ?? "csharp";
+        if (!runtimes.TryGetValue(engineName, out var runtime))
+            return Failed(scriptId, request.Source, "SCRIPT_WORKER_NOT_FOUND", $"找不到脚本引擎 '{engineName}' 的 Worker。");
+
         try
         {
-            if (supervisor.State == WorkerState.Stopped || supervisor.State == WorkerState.Failed)
-                await supervisor.StartAsync(handshakeOptions, cancellationToken);
+            if (runtime.Supervisor.State == WorkerState.Stopped || runtime.Supervisor.State == WorkerState.Failed)
+                await runtime.Supervisor.StartAsync(runtime.HandshakeOptions, cancellationToken);
             var executionId = Guid.NewGuid();
-            var result = await supervisor.ExecuteAsync(
+            var descriptor = program.Descriptor;
+            var result = await runtime.Supervisor.ExecuteAsync(
                 scriptId,
                 executionId.ToString(),
-                new WorkerExecutePayload(scriptId, source.SourcePath, source.Source, request),
+                new WorkerExecutePayload(
+                    scriptId,
+                    source.SourcePath,
+                    source.Source,
+                    request,
+                    new ScriptDescriptorHint(
+                        descriptor.Id,
+                        descriptor.Name,
+                        descriptor.Scope,
+                        descriptor.Capabilities,
+                        descriptor.Description,
+                        engineName),
+                    grantedCapabilities),
                 timeout,
                 grantedCapabilities,
                 cancellationToken);
             return new(executionId, new ScriptExecutionResult(
                 result.Payload.Status,
                 result.Payload.Diagnostics.ToImmutableArray()), Source: request.Source,
-                WorkerId: supervisor.WorkerId, WorkerRequestId: result.RequestId,
+                WorkerId: runtime.Supervisor.WorkerId, WorkerRequestId: result.RequestId,
                 Duration: TimeSpan.FromMilliseconds(result.Payload.DurationMilliseconds));
         }
         catch (Exception exception)
@@ -60,4 +78,11 @@ public sealed record WorkerExecutePayload(
     string ScriptId,
     string SourcePath,
     string Source,
-    ScriptExecutionRequest Request);
+    ScriptExecutionRequest Request,
+    ScriptDescriptorHint? DescriptorHint = null,
+    ScriptCapability GrantedCapabilities = ScriptCapability.None);
+
+public sealed record WorkerRuntime(
+    string EngineName,
+    WorkerSupervisor Supervisor,
+    WorkerHandshakeOptions HandshakeOptions);

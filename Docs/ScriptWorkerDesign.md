@@ -6,9 +6,9 @@
 取消和超时语义。本文适用于 C#、Lua 和 Python worker；语言实现不应把自己的对象模型
 暴露给 `Diary.App` 或 `Diary.Core`。
 
-本文是目标设计，不代表所有内容已经实现。当前已实现协议握手、版本/能力协商、UTF-8 JSON 行编解码、
-可注入传输层、单 Worker supervisor、本机进程 transport、默认 C# Worker 执行链路、
-双向宿主 API 转发、通道终止结构化失败以及执行消息和宿主调用次数限制；多语言路由和 Lua/Python worker 尚未接入。
+本文同时记录目标设计和当前实现。当前已实现协议握手、版本/能力协商、UTF-8 JSON 行编解码、
+可注入传输层、本机进程 transport、C#/Lua/Python Worker 执行链路、按 EngineName 隔离的 supervisor、
+双向宿主 API 转发、通道终止结构化失败以及执行消息和宿主调用次数限制。
 操作系统级强内存限制按平台能力处理，多语言 worker 仍在后续阶段。Worker 协议 stdout 已与脚本标准输出隔离，并限制脚本输出大小。现有脚本 V1 类型和执行结果见
 [`ScriptSystemDesign.md`](ScriptSystemDesign.md) 及 `Diary.ScriptBase`。
 
@@ -502,7 +502,7 @@ supervisor 应支持以下限制，并在 worker 启动或执行前配置：
 
 ### 18.3 Python
 
-- 使用独立 Python 3 解释器进程和受控 `worker.py`，不嵌入主程序。
+- 使用独立 Python 3 解释器进程和受控 `worker.py`，不嵌入 CPython；Worker 源码作为 `Diary.Script.Python.dll` 嵌入资源，通过 `python -I -c` 启动。
 - `PythonRuntimeResolver` 位于 `Diary.Script.Python`，负责绝对解释器路径、版本探测、worker 路径和环境诊断。
 - Windows 正式包使用应用内的 embeddable distribution；Linux 使用系统 `python3`/`python3.X` 包；macOS 使用显式配置或系统/用户 `python3`。
 - embeddable distribution 只作为应用发布资源解压使用，不执行 pip，不修改 PATH/注册表；Linux 不调用发行版包管理器。
@@ -510,11 +510,12 @@ supervisor 应支持以下限制，并在 worker 启动或执行前配置：
 - worker 通过 `compile(source, sourcePath, "exec")` 做语法检查，执行时创建新的 globals/context；第一版每个 worker 最多执行一个请求。
 - worker 退出码、traceback、超时和取消必须转换成统一结果；运行时缺失不能静默跳过 `.py` 脚本。
 - 依赖声明必须经过宿主策略检查，第一版不自动执行任意安装命令，也不执行 `pip install`。
+- 嵌入资源不构成程序集级信任边界，正式发布仍需要代码签名或等效的程序集完整性校验。
 
 ### 18.4 多语言路由
 
-- `ScriptEngineRegistry` 必须注册 C#、Lua、Python 三个引擎，即使 Python 解释器当前缺失。
-- `ScriptBuildRequest` 携带来自 metadata/manifest 的 descriptor hint；构建结果校验 ID、Engine、Scope 和 capability 不被源码提升。
+- `ScriptEngineRegistry` 注册 C#、Lua、Python 三个引擎，即使 Python 解释器当前缺失。
+- `ScriptBuildRequest` 携带来自 metadata/manifest 的 descriptor hint；Lua/Python 使用 hint 生成 descriptor，目录加载器校验 C# descriptor 与 metadata 一致。
 - `ScriptCatalog` 保存稳定的 `EngineName`，`WorkerScriptExecutor` 按 EngineName 选择独立 supervisor，不根据扩展名临时猜测。
 - C#、Lua、Python worker 使用独立进程和独立故障状态；一个 worker 终止不得影响其他语言。
 - `WorkerHelloPayload` 的语言值固定为 `csharp`、`lua` 或 `python`，运行时版本和 worker 版本作为可选诊断字段传递。
