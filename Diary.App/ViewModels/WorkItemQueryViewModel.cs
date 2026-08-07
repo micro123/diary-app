@@ -55,6 +55,18 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
     public IReadOnlyList<string> TagFilters { get; } = ["忽略标签", "任意标签", "全部标签", "无标签", "精确匹配"];
     public IReadOnlyList<string> Priorities { get; } = ["全部优先级", .. Enum.GetNames<WorkPriorities>()];
 
+    [RelayCommand]
+    private void QuickSelectDate(string which)
+    {
+        var part = (AdjustPart)(which[2] - '0');
+        var direction = (AdjustDirection)(which[1] - '0');
+        var start = StartDate;
+        var end = EndDate;
+        TimeTools.AdjustDate(ref start, ref end, part, direction);
+        StartDate = start;
+        EndDate = end;
+    }
+
     public WorkItemQueryViewModel(DbShareData shareData, ILogger logger)
         : this(
             shareData,

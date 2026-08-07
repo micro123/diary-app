@@ -2,7 +2,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:vm="using:Diary.App.ViewModels"
+              xmlns:vm="using:Diary.App.ViewModels"
+              xmlns:views="using:Diary.App.Views"
              xmlns:i="https://github.com/projektanker/icons.avalonia"
              x:Class="Diary.App.Views.ScriptManagementView"
              x:DataType="vm:ScriptManagementViewModel"
@@ -38,7 +39,7 @@
 
         <Border Grid.Row="3" Padding="10" CornerRadius="8" IsEnabled="{Binding ShowEditorRange}"
                 Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
-            <Grid ColumnDefinitions="Auto,180,*,Auto,Auto" ColumnSpacing="8">
+            <Grid ColumnDefinitions="Auto,180,*,Auto,Auto,Auto" ColumnSpacing="8">
                 <TextBlock Text="执行范围" VerticalAlignment="Center" />
                 <ComboBox Grid.Column="1" ItemsSource="{Binding ExecutionRanges}"
                           SelectedItem="{Binding SelectedExecutionRange, Mode=TwoWay}" />
@@ -48,6 +49,7 @@
                                     IsVisible="{Binding ShowCustomRange}" />
                 <CalendarDatePicker Grid.Column="4" SelectedDate="{Binding ExecutionEndDate, Mode=TwoWay}"
                                     IsVisible="{Binding ShowCustomRange}" />
+                <views:QuickDateSelectButton Grid.Column="5" IsVisible="{Binding ShowCustomRange}" />
             </Grid>
         </Border>
 

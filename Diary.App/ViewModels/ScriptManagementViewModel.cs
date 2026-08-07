@@ -175,6 +175,21 @@ public partial class ScriptManagementViewModel(
         ? $"{ExecutionStartDate:yyyy-MM-dd} 至 {ExecutionEndDate:yyyy-MM-dd}"
         : "应用脚本，不限定编辑器日期范围";
 
+    [RelayCommand]
+    private void QuickSelectDate(string which)
+    {
+        if (ExecutionStartDate is null || ExecutionEndDate is null)
+            return;
+
+        var part = (AdjustPart)(which[2] - '0');
+        var direction = (AdjustDirection)(which[1] - '0');
+        var start = ExecutionStartDate.Value;
+        var end = ExecutionEndDate.Value;
+        TimeTools.AdjustDate(ref start, ref end, part, direction);
+        ExecutionStartDate = start;
+        ExecutionEndDate = end;
+    }
+
     partial void OnLoadingChanged(bool value) => OnPropertyChanged(nameof(CanReload));
 
     partial void OnIsExecutingChanged(bool value) => OnPropertyChanged(nameof(CanReload));
