@@ -309,7 +309,6 @@ namespace Diary.App
             services.AddSingleton<TrackerPluginLifecycleCoordinator>();
             services.AddSingleton<TrackerPluginDiagnosticsService>();
             services.AddSingleton<TrackerUiContributionRegistry>();
-            services.AddSingleton<TrackerTemplateContributorRegistry>();
             services.AddSingleton<IWorkItemPersistenceCoordinator, WorkItemPersistenceCoordinator>();
             services.AddSingleton<ITrackerUploadCoordinator, TrackerUploadCoordinator>();
             services.AddSingleton(_ => new CSharpEngine(

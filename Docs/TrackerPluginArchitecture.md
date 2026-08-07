@@ -513,32 +513,32 @@ public sealed record TrackerOperationResult(
 
 ### 11.1 当前问题
 
-当前 `Diary.Core.Data.App.Template` 包含：
+模板不承载 Tracker 专属数据。核心 `Diary.Core.Data.App.Template` 只包含：
 
 ```csharp
-public int DefaultActivity { get; set; }
-public int DefaultIssue { get; set; }
+public string Id { get; set; } = string.Empty;
+public string Name { get; set; } = string.Empty;
+public string DefaultTitle { get; set; } = string.Empty;
+public double DefaultTime { get; set; }
+public ICollection<int> DefaultWorkTags { get; set; } = Array.Empty<int>();
 ```
 
-这会导致核心模板模型直接携带 Redmine 语义。模板应用流程也直接调用：
+Tracker 活动、问题等默认值由标签规则推导，不再通过模板保存。模板应用流程只负责：
 
 ```csharp
-SelectedWork.SetRedMineActivity(...);
-SelectedWork.SetRedMineIssues(...);
+SelectedWork.AddTags(tags, TagAddSource.Template);
 ```
 
 模板编辑器则直接依赖 `DbShareData.RedMineActivities` 和 `DbShareData.RedMineIssues`。
 
 这种设计无法自然支持：
 
-- Jira 的项目、Issue、工时类型默认值。
-- 同一个工作项同时配置多个 tracker 的默认值。
-- Redmine 插件未安装时仍然保留模板数据。
-- 插件卸载后再次安装时恢复原有模板扩展。
+- 模板和标签规则重复配置 Tracker 默认值。
+- 模板应用顺序覆盖标签规则推导结果。
 
 ### 11.2 模板数据分层
 
-核心模板只保存日记本身的预设：
+核心模板只保存日记本身的预设，不保存 `Extensions`：
 
 ```csharp
 public sealed record Template
@@ -548,109 +548,9 @@ public sealed record Template
     public string DefaultTitle { get; set; } = string.Empty;
     public double DefaultTime { get; set; }
     public ICollection<int> DefaultWorkTags { get; set; } = Array.Empty<int>();
-    public ICollection<TemplateExtensionData> Extensions { get; set; }
-        = Array.Empty<TemplateExtensionData>();
 }
 ```
-
-tracker 扩展数据使用稳定的插件 ID 和实例 ID：
-
-```csharp
-public sealed record TemplateExtensionData
-{
-    public required string PluginId { get; init; }
-    public required string InstanceId { get; init; }
-    public int SchemaVersion { get; init; }
-    public required string PayloadJson { get; init; }
-}
-```
-
-示例：
-
-```json
-{
-  "id": "template.daily-development",
-  "name": "日常开发",
-  "defaultTitle": "开发任务",
-  "defaultTime": 1.0,
-  "defaultWorkTags": [1, 8],
-  "extensions": [
-    {
-      "pluginId": "tracker.redmine",
-      "instanceId": "redmine.company",
-      "schemaVersion": 1,
-      "payloadJson": "{\"issueId\":123,\"activityId\":9}"
-    },
-    {
-      "pluginId": "tracker.jira",
-      "instanceId": "jira.team",
-      "schemaVersion": 2,
-      "payloadJson": "{\"projectKey\":\"APP\",\"issueKey\":\"APP-42\"}"
-    }
-  ]
-}
-```
-
-核心程序只负责保存和保留 `PayloadJson`，不解析 tracker 专属字段。
-
-payload 必须保存稳定的业务标识，而不是 UI 状态：
-
-- Redmine 保存 `issueId`、`activityId`。
-- Jira 保存 `issueKey` 或远程唯一 ID。
-- 不保存 ComboBox 的 `SelectedIndex`。
-- 不依赖管理列表当前的排序和分页结果。
-
-UI 索引只能作为编辑器运行时状态，不能进入模板持久化格式。
-
-### 11.3 未安装插件时的数据处理
-
-模板文件中的未知扩展数据必须保留：
-
-- 插件未安装时，核心模板仍可加载。
-- 模板编辑器不显示未知扩展的编辑控件。
-- 保存模板时不能删除未知扩展数据。
-- 插件重新安装并启用后，可以恢复对应默认值。
-- 用户明确删除模板或扩展数据时，才删除对应 payload。
-
-这要求模板序列化层使用显式的 `Extensions` 集合，不能在反序列化时丢弃未知插件字段。
-
-### 11.4 模板插件接口
-
-模板扩展接口属于 `Diary.PluginUI`，因为模板编辑器可能需要插件提供 UI：
-
-```csharp
-public interface ITrackerTemplateContributor
-{
-    string PluginId { get; }
-    string InstanceId { get; }
-    int CurrentSchemaVersion { get; }
-
-    object CreateDefaultData();
-
-    ViewModelBase CreateEditor(
-        object? data,
-        TemplateEditorContext context);
-
-    string Serialize(object data);
-    object? Deserialize(string payloadJson, int schemaVersion);
-
-    void ApplyTo(
-        object data,
-        ITrackerEditorExtension target);
-}
-```
-
-主程序的模板协调器负责：
-
-- 加载核心模板字段。
-- 按 `PluginId` 和 `InstanceId` 查找已启用插件。
-- 将 payload 交给插件反序列化。
-- 创建插件模板编辑区域。
-- 应用模板时调用插件的 `ApplyTo()`。
-- 保存模板时重新序列化插件 payload。
-- 保留找不到插件的原始 payload。
-
-### 11.5 模板应用流程
+### 11.3 模板应用流程
 
 应用模板时应拆成两个阶段：
 
@@ -660,11 +560,8 @@ public interface ITrackerTemplateContributor
   -> 默认耗时
   -> 默认标签
 
-应用 tracker 模板扩展
-  -> 查找 pluginId + instanceId
-  -> 反序列化 payload
-  -> 调用 tracker 扩展 ApplyTo
-  -> 更新对应编辑器区域
+按模板标签顺序触发 Tracker 标签规则
+  -> 推导活动、问题等 Tracker 默认值
 ```
 
 核心 `DiaryEditorViewModel` 不应再调用：
@@ -674,94 +571,25 @@ SetRedMineActivity(...)
 SetRedMineIssues(...)
 ```
 
-而应调用通用协调器：
+模板应用不调用 Tracker 模板协调器。
 
-```csharp
-templateCoordinator.Apply(template, selectedWork);
-```
+### 11.5 模板编辑流程
 
-### 11.6 模板编辑流程
-
-模板编辑器应由核心字段区和插件字段区组成：
+模板编辑器只包含核心字段区：
 
 ```text
 TemplateEditor
   ├── 核心字段：名称、标题、耗时、标签
-  ├── Redmine 公司实例扩展区
-  ├── Redmine 个人实例扩展区
-  └── Jira 团队实例扩展区
+  └── UUID 只读展示和复制
 ```
 
-插件未配置时：
+旧模板中的 `extensions`、`defaultActivity` 和 `defaultIssue` 字段不再读取或写回；JSON 反序列化时会按未知字段忽略。
 
-- 插件模板区可以隐藏或显示为不可用。
-- 原有 payload 必须继续保留。
-- 不应因为插件不可用而阻止核心模板保存。
-
-插件配置发生变化后，模板编辑器可以重新解析和刷新对应扩展区。
-
-### 11.7 模板版本和迁移
-
-模板文件需要独立的文件 schema 版本：
-
-```text
-Template file schema version: 2
-Redmine template payload version: 1
-Jira template payload version: 2
-```
-
-旧版本模板中的 Redmine 字段：
-
-```json
-{
-  "defaultActivity": 9,
-  "defaultIssue": 123
-}
-```
-
-应迁移为：
-
-```json
-{
-  "extensions": [
-    {
-      "pluginId": "tracker.redmine",
-      "instanceId": "redmine.default",
-      "schemaVersion": 1,
-      "payloadJson": "{\"activityId\":9,\"issueId\":123}"
-    }
-  ]
-}
-```
-
-迁移时不能要求 Redmine 插件一定已经安装。建议流程：
-
-- 核心模板迁移器识别旧字段。
-- 生成带有 `tracker.redmine` 标识的透明 payload。
-- 如果无法确定旧配置对应的实例，使用 `redmine.default`。
-- Redmine 插件加载后负责识别和升级该 payload。
-- 迁移完成后保留旧字段一段兼容周期，确认升级成功后再删除。
-
-### 11.8 模板扩展的失败策略
-
-单个 tracker 模板 payload 损坏时：
-
-- 核心模板字段仍然可用。
-- 该 tracker 扩展显示错误状态。
-- 原始 payload 不应被覆盖。
-- 日志记录插件 ID、实例 ID和 payload schema 版本。
-- 用户可以删除该扩展数据，但不能影响其他扩展。
-
-### 11.9 模板测试要求
+### 11.6 模板测试要求
 
 - 没有任何 tracker 时可以创建、编辑和应用模板。
-- Redmine 插件存在时可以读写 Redmine 模板扩展。
-- Redmine 和 Jira 扩展可以同时存在于一个模板中。
-- 插件缺失时模板核心字段仍可用。
-- 插件缺失时未知 payload 保存后不丢失。
-- 插件重新安装后未知 payload 可以恢复。
-- 旧版 `DefaultActivity` 和 `DefaultIssue` 可以迁移。
-- payload schema 升级失败时不会覆盖原始数据。
+- 启用或禁用 Tracker 时模板页面都只显示核心字段。
+- 模板应用默认标签后，Tracker 标签规则可以推导活动、问题等默认值。
 
 ## 12. 配置系统
 
@@ -936,12 +764,12 @@ SupportedProviders: PostgreSQL
 
 验收标准：Redmine 和测试 tracker 可以同时绑定一个工作项，一个 tracker 上传失败不影响另一个。
 
-### 阶段 3：模板扩展落地
+### 阶段 3：模板字段与 Tracker 规则
 
-- 已完成透明 `Extensions` payload、旧 Redmine 字段迁移、未知 payload 保留和多实例 contributor 注册。
-- 仍需补充模板损坏 payload、创建/编辑/应用和插件缺失测试。
+- 模板只保存核心字段和默认标签。
+- Tracker 专属默认值统一由标签规则推导。
 
-验收标准：缺少 tracker 插件时模板核心字段仍可用，插件恢复后原 payload 可以重新编辑。
+验收标准：模板编辑和应用不依赖 Tracker 模板扩展。
 
 ### 阶段 4：核心边界收紧
 
@@ -995,8 +823,6 @@ SupportedProviders: PostgreSQL
 - 两个 tracker 的绑定互不覆盖。
 - 一个 tracker 上传失败不影响另一个 tracker。
 - 删除核心工作项时两个插件绑定都被清理。
-- 一个模板可以同时保存和应用多个 tracker 的默认值。
-- 缺失 tracker 插件时模板未知 payload 不丢失。
 
 ### 兼容性测试
 
@@ -1017,8 +843,7 @@ SupportedProviders: PostgreSQL
 - 每个插件拥有独立的配置、管理页面和数据库迁移。
 - 插件数据库迁移失败不会阻止核心日记启动。
 - 核心工作项可以同时关联多个 tracker。
-- 模板可以同时包含多个 tracker 的扩展数据。
-- tracker 缺失时模板核心字段仍然可用，扩展 payload 可恢复。
+- 模板只包含核心字段和默认标签，Tracker 数据由工作项编辑器和标签规则处理。
 - 本地保存和远程上传相互独立。
 - 插件 API、核心数据版本和插件数据版本互不混淆。
 - 主程序不再出现 `RedMineDb!`、`SetRedMineActivity()` 等 tracker 专用调用。

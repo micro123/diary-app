@@ -26,15 +26,13 @@ public sealed class TrackerPluginLifecycleCoordinatorTests
     {
         var registry = new PluginInstanceRegistry();
         var uiRegistry = new TrackerUiContributionRegistry();
-        var templateRegistry = new TrackerTemplateContributorRegistry();
-        var coordinator = CreateCoordinator(registry, uiRegistry, templateRegistry);
+        var coordinator = CreateCoordinator(registry, uiRegistry);
 
         coordinator.Register(new object(), Array.Empty<ITrackerPlugin>(),
             new Dictionary<string, object>());
 
         Assert.AreEqual(0, registry.Instances.Count);
         Assert.AreEqual(0, uiRegistry.Contributions.Count);
-        Assert.AreEqual(0, templateRegistry.Contributors.Count);
     }
 
     [TestMethod]
@@ -42,9 +40,8 @@ public sealed class TrackerPluginLifecycleCoordinatorTests
     {
         var registry = new PluginInstanceRegistry();
         var uiRegistry = new TrackerUiContributionRegistry();
-        var templateRegistry = new TrackerTemplateContributorRegistry();
         var plugin = new MemoryPlugin();
-        var coordinator = CreateCoordinator(registry, uiRegistry, templateRegistry);
+        var coordinator = CreateCoordinator(registry, uiRegistry);
 
         coordinator.Register(new object(), new[] { plugin },
             new Dictionary<string, object> { [plugin.Manifest.Id] = new object() });
@@ -55,9 +52,6 @@ public sealed class TrackerPluginLifecycleCoordinatorTests
         CollectionAssert.AreEquivalent(
             new[] { "memory.one", "memory.two" },
             uiRegistry.Contributions.Select(contribution => contribution.Instance.InstanceId).ToArray());
-        CollectionAssert.AreEquivalent(
-            new[] { "memory.one", "memory.two" },
-            templateRegistry.Contributors.Select(contributor => contributor.InstanceId).ToArray());
     }
 
     [TestMethod]
@@ -65,9 +59,8 @@ public sealed class TrackerPluginLifecycleCoordinatorTests
     {
         var registry = new PluginInstanceRegistry();
         var uiRegistry = new TrackerUiContributionRegistry();
-        var templateRegistry = new TrackerTemplateContributorRegistry();
         var plugin = new MemoryPlugin(failingInstanceId: "memory.one");
-        var coordinator = CreateCoordinator(registry, uiRegistry, templateRegistry);
+        var coordinator = CreateCoordinator(registry, uiRegistry);
 
         coordinator.Register(new object(), new[] { plugin },
             new Dictionary<string, object> { [plugin.Manifest.Id] = new object() });
@@ -75,7 +68,6 @@ public sealed class TrackerPluginLifecycleCoordinatorTests
         Assert.AreEqual(1, registry.Instances.Count);
         Assert.AreEqual("memory.two", registry.Instances.Single().InstanceId);
         Assert.AreEqual(1, uiRegistry.Contributions.Count);
-        Assert.AreEqual(1, templateRegistry.Contributors.Count);
         Assert.AreEqual(
             TrackerInstanceState.MigrationFailed,
             registry.GetEntry(plugin.Manifest.Id, "memory.one")!.State);
@@ -86,9 +78,8 @@ public sealed class TrackerPluginLifecycleCoordinatorTests
     {
         var registry = new PluginInstanceRegistry();
         var uiRegistry = new TrackerUiContributionRegistry();
-        var templateRegistry = new TrackerTemplateContributorRegistry();
         var plugin = new MemoryPlugin();
-        var coordinator = CreateCoordinator(registry, uiRegistry, templateRegistry);
+        var coordinator = CreateCoordinator(registry, uiRegistry);
         var configuration = new MemoryConfiguration();
 
         coordinator.Register(new object(), new[] { plugin },
@@ -108,9 +99,8 @@ public sealed class TrackerPluginLifecycleCoordinatorTests
     {
         var registry = new PluginInstanceRegistry();
         var uiRegistry = new TrackerUiContributionRegistry();
-        var templateRegistry = new TrackerTemplateContributorRegistry();
         var plugin = new MemoryPlugin("memory.one", failOnce: true);
-        var coordinator = CreateCoordinator(registry, uiRegistry, templateRegistry);
+        var coordinator = CreateCoordinator(registry, uiRegistry);
         var diagnostics = new TrackerPluginDiagnosticsService(
             registry,
             coordinator,
@@ -134,7 +124,6 @@ public sealed class TrackerPluginLifecycleCoordinatorTests
             TrackerInstanceState.Enabled,
             registry.GetEntry(plugin.Manifest.Id, "memory.one")!.State);
         Assert.AreEqual(2, uiRegistry.Contributions.Count);
-        Assert.AreEqual(2, templateRegistry.Contributors.Count);
     }
 
     [TestMethod]
@@ -142,10 +131,9 @@ public sealed class TrackerPluginLifecycleCoordinatorTests
     {
         var registry = new PluginInstanceRegistry();
         var uiRegistry = new TrackerUiContributionRegistry();
-        var templateRegistry = new TrackerTemplateContributorRegistry();
         var plugin = new MemoryPlugin();
         var configuration = new MemoryConfiguration();
-        var coordinator = CreateCoordinator(registry, uiRegistry, templateRegistry);
+        var coordinator = CreateCoordinator(registry, uiRegistry);
 
         coordinator.Register(new object(), new[] { plugin },
             new Dictionary<string, object> { [plugin.Manifest.Id] = configuration });
@@ -162,10 +150,9 @@ public sealed class TrackerPluginLifecycleCoordinatorTests
     {
         var registry = new PluginInstanceRegistry();
         var uiRegistry = new TrackerUiContributionRegistry();
-        var templateRegistry = new TrackerTemplateContributorRegistry();
         var plugin = new MemoryPlugin();
         var configuration = new MemoryConfiguration();
-        var coordinator = CreateCoordinator(registry, uiRegistry, templateRegistry);
+        var coordinator = CreateCoordinator(registry, uiRegistry);
 
         coordinator.Register(new object(), new[] { plugin },
             new Dictionary<string, object> { [plugin.Manifest.Id] = configuration });
@@ -176,14 +163,11 @@ public sealed class TrackerPluginLifecycleCoordinatorTests
 
     private static TrackerPluginLifecycleCoordinator CreateCoordinator(
         PluginInstanceRegistry registry,
-        TrackerUiContributionRegistry uiRegistry,
-        TrackerTemplateContributorRegistry templateRegistry)
+        TrackerUiContributionRegistry uiRegistry)
         => new(
             new TrackerInstanceCoordinator(registry, NullLogger<TrackerInstanceCoordinator>.Instance),
             uiRegistry,
-            templateRegistry,
             new[] { new MemoryUiFactory() },
-            new[] { new MemoryTemplateFactory() },
             registry,
             NullLogger<TrackerPluginLifecycleCoordinator>.Instance);
 
@@ -284,23 +268,4 @@ public sealed class TrackerPluginLifecycleCoordinatorTests
         public ITrackerEditorExtension? CreateEditorExtension(string instanceId) => null;
     }
 
-    private sealed class MemoryTemplateFactory : ITrackerTemplateContributorFactory
-    {
-        public string PluginId => "tracker.memory.lifecycle";
-        public ITrackerTemplateContributor Create(ITrackerInstance instance)
-            => new MemoryContributor(instance.InstanceId);
-    }
-
-    private sealed class MemoryContributor(string instanceId) : ITrackerTemplateContributor
-    {
-        public string PluginId => "tracker.memory.lifecycle";
-        public string InstanceId => instanceId;
-        public int CurrentSchemaVersion => 1;
-        public object CreateDefaultData() => new object();
-        public ViewModelBase CreateEditor(object? data, TemplateEditorContext context) => new();
-        public object ExtractData(ViewModelBase editor) => new object();
-        public string Serialize(object data) => "{}";
-        public object? Deserialize(string payloadJson, int schemaVersion) => new object();
-        public void ApplyTo(object data, ITrackerEditorExtension target) { }
-    }
 }

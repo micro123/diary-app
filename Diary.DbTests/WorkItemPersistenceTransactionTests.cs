@@ -75,6 +75,5 @@ public sealed class WorkItemPersistenceTransactionTests
         public void CloneTo(ITrackerEditorExtension? target) { }
         public Task<TrackerOperationResult> UploadAsync(WorkItem item)
             => Task.FromResult(new TrackerOperationResult(true));
-        public void ApplyTemplateData(object data) { }
     }
 }

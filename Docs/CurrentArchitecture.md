@@ -3,7 +3,7 @@
 ## 1. 文档范围
 
 本文描述当前代码已经实现的架构，不等同于 `TrackerPluginArchitecture.md` 中的目标方案。
-代码基线：当前工作区源码。tracker 插件实例和 UI/模板贡献已具备通用注册链路，Redmine 已开启多实例支持。
+代码基线：当前工作区源码。tracker 插件实例和 UI 贡献已具备通用注册链路，Redmine 已开启多实例支持。
 
 当前架构的核心目标是：核心日记功能不依赖 Redmine；Redmine 通过插件契约、可选 UI 和数据库扩展接入；插件数据库可以独立迁移。
 
@@ -71,16 +71,16 @@ RedMine --> Api
 
 | 项目 | 当前职责 | 关键边界 |
 | --- | --- | --- |
-| `Diary.App` | 启动、服务容器、插件发现、数据库选择、主窗口 | 通过构建目标复制 Redmine 插件程序集，运行时动态发现，不参与插件编译引用 |
+| `Diary.App` | 启动、服务容器、插件发现、数据库选择、主窗口和 Tracker 配置对话框 | Tracker 配置通过独立模态对话框编辑 |
 | `Diary.Core` | 工作项、标签、模板、配置和统计模型 | 不应依赖具体 tracker 类型 |
 | `Diary.Database` | 核心数据库抽象、provider 原语、扩展工厂加载 | 通过 `GetExtension<T>(instanceId)` 延迟取得可选扩展 |
 | `Diary.PluginBase` | manifest、兼容性检查、插件入口、实例注册、迁移调度 | 不依赖 Avalonia 和具体 UI |
-| `Diary.PluginUI` | tracker 配置页、管理页、编辑器扩展和模板贡献契约 | 由宿主把插件 UI 挂载到核心 UI |
+| `Diary.PluginUI` | tracker 配置页、管理页和编辑器扩展契约 | 由宿主把插件 UI 挂载到核心 UI |
 | `Diary.ScriptBase` | 脚本版本化契约、描述符、诊断、执行请求和能力模型 | 不依赖核心数据库、DI 或 UI |
 | `Diary.ScriptHost` | 受限脚本宿主 API，当前提供只读事项查询 | 只暴露不可变 DTO 和结构化错误 |
 | `Diary.Script.Runtime` | 引擎注册、构建服务、目录加载、执行器和脚本管理器 | 已接入 App DI，启动时后台加载 application/editor 脚本 |
 | `Diary.RedMine` | Redmine API、模型、配置、插件迁移和插件入口 | 当前仍是 Redmine 专用插件实现 |
-| `Diary.RedMine.UI` | Redmine 设置、管理页、编辑器区域、模板扩展、缓存数据 | 通过工厂按实例注册 UI/模板贡献 |
+| `Diary.RedMine.UI` | Redmine 设置、管理页、编辑器区域和缓存数据 | 通过工厂按实例注册 UI 贡献 |
 | `Diary.RedMine.SQLite` | SQLite Redmine 数据访问实现 | 通过 `IDbExtensionFactory` 按 provider 加载 |
 | `Diary.RedMine.PostgreSQL` | PostgreSQL Redmine 数据访问实现 | 与 SQLite 共享数据库契约 |
 
@@ -215,9 +215,8 @@ Redmine UI 通过 `Diary.PluginUI` 的契约接入：
 - `ITrackerConfigurationProvider`：提供默认配置、校验和设置页。
 - `ITrackerUiContribution`：提供导航页、管理页、编辑器区域和模板贡献。
 - `ITrackerEditorExtension`：将 tracker 绑定和上传能力放入工作项编辑器。
-- `ITrackerTemplateContributor`：保存和恢复 tracker 专属模板 payload。
 
-核心编辑器从 `TrackerUiContributionRegistry` 获取按实例创建的 `ITrackerUiContribution`，不直接依赖 Redmine 具体 ViewModel。编辑器构造支持注入 tracker 注册表和核心默认值，因此无 tracker 时可以创建纯核心编辑器；模板协调器在没有 contributor 时保留核心模板路径和未知 payload。当前 Redmine UI 仍保留 `IRedMineUiData` 和部分 Redmine 专用数据缓存，用于管理页和选择器。
+核心编辑器从 `TrackerUiContributionRegistry` 获取按实例创建的 `ITrackerUiContribution`，不直接依赖 Redmine 具体 ViewModel。模板只保存核心字段和默认标签，Tracker 活动、问题等默认值由标签规则推导；当前 Redmine UI 仍保留 `IRedMineUiData` 和部分 Redmine 专用数据缓存，用于管理页和选择器。
 
 ## 9. 数据保存边界
 

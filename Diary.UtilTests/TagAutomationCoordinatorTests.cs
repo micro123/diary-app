@@ -163,7 +163,6 @@ public sealed class TagAutomationCoordinatorTests
         public void CloneTo(ITrackerEditorExtension? target) { }
         public Task<TrackerOperationResult> UploadAsync(WorkItem item)
             => Task.FromResult(new TrackerOperationResult(false));
-        public void ApplyTemplateData(object data) { }
     }
 
     private sealed class TagDefaultsExtension(

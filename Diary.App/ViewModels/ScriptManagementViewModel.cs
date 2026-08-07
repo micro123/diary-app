@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -464,7 +465,11 @@ public partial class ScriptManagementViewModel(
         viewModel.Saved += OnScriptEditorSaved;
         var window = new ScriptEditorWindow(viewModel);
         window.Closed += (_, _) => viewModel.Saved -= OnScriptEditorSaved;
-        window.Show();
+        var owner = TopLevel.GetTopLevel(View) as Window;
+        if (owner is not null)
+            _ = window.ShowDialog(owner);
+        else
+            window.Show();
         Status = $"已打开脚本编辑器：{Path.GetFileName(sourcePath)}";
     }
 

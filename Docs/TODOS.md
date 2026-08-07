@@ -76,19 +76,15 @@
 
 验收：Redmine 公司实例和测试 tracker 可以同时编辑、保存、克隆和上传。
 
-## 阶段 3：模板扩展完整落地
+## 阶段 3：模板字段与 Tracker 规则
 
-- [x] 完成核心模板透明 `Extensions` payload 的读写
-- [x] 迁移旧 `DefaultActivity`/`DefaultIssue` 字段
-- [x] 插件缺失时保留未知 payload
-- [x] 支持同一 tracker 多实例模板编辑区
-- [x] 新建模板时为已启用 tracker 创建默认 contributor 编辑区
-- [x] 旧 Redmine 字段迁移只检查对应扩展，不能被其他 tracker 扩展阻断
-- [x] payload 反序列化或 schema 迁移失败时保留原始 JSON，禁止默认值覆盖
-- [x] contributor 实际使用 `SchemaVersion` 执行 payload 迁移
-- [x] 增加模板创建、编辑、应用和插件缺失测试
+- [x] 模板只保存核心字段：UUID、名称、标题、工时和默认标签
+- [x] 移除模板承载 Tracker 扩展数据的能力
+- [x] Tracker 配置移至独立模态对话框，不占用常规设置页面
+- [x] 脚本源码编辑窗口设置主窗口为父窗口并以模态方式打开
+- [x] Tracker 活动、问题等默认值统一由标签规则推导
 
-验收：卸载 tracker 后模板核心字段仍可用，重新安装后原扩展数据可恢复。
+验收：模板编辑页面不出现 Tracker 专属字段，模板应用只添加核心字段和默认标签。
 
 ## 阶段 4：移除 Redmine 核心耦合
 
@@ -122,7 +118,7 @@
 - [x] 多实例数据隔离测试
 - [x] 多实例数据库扩展身份与实例注册身份一致性测试
 - [x] 多 tracker 本地事务和远程失败测试
-- [x] 模板未知 payload 保留测试
+- [x] 模板只保存核心字段和默认标签，不再保存 Tracker payload
 - [x] 外部 Redmine API 测试与本地契约测试分离（外部测试需显式设置 `DIARY_RUN_REDMINE_EXTERNAL_TESTS=1`）
 
 ## 非 tracker TODO
@@ -348,7 +344,7 @@
 - [ ] 明确脚本读写工作项的事务边界、失败行为和权限要求。
 - [x] Tracker 实例目录 API 使用 `PluginId + InstanceId`，不允许只按插件类型取得隐含默认实例。
 - [~] 已统一 Tracker 实例目录的只读 DTO、能力声明和错误结果；后端 Issue 查询模型随首个新 Tracker 实现补充。
-- [x] 脚本只能按模板创建新日志项，不修改模板扩展 payload，也不提供已有工作项更新/删除 API。
+- [x] 脚本只能按模板创建新日志项，不修改模板 Tracker 数据，也不提供已有工作项更新/删除 API。
 - [x] 为宿主 API 创建内存替身，方便测试脚本逻辑而不启动完整 UI 或真实服务。
 
 ### 9.5 缓存、目录和用户体验
@@ -544,4 +540,5 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [x] 增加全年 1205 条 SQLite 多页流、1000 条长字段查询结果和约 3 MiB Worker 消息往返测试。
 - [ ] 数据库层增加 reader 级流式查询后，将分页式 Worker 流升级为数据库流/chunk 传输。
 - [x] 模板增加稳定 UUID，并在模板管理页面展示只读 ID。
-- [x] 增加按模板创建日志项 API，支持日期、模板 ID、工时、可选标题和备注。
+- [x] 增加按模板创建日志项 API，支持日期、模板 ID、工时、可选标题和备注；Tracker 数据由标签规则处理。
+- [x] 移除模板中的旧 Tracker 核心字段，Tracker 专属数据统一存储于透明 `Extensions`。

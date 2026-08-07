@@ -34,8 +34,6 @@ public interface ITrackerEditorExtension
     /// <summary>上传到远程，返回统一结果。</summary>
     Task<TrackerOperationResult> UploadAsync(WorkItem item);
 
-    /// <summary>应用 tracker 自己解释的模板数据，核心编辑器不解析 payload。</summary>
-    void ApplyTemplateData(object data);
 }
 
 /// <summary>可选的标签默认值能力。只应用当前 Tracker 实例自己的编辑器字段。</summary>

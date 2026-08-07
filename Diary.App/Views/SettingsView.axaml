@@ -16,18 +16,13 @@
         <ScrollViewer>
             <StackPanel Spacing="16">
                 <ItemsControl Classes="Settings" ItemsSource="{Binding SettingsTree.Children}"/>
-                <ItemsControl ItemsSource="{Binding PluginSettingsPages}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <ContentControl Content="{Binding}" />
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
             </StackPanel>
         </ScrollViewer>
         <StackPanel Grid.Row="1" Orientation="Horizontal"
                     HorizontalAlignment="Center" Spacing="16"
                     Margin="32  8 32 0">
+            <Button Classes="Large" Content="Tracker 配置"
+                    Command="{Binding ShowTrackerSettingsCommand}" />
             <Button Classes="Large" Content="Tracker 插件状态"
                     Command="{Binding ShowTrackerDiagnosticsCommand}" />
             <Button Classes="Large" Content="导出日志" Command="{Binding ExportLogsCommand}" />

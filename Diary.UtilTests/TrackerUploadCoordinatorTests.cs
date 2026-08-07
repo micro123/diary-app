@@ -69,6 +69,5 @@ public sealed class TrackerUploadCoordinatorTests
             UploadCount++;
             return Task.FromResult(uploadResult);
         }
-        public void ApplyTemplateData(object data) { }
     }
 }

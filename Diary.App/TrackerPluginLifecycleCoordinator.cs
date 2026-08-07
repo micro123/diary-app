@@ -6,15 +6,13 @@ using Microsoft.Extensions.Logging;
 namespace Diary.App;
 
 /// <summary>
-/// 统一编排插件实例的配置枚举、实例创建和 UI/模板贡献注册。
+/// 统一编排插件实例的配置枚举和实例创建。
 /// 数据库扩展初始化仍由插件的 GetInstanceRegistrations 在插件边界内完成。
 /// </summary>
 public sealed class TrackerPluginLifecycleCoordinator(
     TrackerInstanceCoordinator instanceCoordinator,
     TrackerUiContributionRegistry uiRegistry,
-    TrackerTemplateContributorRegistry templateRegistry,
     IEnumerable<ITrackerUiContributionFactory> uiFactories,
-    IEnumerable<ITrackerTemplateContributorFactory> templateFactories,
     PluginInstanceRegistry instanceRegistry,
     ILogger<TrackerPluginLifecycleCoordinator> logger)
 {
@@ -71,9 +69,8 @@ public sealed class TrackerPluginLifecycleCoordinator(
             }
         }
 
-        // UI/模板只消费 Enabled 实例，因此失败或禁用条目不会被错误注册。
+        // UI 只消费 Enabled 实例，因此失败或禁用条目不会被错误注册。
         uiRegistry.Register(uiFactories, instanceRegistry.Instances);
-        templateRegistry.Register(templateFactories, instanceRegistry.Instances);
     }
 
     public void ReRegister()
@@ -150,7 +147,7 @@ public sealed class TrackerPluginLifecycleCoordinator(
         return disabled;
     }
 
-    /// <summary>重试实例注册，并在结束后刷新 UI/模板贡献。</summary>
+    /// <summary>重试实例注册，并在结束后刷新 UI 贡献。</summary>
     public bool Retry(string pluginId, string instanceId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
@@ -206,6 +203,5 @@ public sealed class TrackerPluginLifecycleCoordinator(
     private void RefreshContributions()
     {
         uiRegistry.Register(uiFactories, instanceRegistry.Instances);
-        templateRegistry.Register(templateFactories, instanceRegistry.Instances);
     }
 }

@@ -40,7 +40,6 @@ public partial class DiaryEditorViewModel : ViewModelBase
 {
     private readonly ILogger _logger;
     private readonly IServiceProvider _serviceProvider;
-    private readonly TemplateCoordinator _templateCoordinator;
     private readonly IScriptCatalog _scriptCatalog;
     private readonly IScriptManager _scriptManager;
 
@@ -82,8 +81,6 @@ public partial class DiaryEditorViewModel : ViewModelBase
             SelectedWork.Comment = template.DefaultTitle;
         if (template.DefaultTime > 0)
             SelectedWork.Time = template.DefaultTime;
-        // tracker 扩展默认值（如 RedMine activity/issue）经协调器按 InstanceId 应用到对应扩展
-        _templateCoordinator.Apply(template, SelectedWork);
         var tags = template.DefaultWorkTags
             .Select(tagId => SelectedWork.AllTags.FirstOrDefault(tag => tag.Id == tagId))
             .Where(tag => tag is not null)
@@ -245,13 +242,11 @@ public partial class DiaryEditorViewModel : ViewModelBase
     public DiaryEditorViewModel(
         ILogger logger,
         IServiceProvider serviceProvider,
-        TemplateCoordinator templateCoordinator,
         IScriptCatalog scriptCatalog,
         IScriptManager scriptManager)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
-        _templateCoordinator = templateCoordinator;
         _scriptCatalog = scriptCatalog;
         _scriptManager = scriptManager;
         SelectedDate = DateTime.Today;

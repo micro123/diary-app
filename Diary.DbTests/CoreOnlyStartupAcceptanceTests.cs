@@ -53,7 +53,6 @@ public sealed class CoreOnlyStartupAcceptanceTests
             Assert.IsEmpty(app.Plugins);
             Assert.IsEmpty(app.Services.GetRequiredService<PluginInstanceRegistry>().AllEntries);
             Assert.IsEmpty(app.Services.GetRequiredService<TrackerUiContributionRegistry>().Contributions);
-            Assert.IsEmpty(app.Services.GetRequiredService<TrackerTemplateContributorRegistry>().Contributors);
             Assert.IsEmpty(app.Services.GetRequiredService<TrackerPluginDiagnosticsService>().GetSnapshot());
         }
         finally
