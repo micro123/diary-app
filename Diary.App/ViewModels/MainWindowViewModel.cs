@@ -426,7 +426,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 CanDragMove = false,
                 CanResize = true,
                 CanLightDismiss = false,
-                IsCloseButtonVisible = true,
+                IsCloseButtonVisible = false,
             });
         }, "设置对话框");
     }

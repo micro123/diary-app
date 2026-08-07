@@ -94,12 +94,13 @@ public partial class SettingsViewModel : ViewModelBase, IDialogContext
         // _logger.LogDebug("Result: {confirm}", confirm);
         // if (confirm != MessageBoxResult.OK)
         //     return;
-        if (!await EventDispatcher.Confirm("确认执行吗？", "所做的所有更改均被丢弃！"))
-            return;
+        // if (!await EventDispatcher.Confirm("确认执行吗？", "所做的所有更改均被丢弃！"))
+        //     return;
 
         ForceLoad();
 
         NotificationManager?.Show("更改已丢弃!", NotificationType.Information);
+        RequestClose?.Invoke(this, true);
     }
 
     [RelayCommand]
