@@ -227,6 +227,7 @@
                                       SelectedItem="{Binding SelectedHistoryStatusFilter, Mode=TwoWay}" />
                             <ComboBox Width="130" ItemsSource="{Binding HistorySourceFilters}"
                                       SelectedItem="{Binding SelectedHistorySourceFilter, Mode=TwoWay}" />
+                            <Button Content="导出诊断" Command="{Binding ExportExecutionHistoryCommand}" />
                         </StackPanel>
                     <ListBox Grid.Row="1" ItemsSource="{Binding VisibleHistory}">
                         <ListBox.ItemTemplate>

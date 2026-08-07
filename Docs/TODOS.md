@@ -279,7 +279,7 @@
 
 ### 8.6 通用 Tracker 能力补强
 
-- [ ] 为 Tracker 脚本 API 增加 `PluginId + InstanceId` 访问入口。
+- [x] 为 Tracker 脚本 API 增加 `PluginId + InstanceId` 只读实例目录入口。
 - [ ] 统一只读查询、远程写入、确认、失败和重试结果模型。
 - [ ] 增加 Tracker 后端能力声明，例如读取 Issue、创建 Issue、上传工时和管理标签。
 - [ ] 在 UI 中按能力隐藏不支持的操作，而不是由具体 ViewModel 猜测。
@@ -338,7 +338,7 @@
 - [x] 宿主 API 按执行上下文能力显式授权，当前只开放只读查询。
 - [x] 权限拒绝返回结构化结果，不得静默跳过危险操作。
 - [ ] 对批量创建、批量修改和 Tracker 远程写入增加预览/确认机制。
-- [~] 执行历史和错误详情已接入内存 UI，并对常见 Token/Password/Secret 字段脱敏；持久化和完整诊断导出待补。
+- [x] 执行历史和错误详情已接入 UI，使用原子 JSON 持久化并支持诊断导出，对常见 Token/Password/Secret 字段脱敏。
 
 ### 9.4 脚本 API 和宿主能力
 
@@ -347,8 +347,8 @@
 - [~] 已提供日期范围和粒度校验，处理月份长度和周起始日；统一时区/周期计算宿主 API 待补。
 - [x] 提供只读工作项查询 API，复用 `WorkItemQuery` 和统一标签筛选语义。
 - [ ] 明确脚本读写工作项的事务边界、失败行为和权限要求。
-- [ ] Tracker API 使用 `GetTracker(pluginId, instanceId)`，不允许只按插件类型取得隐含默认实例。
-- [ ] 统一 Tracker 脚本 API 的只读查询、能力声明、错误和结果模型。
+- [x] Tracker 实例目录 API 使用 `PluginId + InstanceId`，不允许只按插件类型取得隐含默认实例。
+- [~] 已统一 Tracker 实例目录的只读 DTO、能力声明和错误结果；后端 Issue 查询模型随首个新 Tracker 实现补充。
 - [x] 第一阶段不提供模板写入 API，脚本不接收模板 ID，也不修改模板扩展 payload。
 - [x] 为宿主 API 创建内存替身，方便测试脚本逻辑而不启动完整 UI 或真实服务。
 
@@ -363,7 +363,7 @@
 - [x] 脚本列表项提供打开源码、打开所在目录、重新检查和运行脚本的上下文菜单。
 - [x] 脚本列表项使用整行背景和横向拉伸命中区域，空白区域也可打开上下文菜单。
 - [x] 脚本列表按语言显示图标，C#、Python 和 Lua 使用官方 SVG，未知语言保留 Material 图标回退。
-- [~] 显示脚本最近执行状态、耗时、来源和诊断信息；持久化历史待补。
+- [x] 显示并持久化脚本最近执行状态、耗时、来源、Worker 关联和诊断信息，支持导出脱敏 JSON。
 - [x] 提供应用脚本和编辑器脚本的命令入口，避免 ViewModel 直接调用具体引擎。
 
 ### 9.6 Lua 和 Python 引擎
@@ -382,7 +382,7 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [x] 确定 Lua/Python 复用现有受限 UTF-8 JSON 行协议传递执行请求、宿主 API 调用和结果。
 - [x] 处理 Python worker 的协议异常、标准输出隔离、取消、超时和独立进程退出。
 - [x] 实现运行时缺失、版本不支持、语法错误、worker 启动/握手失败和非零退出的稳定诊断码。
-- [ ] 增加跨平台启动配置、强制终止和忽略取消脚本的超时回收。
+- [~] 已增加强制终止和忽略取消脚本的超时回收；Windows/Linux/macOS 启动与 native/runtime 打包矩阵待持续验证。
 
 ### 9.7 脚本测试和验收
 
@@ -394,7 +394,7 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [x] 脚本异常、取消、超时和权限拒绝测试。
 - [x] 编译缓存命中、源码变化和损坏缓存后的失效测试；引擎/契约版本变化由缓存键覆盖。
 - [x] 脚本宿主不暴露模板写入能力的契约测试。
-- [ ] Tracker 使用 `PluginId + InstanceId` 定位正确实例的测试。
+- [x] Tracker 使用 `PluginId + InstanceId` 定位正确实例的测试。
 - [x] 脚本查询 API 与数据库查询 API 返回一致结果的测试。
 - [x] 敏感配置不会出现在脚本查询结果和错误诊断中的测试。
 - [x] 增加 Lua 引擎和 Python worker 的独立集成测试，不依赖真实 Tracker 服务。
@@ -466,7 +466,7 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [x] 脚本管理页使用独立窗口编辑 C# 源码，不在创建流程中强制打开编辑器。
 - [x] 使用 Semi.Avalonia.AvaloniaEdit + AvaloniaEdit.TextMate 实现 C# 内置编辑器和语法高亮。
 - [x] 内置编辑器已支持未保存状态、保存、同目录另存为（同步移动源码 metadata）、外部修改冲突、编译诊断和诊断行列跳转；窗口内容已避让系统标题栏，Avalonia Headless UI 测试已覆盖保存、另存为、跳转和关闭保护。
-- [ ] 增加语言无关的 token 补全，首期覆盖 C#、Lua、Python 的关键字、当前文件符号和简单成员提示；后续可替换为 Roslyn/LSP 语义补全。
+- [x] 增加语言无关的 token 补全，覆盖 C#、Lua、Python 的关键字、当前文件符号和简单宿主成员提示；后续可替换为 Roslyn/LSP 语义补全。
 
 验收：用户可以在脚本管理页搜索脚本、创建 C# 脚本、选择固定或自定义范围执行并查看结果；
 用户可以从日历右键菜单按天/月/年执行编辑器脚本，也可以从当前日期工作项的右键菜单对已保存工作项执行脚本；
@@ -482,7 +482,7 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [x] 定义并实现 `diary.script.worker` 握手、版本协商和能力协商。
 - [x] 增加 UTF-8 JSON 行消息编解码和单条消息大小限制。
 - [x] 实现本机进程管道 Worker transport，使用绝对路径、独立标准流和受控环境变量。
-- [~] 已实现 supervisor 启动、握手、串行执行、停止、心跳、取消、超时、执行通道终止事件监听和后台空闲回收；完整资源回收和跨平台工作集强限制待完成。
+- [x] 已实现 supervisor 启动、握手、串行执行、停止、心跳、取消、超时、执行通道终止事件监听、后台空闲回收和宽限期后强制终止进程树。
 - [x] 已实现 `execute`、`execute.result`、`cancel` 以及 supervisor 侧和 C# Worker 侧 `host.call`/`host.result` 路由。
 - [x] 已实现协议单条消息、执行请求消息、执行结果消息、单次宿主调用数量、每个 Worker 请求总数、stderr 输出和脚本 stdout 输出限制；工作集软限制已实现，操作系统级强内存限制按平台能力处理。
 - [x] 将只读 `workItems.query` 接入 Worker 宿主 API和主程序查询 dispatcher。
@@ -490,11 +490,11 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [x] worker 执行通道意外终止时将当前请求转换为 `WORKER_TERMINATED` 结构化失败，不自动重复请求。
 - [x] 执行历史结果关联 `workerId` 和 Worker `requestId`，并隔离协议 stdout 与脚本标准输出。
 - [ ] 默认同语言脚本共享 worker；高风险或无法清理状态的脚本支持独立 worker。
-- [x] 已实现 C# Worker 协议适配器、握手、心跳、取消、基础脚本执行器和宿主 API 转发；Tracker/多语言 Worker 仍待完成。
-- [ ] 实现 Lua worker，默认关闭文件、网络和进程能力。
-- [ ] 实现 Python worker，处理解释器发现、环境隔离、标准输出污染和退出码错误。
-- [ ] 按 `EngineName` 将 C#、Lua、Python 请求路由到各自 supervisor，并确保一个 worker 故障不影响其他语言。
-- [~] 已增加 C# Linux 进程启动、握手、心跳、执行、取消、超时、通道终止、退出码和历史关联测试；工作集/输出超限集成测试及其他平台运行时测试待完成。
+- [x] 已实现 C# Worker 协议适配器、握手、心跳、取消、基础脚本执行器和宿主 API 转发；Tracker 只读实例目录及多语言 Worker 已接入。
+- [x] 实现 Lua worker，默认关闭文件、网络、进程、动态加载和 CLR 暴露能力。
+- [x] 实现 Python worker，处理解释器发现、隔离模式、标准输出污染、取消和退出码错误。
+- [x] 按 `EngineName` 将 C#、Lua、Python 请求路由到各自 supervisor，并确保一个 worker 故障不影响其他语言。
+- [~] 已增加 C# Linux 进程启动、握手、心跳、执行、取消、超时、强制终止、通道终止、退出码和历史关联测试；工作集/输出超限集成测试及其他平台运行时测试待完成。
 
 验收：脚本 worker 崩溃、协议失步、超时或被强制终止时，主程序和其他语言 worker 继续运行；
 脚本执行历史可以关联 worker ID、请求 ID 和执行 ID；只读宿主调用跨 C#、Lua、Python 使用一致协议。
@@ -517,14 +517,14 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [x] Redmine 实现实例级标签规则，支持标签到 Activity/Issue 默认值映射。
 - [x] 规则字段和动作由 Tracker 插件解释，核心未引入 Redmine 专用字段。
 - [x] 支持规则按标签添加顺序逐条应用，并基于前一条规则的最新编辑器状态。
-- [~] 已实现同字段冲突、无效目标和稳定裁决；未启用 Tracker 实例的诊断策略待明确。
+- [x] 已实现同字段冲突、无效目标和稳定裁决；禁用实例跳过自动化，状态和原因由插件管理/诊断页展示。
 - [x] 在 Tracker 实例设置页提供规则新增、编辑、删除、启用/禁用和优先级调整。
 - [x] 在核心标签编辑器提供 Tracker 规则扩展入口，按标签查看关联实例规则。
 - [x] 两个规则编辑入口共享编辑 ViewModel，避免配置互相覆盖。
 - [x] 规则配置支持 schema 迁移、未知字段保留和敏感信息保护。
 - [x] 规则应用只修改当前 Tracker 编辑器草稿，不在标签添加时调用远程 API。
 - [x] 规则修改后的最终 Tracker 字段随现有工作项本地事务保存。
-- [~] 已增加手动添加、模板添加、顺序、多规则和用户覆盖测试；完整多实例 UI 验收待补。
+- [x] 已增加手动添加、模板添加、顺序、多规则、用户覆盖、实例故障隔离和多实例独立应用测试。
 
 验收：添加标签或应用包含标签的模板时，规则按标签实际新增顺序应用；同一标签可以为不同 Tracker 实例产生不同默认值；
 用户可以在规则应用后继续覆盖字段，删除标签不会反向修改字段，且核心标签和编辑器不依赖具体 Tracker 类型。

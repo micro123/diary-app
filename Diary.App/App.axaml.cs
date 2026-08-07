@@ -365,7 +365,11 @@ namespace Diary.App
                         [pythonRuntime.EngineName] = pythonRuntime,
                     });
             });
-            services.AddSingleton<IScriptExecutionHistory, ScriptExecutionHistory>();
+            services.AddSingleton<IScriptExecutionHistory>(_ => new ScriptExecutionHistory(
+                persistencePath: Path.Combine(
+                    FsTools.GetApplicationConfigDirectory(),
+                    "scripts",
+                    "execution-history.json")));
             services.AddSingleton<IScriptManager, ScriptManager>();
             services.AddSingleton<IScriptDirectoryLoader, ScriptDirectoryLoader>();
             services.AddSingleton<ScriptStartupDiagnosticsStore>();
@@ -377,6 +381,11 @@ namespace Diary.App
                     context.RegisterApi<IWorkItemQueryScriptApi>(
                         new WorkItemQueryScriptApi(() => UseDb, grantedCapabilities),
                         ScriptCapability.ReadDiary);
+                    context.RegisterApi<ITrackerInstanceScriptApi>(
+                        new TrackerInstanceScriptApi(
+                            Services.GetRequiredService<PluginInstanceRegistry>(),
+                            grantedCapabilities),
+                        ScriptCapability.Tracker);
                     return context;
                 }));
             var compatibility = new PluginCompatibilityContext(

@@ -82,6 +82,26 @@ public sealed class TagAutomationCoordinatorTests
     }
 
     [TestMethod]
+    public void Coordinator_AppliesSameTagToEachEnabledInstanceIndependently()
+    {
+        var company = new TagDefaultsExtension("company");
+        var personal = new TagDefaultsExtension("personal");
+
+        var result = new TagAutomationCoordinator().TagAdded(
+            null,
+            new WorkTag { Id = 15 },
+            new TagAutomationContext(TagAddSource.Template, 1),
+            [company, personal]);
+
+        Assert.AreEqual(15, company.AppliedTagId);
+        Assert.AreEqual(15, personal.AppliedTagId);
+        CollectionAssert.AreEquivalent(
+            new[] { "company", "personal" },
+            result.Instances.Select(item => item.TrackerKey.InstanceId).ToArray());
+        Assert.IsTrue(result.Succeeded);
+    }
+
+    [TestMethod]
     public void AddTags_PreservesLatestAutomationDiagnostics()
     {
         var expected = new TagAutomationResult([

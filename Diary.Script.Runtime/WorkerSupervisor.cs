@@ -231,6 +231,7 @@ public sealed class WorkerSupervisor(
             {
                 await TrySendCancelAsync(executionId, "Timeout", DateTimeOffset.UtcNow, cancellationToken);
                 State = WorkerState.Failed;
+                await StopTransportAsync(CancellationToken.None);
                 return Result(requestId, executionId, ScriptExecutionStatus.TimedOut,
                     new ScriptDiagnostic("SCRIPT_EXECUTION_TIMED_OUT", "Worker 执行超时。",
                         ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Runtime));
@@ -238,6 +239,8 @@ public sealed class WorkerSupervisor(
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 await TrySendCancelAsync(executionId, "Cancelled", null, CancellationToken.None);
+                State = WorkerState.Failed;
+                await StopTransportAsync(CancellationToken.None);
                 return Result(requestId, executionId, ScriptExecutionStatus.Cancelled);
             }
             catch (EndOfStreamException)

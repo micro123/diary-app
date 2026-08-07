@@ -573,16 +573,16 @@ worker 重启后不会自动重复未确认的副作用操作。
 
 - [x] 实现双向 `host.call`/`host.result`。
 - [x] 接入只读 `workItems.query`。
-- [~] 已实现心跳、超时、进程退出事件监听、执行通道终止诊断、退出码诊断、惰性空闲回收和指数退避启动；完整资源回收和跨平台强限制待完成。
+- [x] 已实现心跳、超时、进程退出事件监听、执行通道终止诊断、退出码诊断、后台空闲回收、指数退避启动和宽限期后强制终止进程树。
 - [x] 执行历史已关联 worker ID、Worker request ID 和执行 ID。
 
 ### 第三阶段：多语言
 
-- [设计已确定] 接入独立 Lua worker，使用 `NLua 1.7.9 + KeraLua` 和受限标准库/CLR 暴露策略。
-- [设计已确定] 接入独立 Python 3 worker，使用 `PythonRuntimeResolver` 管理解释器发现。
-- [设计已确定] 按语言维护独立 supervisor 和故障状态，复用同一协议与 HostCall。
-- 实现多语言路由、运行时发现、版本诊断和跨平台启动配置。
-- 实现 worker 强制终止、stderr 摘要保留和忽略取消脚本的超时回收。
+- [x] 接入独立 Lua worker，使用 `NLua 1.7.9 + KeraLua` 和受限标准库/CLR 暴露策略。
+- [x] 接入独立 Python 3 worker，使用 `PythonRuntimeResolver` 管理解释器发现。
+- [x] 按语言维护独立 supervisor 和故障状态，复用同一协议与 HostCall。
+- [~] 已实现多语言路由、运行时发现和版本诊断；Windows/Linux/macOS 启动与打包矩阵待持续验证。
+- [x] 实现 worker 强制终止和忽略取消脚本的超时回收；stderr 仅保留超限状态，不保留文本摘要。
 
 ### 第四阶段：资源和副作用
 

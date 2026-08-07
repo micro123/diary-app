@@ -9,5 +9,6 @@
     <ProjectReference Include="..\Diary.ScriptBase\Diary.ScriptBase.csproj" />
     <ProjectReference Include="..\Diary.Database\Diary.Database.csproj" />
     <ProjectReference Include="..\Diary.Core\Diary.Core.csproj" />
+    <ProjectReference Include="..\Diary.PluginBase\Diary.PluginBase.csproj" />
   </ItemGroup>
 </Project>

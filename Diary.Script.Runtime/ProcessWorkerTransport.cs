@@ -8,7 +8,8 @@ public sealed record WorkerProcessOptions(
     string WorkingDirectory,
     IReadOnlyDictionary<string, string>? Environment = null,
     int MaxMessageBytes = WorkerProtocol.DefaultMaxMessageBytes,
-    int MaxStderrBytes = 1 * 1024 * 1024);
+    int MaxStderrBytes = 1 * 1024 * 1024,
+    TimeSpan? ShutdownGracePeriod = null);
 
 public sealed class ProcessWorkerTransportFactory(WorkerProcessOptions options) : IWorkerTransportFactory
 {
@@ -41,7 +42,11 @@ public sealed class ProcessWorkerTransportFactory(WorkerProcessOptions options) 
         var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
         if (!process.Start())
             throw new InvalidOperationException("无法启动 Worker 进程。");
-        return ValueTask.FromResult<IWorkerTransport>(new ProcessWorkerTransport(process, options.MaxMessageBytes, options.MaxStderrBytes));
+        return ValueTask.FromResult<IWorkerTransport>(new ProcessWorkerTransport(
+            process,
+            options.MaxMessageBytes,
+            options.MaxStderrBytes,
+            options.ShutdownGracePeriod));
     }
 }
 
@@ -51,6 +56,7 @@ public sealed class ProcessWorkerTransport : IWorkerTransport, IWorkerTerminatio
     private readonly Stream _input;
     private readonly Stream _output;
     private readonly Task _stderrDrain;
+    private readonly TimeSpan _shutdownGracePeriod;
 
     public event EventHandler<WorkerTerminatedEventArgs>? Terminated;
     public int MaxMessageBytes { get; }
@@ -58,7 +64,11 @@ public sealed class ProcessWorkerTransport : IWorkerTransport, IWorkerTerminatio
     public bool StderrLimitExceeded { get; private set; }
     public long? WorkingSetBytes => _process.HasExited ? null : _process.WorkingSet64;
 
-    public ProcessWorkerTransport(Process process, int maxMessageBytes = WorkerProtocol.DefaultMaxMessageBytes, int maxStderrBytes = 1 * 1024 * 1024)
+    public ProcessWorkerTransport(
+        Process process,
+        int maxMessageBytes = WorkerProtocol.DefaultMaxMessageBytes,
+        int maxStderrBytes = 1 * 1024 * 1024,
+        TimeSpan? shutdownGracePeriod = null)
     {
         if (maxMessageBytes <= 0 || maxStderrBytes <= 0)
             throw new ArgumentOutOfRangeException(nameof(maxMessageBytes));
@@ -66,6 +76,7 @@ public sealed class ProcessWorkerTransport : IWorkerTransport, IWorkerTerminatio
         _input = process.StandardInput.BaseStream;
         _output = process.StandardOutput.BaseStream;
         MaxMessageBytes = maxMessageBytes;
+        _shutdownGracePeriod = shutdownGracePeriod ?? TimeSpan.FromSeconds(2);
         _stderrDrain = DrainStderrAsync(process.StandardError.BaseStream, maxStderrBytes);
         process.Exited += OnProcessExited;
     }
@@ -86,8 +97,22 @@ public sealed class ProcessWorkerTransport : IWorkerTransport, IWorkerTerminatio
         catch (IOException)
         {
         }
-        if (!_process.HasExited)
+        if (_process.HasExited)
+            return;
+
+        using var graceCancellation = new CancellationTokenSource(_shutdownGracePeriod);
+        using var waitCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            graceCancellation.Token);
+        try
+        {
+            await _process.WaitForExitAsync(waitCancellation.Token);
+        }
+        catch (OperationCanceledException) when (graceCancellation.IsCancellationRequested)
+        {
+            _process.Kill(entireProcessTree: true);
             await _process.WaitForExitAsync(cancellationToken);
+        }
     }
 
     public ValueTask DisposeAsync()

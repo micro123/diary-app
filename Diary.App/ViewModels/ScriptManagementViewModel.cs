@@ -409,6 +409,23 @@ public partial class ScriptManagementViewModel(
     }
 
     [RelayCommand]
+    private async Task ExportExecutionHistory()
+    {
+        var exportPath = Path.Combine(_scriptRoot, "execution-history-export.json");
+        try
+        {
+            await executionHistory.ExportAsync(exportPath);
+            Status = $"执行历史已导出：{exportPath}";
+            ProcUtils.OpenDirectoryCrossPlatform(_scriptRoot);
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "导出脚本执行历史失败：{ExportPath}", exportPath);
+            Status = "无法导出脚本执行历史";
+        }
+    }
+
+    [RelayCommand]
     private async Task CreateScript()
     {
         var viewModel = services.GetRequiredService<ScriptCreationViewModel>();

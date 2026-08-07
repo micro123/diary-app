@@ -145,6 +145,38 @@ public sealed class ProcessWorkerTransportTests
     }
 
     [TestMethod]
+    public async Task ProcessTransport_StopKillsProcessAfterGracePeriod()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            Assert.Inconclusive("当前集成测试使用 Linux shell 进程。");
+            return;
+        }
+
+        var process = new System.Diagnostics.Process
+        {
+            StartInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "/bin/sh",
+                ArgumentList = { "-c", "trap '' TERM; sleep 30" },
+                UseShellExecute = false,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            },
+            EnableRaisingEvents = true,
+        };
+        process.Start();
+        await using var transport = new ProcessWorkerTransport(
+            process,
+            shutdownGracePeriod: TimeSpan.FromMilliseconds(50));
+
+        await transport.StopAsync();
+
+        Assert.IsTrue(process.HasExited);
+    }
+
+    [TestMethod]
     public async Task Factory_RejectsRelativeExecutableAndWorkingDirectory()
     {
         await Assert.ThrowsExactlyAsync<ArgumentException>(() =>

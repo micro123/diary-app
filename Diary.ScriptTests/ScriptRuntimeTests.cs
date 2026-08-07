@@ -400,6 +400,60 @@ public sealed class ScriptRuntimeTests
         Assert.AreEqual("request-1", recorded.WorkerRequestId);
     }
 
+    [TestMethod]
+    public async Task History_PersistsReloadsAndExportsSanitizedEntries()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"diary-history-{Guid.NewGuid():N}");
+        var path = Path.Combine(directory, "history.json");
+        var exportPath = Path.Combine(directory, "export.json");
+        try
+        {
+            var history = new ScriptExecutionHistory(persistencePath: path);
+            history.Record("demo", new ScriptExecutionOutcome(
+                Guid.NewGuid(),
+                new ScriptExecutionResult(ScriptExecutionStatus.Failed, [new ScriptDiagnostic(
+                    "FAILURE", "token=super-secret", ScriptDiagnosticSeverity.Error,
+                    ScriptDiagnosticCategory.Runtime)]),
+                WorkerId: "worker-1",
+                WorkerRequestId: "request-1"));
+
+            var reloaded = new ScriptExecutionHistory(persistencePath: path);
+            await reloaded.ExportAsync(exportPath);
+            var entry = reloaded.GetRecent(1).Single();
+            var exported = await File.ReadAllTextAsync(exportPath);
+
+            Assert.AreEqual("worker-1", entry.Outcome.WorkerId);
+            Assert.AreEqual("request-1", entry.Outcome.WorkerRequestId);
+            StringAssert.Contains(entry.Outcome.Result.Diagnostics.Single().Message, "<redacted>");
+            Assert.IsFalse(exported.Contains("super-secret", StringComparison.Ordinal));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+                Directory.Delete(directory, true);
+        }
+    }
+
+    [TestMethod]
+    public async Task History_IgnoresCorruptPersistenceFile()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"diary-history-{Guid.NewGuid():N}");
+        var path = Path.Combine(directory, "history.json");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            await File.WriteAllTextAsync(path, "{");
+
+            var history = new ScriptExecutionHistory(persistencePath: path);
+
+            Assert.AreEqual(0, history.GetRecent().Count);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
     private static ScriptExecutionContext EmptyContext() => new(ScriptCapability.None);
 
     private static ScriptDiagnostic Diagnostic(string code) =>
