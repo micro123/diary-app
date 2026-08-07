@@ -8,7 +8,6 @@ public interface IWorkerScriptExecutor
     ValueTask<ScriptExecutionOutcome> ExecuteAsync(
         string scriptId,
         ScriptExecutionRequest request,
-        ScriptCapability grantedCapabilities,
         TimeSpan? timeout = null,
         CancellationToken cancellationToken = default);
 }
@@ -20,7 +19,6 @@ public sealed class WorkerScriptExecutor(
     public async ValueTask<ScriptExecutionOutcome> ExecuteAsync(
         string scriptId,
         ScriptExecutionRequest request,
-        ScriptCapability grantedCapabilities,
         TimeSpan? timeout = null,
         CancellationToken cancellationToken = default)
     {
@@ -50,12 +48,9 @@ public sealed class WorkerScriptExecutor(
                         descriptor.Id,
                         descriptor.Name,
                         descriptor.Scope,
-                        descriptor.Capabilities,
                         descriptor.Description,
-                        engineName),
-                    ScriptCapabilities.All),
+                        engineName)),
                 timeout,
-                ScriptCapabilities.All,
                 cancellationToken);
             return new(executionId, new ScriptExecutionResult(
                 result.Payload.Status,
@@ -79,8 +74,7 @@ public sealed record WorkerExecutePayload(
     string SourcePath,
     string Source,
     ScriptExecutionRequest Request,
-    ScriptDescriptorHint? DescriptorHint = null,
-    ScriptCapability GrantedCapabilities = ScriptCapability.None);
+    ScriptDescriptorHint? DescriptorHint = null);
 
 public sealed record WorkerRuntime(
     string EngineName,

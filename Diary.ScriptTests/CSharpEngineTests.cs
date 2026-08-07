@@ -18,7 +18,7 @@ public sealed class CSharpEngineTests
             using Diary.ScriptBase;
             public sealed class TestProgram : IScriptProgramV1
             {
-                public ScriptDescriptor Descriptor => new("test", "Test", ScriptApiVersion.V1, ScriptScope.Application, ScriptCapability.ReadDiary);
+                public ScriptDescriptor Descriptor => new("test", "Test", ScriptApiVersion.V1, ScriptScope.Application);
                 public ValueTask<ScriptExecutionResult> ExecuteAsync(ScriptExecutionRequest request, IScriptExecutionContext context, CancellationToken cancellationToken = default)
                     => ValueTask.FromResult(ScriptExecutionResult.Succeeded());
             }
@@ -42,7 +42,7 @@ public sealed class CSharpEngineTests
             using Diary.ScriptHost;
             public sealed class QueryProgram : IScriptProgramV1
             {
-                public ScriptDescriptor Descriptor => new("query", "Query", ScriptApiVersion.V1, ScriptScope.Application, ScriptCapability.ReadDiary);
+                public ScriptDescriptor Descriptor => new("query", "Query", ScriptApiVersion.V1, ScriptScope.Application);
                 public async ValueTask<ScriptExecutionResult> ExecuteAsync(ScriptExecutionRequest request, IScriptExecutionContext context, CancellationToken cancellationToken = default)
                 {
                     var api = context.GetApi<IWorkItemQueryScriptApi>();
@@ -56,8 +56,8 @@ public sealed class CSharpEngineTests
             result.Succeeded,
             string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
         var api = new RecordingQueryApi();
-        var context = new Diary.Script.Runtime.ScriptExecutionContext(ScriptCapability.ReadDiary);
-        context.RegisterApi<IWorkItemQueryScriptApi>(api, ScriptCapability.ReadDiary);
+        var context = new Diary.Script.Runtime.ScriptExecutionContext();
+        context.RegisterApi<IWorkItemQueryScriptApi>(api);
 
         var execution = await result.Program!.ExecuteAsync(
             new ScriptExecutionRequest(new ScriptTarget(ScriptScope.Application)),
@@ -80,7 +80,7 @@ public sealed class CSharpEngineTests
                 using Diary.ScriptBase;
                 public sealed class CachedProgram : IScriptProgramV1
                 {
-                    public ScriptDescriptor Descriptor => new("cached", "Cached", ScriptApiVersion.V1, ScriptScope.Application, ScriptCapability.None);
+                    public ScriptDescriptor Descriptor => new("cached", "Cached", ScriptApiVersion.V1, ScriptScope.Application);
                     public ValueTask<ScriptExecutionResult> ExecuteAsync(ScriptExecutionRequest request, IScriptExecutionContext context, CancellationToken cancellationToken = default)
                         => ValueTask.FromResult(ScriptExecutionResult.Succeeded());
                 }
@@ -137,7 +137,7 @@ public sealed class CSharpEngineTests
             using Diary.ScriptBase;
             public sealed class DangerousProgram : IScriptProgramV1
             {
-                public ScriptDescriptor Descriptor => new("dangerous", "Dangerous", ScriptApiVersion.V1, ScriptScope.Application, ScriptCapability.None);
+                    public ScriptDescriptor Descriptor => new("dangerous", "Dangerous", ScriptApiVersion.V1, ScriptScope.Application);
                 public ValueTask<ScriptExecutionResult> ExecuteAsync(ScriptExecutionRequest request, IScriptExecutionContext context, CancellationToken cancellationToken = default)
                 {
                     _ = System.Environment.ProcessPath;
@@ -168,7 +168,7 @@ public sealed class CSharpEngineTests
             using Diary.ScriptBase;
             public sealed class EscapeProgram : IScriptProgramV1
             {
-                public ScriptDescriptor Descriptor => new("escape", "Escape", ScriptApiVersion.V1, ScriptScope.Application, ScriptCapability.None);
+                    public ScriptDescriptor Descriptor => new("escape", "Escape", ScriptApiVersion.V1, ScriptScope.Application);
                 public ValueTask<ScriptExecutionResult> ExecuteAsync(ScriptExecutionRequest request, IScriptExecutionContext context, CancellationToken cancellationToken = default)
                 {
                     {{statement}}

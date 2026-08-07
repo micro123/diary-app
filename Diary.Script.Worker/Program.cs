@@ -43,7 +43,7 @@ internal sealed class CSharpWorker(Stream input, Stream output)
             WorkerMessageType.Hello,
             Guid.NewGuid().ToString("N"),
             null,
-            new("csharp", "0.1", [ScriptApiVersion.V1], ["workItems.query", "trackerInstances.get"], Environment.ProcessId));
+            new("csharp", "0.3", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm"], Environment.ProcessId));
         Console.SetOut(new BoundedTextWriter(1 * 1024 * 1024));
         await WorkerMessageCodec.WriteAsync(output, hello);
         var accepted = await WorkerMessageCodec.ReadAsync<WorkerHelloAcceptedPayload>(input);
@@ -108,9 +108,12 @@ internal sealed class CSharpWorker(Stream input, Stream output)
 
             var executionId = Guid.TryParse(message.ExecutionId, out var parsedId) ? parsedId : Guid.NewGuid();
             var metadata = new ScriptExecutionMetadata(executionId, DateTimeOffset.UtcNow, payload.Request.Source, payload.ScriptId);
-            var context = new ScriptExecutionContext(ScriptCapabilities.All, metadata);
+            var context = new ScriptExecutionContext(metadata);
             context.RegisterApi<IWorkItemQueryScriptApi>(new WorkerWorkItemQueryProxy(CallHostAsync));
             context.RegisterApi<ITrackerInstanceScriptApi>(new TrackerInstanceWorkerProxy(CallHostAsync));
+            context.RegisterApi<ILogItemScriptApi>(new WorkerLogItemProxy(CallHostAsync));
+            context.RegisterApi<IClipboardScriptApi>(new WorkerClipboardProxy(CallHostAsync));
+            context.RegisterApi<IUserInteractionScriptApi>(new WorkerUserInteractionProxy(CallHostAsync));
             var outcome = await _executor.ExecuteAsync(build.Program, payload.Request, context, cancellationToken: CancellationToken.None, executionId: executionId);
             await WriteResultAsync(message, new(outcome.Result.Status, outcome.Result.Diagnostics, DurationMilliseconds: (long)outcome.Duration.TotalMilliseconds));
         }

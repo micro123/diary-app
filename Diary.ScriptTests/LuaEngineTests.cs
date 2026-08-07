@@ -24,13 +24,12 @@ public sealed class LuaEngineTests
             DescriptorHint: new ScriptDescriptorHint(
                 "lua-test",
                 "Lua Test",
-                ScriptScope.Application,
-                ScriptCapability.None)));
+                 ScriptScope.Application)));
 
         Assert.IsTrue(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics.Select(item => item.Message)));
         var execution = await result.Program!.ExecuteAsync(
             new ScriptExecutionRequest(new ScriptTarget(ScriptScope.Application)),
-            new Diary.Script.Runtime.ScriptExecutionContext(ScriptCapability.None));
+            new Diary.Script.Runtime.ScriptExecutionContext());
 
         Assert.AreEqual(ScriptExecutionStatus.Succeeded, execution.Status);
     }
@@ -53,8 +52,7 @@ public sealed class LuaEngineTests
             DescriptorHint: new ScriptDescriptorHint(
                 "broken",
                 "Broken",
-                ScriptScope.Application,
-                ScriptCapability.None)));
+                 ScriptScope.Application)));
 
         Assert.IsFalse(result.Succeeded);
         Assert.IsTrue(result.Diagnostics.Any(item =>

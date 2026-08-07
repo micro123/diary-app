@@ -72,7 +72,7 @@ internal sealed class LuaWorker(Stream input, Stream output)
             var payload = envelope.Payload.Deserialize<WorkerExecutePayload>(WorkerProtocol.JsonOptions)
                 ?? throw new InvalidDataException("Worker 执行参数为空。");
             var hint = payload.DescriptorHint;
-            if (hint is null || hint.Scope is null || hint.Capabilities is null)
+            if (hint is null || hint.Scope is null)
             {
                 await WriteResultAsync(message, new(ScriptExecutionStatus.Rejected, [new ScriptDiagnostic(
                     "SCRIPT_DESCRIPTOR_INVALID",

@@ -330,9 +330,12 @@ namespace Diary.App
             services.AddSingleton<IScriptExecutor, ScriptExecutor>();
             services.AddSingleton<IWorkerHostCallDispatcher>(_ =>
                  new WorkItemQueryWorkerDispatcher(
-                     _ => new WorkItemQueryScriptApi(() => UseDb),
-                     _ => new TrackerInstanceScriptApi(
-                         Services.GetRequiredService<PluginInstanceRegistry>())));
+                      () => new WorkItemQueryScriptApi(() => UseDb),
+                      () => new TrackerInstanceScriptApi(
+                          Services.GetRequiredService<PluginInstanceRegistry>()),
+                      () => new LogItemScriptApi(() => UseDb),
+                      () => new AppClipboardScriptApi(this),
+                      () => new AppUserInteractionScriptApi()));
             services.AddSingleton<IWorkerScriptExecutor>(services =>
             {
                 var workerName = OperatingSystem.IsWindows()
@@ -345,7 +348,7 @@ namespace Diary.App
                 var csharpRuntime = new WorkerRuntime(
                     "csharp",
                     new WorkerSupervisor(new ProcessWorkerTransportFactory(csharpOptions), hostDispatcher),
-                     new WorkerHandshakeOptions("csharp", [ScriptApiVersion.V1], ["workItems.query", "trackerInstances.get"]));
+                     new WorkerHandshakeOptions("csharp", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm"]));
                 var luaRuntime = new WorkerRuntime(
                     "lua",
                     new WorkerSupervisor(new ProcessWorkerTransportFactory(luaOptions), hostDispatcher),
@@ -372,17 +375,15 @@ namespace Diary.App
             services.AddSingleton<IScriptDirectoryLoader, ScriptDirectoryLoader>();
             services.AddSingleton<ScriptStartupDiagnosticsStore>();
             services.AddSingleton<IScriptExecutionContextFactory>(_ =>
-                new ScriptExecutionContextFactory((capabilities, metadata) =>
+                new ScriptExecutionContextFactory(metadata =>
                 {
-                    var grantedCapabilities = ScriptCapabilities.All;
-                    var context = new ScriptExecutionContext(grantedCapabilities, metadata);
+                    var context = new ScriptExecutionContext(metadata);
                     context.RegisterApi<IWorkItemQueryScriptApi>(
-                        new WorkItemQueryScriptApi(() => UseDb),
-                        ScriptCapability.ReadDiary);
+                        new WorkItemQueryScriptApi(() => UseDb));
                     context.RegisterApi<ITrackerInstanceScriptApi>(
                         new TrackerInstanceScriptApi(
-                            Services.GetRequiredService<PluginInstanceRegistry>()),
-                        ScriptCapability.Tracker);
+                            Services.GetRequiredService<PluginInstanceRegistry>()));
+                    context.RegisterApi<ILogItemScriptApi>(new LogItemScriptApi(() => UseDb));
                     return context;
                 }));
             var compatibility = new PluginCompatibilityContext(
@@ -756,5 +757,40 @@ namespace Diary.App
 
         private AppSurveyor _surveyor = new();
         private AppRespondent _respondent = new();
+    }
+
+    internal sealed class AppClipboardScriptApi(App app) : IClipboardScriptApi
+    {
+        public async ValueTask<string?> GetTextAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var clipboard = (app.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow?.Clipboard;
+            return clipboard is null ? null : await clipboard.GetTextAsync();
+        }
+
+        public async ValueTask<bool> SetTextAsync(string text, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var clipboard = (app.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow?.Clipboard;
+            if (clipboard is null) return false;
+            await clipboard.SetTextAsync(text);
+            return true;
+        }
+    }
+
+    internal sealed class AppUserInteractionScriptApi : IUserInteractionScriptApi
+    {
+        public ValueTask NotifyAsync(string title, string body, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            EventDispatcher.Notify(title, body);
+            return ValueTask.CompletedTask;
+        }
+
+        public async ValueTask<bool> ConfirmAsync(string title, string body, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return await EventDispatcher.Confirm(title, body);
+        }
     }
 }

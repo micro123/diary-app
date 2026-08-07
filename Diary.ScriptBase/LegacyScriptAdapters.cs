@@ -51,7 +51,6 @@ public sealed class LegacyScriptProgramAdapter : IScriptProgramV1
             Path.GetFileNameWithoutExtension(sourcePath),
             ScriptApiVersion.V1,
             script.Usage == ScriptUsage.Editor ? ScriptScope.Editor : ScriptScope.Application,
-            ScriptCapability.None,
             "Legacy script compatibility adapter");
     }
 

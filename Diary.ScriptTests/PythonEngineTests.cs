@@ -42,14 +42,12 @@ public sealed class PythonEngineTests
             DescriptorHint: new ScriptDescriptorHint(
                 "metadata-id",
                 "Metadata Name",
-                ScriptScope.Editor,
-                ScriptCapability.ReadDiary)));
+                 ScriptScope.Editor)));
 
         Assert.IsTrue(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics.Select(item => item.Message)));
         Assert.AreEqual("metadata-id", result.Program!.Descriptor.Id);
         Assert.AreEqual("Metadata Name", result.Program.Descriptor.Name);
         Assert.AreEqual(ScriptScope.Editor, result.Program.Descriptor.Scope);
-        Assert.AreEqual(ScriptCapability.ReadDiary, result.Program.Descriptor.Capabilities);
     }
 
     [TestMethod]
@@ -67,8 +65,7 @@ public sealed class PythonEngineTests
             DescriptorHint: new ScriptDescriptorHint(
                 "broken",
                 "Broken",
-                ScriptScope.Application,
-                ScriptCapability.None)));
+                 ScriptScope.Application)));
 
         Assert.IsFalse(result.Succeeded);
         Assert.IsTrue(result.Diagnostics.Any(item =>

@@ -14,8 +14,6 @@ public sealed class ScriptContractTests
     {
         Assert.AreEqual(1, EnumValue<ScriptApiVersion>("V1"));
         Assert.AreEqual((int)ScriptApiVersions.Current, EnumValue<ScriptApiVersion>("V1"));
-        Assert.AreEqual(1, EnumValue<ScriptCapability>("ReadDiary"));
-        Assert.AreEqual(16, EnumValue<ScriptCapability>("Tracker"));
         Assert.AreEqual(3, EnumValue<ScriptDiagnosticSeverity>("Error"));
         Assert.AreEqual(6, EnumValue<ScriptDiagnosticCategory>("Host"));
         Assert.AreEqual(4, EnumValue<ScriptExecutionStatus>("Rejected"));
@@ -31,7 +29,6 @@ public sealed class ScriptContractTests
             "Daily summary",
             ScriptApiVersion.V1,
             ScriptScope.Editor,
-            ScriptCapability.ReadDiary,
             "Read-only summary");
         var diagnostic = new ScriptDiagnostic(
             "TEST001",

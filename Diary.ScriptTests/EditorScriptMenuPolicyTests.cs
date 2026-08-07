@@ -10,9 +10,9 @@ public sealed class EditorScriptMenuPolicyTests
     public void GetRunnableScripts_ReturnsOnlyEditorScriptsInStableNameOrder()
     {
         var catalog = new ScriptCatalog();
-        catalog.Register(new TestProgram(new("application", "应用", ScriptApiVersion.V1, ScriptScope.Application, ScriptCapability.None)));
-        catalog.Register(new TestProgram(new("z-editor", "Zeta", ScriptApiVersion.V1, ScriptScope.Editor, ScriptCapability.None)));
-        catalog.Register(new TestProgram(new("a-editor", "Alpha", ScriptApiVersion.V1, ScriptScope.Editor, ScriptCapability.None)));
+         catalog.Register(new TestProgram(new("application", "应用", ScriptApiVersion.V1, ScriptScope.Application)));
+         catalog.Register(new TestProgram(new("z-editor", "Zeta", ScriptApiVersion.V1, ScriptScope.Editor)));
+         catalog.Register(new TestProgram(new("a-editor", "Alpha", ScriptApiVersion.V1, ScriptScope.Editor)));
 
         var scripts = EditorScriptMenuPolicy.GetRunnableScripts(catalog);
 

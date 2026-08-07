@@ -566,7 +566,7 @@ worker 重启后不会自动重复未确认的副作用操作。
 
 脚本是否可执行只由目录加载和编译结果决定；历史 metadata 中的 `enabled` 字段会被忽略，不再阻止有效脚本加载。删除普通脚本需要二次确认并删除源码及 metadata，删除脚本包则删除整个包目录。
 
-脚本不再使用 capability 作为权限拒绝模型，默认获得宿主已实现的 API；能力字段保留用于兼容 metadata 和描述信息。C# Worker 已接入 `workItems.query` 与 `trackerInstances.get`，其他宿主扩展必须先完成真实 Worker 实现后再对外提供。
+脚本契约不再包含 capability 权限字段，默认获得宿主已实现的 API；未注册的 API 仍不可用。C# Worker 已接入 `workItems.query`、`logItems.create`、`trackerInstances.get`、剪贴板和用户交互 HostCall。
 
 ## 20. 分阶段实施
 
@@ -598,3 +598,7 @@ worker 重启后不会自动重复未确认的副作用操作。
 - [x] 已增加执行消息、执行结果、stderr 和脚本 stdout 输出、调用数、请求数、后台空闲回收和工作集软限制；操作系统级强内存限制按平台能力处理。
 - 设计写入 API、预览、确认、幂等键和审计。
 - 根据风险级别选择共享 worker 或独立 worker。
+
+### C# Worker 当前宿主 API
+
+C# Worker 通过 HostCall 使用以下已实现能力：`workItems.query`、`trackerInstances.get`、`clipboard.get`、`clipboard.set`、`ui.notify` 和 `ui.confirm`。剪贴板和用户交互由主进程提供实现；工作项查询结果包含备注、标签等只读日记数据。写入日记、Tracker 写入及任意数据库/DI 访问不属于当前协议。

@@ -79,7 +79,6 @@ public sealed class ScriptManager(
             : await workerExecutor.ExecuteAsync(
                 scriptId,
                 request,
-                context.Capabilities,
                 timeout,
                 cancellationToken);
         outcome = outcome with { StartedAt = startedAt, Duration = stopwatch.Elapsed, Source = request.Source };
@@ -113,8 +112,8 @@ public sealed class ScriptManager(
         var startedAt = DateTimeOffset.UtcNow;
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         var metadata = new ScriptExecutionMetadata(executionId, startedAt, request.Source, scriptId);
-        var context = contextFactory?.Create(program.Descriptor.Capabilities, metadata)
-            ?? new ScriptExecutionContext(ScriptCapability.None, metadata);
+        var context = contextFactory?.Create(metadata)
+            ?? new ScriptExecutionContext(metadata);
         var outcome = workerExecutor is null
             ? await executor.ExecuteAsync(
                 program,
@@ -126,7 +125,6 @@ public sealed class ScriptManager(
             : await workerExecutor.ExecuteAsync(
                 scriptId,
                 request,
-                context.Capabilities,
                 timeout,
                 cancellationToken);
         outcome = outcome with { StartedAt = startedAt, Duration = stopwatch.Elapsed, Source = request.Source };

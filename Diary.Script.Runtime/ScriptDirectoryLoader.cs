@@ -10,7 +10,6 @@ public sealed record ScriptFileMetadata(
     string? Id = null,
     string? Name = null,
     string? Description = null,
-    ScriptCapability? Capabilities = null,
     string? Engine = null,
     ScriptScope? Scope = null);
 
@@ -21,7 +20,6 @@ public sealed record ScriptPackageManifest(
     string? Id = null,
     string? Name = null,
     string? Description = null,
-    ScriptCapability? Capabilities = null,
     string? Engine = null,
     ScriptScope? Scope = null);
 
@@ -119,7 +117,6 @@ public sealed class ScriptDirectoryLoader(
                                     metadata.Id,
                                     metadata.Name,
                                     metadata.Scope ?? scope,
-                                    metadata.Capabilities,
                                     metadata.Description,
                                     metadata.Engine ?? selection.Engine.StableName)),
                             cancellationToken);
@@ -284,8 +281,7 @@ public sealed class ScriptDirectoryLoader(
                         manifest.Id,
                         manifest.Name,
                         manifest.Description,
-                        manifest.Capabilities,
-                        manifest.Engine,
+                         manifest.Engine,
                         manifest.Scope)));
             }
             catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException or InvalidDataException)
@@ -319,8 +315,6 @@ public sealed class ScriptDirectoryLoader(
         if (metadata.Name is not null && !string.Equals(metadata.Name, descriptor.Name, StringComparison.Ordinal))
             return false;
         if (metadata.Description is not null && !string.Equals(metadata.Description, descriptor.Description, StringComparison.Ordinal))
-            return false;
-        if (metadata.Capabilities is not null && metadata.Capabilities.Value != descriptor.Capabilities)
             return false;
         if (metadata.Scope is not null && metadata.Scope.Value != descriptor.Scope)
             return false;

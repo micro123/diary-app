@@ -6,13 +6,6 @@ namespace Diary.Script.Py;
 
 public sealed class PythonEngine : IScriptEngineV1
 {
-    private const ScriptCapability KnownCapabilities =
-        ScriptCapability.ReadDiary |
-        ScriptCapability.WriteDiary |
-        ScriptCapability.UserInteraction |
-        ScriptCapability.Clipboard |
-        ScriptCapability.Tracker;
-
     private readonly PythonRuntimeResolver _runtimeResolver;
     private readonly ScriptDescriptorHint? _defaultDescriptorHint;
     private readonly TimeSpan _syntaxCheckTimeout;
@@ -88,7 +81,6 @@ public sealed class PythonEngine : IScriptEngineV1
             descriptorHint.Name!,
             request.ApiVersion,
             descriptorHint.Scope!.Value,
-            descriptorHint.Capabilities!.Value,
             descriptorHint.Description);
         return ScriptBuildResult.Success(new PythonProgram(
             descriptor,
@@ -105,17 +97,17 @@ public sealed class PythonEngine : IScriptEngineV1
             || string.IsNullOrWhiteSpace(hint.Id)
             || string.IsNullOrWhiteSpace(hint.Name)
             || hint.Scope is null
-            || hint.Capabilities is null)
+            || hint.Scope is null)
         {
             return new ScriptDiagnostic(
                 "PYTHON_DESCRIPTOR_HINT_REQUIRED",
-                "Python scripts require metadata hints for Id, Name, Scope, and Capabilities.",
+                "Python scripts require metadata hints for Id, Name, and Scope.",
                 ScriptDiagnosticSeverity.Error,
                 ScriptDiagnosticCategory.Validation,
                 sourcePath);
         }
         if (!Enum.IsDefined(hint.Scope.Value)
-            || (hint.Capabilities.Value & ~KnownCapabilities) != 0)
+            )
         {
             return new ScriptDiagnostic(
                 "PYTHON_DESCRIPTOR_HINT_INVALID",

@@ -22,7 +22,6 @@ public sealed record ScriptListItem(
     string Id,
     string Name,
     ScriptScope Scope,
-    ScriptCapability Capabilities,
     bool Enabled,
     bool BuildSucceeded,
     string Status,
@@ -63,21 +62,7 @@ public sealed record ScriptListItem(
 
     public bool IsLoadFailed => !BuildSucceeded;
 
-    public string CapabilityLabel => Capabilities == ScriptCapability.None
-        ? "无额外能力"
-        : string.Join("、", Enum.GetValues<ScriptCapability>()
-            .Where(capability => capability != ScriptCapability.None && Capabilities.HasFlag(capability))
-            .Select(GetCapabilityLabel));
-
-    private static string GetCapabilityLabel(ScriptCapability capability) => capability switch
-    {
-        ScriptCapability.ReadDiary => "读取日记",
-        ScriptCapability.WriteDiary => "写入日记",
-        ScriptCapability.UserInteraction => "用户交互",
-        ScriptCapability.Clipboard => "剪贴板",
-        ScriptCapability.Tracker => "Tracker",
-        _ => capability.ToString(),
-    };
+    public string CapabilityLabel => "宿主 API 默认可用";
 
 }
 
@@ -273,7 +258,6 @@ public partial class ScriptManagementViewModel(
                     descriptor?.Id ?? Path.GetFileNameWithoutExtension(entry.SourcePath),
                     descriptor?.Name ?? Path.GetFileName(entry.SourcePath),
                     entry.Scope,
-                    descriptor?.Capabilities ?? ScriptCapability.None,
                     entry.Enabled,
                     entry.BuildResult?.Succeeded == true,
                     FormatStatus(entry),

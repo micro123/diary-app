@@ -12,26 +12,6 @@ public static class ScriptApiVersions
     public const ScriptApiVersion Current = ScriptApiVersion.V1;
 }
 
-[Flags]
-public enum ScriptCapability
-{
-    None = 0,
-    ReadDiary = 1,
-    WriteDiary = 2,
-    UserInteraction = 4,
-    Clipboard = 8,
-    Tracker = 16,
-}
-
-public static class ScriptCapabilities
-{
-    public const ScriptCapability All = ScriptCapability.ReadDiary
-        | ScriptCapability.WriteDiary
-        | ScriptCapability.UserInteraction
-        | ScriptCapability.Clipboard
-        | ScriptCapability.Tracker;
-}
-
 public enum ScriptScope
 {
     Application = 1,
@@ -71,14 +51,12 @@ public sealed record ScriptDescriptor(
     string Name,
     ScriptApiVersion ApiVersion,
     ScriptScope Scope,
-    ScriptCapability Capabilities,
     string? Description = null);
 
 public sealed record ScriptDescriptorHint(
     string? Id = null,
     string? Name = null,
     ScriptScope? Scope = null,
-    ScriptCapability? Capabilities = null,
     string? Description = null,
     string? EngineName = null);
 
@@ -181,7 +159,6 @@ public sealed record ScriptMatchResult(bool IsMatch, int Priority = 0);
 
 public interface IScriptExecutionContext
 {
-    ScriptCapability Capabilities { get; }
     ScriptExecutionMetadata? Metadata { get; }
 
     TApi? GetApi<TApi>() where TApi : class;

@@ -38,8 +38,7 @@ public sealed class PythonProgram(
             var result = await supervisor.ExecuteAsync(
                 Descriptor.Id,
                 executionId.ToString("N"),
-                new WorkerExecutePayload(Descriptor.Id, SourcePath, Source, request, null, context.Capabilities),
-                grantedCapabilities: context.Capabilities,
+                new WorkerExecutePayload(Descriptor.Id, SourcePath, Source, request),
                 cancellationToken: cancellationToken);
             return new ScriptExecutionResult(result.Payload.Status, result.Payload.Diagnostics.ToImmutableArray());
         }

@@ -4,33 +4,29 @@ namespace Diary.Script.Runtime;
 
 public interface IScriptExecutionContextFactory
 {
-    IScriptExecutionContext Create(ScriptCapability capabilities, ScriptExecutionMetadata metadata);
+    IScriptExecutionContext Create(ScriptExecutionMetadata metadata);
 }
 
 public sealed class ScriptExecutionContextFactory(
-    Func<ScriptCapability, ScriptExecutionMetadata, IScriptExecutionContext> factory) : IScriptExecutionContextFactory
+    Func<ScriptExecutionMetadata, IScriptExecutionContext> factory) : IScriptExecutionContextFactory
 {
-    public IScriptExecutionContext Create(ScriptCapability capabilities, ScriptExecutionMetadata metadata) =>
-        factory(capabilities, metadata);
+    public IScriptExecutionContext Create(ScriptExecutionMetadata metadata) => factory(metadata);
 }
 
-public sealed class ScriptExecutionContext(
-    ScriptCapability capabilities,
-    ScriptExecutionMetadata? metadata = null) : IScriptExecutionContext
+public sealed class ScriptExecutionContext(ScriptExecutionMetadata? metadata = null) : IScriptExecutionContext
 {
     private readonly Dictionary<Type, ApiRegistration> _apis = [];
 
-    public ScriptCapability Capabilities { get; } = capabilities;
     public ScriptExecutionMetadata? Metadata { get; } = metadata;
 
-    public void RegisterApi<TApi>(TApi api, ScriptCapability requiredCapability = ScriptCapability.None)
+    public void RegisterApi<TApi>(TApi api)
         where TApi : class
     {
         ArgumentNullException.ThrowIfNull(api);
         var apiType = typeof(TApi);
         if (api is IServiceProvider || typeof(IServiceProvider).IsAssignableFrom(apiType))
             throw new ArgumentException("IServiceProvider cannot be exposed to scripts.", nameof(api));
-        if (!_apis.TryAdd(apiType, new ApiRegistration(api, requiredCapability)))
+        if (!_apis.TryAdd(apiType, new ApiRegistration(api)))
             throw new InvalidOperationException($"An API of type '{apiType.Name}' is already registered.");
     }
 
@@ -44,5 +40,5 @@ public sealed class ScriptExecutionContext(
         return (TApi)registration.Api;
     }
 
-    private sealed record ApiRegistration(object Api, ScriptCapability RequiredCapability);
+    private sealed record ApiRegistration(object Api);
 }

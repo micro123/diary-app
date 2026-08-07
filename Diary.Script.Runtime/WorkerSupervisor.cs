@@ -50,7 +50,6 @@ public interface IWorkerHostCallDispatcher
 {
     ValueTask<WorkerHostResultPayload> DispatchAsync(
         string executionId,
-        ScriptCapability grantedCapabilities,
         WorkerHostCallPayload call,
         CancellationToken cancellationToken = default);
 }
@@ -150,7 +149,6 @@ public sealed class WorkerSupervisor(
         string executionId,
         object payload,
         TimeSpan? timeout = null,
-        ScriptCapability grantedCapabilities = ScriptCapability.None,
         CancellationToken cancellationToken = default)
     {
         if (State != WorkerState.Ready)
@@ -200,7 +198,7 @@ public sealed class WorkerSupervisor(
                                 ScriptDiagnosticCategory.Validation));
                         var hostResult = hostCallDispatcher is null
                             ? new WorkerHostResultPayload(false, Error: new("PermissionDenied", "当前 Worker 未配置宿主 API。"))
-                            : await hostCallDispatcher.DispatchAsync(executionId, grantedCapabilities, call, receiveCancellation.Token);
+                            : await hostCallDispatcher.DispatchAsync(executionId, call, receiveCancellation.Token);
                         await _transport.SendAsync(new WorkerMessage<WorkerHostResultPayload>(
                             WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.HostResult,
                             message.RequestId, executionId, hostResult), receiveCancellation.Token);

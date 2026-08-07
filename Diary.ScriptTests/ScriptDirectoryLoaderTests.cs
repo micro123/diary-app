@@ -212,8 +212,7 @@ public sealed class ScriptDirectoryLoaderTests
                     id,
                     id,
                     request.ApiVersion,
-                    editor ? ScriptScope.Editor : ScriptScope.Application,
-                    ScriptCapability.None))));
+                     editor ? ScriptScope.Editor : ScriptScope.Application))));
         }
     }
 
@@ -232,8 +231,7 @@ public sealed class ScriptDirectoryLoaderTests
                 Path.GetFileNameWithoutExtension(request.SourcePath),
                 Path.GetFileNameWithoutExtension(request.SourcePath),
                 request.ApiVersion,
-                ScriptScope.Application,
-                ScriptCapability.None))));
+                 ScriptScope.Application))));
     }
 
     private sealed class FakeProgram(ScriptDescriptor descriptor) : IScriptProgramV1

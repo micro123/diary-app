@@ -83,8 +83,7 @@ public sealed class ScriptRuntimeTests
                     "bad",
                     "Bad",
                     (ScriptApiVersion)99,
-                    ScriptScope.Application,
-                    ScriptCapability.None))))));
+                     ScriptScope.Application))))));
         var service = new ScriptBuildService(registry);
 
         var unsupported = await service.BuildAsync(new ScriptBuildRequest(
@@ -132,10 +131,10 @@ public sealed class ScriptRuntimeTests
     [TestMethod]
     public void ExecutionContext_ExposesRegisteredApisByDefault()
     {
-        var readable = new ScriptExecutionContext(ScriptCapability.ReadDiary);
+        var readable = new ScriptExecutionContext();
         var api = new FakeReadApi();
-        readable.RegisterApi<IFakeReadApi>(api, ScriptCapability.ReadDiary);
-        readable.RegisterApi<IFakeWriteApi>(new FakeWriteApi(), ScriptCapability.WriteDiary);
+        readable.RegisterApi<IFakeReadApi>(api);
+        readable.RegisterApi<IFakeWriteApi>(new FakeWriteApi());
 
         Assert.AreSame(api, readable.GetApi<IFakeReadApi>());
         Assert.IsNotNull(readable.GetApi<IFakeWriteApi>());
@@ -239,8 +238,7 @@ public sealed class ScriptRuntimeTests
                 "editor",
                 "Editor",
                 ScriptApiVersion.V1,
-                ScriptScope.Editor,
-                ScriptCapability.None));
+                 ScriptScope.Editor));
         var invalidDay = await new ScriptExecutor().ExecuteAsync(
             editorProgram,
             new ScriptExecutionRequest(new ScriptTarget(
@@ -255,8 +253,7 @@ public sealed class ScriptRuntimeTests
                     "tracker",
                     "Tracker",
                     ScriptApiVersion.V1,
-                    ScriptScope.Application,
-                    ScriptCapability.None)),
+                     ScriptScope.Application)),
             new ScriptExecutionRequest(new ScriptTarget(
                 ScriptScope.Application,
                 Business: new ScriptBusinessTarget(ScriptBusinessTargetKind.TrackerIssue, "42"))),
@@ -267,7 +264,7 @@ public sealed class ScriptRuntimeTests
     }
 
     [TestMethod]
-    public async Task Executor_AllowsDeclaredCapabilitiesByDefault()
+    public async Task Executor_AllowsRegisteredApisByDefault()
     {
         var program = new FakeProgram(
             "read",
@@ -275,8 +272,7 @@ public sealed class ScriptRuntimeTests
                 "read",
                 "Read",
                 ScriptApiVersion.V1,
-                ScriptScope.Application,
-                ScriptCapability.ReadDiary));
+                 ScriptScope.Application));
 
         var outcome = await new ScriptExecutor().ExecuteAsync(
             program,
@@ -325,14 +321,13 @@ public sealed class ScriptRuntimeTests
                     contexts.Add(context);
                     return ValueTask.FromResult(ScriptExecutionResult.Succeeded());
                 },
-                new ScriptDescriptor("fresh", "Fresh", ScriptApiVersion.V1, ScriptScope.Application, ScriptCapability.None))))));
+                 new ScriptDescriptor("fresh", "Fresh", ScriptApiVersion.V1, ScriptScope.Application))))));
         var catalog = new ScriptCatalog();
         var manager = new ScriptManager(
             new ScriptBuildService(registry),
             catalog,
             new ScriptExecutor(),
-            new ScriptExecutionContextFactory((_, metadata) =>
-                new ScriptExecutionContext(ScriptCapability.None, metadata)));
+             new ScriptExecutionContextFactory(metadata => new ScriptExecutionContext(metadata)));
         await manager.BuildAndRegisterAsync(new ScriptBuildRequest("fresh.fake", "fresh"));
 
         await manager.ExecuteAsync("fresh", ApplicationRequest);
@@ -363,8 +358,7 @@ public sealed class ScriptRuntimeTests
             new ScriptBuildService(registry),
             new ScriptCatalog(),
             new ScriptExecutor(),
-            new ScriptExecutionContextFactory((_, metadata) =>
-                new ScriptExecutionContext(ScriptCapability.None, metadata)),
+             new ScriptExecutionContextFactory(metadata => new ScriptExecutionContext(metadata)),
             history);
         await manager.BuildAndRegisterAsync(new ScriptBuildRequest("history.fake", "history"));
 
@@ -433,7 +427,7 @@ public sealed class ScriptRuntimeTests
         Assert.AreEqual(0, history.GetRecent().Count);
     }
 
-    private static ScriptExecutionContext EmptyContext() => new(ScriptCapability.None);
+    private static ScriptExecutionContext EmptyContext() => new();
 
     private static ScriptDiagnostic Diagnostic(string code) =>
         new(code, code, ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Engine);
@@ -454,8 +448,7 @@ public sealed class ScriptRuntimeTests
             id,
             id,
             ScriptApiVersion.V1,
-            ScriptScope.Application,
-            ScriptCapability.None);
+             ScriptScope.Application);
 
         public ValueTask<ScriptExecutionResult> ExecuteAsync(
             ScriptExecutionRequest request,
@@ -503,8 +496,7 @@ public sealed class ScriptRuntimeTests
                 id,
                 id,
                 ScriptApiVersion.V1,
-                ScriptScope.Application,
-                ScriptCapability.None);
+                 ScriptScope.Application);
             _execute = execute ?? ((_, _, _) => ValueTask.FromResult(ScriptExecutionResult.Succeeded()));
         }
 

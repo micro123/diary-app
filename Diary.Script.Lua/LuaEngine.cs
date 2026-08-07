@@ -8,13 +8,6 @@ namespace Diary.Script.Lua;
 
 public sealed class LuaEngine : IScriptEngineV1
 {
-    private const ScriptCapability KnownCapabilities =
-        ScriptCapability.ReadDiary |
-        ScriptCapability.WriteDiary |
-        ScriptCapability.UserInteraction |
-        ScriptCapability.Clipboard |
-        ScriptCapability.Tracker;
-
     public string Name => "lua";
     public string StableName => Name;
     public string Version => typeof(LuaEngine).Assembly.GetName().Version?.ToString() ?? "1.0";
@@ -56,7 +49,6 @@ public sealed class LuaEngine : IScriptEngineV1
             hint.Name!,
             request.ApiVersion,
             hint.Scope!.Value,
-            hint.Capabilities!.Value,
             hint.Description);
         return ValueTask.FromResult(ScriptBuildResult.Success(new LuaProgram(
             descriptor,
@@ -71,18 +63,16 @@ public sealed class LuaEngine : IScriptEngineV1
         if (hint is null
             || string.IsNullOrWhiteSpace(hint.Id)
             || string.IsNullOrWhiteSpace(hint.Name)
-            || hint.Scope is null
-            || hint.Capabilities is null)
+            || hint.Scope is null)
         {
             return new ScriptDiagnostic(
                 "LUA_DESCRIPTOR_HINT_REQUIRED",
-                "Lua scripts require metadata hints for Id, Name, Scope, and Capabilities.",
+                "Lua scripts require metadata hints for Id, Name, and Scope.",
                 ScriptDiagnosticSeverity.Error,
                 ScriptDiagnosticCategory.Validation,
                 sourcePath);
         }
-        if (!Enum.IsDefined(hint.Scope.Value)
-            || (hint.Capabilities.Value & ~KnownCapabilities) != 0)
+        if (!Enum.IsDefined(hint.Scope.Value))
         {
             return new ScriptDiagnostic(
                 "LUA_DESCRIPTOR_HINT_INVALID",

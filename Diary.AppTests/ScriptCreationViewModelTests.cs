@@ -82,7 +82,6 @@ public sealed class ScriptCreationViewModelTests
                 var metadata = JsonSerializer.Deserialize<ScriptFileMetadata>(
                     await File.ReadAllTextAsync(sourcePath + ".json"));
                 Assert.IsNotNull(metadata);
-                Assert.IsTrue(metadata.Capabilities.GetValueOrDefault().HasFlag(ScriptCapability.ReadDiary));
             }
             finally
             {

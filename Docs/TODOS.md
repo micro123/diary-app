@@ -537,3 +537,7 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 
 验收：添加标签或应用包含标签的模板时，规则按标签实际新增顺序应用；同一标签可以为不同 Tracker 实例产生不同默认值；
 用户可以在规则应用后继续覆盖字段，删除标签不会反向修改字段，且核心标签和编辑器不依赖具体 Tracker 类型。
+- [x] C# Worker 接入剪贴板读写、用户通知/确认 HostCall；只读日记继续统一使用 `workItems.query`。
+- [ ] 设计并实现日记写入 API（事务、确认、审计和失败恢复策略需先明确）。
+- [ ] 设计并实现 Tracker 写入 API（远程副作用、重试和权限提示需先明确）。
+- [x] 移除脚本 capability 枚举、metadata 字段、执行上下文和 Worker 协议中的 capability 参数；旧 metadata 字段自动忽略。

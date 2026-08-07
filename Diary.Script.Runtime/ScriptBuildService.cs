@@ -12,13 +12,6 @@ public interface IScriptBuildService
 
 public sealed class ScriptBuildService(IScriptEngineRegistry engines) : IScriptBuildService
 {
-    private const ScriptCapability KnownCapabilities =
-        ScriptCapability.ReadDiary |
-        ScriptCapability.WriteDiary |
-        ScriptCapability.UserInteraction |
-        ScriptCapability.Clipboard |
-        ScriptCapability.Tracker;
-
     public async ValueTask<ScriptBuildResult> BuildAsync(
         ScriptBuildRequest request,
         CancellationToken cancellationToken = default)
@@ -86,8 +79,7 @@ public sealed class ScriptBuildService(IScriptEngineRegistry engines) : IScriptB
                 || string.IsNullOrWhiteSpace(descriptor.Id)
                 || string.IsNullOrWhiteSpace(descriptor.Name)
                 || descriptor.ApiVersion != request.ApiVersion
-                || !Enum.IsDefined(descriptor.Scope)
-                || (descriptor.Capabilities & ~KnownCapabilities) != 0)
+                || !Enum.IsDefined(descriptor.Scope))
             {
                 return MergeFailure(diagnostics, new ScriptDiagnostic(
                     "SCRIPT_DESCRIPTOR_INVALID",

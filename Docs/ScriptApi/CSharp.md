@@ -14,7 +14,7 @@ public sealed class DemoScript : IScriptProgramV1
 {
     public ScriptDescriptor Descriptor { get; } = new(
         "demo", "示例", ScriptApiVersion.V1,
-        ScriptScope.Application, ScriptCapability.ReadDiary);
+         ScriptScope.Application);
 
     public async ValueTask<ScriptExecutionResult> ExecuteAsync(
         ScriptExecutionRequest request,
@@ -52,11 +52,11 @@ public sealed class DemoScript : IScriptProgramV1
 
 ## 执行上下文
 
-`IScriptExecutionContext` 提供已授权的 `Capabilities`、可选的执行 `Metadata` 和 `GetApi<TApi>()`。当 API 未注册或所需能力未授权时，`GetApi<TApi>()` 返回 `null`。
+`IScriptExecutionContext` 提供执行 `Metadata` 和 `GetApi<TApi>()`。当 API 未注册时，`GetApi<TApi>()` 返回 `null`。
 
 ## 查询工作项
 
-`IWorkItemQueryScriptApi` 需要 `ScriptCapability.ReadDiary` 能力。
+`IWorkItemQueryScriptApi` 默认可用，只提供受宿主约束的只读查询。
 
 `ScriptWorkItemQuery` 字段：
 
@@ -78,11 +78,15 @@ public sealed class DemoScript : IScriptProgramV1
 
 - `IWorkItemQueryScriptApi`：调用 `QueryAsync` 查询工作项。
 - `ITrackerInstanceScriptApi`：使用 `Get(pluginId, instanceId)` 查询指定 Tracker 实例的安全 DTO。
+- `IClipboardScriptApi`：使用 `GetTextAsync` 和 `SetTextAsync` 读写系统文本剪贴板。
+- `IUserInteractionScriptApi`：使用 `NotifyAsync` 显示通知，使用 `ConfirmAsync` 请求用户确认。
 
 Worker 会将调用转发到主进程；进程内执行使用同一份 API 契约。API 不可用时返回结构化失败结果，不会暴露数据库或 DI 对象。
 
 ## 能力与沙箱限制
 
-- 宿主注册的 API 默认可用；能力字段仅作为兼容 metadata 保留，不再作为执行权限门禁。
-- C# Worker 当前支持 `workItems.query` 和 `trackerInstances.get`。
+- 宿主注册的 API 默认可用；脚本契约不再包含 capability 字段。
+- C# Worker 当前支持 `workItems.query`、`trackerInstances.get`、`clipboard.get`、`clipboard.set`、`ui.notify` 和 `ui.confirm`。
+- `workItems.query` 已包含工作项的备注和标签，因此当前只读日记查询使用该 API，不额外暴露数据库接口。
+- `WriteDiary` 和 Tracker 写入尚未实现；脚本不能通过默认全权限直接修改日记或远程 Tracker 数据。
 - 文件、进程、网络、反射等被禁止的 API 会在 C# 脚本检查阶段被拒绝。

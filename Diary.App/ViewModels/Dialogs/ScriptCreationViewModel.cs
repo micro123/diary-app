@@ -93,7 +93,6 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
                 Id: Id,
                 Name: Name,
                 Description: Description,
-                Capabilities: SelectedCapabilities,
                 Engine: GetEngineName(),
                 Scope: scope), new JsonSerializerOptions { WriteIndented = true });
             await WriteFilesAtomicallyAsync(sourcePath, source, metadataPath, metadata);
@@ -173,7 +172,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
             "    public ScriptDescriptor Descriptor { get; } = new(",
             $"        \"{Escape(Id)}\",", $"        \"{Escape(Name)}\",",
             "        ScriptApiVersion.V1,", $"        ScriptScope.{scope},",
-            $"        {FormatCapabilities()},", $"        \"{Escape(Description)}\");", "",
+            $"        \"{Escape(Description)}\");", "",
             $"    public {(SelectedTemplate == WorkItemQueryTemplate ? "async " : string.Empty)}ValueTask<ScriptExecutionResult> ExecuteAsync(",
             "        ScriptExecutionRequest request,",
             "        IScriptExecutionContext context,",
@@ -199,16 +198,6 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
         return string.Join(Environment.NewLine, lines);
     }
 
-    private ScriptCapability SelectedCapabilities => ScriptCapabilities.All;
-
-    private string FormatCapabilities()
-    {
-        if (SelectedCapabilities == ScriptCapability.None)
-            return "ScriptCapability.None";
-        return string.Join(" | ", Enum.GetValues<ScriptCapability>()
-            .Where(capability => capability != ScriptCapability.None && SelectedCapabilities.HasFlag(capability))
-            .Select(capability => $"ScriptCapability.{capability}"));
-    }
 
     private static string Escape(string value) => value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", " ").Replace("\n", " ");
 
