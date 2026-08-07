@@ -47,7 +47,7 @@
 - `ScriptManager`：组合构建、注册和执行的最小入口。
 - `ScriptDirectoryLoader`：扫描 application/editor 目录，读取元数据，按加载结果标记可执行状态并隔离单个脚本失败。
 
-`Diary.ScriptHost` 当前提供 `IWorkItemQueryScriptApi`，只返回不可变事项、备注和标签 DTO，
+`Diary.ScriptHost` 当前提供 `IDiaryApi`，只返回不可变事项、备注和标签 DTO，
 复用核心 `WorkItemQuery` 的校验和查询语义，并返回权限、输入、数据库和取消错误。
 
 当前引擎项目为：

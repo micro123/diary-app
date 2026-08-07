@@ -65,7 +65,7 @@ public sealed class DemoScript : IScriptProgramV1
 ```csharp
 using Diary.ScriptHost;
 
-var api = context.GetApi<IWorkItemQueryScriptApi>();
+var api = context.GetApi<IDiaryApi>();
 if (api is null)
     return new(ScriptExecutionStatus.Failed, []);
 
@@ -124,11 +124,11 @@ await foreach (var item in api.StreamAsync(new ScriptWorkItemQuery
 创建日志项只会新建工作项，不会查找、修改或删除已有工作项。
 
 ```csharp
-var api = context.GetApi<ILogItemScriptApi>();
+var api = context.GetApi<IDiaryApi>();
 if (api is null)
     return new(ScriptExecutionStatus.Failed, []);
 
-var result = await api.CreateAsync(new ScriptLogItemRequest(
+var result = await api.CreateLogItemAsync(new ScriptLogItemRequest(
     Date: "2026-08-08",
     Hours: 2.5,
     Title: "完善脚本 Worker",
@@ -149,13 +149,13 @@ var created = result.Item!;
 
 失败时 `Error.Code` 可能是 `InvalidInput`、`DatabaseUnavailable`、`ProviderFailure` 或 `Cancelled`。成功时 `Item` 返回新建工作项 DTO。脚本不能从该 API 获得可变 `WorkItem` 对象。
 
-## 6. Tracker 实例目录
+## 6. 按模板创建日志项
 
-## 5.1 按模板创建日志项
+## 7. Tracker 实例目录
 
 ```csharp
-var templates = context.GetApi<ITemplateLogItemScriptApi>();
-var result = await templates!.CreateAsync(new ScriptTemplateLogItemRequest(
+var diary = context.GetApi<IDiaryApi>();
+var result = await diary!.CreateFromTemplateAsync(new ScriptTemplateLogItemRequest(
     Date: "2026-08-08",
     TemplateId: "00000000-0000-0000-0000-000000000001",
     Hours: 2.5,
@@ -166,44 +166,45 @@ var result = await templates!.CreateAsync(new ScriptTemplateLogItemRequest(
 标题为空时使用模板默认标题；工时使用调用参数；模板默认标签会应用到新建工作项。`Date` 必须是 `yyyy-MM-dd`，`TemplateId` 必须是 UUID。该 API 只创建新工作项，不修改或删除已有项。
 
 ```csharp
-var api = context.GetApi<ITrackerInstanceScriptApi>();
-var result = api?.Get("tracker.memory", "company");
+var api = context.GetApi<ITrackerApi>();
+var result = api?.GetInstance("tracker.memory", "company");
 if (result is { Succeeded: true })
     Console.WriteLine(result.Instance!.DisplayName);
 ```
 
 `Get(pluginId, instanceId)` 返回 `ScriptTrackerInstance`：`PluginId`、`InstanceId`、`DisplayName`、`Icon`、`IsConfigured`。错误代码为 `InvalidInput` 或 `InstanceUnavailable`。该 API 不暴露 Tracker 客户端、配置、数据库或 DI。
 
-## 7. 剪贴板
+## 8. 剪贴板
 
 ```csharp
-var clipboard = context.GetApi<IClipboardScriptApi>();
-var oldText = await clipboard!.GetTextAsync(cancellationToken);
-var succeeded = await clipboard.SetTextAsync("复制内容", cancellationToken);
+var system = context.GetApi<ISystemInteractionApi>();
+var oldText = await system!.GetClipboardTextAsync(cancellationToken);
+var succeeded = await system.SetClipboardTextAsync("复制内容", cancellationToken);
 ```
 
 `GetTextAsync` 返回文本或 `null`；`SetTextAsync` 返回是否成功。只支持文本，不支持图片、文件列表等剪贴板格式。
 
-## 8. 用户交互
+## 9. 用户交互
 
 ```csharp
-var ui = context.GetApi<IUserInteractionScriptApi>();
-await ui!.NotifyAsync("脚本完成", "日志项已创建。", cancellationToken);
-var confirmed = await ui.ConfirmAsync("继续操作", "是否继续？", cancellationToken);
+var system = context.GetApi<ISystemInteractionApi>();
+await system!.NotifyAsync("脚本完成", "日志项已创建。", cancellationToken);
+var confirmed = await system.ConfirmAsync("继续操作", "是否继续？", cancellationToken);
 ```
 
 `NotifyAsync` 显示通知；`ConfirmAsync` 返回用户是否确认。自动化或后台执行时 UI 可能不可用，应捕获异常并将失败作为脚本诊断处理。
 
-## 9. Worker API 映射和限制
+## 10. Worker API 映射和限制
 
 | C# API | Worker HostCall |
 | --- | --- |
-| `IWorkItemQueryScriptApi.QueryAsync` | `workItems.query` |
-| `ILogItemScriptApi.CreateAsync` | `logItems.create` |
-| `ITrackerInstanceScriptApi.Get` | `trackerInstances.get` |
-| `IClipboardScriptApi.GetTextAsync` | `clipboard.get` |
-| `IClipboardScriptApi.SetTextAsync` | `clipboard.set` |
-| `IUserInteractionScriptApi.NotifyAsync` | `ui.notify` |
-| `IUserInteractionScriptApi.ConfirmAsync` | `ui.confirm` |
+| `IDiaryApi.QueryAsync` | `workItems.query` |
+| `IDiaryApi.CreateLogItemAsync` | `logItems.create` |
+| `IDiaryApi.CreateFromTemplateAsync` | `templateLogItems.create` |
+| `ITrackerApi.GetInstance` | `trackerInstances.get` |
+| `ISystemInteractionApi.GetClipboardTextAsync` | `clipboard.get` |
+| `ISystemInteractionApi.SetClipboardTextAsync` | `clipboard.set` |
+| `ISystemInteractionApi.NotifyAsync` | `ui.notify` |
+| `ISystemInteractionApi.ConfirmAsync` | `ui.confirm` |
 
 Worker 调用由主进程执行并返回结构化结果。脚本不能直接访问文件、网络、进程、反射、数据库、DI 或任意 UI 控件。超时、取消、Worker 退出和宿主失败都会转换为执行诊断。

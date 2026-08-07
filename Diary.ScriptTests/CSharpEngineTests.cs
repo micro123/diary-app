@@ -45,7 +45,7 @@ public sealed class CSharpEngineTests
                 public ScriptDescriptor Descriptor => new("query", "Query", ScriptApiVersion.V1, ScriptScope.Application);
                 public async ValueTask<ScriptExecutionResult> ExecuteAsync(ScriptExecutionRequest request, IScriptExecutionContext context, CancellationToken cancellationToken = default)
                 {
-                    var api = context.GetApi<IWorkItemQueryScriptApi>();
+                    var api = context.GetApi<IDiaryApi>();
                     await api!.QueryAsync(new ScriptWorkItemQuery { Limit = 1 }, cancellationToken);
                     return ScriptExecutionResult.Succeeded();
                 }
@@ -57,7 +57,7 @@ public sealed class CSharpEngineTests
             string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
         var api = new RecordingQueryApi();
         var context = new Diary.Script.Runtime.ScriptExecutionContext();
-        context.RegisterApi<IWorkItemQueryScriptApi>(api);
+        context.RegisterApi<IDiaryApi>(new DiaryApi(api, new NoopLogItemApi(), new NoopTemplateLogItemApi()));
 
         var execution = await result.Program!.ExecuteAsync(
             new ScriptExecutionRequest(new ScriptTarget(ScriptScope.Application)),
@@ -212,5 +212,17 @@ public sealed class CSharpEngineTests
             Called = true;
             return ValueTask.FromResult(ScriptWorkItemQueryResult.Success([], query));
         }
+    }
+
+    private sealed class NoopLogItemApi : ILogItemScriptApi
+    {
+        public ValueTask<ScriptLogItemResult> CreateAsync(ScriptLogItemRequest request, CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(ScriptLogItemResult.Failure(ScriptLogItemErrorCode.ProviderFailure, "测试未实现。"));
+    }
+
+    private sealed class NoopTemplateLogItemApi : ITemplateLogItemScriptApi
+    {
+        public ValueTask<ScriptLogItemResult> CreateAsync(ScriptTemplateLogItemRequest request, CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(ScriptLogItemResult.Failure(ScriptLogItemErrorCode.ProviderFailure, "测试未实现。"));
     }
 }

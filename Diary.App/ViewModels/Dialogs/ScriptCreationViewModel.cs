@@ -181,7 +181,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
         if (SelectedTemplate == WorkItemQueryTemplate)
         {
             lines.AddRange([
-                "        var api = context.GetApi<IWorkItemQueryScriptApi>();",
+                "        var api = context.GetApi<IDiaryApi>();",
                 "        if (api is null)",
                 "            return new ScriptExecutionResult(ScriptExecutionStatus.Rejected, []);",
                 "        var result = await api.QueryAsync(new ScriptWorkItemQuery { Limit = 100 }, cancellationToken);",

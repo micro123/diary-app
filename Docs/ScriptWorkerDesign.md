@@ -329,7 +329,7 @@ worker 执行脚本时可以发送 `host.call`：
 - 参数大小、数量、日期范围和分页上限。
 - 结果是否需要脱敏。
 
-第一版只定义 `workItems.query`，对应 `IWorkItemQueryScriptApi`。模板写入、核心工作项
+第一版只定义 `workItems.query`，对应 `IDiaryApi`。模板写入、核心工作项
 写入和 Tracker 远程写入不进入第一版协议。
 
 宿主 API 错误使用稳定错误码，例如：

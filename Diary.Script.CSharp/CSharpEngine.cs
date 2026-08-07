@@ -249,7 +249,7 @@ public sealed class CSharpEngine : IScriptEngineV1
                 typeof(ValueTask).Assembly.Location,
                 typeof(ImmutableArray<>).Assembly.Location,
                 typeof(ScriptDescriptor).Assembly.Location,
-                typeof(IWorkItemQueryScriptApi).Assembly.Location,
+                typeof(IDiaryApi).Assembly.Location,
             ])
             .Where(path => !string.IsNullOrWhiteSpace(path))
             .Distinct(StringComparer.OrdinalIgnoreCase);
@@ -351,8 +351,8 @@ public sealed class CSharpEngine : IScriptEngineV1
         {
             if (assemblyName.Name == typeof(ScriptDescriptor).Assembly.GetName().Name)
                 return typeof(ScriptDescriptor).Assembly;
-            if (assemblyName.Name == typeof(IWorkItemQueryScriptApi).Assembly.GetName().Name)
-                return typeof(IWorkItemQueryScriptApi).Assembly;
+            if (assemblyName.Name == typeof(IDiaryApi).Assembly.GetName().Name)
+                return typeof(IDiaryApi).Assembly;
             return null;
         }
     }

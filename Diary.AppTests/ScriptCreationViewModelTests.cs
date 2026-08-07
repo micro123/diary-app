@@ -57,7 +57,7 @@ public sealed class ScriptCreationViewModelTests
     {
         foreach (var (language, engine, marker) in new[]
                  {
-                     ("C#", "csharp", "GetApi<IWorkItemQueryScriptApi>()"),
+                      ("C#", "csharp", "GetApi<IDiaryApi>()"),
                      ("Lua", "lua", "diary.workItems.query"),
                      ("Python", "python", "context.diary.workItems.query"),
                  })

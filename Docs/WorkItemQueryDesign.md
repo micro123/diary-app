@@ -183,7 +183,7 @@ WorkItemQuery
 
 ## 10. 脚本只读宿主
 
-`Diary.ScriptHost` 提供 `IWorkItemQueryScriptApi`，将脚本 DTO 转换为核心
+`Diary.ScriptHost` 提供 `IDiaryApi`，将脚本 DTO 转换为核心
 `WorkItemQuery`，复用同一规范化和 provider 查询语义。宿主只返回事项、备注和
 标签的不可变 DTO，并在能力不足、输入无效、数据库失败或取消时返回结构化错误。
 脚本查询已覆盖权限、异常、敏感字段和 SQLite 结果一致性测试。
