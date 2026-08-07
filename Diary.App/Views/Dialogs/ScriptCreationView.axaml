@@ -23,14 +23,7 @@
             <ComboBox ItemsSource="{Binding Templates}" SelectedItem="{Binding SelectedTemplate, Mode=TwoWay}" />
             <TextBlock Text="描述" />
             <TextBox Text="{Binding Description, Mode=TwoWay}" AcceptsReturn="True" TextWrapping="Wrap" Height="70" />
-            <TextBlock Text="脚本能力" />
-            <WrapPanel Orientation="Horizontal">
-                <CheckBox Content="读取日记" IsChecked="{Binding ReadDiary, Mode=TwoWay}" Margin="0,0,16,8" />
-                <CheckBox Content="写入日记" IsChecked="{Binding WriteDiary, Mode=TwoWay}" Margin="0,0,16,8" />
-                <CheckBox Content="用户交互" IsChecked="{Binding UserInteraction, Mode=TwoWay}" Margin="0,0,16,8" />
-                <CheckBox Content="剪贴板" IsChecked="{Binding Clipboard, Mode=TwoWay}" Margin="0,0,16,8" />
-                <CheckBox Content="Tracker" IsChecked="{Binding Tracker, Mode=TwoWay}" Margin="0,0,16,8" />
-            </WrapPanel>
+            <TextBlock Text="脚本默认拥有全部已实现的宿主 API，无需单独申请权限。" FontSize="12" Opacity="0.68" />
             <TextBlock Text="{Binding Error}" Foreground="IndianRed" TextWrapping="Wrap" IsVisible="{Binding HasError}" />
         </StackPanel>
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">

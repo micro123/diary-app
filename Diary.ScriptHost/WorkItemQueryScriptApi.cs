@@ -6,8 +6,7 @@ using Diary.ScriptBase;
 namespace Diary.ScriptHost;
 
 public sealed class WorkItemQueryScriptApi(
-    Func<DbInterfaceBase?> databaseProvider,
-    ScriptCapability capabilities) : IWorkItemQueryScriptApi
+    Func<DbInterfaceBase?> databaseProvider) : IWorkItemQueryScriptApi
 {
     public const int DefaultLimit = 100;
     public const int MaxLimit = 1_000;
@@ -18,8 +17,6 @@ public sealed class WorkItemQueryScriptApi(
         ScriptWorkItemQuery query,
         CancellationToken cancellationToken = default)
     {
-        if ((capabilities & ScriptCapability.ReadDiary) == 0)
-            return ValueTask.FromResult(Failure(ScriptQueryErrorCode.PermissionDenied, "脚本没有读取日记的权限。"));
         if (cancellationToken.IsCancellationRequested)
             return ValueTask.FromResult(Failure(ScriptQueryErrorCode.Cancelled, "查询已取消。"));
         if (!TryNormalize(query, out var normalized, out var databaseQuery, out var validationError))

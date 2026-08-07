@@ -30,8 +30,6 @@ public sealed class ScriptExecutionContext(
         var apiType = typeof(TApi);
         if (api is IServiceProvider || typeof(IServiceProvider).IsAssignableFrom(apiType))
             throw new ArgumentException("IServiceProvider cannot be exposed to scripts.", nameof(api));
-        if ((requiredCapability & ~Capabilities) != 0)
-            return;
         if (!_apis.TryAdd(apiType, new ApiRegistration(api, requiredCapability)))
             throw new InvalidOperationException($"An API of type '{apiType.Name}' is already registered.");
     }
@@ -42,8 +40,6 @@ public sealed class ScriptExecutionContext(
         if (typeof(IServiceProvider).IsAssignableFrom(apiType))
             return null;
         if (!_apis.TryGetValue(apiType, out var registration))
-            return null;
-        if ((Capabilities & registration.RequiredCapability) != registration.RequiredCapability)
             return null;
         return (TApi)registration.Api;
     }

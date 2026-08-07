@@ -23,6 +23,15 @@ public enum ScriptCapability
     Tracker = 16,
 }
 
+public static class ScriptCapabilities
+{
+    public const ScriptCapability All = ScriptCapability.ReadDiary
+        | ScriptCapability.WriteDiary
+        | ScriptCapability.UserInteraction
+        | ScriptCapability.Clipboard
+        | ScriptCapability.Tracker;
+}
+
 public enum ScriptScope
 {
     Application = 1,

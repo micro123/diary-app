@@ -54,9 +54,6 @@ public sealed class ScriptExecutor : IScriptExecutor
 
         if (!IsValidTarget(descriptor, request.Target))
             return Rejected(actualExecutionId, "SCRIPT_TARGET_INVALID", "The execution target does not match the script descriptor.");
-        if ((descriptor.Capabilities & ~context.Capabilities) != 0)
-            return Rejected(actualExecutionId, "SCRIPT_CAPABILITY_DENIED", "The script requests capabilities that are not granted.");
-
         using var executionCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         Task<ScriptExecutionResult> executionTask;
         try

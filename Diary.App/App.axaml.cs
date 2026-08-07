@@ -329,8 +329,10 @@ namespace Diary.App
             services.AddSingleton<IScriptBuildService, ScriptBuildService>();
             services.AddSingleton<IScriptExecutor, ScriptExecutor>();
             services.AddSingleton<IWorkerHostCallDispatcher>(_ =>
-                new WorkItemQueryWorkerDispatcher(capabilities =>
-                    new WorkItemQueryScriptApi(() => UseDb, capabilities)));
+                 new WorkItemQueryWorkerDispatcher(
+                     _ => new WorkItemQueryScriptApi(() => UseDb),
+                     _ => new TrackerInstanceScriptApi(
+                         Services.GetRequiredService<PluginInstanceRegistry>())));
             services.AddSingleton<IWorkerScriptExecutor>(services =>
             {
                 var workerName = OperatingSystem.IsWindows()
@@ -343,7 +345,7 @@ namespace Diary.App
                 var csharpRuntime = new WorkerRuntime(
                     "csharp",
                     new WorkerSupervisor(new ProcessWorkerTransportFactory(csharpOptions), hostDispatcher),
-                    new WorkerHandshakeOptions("csharp", [ScriptApiVersion.V1], ["workItems.query"]));
+                     new WorkerHandshakeOptions("csharp", [ScriptApiVersion.V1], ["workItems.query", "trackerInstances.get"]));
                 var luaRuntime = new WorkerRuntime(
                     "lua",
                     new WorkerSupervisor(new ProcessWorkerTransportFactory(luaOptions), hostDispatcher),
@@ -372,15 +374,14 @@ namespace Diary.App
             services.AddSingleton<IScriptExecutionContextFactory>(_ =>
                 new ScriptExecutionContextFactory((capabilities, metadata) =>
                 {
-                    var grantedCapabilities = capabilities & ScriptCapability.ReadDiary;
+                    var grantedCapabilities = ScriptCapabilities.All;
                     var context = new ScriptExecutionContext(grantedCapabilities, metadata);
                     context.RegisterApi<IWorkItemQueryScriptApi>(
-                        new WorkItemQueryScriptApi(() => UseDb, grantedCapabilities),
+                        new WorkItemQueryScriptApi(() => UseDb),
                         ScriptCapability.ReadDiary);
                     context.RegisterApi<ITrackerInstanceScriptApi>(
                         new TrackerInstanceScriptApi(
-                            Services.GetRequiredService<PluginInstanceRegistry>(),
-                            grantedCapabilities),
+                            Services.GetRequiredService<PluginInstanceRegistry>()),
                         ScriptCapability.Tracker);
                     return context;
                 }));

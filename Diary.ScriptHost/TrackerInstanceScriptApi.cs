@@ -5,9 +5,8 @@ namespace Diary.ScriptHost;
 
 public enum TrackerScriptErrorCode
 {
-    PermissionDenied = 1,
-    InvalidInput = 2,
-    InstanceUnavailable = 3,
+    InvalidInput = 1,
+    InstanceUnavailable = 2,
 }
 
 public sealed record ScriptTrackerInstance(
@@ -33,16 +32,10 @@ public interface ITrackerInstanceScriptApi
     TrackerScriptResult Get(string pluginId, string instanceId);
 }
 
-public sealed class TrackerInstanceScriptApi(
-    PluginInstanceRegistry registry,
-    ScriptCapability grantedCapabilities) : ITrackerInstanceScriptApi
+public sealed class TrackerInstanceScriptApi(PluginInstanceRegistry registry) : ITrackerInstanceScriptApi
 {
     public TrackerScriptResult Get(string pluginId, string instanceId)
     {
-        if ((grantedCapabilities & ScriptCapability.Tracker) == 0)
-            return TrackerScriptResult.Failure(
-                TrackerScriptErrorCode.PermissionDenied,
-                "脚本没有读取 Tracker 实例的权限。");
         if (string.IsNullOrWhiteSpace(pluginId) || string.IsNullOrWhiteSpace(instanceId))
             return TrackerScriptResult.Failure(
                 TrackerScriptErrorCode.InvalidInput,

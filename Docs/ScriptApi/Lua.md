@@ -31,7 +31,7 @@ end
 
 ## 查询工作项
 
-全局函数 `diary.workItems.query(params)` 需要 `ReadDiary` 能力。`params` 支持：
+全局函数 `diary.workItems.query(params)` 默认可用，不需要单独申请权限。`params` 支持：
 
 | 字段 | 含义 |
 | --- | --- |

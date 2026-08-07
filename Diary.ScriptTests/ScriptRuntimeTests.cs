@@ -130,7 +130,7 @@ public sealed class ScriptRuntimeTests
     }
 
     [TestMethod]
-    public void ExecutionContext_ExposesOnlyRegisteredAndPermittedApis()
+    public void ExecutionContext_ExposesRegisteredApisByDefault()
     {
         var readable = new ScriptExecutionContext(ScriptCapability.ReadDiary);
         var api = new FakeReadApi();
@@ -138,7 +138,7 @@ public sealed class ScriptRuntimeTests
         readable.RegisterApi<IFakeWriteApi>(new FakeWriteApi(), ScriptCapability.WriteDiary);
 
         Assert.AreSame(api, readable.GetApi<IFakeReadApi>());
-        Assert.IsNull(readable.GetApi<IFakeWriteApi>());
+        Assert.IsNotNull(readable.GetApi<IFakeWriteApi>());
         Assert.IsNull(readable.GetApi<object>());
         Assert.IsNull(readable.GetApi<IServiceProvider>());
         Assert.ThrowsExactly<ArgumentException>(() =>
@@ -267,7 +267,7 @@ public sealed class ScriptRuntimeTests
     }
 
     [TestMethod]
-    public async Task Executor_RejectsCapabilitiesNotGrantedByContext()
+    public async Task Executor_AllowsDeclaredCapabilitiesByDefault()
     {
         var program = new FakeProgram(
             "read",
@@ -283,8 +283,7 @@ public sealed class ScriptRuntimeTests
             ApplicationRequest,
             EmptyContext());
 
-        Assert.AreEqual(ScriptExecutionStatus.Rejected, outcome.Result.Status);
-        Assert.AreEqual("SCRIPT_CAPABILITY_DENIED", outcome.Result.Diagnostics.Single().Code);
+        Assert.AreEqual(ScriptExecutionStatus.Succeeded, outcome.Result.Status);
     }
 
     [TestMethod]

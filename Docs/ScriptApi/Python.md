@@ -31,7 +31,7 @@ def main(context):
 
 ## 查询工作项
 
-`context.diary.workItems.query(params=None, **kwargs)` 需要 `ReadDiary` 能力。参数可以通过一个字典、关键字参数或两者一起传入。
+`context.diary.workItems.query(params=None, **kwargs)` 默认可用，不需要单独申请权限。参数可以通过一个字典、关键字参数或两者一起传入。
 
 | 字段 | 含义 |
 | --- | --- |

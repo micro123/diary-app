@@ -32,7 +32,7 @@ public sealed class WorkItemQueryScriptApiTests
     }
 
     [TestMethod]
-    public async Task QueryAsync_RejectsMissingCapabilityBeforeProviderAccess()
+    public async Task QueryAsync_UsesProviderWithoutPermissionGate()
     {
         var providerCalled = false;
         var api = new WorkItemQueryScriptApi(
@@ -40,13 +40,12 @@ public sealed class WorkItemQueryScriptApiTests
             {
                 providerCalled = true;
                 return null;
-            },
-            ScriptCapability.None);
+            });
 
         var result = await api.QueryAsync(new ScriptWorkItemQuery());
 
-        AssertError(result, ScriptQueryErrorCode.PermissionDenied);
-        Assert.IsFalse(providerCalled);
+        AssertError(result, ScriptQueryErrorCode.DatabaseUnavailable);
+        Assert.IsTrue(providerCalled);
     }
 
     [TestMethod]
@@ -148,7 +147,7 @@ public sealed class WorkItemQueryScriptApiTests
     }
 
     private static WorkItemQueryScriptApi CreateApi(Func<DbInterfaceBase?> provider) =>
-        new(provider, ScriptCapability.ReadDiary);
+        new(provider);
 
     private static void AssertError(ScriptWorkItemQueryResult result, ScriptQueryErrorCode code)
     {

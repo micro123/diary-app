@@ -566,6 +566,8 @@ worker 重启后不会自动重复未确认的副作用操作。
 
 脚本是否可执行只由目录加载和编译结果决定；历史 metadata 中的 `enabled` 字段会被忽略，不再阻止有效脚本加载。删除普通脚本需要二次确认并删除源码及 metadata，删除脚本包则删除整个包目录。
 
+脚本不再使用 capability 作为权限拒绝模型，默认获得宿主已实现的 API；能力字段保留用于兼容 metadata 和描述信息。C# Worker 已接入 `workItems.query` 与 `trackerInstances.get`，其他宿主扩展必须先完成真实 Worker 实现后再对外提供。
+
 ## 20. 分阶段实施
 
 ### 第一阶段：协议骨架

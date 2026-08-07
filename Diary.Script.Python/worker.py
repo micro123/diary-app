@@ -283,11 +283,6 @@ def execute_script(state):
         if not isinstance(descriptor, dict):
             send_result(message, "Rejected", [diagnostic("SCRIPT_DESCRIPTOR_INVALID", "Worker execution is missing a valid descriptor.", source_path, "Validation")])
             return
-        granted = capability_flags(payload.get("grantedCapabilities"))
-        requested = capability_flags(descriptor.get("capabilities"))
-        if requested & ~granted:
-            send_result(message, "Rejected", [diagnostic("SCRIPT_CAPABILITY_DENIED", "The script requests capabilities that are not granted.", source_path, "Security")])
-            return
         request = payload.get("request") or {}
         target = request.get("target") if isinstance(request, dict) else None
         if not isinstance(target, dict) or target.get("scope") != descriptor.get("scope"):

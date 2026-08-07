@@ -72,9 +72,17 @@ public sealed class DemoScript : IScriptProgramV1
 
 结果包含 `Succeeded`、`Items`、`NormalizedQuery` 和 `Error`。每个工作项包含 `Id`、`Date`、`Comment`、`Hours`、`Priority`、`Note` 和安全的标签 DTO。
 
+## 宿主 API
+
+脚本默认可以访问宿主已经实现的 API，不再需要在 metadata 中申请权限。当前 C# Worker 提供：
+
+- `IWorkItemQueryScriptApi`：调用 `QueryAsync` 查询工作项。
+- `ITrackerInstanceScriptApi`：使用 `Get(pluginId, instanceId)` 查询指定 Tracker 实例的安全 DTO。
+
+Worker 会将调用转发到主进程；进程内执行使用同一份 API 契约。API 不可用时返回结构化失败结果，不会暴露数据库或 DI 对象。
+
 ## 能力与沙箱限制
 
-- 脚本只能取得宿主已注册且 `Descriptor` 已申请的 API。
-- `ReadDiary` 当前用于启用工作项只读查询。
-- `Tracker` 当前只提供进程内只读实例目录，尚未通过所有 Worker 转发，不应在可移植脚本中使用。
+- 宿主注册的 API 默认可用；能力字段仅作为兼容 metadata 保留，不再作为执行权限门禁。
+- C# Worker 当前支持 `workItems.query` 和 `trackerInstances.get`。
 - 文件、进程、网络、反射等被禁止的 API 会在 C# 脚本检查阶段被拒绝。

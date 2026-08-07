@@ -82,16 +82,6 @@ internal sealed class LuaWorker(Stream input, Stream output)
                     payload.SourcePath)]));
                 return;
             }
-            if ((hint.Capabilities.Value & ~payload.GrantedCapabilities) != 0)
-            {
-                await WriteResultAsync(message, new(ScriptExecutionStatus.Rejected, [new ScriptDiagnostic(
-                    "SCRIPT_CAPABILITY_DENIED",
-                    "脚本请求的能力没有被当前执行授予。",
-                    ScriptDiagnosticSeverity.Error,
-                    ScriptDiagnosticCategory.Security,
-                    payload.SourcePath)]));
-                return;
-            }
             if (payload.Request.Target is null || payload.Request.Target.Scope != hint.Scope.Value)
             {
                 await WriteResultAsync(message, new(ScriptExecutionStatus.Rejected, [new ScriptDiagnostic(

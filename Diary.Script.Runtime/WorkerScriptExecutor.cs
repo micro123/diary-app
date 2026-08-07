@@ -53,9 +53,9 @@ public sealed class WorkerScriptExecutor(
                         descriptor.Capabilities,
                         descriptor.Description,
                         engineName),
-                    grantedCapabilities),
+                    ScriptCapabilities.All),
                 timeout,
-                grantedCapabilities,
+                ScriptCapabilities.All,
                 cancellationToken);
             return new(executionId, new ScriptExecutionResult(
                 result.Payload.Status,

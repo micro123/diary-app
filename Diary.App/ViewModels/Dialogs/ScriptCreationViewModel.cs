@@ -35,11 +35,6 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
     [ObservableProperty] private string _selectedScope = "应用脚本";
     [ObservableProperty] private string _selectedLanguage = "C#";
     [ObservableProperty] private string _selectedTemplate = BlankTemplate;
-    [ObservableProperty] private bool _readDiary;
-    [ObservableProperty] private bool _writeDiary;
-    [ObservableProperty] private bool _userInteraction;
-    [ObservableProperty] private bool _clipboard;
-    [ObservableProperty] private bool _tracker;
     [ObservableProperty] private string _error = string.Empty;
     [ObservableProperty] private bool _creating;
 
@@ -49,8 +44,6 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
 
     partial void OnSelectedTemplateChanged(string value)
     {
-        if (value == WorkItemQueryTemplate)
-            ReadDiary = true;
     }
 
     [RelayCommand]
@@ -206,12 +199,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
         return string.Join(Environment.NewLine, lines);
     }
 
-    private ScriptCapability SelectedCapabilities =>
-        (ReadDiary ? ScriptCapability.ReadDiary : ScriptCapability.None)
-        | (WriteDiary ? ScriptCapability.WriteDiary : ScriptCapability.None)
-        | (UserInteraction ? ScriptCapability.UserInteraction : ScriptCapability.None)
-        | (Clipboard ? ScriptCapability.Clipboard : ScriptCapability.None)
-        | (Tracker ? ScriptCapability.Tracker : ScriptCapability.None);
+    private ScriptCapability SelectedCapabilities => ScriptCapabilities.All;
 
     private string FormatCapabilities()
     {

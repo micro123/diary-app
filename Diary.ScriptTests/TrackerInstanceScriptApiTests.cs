@@ -15,7 +15,7 @@ public sealed class TrackerInstanceScriptApiTests
         var plugin = new MemoryPlugin();
         registry.Create(plugin, "company", new object());
         registry.Create(plugin, "personal", new object());
-        var api = new TrackerInstanceScriptApi(registry, ScriptCapability.Tracker);
+        var api = new TrackerInstanceScriptApi(registry);
 
         var result = api.Get("tracker.memory", "personal");
 
@@ -25,16 +25,13 @@ public sealed class TrackerInstanceScriptApiTests
     }
 
     [TestMethod]
-    public void Get_RejectsMissingCapabilityAndUnavailableInstance()
+    public void Get_ReturnsUnavailableInstanceWithoutPermissionGate()
     {
         var registry = new PluginInstanceRegistry();
 
-        var denied = new TrackerInstanceScriptApi(registry, ScriptCapability.None)
-            .Get("tracker.memory", "default");
-        var missing = new TrackerInstanceScriptApi(registry, ScriptCapability.Tracker)
+        var missing = new TrackerInstanceScriptApi(registry)
             .Get("tracker.memory", "default");
 
-        Assert.AreEqual(TrackerScriptErrorCode.PermissionDenied, denied.ErrorCode);
         Assert.AreEqual(TrackerScriptErrorCode.InstanceUnavailable, missing.ErrorCode);
     }
 
