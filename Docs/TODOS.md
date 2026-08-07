@@ -370,14 +370,19 @@
 
 Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 
-- [ ] 评估并选择支持受限全局环境的 Lua 实现。
+- [x] 确定 Lua 使用 NuGet `NLua` 1.7.9（依赖 `KeraLua >= 1.4.9`），由独立 .NET worker 承载，默认关闭文件、网络、进程和动态加载能力。
 - [ ] 实现 Lua 源码匹配、构建、执行、错误定位和缓存策略。
-- [ ] Lua 默认关闭文件系统、网络和进程能力。
-- [ ] 确定 Python 支持方式，优先评估独立 Python worker，而不是将解释器直接嵌入主进程。
-- [ ] 设计 Python worker 的启动、版本发现、环境隔离和依赖声明。
-- [ ] 使用受限 JSON/RPC 或等价协议传递执行请求、宿主 API 调用和结果。
+- [x] 确定 Python 使用独立 Python 3 worker，不嵌入主进程、不自动安装依赖。
+- [x] 设计 `PythonRuntimeResolver`，负责解释器路径、版本探测、worker 路径和缺失运行时诊断。
+- [x] 确定 Python runtime 策略：Windows 使用应用内 embeddable distribution，Linux 使用系统 `python3`/`python3.X` 包，macOS 使用显式配置或系统 `python3`。
+- [x] 确定 embeddable distribution 不执行 pip、不修改 PATH/注册表，Linux 不调用发行版包管理器。
+- [x] 确定 Lua worker 按 RID 部署 `KeraLua` native 资产，不依赖系统 Lua 命令，并禁止 `LoadCLRPackage` 和任意 CLR 对象暴露。
+- [x] 确定 Lua/Python 按 `EngineName` 路由到独立 supervisor，并与 C# worker 隔离故障状态。
+- [x] 确定 metadata/manifest 作为 ID、Engine、Scope 和 capability 的权威来源，构建请求携带 descriptor hint。
+- [x] 确定 Lua/Python 复用现有受限 UTF-8 JSON 行协议传递执行请求、宿主 API 调用和结果。
 - [ ] 处理 Python worker 崩溃、退出码错误、超时、取消和标准输出污染。
-- [ ] 增加跨平台打包和缺少 Lua/Python 运行时的降级诊断。
+- [ ] 实现运行时缺失、版本不支持、语法错误、worker 启动/握手失败和非零退出的稳定诊断码。
+- [ ] 增加跨平台启动配置、强制终止和忽略取消脚本的超时回收。
 
 ### 9.7 脚本测试和验收
 
@@ -393,6 +398,7 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [x] 脚本查询 API 与数据库查询 API 返回一致结果的测试。
 - [x] 敏感配置不会出现在脚本查询结果和错误诊断中的测试。
 - [ ] Lua 引擎和 Python worker 的独立集成测试，不依赖真实 Tracker 服务。
+- [ ] 增加 Lua/Python 运行时缺失、worker 崩溃、stdout 污染、HostCall 权限和跨语言故障隔离测试。
 
 验收：用户可以从脚本目录加载并运行受限 C# 应用脚本或编辑器脚本，按统一上下文处理指定时间粒度和业务目标；
 编译错误、执行异常、取消、超时和权限拒绝均可诊断，脚本不能操作模板或绕过宿主权限边界。
@@ -487,6 +493,7 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [x] 已实现 C# Worker 协议适配器、握手、心跳、取消、基础脚本执行器和宿主 API 转发；Tracker/多语言 Worker 仍待完成。
 - [ ] 实现 Lua worker，默认关闭文件、网络和进程能力。
 - [ ] 实现 Python worker，处理解释器发现、环境隔离、标准输出污染和退出码错误。
+- [ ] 按 `EngineName` 将 C#、Lua、Python 请求路由到各自 supervisor，并确保一个 worker 故障不影响其他语言。
 - [~] 已增加 C# Linux 进程启动、握手、心跳、执行、取消、超时、通道终止、退出码和历史关联测试；工作集/输出超限集成测试及其他平台运行时测试待完成。
 
 验收：脚本 worker 崩溃、协议失步、超时或被强制终止时，主程序和其他语言 worker 继续运行；

@@ -28,12 +28,13 @@
   - Diary.RedMine.UI：Redmine 设置、管理页和编辑器 UI 扩展
 - Scripting：各种脚本支持的实现
   - Diary.Script.CSharp：`C#`脚本支持
-  - Diary.Script.Lua：`Lua`脚本支持
-  - Diary.Script.Python：`Python`脚本支持，只支持`python3`
+  - Diary.Script.Lua：`Lua`脚本支持（目标：受限独立 worker）
+  - Diary.Script.Python：`Python 3`脚本支持（目标：独立解释器 worker）
 
 脚本系统的目标架构、运行时边界、权限模型、Tracker API 和分阶段实现计划见
 [`ScriptSystemDesign.md`](ScriptSystemDesign.md)。当前已经完成 C# 脚本目录扫描、Roslyn 构建、脚本管理页、
-构建/执行抽象和只读查询宿主；Lua/Python 引擎、独立进程强隔离和执行历史持久化仍未完成。
+构建/执行抽象和只读查询宿主；Lua/Python 引擎尚未接入，已在
+[`ScriptSystemDesign.md`](ScriptSystemDesign.md) 和 [`ScriptWorkerDesign.md`](ScriptWorkerDesign.md) 中确定独立 worker、语言路由和运行时诊断方案。
 
 标签与 Tracker 默认字段的关联规则设计见
 [`TagAutomationDesign.md`](TagAutomationDesign.md)。规则属于 Tracker 实例配置，

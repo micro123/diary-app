@@ -300,7 +300,8 @@ Redmine 实例设置页和核心标签编辑器复用规则编辑 ViewModel，�
 隔离脚本异常，并返回成功、失败、取消、超时或拒绝状态；能力检查由
 `ScriptExecutionContext` 和 `Diary.ScriptHost` 的只读 API 执行。
 
-当前尚未接入独立后台任务调度、Lua 或 Python 引擎；执行历史目前为内存数据，脚本包和强隔离仍需继续扩展。
+当前尚未接入独立后台任务调度、Lua 或 Python 引擎。Lua/Python 的目标方案已确定为独立 worker、按
+`EngineName` 路由、共享只读 HostCall 协议和结构化运行时降级诊断；执行历史目前为内存数据，脚本包和强隔离仍需继续扩展。
 
 ## 15. 维护约定
 

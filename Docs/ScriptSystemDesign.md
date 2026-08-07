@@ -5,7 +5,7 @@
 本文描述 Diary.App 脚本系统的目标设计、运行时边界和分阶段实现计划。
 
 本文同时记录目标设计和当前实现。当前代码已经定义版本化基础契约、最小脚本管理器、
-构建与执行边界、受限只读事项查询宿主、脚本目录自动加载和脚本管理页；Lua/Python 引擎仍未完成。
+构建与执行边界、受限只读事项查询宿主、脚本目录自动加载和脚本管理页；Lua/Python 的实现方案已经确定，运行时接入仍未完成。
 
 ## 2. 设计目标
 
@@ -55,8 +55,8 @@
 - `Diary.Script.CSharp`：已实现基于 Roslyn 的 V1 构建、入口发现和行列诊断，并拒绝动态绑定、
   类型反射入口、线程、脱离生命周期的任务调度及文件、网络、进程、原生调用等危险 API；
   当前仍为受信任进程内执行，静态策略不构成安全沙箱。
-- `Diary.Script.Lua`：当前为占位项目。
-- `Diary.Script.Python`：当前为占位项目。
+- `Diary.Script.Lua`：当前为占位项目；目标是使用 `NLua 1.7.9 + KeraLua` 接入独立 .NET worker。
+- `Diary.Script.Python`：当前为占位项目；目标是发现本机 Python 3 解释器并接入独立 Python worker。
 
 Worker 进程边界、消息封装、生命周期和重启语义见
 [`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)。
@@ -66,7 +66,7 @@ Worker 进程边界、消息封装、生命周期和重启语义见
 - 后台任务调度和执行日志上下文。
 - 更细粒度的 Tracker、网络和文件系统权限。
 - 执行状态历史持久化和更丰富的快捷入口。
-- Lua 和 Python 实际引擎。
+- Lua 和 Python 实际引擎及其多语言 worker 路由。
 
 `Diary.ScriptTests` 当前覆盖契约、引擎选择、构建隔离、目录项注册、目标校验、异常、
 取消、超时、能力拒绝、只读查询结果一致性和敏感信息边界。
@@ -518,6 +518,97 @@ Diary.App <-> JSON/RPC stdin/stdout <-> python worker
 
 独立进程便于处理解释器崩溃、依赖隔离和强制终止，但需要额外处理 Python 版本、环境发现、启动开销和跨平台打包。
 
+### 14.4 Lua/Python 多语言接入决策
+
+Lua 和 Python 均使用独立 worker，不在 `Diary.App` 进程内执行。两者共享
+`ScriptWorkerDesign.md` 定义的 JSON 行协议、执行生命周期和只读宿主 API，但使用不同的运行时绑定：
+
+```text
+ScriptDirectoryLoader
+        |
+        v
+ScriptBuildService -> ScriptEngineRegistry
+        |                    |
+        |                    +-- csharp -> C# WorkerSupervisor
+        |                    +-- lua    -> Lua WorkerSupervisor
+        |                    +-- python -> Python WorkerSupervisor
+        v
+ScriptCatalog（保存 EngineName 和 Descriptor）
+```
+
+#### 14.4.1 共同范围
+
+第一版 Lua/Python 只支持 `ScriptApiVersion.V1`、应用脚本和编辑器脚本，默认能力为
+`None`；获得授权后只开放 `ReadDiary`。第一版不提供模板写入、工作项写入、Tracker
+远程写入、网络、文件系统、剪贴板、UI、进程创建或动态加载能力，也不自动安装第三方依赖。
+
+脚本相邻 metadata 或脚本包中的 `manifest.json` 是 ID、名称、Engine、Scope 和 capability
+的权威来源。引擎构建请求需要携带已解析的 descriptor hint，构建结果中的 Descriptor 必须与
+metadata 一致，不能由脚本源码静默提升权限或改变脚本身份。
+
+`ScriptCatalog` 和执行路由必须保存稳定的 `EngineName`，不能在执行时再次根据文件扩展名猜测
+worker。C#、Lua、Python 使用相互独立的 supervisor；某一种语言 worker 故障、重启或运行时缺失
+不得影响其他语言。
+
+#### 14.4.2 Lua
+
+- 使用 NuGet `NLua` 1.7.9（依赖 `KeraLua >= 1.4.9`）承载在独立 .NET worker 中，使用标准 Lua 5.4 运行时。
+- Lua worker 使用 `--language lua` 启动并通过统一协议握手，不直接引用主程序的 DI、数据库或 UI。
+- 每次执行创建新的 Lua script/context；worker 可复用进程，但不能复用脚本全局变量、模块状态或宿主 API 代理。
+- 创建 Lua 状态后只开放白名单标准库，默认关闭 `io`、`os`、`debug`、`package`、`require`、`dofile`、`loadfile` 和动态加载入口。
+- 禁止调用 NLua 的 `LoadCLRPackage`，不注册 `LuaUserData`、反射对象或任意 .NET 类型；Lua 只能看到基础值、受控表和宿主 API 回调。
+- Lua 脚本通过约定的 `main`/`execute` 入口接收只读上下文和 `diary.workItems.query` 代理，宿主只传递不可变 DTO。
+- 语法错误、运行时错误和入口错误必须转换为 `ScriptDiagnostic`，尽可能保留 sourcePath、行号和列号。
+- Lua 的缓存第一版只缓存语法检查结果或源码 hash，不缓存可跨进程恢复的运行时对象。
+
+#### 14.4.3 Python
+
+- 使用独立的 Python 3 解释器进程和项目内受控 worker 脚本，不嵌入 CPython，也不自动创建或修改虚拟环境。
+- Windows 正式发行包优先随应用携带官方 embeddable distribution；该 ZIP 只解压到应用运行时目录，不写入系统 Python 注册表或 PATH。
+- Linux 正式发行包不携带 Python，优先使用发行版提供的 `python3`/`python3.X` 系统包；应用不负责调用 apt、dnf、apk 或其他包管理器安装运行时。
+- macOS 暂不携带官方 Python runtime，沿用显式配置路径或系统/用户提供的 `python3`，后续再单独评估发行策略。
+- `PythonRuntimeResolver` 位于 `Diary.Script.Python`，负责按平台选择 runtime、探测 `--version`、确认 worker 路径和生成环境诊断。
+- 运行时缺失或版本不支持时仍注册 Python 引擎；`.py` 脚本保留在目录列表中并显示结构化诊断，不静默当作未知扩展名。
+- Python worker 的 stdout 只输出协议 JSON 行；脚本 `print` 和 traceback 写入受限 stderr，不能污染协议。
+- 执行前使用 `compile(source, sourcePath, "exec")` 做语法检查，执行时使用受控入口和新的 globals/context；第一版默认每个 worker 最多处理一个请求后回收，避免模块和全局状态泄露。
+- Python worker 只通过 `diary.workItems.query` 发起 HostCall，不直接读取宿主文件、数据库、环境中的凭据或网络服务。
+- Windows embeddable distribution 不包含 pip；第一版只使用 Python 标准库，后续第三方依赖必须由应用发布包固定携带并经过兼容性验证，禁止运行时自动安装。
+- 运行时缺失、版本不支持、语法错误、worker 启动失败、握手失败、非零退出、超时和取消必须映射为稳定诊断码。
+
+#### 14.4.4 运行时发现、路由和降级
+
+Python 运行时发现只属于 `Diary.Script.Python`，不下沉到通用 transport 或 supervisor。解析结果必须包含：
+
+- `RuntimeKind`：`WindowsEmbedded`、`SystemPackage` 或 `Explicit`。
+- 解释器绝对路径、runtime 根目录、Python 版本和 worker 资源路径。
+- 是否使用隔离模式、是否存在可用标准库，以及缺失/版本不兼容诊断。
+
+平台策略如下：
+
+| 平台 | 默认来源 | 备用来源 | 禁止行为 |
+| --- | --- | --- | --- |
+| Windows | 应用发布包内按 RID 匹配的 embeddable distribution | 用户显式配置的绝对路径；开发环境可选系统 Python | 不写 PATH/注册表，不自动下载或安装 Python |
+| Linux | 系统 `python3` 或 `python3.X` 包 | 用户显式配置的绝对路径 | 不调用系统包管理器，不捆绑另一套 glibc/musl Python |
+| macOS | 用户显式配置或系统/用户 `python3` | 后续评估应用附带 runtime | 不假设官方 Windows embeddable ZIP 可复用 |
+
+用户显式配置用于测试、便携部署和管理员指定版本；正式 Windows 包中应优先使用随包 runtime，
+避免因为 PATH 上的 Python 版本变化导致脚本行为改变。每个候选必须通过绝对路径启动探测命令，
+记录解释器路径和版本；不通过 shell 拼接命令，不执行 `pip install`。Lua worker 的 `NLua` 托管程序集
+和 `KeraLua` native 资产随对应 RID 部署，不依赖系统 Lua 命令。至少验证以下 native 资产：
+
+- Windows：`win-x64` 的 `lua54.dll`。
+- Linux：`linux-x64` 的 `liblua54.so`。
+- macOS：对应架构的 `liblua54.dylib`。
+
+引擎、目录加载器和脚本页应保留以下诊断码：
+
+- `LUA_RUNTIME_NOT_FOUND`、`LUA_SYNTAX_ERROR`、`LUA_WORKER_START_FAILED`、`LUA_WORKER_TERMINATED`。
+- `PYTHON_RUNTIME_NOT_FOUND`、`PYTHON_VERSION_UNSUPPORTED`、`PYTHON_SYNTAX_ERROR`、`PYTHON_WORKER_START_FAILED`、`PYTHON_WORKER_TERMINATED`。
+
+超时流程为：发送 `cancel` -> 等待有限宽限期 -> 终止对应 worker 进程树 -> 将当前执行标记为
+`TimedOut` 或 `WORKER_TERMINATED`。不能把只停止等待当作已终止脚本。worker 终止后不自动重放
+可能产生副作用的请求。
+
 ## 15. 测试计划
 
 脚本系统至少需要以下测试：
@@ -537,6 +628,9 @@ Diary.App <-> JSON/RPC stdin/stdout <-> python worker
 - Tracker 使用 `PluginId + InstanceId` 定位正确实例。
 - 日志和诊断不会泄露敏感配置。
 - Python worker 崩溃和退出码错误可以被宿主识别。
+- Lua 和 Python 的运行时缺失、worker 启动失败、握手失败、非零退出、超时和取消均返回稳定诊断码。
+- Lua/Python worker 故障不会影响 C# worker、其他脚本列表项或核心日记启动。
+- Python worker 的解释器发现不依赖真实用户环境；测试使用假的解释器和内存文件/transport 替身。
 
 第一阶段测试不应依赖真实 Redmine、真实 Python 环境或 UI 桌面会话；外部引擎和宿主 API 使用内存替身。
 
@@ -566,10 +660,12 @@ Diary.App <-> JSON/RPC stdin/stdout <-> python worker
 
 ### 第四阶段：多语言
 
-- 实现 Lua 引擎。
-- 评估 Lua 缓存和调试支持。
-- 实现独立 Python worker。
-- 增加各引擎的集成测试。
+- [设计已确定] Lua 使用受限 .NET 运行时和独立 Lua worker，默认关闭文件、网络、进程和动态加载。
+- [设计已确定] Python 使用独立 Python 3 worker，由 `PythonRuntimeResolver` 负责解释器发现和版本诊断。
+- [设计已确定] ScriptCatalog 保存 EngineName，C#、Lua、Python 使用独立 supervisor 路由。
+- 实现 Lua 引擎、worker 适配器、构建诊断和执行入口。
+- 实现 Python 引擎、runtime resolver、Python worker 和 HostCall 代理。
+- 增加各引擎的运行时缺失、语法错误、崩溃、超时、取消和跨语言隔离测试。
 
 ### 第五阶段：Tracker 自动化
 

@@ -8,7 +8,7 @@
 
 本文是目标设计，不代表所有内容已经实现。当前已实现协议握手、版本/能力协商、UTF-8 JSON 行编解码、
 可注入传输层、单 Worker supervisor、本机进程 transport、默认 C# Worker 执行链路、
-双向宿主 API 转发、通道终止结构化失败以及执行消息和宿主调用次数限制；
+双向宿主 API 转发、通道终止结构化失败以及执行消息和宿主调用次数限制；多语言路由和 Lua/Python worker 尚未接入。
 操作系统级强内存限制按平台能力处理，多语言 worker 仍在后续阶段。Worker 协议 stdout 已与脚本标准输出隔离，并限制脚本输出大小。现有脚本 V1 类型和执行结果见
 [`ScriptSystemDesign.md`](ScriptSystemDesign.md) 及 `Diary.ScriptBase`。
 
@@ -493,18 +493,32 @@ supervisor 应支持以下限制，并在 worker 启动或执行前配置：
 
 ### 18.2 Lua
 
-- 创建受限 Lua 全局环境。
-- 默认移除文件、网络、进程、动态加载库。
-- 将 Lua 错误转换为 sourcePath、行号和列号诊断。
-- 通过宿主 API 代理访问工作项和后续 Tracker 能力。
+- 使用 NuGet `NLua` 1.7.9（依赖 `KeraLua >= 1.4.9`）承载在独立 .NET worker 中，使用标准 Lua 5.4 运行时。
+- worker 以 `--language lua` 握手，默认移除 `io`、`os`、`debug`、`package`、`require`、`dofile` 和 `loadfile`。
+- 禁止调用 `LoadCLRPackage`，不注册 `LuaUserData`、反射对象或任意 .NET 类型；每次执行创建独立的 Lua script/context。
+- `NLua` 托管程序集和 KeraLua native 资产按 RID 随 Lua worker 部署，至少覆盖 `win-x64`、`linux-x64` 和 macOS 对应架构。
+- 将 Lua 错误转换为 sourcePath、行号和列号诊断，并将脚本输出限制在 stderr 配额内。
+- 通过 `diary.workItems.query` HostCall 代理访问不可变工作项 DTO；第一版不开放写入、文件、网络和进程能力。
 
 ### 18.3 Python
 
-- 使用独立解释器进程，不嵌入主程序。
-- 启动时明确解释器路径、版本和环境目录。
-- 禁止脚本直接把协议 JSON 写入 stdout。
-- worker 退出码、traceback、超时和取消必须转换成统一结果。
-- 依赖声明必须经过宿主策略检查，第一版不自动执行任意安装命令。
+- 使用独立 Python 3 解释器进程和受控 `worker.py`，不嵌入主程序。
+- `PythonRuntimeResolver` 位于 `Diary.Script.Python`，负责绝对解释器路径、版本探测、worker 路径和环境诊断。
+- Windows 正式包使用应用内的 embeddable distribution；Linux 使用系统 `python3`/`python3.X` 包；macOS 使用显式配置或系统/用户 `python3`。
+- embeddable distribution 只作为应用发布资源解压使用，不执行 pip，不修改 PATH/注册表；Linux 不调用发行版包管理器。
+- 禁止脚本直接把协议 JSON 写入 stdout；`print` 和 traceback 写入受限 stderr。
+- worker 通过 `compile(source, sourcePath, "exec")` 做语法检查，执行时创建新的 globals/context；第一版每个 worker 最多执行一个请求。
+- worker 退出码、traceback、超时和取消必须转换成统一结果；运行时缺失不能静默跳过 `.py` 脚本。
+- 依赖声明必须经过宿主策略检查，第一版不自动执行任意安装命令，也不执行 `pip install`。
+
+### 18.4 多语言路由
+
+- `ScriptEngineRegistry` 必须注册 C#、Lua、Python 三个引擎，即使 Python 解释器当前缺失。
+- `ScriptBuildRequest` 携带来自 metadata/manifest 的 descriptor hint；构建结果校验 ID、Engine、Scope 和 capability 不被源码提升。
+- `ScriptCatalog` 保存稳定的 `EngineName`，`WorkerScriptExecutor` 按 EngineName 选择独立 supervisor，不根据扩展名临时猜测。
+- C#、Lua、Python worker 使用独立进程和独立故障状态；一个 worker 终止不得影响其他语言。
+- `WorkerHelloPayload` 的语言值固定为 `csharp`、`lua` 或 `python`，运行时版本和 worker 版本作为可选诊断字段传递。
+- 统一使用 `grantedCapabilities` 和 `executionId` 校验 HostCall；只允许当前执行的 `workItems.query`。
 
 ## 19. 测试和验收
 
@@ -563,9 +577,11 @@ worker 重启后不会自动重复未确认的副作用操作。
 
 ### 第三阶段：多语言
 
-- 接入 Lua worker。
-- 接入 Python worker。
-- 完成运行时发现、版本诊断和跨平台启动配置。
+- [设计已确定] 接入独立 Lua worker，使用 `NLua 1.7.9 + KeraLua` 和受限标准库/CLR 暴露策略。
+- [设计已确定] 接入独立 Python 3 worker，使用 `PythonRuntimeResolver` 管理解释器发现。
+- [设计已确定] 按语言维护独立 supervisor 和故障状态，复用同一协议与 HostCall。
+- 实现多语言路由、运行时发现、版本诊断和跨平台启动配置。
+- 实现 worker 强制终止、stderr 摘要保留和忽略取消脚本的超时回收。
 
 ### 第四阶段：资源和副作用
 
