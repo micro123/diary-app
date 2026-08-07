@@ -72,6 +72,24 @@ class WorkItemsApi:
         error = response.get("error") or {}
         raise HostCallError(error.get("code", "ProviderFailure"), error.get("message", "Host call failed."))
 
+    def stream(self, params=None, pageSize=500, **kwargs):
+        if pageSize < 1 or pageSize > 500:
+            raise ValueError("pageSize must be between 1 and 500")
+        query = {} if params is None else dict(params)
+        query.update(kwargs)
+        query.pop("pageSize", None)
+        offset = query.get("offset", 0)
+        while True:
+            query["limit"] = pageSize
+            query["offset"] = offset
+            result = self.query(query)
+            items = result.get("items") or []
+            for item in items:
+                yield item
+            if len(items) < pageSize:
+                return
+            offset += len(items)
+
 
 class HostApi:
     def __init__(self, state, method):

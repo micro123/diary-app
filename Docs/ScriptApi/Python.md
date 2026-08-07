@@ -71,6 +71,19 @@ result = context.diary.workItems.query({"limit": 100}, text="Worker")
 
 ## 3. 创建日志项
 
+### 流式查询大量明细
+
+```python
+for item in context.diary.workItems.stream(
+    startDate="2026-01-01",
+    endDate="2026-12-31",
+    pageSize=500,
+):
+    print(item["date"], item["comment"])
+```
+
+Python 生成器按需调用 `workItems.query`，一页消费完后才拉取下一页。`pageSize` 必须在 1 到 500 之间。非流式查询单次最多返回 1000 条。
+
 调用 `context.diary.logItems.create(params)` 会创建一个新工作项，不能修改或删除已有工作项：
 
 ```python

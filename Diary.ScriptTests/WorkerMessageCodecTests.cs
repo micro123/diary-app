@@ -1,11 +1,29 @@
 using Diary.Script.Runtime;
 using Diary.ScriptBase;
+using System.Text.Json;
 
 namespace Diary.ScriptTests;
 
 [TestClass]
 public sealed class WorkerMessageCodecTests
 {
+    [TestMethod]
+    public async Task Codec_RoundTripsPayloadNearDefaultMessageLimit()
+    {
+        var content = new string('x', 3 * 1024 * 1024);
+        var message = new WorkerMessage<object>(
+            WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.HostResult,
+            "large", "exec", new { content });
+        await using var stream = new MemoryStream();
+
+        await WorkerMessageCodec.WriteAsync(stream, message);
+        Assert.IsTrue(stream.Length > 3 * 1024 * 1024);
+        stream.Position = 0;
+        var result = await WorkerMessageCodec.ReadAsync<JsonElement>(stream);
+
+        Assert.AreEqual(content.Length, result.Payload.GetProperty("content").GetString()!.Length);
+    }
+
     [TestMethod]
     public async Task WriteAndRead_RoundTripsUtf8Message()
     {

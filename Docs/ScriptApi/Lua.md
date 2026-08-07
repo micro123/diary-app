@@ -74,6 +74,20 @@ end
 
 ## 3. 创建日志项
 
+### 流式查询大量明细
+
+```lua
+for item in diary.workItems.stream({
+    startDate = "2026-01-01",
+    endDate = "2026-12-31",
+    pageSize = 500
+}) do
+    print(item.date .. ": " .. item.comment)
+end
+```
+
+迭代器按需调用 `workItems.query`，一页消费完后才拉取下一页。`pageSize` 必须在 1 到 500 之间。不要在循环中把所有项重新保存到一个大表，否则会失去流式处理的内存优势。
+
 调用 `diary.logItems.create(params)` 会新建一个工作项，不会修改已有工作项。
 
 ```lua

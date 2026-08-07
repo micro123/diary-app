@@ -541,3 +541,6 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [ ] 设计并实现日记写入 API（事务、确认、审计和失败恢复策略需先明确）。
 - [ ] 设计并实现 Tracker 写入 API（远程副作用、重试和权限提示需先明确）。
 - [x] 移除脚本 capability 枚举、metadata 字段、执行上下文和 Worker 协议中的 capability 参数；旧 metadata 字段自动忽略。
+- [x] 增加 C#、Lua、Python 分页式工作项流 API，单页最多 500 条，避免全年结果进入单条 Worker 消息。
+- [x] 增加全年 1205 条 SQLite 多页流、1000 条长字段查询结果和约 3 MiB Worker 消息往返测试。
+- [ ] 数据库层增加 reader 级流式查询后，将分页式 Worker 流升级为数据库流/chunk 传输。

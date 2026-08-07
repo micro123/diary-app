@@ -92,10 +92,44 @@ public sealed class WorkerQueryDispatcherTests
         Assert.AreEqual("Confirm", interaction.Title);
     }
 
+    [TestMethod]
+    public async Task DispatchAsync_TransportsLargeQueryResultWithinMessageLimit()
+    {
+        var items = Enumerable.Range(1, 1_000)
+            .Select(id => new ScriptWorkItem(
+                id,
+                "2026-01-01",
+                $"work item {id} {new string('x', 900)}",
+                1.5,
+                0,
+                new string('n', 1_200),
+                [new ScriptWorkTag(1, "large", 0, 0, false)]))
+            .ToImmutableArray();
+        var dispatcher = new WorkItemQueryWorkerDispatcher(
+            () => new FixedQueryApi(items));
+
+        var result = await dispatcher.DispatchAsync("exec", new(
+            "workItems.query", JsonSerializer.SerializeToElement(new ScriptWorkItemQuery { Limit = 1_000 })));
+
+        Assert.IsTrue(result.Success);
+        var payload = JsonSerializer.SerializeToUtf8Bytes(result, WorkerProtocol.JsonOptions);
+        Assert.IsTrue(payload.Length > 1_000_000);
+        Assert.IsTrue(payload.Length < WorkerProtocol.DefaultMaxMessageBytes);
+        var roundTrip = result.Result!.Value.Deserialize<ScriptWorkItemQueryResult>(WorkerProtocol.JsonOptions);
+        Assert.AreEqual(1_000, roundTrip!.Items.Length);
+        Assert.AreEqual(new string('n', 1_200), roundTrip.Items[^1].Note);
+    }
+
     private sealed class FakeQueryApi : IWorkItemQueryScriptApi
     {
         public ValueTask<ScriptWorkItemQueryResult> QueryAsync(ScriptWorkItemQuery query, CancellationToken cancellationToken = default) =>
             ValueTask.FromResult(ScriptWorkItemQueryResult.Success(ImmutableArray<ScriptWorkItem>.Empty, query));
+    }
+
+    private sealed class FixedQueryApi(ImmutableArray<ScriptWorkItem> items) : IWorkItemQueryScriptApi
+    {
+        public ValueTask<ScriptWorkItemQueryResult> QueryAsync(ScriptWorkItemQuery query, CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(ScriptWorkItemQueryResult.Success(items, query));
     }
 
     private sealed class FakeTrackerApi : ITrackerInstanceScriptApi

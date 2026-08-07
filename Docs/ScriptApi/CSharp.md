@@ -104,6 +104,23 @@ foreach (var item in result.Items)
 
 ## 5. 创建日志项
 
+### 流式查询大量明细
+
+全年等大范围明细应使用 `StreamAsync`。当前实现按页调用宿主查询，每页最多 500 条，不会将全年结果放入单条 Worker 消息：
+
+```csharp
+await foreach (var item in api.StreamAsync(new ScriptWorkItemQuery
+{
+    StartDate = "2026-01-01",
+    EndDate = "2026-12-31",
+}, pageSize: 500, cancellationToken))
+{
+    // 逐项处理；不要自行保存全部结果，除非业务确实需要。
+}
+```
+
+`workItems.query` 单次最多返回 1000 条；`StreamAsync` 页大小必须在 1 到 500 之间。第一版是 Worker 通信层的分页式流，不是数据库 reader 流；查询期间数据变化可能影响 offset 分页边界。
+
 创建日志项只会新建工作项，不会查找、修改或删除已有工作项。
 
 ```csharp

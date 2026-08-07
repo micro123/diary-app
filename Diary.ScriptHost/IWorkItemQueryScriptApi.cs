@@ -70,4 +70,28 @@ public interface IWorkItemQueryScriptApi
     ValueTask<ScriptWorkItemQueryResult> QueryAsync(
         ScriptWorkItemQuery query,
         CancellationToken cancellationToken = default);
+
+    async IAsyncEnumerable<ScriptWorkItem> StreamAsync(
+        ScriptWorkItemQuery query,
+        int pageSize = 500,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        if (pageSize is <= 0 or > WorkItemQueryScriptApi.MaxStreamPageSize)
+            throw new ArgumentOutOfRangeException(nameof(pageSize));
+        var offset = query.Offset;
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var pageQuery = query with { Limit = pageSize, Offset = offset };
+            var result = await QueryAsync(pageQuery, cancellationToken);
+            if (!result.Succeeded)
+                throw new InvalidOperationException(result.Error?.Message ?? "工作项流式查询失败。");
+            foreach (var item in result.Items)
+                yield return item;
+            if (result.Items.Length < pageSize)
+                yield break;
+            offset = checked(offset + result.Items.Length);
+        }
+    }
 }

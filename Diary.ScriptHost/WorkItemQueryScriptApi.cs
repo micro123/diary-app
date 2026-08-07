@@ -10,7 +10,8 @@ public sealed class WorkItemQueryScriptApi(
 {
     public const int DefaultLimit = 100;
     public const int MaxLimit = 1_000;
-    public const int MaxOffset = 10_000;
+    public const int MaxStreamPageSize = 500;
+    public const int MaxOffset = 1_000_000;
     public const int MaxTagCount = 100;
 
     public ValueTask<ScriptWorkItemQueryResult> QueryAsync(
