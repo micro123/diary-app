@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Platform.Storage;
 using AvaloniaEdit;
 using AvaloniaEdit.TextMate;
 using System.ComponentModel;
@@ -40,6 +41,8 @@ public partial class ScriptEditorWindow : UrsaWindow
         _editor.Text = _viewModel.Text;
         _editor.TextChanged += OnEditorTextChanged;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        _viewModel.SaveAsRequested += OnSaveAsRequested;
+        _viewModel.DiagnosticSelected += OnDiagnosticSelected;
         var registryOptions = new RegistryOptions(ThemeName.DarkPlus);
         var installation = _editor.InstallTextMate(registryOptions);
         installation.SetGrammar(registryOptions.GetScopeByLanguageId("csharp"));
@@ -56,6 +59,45 @@ public partial class ScriptEditorWindow : UrsaWindow
     }
 
     private void OnRequestClose(object? sender, EventArgs e) => Close();
+
+    private async void OnSaveAsRequested(object? sender, EventArgs e)
+    {
+        if (_viewModel is null)
+            return;
+        try
+        {
+            var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "脚本另存为",
+                SuggestedFileName = _viewModel.FileName,
+                DefaultExtension = "cs",
+                FileTypeChoices =
+                [
+                    new FilePickerFileType("C# 源码") { Patterns = ["*.cs"] },
+                ],
+            });
+            if (file is not null)
+                await _viewModel.SaveAsAsync(file.Path.LocalPath);
+        }
+        catch (Exception exception)
+        {
+            _viewModel.Error = $"另存为失败：{exception.Message}";
+        }
+    }
+
+    private void OnDiagnosticSelected(ScriptEditorDiagnosticItem diagnostic)
+    {
+        if (_editor?.Document is null || diagnostic.Line is not { } line || line < 1)
+            return;
+        var lineNumber = Math.Min(line, _editor.Document.LineCount);
+        var documentLine = _editor.Document.GetLineByNumber(lineNumber);
+        var column = Math.Max(1, diagnostic.Column ?? 1);
+        _editor.TextArea.Caret.Offset = Math.Min(
+            documentLine.Offset + column - 1,
+            documentLine.EndOffset);
+        _editor.TextArea.Caret.BringCaretToView();
+        _editor.TextArea.Focus();
+    }
 
     private void OnEditorTextChanged(object? sender, EventArgs e)
     {
@@ -87,6 +129,8 @@ public partial class ScriptEditorWindow : UrsaWindow
             return;
         }
         _viewModel.RequestClose -= OnRequestClose;
+        _viewModel.SaveAsRequested -= OnSaveAsRequested;
+        _viewModel.DiagnosticSelected -= OnDiagnosticSelected;
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         if (_editor is not null)
             _editor.TextChanged -= OnEditorTextChanged;

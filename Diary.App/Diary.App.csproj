@@ -28,7 +28,9 @@
 
     <ItemGroup>
         <PackageReference Include="Avalonia.Desktop" Version="11.3.18" />
-        <PackageReference Include="AvaloniaEdit.TextMate" Version="11.1.0" />
+        <PackageReference Include="Semi.Avalonia.AvaloniaEdit" Version="11.2.0.2" />
+        <PackageReference Include="AvaloniaEdit.TextMate" Version="11.2.0" />
+        <PackageReference Include="Svg.Controls.Skia.Avalonia" Version="11.3.9.5" />
         <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
         <PackageReference Include="Avalonia.Diagnostics" Version="11.3.18">
             <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>

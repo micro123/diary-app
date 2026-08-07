@@ -36,7 +36,7 @@
                       SelectedItem="{Binding SelectedStatusFilter, Mode=TwoWay}" />
         </Grid>
 
-        <Border Grid.Row="3" Padding="10" CornerRadius="8" IsVisible="{Binding ShowEditorRange}"
+        <Border Grid.Row="3" Padding="10" CornerRadius="8" IsEnabled="{Binding ShowEditorRange}"
                 Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
             <Grid ColumnDefinitions="Auto,180,*,Auto,Auto" ColumnSpacing="8">
                 <TextBlock Text="执行范围" VerticalAlignment="Center" />
@@ -62,9 +62,10 @@
                     </ListBox.ItemContainerTheme>
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:ScriptListItem">
-                            <Border Theme="{DynamicResource CardBorder}" Padding="8"
-                                    HorizontalAlignment="Stretch">
-                                <Border.ContextMenu>
+                            <Grid Margin="8" HorizontalAlignment="Stretch"
+                                  Background="Transparent"
+                                  ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                <Grid.ContextMenu>
                                     <ContextMenu>
                                         <MenuItem Header="打开源码"
                                                   Command="{Binding $parent[UserControl].((vm:ScriptManagementViewModel)DataContext).OpenScriptCommand}"
@@ -80,10 +81,22 @@
                                                   Command="{Binding $parent[UserControl].((vm:ScriptManagementViewModel)DataContext).RunScriptCommand}"
                                                   CommandParameter="{Binding}" />
                                     </ContextMenu>
-                                </Border.ContextMenu>
-                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                                <i:Icon Value="{Binding LanguageIcon}" FontSize="28"
-                                        VerticalAlignment="Top" ToolTip.Tip="{Binding Language}" />
+                                </Grid.ContextMenu>
+                                <Grid Grid.Column="0" Width="28" Height="28"
+                                      ToolTip.Tip="{Binding Language}">
+                                    <Image Source="{SvgImage /Assets/Icons/csharp-72.svg}"
+                                           Width="28" Height="28"
+                                           IsVisible="{Binding IsCSharp}" />
+                                    <Image Source="{SvgImage /Assets/Icons/python-logo-only.svg}"
+                                           Width="28" Height="28"
+                                           IsVisible="{Binding IsPython}" />
+                                    <Image Source="{SvgImage /Assets/Icons/lua-logo.svg}"
+                                           Width="28" Height="28"
+                                           IsVisible="{Binding IsLua}" />
+                                    <i:Icon Value="{Binding LanguageIcon}" FontSize="28"
+                                            VerticalAlignment="Top"
+                                            IsVisible="{Binding !IsSvgLanguage}" />
+                                </Grid>
                                 <StackPanel Grid.Column="1" Spacing="3">
                                     <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold" />
                                     <TextBlock Text="{Binding SourcePath}" Opacity="0.58" />
@@ -94,8 +107,7 @@
                                     <TextBlock Text="{Binding ScopeLabel}" />
                                     <TextBlock Text="{Binding CapabilityLabel}" Opacity="0.68" />
                                 </StackPanel>
-                                </Grid>
-                            </Border>
+                            </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>

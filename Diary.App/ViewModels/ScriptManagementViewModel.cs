@@ -43,6 +43,14 @@ public sealed record ScriptListItem(
         _ => "mdi-file-code-outline",
     };
 
+    public bool IsCSharp => Language == "C#";
+
+    public bool IsPython => Language == "Python";
+
+    public bool IsLua => Language == "Lua";
+
+    public bool IsSvgLanguage => IsCSharp || IsPython || IsLua;
+
     public string ScopeLabel => Scope switch
     {
         ScriptScope.Application => "应用脚本",

@@ -71,6 +71,11 @@ Worker 进程边界、消息封装、生命周期和重启语义见
 `Diary.ScriptTests` 当前覆盖契约、引擎选择、构建隔离、目录项注册、目标校验、异常、
 取消、超时、能力拒绝、只读查询结果一致性和敏感信息边界。
 
+`Diary.App` 当前提供基于 Semi.Avalonia.AvaloniaEdit + AvaloniaEdit.TextMate 的 C# 内置编辑器，支持保存、同目录另存为、
+metadata 随源码移动、外部修改冲突保护、编译诊断和按行列跳转，窗口内容避让系统标题栏；对应窗口交互由 Avalonia Headless 测试覆盖。
+脚本管理列表中的 C#、Python 和 Lua 脚本使用官方 SVG 图标（[C#](https://github.com/dotnet/brand/blob/main/logo/language-icons/csharp-72.svg)、
+[Python](https://s3.dualstack.us-east-2.amazonaws.com/pythondotorg-assets/media/files/python-logo-only.svg)、[Lua](https://upload.wikimedia.org/wikipedia/commons/c/cf/Lua-Logo.svg)），未知语言继续使用 Material 图标回退。
+
 ## 4. 分层架构
 
 ```text

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Windows.Input;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -10,6 +11,38 @@ using Microsoft.Extensions.Logging;
 using Irihi.Avalonia.Shared.Contracts;
 
 namespace Diary.App.ViewModels;
+
+public sealed class ScriptEditorDiagnosticItem
+{
+    public ScriptEditorDiagnosticItem(
+        string severityLabel,
+        string code,
+        string message,
+        string location,
+        int? line,
+        int? column,
+        Action jump)
+    {
+        SeverityLabel = severityLabel;
+        Code = code;
+        Message = message;
+        Location = location;
+        Line = line;
+        Column = column;
+        JumpCommand = new RelayCommand(jump);
+    }
+
+    public string SeverityLabel { get; }
+    public string Code { get; }
+    public string Message { get; }
+    public string Location { get; }
+    public int? Line { get; }
+    public int? Column { get; }
+    public ICommand JumpCommand { get; }
+    public string Summary => string.IsNullOrWhiteSpace(Location)
+        ? $"[{Code}] {Message}"
+        : $"[{Code}] {Location} {Message}";
+}
 
 [DiAutoRegister]
 public partial class ScriptEditorViewModel(
@@ -23,7 +56,7 @@ public partial class ScriptEditorViewModel(
     private bool _loading;
     private bool _writing;
 
-    public ObservableCollection<ScriptDiagnosticListItem> Diagnostics { get; } = new();
+    public ObservableCollection<ScriptEditorDiagnosticItem> Diagnostics { get; } = new();
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
@@ -47,6 +80,7 @@ public partial class ScriptEditorViewModel(
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(OverwriteSaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(CheckCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SaveAsCommand))]
     private bool _busy;
 
     [ObservableProperty] private string _status = "尚未打开脚本";
@@ -64,6 +98,8 @@ public partial class ScriptEditorViewModel(
 
     public event EventHandler? Saved;
     public event EventHandler? RequestClose;
+    public event EventHandler? SaveAsRequested;
+    public event Action<ScriptEditorDiagnosticItem>? DiagnosticSelected;
 
     partial void OnTextChanged(string value)
     {
@@ -89,13 +125,14 @@ public partial class ScriptEditorViewModel(
 
     partial void OnErrorChanged(string value) => OnPropertyChanged(nameof(HasError));
 
-    public void Initialize(string sourcePath)
+    public void Initialize(string sourcePath, string? scriptRoot = null)
     {
         if (!File.Exists(sourcePath))
             throw new FileNotFoundException("脚本文件不存在。", sourcePath);
 
         _sourcePath = Path.GetFullPath(sourcePath);
-        _scriptRoot = Path.Combine(FsTools.GetApplicationConfigDirectory(), "scripts");
+        _scriptRoot = Path.GetFullPath(scriptRoot
+            ?? Path.Combine(FsTools.GetApplicationConfigDirectory(), "scripts"));
         _savedText = File.ReadAllText(_sourcePath);
         _loading = true;
         Text = _savedText;
@@ -111,19 +148,19 @@ public partial class ScriptEditorViewModel(
     }
 
     [RelayCommand(CanExecute = nameof(CanSave))]
-    private Task Save() => SaveCore(false);
+    private async Task Save() => await SaveCore(false);
 
     [RelayCommand(CanExecute = nameof(CanOverwriteSave))]
-    private Task OverwriteSave() => SaveCore(true);
+    private async Task OverwriteSave() => await SaveCore(true);
 
-    private async Task SaveCore(bool overwriteExternalChange)
+    private async Task<bool> SaveCore(bool overwriteExternalChange)
     {
         if (!IsDirty || string.IsNullOrWhiteSpace(_sourcePath))
-            return;
+            return false;
         if (ExternalChangeDetected && !overwriteExternalChange)
         {
             Error = "文件已被外部修改，请先重新加载外部版本或选择覆盖保存。";
-            return;
+            return false;
         }
 
         Busy = true;
@@ -149,15 +186,118 @@ public partial class ScriptEditorViewModel(
             ExternalChangeMessage = string.Empty;
             Status = overwriteExternalChange ? "已覆盖外部修改并保存" : "已保存脚本";
             Saved?.Invoke(this, EventArgs.Empty);
+            return true;
         }
         catch (Exception exception)
         {
             logger.LogError(exception, "保存脚本失败：{SourcePath}", _sourcePath);
             Error = $"保存失败：{exception.Message}";
             Status = "脚本保存失败";
+            return false;
         }
         finally
         {
+            _writing = false;
+            Busy = false;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSaveAs))]
+    private void SaveAs() => SaveAsRequested?.Invoke(this, EventArgs.Empty);
+
+    public async Task<bool> SaveAsAsync(string targetPath)
+    {
+        if (Busy || string.IsNullOrWhiteSpace(_sourcePath))
+            return false;
+
+        var originalPath = _sourcePath;
+        var originalDirectory = Path.GetDirectoryName(originalPath)!;
+        var target = Path.GetFullPath(targetPath);
+        var targetDirectory = Path.GetDirectoryName(target)!;
+        if (!PathsEqual(originalDirectory, targetDirectory)
+            || !ScriptCreationPolicy.IsInsideDirectory(target, _scriptRoot)
+            || !target.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+        {
+            Error = "另存为只能选择当前脚本目录中的 C# 源文件。";
+            return false;
+        }
+        if (PathsEqual(originalPath, target))
+            return await SaveCore(ExternalChangeDetected);
+        if (File.Exists(target) || File.Exists(target + ".json"))
+        {
+            Error = "目标脚本或 metadata 已存在，不能覆盖已有脚本。";
+            return false;
+        }
+
+        Busy = true;
+        Error = string.Empty;
+        _writing = true;
+        var sourceBackup = originalPath + $".{Guid.NewGuid():N}.move";
+        var metadataPath = originalPath + ".json";
+        var metadataBackup = metadataPath + $".{Guid.NewGuid():N}.move";
+        var targetMetadata = target + ".json";
+        var sourceMoved = false;
+        var metadataMoved = false;
+        var targetCreated = false;
+        var targetMetadataCreated = false;
+        try
+        {
+            File.Move(originalPath, sourceBackup);
+            sourceMoved = true;
+            if (File.Exists(metadataPath))
+            {
+                File.Move(metadataPath, metadataBackup);
+                metadataMoved = true;
+            }
+
+            await WriteTextAtomicallyAsync(target, Text);
+            targetCreated = true;
+            if (metadataMoved)
+            {
+                File.Move(metadataBackup, targetMetadata);
+                targetMetadataCreated = true;
+            }
+
+            File.Delete(sourceBackup);
+            sourceMoved = false;
+            if (metadataMoved)
+                metadataMoved = false;
+
+            _sourcePath = target;
+            _savedText = Text;
+            IsDirty = false;
+            ExternalChangeDetected = false;
+            ExternalChangeMessage = string.Empty;
+            StartWatcher();
+            OnPropertyChanged(nameof(SourcePath));
+            OnPropertyChanged(nameof(FileName));
+            OnPropertyChanged(nameof(WindowTitle));
+            Status = $"已另存为 {FileName}";
+            Saved?.Invoke(this, EventArgs.Empty);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "脚本另存为失败：{SourcePath} -> {TargetPath}", originalPath, target);
+            Error = $"另存为失败：{exception.Message}";
+            if (targetMetadataCreated && File.Exists(targetMetadata))
+            {
+                File.Move(targetMetadata, metadataPath);
+                targetMetadataCreated = false;
+                metadataMoved = false;
+            }
+            if (targetCreated)
+                DeleteIfExists(target);
+            if (metadataMoved && File.Exists(metadataBackup))
+                File.Move(metadataBackup, metadataPath);
+            if (sourceMoved && File.Exists(sourceBackup))
+                File.Move(sourceBackup, originalPath);
+            return false;
+        }
+        finally
+        {
+            DeleteIfExists(sourceBackup);
+            DeleteIfExists(metadataBackup);
             _writing = false;
             Busy = false;
         }
@@ -235,6 +375,8 @@ public partial class ScriptEditorViewModel(
         }
     }
 
+    private bool CanSaveAs() => !Busy && !string.IsNullOrWhiteSpace(_sourcePath);
+
     public void NotifyCloseBlocked() => Error = "存在未保存修改，请先保存或点击“放弃修改”。";
 
     private void StartWatcher()
@@ -310,8 +452,10 @@ public partial class ScriptEditorViewModel(
 
     private bool CanReloadExternal() => HasExternalChange;
 
-    private static ScriptDiagnosticListItem FormatDiagnostic(ScriptDiagnostic diagnostic) =>
-        new(
+    private ScriptEditorDiagnosticItem FormatDiagnostic(ScriptDiagnostic diagnostic)
+    {
+        ScriptEditorDiagnosticItem? item = null;
+        item = new(
             diagnostic.Severity switch
             {
                 ScriptDiagnosticSeverity.Error => "错误",
@@ -320,5 +464,30 @@ public partial class ScriptEditorViewModel(
             },
             diagnostic.Code,
             diagnostic.Message,
-            diagnostic.SourcePath is null ? string.Empty : $"{diagnostic.SourcePath}:{diagnostic.Line}:{diagnostic.Column}");
+            diagnostic.SourcePath is null ? string.Empty : $"{diagnostic.SourcePath}:{diagnostic.Line}:{diagnostic.Column}",
+            diagnostic.Line,
+            diagnostic.Column,
+            () => DiagnosticSelected?.Invoke(item!));
+        return item;
+    }
+
+    private static async Task WriteTextAtomicallyAsync(string path, string text)
+    {
+        var temporaryPath = path + $".{Guid.NewGuid():N}.tmp";
+        try
+        {
+            await File.WriteAllTextAsync(temporaryPath, text);
+            File.Move(temporaryPath, path, true);
+        }
+        finally
+        {
+            DeleteIfExists(temporaryPath);
+        }
+    }
+
+    private static void DeleteIfExists(string path)
+    {
+        if (File.Exists(path))
+            File.Delete(path);
+    }
 }
