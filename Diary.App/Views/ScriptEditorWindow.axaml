@@ -1,0 +1,64 @@
+<u:UrsaWindow xmlns="https://github.com/avaloniaui"
+              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+              xmlns:u="https://irihi.tech/ursa"
+              xmlns:vm="using:Diary.App.ViewModels"
+              xmlns:avaloniaEdit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+              x:Class="Diary.App.Views.ScriptEditorWindow"
+              x:DataType="vm:ScriptEditorViewModel"
+              Width="1100" Height="760" MinWidth="720" MinHeight="480"
+              WindowStartupLocation="CenterScreen"
+              Title="{Binding WindowTitle}">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10" Margin="14">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+            <StackPanel Spacing="2">
+                <TextBlock Text="{Binding FileName}" FontSize="22" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding SourcePath}" Opacity="0.62" TextWrapping="Wrap" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button Content="编译检查" Command="{Binding CheckCommand}" />
+                <Button Content="保存" Command="{Binding SaveCommand}" Classes="Primary" />
+                <Button Content="放弃修改" Command="{Binding DiscardCommand}" />
+                <Button Content="关闭" Command="{Binding CloseCommand}" />
+            </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="1" RowDefinitions="Auto,*,Auto" RowSpacing="8">
+            <Border Padding="10" CornerRadius="6" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    IsVisible="{Binding HasExternalChange}">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                    <TextBlock Text="{Binding ExternalChangeMessage}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Content="重新加载外部版本" Command="{Binding ReloadExternalCommand}" />
+                    <Button Grid.Column="2" Content="覆盖保存" Command="{Binding OverwriteSaveCommand}" Classes="Danger" />
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="1" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}"
+                    Background="{DynamicResource TextControlBackgroundUnfocused}" CornerRadius="6">
+                <avaloniaEdit:TextEditor Name="Editor"
+                                         ShowLineNumbers="True" FontSize="14"
+                                         FontFamily="Cascadia Code,Consolas,Menlo,Monospace"
+                                         HorizontalScrollBarVisibility="Auto"
+                                         VerticalScrollBarVisibility="Auto" />
+            </Border>
+
+            <TextBlock Grid.Row="2" Text="{Binding Error}" Foreground="IndianRed"
+                       TextWrapping="Wrap" IsVisible="{Binding HasError}" />
+        </Grid>
+
+        <Grid Grid.Row="2" RowDefinitions="Auto,*" MaxHeight="180" IsVisible="{Binding HasDiagnostics}">
+            <TextBlock Text="编译诊断" FontWeight="SemiBold" />
+            <ScrollViewer Grid.Row="1">
+                <ItemsControl ItemsSource="{Binding Diagnostics}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" Margin="2,4" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Grid>
+
+        <TextBlock Grid.Row="2" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                   Text="{Binding Status}" Opacity="0.68" IsVisible="{Binding !HasDiagnostics}" />
+    </Grid>
+</u:UrsaWindow>

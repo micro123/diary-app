@@ -3,6 +3,7 @@ using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.ViewModels.Dialogs;
+using Diary.App.Views;
 using Diary.App.Models;
 using Diary.GUIBase.ViewModels;
 using Diary.Script.Runtime;
@@ -426,8 +427,7 @@ public partial class ScriptManagementViewModel(
             return;
         try
         {
-            ProcUtils.OpenFileCrossPlatform(SelectedScript.SourcePath);
-            Status = $"已打开脚本：{SelectedScript.Name}";
+            OpenScriptEditor(SelectedScript.SourcePath);
         }
         catch (Exception exception)
         {
@@ -435,6 +435,19 @@ public partial class ScriptManagementViewModel(
             Status = "无法打开脚本文件";
         }
     }
+
+    private void OpenScriptEditor(string sourcePath)
+    {
+        var viewModel = services.GetRequiredService<ScriptEditorViewModel>();
+        viewModel.Initialize(sourcePath);
+        viewModel.Saved += OnScriptEditorSaved;
+        var window = new ScriptEditorWindow(viewModel);
+        window.Closed += (_, _) => viewModel.Saved -= OnScriptEditorSaved;
+        window.Show();
+        Status = $"已打开脚本编辑器：{Path.GetFileName(sourcePath)}";
+    }
+
+    private void OnScriptEditorSaved(object? sender, EventArgs e) => _ = ReloadAsync();
 
     [RelayCommand]
     private void OpenScript(ScriptListItem? script)
