@@ -335,6 +335,9 @@ namespace Diary.App
                       () => new TrackerInstanceScriptApi(
                           Services.GetRequiredService<PluginInstanceRegistry>()),
                       () => new LogItemScriptApi(() => UseDb),
+                      () => new TemplateLogItemScriptApi(
+                          () => UseDb,
+                          () => TemplateManager.Instance.Templates.ToArray()),
                       () => new AppClipboardScriptApi(this),
                       () => new AppUserInteractionScriptApi()));
             services.AddSingleton<IWorkerScriptExecutor>(services =>
@@ -349,11 +352,11 @@ namespace Diary.App
                 var csharpRuntime = new WorkerRuntime(
                     "csharp",
                     new WorkerSupervisor(new ProcessWorkerTransportFactory(csharpOptions), hostDispatcher),
-                     new WorkerHandshakeOptions("csharp", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm"]));
+                     new WorkerHandshakeOptions("csharp", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm"]));
                 var luaRuntime = new WorkerRuntime(
                     "lua",
                     new WorkerSupervisor(new ProcessWorkerTransportFactory(luaOptions), hostDispatcher),
-                     new WorkerHandshakeOptions("lua", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm"]));
+                     new WorkerHandshakeOptions("lua", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm"]));
                 var pythonRuntime = new WorkerRuntime(
                     "python",
                     new WorkerSupervisor(
@@ -361,7 +364,7 @@ namespace Diary.App
                             services.GetRequiredService<PythonRuntimeResolver>()),
                         hostDispatcher,
                         maxRequestsPerWorker: 1),
-                     new WorkerHandshakeOptions("python", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm"]));
+                     new WorkerHandshakeOptions("python", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm"]));
                 return new WorkerScriptExecutor(
                     services.GetRequiredService<IScriptCatalog>(),
                     new Dictionary<string, WorkerRuntime>(StringComparer.OrdinalIgnoreCase)
@@ -385,6 +388,16 @@ namespace Diary.App
                         new TrackerInstanceScriptApi(
                             Services.GetRequiredService<PluginInstanceRegistry>()));
                     context.RegisterApi<ILogItemScriptApi>(new LogItemScriptApi(() => UseDb));
+                    context.RegisterApi<ITemplateLogItemScriptApi>(new TemplateLogItemScriptApi(
+                        () => UseDb,
+                        () => TemplateManager.Instance.Templates.ToArray()));
+                    context.RegisterApi<IDiaryApi>(new DiaryApi(
+                        context.GetApi<IWorkItemQueryScriptApi>()!,
+                        context.GetApi<ILogItemScriptApi>()!,
+                        context.GetApi<ITemplateLogItemScriptApi>()!));
+                    context.RegisterApi<ITrackerApi>(new TrackerApi(context.GetApi<ITrackerInstanceScriptApi>()!));
+                    context.RegisterApi<ISystemInteractionApi>(new SystemInteractionApi(
+                        context.GetApi<IClipboardScriptApi>()!, context.GetApi<IUserInteractionScriptApi>()!));
                     return context;
                 }));
             var compatibility = new PluginCompatibilityContext(

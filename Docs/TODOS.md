@@ -544,3 +544,5 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [x] 增加 C#、Lua、Python 分页式工作项流 API，单页最多 500 条，避免全年结果进入单条 Worker 消息。
 - [x] 增加全年 1205 条 SQLite 多页流、1000 条长字段查询结果和约 3 MiB Worker 消息往返测试。
 - [ ] 数据库层增加 reader 级流式查询后，将分页式 Worker 流升级为数据库流/chunk 传输。
+- [x] 模板增加稳定 UUID，并在模板管理页面展示只读 ID。
+- [x] 增加按模板创建日志项 API，支持日期、模板 ID、工时、可选标题和备注。

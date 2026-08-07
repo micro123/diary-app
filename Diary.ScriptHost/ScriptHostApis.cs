@@ -33,6 +33,20 @@ public interface ILogItemScriptApi
         CancellationToken cancellationToken = default);
 }
 
+public sealed record ScriptTemplateLogItemRequest(
+    string Date,
+    string TemplateId,
+    double Hours,
+    string? Title = null,
+    string? Note = null);
+
+public interface ITemplateLogItemScriptApi
+{
+    ValueTask<ScriptLogItemResult> CreateAsync(
+        ScriptTemplateLogItemRequest request,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IClipboardScriptApi
 {
     ValueTask<string?> GetTextAsync(CancellationToken cancellationToken = default);

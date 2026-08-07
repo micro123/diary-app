@@ -120,6 +120,23 @@ public sealed class WorkerQueryDispatcherTests
         Assert.AreEqual(new string('n', 1_200), roundTrip.Items[^1].Note);
     }
 
+    [TestMethod]
+    public async Task DispatchAsync_SupportsTemplateLogItemCreation()
+    {
+        var dispatcher = new WorkItemQueryWorkerDispatcher(
+            () => new FakeQueryApi(),
+            templateLogItemApiFactory: () => new FakeTemplateLogItemApi());
+        var result = await dispatcher.DispatchAsync("exec", new(
+            "templateLogItems.create",
+            JsonSerializer.SerializeToElement(new ScriptTemplateLogItemRequest(
+                "2026-08-08", "00000000-0000-0000-0000-000000000001", 2.5, "Title", "Note"))));
+
+        Assert.IsTrue(result.Success);
+        var item = result.Result!.Value.Deserialize<ScriptWorkItem>(WorkerProtocol.JsonOptions);
+        Assert.AreEqual("Title", item!.Comment);
+        Assert.AreEqual(2.5, item.Hours);
+    }
+
     private sealed class FakeQueryApi : IWorkItemQueryScriptApi
     {
         public ValueTask<ScriptWorkItemQueryResult> QueryAsync(ScriptWorkItemQuery query, CancellationToken cancellationToken = default) =>
@@ -130,6 +147,12 @@ public sealed class WorkerQueryDispatcherTests
     {
         public ValueTask<ScriptWorkItemQueryResult> QueryAsync(ScriptWorkItemQuery query, CancellationToken cancellationToken = default) =>
             ValueTask.FromResult(ScriptWorkItemQueryResult.Success(items, query));
+    }
+
+    private sealed class FakeTemplateLogItemApi : ITemplateLogItemScriptApi
+    {
+        public ValueTask<ScriptLogItemResult> CreateAsync(ScriptTemplateLogItemRequest request, CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(ScriptLogItemResult.Success(new(1, request.Date, request.Title ?? "Template", request.Hours, 0, request.Note, [])));
     }
 
     private sealed class FakeTrackerApi : ITrackerInstanceScriptApi

@@ -151,6 +151,20 @@ var created = result.Item!;
 
 ## 6. Tracker 实例目录
 
+## 5.1 按模板创建日志项
+
+```csharp
+var templates = context.GetApi<ITemplateLogItemScriptApi>();
+var result = await templates!.CreateAsync(new ScriptTemplateLogItemRequest(
+    Date: "2026-08-08",
+    TemplateId: "00000000-0000-0000-0000-000000000001",
+    Hours: 2.5,
+    Title: null,
+    Note: "按模板记录"), cancellationToken);
+```
+
+标题为空时使用模板默认标题；工时使用调用参数；模板默认标签会应用到新建工作项。`Date` 必须是 `yyyy-MM-dd`，`TemplateId` 必须是 UUID。该 API 只创建新工作项，不修改或删除已有项。
+
 ```csharp
 var api = context.GetApi<ITrackerInstanceScriptApi>();
 var result = api?.Get("tracker.memory", "company");

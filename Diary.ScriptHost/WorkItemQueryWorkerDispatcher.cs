@@ -8,6 +8,7 @@ public sealed class WorkItemQueryWorkerDispatcher(
     Func<IWorkItemQueryScriptApi> apiFactory,
     Func<ITrackerInstanceScriptApi>? trackerApiFactory = null,
     Func<ILogItemScriptApi>? logItemApiFactory = null,
+    Func<ITemplateLogItemScriptApi>? templateLogItemApiFactory = null,
     Func<IClipboardScriptApi>? clipboardApiFactory = null,
     Func<IUserInteractionScriptApi>? interactionApiFactory = null) : IWorkerHostCallDispatcher
 {
@@ -20,6 +21,8 @@ public sealed class WorkItemQueryWorkerDispatcher(
             return await DispatchTrackerAsync(trackerApiFactory, call);
         if (string.Equals(call.Method, "logItems.create", StringComparison.Ordinal))
             return await DispatchLogItemAsync(logItemApiFactory, call, cancellationToken);
+        if (string.Equals(call.Method, "templateLogItems.create", StringComparison.Ordinal))
+            return await DispatchTemplateLogItemAsync(templateLogItemApiFactory, call, cancellationToken);
         if (string.Equals(call.Method, "clipboard.get", StringComparison.Ordinal)
             || string.Equals(call.Method, "clipboard.set", StringComparison.Ordinal))
             return await DispatchClipboardAsync(clipboardApiFactory, call, cancellationToken);
@@ -49,6 +52,23 @@ public sealed class WorkItemQueryWorkerDispatcher(
         {
             return new(false, Error: new("ProviderFailure", "数据库查询失败。"));
         }
+    }
+
+    private static async ValueTask<WorkerHostResultPayload> DispatchTemplateLogItemAsync(
+        Func<ITemplateLogItemScriptApi>? factory, WorkerHostCallPayload call, CancellationToken cancellationToken)
+    {
+        if (factory is null) return new(false, Error: new("ProviderFailure", "模板日志宿主 API 未配置。"));
+        try
+        {
+            var request = call.Params.Deserialize<ScriptTemplateLogItemRequest>(WorkerProtocol.JsonOptions) ?? throw new JsonException();
+            var result = await factory().CreateAsync(request, cancellationToken);
+            return result.Succeeded
+                ? new(true, JsonSerializer.SerializeToElement(result.Item, WorkerProtocol.JsonOptions))
+                : new(false, Error: new(result.Error!.Code.ToString(), result.Error.Message));
+        }
+        catch (JsonException) { return new(false, Error: new("InvalidInput", "模板日志参数格式无效。")); }
+        catch (OperationCanceledException) { return new(false, Error: new("Cancelled", "记录已取消。")); }
+        catch { return new(false, Error: new("ProviderFailure", "按模板创建记录失败。")); }
     }
 
     private static async ValueTask<WorkerHostResultPayload> DispatchLogItemAsync(

@@ -17,6 +17,7 @@ namespace Diary.App.ViewModels.Dialogs;
 
 public partial class TemplateViewModel
 {
+    public required string Id { get; init; }
     public required string Name { get; set; }
     public string DefaultTitle { get; set; } = string.Empty;
     public double Time { get; set; } = 0.0;
@@ -34,6 +35,7 @@ public partial class TemplateViewModel
     {
         _original = template;
         _coordinator = coordinator;
+        Id = template.Id;
         Name = template.Name;
         DefaultTitle = template.DefaultTitle;
         Time = template.DefaultTime;
@@ -53,6 +55,7 @@ public partial class TemplateViewModel
     {
         return new Template
         {
+            Id = Id,
             Name = Name,
             DefaultTitle = DefaultTitle,
             DefaultTime = Time,

@@ -116,6 +116,21 @@ print("created work item: " .. result.item.id)
 
 ## 4. Tracker 实例目录
 
+## 3.1 按模板创建日志项
+
+```lua
+local result = diary.templateLogItems.create({
+    date = "2026-08-08",
+    templateId = "00000000-0000-0000-0000-000000000001",
+    hours = 2.5,
+    title = nil,
+    note = "按模板记录"
+})
+if not result.succeeded then error(result.error.message) end
+```
+
+标题为空时使用模板默认标题，模板默认标签应用到新建项。日期必须为 `yyyy-MM-dd`，模板 ID 必须为 UUID。
+
 调用 `diary.trackerInstances.get({ pluginId = "tracker.memory", instanceId = "company" })`。
 
 ```lua

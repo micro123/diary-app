@@ -118,6 +118,7 @@ class DiaryApi:
     def __init__(self, state):
         self.workItems = WorkItemsApi(state)
         self.logItems = type("LogItemsApi", (), {"create": HostApi(state, "logItems.create")})()
+        self.templateLogItems = type("TemplateLogItemsApi", (), {"create": HostApi(state, "templateLogItems.create")})()
         self.trackerInstances = type("TrackerInstancesApi", (), {"get": HostApi(state, "trackerInstances.get")})()
         self.clipboard = ClipboardApi(state)
         self.ui = UiApi(state)
@@ -462,7 +463,7 @@ def run():
         "language": "python",
         "workerVersion": "0.2",
         "supportedApiVersions": ["V1"],
-        "supportedHostApis": ["workItems.query", "logItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm"],
+        "supportedHostApis": ["workItems.query", "logItems.create", "templateLogItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm"],
         "processId": os.getpid(),
     })
     accepted = read_message()
