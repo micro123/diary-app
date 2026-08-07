@@ -35,6 +35,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly IServiceProvider _serviceProvider;
     private readonly TrackerPluginLifecycleCoordinator _lifecycle;
     private readonly ILogger _logger;
+    private readonly IReadOnlyList<NavigateInfo> _fixedPages;
     public string VersionString => AppInfo.AppVersionString;
 
     public string VersionDetails => AppInfo.AppVersionDetails;
@@ -64,15 +65,22 @@ public partial class MainWindowViewModel : ViewModelBase
         _logger = logger;
         _lifecycle = serviceProvider.GetRequiredService<TrackerPluginLifecycleCoordinator>();
 
-        // 导航可扩展：[日记] + tracker 贡献页 + [统计/调查/设置]。
+        // 导航可扩展：固定核心页面 + tracker 贡献页；设置通过标题栏对话框打开。
         // 手势按最终位置分配 Alt+1..；单 tracker（RedMine）下顺序/手势与原硬编码一致。
-        BuildPages();
+        _fixedPages = BuildFixedPages();
+        Pages = new ObservableCollection<NavigateInfo>(_fixedPages);
+        RefreshTrackerPages();
         _statusBarViewModel = _serviceProvider.GetRequiredService<StatusBarViewModel>();
 
         SelectedPage = Pages[0];
 
         Messenger.Register<PageSwitchEvent>(this, (r, m) =>
         {
+            if (m.Value == PageNames.Settings)
+            {
+                ShowSettings();
+                return;
+            }
             var page = Pages.FirstOrDefault(x => x.Name == m.Value);
             if (page is not null)
                 SelectedPage = page;
@@ -82,8 +90,8 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             var selectedName = SelectedPage?.Name;
             _lifecycle.ReRegister();
-            BuildPages();
-            SelectedPage = Pages.FirstOrDefault(x => x.Name == selectedName) ?? Pages[0];
+            RefreshTrackerPages();
+            SelectedPage = Pages.FirstOrDefault(x => x.Name == selectedName) ?? _fixedPages[0];
             _logger.LogDebug("config updated, tracker navigation rebuilt: {Count} pages", Pages.Count);
         });
 
@@ -130,31 +138,40 @@ public partial class MainWindowViewModel : ViewModelBase
 
     }
 
-    private void BuildPages()
+    private IReadOnlyList<NavigateInfo> BuildFixedPages()
     {
         var built = new List<NavigateInfo>();
-        var trackers = _serviceProvider.GetRequiredService<TrackerUiContributionRegistry>().Contributions;
         int idx = 1;
         built.Add(new NavigateInfo(PageNames.DiaryEditor, "mdi-notebook",
             _serviceProvider.GetService<DiaryEditorViewModel>(), $"Alt+{idx++}"));
         built.Add(new NavigateInfo(PageNames.WorkItemQuery, "fa-magnifying-glass",
             _serviceProvider.GetRequiredService<WorkItemQueryViewModel>(), $"Alt+{idx++}"));
-        foreach (var t in trackers)
-        {
-            var page = t.CreateManagementPage(t.Instance.InstanceId);
-            if (page is null)
-                continue;
-            built.Add(new NavigateInfo(t.Instance.DisplayName, t.Instance.Icon, page, $"Alt+{idx++}"));
-        }
         built.Add(new NavigateInfo(PageNames.Statistics, "fa-chart-pie",
             _serviceProvider.GetRequiredService<StatisticsViewModel>(), $"Alt+{idx++}"));
         built.Add(new NavigateInfo(PageNames.SurveyTool, "mdi-chat-processing-outline",
             _serviceProvider.GetRequiredService<SurveyViewModel>(), $"Alt+{idx++}"));
         built.Add(new NavigateInfo(PageNames.Scripts, "mdi-script-text-outline",
             _serviceProvider.GetRequiredService<ScriptManagementViewModel>(), $"Alt+{idx++}"));
-        built.Add(new NavigateInfo(PageNames.Settings, "mdi-cog-outline",
-            _serviceProvider.GetService<SettingsViewModel>(), $"Alt+{idx++}"));
-        Pages = new ObservableCollection<NavigateInfo>(built);
+        return built;
+    }
+
+    private void RefreshTrackerPages()
+    {
+        var trackers = _serviceProvider.GetRequiredService<TrackerUiContributionRegistry>().Contributions;
+        var dynamicPages = trackers
+            .Select(t => (Contribution: t, Page: t.CreateManagementPage(t.Instance.InstanceId)))
+            .Where(item => item.Page is not null)
+            .Select((item, index) => new NavigateInfo(
+                item.Contribution.Instance.DisplayName,
+                item.Contribution.Instance.Icon,
+                item.Page,
+                $"Alt+{_fixedPages.Count + index + 1}"))
+            .ToList();
+
+        while (Pages.Count > _fixedPages.Count)
+            Pages.RemoveAt(Pages.Count - 1);
+        foreach (var page in dynamicPages)
+            Pages.Add(page);
     }
 
     [RelayCommand]
@@ -401,6 +418,16 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void ShowSettings()
     {
-        EventDispatcher.RouteToPage(PageNames.Settings);
+        PostUiAsync(async () =>
+        {
+            var viewModel = _serviceProvider.GetRequiredService<SettingsViewModel>();
+            await OverlayDialog.ShowCustomModal<object>(viewModel, options: new OverlayDialogOptions
+            {
+                CanDragMove = false,
+                CanResize = true,
+                CanLightDismiss = false,
+                IsCloseButtonVisible = true,
+            });
+        }, "设置对话框");
     }
 }

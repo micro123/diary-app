@@ -71,7 +71,7 @@ RedMine --> Api
 
 | 项目 | 当前职责 | 关键边界 |
 | --- | --- | --- |
-| `Diary.App` | 启动、服务容器、插件发现、数据库选择、主窗口和 Tracker 配置对话框 | Tracker 配置通过独立模态对话框编辑 |
+| `Diary.App` | 启动、服务容器、插件发现、数据库选择、主窗口和 Tracker 配置对话框 | 设置通过右上角独立模态对话框编辑；固定导航页只创建一次，Tracker 动态页追加在其后并按配置刷新 |
 | `Diary.Core` | 工作项、标签、模板、配置和统计模型 | 不应依赖具体 tracker 类型 |
 | `Diary.Database` | 核心数据库抽象、provider 原语、扩展工厂加载 | 通过 `GetExtension<T>(instanceId)` 延迟取得可选扩展 |
 | `Diary.PluginBase` | manifest、兼容性检查、插件入口、实例注册、迁移调度 | 不依赖 Avalonia 和具体 UI |

@@ -12,11 +12,12 @@ using Diary.App.ViewModels.Dialogs;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Ursa.Controls;
+using Irihi.Avalonia.Shared.Contracts;
 
 namespace Diary.App.ViewModels;
 
 [DiAutoRegister]
-public partial class SettingsViewModel : ViewModelBase
+public partial class SettingsViewModel : ViewModelBase, IDialogContext
 {
     private readonly ILogger _logger;
     private readonly TrackerPluginDiagnosticsService _diagnostics;
@@ -37,6 +38,10 @@ public partial class SettingsViewModel : ViewModelBase
         _logger.LogDebug("Tracker 配置提供者：{Count} 个", configurationProviders.Count());
         BuildTree();
     }
+
+    public event EventHandler<object?>? RequestClose;
+
+    public void Close() => RequestClose?.Invoke(this, null);
 
     private void BuildTree()
     {
@@ -65,6 +70,7 @@ public partial class SettingsViewModel : ViewModelBase
         SettingsTree.Save();
         NotificationManager?.Show("已保存", NotificationType.Success);
         Messenger.Send(new ConfigUpdateEvent());
+        RequestClose?.Invoke(this, true);
     }
 
     [RelayCommand]
