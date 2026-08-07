@@ -42,6 +42,7 @@ public partial class SettingsViewModel : ViewModelBase
     {
         var app = BaseApp.Instance;
         SettingTreeBuilder.BuildTree(SettingsTree, app.AppConfig, app);
+        SettingsTree.Load();
     }
 
     [RelayCommand]
