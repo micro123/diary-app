@@ -73,9 +73,60 @@ class WorkItemsApi:
         raise HostCallError(error.get("code", "ProviderFailure"), error.get("message", "Host call failed."))
 
 
+class HostApi:
+    def __init__(self, state, method):
+        self.state = state
+        self.method = method
+
+    def __call__(self, params=None, **kwargs):
+        params = {} if params is None else params
+        if kwargs:
+            if not isinstance(params, dict):
+                raise HostCallError("InvalidInput", "Host parameters must be an object.")
+            params = dict(params)
+            params.update(kwargs)
+        request_id = new_id()
+        send_message("HostCall", request_id, get_execution_id(self.state.message), {
+            "method": self.method, "params": json_safe(params),
+        })
+        response = self.state.wait_host_response(request_id)
+        if response.get("success"):
+            return response.get("result")
+        error = response.get("error") or {}
+        raise HostCallError(error.get("code", "ProviderFailure"), error.get("message", "Host call failed."))
+
+
 class DiaryApi:
     def __init__(self, state):
         self.workItems = WorkItemsApi(state)
+        self.logItems = type("LogItemsApi", (), {"create": HostApi(state, "logItems.create")})()
+        self.trackerInstances = type("TrackerInstancesApi", (), {"get": HostApi(state, "trackerInstances.get")})()
+        self.clipboard = ClipboardApi(state)
+        self.ui = UiApi(state)
+
+
+class ClipboardApi:
+    def __init__(self, state):
+        self._get = HostApi(state, "clipboard.get")
+        self._set = HostApi(state, "clipboard.set")
+
+    def get(self):
+        return self._get({})
+
+    def set(self, text):
+        return self._set({"text": text})
+
+
+class UiApi:
+    def __init__(self, state):
+        self._notify = HostApi(state, "ui.notify")
+        self._confirm = HostApi(state, "ui.confirm")
+
+    def notify(self, title, body):
+        return self._notify({"title": title, "body": body})
+
+    def confirm(self, title, body):
+        return self._confirm({"title": title, "body": body})
 
 
 class ScriptContext:
@@ -388,30 +439,12 @@ def diagnostic(code, message, source_path, category):
     }
 
 
-def capability_flags(value):
-    if isinstance(value, int):
-        return value
-    if not isinstance(value, str):
-        return 0
-    flags = 0
-    for name in value.replace(",", " ").split():
-        flags |= {
-            "None": 0,
-            "ReadDiary": 1,
-            "WriteDiary": 2,
-            "UserInteraction": 4,
-            "Clipboard": 8,
-            "Tracker": 16,
-        }.get(name, 0)
-    return flags
-
-
 def run():
     send_message("Hello", new_id(), None, {
         "language": "python",
-        "workerVersion": "0.1",
+        "workerVersion": "0.2",
         "supportedApiVersions": ["V1"],
-        "supportedHostApis": ["workItems.query"],
+        "supportedHostApis": ["workItems.query", "logItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm"],
         "processId": os.getpid(),
     })
     accepted = read_message()

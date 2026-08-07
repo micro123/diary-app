@@ -4,6 +4,7 @@ using System.Data.Common;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Input.Platform;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
@@ -352,7 +353,7 @@ namespace Diary.App
                 var luaRuntime = new WorkerRuntime(
                     "lua",
                     new WorkerSupervisor(new ProcessWorkerTransportFactory(luaOptions), hostDispatcher),
-                    new WorkerHandshakeOptions("lua", [ScriptApiVersion.V1], ["workItems.query"]));
+                     new WorkerHandshakeOptions("lua", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm"]));
                 var pythonRuntime = new WorkerRuntime(
                     "python",
                     new WorkerSupervisor(
@@ -360,7 +361,7 @@ namespace Diary.App
                             services.GetRequiredService<PythonRuntimeResolver>()),
                         hostDispatcher,
                         maxRequestsPerWorker: 1),
-                    new WorkerHandshakeOptions("python", [ScriptApiVersion.V1], ["workItems.query"]));
+                     new WorkerHandshakeOptions("python", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm"]));
                 return new WorkerScriptExecutor(
                     services.GetRequiredService<IScriptCatalog>(),
                     new Dictionary<string, WorkerRuntime>(StringComparer.OrdinalIgnoreCase)
@@ -765,7 +766,7 @@ namespace Diary.App
         {
             cancellationToken.ThrowIfCancellationRequested();
             var clipboard = (app.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow?.Clipboard;
-            return clipboard is null ? null : await clipboard.GetTextAsync();
+            return clipboard is null ? null : await clipboard.TryGetTextAsync();
         }
 
         public async ValueTask<bool> SetTextAsync(string text, CancellationToken cancellationToken = default)

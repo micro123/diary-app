@@ -1,8 +1,10 @@
-# Lua 脚本 API 参考
+# Lua 脚本 API Reference
 
-## 脚本入口
+Lua 使用 `ScriptApiVersion.V1`。脚本在独立 Lua Worker 中执行，通过全局 `diary` 表访问宿主 API。所有宿主调用参数和返回值都是 JSON 可转换的 Lua 值。
 
-Lua 脚本必须定义同步函数 `main(context)` 或 `execute(context)`，返回值可省略。
+## 1. 脚本入口和上下文
+
+脚本必须定义同步函数 `main(context)` 或 `execute(context)`，不能依赖上一次执行留下的 Lua 全局状态。
 
 ```lua
 function main(context)
@@ -15,39 +17,145 @@ function main(context)
     if not result.succeeded then
         error(result.error.message)
     end
+
+    for _, item in ipairs(result.items) do
+        print(item.date .. ": " .. item.comment)
+    end
 end
 ```
 
-## 执行上下文
+`context` 字段：
 
-`context` 是包含以下字段的 Lua 表：
-
-| 字段 | 含义 |
+| 字段 | 说明 |
 | --- | --- |
-| `request` | 完整的、可转换为 JSON 的执行请求。 |
+| `request` | 完整执行请求。字段名使用 camelCase。 |
 | `arguments` | 执行参数表；未传参数时为空表。 |
 
-请求使用 camelCase 字段名。编辑器日期范围位于 `context.request.target.editor`，其中包含 `startDate`、`endDate` 和 `granularity`；执行来源位于 `context.request.source`。
+`context.request.target.editor` 包含 `startDate`、`endDate`、`granularity`；`context.request.source` 是 `Manual`、`Editor`、`Startup` 或 `Automation`。
 
-## 查询工作项
+## 2. 查询工作项
 
-全局函数 `diary.workItems.query(params)` 默认可用，不需要单独申请权限。`params` 支持：
+调用：`diary.workItems.query(params)`。
 
-| 字段 | 含义 |
+| 参数 | 类型 | 说明 |
+| --- | --- | --- |
+| `startDate` / `endDate` | string | 包含边界，格式 `yyyy-MM-dd`。 |
+| `tagIds` | number[] | 标签 ID 数组，最多 100 个。 |
+| `tagFilter` | string | `Ignore`、`Any`、`All`、`None` 或 `Exact`。 |
+| `text` | string | 文本过滤条件。 |
+| `priority` | number | 0 到 9。 |
+| `limit` | number | 默认 100，最大 1000。 |
+| `offset` | number | 默认 0，最大 10000。 |
+
+返回：
+
+```lua
+{
+    succeeded = true,
+    items = {
+        {
+            id = 1,
+            date = "2026-08-08",
+            comment = "实现 Worker",
+            hours = 2.5,
+            priority = 0,
+            note = "备注",
+            tags = {
+                { id = 1, name = "开发", color = 0, level = 0, disabled = false }
+            }
+        }
+    },
+    normalizedQuery = { ... },
+    error = nil
+}
+```
+
+查询是只读的。结果中的工作项和标签都是普通 Lua 表，不能通过 API 修改或删除。
+
+## 3. 创建日志项
+
+调用 `diary.logItems.create(params)` 会新建一个工作项，不会修改已有工作项。
+
+```lua
+local result = diary.logItems.create({
+    date = "2026-08-08",
+    hours = 2.5,
+    title = "完善 Lua Worker API",
+    note = "补充日志项、剪贴板和用户交互"
+})
+
+if not result.succeeded then
+    error(result.error.message)
+end
+
+print("created work item: " .. result.item.id)
+```
+
+| 参数 | 类型 | 约束 |
+| --- | --- | --- |
+| `date` | string | `yyyy-MM-dd`。 |
+| `hours` | number | 大于 0 且不超过 24。 |
+| `title` | string | 非空，最多 500 字符。 |
+| `note` | string | 可选，最多 10000 字符。 |
+
+成功返回 `succeeded = true` 和新建的 `item`；失败返回 `succeeded = false` 及 `error.code`：`InvalidInput`、`DatabaseUnavailable`、`ProviderFailure` 或 `Cancelled`。Lua 没有工作项更新和删除 API。
+
+## 4. Tracker 实例目录
+
+调用 `diary.trackerInstances.get({ pluginId = "tracker.memory", instanceId = "company" })`。
+
+```lua
+local result = diary.trackerInstances.get({
+    pluginId = "tracker.memory",
+    instanceId = "company"
+})
+if result.succeeded then
+    print(result.instance.displayName)
+end
+```
+
+返回的 `instance` 字段包括 `pluginId`、`instanceId`、`displayName`、`icon`、`isConfigured`。错误代码为 `InvalidInput` 或 `InstanceUnavailable`。不暴露 Tracker 客户端、配置和数据库。
+
+## 5. 剪贴板
+
+```lua
+local previous = diary.clipboard.get()
+local ok = diary.clipboard.set("复制到系统剪贴板的文本")
+```
+
+`get()` 返回文本或 `nil`；`set(text)` 返回布尔值。只支持文本剪贴板。
+
+## 6. 用户交互
+
+```lua
+diary.ui.notify("脚本完成", "日志项已经创建")
+local confirmed = diary.ui.confirm("继续操作", "是否继续？")
+if confirmed then
+    -- 继续后续操作
+end
+```
+
+`notify(title, body)` 无返回值；`confirm(title, body)` 返回布尔值。宿主调用失败会抛出 Lua 错误，可使用 `pcall` 捕获：
+
+```lua
+local ok, result = pcall(function()
+    return diary.logItems.create({ date = "2026-08-08", hours = 1, title = "测试" })
+end)
+if not ok then
+    print("host call failed: " .. tostring(result))
+end
+```
+
+## 7. Worker API 和沙箱
+
+| Lua API | Worker HostCall |
 | --- | --- |
-| `startDate`、`endDate` | 包含边界的 ISO 日期范围，格式为 `yyyy-MM-dd`。 |
-| `tagIds` | 数字标签 ID 数组。 |
-| `tagFilter` | `Ignore`、`Any`、`All`、`None` 或 `Exact`。 |
-| `text` | 文本筛选条件。 |
-| `priority` | 数字优先级筛选。 |
-| `limit`、`offset` | 分页参数。 |
+| `diary.workItems.query` | `workItems.query` |
+| `diary.logItems.create` | `logItems.create` |
+| `diary.trackerInstances.get` | `trackerInstances.get` |
+| `diary.clipboard.get` | `clipboard.get` |
+| `diary.clipboard.set` | `clipboard.set` |
+| `diary.ui.notify` | `ui.notify` |
+| `diary.ui.confirm` | `ui.confirm` |
 
-返回表包含 `succeeded`、`items`、`normalizedQuery` 和 `error`。工作项包含 `id`、`date`、`comment`、`hours`、`priority`、`note` 和 `tags`。
-
-宿主调用失败会抛出 Lua 错误。需要自行处理数据库不可用或权限拒绝时，可以使用 `pcall`。
-
-## 沙箱限制
-
-- 禁用 `io`、`os`、`debug`、`package`、`require`、`dofile`、`loadfile`、动态加载和 CLR 访问。
-- 脚本在隔离 Worker 中运行，不应依赖其他执行留下的状态。
-- 宿主数据必须可转换为 JSON，不会向脚本暴露 .NET 对象或依赖注入服务。
+Worker 禁用 `io`、`os`、`debug`、`package`、`require`、动态加载和 CLR 访问。脚本不能直接访问文件、网络、进程、数据库、DI 或 UI 控件。`print` 只能写入隔离的脚本输出流，并受到大小限制。

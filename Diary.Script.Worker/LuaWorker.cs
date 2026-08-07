@@ -18,7 +18,7 @@ internal sealed class LuaWorker(Stream input, Stream output)
             WorkerMessageType.Hello,
             Guid.NewGuid().ToString("N"),
             null,
-            new("lua", "0.1", [ScriptApiVersion.V1], ["workItems.query"], Environment.ProcessId));
+            new("lua", "0.2", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm"], Environment.ProcessId));
         Console.SetOut(new BoundedTextWriter(1 * 1024 * 1024));
         await WorkerMessageCodec.WriteAsync(output, hello);
         var accepted = await WorkerMessageCodec.ReadAsync<WorkerHelloAcceptedPayload>(input);
@@ -160,7 +160,13 @@ internal sealed class LuaWorker(Stream input, Stream output)
         lua.DoString("io = nil; os = nil; debug = nil; package = nil; require = nil; dofile = nil; loadfile = nil; load = nil; loadstring = nil; import = nil; luanet = nil; clr = nil");
         var bridge = new LuaHostBridge(CallHostAsync, executionId);
         lua.RegisterFunction("__diary_work_items_query", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Query))!);
-        lua.DoString("diary = { workItems = { query = function(params) return __diary_work_items_query(params) end } }");
+        lua.RegisterFunction("__diary_log_items_create", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.CreateLogItem))!);
+        lua.RegisterFunction("__diary_tracker_get", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.GetTracker))!);
+        lua.RegisterFunction("__diary_clipboard_get", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.GetClipboard))!);
+        lua.RegisterFunction("__diary_clipboard_set", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.SetClipboard))!);
+        lua.RegisterFunction("__diary_ui_notify", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Notify))!);
+        lua.RegisterFunction("__diary_ui_confirm", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Confirm))!);
+        lua.DoString("diary = { workItems = { query = function(params) return __diary_work_items_query(params) end }, logItems = { create = function(params) return __diary_log_items_create(params) end }, trackerInstances = { get = function(params) return __diary_tracker_get(params) end }, clipboard = { get = function() return __diary_clipboard_get() end, set = function(text) return __diary_clipboard_set(text) end }, ui = { notify = function(title, body) return __diary_ui_notify(title, body) end, confirm = function(title, body) return __diary_ui_confirm(title, body) end } }");
         return lua;
     }
 
@@ -213,12 +219,20 @@ internal sealed class LuaWorker(Stream input, Stream output)
         Guid executionId)
     {
         public object? Query(object? parameters)
+            => Call("workItems.query", parameters is null ? new { } : parameters);
+
+        public object? CreateLogItem(object? parameters) => Call("logItems.create", parameters ?? new { });
+        public object? GetTracker(object? parameters) => Call("trackerInstances.get", parameters ?? new { });
+        public object? GetClipboard() => Call("clipboard.get", new { });
+        public object? SetClipboard(object? text) => Call("clipboard.set", new { text = text?.ToString() ?? string.Empty });
+        public object? Notify(object? title, object? body) => Call("ui.notify", new { title = title?.ToString() ?? string.Empty, body = body?.ToString() ?? string.Empty });
+        public object? Confirm(object? title, object? body) => Call("ui.confirm", new { title = title?.ToString() ?? string.Empty, body = body?.ToString() ?? string.Empty });
+
+        private object? Call(string method, object parameters)
         {
-            var json = parameters is null
-                ? JsonSerializer.SerializeToElement(new { }, WorkerProtocol.JsonOptions)
-                : JsonSerializer.SerializeToElement(parameters, WorkerProtocol.JsonOptions);
+            var json = JsonSerializer.SerializeToElement(parameters, WorkerProtocol.JsonOptions);
             var response = callHost(
-                new WorkerHostCallPayload("workItems.query", json),
+                new WorkerHostCallPayload(method, json),
                 executionId.ToString("N"),
                 CancellationToken.None).GetAwaiter().GetResult();
             if (!response.Success)
