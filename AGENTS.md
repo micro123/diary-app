@@ -6,3 +6,4 @@
 - 提交消息使用 Conventional Commits 前缀，并根据实际变更类型选择：`feat:` 新增功能，`fix:` 修复问题，`docs:` 文档，`refactor:` 重构，`test:` 测试，`chore:` 构建、依赖或维护。
 - 提交消息必须包含中文正文，简要描述实际变更内容和必要的验证结果；正文使用真实段落，不使用字面量 `\\n` 代替换行。
 - 提交前对本次修改过的 C# 文件执行 `dotnet format`；优先使用文件范围或等效的最小范围格式化，避免格式化无关文件。
+- 修改 YAML 或 GitHub Actions 工作流后，使用 Python 的 `yaml.safe_load` 批量解析 `.github/workflows/*.yml` 校验 YAML 语法，并配合 `git diff --check` 检查空白；当前环境不使用 `actionlint`。

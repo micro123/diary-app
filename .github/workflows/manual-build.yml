@@ -23,10 +23,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup .NET 9.0
+      - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '10.0.x'
 
       - name: Generate version string
         id: version
@@ -37,12 +37,15 @@ jobs:
           VERSION="r${COMMIT_COUNT}-${SHORT_HASH}-${SUFFIX}"
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
+      - name: Restore packages
+        run: dotnet restore Diary.App/Diary.App.csproj
+
       - name: Publish ${{ matrix.rid }}
         run: |
           RID=${{ matrix.rid }}
           OUT=publish/${RID}
           mkdir -p ${OUT}
-          dotnet publish -c Release -r ${RID} --self-contained true -o ${OUT} Diary.App/Diary.App.csproj
+          dotnet publish -c Release -r ${RID} --self-contained true --no-restore -o ${OUT} Diary.App/Diary.App.csproj
           find ${OUT}/runtimes -maxdepth 2 -mindepth 2 \( -not -path "*${RID}*" \) -exec rm -rf {} + 2>/dev/null || true
           ARCHIVE=DiaryAppNG-${{ steps.version.outputs.version }}-${RID}.zip
           (cd ${OUT} && zip -r ${GITHUB_WORKSPACE}/${ARCHIVE} .)
