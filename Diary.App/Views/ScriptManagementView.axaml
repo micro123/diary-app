@@ -1,10 +1,10 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-              xmlns:vm="using:Diary.App.ViewModels"
-              xmlns:views="using:Diary.App.Views"
-             xmlns:i="https://github.com/projektanker/icons.avalonia"
+              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+               xmlns:vm="using:Diary.App.ViewModels"
+               xmlns:views="using:Diary.App.Views"
+              xmlns:i="https://github.com/projektanker/icons.avalonia"
              x:Class="Diary.App.Views.ScriptManagementView"
              x:DataType="vm:ScriptManagementViewModel"
              mc:Ignorable="d" d:DesignWidth="960" d:DesignHeight="640"
@@ -257,6 +257,52 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
+                    </Grid>
+                </TabItem>
+                <TabItem Header="API Reference">
+                    <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8" Margin="8">
+                        <Grid ColumnDefinitions="Auto,160,*,Auto" ColumnSpacing="8">
+                            <TextBlock Text="脚本语言" VerticalAlignment="Center" />
+                            <ComboBox Grid.Column="1" ItemsSource="{Binding ApiReference.Languages}"
+                                      SelectedItem="{Binding ApiReference.SelectedLanguage, Mode=TwoWay}" />
+                            <TextBlock Grid.Column="2" Text="{Binding ApiReference.Title}"
+                                       VerticalAlignment="Center" FontWeight="SemiBold" />
+                            <Button Grid.Column="3" Content="打开完整文档"
+                                    Command="{Binding ApiReference.OpenReferenceCommand}"
+                                    IsEnabled="{Binding ApiReference.HasReference}" />
+                        </Grid>
+                        <Border Grid.Row="1" Padding="8" CornerRadius="6"
+                                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                IsVisible="{Binding ApiReference.HasError}">
+                            <TextBlock Text="{Binding ApiReference.Error}" Foreground="IndianRed"
+                                       TextWrapping="Wrap" />
+                        </Border>
+                        <Grid Grid.Row="2">
+                            <ScrollViewer>
+                                <ItemsControl ItemsSource="{Binding ApiReference.Blocks}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ScriptApiReferenceBlock">
+                                            <StackPanel Spacing="6" Margin="0,0,0,14">
+                                                <TextBlock Text="{Binding Text}" FontSize="{Binding FontSize}"
+                                                           FontWeight="{Binding FontWeight}" TextWrapping="Wrap"
+                                                           IsVisible="{Binding IsHeading}" />
+                                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
+                                                           IsVisible="{Binding IsParagraph}" />
+                                                <Border Padding="10" CornerRadius="5"
+                                                        Background="{DynamicResource TextControlBackgroundUnfocused}"
+                                                        IsVisible="{Binding IsCode}">
+                                                    <TextBlock Text="{Binding Text}" TextWrapping="NoWrap"
+                                                               FontFamily="Cascadia Code,Consolas,Menlo,Monospace" />
+                                                </Border>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                            <TextBlock Text="{Binding ApiReference.Status}" Opacity="0.68"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       IsVisible="{Binding ApiReference.HasNoReference}" />
+                        </Grid>
                     </Grid>
                 </TabItem>
             </TabControl>

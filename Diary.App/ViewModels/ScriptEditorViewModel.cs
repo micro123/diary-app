@@ -351,7 +351,8 @@ public partial class ScriptEditorViewModel(
         Error = string.Empty;
         try
         {
-            var result = await directoryLoader.LoadAsync(_scriptRoot);
+            var result = await Task.Run(async () =>
+                await directoryLoader.LoadAsync(_scriptRoot).ConfigureAwait(false));
             var entry = result.Entries.FirstOrDefault(item => PathsEqual(item.SourcePath, _sourcePath));
             Diagnostics.Clear();
             foreach (var diagnostic in entry?.BuildResult?.Diagnostics ?? [])

@@ -71,13 +71,13 @@ namespace Diary.App
             Services.GetRequiredService<TrackerPluginDiagnosticsService>().SetPluginStates(
                 _pluginLoadDiagnostics.Values);
 
+            _ = LoadScriptsAsync();
             AvaloniaXamlLoader.Load(this);
             DataContext = Services.GetRequiredService<AppModel>();
 
             // 同步主题设置
             SyncTheme();
             UpdateSurveyObjects();
-            _ = Task.Run(LoadScriptsAsync);
         }
 
         private async Task LoadScriptsAsync()
@@ -85,7 +85,8 @@ namespace Diary.App
             try
             {
                 var root = Path.Combine(FsTools.GetApplicationConfigDirectory(), "scripts");
-                var result = await Services.GetRequiredService<IScriptDirectoryLoader>().LoadAsync(root);
+                var result = await Services.GetRequiredService<ScriptDirectoryLoadState>()
+                    .EnsureLoadedAsync(root);
                 Logger.LogInformation(
                     "脚本目录加载完成：发现 {Count} 个脚本，诊断 {DiagnosticCount} 条",
                     result.Entries.Length,

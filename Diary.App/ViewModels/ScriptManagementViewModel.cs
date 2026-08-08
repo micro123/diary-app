@@ -108,7 +108,7 @@ public sealed record ScriptDiagnosticListItem(
 
 [DiAutoRegister(singleton: true)]
 public partial class ScriptManagementViewModel(
-    IScriptDirectoryLoader directoryLoader,
+    ScriptDirectoryLoadState directoryLoadState,
     IScriptManager scriptManager,
     IScriptCatalog scriptCatalog,
     IScriptExecutionHistory executionHistory,
@@ -118,6 +118,7 @@ public partial class ScriptManagementViewModel(
 {
     private readonly string _scriptRoot = Path.Combine(FsTools.GetApplicationConfigDirectory(), "scripts");
 
+    public ScriptApiReferenceViewModel ApiReference { get; } = new();
     public ObservableCollection<ScriptListItem> Scripts { get; } = new();
     public ObservableCollection<ScriptListItem> VisibleScripts { get; } = new();
     public ObservableCollection<ScriptHistoryListItem> History { get; } = new();
@@ -206,6 +207,8 @@ public partial class ScriptManagementViewModel(
 
     partial void OnSelectedScriptChanged(ScriptListItem? value)
     {
+        if (value is not null && ApiReference.Languages.Contains(value.Language))
+            ApiReference.SelectedLanguage = value.Language;
         OnPropertyChanged(nameof(HasSelectedDiagnostics));
         OnPropertyChanged(nameof(ShowEditorRange));
         OnPropertyChanged(nameof(ShowCustomRange));
@@ -245,20 +248,25 @@ public partial class ScriptManagementViewModel(
 
     public override void OnShow()
     {
-        _ = ReloadAsync();
+        _ = LoadAsync();
     }
 
     [RelayCommand]
-    private Task Reload() => ReloadAsync();
+    private Task Reload() => ReloadAsync(forceReload: true);
 
-    private async Task ReloadAsync()
+    private Task LoadAsync() => ReloadAsync(forceReload: false);
+
+    private async Task ReloadAsync(bool forceReload)
     {
         if (Loading)
             return;
         Loading = true;
+        Status = forceReload ? "正在重新加载脚本目录" : "正在加载脚本目录";
         try
         {
-            var result = await directoryLoader.LoadAsync(_scriptRoot);
+            var result = await (forceReload
+                ? directoryLoadState.ReloadAsync(_scriptRoot)
+                : directoryLoadState.EnsureLoadedAsync(_scriptRoot));
             DirectoryDiagnostics.Clear();
             foreach (var diagnostic in result.Diagnostics)
                 DirectoryDiagnostics.Add(FormatDiagnostic(diagnostic));
@@ -449,7 +457,7 @@ public partial class ScriptManagementViewModel(
         if (!string.IsNullOrWhiteSpace(sourcePath))
         {
             Status = "脚本已创建，正在重新加载";
-            await ReloadAsync();
+            await ReloadAsync(forceReload: true);
             SelectedScript = Scripts.FirstOrDefault(script =>
                 string.Equals(Path.GetFullPath(script.SourcePath), Path.GetFullPath(sourcePath),
                     OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal));
@@ -488,7 +496,7 @@ public partial class ScriptManagementViewModel(
         Status = $"已打开脚本编辑器：{Path.GetFileName(sourcePath)}";
     }
 
-    private void OnScriptEditorSaved(object? sender, EventArgs e) => _ = ReloadAsync();
+    private void OnScriptEditorSaved(object? sender, EventArgs e) => _ = ReloadAsync(forceReload: true);
 
     [RelayCommand]
     private void OpenScript(ScriptListItem? script)
@@ -534,7 +542,7 @@ public partial class ScriptManagementViewModel(
         if (script is null || Loading || IsExecuting)
             return;
         SelectedScript = script;
-        await ReloadAsync();
+        await ReloadAsync(forceReload: true);
     }
 
     [RelayCommand]
@@ -564,7 +572,7 @@ public partial class ScriptManagementViewModel(
                 if (File.Exists(metadataPath))
                     File.Delete(metadataPath);
             }
-            await ReloadAsync();
+            await ReloadAsync(forceReload: true);
             Status = $"脚本已删除：{script.Name}";
         }
         catch (Exception exception)
