@@ -16,6 +16,22 @@ namespace Diary.App.ViewModels;
 
 public sealed record WorkEditorScriptMenuItem(string Header, ICommand Command, bool IsEnabled);
 
+public partial class TrackerEditorTabItem : ObservableObject
+{
+    public ITrackerEditorExtension Extension { get; }
+
+    [ObservableProperty]
+    private string _header;
+
+    public string Identity => $"{Extension.Key.PluginId}/{Extension.InstanceId}";
+
+    public TrackerEditorTabItem(ITrackerEditorExtension extension, string header)
+    {
+        Extension = extension;
+        _header = header;
+    }
+}
+
 public partial class WorkEditorViewModel : ViewModelBase
 {
     private readonly DbShareData _shareData;
@@ -29,6 +45,7 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     // tracker 扩展集合（RedMine 等，可多个）。无 tracker 时空集合，编辑器只渲染 generic 字段。
     public ObservableCollection<ITrackerEditorExtension> Extensions { get; } = new();
+    public ObservableCollection<TrackerEditorTabItem> TrackerTabs { get; } = new();
     public ObservableCollection<TrackerUploadResult> UploadResults { get; } = new();
     public ObservableCollection<WorkEditorScriptMenuItem> EditorScriptActions { get; } = new();
     [ObservableProperty] private TagAutomationResult? _lastTagAutomationResult;
@@ -100,7 +117,12 @@ public partial class WorkEditorViewModel : ViewModelBase
             {
                 var ext = t.CreateEditorExtension(t.Instance.InstanceId);
                 if (ext is not null && Extensions.All(existing => existing.Key != ext.Key))
+                {
                     Extensions.Add(ext);
+                    TrackerTabs.Add(new TrackerEditorTabItem(
+                        ext,
+                        GetTrackerTabHeader(t.Instance)));
+                }
             }
             catch (Exception ex)
             {
@@ -123,6 +145,23 @@ public partial class WorkEditorViewModel : ViewModelBase
             UpdateAvailableTags();
         };
     }
+
+    public void RefreshTrackerTabHeaders()
+    {
+        foreach (var tab in TrackerTabs)
+        {
+            var contribution = _trackerRegistry.Contributions.FirstOrDefault(item =>
+                item.PluginId == tab.Extension.Key.PluginId
+                && item.Instance.InstanceId == tab.Extension.InstanceId);
+            if (contribution is not null)
+                tab.Header = GetTrackerTabHeader(contribution.Instance);
+        }
+    }
+
+    private static string GetTrackerTabHeader(ITrackerInstance instance)
+        => string.IsNullOrWhiteSpace(instance.DisplayName)
+            ? instance.InstanceId
+            : instance.DisplayName;
 
     public bool IsDateChanged => WorkItem is not null && WorkItem.CreateDate != Date;
 

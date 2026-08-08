@@ -105,8 +105,21 @@
                 </MenuFlyout>
             </Button.Flyout>
         </Button>
-        <!-- tracker 扩展区（RedMine 等，可多个）：每个扩展由全局 ViewLocator 按 runtime VM 解析 view 渲染 -->
-        <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding Extensions}" IsEnabled="{Binding !IsLocked}" />
+        <!-- tracker 扩展区（RedMine 等，可多个）：按实例切换，每个扩展由全局 ViewLocator 渲染 -->
+        <TabControl DockPanel.Dock="Top" ItemsSource="{Binding TrackerTabs}"
+                    TabStripPlacement="Top" Theme="{DynamicResource LineTabControl}">
+            <TabControl.ItemTemplate>
+                <DataTemplate DataType="viewModels:TrackerEditorTabItem">
+                    <TextBlock Text="{Binding Header}" ToolTip.Tip="{Binding Identity}" />
+                </DataTemplate>
+            </TabControl.ItemTemplate>
+            <TabControl.ContentTemplate>
+                <DataTemplate DataType="viewModels:TrackerEditorTabItem">
+                    <ContentControl Content="{Binding Extension.View}"
+                                    IsEnabled="{Binding !Extension.IsLocked}" />
+                </DataTemplate>
+            </TabControl.ContentTemplate>
+        </TabControl>
         <!-- plm预留 -->
         <u:Divider DockPanel.Dock="Top" Content="备注（仅本地存储）" HorizontalContentAlignment="Left" />
         <TextBox Text="{Binding Note}" AcceptsReturn="True" VerticalAlignment="Stretch"

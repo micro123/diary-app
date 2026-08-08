@@ -59,6 +59,25 @@ public sealed class TagAutomationCoordinatorTests
     }
 
     [TestMethod]
+    public void WorkEditor_RefreshesTrackerTabHeaderAfterRegistryUpdate()
+    {
+        var registry = new TrackerUiContributionRegistry();
+        registry.Register([new MemoryContributionFactory()], [new MemoryInstance("default", "旧名称")]);
+        var editor = new WorkEditorViewModel(
+            new DbShareData(NullLogger.Instance),
+            new NoopPersistence(),
+            new NoopUpload(),
+            registry,
+            "test",
+            new RecordingAutomation());
+
+        registry.Register([new MemoryContributionFactory()], [new MemoryInstance("default", "新名称")]);
+        editor.RefreshTrackerTabHeaders();
+
+        Assert.AreEqual("新名称", editor.TrackerTabs.Single().Header);
+    }
+
+    [TestMethod]
     public void AddTags_TemplateSourcePreservesAddedTagOrder()
     {
         var automation = new RecordingAutomation();
@@ -230,6 +249,31 @@ public sealed class TagAutomationCoordinatorTests
             AppliedTagId = tag.Id;
             return TrackerTagDefaultsResult.Empty;
         }
+    }
+
+    private sealed class MemoryContributionFactory : ITrackerUiContributionFactory
+    {
+        public string PluginId => "test";
+        public ITrackerUiContribution Create(ITrackerInstance instance) => new MemoryContribution(instance);
+    }
+
+    private sealed class MemoryContribution(ITrackerInstance instance) : ITrackerUiContribution
+    {
+        public string PluginId => instance.PluginId;
+        public ITrackerInstance Instance => instance;
+        public Diary.GUIBase.ViewModels.ViewModelBase? CreateSettingsPage(object configuration) => null;
+        public Diary.GUIBase.ViewModels.ViewModelBase? CreateManagementPage(string instanceId) => null;
+        public ITrackerEditorExtension? CreateEditorExtension(string instanceId) => new PlainExtension();
+    }
+
+    private sealed class MemoryInstance(string instanceId, string displayName) : ITrackerInstance
+    {
+        public string PluginId => "test";
+        public string InstanceId => instanceId;
+        public string DisplayName => displayName;
+        public string Icon => "memory";
+        public bool IsConfigured => true;
+        public IDictionary<int, object?>? LoadBindingsByDate(string date) => null;
     }
 
     private sealed class NoopPersistence : IWorkItemPersistenceCoordinator

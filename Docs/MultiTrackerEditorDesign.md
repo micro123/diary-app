@@ -344,16 +344,17 @@ WorkEditor
   ├── 核心字段区
   ├── 标签和备注区
   ├── Tracker 扩展区
-  │   ├── Redmine / 公司实例
-  │   ├── Redmine / 个人实例
-  │   └── Jira / 团队实例
+  │   └── TabControl
+  │       ├── Redmine / 公司实例
+  │       ├── Redmine / 个人实例
+  │       └── Jira / 团队实例
   └── 操作状态区
       ├── 本地保存状态
       ├── 各实例上传状态
       └── 锁定原因
 ```
 
-扩展区标题使用 `DisplayName`，内部操作必须使用 `TrackerKey`。UI 顺序可以由插件注册顺序或配置排序决定，但不能影响数据匹配。
+扩展区使用顶部 Tab 展示，每个 Tab 对应一个已启用的 tracker 实例。Tab 标题使用实例的 `DisplayName`，为空时回退到 `InstanceId`，鼠标提示显示 `PluginId/InstanceId`；Tracker 设置保存并完成实例重注册后，已有日记编辑器应刷新 Tab 标题；内部操作必须使用 `TrackerKey`。UI 顺序可以由插件注册顺序或配置排序决定，但不能影响数据匹配。
 
 ## 11. 接口改造策略
 

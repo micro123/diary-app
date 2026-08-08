@@ -297,6 +297,14 @@ public partial class DiaryEditorViewModel : ViewModelBase
         CanUseTemplates = Templates.Count > 0;
     }
 
+    public void RefreshTrackerTabHeaders()
+    {
+        foreach (var work in DailyWorks)
+            work.RefreshTrackerTabHeaders();
+        if (SelectedWork is not null && !DailyWorks.Contains(SelectedWork))
+            SelectedWork.RefreshTrackerTabHeaders();
+    }
+
     private void FetchWorks()
     {
         DailyWorks.Clear();

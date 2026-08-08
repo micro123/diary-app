@@ -91,6 +91,11 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             var selectedName = SelectedPage?.Name;
             _lifecycle.ReRegister();
+            if (_fixedPages.FirstOrDefault(page => page.Name == PageNames.DiaryEditor)?.ViewModel
+                is DiaryEditorViewModel diaryEditor)
+            {
+                diaryEditor.RefreshTrackerTabHeaders();
+            }
             RefreshTrackerPages();
             SelectedPage = Pages.FirstOrDefault(x => x.Name == selectedName) ?? _fixedPages[0];
             _logger.LogDebug("config updated, tracker navigation rebuilt: {Count} pages", Pages.Count);
