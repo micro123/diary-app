@@ -28,8 +28,7 @@ public sealed class ScriptManager(
     IScriptExecutor executor,
     IScriptExecutionContextFactory? contextFactory = null,
     IScriptExecutionHistory? history = null,
-    IWorkerScriptExecutor? workerExecutor = null,
-    IScriptExecutionModeProvider? executionModeProvider = null) : IScriptManager
+    IWorkerScriptExecutor? workerExecutor = null) : IScriptManager
 {
     public async ValueTask<ScriptBuildResult> BuildAndRegisterAsync(
         ScriptBuildRequest request,
@@ -75,9 +74,9 @@ public sealed class ScriptManager(
 
         var startedAt = DateTimeOffset.UtcNow;
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        var outcome = ShouldUseInProcess(program)
+        var outcome = workerExecutor is null
             ? await executor.ExecuteAsync(program, request, context, timeout, cancellationToken)
-            : await workerExecutor!.ExecuteAsync(
+            : await workerExecutor.ExecuteAsync(
                 scriptId,
                 request,
                 timeout,
@@ -115,7 +114,7 @@ public sealed class ScriptManager(
         var metadata = new ScriptExecutionMetadata(executionId, startedAt, request.Source, scriptId);
         var context = contextFactory?.Create(metadata, request)
             ?? new ScriptExecutionContext(metadata, request.Target, request.Arguments);
-        var outcome = ShouldUseInProcess(program)
+        var outcome = workerExecutor is null
             ? await executor.ExecuteAsync(
                 program,
                 request,
@@ -123,7 +122,7 @@ public sealed class ScriptManager(
                 timeout,
                 cancellationToken,
                 executionId)
-            : await workerExecutor!.ExecuteAsync(
+            : await workerExecutor.ExecuteAsync(
                 scriptId,
                 request,
                 timeout,
@@ -132,11 +131,6 @@ public sealed class ScriptManager(
         Record(scriptId, outcome);
         return outcome;
     }
-
-    private bool ShouldUseInProcess(IScriptProgramV1 program) =>
-        workerExecutor is null
-        || (executionModeProvider?.UseInProcessExecution == true
-            && program is IInProcessScriptProgram);
 
     private void Record(string scriptId, ScriptExecutionOutcome outcome) => history?.Record(scriptId, outcome);
 }

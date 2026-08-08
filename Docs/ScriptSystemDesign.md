@@ -5,8 +5,7 @@
 本文描述 Diary.App 脚本系统的目标设计、运行时边界和分阶段实现计划。
 
 本文同时记录目标设计和当前实现。当前代码已经定义版本化基础契约、最小脚本管理器、
-构建与执行边界、受限只读事项查询宿主、脚本目录自动加载和脚本管理页；C#、Lua 和 Python 已接入独立 Worker 执行链路，
-并为 C# 和旧版兼容脚本提供可选的进程内执行路径。
+构建与执行边界、受限只读事项查询宿主、脚本目录自动加载和脚本管理页；C#、Lua 和 Python 已接入独立 Worker 执行链路。
 
 ## 2. 设计目标
 
@@ -46,8 +45,7 @@
 - `ScriptCatalog`：按稳定脚本 ID 注册和读取构建后的程序。
 - `ScriptExecutionContext`：按执行作用域暴露目标、参数、日期范围和事项迭代 API。
 - `ScriptExecutor`：目标校验、独立执行 ID、取消、超时和异常隔离。
-- `IInProcessScriptProgram`：声明脚本程序是否具备进程内执行能力；未声明的程序继续使用 Worker。
-- `ScriptManager`：组合构建、注册和执行的最小入口，并按设置在进程内执行与 Worker 之间路由。
+- `ScriptManager`：组合构建、注册和执行的最小入口。
 - `ScriptDirectoryLoader`：扫描 application/editor 目录，读取元数据，按加载结果标记可执行状态并隔离单个脚本失败。
 
 `Diary.ScriptHost` 当前提供 `IDiaryApi`，只返回不可变事项、备注和标签 DTO，
@@ -57,7 +55,7 @@
 
 - `Diary.Script.CSharp`：已实现基于 Roslyn 的 V1 构建、入口发现和行列诊断，并拒绝动态绑定、
   类型反射入口、线程、脱离生命周期的任务调度及文件、网络、进程、原生调用等危险 API；
-  支持受设置控制的进程内执行，但静态策略不构成安全沙箱。
+  当前仍为受信任进程内执行，静态策略不构成安全沙箱。
 - `Diary.Script.Lua`：使用 `NLua 1.7.9 + KeraLua` 做语法构建和 descriptor 校验，运行时由独立 .NET worker 承载。
 - `Diary.Script.Python`：通过 `PythonRuntimeResolver` 发现本机 Python 3 解释器，使用受控 `worker.py` 做语法检查和独立进程执行。
 
@@ -314,15 +312,7 @@ assets/
 
 ## 9. 执行模型
 
-脚本默认通过 Worker 执行，避免脚本异常、资源耗尽或无法取消的代码直接影响主程序。
-设置中的“允许在主进程内执行脚本”默认关闭。开启后，`ScriptManager` 仍使用同一个
-`ScriptCatalog` 中已经构建的程序和同一个 `ScriptExecutionRequest`，只有实现
-`IInProcessScriptProgram` 的程序才切换到 `ScriptExecutor`；其他语言透明回退到 Worker。
-因此两种执行方式复用同一份源码、元数据和执行入口，不需要维护两套脚本代码。
-
-当前可进程内执行的是 C# 和旧版脚本兼容适配器。Lua 的进程内实现尚未提供与 Worker
-等价的宿主 API 上下文，Python 当前依赖外部解释器，因此二者即使开启设置仍使用 Worker。
-进程内执行只适合受信任脚本，脚本异常、内存耗尽、堆栈溢出或忽略取消仍可能影响主程序。
+脚本默认在后台线程执行，禁止直接阻塞 UI 线程。
 
 通过 `IScriptExecutionContextFactory` 为每次执行创建独立的 `ScriptExecutionContext`，包含：
 

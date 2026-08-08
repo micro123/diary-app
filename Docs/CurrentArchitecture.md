@@ -308,9 +308,7 @@ Redmine 实例设置页和核心标签编辑器复用规则编辑 ViewModel，�
 `Diary.Script.Runtime` 当前提供 `IScriptManager`、`ScriptCatalog`、构建服务、进程内
 `ScriptExecutor` 和按语言路由的 `WorkerScriptExecutor`。应用启动时注册 C#、Lua、Python 三个引擎，
 并为三种语言分别配置 Worker supervisor；执行器为每次执行生成 ID，校验目标和超时参数，
-隔离脚本异常，并返回成功、失败、取消、超时或拒绝状态。默认所有脚本使用 Worker；设置中开启
-“允许在主进程内执行脚本”后，C# 和旧版兼容脚本可复用同一份源码、元数据和构建结果切换到进程内执行，
-Lua/Python 因运行时或宿主上下文限制继续使用 Worker。
+隔离脚本异常，并返回成功、失败、取消、超时或拒绝状态。
 
 Worker 握手通过 `supportedHostApis` 协商实际可用的 HostCall，宿主 dispatcher 还会校验方法、参数、
 执行 ID 和消息大小；脚本 metadata 中的 capability 字段不再作为权限门禁。执行历史目前只保存在内存，

@@ -15,9 +15,6 @@
 ## 2. 设计结论
 
 - worker 是常驻进程，但单次脚本执行必须有明确开始和结束。
-- Worker 是默认执行通道；应用也可以通过脚本设置启用受限的进程内通道。
-- 两种通道复用 `ScriptCatalog` 中的同一份构建结果、源码、元数据和执行请求；是否支持进程内由
-  `IInProcessScriptProgram` 明确声明，不支持的语言自动回退 Worker。
 - 同一种语言的普通脚本可以共享 worker；高风险脚本可以使用独立 worker。
 - 主程序是 worker 的 supervisor 和宿主 API 服务端，worker 不能直接访问核心数据库、DI、UI 或 Tracker 客户端。
 - 主程序和 worker 之间使用带长度限制的 UTF-8 JSON 消息；每条消息一行，协议数据只写入 stdout，日志只写入 stderr。
@@ -554,9 +551,6 @@ supervisor 应支持以下限制，并在 worker 启动或执行前配置：
 - C#、Lua、Python worker 使用独立进程和独立故障状态；一个 worker 终止不得影响其他语言。
 - `WorkerHelloPayload` 的语言值固定为 `csharp`、`lua` 或 `python`，运行时版本和 worker 版本作为可选诊断字段传递。
 - 统一使用目标校验和 `executionId` 校验 HostCall；只允许当前 Worker 握手已协商的宿主 API。
-- `ScriptManager` 默认调用 `WorkerScriptExecutor`；仅当设置开启且程序实现
-  `IInProcessScriptProgram` 时调用进程内 `ScriptExecutor`。当前 C# 和旧版兼容适配器支持进程内执行，
-  Lua/Python 继续使用独立 Worker，以保持其完整宿主 API 和运行时隔离。
 
 ## 19. 测试和验收
 

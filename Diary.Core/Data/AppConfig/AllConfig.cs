@@ -28,7 +28,4 @@ public class AllConfig : SingletonBase<AllConfig>
 
     [ConfigureGroup("调查统计功能设置", "”调查 - 回应“功能设置")]
     public SurveyConfig SurveySettings { get; } = new();
-
-    [ConfigureGroup("脚本设置", "配置脚本的执行方式。")]
-    public ScriptConfig ScriptSettings { get; } = new();
 }

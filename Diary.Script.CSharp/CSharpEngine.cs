@@ -357,7 +357,7 @@ public sealed class CSharpEngine : IScriptEngineV1
         }
     }
 
-    private sealed class CollectibleProgram : IInProcessScriptProgram, IDisposable
+    private sealed class CollectibleProgram : IScriptProgramV1, IDisposable
     {
         private IScriptProgramV1? _program;
         private ScriptLoadContext? _loadContext;
