@@ -27,7 +27,6 @@ public sealed class RedMineTagRule
     public int? ActivityId { get; set; }
     public int? IssueId { get; set; }
     public bool Enabled { get; set; } = true;
-    public int Priority { get; set; }
 }
 
 public static class RedMineConfigurationStore

@@ -6,22 +6,22 @@ namespace Diary.RedMineTests;
 public sealed class RedMineTagDefaultsTests
 {
     [TestMethod]
-    public void Apply_UsesHighestPriorityValidRulesForEmptyFields()
+    public void Apply_UsesConfigurationOrderForEmptyFields()
     {
         var rules = new[]
         {
-            new RedMineTagRule { TagId = 1, ActivityId = 10, Priority = 10 },
-            new RedMineTagRule { TagId = 1, ActivityId = 20, IssueId = 200, Priority = 100 },
-            new RedMineTagRule { TagId = 1, IssueId = 100, Priority = 50 },
+            new RedMineTagRule { TagId = 1, ActivityId = 10 },
+            new RedMineTagRule { TagId = 1, ActivityId = 20, IssueId = 200 },
+            new RedMineTagRule { TagId = 1, IssueId = 100 },
         };
 
         var result = RedMineTagDefaults.Apply(
             rules, 1, null, null, new HashSet<int> { 10, 20 }, new HashSet<int> { 100, 200 });
 
-        Assert.AreEqual(20, result.ActivityId);
+        Assert.AreEqual(10, result.ActivityId);
         Assert.AreEqual(200, result.IssueId);
         CollectionAssert.AreEqual(
-            new[] { rules[1].RuleId, rules[1].RuleId },
+             new[] { rules[0].RuleId, rules[1].RuleId },
             result.Winners.Select(winner => winner.RuleId).ToArray());
     }
 
@@ -59,10 +59,10 @@ public sealed class RedMineTagDefaultsTests
     }
 
     [TestMethod]
-    public void Apply_InvalidHighPriorityFallsBackToLowerValidTarget()
+    public void Apply_InvalidTargetFallsBackToNextValidTarget()
     {
-        var invalid = new RedMineTagRule { TagId = 1, ActivityId = 99, Priority = 100 };
-        var valid = new RedMineTagRule { TagId = 1, ActivityId = 10, Priority = 10 };
+        var invalid = new RedMineTagRule { TagId = 1, ActivityId = 99 };
+        var valid = new RedMineTagRule { TagId = 1, ActivityId = 10 };
 
         var result = RedMineTagDefaults.Apply(
             [invalid, valid], 1, null, null, new HashSet<int> { 10 }, new HashSet<int>());
@@ -73,10 +73,10 @@ public sealed class RedMineTagDefaultsTests
     }
 
     [TestMethod]
-    public void Apply_SamePriorityUsesInputOrderAndReportsConflict()
+    public void Apply_ConflictingTargetsUseFirstRuleAndReportConflict()
     {
-        var first = new RedMineTagRule { TagId = 1, ActivityId = 10, Priority = 20 };
-        var second = new RedMineTagRule { TagId = 1, ActivityId = 20, Priority = 20 };
+        var first = new RedMineTagRule { TagId = 1, ActivityId = 10 };
+        var second = new RedMineTagRule { TagId = 1, ActivityId = 20 };
 
         var result = RedMineTagDefaults.Apply(
             [first, second], 1, null, null, new HashSet<int> { 10, 20 }, new HashSet<int>());

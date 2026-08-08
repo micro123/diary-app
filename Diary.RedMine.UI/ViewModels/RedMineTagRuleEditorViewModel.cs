@@ -29,12 +29,6 @@ public sealed partial class RedMineTagRuleViewModel : ObservableObject
         set => SetProperty(Rule.Enabled, value, Rule, static (rule, enabled) => rule.Enabled = enabled);
     }
 
-    public int Priority
-    {
-        get => Rule.Priority;
-        set => SetProperty(Rule.Priority, value, Rule, static (rule, priority) => rule.Priority = priority);
-    }
-
     public RedMineTagRuleViewModel(
         RedMineTagRule rule,
         IReadOnlyList<RedMineTagRuleOption> tags,

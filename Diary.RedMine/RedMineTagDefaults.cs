@@ -3,12 +3,10 @@ namespace Diary.RedMine;
 public sealed record RedMineTagRuleWinner(
     string Field,
     string RuleId,
-    int TargetId,
-    int Priority);
+    int TargetId);
 
 public sealed record RedMineTagRuleConflict(
     string Field,
-    int Priority,
     string WinningRuleId,
     IReadOnlyCollection<string> RuleIds);
 
@@ -72,24 +70,19 @@ public static class RedMineTagDefaults
         ICollection<RedMineInvalidTagTarget> invalidTargets)
     {
         var ordered = candidates
-            .OrderByDescending(item => item.Rule.Priority)
-            .ThenBy(item => item.Index)
+            .OrderBy(item => item.Index)
             .ToArray();
         foreach (var candidate in ordered.Where(item => !availableIds.Contains(item.TargetId)))
             invalidTargets.Add(new RedMineInvalidTagTarget(field, candidate.Rule.RuleId, candidate.TargetId));
 
         var valid = ordered.Where(item => availableIds.Contains(item.TargetId)).ToArray();
-        foreach (var group in valid.GroupBy(item => item.Rule.Priority))
+        if (valid.Select(item => item.TargetId).Distinct().Skip(1).Any())
         {
-            if (group.Select(item => item.TargetId).Distinct().Skip(1).Any())
-            {
-                var first = group.First();
-                conflicts.Add(new RedMineTagRuleConflict(
-                    field,
-                    group.Key,
-                    first.Rule.RuleId,
-                    group.Select(item => item.Rule.RuleId).ToArray()));
-            }
+            var first = valid[0];
+            conflicts.Add(new RedMineTagRuleConflict(
+                field,
+                first.Rule.RuleId,
+                valid.Select(item => item.Rule.RuleId).ToArray()));
         }
 
         if (currentValue is not null || valid.Length == 0)
@@ -98,8 +91,7 @@ public static class RedMineTagDefaults
         winners.Add(new RedMineTagRuleWinner(
             field,
             winner.Rule.RuleId,
-            winner.TargetId,
-            winner.Rule.Priority));
+            winner.TargetId));
         return winner.TargetId;
     }
 }

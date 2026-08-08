@@ -18,7 +18,7 @@ Redmine 实例规则存储、`OnlyIfUnset` 默认值应用和 Redmine 实例设�
 - `TagAutomationContext` 当前包含来源和批次内顺序，协调器按实例返回应用字段、冲突、无效目标和错误。
 - `TagAutomationCoordinator` 调用实现 `ITrackerTagDefaults` 的编辑器扩展。
 - Redmine 每个 `RedMineInstanceSettings` 独立保存多条 `RedMineTagRule`。
-- Redmine 规则支持标签、Activity、Issue、启用状态和优先级。
+- Redmine 规则支持标签、Activity、Issue 和启用状态。
 - Redmine 规则算法位于纯逻辑 `RedMineTagDefaults`，默认不覆盖已有字段。
 - Redmine 实例设置页可以新增、编辑和删除当前实例规则。
 - 核心标签编辑器可以挂载已启用 Tracker 实例的规则贡献。
@@ -161,7 +161,6 @@ public sealed class RedMineTagRule
     public string RuleId { get; set; } = Guid.NewGuid().ToString("N");
     public int TagId { get; set; }
     public bool Enabled { get; set; } = true;
-    public int Priority { get; set; }
     public RedMineTagRuleMatch Match { get; set; } = new();
     public RedMineTagRuleAction Action { get; set; } = new();
 }
@@ -302,14 +301,13 @@ public enum TagAutomationMode
 ```text
 加班 -> Activity = 加班
 加班 -> Issue = 项目管理
-加班 -> Priority = High
 ```
 
 如果多个规则修改同一个字段：
 
 1. 只处理本次实际新增的标签。
 2. 忽略禁用规则。
-3. 按 `Priority` 从高到低排序。
+3. 按规则在配置列表中的顺序处理。
 4. 同一个字段只接受第一条有效规则。
 5. 当前字段已有值时，默认不覆盖。
 6. 冲突写入实例结果的 `Conflicts` 并记录诊断。
@@ -323,8 +321,8 @@ public enum TagAutomationMode
 
 ### 9.1 Tracker 实例设置页
 
-当前已经实现此入口。右上角 Tracker 配置对话框在选择实例后显示该实例的标签自动规则，支持标签、活动、问题、
-启用状态和优先级，并支持新增和删除规则。已删除标签或不存在的远程目标会保留原始 ID并显示失效项；没有可用工作标签时，新增按钮会禁用并提示先创建标签。
+当前已经实现此入口。右上角 Tracker 配置对话框在选择实例后显示该实例的标签自动规则，支持标签、活动、问题和
+启用状态，并支持新增和删除规则。已删除标签或不存在的远程目标会保留原始 ID并显示失效项；没有可用工作标签时，新增按钮会禁用并提示先创建标签。
 
 推荐入口：
 
@@ -341,11 +339,12 @@ public enum TagAutomationMode
 - 编辑规则。
 - 删除规则。
 - 启用/禁用规则。
-- 调整优先级。
 - 选择核心标签。
 - 选择 Redmine 活动或 Issue。
 - 校验目标活动/Issue 是否仍然存在。
 - 显示规则冲突和无效目标；无效目标保留原始 ID，避免配置被静默改写。
+
+多条规则按配置列表顺序处理，页面不再提供独立的优先级字段。
 
 ### 9.2 核心标签编辑器中的 Tracker 扩展
 
@@ -359,12 +358,10 @@ public enum TagAutomationMode
 Redmine 公司实例
   活动：加班
   应用方式：字段为空时
-  优先级：100
 
 Redmine 个人实例
   活动：Extra Work
   应用方式：字段为空时
-  优先级：100
 ```
 
 核心标签编辑器只挂载插件贡献，不解析 Tracker 规则：
@@ -482,19 +479,19 @@ AddTag(tag);      // 事实上的新增，触发规则
 - 一个标签可以关联多个 Tracker 实例。
 - 同一 Tracker 实例可以配置多条规则。
 - 不同实例对同一标签可以应用不同字段值。
-- 多规则按优先级处理同字段冲突。
+- 多规则按配置顺序处理同字段冲突。
 - 多标签按添加顺序处理，并使用前一步的字段状态。
 - 禁用规则不会执行。
 - 无效标签、无效活动和无效 Issue 不阻止核心编辑器使用。
 
-当前纯规则测试已覆盖优先级、`OnlyIfUnset`、禁用规则、其他标签和无效目标。
+当前纯规则测试已覆盖配置顺序、`OnlyIfUnset`、禁用规则、其他标签和无效目标。
 
 编辑和持久化：
 
 - Tracker 设置页可以新增、编辑、删除和启用/禁用规则。
 - 标签编辑器中的 Tracker 扩展可以查看和编辑同一份规则。
 - 两个编辑入口不会互相覆盖未提交修改。
-- 规则配置保存和加载保持实例、规则 ID、优先级和未知字段。
+- 规则配置保存和加载保持实例、规则 ID、配置顺序和未知字段。
 - 配置迁移失败保留原始规则数据。
 - 日志和诊断不输出 Token、密码或其他敏感配置。
 

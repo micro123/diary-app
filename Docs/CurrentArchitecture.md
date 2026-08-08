@@ -286,11 +286,11 @@ SQLite 和 PostgreSQL 都支持日期范围、标题/备注关键字、优先级
 `ITagAutomationCoordinator`；数据库加载、重新同步和删除标签不会触发规则。
 
 Tracker 编辑器可以选择实现 `ITrackerTagDefaults`。当前 Redmine 编辑器实现该能力，并从对应
-`RedMineInstanceSettings.TagRules` 读取实例级规则。规则按优先级为 Activity 和 Issue 填充默认值，
+`RedMineInstanceSettings.TagRules` 读取实例级规则。规则按配置顺序为 Activity 和 Issue 填充默认值，
 已有字段不会被覆盖，删除标签也不会反向清除字段。
 
 Redmine 实例设置页和核心标签编辑器复用规则编辑 ViewModel，配置支持 schema 迁移及嵌套未知字段保留。
-协调器按实例隔离异常并返回应用字段、冲突、无效目标和错误；同优先级规则按配置顺序稳定裁决。
+协调器按实例隔离异常并返回应用字段、冲突、无效目标和错误；同字段冲突由配置顺序稳定裁决。
 
 详细设计见 [`TagAutomationDesign.md`](TagAutomationDesign.md)。
 

@@ -27,7 +27,6 @@
                             <ComboBox ItemsSource="{Binding Issues}" SelectedItem="{Binding SelectedIssue}">
                                 <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
                             </ComboBox>
-                            <NumericUpDown Value="{Binding Priority}" Minimum="-1000" Maximum="1000" />
                             <Button Content="删除" HorizontalAlignment="Left"
                                     Command="{Binding $parent[UserControl].((viewModels:RedMineTagRuleEditorViewModel)DataContext).RemoveTagRuleCommand}"
                                     CommandParameter="{Binding}" />

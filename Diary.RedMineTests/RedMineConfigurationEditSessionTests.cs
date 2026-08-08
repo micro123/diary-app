@@ -64,13 +64,13 @@ public sealed class RedMineConfigurationEditSessionTests
         var service = new RedMineConfigurationEditService();
         var first = service.Open(source);
         var second = service.Open(source);
-        first.WorkingCopy.TagRules[0].Priority = 10;
+        first.WorkingCopy.TagRules[0].Enabled = false;
         second.WorkingCopy.TagRules[1].ActivityId = 42;
 
         first.Commit();
         second.Commit();
 
-        Assert.AreEqual(10, source.TagRules[0].Priority);
+        Assert.IsFalse(source.TagRules[0].Enabled);
         Assert.AreEqual(42, source.TagRules[1].ActivityId);
     }
 
