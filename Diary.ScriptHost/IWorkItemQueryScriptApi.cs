@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Diary.ScriptBase;
 
 namespace Diary.ScriptHost;
 
@@ -22,22 +23,6 @@ public sealed record ScriptWorkItemQuery
     public int? Limit { get; init; }
     public int Offset { get; init; }
 }
-
-public sealed record ScriptWorkTag(
-    int Id,
-    string Name,
-    int Color,
-    int Level,
-    bool Disabled);
-
-public sealed record ScriptWorkItem(
-    int Id,
-    string Date,
-    string Comment,
-    double Hours,
-    int Priority,
-    string? Note,
-    ImmutableArray<ScriptWorkTag> Tags);
 
 public enum ScriptQueryErrorCode
 {

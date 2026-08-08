@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Text.Json;
 using Diary.ScriptHost;
 using Diary.Script.Runtime;
+using Diary.ScriptBase;
 
 namespace Diary.ScriptTests;
 
@@ -136,6 +137,27 @@ public sealed class WorkerQueryDispatcherTests
         Assert.AreEqual(2.5, item.Hours);
     }
 
+    [TestMethod]
+    public async Task DispatchAsync_ForwardsStructuredScriptLog()
+    {
+        string? executionId = null;
+        var log = new FakeScriptLogApi();
+        var dispatcher = new WorkItemQueryWorkerDispatcher(
+            () => new FakeQueryApi(),
+            scriptLogApiFactory: id =>
+            {
+                executionId = id;
+                return log;
+            });
+
+        var result = await dispatcher.DispatchAsync("exec-log", new(
+            "log.write", JsonSerializer.SerializeToElement(new { level = "Warning", message = "诊断" })));
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual("exec-log", executionId);
+        Assert.AreEqual((ScriptLogLevel.Warning, "诊断"), log.Last);
+    }
+
     private sealed class FakeQueryApi : IWorkItemQueryScriptApi
     {
         public ValueTask<ScriptWorkItemQueryResult> QueryAsync(ScriptWorkItemQuery query, CancellationToken cancellationToken = default) =>
@@ -179,6 +201,22 @@ public sealed class WorkerQueryDispatcherTests
         {
             Title = title;
             return ValueTask.FromResult(true);
+        }
+    }
+
+    private sealed class FakeScriptLogApi : ILogApi
+    {
+        public (ScriptLogLevel Level, string Message) Last { get; private set; }
+
+        public ValueTask DebugAsync(string message, CancellationToken cancellationToken = default) => Write(ScriptLogLevel.Debug, message);
+        public ValueTask InfoAsync(string message, CancellationToken cancellationToken = default) => Write(ScriptLogLevel.Info, message);
+        public ValueTask WarningAsync(string message, CancellationToken cancellationToken = default) => Write(ScriptLogLevel.Warning, message);
+        public ValueTask ErrorAsync(string message, CancellationToken cancellationToken = default) => Write(ScriptLogLevel.Error, message);
+
+        private ValueTask Write(ScriptLogLevel level, string message)
+        {
+            Last = (level, message);
+            return ValueTask.CompletedTask;
         }
     }
 }

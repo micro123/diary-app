@@ -28,7 +28,7 @@ public sealed class LuaEngineTests
 
         Assert.IsTrue(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics.Select(item => item.Message)));
         var execution = await result.Program!.ExecuteAsync(
-            new ScriptExecutionRequest(new ScriptTarget(ScriptScope.Application)),
+            new ScriptExecutionRequest(),
             new Diary.Script.Runtime.ScriptExecutionContext());
 
         Assert.AreEqual(ScriptExecutionStatus.Succeeded, execution.Status);

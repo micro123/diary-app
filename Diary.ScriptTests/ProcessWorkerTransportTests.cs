@@ -33,7 +33,7 @@ public sealed class ProcessWorkerTransportTests
             ScriptId = "demo",
             SourcePath = "demo.cs",
             Source = "public sealed class Demo : Diary.ScriptBase.IScriptProgramV1 { public Diary.ScriptBase.ScriptDescriptor Descriptor { get; } = new(\"demo\", \"Demo\", Diary.ScriptBase.ScriptApiVersion.V1, Diary.ScriptBase.ScriptScope.Application); public System.Threading.Tasks.ValueTask<Diary.ScriptBase.ScriptExecutionResult> ExecuteAsync(Diary.ScriptBase.ScriptExecutionRequest request, Diary.ScriptBase.IScriptExecutionContext context, System.Threading.CancellationToken cancellationToken = default) => System.Threading.Tasks.ValueTask.FromResult(Diary.ScriptBase.ScriptExecutionResult.Succeeded()); }",
-            Request = new ScriptExecutionRequest(new ScriptTarget(ScriptScope.Application), Source: ScriptExecutionSource.Manual),
+             Request = new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual),
         });
 
         Assert.AreEqual(ScriptExecutionStatus.Succeeded, result.Payload.Status,
@@ -60,7 +60,7 @@ public sealed class ProcessWorkerTransportTests
                 "lua-demo",
                 "demo.lua",
                 "function main(context) return nil end",
-                new ScriptExecutionRequest(new ScriptTarget(ScriptScope.Application), Source: ScriptExecutionSource.Manual),
+                 new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual),
                  new ScriptDescriptorHint("lua-demo", "Lua Demo", ScriptScope.Application, EngineName: "lua")));
 
             Assert.AreEqual(ScriptExecutionStatus.Succeeded, result.Payload.Status,
@@ -104,7 +104,7 @@ public sealed class ProcessWorkerTransportTests
                 "python-demo",
                 "demo.py",
                 "def main(context):\n    print(\"not protocol\")\n    return None\n",
-                new ScriptExecutionRequest(new ScriptTarget(ScriptScope.Application), Source: ScriptExecutionSource.Manual),
+                 new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual),
                  new ScriptDescriptorHint("python-demo", "Python Demo", ScriptScope.Application, EngineName: "python")));
 
             Assert.AreEqual(ScriptExecutionStatus.Succeeded, result.Payload.Status,
@@ -155,7 +155,7 @@ public sealed class ProcessWorkerTransportTests
             foreach (var scriptId in new[] { "lua-app", "python-app" })
             {
                 var outcome = await executor.ExecuteAsync(scriptId,
-                    new ScriptExecutionRequest(new ScriptTarget(ScriptScope.Application), Source: ScriptExecutionSource.Manual));
+                     new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual));
                 Assert.AreEqual(ScriptExecutionStatus.Succeeded, outcome.Result.Status,
                     string.Join("; ", outcome.Result.Diagnostics.Select(item => $"{item.Code}: {item.Message}")));
             }

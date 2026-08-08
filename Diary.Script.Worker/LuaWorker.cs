@@ -18,7 +18,7 @@ internal sealed class LuaWorker(Stream input, Stream output)
             WorkerMessageType.Hello,
             Guid.NewGuid().ToString("N"),
             null,
-            new("lua", "0.3", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm"], Environment.ProcessId));
+             new("lua", "0.3", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write"], Environment.ProcessId));
         Console.SetOut(new BoundedTextWriter(1 * 1024 * 1024));
         await WorkerMessageCodec.WriteAsync(output, hello);
         var accepted = await WorkerMessageCodec.ReadAsync<WorkerHelloAcceptedPayload>(input);
@@ -82,7 +82,7 @@ internal sealed class LuaWorker(Stream input, Stream output)
                     payload.SourcePath)]));
                 return;
             }
-            if (payload.Request.Target is null || payload.Request.Target.Scope != hint.Scope.Value)
+            if ((hint.Scope == ScriptScope.Application) != (payload.Request.Target is null))
             {
                 await WriteResultAsync(message, new(ScriptExecutionStatus.Rejected, [new ScriptDiagnostic(
                     "SCRIPT_TARGET_INVALID",
@@ -117,7 +117,7 @@ internal sealed class LuaWorker(Stream input, Stream output)
         WorkerExecutePayload payload,
         Guid executionId)
     {
-        using var lua = CreateLua(executionId);
+        using var lua = CreateLua(executionId, payload.Request);
         try
         {
             lua.LoadString(payload.Source, payload.SourcePath);
@@ -154,11 +154,26 @@ internal sealed class LuaWorker(Stream input, Stream output)
         }
     }
 
-    private LuaState CreateLua(Guid executionId)
+    private LuaState CreateLua(Guid executionId, ScriptExecutionRequest request)
     {
         var lua = new LuaState();
         lua.DoString("io = nil; os = nil; debug = nil; package = nil; require = nil; dofile = nil; loadfile = nil; load = nil; loadstring = nil; import = nil; luanet = nil; clr = nil");
         var bridge = new LuaHostBridge(CallHostAsync, executionId);
+        var target = request.Target is null
+            ? null
+            : JsonToLua(JsonSerializer.SerializeToElement(request.Target, WorkerProtocol.JsonOptions));
+        var dateRange = request.Target is null
+            ? null
+            : JsonToLua(JsonSerializer.SerializeToElement(
+                ScriptEditorTargetResolver.GetDateRange(request.Target), WorkerProtocol.JsonOptions));
+        var workItem = request.Target?.WorkItem is null
+            ? null
+            : JsonToLua(JsonSerializer.SerializeToElement(request.Target.WorkItem, WorkerProtocol.JsonOptions));
+        var arguments = JsonToLua(JsonSerializer.SerializeToElement(request.Arguments, WorkerProtocol.JsonOptions));
+        lua["__diary_context_target"] = target;
+        lua["__diary_context_date_range"] = dateRange;
+        lua["__diary_context_work_item"] = workItem;
+        lua["__diary_context_arguments"] = arguments;
         lua.RegisterFunction("__diary_work_items_query", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Query))!);
         lua.RegisterFunction("__diary_log_items_create", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.CreateLogItem))!);
         lua.RegisterFunction("__diary_template_log_items_create", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.CreateTemplateLogItem))!);
@@ -167,7 +182,8 @@ internal sealed class LuaWorker(Stream input, Stream output)
         lua.RegisterFunction("__diary_clipboard_set", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.SetClipboard))!);
         lua.RegisterFunction("__diary_ui_notify", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Notify))!);
         lua.RegisterFunction("__diary_ui_confirm", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Confirm))!);
-        lua.DoString("diary = { workItems = { query = function(params) return __diary_work_items_query(params) end }, logItems = { create = function(params) return __diary_log_items_create(params) end }, templateLogItems = { create = function(params) return __diary_template_log_items_create(params) end }, trackerInstances = { get = function(params) return __diary_tracker_get(params) end }, clipboard = { get = function() return __diary_clipboard_get() end, set = function(text) return __diary_clipboard_set(text) end }, ui = { notify = function(title, body) return __diary_ui_notify(title, body) end, confirm = function(title, body) return __diary_ui_confirm(title, body) end } }; diary.workItems.stream = function(params) params = params or {}; local pageSize = params.pageSize or 500; if pageSize < 1 or pageSize > 500 then error('pageSize must be between 1 and 500') end; local offset = params.offset or 0; local page = {}; local index = 1; local finished = false; params.pageSize = nil; return function() while true do if index <= #page then local item = page[index]; index = index + 1; return item end; if finished then return nil end; params.limit = pageSize; params.offset = offset; local result = __diary_work_items_query(params); if not result.succeeded then error(result.error.message) end; page = result.items or {}; index = 1; offset = offset + #page; finished = #page < pageSize; end end end");
+        lua.RegisterFunction("__diary_log_write", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Log))!);
+        lua.DoString("diary = { workItems = { query = function(params) return __diary_work_items_query(params) end }, logItems = { create = function(params) return __diary_log_items_create(params) end }, templateLogItems = { create = function(params) return __diary_template_log_items_create(params) end }, trackerInstances = { get = function(params) return __diary_tracker_get(params) end }, clipboard = { get = function() return __diary_clipboard_get() end, set = function(text) return __diary_clipboard_set(text) end }, ui = { notify = function(title, body) return __diary_ui_notify(title, body) end, confirm = function(title, body) return __diary_ui_confirm(title, body) end }, log = { debug = function(message) return __diary_log_write('Debug', message) end, info = function(message) return __diary_log_write('Info', message) end, warning = function(message) return __diary_log_write('Warning', message) end, error = function(message) return __diary_log_write('Error', message) end } }; diary.workItems.stream = function(params) params = params or {}; local pageSize = params.pageSize or 500; if pageSize < 1 or pageSize > 500 then error('pageSize must be between 1 and 500') end; local offset = params.offset or 0; local page = {}; local index = 1; local finished = false; params.pageSize = nil; return function() while true do if index <= #page then local item = page[index]; index = index + 1; return item end; if finished then return nil end; params.limit = pageSize; params.offset = offset; local result = __diary_work_items_query(params); if not result.succeeded then error(result.error.message) end; page = result.items or {}; index = 1; offset = offset + #page; finished = #page < pageSize; end end end; __diary_context = {}; __diary_context.target = __diary_context_target; __diary_context.dateRange = __diary_context_date_range; __diary_context.workItem = __diary_context_work_item; __diary_context.arguments = __diary_context_arguments or {}; __diary_context.log = diary.log; __diary_context.getDateRange = function() return __diary_context_date_range end; __diary_context.items = { stream = function(params) local range = __diary_context_date_range; if range == nil then error('当前目标没有日期范围') end; params = params or {}; params.startDate = range.startDate; params.endDate = range.endDate; return diary.workItems.stream(params) end };");
         return lua;
     }
 
@@ -229,6 +245,7 @@ internal sealed class LuaWorker(Stream input, Stream output)
         public object? SetClipboard(object? text) => Call("clipboard.set", new { text = text?.ToString() ?? string.Empty });
         public object? Notify(object? title, object? body) => Call("ui.notify", new { title = title?.ToString() ?? string.Empty, body = body?.ToString() ?? string.Empty });
         public object? Confirm(object? title, object? body) => Call("ui.confirm", new { title = title?.ToString() ?? string.Empty, body = body?.ToString() ?? string.Empty });
+        public object? Log(object? level, object? message) => Call("log.write", new { level = level?.ToString() ?? "Info", message = message?.ToString() ?? string.Empty });
 
         private object? Call(string method, object parameters)
         {

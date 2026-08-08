@@ -20,27 +20,26 @@ public sealed class EditorScriptMenuPolicyTests
     }
 
     [TestMethod]
-    public void CreateRequest_UsesEditorContextAndSavedWorkItemTarget()
+    public void CreateRequest_UsesStructuredEditorTarget()
     {
-        var request = EditorScriptMenuPolicy.CreateRequest("2026-08-01", "2026-08-31", ScriptTimeGranularity.Month, 42);
+        var item = new ScriptWorkItem(42, "2026-08-08", "item", 1, 0, null, []);
+        var request = EditorScriptMenuPolicy.CreateRequest(ScriptEditorTarget.ForWorkItem(item));
 
-        Assert.AreEqual(ScriptScope.Editor, request.Target.Scope);
         Assert.AreEqual(ScriptExecutionSource.Editor, request.Source);
-        Assert.AreEqual("2026-08-01", request.Target.Editor!.StartDate);
-        Assert.AreEqual(ScriptTimeGranularity.Month, request.Target.Editor.Granularity);
-        Assert.AreEqual(ScriptBusinessTargetKind.WorkItem, request.Target.Business!.Kind);
-        Assert.AreEqual("42", request.Target.Business.TargetId);
+        Assert.AreEqual(ScriptEditorTargetKind.WorkItem, request.Target!.Kind);
+        Assert.AreEqual(item, request.Target.WorkItem);
     }
 
     [TestMethod]
     public void CreateRequest_DoesNotTargetUnsavedWorkItem()
     {
-        var request = EditorScriptMenuPolicy.CreateRequest("2026-08-06", "2026-08-06", ScriptTimeGranularity.Day);
+        var request = EditorScriptMenuPolicy.CreateRequest(ScriptEditorTarget.ForDay("2026-08-06"));
 
-        Assert.IsNull(request.Target.Business);
-        Assert.AreEqual("当天", EditorScriptMenuPolicy.GetRangeLabel(ScriptTimeGranularity.Day));
-        Assert.AreEqual("当前月份", EditorScriptMenuPolicy.GetRangeLabel(ScriptTimeGranularity.Month));
-        Assert.AreEqual("当前年份", EditorScriptMenuPolicy.GetRangeLabel(ScriptTimeGranularity.Year));
+        Assert.AreEqual(ScriptEditorTargetKind.Day, request.Target!.Kind);
+        Assert.AreEqual("当天", EditorScriptMenuPolicy.GetRangeLabel(ScriptEditorTargetKind.Day));
+        Assert.AreEqual("当前月份", EditorScriptMenuPolicy.GetRangeLabel(ScriptEditorTargetKind.Month));
+        Assert.AreEqual("当前季度", EditorScriptMenuPolicy.GetRangeLabel(ScriptEditorTargetKind.Quarter));
+        Assert.AreEqual("当前年份", EditorScriptMenuPolicy.GetRangeLabel(ScriptEditorTargetKind.Year));
     }
 
     private sealed class TestProgram(ScriptDescriptor descriptor) : IScriptProgramV1

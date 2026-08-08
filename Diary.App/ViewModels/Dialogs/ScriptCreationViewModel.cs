@@ -132,6 +132,17 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
     private string CreateSource(ScriptScope scope) => SelectedLanguage switch
     {
         "C#" => CreateCSharpSource(scope),
+        "Lua" when SelectedTemplate == WorkItemQueryTemplate && scope == ScriptScope.Editor => string.Join(Environment.NewLine, [
+            "function main(context)",
+            "    local range = context.getDateRange()",
+            "    if range ~= nil then",
+            "        for item in context.items.stream() do",
+            "            print(item.date .. ': ' .. item.comment)",
+            "        end",
+            "    elseif context.workItem ~= nil then",
+            "        print(context.workItem.comment)",
+            "    end",
+            "end", ""]),
         "Lua" when SelectedTemplate == WorkItemQueryTemplate => string.Join(Environment.NewLine, [
             "function main(context)",
             "    local result = diary.workItems.query({ limit = 100 })",
@@ -141,8 +152,19 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
             "end", ""]),
         "Lua" => string.Join(Environment.NewLine, [
             "function main(context)",
-            "    -- context.request 包含本次执行目标。",
+            "    -- context.target、context.dateRange 和 context.workItem 来自上下文菜单。",
+            "    -- context.getDateRange() 在事项目标下返回 nil。",
+            "    diary.log.debug(\"开始执行脚本\")",
             "end", ""]),
+        "Python" when SelectedTemplate == WorkItemQueryTemplate && scope == ScriptScope.Editor => string.Join(Environment.NewLine, [
+            "def main(context):",
+            "    date_range = context.getDateRange()",
+            "    if date_range is not None:",
+            "        for item in context.items.stream():",
+            "            print(item['date'], item['comment'])",
+            "    elif context.workItem is not None:",
+            "        print(context.workItem['comment'])",
+            "    return None", ""]),
         "Python" when SelectedTemplate == WorkItemQueryTemplate => string.Join(Environment.NewLine, [
             "def main(context):",
             "    result = context.diary.workItems.query(limit=100)",
@@ -151,7 +173,9 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
             "    return None", ""]),
         "Python" => string.Join(Environment.NewLine, [
             "def main(context):",
-            "    # context.target 包含本次执行目标。",
+            "    # context.target、context.dateRange 和 context.workItem 来自上下文菜单。",
+            "    # context.getDateRange() 在事项目标下返回 None。",
+            "    context.log.debug(\"开始执行脚本\")",
             "    return None", ""]),
         _ => throw new InvalidOperationException($"不支持的脚本语言：{SelectedLanguage}"),
     };
@@ -163,7 +187,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
         {
             "using System;", "using System.Threading;", "using System.Threading.Tasks;", "using Diary.ScriptBase;",
         };
-        if (SelectedTemplate == WorkItemQueryTemplate)
+        if (SelectedTemplate == WorkItemQueryTemplate && scope == ScriptScope.Application)
             lines.Add("using Diary.ScriptHost;");
         lines.AddRange([
             "",
@@ -178,7 +202,26 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
             "        IScriptExecutionContext context,",
             "        CancellationToken cancellationToken = default)", "    {",
         ]);
-        if (SelectedTemplate == WorkItemQueryTemplate)
+        if (SelectedTemplate == WorkItemQueryTemplate && scope == ScriptScope.Editor)
+        {
+            lines.AddRange([
+                "        if (context is not IScriptEditorContext editor)",
+                "            return new ScriptExecutionResult(ScriptExecutionStatus.Rejected, []);",
+                "        if (editor.GetDateRange() is not null)",
+                "        {",
+                "            await foreach (var item in editor.StreamItemsAsync(cancellationToken))",
+                "            {",
+                "                _ = item;",
+                "            }",
+                "        }",
+                "        else if (editor.WorkItem is not null)",
+                "        {",
+                "            _ = editor.WorkItem;",
+                "        }",
+                "        return ScriptExecutionResult.Succeeded();",
+            ]);
+        }
+        else if (SelectedTemplate == WorkItemQueryTemplate)
         {
             lines.AddRange([
                 "        var api = context.GetApi<IDiaryApi>();",

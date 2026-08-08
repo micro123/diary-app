@@ -7,7 +7,7 @@ public sealed class WorkerTrackerApiProxy(ITrackerInstanceScriptApi instances) :
 
 public sealed class WorkerSystemInteractionApiProxy(
     IClipboardScriptApi clipboard,
-    IUserInteractionScriptApi interaction) : ISystemInteractionApi
+    IUserInteractionScriptApi interaction) : SysApi
 {
     public ValueTask<string?> GetClipboardTextAsync(CancellationToken cancellationToken = default) => clipboard.GetTextAsync(cancellationToken);
     public ValueTask<bool> SetClipboardTextAsync(string text, CancellationToken cancellationToken = default) => clipboard.SetTextAsync(text, cancellationToken);

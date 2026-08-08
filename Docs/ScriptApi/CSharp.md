@@ -47,11 +47,11 @@ public sealed class DemoScript : IScriptProgramV1
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `Target` | `ScriptTarget` | 必填。作用域必须与 Descriptor 一致。 |
+| `Target` | `ScriptEditorTarget?` | 应用程序扩展为 `null`；编辑器扩展由上下文菜单提供。 |
 | `Arguments` | `ImmutableDictionary<string, string>?` | 用户传入的字符串参数。 |
 | `Source` | `ScriptExecutionSource` | `Manual`、`Editor`、`Startup` 或 `Automation`。 |
 
-编辑器脚本从 `request.Target.Editor` 读取 `StartDate`、`EndDate`、`Granularity`；业务目标从 `request.Target.Business` 读取。
+编辑器脚本的目标有 `Year`、`Quarter`、`Month`、`Day` 和 `WorkItem` 五种。目标字段由宿主校验，脚本不需要自行计算季度或月份边界。
 
 `IScriptExecutionContext`：
 
@@ -59,6 +59,44 @@ public sealed class DemoScript : IScriptProgramV1
 | --- | --- |
 | `Metadata` | 执行 ID、开始时间、来源和脚本 ID。 |
 | `GetApi<TApi>()` | 获取已注册 API。API 未实现或不可用时返回 `null`。 |
+
+应用程序扩展只接收没有目标的执行请求。编辑器扩展可以将上下文转换为 `IScriptEditorContext`：
+
+```csharp
+var editor = context as IScriptEditorContext;
+if (editor is null)
+    return new(ScriptExecutionStatus.Rejected, []);
+
+var range = editor.GetDateRange();
+if (range is not null)
+{
+    await foreach (var item in editor.StreamItemsAsync(cancellationToken))
+    {
+        // 处理当前年、季度、月或日范围内的事项。
+    }
+}
+else if (editor.WorkItem is not null)
+{
+    // 事项目标直接提供不可变的 ScriptWorkItem 快照。
+}
+```
+
+日期目标的 `GetDateRange()` 返回包含边界的 `ScriptDateRange`；事项目标返回 `null`。`StreamItemsAsync()` 使用当前日期范围按页迭代事项，不能用于事项目标。
+
+## 4.1 调试日志
+
+```csharp
+var log = context.GetApi<ILogApi>();
+if (log is not null)
+{
+    await log.DebugAsync("开始处理脚本参数", cancellationToken);
+    await log.InfoAsync("脚本已读取当前目标");
+    await log.WarningAsync("发现一个可忽略的事项");
+    await log.ErrorAsync("处理事项失败");
+}
+```
+
+日志带有脚本 ID 和执行 ID，并写入宿主日志。单条消息由宿主限制大小；不要输出密码、Token 或其他敏感配置。
 
 ## 4. 查询工作项
 
@@ -177,7 +215,7 @@ if (result is { Succeeded: true })
 ## 8. 剪贴板
 
 ```csharp
-var system = context.GetApi<ISystemInteractionApi>();
+var system = context.GetApi<SysApi>();
 var oldText = await system!.GetClipboardTextAsync(cancellationToken);
 var succeeded = await system.SetClipboardTextAsync("复制内容", cancellationToken);
 ```
@@ -187,7 +225,7 @@ var succeeded = await system.SetClipboardTextAsync("复制内容", cancellationT
 ## 9. 用户交互
 
 ```csharp
-var system = context.GetApi<ISystemInteractionApi>();
+var system = context.GetApi<SysApi>();
 await system!.NotifyAsync("脚本完成", "日志项已创建。", cancellationToken);
 var confirmed = await system.ConfirmAsync("继续操作", "是否继续？", cancellationToken);
 ```
@@ -202,9 +240,10 @@ var confirmed = await system.ConfirmAsync("继续操作", "是否继续？", can
 | `IDiaryApi.CreateLogItemAsync` | `logItems.create` |
 | `IDiaryApi.CreateFromTemplateAsync` | `templateLogItems.create` |
 | `ITrackerApi.GetInstance` | `trackerInstances.get` |
-| `ISystemInteractionApi.GetClipboardTextAsync` | `clipboard.get` |
-| `ISystemInteractionApi.SetClipboardTextAsync` | `clipboard.set` |
-| `ISystemInteractionApi.NotifyAsync` | `ui.notify` |
-| `ISystemInteractionApi.ConfirmAsync` | `ui.confirm` |
+| `SysApi.GetClipboardTextAsync` | `clipboard.get` |
+| `SysApi.SetClipboardTextAsync` | `clipboard.set` |
+| `SysApi.NotifyAsync` | `ui.notify` |
+| `SysApi.ConfirmAsync` | `ui.confirm` |
+| `ILogApi.*Async` | `log.write` |
 
 Worker 调用由主进程执行并返回结构化结果。脚本不能直接访问文件、网络、进程、反射、数据库、DI 或任意 UI 控件。超时、取消、Worker 退出和宿主失败都会转换为执行诊断。

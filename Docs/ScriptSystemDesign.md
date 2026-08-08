@@ -32,9 +32,10 @@
 当前版本化契约位于 `Diary.ScriptBase`：
 
 - `ScriptApiVersion.V1`、`IScriptProgramV1` 和 `IScriptEngineV1`：稳定的执行与引擎边界。
-- `ScriptDescriptor`：稳定 ID、名称、API 版本、应用/编辑器范围和能力声明。
+- `ScriptDescriptor`：稳定 ID、名称、API 版本、应用/编辑器范围和描述。
 - `ScriptDiagnostic`、`ScriptBuildResult` 和 `ScriptExecutionResult`：结构化构建与运行诊断。
-- `ScriptTarget`、`EditorScriptContext` 和 `ScriptExecutionRequest`：最小上下文式执行入口。
+- `ScriptEditorTarget`、`ScriptDateRange`、`IScriptApplicationContext`、`IScriptEditorContext` 和 `ScriptExecutionRequest`：应用与编辑器扩展的执行上下文。
+- `ILogApi`：跨进程异步调试日志 API，Worker 通过 `log.write` 转发到宿主。
 - `LegacyScriptAdapters`：保留现有应用脚本和日期/范围编辑器脚本的兼容适配。
 
 `Diary.Script.Runtime` 当前提供：
@@ -42,7 +43,7 @@
 - `ScriptEngineRegistry`：注册引擎并按匹配优先级选择。
 - `ScriptBuildService`：选择引擎、构建并规范化失败诊断。
 - `ScriptCatalog`：按稳定脚本 ID 注册和读取构建后的程序。
-- `ScriptExecutionContext`：按能力暴露宿主 API。
+- `ScriptExecutionContext`：按执行作用域暴露目标、参数、日期范围和事项迭代 API。
 - `ScriptExecutor`：目标校验、独立执行 ID、取消、超时和异常隔离。
 - `ScriptManager`：组合构建、注册和执行的最小入口。
 - `ScriptDirectoryLoader`：扫描 application/editor 目录，读取元数据，按加载结果标记可执行状态并隔离单个脚本失败。
@@ -63,13 +64,12 @@ Worker 进程边界、消息封装、生命周期和重启语义见
 
 当前尚未完成：
 
-- 后台任务调度和执行日志上下文。
 - 更细粒度的 Tracker、网络和文件系统权限。
 - 执行状态历史持久化和更丰富的快捷入口。
 - 更细粒度的运行时资源限制和跨平台强制终止策略。
 
 `Diary.ScriptTests` 当前覆盖契约、引擎选择、构建隔离、目录项注册、目标校验、异常、
-取消、超时、能力拒绝、只读查询结果一致性和敏感信息边界。
+取消、超时、非法宿主调用、只读查询结果一致性和敏感信息边界。
 
 `Diary.App` 当前提供基于 Semi.Avalonia.AvaloniaEdit + AvaloniaEdit.TextMate 的 C# 内置编辑器，支持保存、同目录另存为、
 metadata 随源码移动、外部修改冲突保护、编译诊断和按行列跳转，窗口内容避让系统标题栏；对应窗口交互由 Avalonia Headless 测试覆盖。
@@ -88,7 +88,7 @@ ScriptManager
        +-- ScriptCatalog       脚本发现、元数据和加载状态
        +-- ScriptBuildService  选择引擎、编译、缓存和诊断
        +-- ScriptExecutor      执行、取消、超时和异常隔离
-       +-- ScriptPermission    权限检查和用户授权
+       +-- Execution Context   目标、参数、日期范围和事项快照
        |
        v
 IScriptEngine
@@ -117,7 +117,7 @@ IScriptApi
 
 ### 5.1 应用脚本
 
-应用脚本通过 `IApplicationScript.Execute` 执行，适合：
+应用程序扩展通过 `IScriptProgramV1.ExecuteAsync` 执行，使用 `IScriptApplicationContext`，适合：
 
 - 批量整理日记。
 - 导出或统计数据。
@@ -126,51 +126,31 @@ IScriptApi
 
 ### 5.2 编辑器脚本
 
-编辑器脚本不应继续增加 `ExecuteWeek`、`ExecuteMonth`、`ExecuteYear` 等固定方法。
-建议统一接收一个执行上下文，由上下文描述时间范围、日历粒度和业务目标。
+编辑器脚本不增加 `ExecuteWeek`、`ExecuteMonth`、`ExecuteYear` 等固定方法。V1 使用一个
+`ExecuteAsync` 入口，但由宿主按作用域提供不同的强类型上下文：应用程序扩展接收
+`IScriptApplicationContext`，编辑器扩展接收 `IScriptEditorContext`。
 
-时间粒度和业务目标必须分开建模：年/月/日是时间粒度，项目、Tracker Issue 和事项目标是业务目标。
-
-建议模型：
+编辑器目标固定为 `Year`、`Quarter`、`Month`、`Day` 和 `WorkItem`。季度是自然季度，
+范围包含开始日期和结束日期；年、季度、月、日目标都可以通过 `GetDateRange()` 和
+`StreamItemsAsync()` 读取，事项目标直接提供不可变的 `ScriptWorkItem` 快照。
 
 ```csharp
-public enum ScriptTimeGranularity
+public sealed record ScriptEditorTarget(
+    ScriptEditorTargetKind Kind,
+    int? Year = null,
+    int? Quarter = null,
+    int? Month = null,
+    string? Date = null,
+    ScriptWorkItem? WorkItem = null);
+
+public interface IScriptEditorContext : IScriptExecutionContext
 {
-    WorkItem,
-    Day,
-    Week,
-    Month,
-    Quarter,
-    Year,
-    CustomRange,
+    ScriptEditorTarget Target { get; }
+    ScriptWorkItem? WorkItem { get; }
+    IReadOnlyDictionary<string, string> Arguments { get; }
+    ScriptDateRange? GetDateRange();
+    IAsyncEnumerable<ScriptWorkItem> StreamItemsAsync(CancellationToken cancellationToken = default);
 }
-
-public enum ScriptTargetKind
-{
-    CurrentEditor,
-    CurrentWorkItem,
-    SelectedWorkItems,
-    CalendarPeriod,
-    Project,
-    TrackerIssue,
-    TrackerInstance,
-}
-
-public sealed record ScriptScope(
-    ScriptTimeGranularity Granularity,
-    string StartDate,
-    string EndDate);
-
-public sealed record ScriptTarget(
-    ScriptTargetKind Kind,
-    string? PluginId = null,
-    string? InstanceId = null,
-    string? TargetId = null);
-
-public sealed record EditorScriptContext(
-    ScriptScope Scope,
-    ScriptTarget Target,
-    IReadOnlyDictionary<string, object?> Parameters);
 ```
 
 模板不是脚本上下文的一部分。模板的选择、读取、应用和持久化均由编辑器或宿主完成；脚本不能：
@@ -183,24 +163,15 @@ public sealed record EditorScriptContext(
 如果编辑器已经根据用户选择模板创建了工作项草稿，脚本可以处理宿主传入的草稿内容，
 但这不表示脚本拥有模板操作权限。脚本 API 默认也不提供模板写入接口。
 
-建议上下文式入口：
-
-```csharp
-public interface IContextScript : IScript
-{
-    ScriptExecutionResult Execute(
-        EditorScriptContext context,
-        IScriptApi api);
-}
-```
-
-现有 `IEditorScript.ExecuteDay` 和 `ExecuteRange` 可以作为兼容适配层；新脚本优先实现上下文式入口。
+`ScriptExecutionRequest.Target` 对应用程序扩展必须为 `null`，对编辑器扩展必须是上述五类目标之一。
+现有 `IEditorScript.ExecuteDay` 和 `ExecuteRange` 继续由兼容适配层处理；新脚本优先使用
+`IScriptProgramV1.ExecuteAsync` 和作用域上下文。
 
 编辑器脚本适合：
 
 - 处理当前日期的工作项。
 - 对日期范围执行格式化或汇总。
-- 在编辑器中生成或修改内容。
+- 在编辑器中读取当前目标并生成处理结果。
 
 ### 5.3 工作流脚本
 
@@ -286,12 +257,12 @@ public interface IScriptManager
 
 目录加载由应用层的共享加载状态协调。应用初始化阶段立即在后台启动一次异步预加载，目录枚举、元数据读取和脚本构建不会占用 UI 线程；脚本管理页显示时复用进行中的任务或缓存结果，手动重新加载和脚本变更后的检查才会强制启动新一轮扫描。
 
-脚本管理器还应校验上下文：
+脚本管理器当前校验上下文：
 
-- 时间范围是否合法，且 `StartDate` 不晚于 `EndDate`。
-- `Granularity` 与范围是否一致。
-- 目标类型是否需要 `PluginId`、`InstanceId` 或 `TargetId`。
-- 当前脚本是否允许访问目标 Tracker。
+- 应用程序扩展的 `Target` 必须为 `null`。
+- 编辑器扩展的 `Target` 必须是 `Year`、`Quarter`、`Month`、`Day` 或 `WorkItem`。
+- 日期目标的日期格式、月份长度、季度边界和日期范围由 `ScriptEditorTargetResolver` 校验。
+- 事项目标必须包含有效 ID，并只能携带 `ScriptWorkItem` 安全快照。
 - `ScriptExecutionContext.Metadata` 提供执行 ID、来源、脚本 ID 和开始时间，供宿主日志关联。
 
 模板相关校验和应用不属于脚本管理器职责。
@@ -314,12 +285,10 @@ ViewModel 不应直接调用 `IScriptEngine` 或具体脚本类型。
 ```csharp
 public sealed record ScriptDescriptor(
     string Id,
-    string DisplayName,
-    string SourcePath,
-    string Engine,
-    ScriptUsage Usage,
-    bool Enabled,
-    ScriptCapability Capabilities);
+    string Name,
+    ScriptApiVersion ApiVersion,
+    ScriptScope Scope,
+    string? Description = null);
 ```
 
 脚本 ID 必须稳定且唯一。不能直接使用显示名称作为 ID。
@@ -346,7 +315,7 @@ assets/
 - 脚本 ID和执行 ID。
 - 取消令牌。
 - 超时时间。
-- 授权能力。
+- 执行目标、参数、日期范围和事项快照。
 - 日志上下文。
 - 当前用户操作来源。
 
@@ -366,33 +335,15 @@ public sealed record ScriptExecutionOutcome(
 对于无法强制取消的引擎，超时后至少应停止等待、标记执行失败，并记录引擎不支持强制终止。
 Python 等外部进程引擎应使用独立进程，以便在超时或崩溃时终止进程。
 
-## 10. 权限模型
+## 10. 宿主边界和日志
 
-脚本是用户可执行代码，不能仅依赖 UI 隐藏操作实现安全控制。建议定义能力枚举：
+V1 不把脚本 capability 当作用户授权门禁。宿主只注册已经实现的 API，未注册的 API
+返回 `null`；独立 Worker 通过握手声明实际支持的 HostCall，宿主仍会校验方法、参数、
+目标、执行 ID 和消息大小。
 
-```csharp
-[Flags]
-public enum ScriptCapability
-{
-    None = 0,
-    ReadDiary = 1,
-    WriteDiary = 2,
-    ReadTracker = 4,
-    WriteTracker = 8,
-    Clipboard = 16,
-    UiInteraction = 32,
-    Network = 64,
-    FileSystem = 128,
-}
-```
-
-建议默认策略：
-
-- 只读脚本默认允许 `ReadDiary`。
-- 写入日记、写入 Tracker、剪贴板和 UI 交互需要用户授权。
-- 网络和文件系统默认关闭。
-- 权限拒绝必须返回结构化结果，不应静默失败。
-- 日志、错误导出和诊断信息不得包含密码、API Key 或完整授权令牌。
+已实现的边界 API 包括 `IDiaryApi`、`ITrackerApi`、`SysApi` 和 `ILogApi`。网络、文件系统、
+数据库连接、DI 容器和 Avalonia 对象不会注入脚本。`ILogApi` 的日志通过 `log.write`
+HostCall 转发到宿主，并限制单条消息大小；诊断和日志不得包含密码、API Key 或授权令牌。
 
 C# 脚本尤其需要限制引用和宿主对象。不能将 `App`、数据库连接、服务容器或任意程序集实例直接注入脚本。
 进程内策略只能降低误用和常见逃逸风险，不能隔离堆栈溢出、内存耗尽、运行时故障或忽略取消的代码；
@@ -400,21 +351,18 @@ C# 脚本尤其需要限制引用和宿主对象。不能将 `App`、数据库�
 
 ## 11. 脚本 API
 
-现有 `IScriptApi` 可以作为第一阶段兼容入口，但长期建议按能力拆分：
+V1 使用按领域拆分的宿主 API：
 
 ```text
-IScriptApi
-  +-- IApplicationInfo
-  +-- IDiaryQuery
-  +-- IDiaryWriter
-  +-- ITrackerAccess
-  +-- IUiAccess
-  +-- ITaskProgress
+IScriptExecutionContext
+  +-- IDiaryApi
+  +-- ITrackerApi
+  +-- SysApi
+  +-- ILogApi
 ```
 
 这样可以：
 
-- 让权限检查与 API 区域对应。
 - 降低单个接口的增长速度。
 - 便于为脚本提供测试替身。
 - 让脚本文档可以按能力生成。

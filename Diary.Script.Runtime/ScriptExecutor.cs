@@ -52,7 +52,7 @@ public sealed class ScriptExecutor : IScriptExecutor
             return Rejected(actualExecutionId, "SCRIPT_DESCRIPTOR_EXCEPTION", "The script descriptor could not be read.");
         }
 
-        if (!IsValidTarget(descriptor, request.Target))
+        if (!IsValidTarget(descriptor, request.Target, out var targetError))
             return Rejected(actualExecutionId, "SCRIPT_TARGET_INVALID", "The execution target does not match the script descriptor.");
         using var executionCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         Task<ScriptExecutionResult> executionTask;
@@ -101,53 +101,31 @@ public sealed class ScriptExecutor : IScriptExecutor
             [RuntimeDiagnostic("SCRIPT_EXECUTION_TIMED_OUT", "The script execution timed out.")]));
     }
 
-    private static bool IsValidTarget(ScriptDescriptor? descriptor, ScriptTarget? target)
+    private static bool IsValidTarget(
+        ScriptDescriptor? descriptor,
+        ScriptEditorTarget? target,
+        out string error)
     {
-        if (descriptor is null || target is null || descriptor.Scope != target.Scope)
-            return false;
-        if (!IsValidBusinessTarget(target.Business))
-            return false;
-        return target.Scope switch
+        error = string.Empty;
+        if (descriptor is null)
         {
-            ScriptScope.Application => target.Editor is null,
-            ScriptScope.Editor => IsValidEditorTarget(target.Editor),
-            _ => false,
-        };
-    }
-
-    private static bool IsValidEditorTarget(EditorScriptContext? editor)
-    {
-        if (editor is null
-            || !DateOnly.TryParseExact(editor.StartDate, "yyyy-MM-dd", out var start)
-            || !DateOnly.TryParseExact(editor.EndDate, "yyyy-MM-dd", out var end)
-            || start > end)
-        {
+            error = "脚本 descriptor 为空。";
             return false;
         }
 
-        return editor.Granularity switch
+        if (descriptor.Scope == ScriptScope.Application)
         {
-            ScriptTimeGranularity.Custom => true,
-            ScriptTimeGranularity.Day => start == end,
-            ScriptTimeGranularity.Week => start.DayOfWeek == DayOfWeek.Monday && end == start.AddDays(6),
-            ScriptTimeGranularity.Month => start.Day == 1 && end.Year == start.Year && end.Month == start.Month
-                && end.Day == DateTime.DaysInMonth(end.Year, end.Month),
-            ScriptTimeGranularity.Quarter => start.Day == 1 && (start.Month is 1 or 4 or 7 or 10)
-                && end == start.AddMonths(3).AddDays(-1),
-            ScriptTimeGranularity.Year => start.Month == 1 && start.Day == 1 && end == new DateOnly(start.Year, 12, 31),
-            _ => false,
-        };
-    }
-
-    private static bool IsValidBusinessTarget(ScriptBusinessTarget? target)
-    {
-        if (target is null || string.IsNullOrWhiteSpace(target.TargetId))
+            error = target is null ? string.Empty : "应用程序扩展不能提供编辑器目标。";
             return target is null;
-        if (!Enum.IsDefined(target.Kind))
+        }
+
+        if (descriptor.Scope != ScriptScope.Editor)
+        {
+            error = "脚本范围无效。";
             return false;
-        var trackerTarget = target.Kind is ScriptBusinessTargetKind.TrackerIssue or ScriptBusinessTargetKind.TrackerInstance;
-        return !trackerTarget || (!string.IsNullOrWhiteSpace(target.PluginId)
-            && !string.IsNullOrWhiteSpace(target.InstanceId));
+        }
+
+        return ScriptEditorTargetResolver.TryValidate(target, out _, out error);
     }
 
     private static ScriptExecutionResult Normalize(ScriptExecutionResult result) =>

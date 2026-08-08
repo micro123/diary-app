@@ -1,5 +1,6 @@
 using Diary.Core.Data.App;
 using Diary.Database;
+using Diary.ScriptBase;
 
 namespace Diary.ScriptHost;
 

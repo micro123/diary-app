@@ -1,3 +1,5 @@
+using Diary.ScriptBase;
+
 namespace Diary.ScriptHost;
 
 public sealed class WorkerDiaryApiProxy(

@@ -60,7 +60,7 @@ public sealed class CSharpEngineTests
         context.RegisterApi<IDiaryApi>(new DiaryApi(api, new NoopLogItemApi(), new NoopTemplateLogItemApi()));
 
         var execution = await result.Program!.ExecuteAsync(
-            new ScriptExecutionRequest(new ScriptTarget(ScriptScope.Application)),
+            new ScriptExecutionRequest(),
             context);
 
         Assert.AreEqual(ScriptExecutionStatus.Succeeded, execution.Status);

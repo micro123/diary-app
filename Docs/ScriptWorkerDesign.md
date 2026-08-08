@@ -241,13 +241,11 @@ worker 启动后必须先发送 `hello`：
   "payload": {
     "scriptId": "daily-summary",
     "sourcePath": "scripts/application/daily-summary.py",
-    "target": {
-      "scope": "Application"
-    },
+    "target": null,
     "arguments": {
       "date": "2026-08-06"
     },
-    "grantedCapabilities": ["ReadDiary"],
+    "grantedCapabilities": ["workItems.query", "log.write"],
     "deadline": "2026-08-06T08:00:30Z"
   }
 }
@@ -329,8 +327,31 @@ worker 执行脚本时可以发送 `host.call`：
 - 参数大小、数量、日期范围和分页上限。
 - 结果是否需要脱敏。
 
-第一版只定义 `workItems.query`，对应 `IDiaryApi`。模板写入、核心工作项
-写入和 Tracker 远程写入不进入第一版协议。
+第一版支持 `workItems.query`、日志项创建、模板日志项创建、Tracker 实例目录、剪贴板、
+用户交互和 `log.write`。工作项更新、删除和 Tracker 远程写入不进入第一版协议。
+
+应用程序扩展的 `target` 必须为 `null`。编辑器扩展的 `target` 是结构化对象，`kind` 为
+`Year`、`Quarter`、`Month`、`Day` 或 `WorkItem`。年、季度、月、日目标由宿主解析为包含
+边界的日期范围；事项目标携带不可变的 `ScriptWorkItem` 快照。宿主在每次执行和每个
+HostCall 前校验目标，不把核心数据库实体传入 Worker。
+
+脚本可以通过语言上下文读取 `dateRange`、`workItem` 和 `items.stream()`。范围流只能用于
+有日期范围的目标，事项目标应直接处理 `workItem`。
+
+日志使用 `log.write` HostCall：
+
+```json
+{
+  "method": "log.write",
+  "params": {
+    "level": "Info",
+    "message": "脚本已读取当前目标"
+  }
+}
+```
+
+宿主为日志补充脚本 ID 和 executionId，并限制单条消息大小；日志不得包含密码、Token 或
+其他敏感配置。
 
 宿主 API 错误使用稳定错误码，例如：
 
@@ -498,7 +519,7 @@ supervisor 应支持以下限制，并在 worker 启动或执行前配置：
 - 禁止调用 `LoadCLRPackage`，不注册 `LuaUserData`、反射对象或任意 .NET 类型；每次执行创建独立的 Lua script/context。
 - `NLua` 托管程序集和 KeraLua native 资产按 RID 随 Lua worker 部署，至少覆盖 `win-x64`、`linux-x64` 和 macOS 对应架构。
 - 将 Lua 错误转换为 sourcePath、行号和列号诊断，并将脚本输出限制在 stderr 配额内。
-- 通过 `diary.workItems.query` HostCall 代理访问不可变工作项 DTO；第一版不开放写入、文件、网络和进程能力。
+- 通过 `diary.workItems.query` 和 `log.write` HostCall 访问不可变工作项 DTO 与受限日志 API；第一版不开放更新、删除、文件、网络和进程能力。
 
 ### 18.3 Python
 
@@ -519,7 +540,7 @@ supervisor 应支持以下限制，并在 worker 启动或执行前配置：
 - `ScriptCatalog` 保存稳定的 `EngineName`，`WorkerScriptExecutor` 按 EngineName 选择独立 supervisor，不根据扩展名临时猜测。
 - C#、Lua、Python worker 使用独立进程和独立故障状态；一个 worker 终止不得影响其他语言。
 - `WorkerHelloPayload` 的语言值固定为 `csharp`、`lua` 或 `python`，运行时版本和 worker 版本作为可选诊断字段传递。
-- 统一使用 `grantedCapabilities` 和 `executionId` 校验 HostCall；只允许当前执行的 `workItems.query`。
+- 统一使用 `grantedCapabilities`、目标校验和 `executionId` 校验 HostCall；只允许当前执行已协商的宿主 API。
 
 ## 19. 测试和验收
 
@@ -551,6 +572,8 @@ supervisor 应支持以下限制，并在 worker 启动或执行前配置：
 ### 19.4 宿主 API 测试
 
 - `workItems.query` 的参数、权限、取消和结果与进程内 API 一致。
+- 五种编辑器目标的范围解析、事项快照和 `items.stream()` 行为一致。
+- `log.write` 的级别映射、消息大小限制和敏感信息过滤正确。
 - 未授权的 API 调用被拒绝。
 - `PluginId + InstanceId` 可以准确定位 Tracker 实例。
 - 敏感配置不会出现在请求、响应、日志或错误中。
@@ -566,7 +589,9 @@ worker 重启后不会自动重复未确认的副作用操作。
 
 脚本是否可执行只由目录加载和编译结果决定；历史 metadata 中的 `enabled` 字段会被忽略，不再阻止有效脚本加载。删除普通脚本需要二次确认并删除源码及 metadata，删除脚本包则删除整个包目录。
 
-脚本契约不再包含 capability 权限字段，默认获得宿主已实现的 API；未注册的 API 仍不可用。C# Worker 已接入 `workItems.query`、`logItems.create`、`trackerInstances.get`、剪贴板和用户交互 HostCall。
+脚本契约不再包含 capability 权限字段，默认获得宿主已实现的 API；Worker 握手仍通过
+`supportedHostApis` 声明实际可用方法。C#、Lua、Python Worker 已接入工作项查询、日志项
+创建、模板日志项、Tracker 只读实例目录、剪贴板、用户交互和 `log.write` HostCall。
 
 ## 20. 分阶段实施
 

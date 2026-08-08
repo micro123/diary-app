@@ -30,8 +30,25 @@ end
 | --- | --- |
 | `request` | 完整执行请求。字段名使用 camelCase。 |
 | `arguments` | 执行参数表；未传参数时为空表。 |
+| `target` | 编辑器目标；包含 `kind` 以及目标对应的字段。 |
+| `dateRange` | 年、季度、月、日目标的 `{ startDate, endDate }`；事项目标为 `nil`。 |
+| `workItem` | 事项目标的不可变事项快照；其他目标为 `nil`。 |
+| `getDateRange()` | 获取当前目标日期范围；无范围时返回 `nil`。 |
+| `items.stream()` | 按当前日期范围分页迭代事项。 |
+| `log` | 调试日志 API。 |
 
-`context.request.target.editor` 包含 `startDate`、`endDate`、`granularity`；`context.request.source` 是 `Manual`、`Editor`、`Startup` 或 `Automation`。
+`target.kind` 为 `Year`、`Quarter`、`Month`、`Day` 或 `WorkItem`。季度使用自然季度：1-3、4-6、7-9、10-12 月。`context.request.source` 是 `Manual`、`Editor`、`Startup` 或 `Automation`。
+
+```lua
+local range = context.getDateRange()
+if range ~= nil then
+    for item in context.items.stream() do
+        print(item.date .. ": " .. item.comment)
+    end
+elseif context.workItem ~= nil then
+    context.log.info("当前事项：" .. context.workItem.comment)
+end
+```
 
 ## 2. 查询工作项
 
@@ -89,6 +106,8 @@ end
 迭代器按需调用 `workItems.query`，一页消费完后才拉取下一页。`pageSize` 必须在 1 到 500 之间。不要在循环中把所有项重新保存到一个大表，否则会失去流式处理的内存优势。
 
 调用 `diary.logItems.create(params)` 会新建一个工作项，不会修改已有工作项。
+
+`diary.log.debug(message)`、`diary.log.info(message)`、`diary.log.warning(message)` 和 `diary.log.error(message)` 将调试信息写入宿主日志。单条日志受大小限制，不能输出敏感配置。
 
 ```lua
 local result = diary.logItems.create({
@@ -186,5 +205,6 @@ end
 | `diary.clipboard.set` | `clipboard.set` |
 | `diary.ui.notify` | `ui.notify` |
 | `diary.ui.confirm` | `ui.confirm` |
+| `diary.log.*` | `log.write` |
 
 Worker 禁用 `io`、`os`、`debug`、`package`、`require`、动态加载和 CLR 访问。脚本不能直接访问文件、网络、进程、数据库、DI 或 UI 控件。`print` 只能写入隔离的脚本输出流，并受到大小限制。

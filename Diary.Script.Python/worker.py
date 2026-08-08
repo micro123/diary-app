@@ -1,4 +1,5 @@
 import ast
+import calendar
 import inspect
 import json
 import os
@@ -114,6 +115,26 @@ class HostApi:
         raise HostCallError(error.get("code", "ProviderFailure"), error.get("message", "Host call failed."))
 
 
+class LogApi:
+    def __init__(self, state):
+        self._write = HostApi(state, "log.write")
+
+    def _log(self, level, message):
+        return self._write({"level": level, "message": str(message)})
+
+    def debug(self, message):
+        return self._log("Debug", message)
+
+    def info(self, message):
+        return self._log("Info", message)
+
+    def warning(self, message):
+        return self._log("Warning", message)
+
+    def error(self, message):
+        return self._log("Error", message)
+
+
 class DiaryApi:
     def __init__(self, state):
         self.workItems = WorkItemsApi(state)
@@ -122,6 +143,22 @@ class DiaryApi:
         self.trackerInstances = type("TrackerInstancesApi", (), {"get": HostApi(state, "trackerInstances.get")})()
         self.clipboard = ClipboardApi(state)
         self.ui = UiApi(state)
+        self.log = LogApi(state)
+
+
+class TargetItemsApi:
+    def __init__(self, context):
+        self.context = context
+
+    def stream(self, params=None, **kwargs):
+        date_range = self.context.dateRange
+        if not date_range:
+            raise HostCallError("InvalidInput", "当前目标没有日期范围。")
+        query = {} if params is None else dict(params)
+        query.update(kwargs)
+        query["startDate"] = date_range["startDate"]
+        query["endDate"] = date_range["endDate"]
+        return self.context.diary.workItems.stream(query)
 
 
 class ClipboardApi:
@@ -155,6 +192,13 @@ class ScriptContext:
         self.target = self.request.get("target")
         self.source = self.request.get("source", "Unknown")
         self.diary = DiaryApi(state)
+        self.log = self.diary.log
+        self.dateRange = resolve_date_range(self.target)
+        self.workItem = self.target.get("workItem") if isinstance(self.target, dict) else None
+        self.items = TargetItemsApi(self)
+
+    def getDateRange(self):
+        return self.dateRange
 
     def __getitem__(self, key):
         if key == "diary":
@@ -167,7 +211,45 @@ class ScriptContext:
             return self.target
         if key == "source":
             return self.source
+        if key == "dateRange":
+            return self.dateRange
+        if key == "workItem":
+            return self.workItem
+        if key == "items":
+            return self.items
+        if key == "log":
+            return self.log
         raise KeyError(key)
+
+
+def resolve_date_range(target):
+    if not isinstance(target, dict):
+        return None
+    kind = target.get("kind")
+    year = target.get("year")
+    if kind == "Year" and isinstance(year, int):
+        return {"startDate": f"{year:04d}-01-01", "endDate": f"{year:04d}-12-31"}
+    if kind == "Quarter" and isinstance(year, int) and isinstance(target.get("quarter"), int):
+        quarter = target["quarter"]
+        if quarter not in range(1, 5):
+            return None
+        start_month = (quarter - 1) * 3 + 1
+        end_month = start_month + 2
+        return {
+            "startDate": f"{year:04d}-{start_month:02d}-01",
+            "endDate": f"{year:04d}-{end_month:02d}-{calendar.monthrange(year, end_month)[1]:02d}",
+        }
+    if kind == "Month" and isinstance(year, int) and isinstance(target.get("month"), int):
+        month = target["month"]
+        if month not in range(1, 13):
+            return None
+        return {
+            "startDate": f"{year:04d}-{month:02d}-01",
+            "endDate": f"{year:04d}-{month:02d}-{calendar.monthrange(year, month)[1]:02d}",
+        }
+    if kind == "Day" and isinstance(target.get("date"), str):
+        return {"startDate": target["date"], "endDate": target["date"]}
+    return None
 
 
 SAFE_BUILTINS = {
@@ -355,7 +437,8 @@ def execute_script(state):
             return
         request = payload.get("request") or {}
         target = request.get("target") if isinstance(request, dict) else None
-        if not isinstance(target, dict) or target.get("scope") != descriptor.get("scope"):
+        is_application = descriptor.get("scope") == "Application"
+        if (is_application and target is not None) or (not is_application and not isinstance(target, dict)):
             send_result(message, "Rejected", [diagnostic("SCRIPT_TARGET_INVALID", "The execution target does not match the script descriptor.", source_path, "Validation")])
             return
         diagnostics = source_diagnostics(source, source_path)
@@ -463,7 +546,7 @@ def run():
         "language": "python",
         "workerVersion": "0.2",
         "supportedApiVersions": ["V1"],
-        "supportedHostApis": ["workItems.query", "logItems.create", "templateLogItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm"],
+        "supportedHostApis": ["workItems.query", "logItems.create", "templateLogItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write"],
         "processId": os.getpid(),
     })
     accepted = read_message()

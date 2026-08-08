@@ -1,23 +1,57 @@
+using System.Collections.Immutable;
 using Diary.ScriptBase;
 
 namespace Diary.Script.Runtime;
 
 public interface IScriptExecutionContextFactory
 {
-    IScriptExecutionContext Create(ScriptExecutionMetadata metadata);
+    IScriptExecutionContext Create(
+        ScriptExecutionMetadata metadata,
+        ScriptExecutionRequest request);
 }
 
 public sealed class ScriptExecutionContextFactory(
-    Func<ScriptExecutionMetadata, IScriptExecutionContext> factory) : IScriptExecutionContextFactory
+    Func<ScriptExecutionMetadata, ScriptExecutionRequest, IScriptExecutionContext> factory) : IScriptExecutionContextFactory
 {
-    public IScriptExecutionContext Create(ScriptExecutionMetadata metadata) => factory(metadata);
+    public IScriptExecutionContext Create(
+        ScriptExecutionMetadata metadata,
+        ScriptExecutionRequest request) => factory(metadata, request);
 }
 
-public sealed class ScriptExecutionContext(ScriptExecutionMetadata? metadata = null) : IScriptExecutionContext
+public sealed class ScriptExecutionContext(
+    ScriptExecutionMetadata? metadata = null,
+    ScriptEditorTarget? target = null,
+    ImmutableDictionary<string, string>? arguments = null,
+    Func<ScriptDateRange, CancellationToken, IAsyncEnumerable<ScriptWorkItem>>? streamItems = null)
+    : IScriptApplicationContext, IScriptEditorContext
 {
     private readonly Dictionary<Type, ApiRegistration> _apis = [];
 
     public ScriptExecutionMetadata? Metadata { get; } = metadata;
+
+    public ScriptEditorTarget? EditorTarget { get; } = target;
+
+    ScriptEditorTarget IScriptEditorContext.Target => EditorTarget
+        ?? throw new InvalidOperationException("编辑器上下文必须提供目标。");
+
+    public ScriptWorkItem? WorkItem => EditorTarget?.WorkItem;
+
+    public IReadOnlyDictionary<string, string> Arguments { get; } =
+        arguments ?? ImmutableDictionary<string, string>.Empty;
+
+    public ScriptDateRange? GetDateRange() => EditorTarget is null
+        ? null
+        : ScriptEditorTargetResolver.GetDateRange(EditorTarget);
+
+    public IAsyncEnumerable<ScriptWorkItem> StreamItemsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var range = GetDateRange()
+            ?? throw new InvalidOperationException("当前脚本目标没有日期范围。");
+        return streamItems is null
+            ? throw new InvalidOperationException("当前脚本上下文未配置事项迭代 API。")
+            : streamItems(range, cancellationToken);
+    }
 
     public void RegisterApi<TApi>(TApi api)
         where TApi : class

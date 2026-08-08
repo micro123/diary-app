@@ -49,7 +49,7 @@ public sealed class ScriptContractTests
 
         var buildRequest = new ScriptBuildRequest("script.test", "source");
         var executionRequest = new ScriptExecutionRequest(
-            new ScriptTarget(ScriptScope.Editor, new EditorScriptContext("2026-08-01", "2026-08-02")));
+            ScriptEditorTarget.ForMonth(2026, 8));
         Assert.AreEqual(buildRequest, JsonSerializer.Deserialize<ScriptBuildRequest>(
             JsonSerializer.Serialize(buildRequest)));
         Assert.AreEqual(executionRequest, JsonSerializer.Deserialize<ScriptExecutionRequest>(
@@ -65,6 +65,9 @@ public sealed class ScriptContractTests
         Assert.IsNotNull(executionResult);
         Assert.AreEqual(ScriptExecutionStatus.Failed, executionResult.Status);
         Assert.AreEqual("TEST001", executionResult.Diagnostics.Single().Code);
+
+        var month = ScriptEditorTargetResolver.GetDateRange(executionRequest.Target!);
+        Assert.AreEqual(new ScriptDateRange("2026-08-01", "2026-08-31"), month);
     }
 
     [TestMethod]
@@ -89,6 +92,22 @@ public sealed class ScriptContractTests
                 Assert.IsFalse(property.PropertyType.Namespace?.StartsWith("Diary.Database") == true);
             }
         }
+    }
+
+    [TestMethod]
+    public void EditorTargets_ResolveNaturalDateRangesAndWorkItemSnapshot()
+    {
+        Assert.AreEqual(new ScriptDateRange("2026-01-01", "2026-12-31"),
+            ScriptEditorTargetResolver.GetDateRange(ScriptEditorTarget.ForYear(2026)));
+        Assert.AreEqual(new ScriptDateRange("2026-04-01", "2026-06-30"),
+            ScriptEditorTargetResolver.GetDateRange(ScriptEditorTarget.ForQuarter(2026, 2)));
+        Assert.AreEqual(new ScriptDateRange("2026-02-01", "2026-02-28"),
+            ScriptEditorTargetResolver.GetDateRange(ScriptEditorTarget.ForMonth(2026, 2)));
+        Assert.AreEqual(new ScriptDateRange("2026-02-08", "2026-02-08"),
+            ScriptEditorTargetResolver.GetDateRange(ScriptEditorTarget.ForDay("2026-02-08")));
+
+        var item = new ScriptWorkItem(7, "2026-02-08", "事项", 1, 0, null, []);
+        Assert.IsNull(ScriptEditorTargetResolver.GetDateRange(ScriptEditorTarget.ForWorkItem(item)));
     }
 
     private static int EnumValue<TEnum>(string name) where TEnum : struct, Enum =>

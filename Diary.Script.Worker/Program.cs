@@ -43,7 +43,7 @@ internal sealed class CSharpWorker(Stream input, Stream output)
             WorkerMessageType.Hello,
             Guid.NewGuid().ToString("N"),
             null,
-            new("csharp", "0.4", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm"], Environment.ProcessId));
+             new("csharp", "0.4", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write"], Environment.ProcessId));
         Console.SetOut(new BoundedTextWriter(1 * 1024 * 1024));
         await WorkerMessageCodec.WriteAsync(output, hello);
         var accepted = await WorkerMessageCodec.ReadAsync<WorkerHelloAcceptedPayload>(input);
@@ -108,11 +108,21 @@ internal sealed class CSharpWorker(Stream input, Stream output)
 
             var executionId = Guid.TryParse(message.ExecutionId, out var parsedId) ? parsedId : Guid.NewGuid();
             var metadata = new ScriptExecutionMetadata(executionId, DateTimeOffset.UtcNow, payload.Request.Source, payload.ScriptId);
-            var context = new ScriptExecutionContext(metadata);
-            context.RegisterApi<IWorkItemQueryScriptApi>(new WorkerWorkItemQueryProxy(CallHostAsync));
+            IWorkItemQueryScriptApi queryApi = new WorkerWorkItemQueryProxy(CallHostAsync);
+            var context = new ScriptExecutionContext(
+                metadata,
+                payload.Request.Target,
+                payload.Request.Arguments,
+                (range, cancellationToken) => queryApi.StreamAsync(new ScriptWorkItemQuery
+                {
+                    StartDate = range.StartDate,
+                    EndDate = range.EndDate,
+                }, cancellationToken: cancellationToken));
+            context.RegisterApi<IWorkItemQueryScriptApi>(queryApi);
             context.RegisterApi<ITrackerInstanceScriptApi>(new TrackerInstanceWorkerProxy(CallHostAsync));
             context.RegisterApi<ILogItemScriptApi>(new WorkerLogItemProxy(CallHostAsync));
             context.RegisterApi<ITemplateLogItemScriptApi>(new WorkerTemplateLogItemProxy(CallHostAsync));
+            context.RegisterApi<ILogApi>(new WorkerScriptLogApi(CallHostAsync));
             context.RegisterApi<IClipboardScriptApi>(new WorkerClipboardProxy(CallHostAsync));
             context.RegisterApi<IUserInteractionScriptApi>(new WorkerUserInteractionProxy(CallHostAsync));
             context.RegisterApi<IDiaryApi>(new WorkerDiaryApiProxy(
@@ -120,7 +130,7 @@ internal sealed class CSharpWorker(Stream input, Stream output)
                 context.GetApi<ILogItemScriptApi>()!,
                 context.GetApi<ITemplateLogItemScriptApi>()!));
             context.RegisterApi<ITrackerApi>(new WorkerTrackerApiProxy(context.GetApi<ITrackerInstanceScriptApi>()!));
-            context.RegisterApi<ISystemInteractionApi>(new WorkerSystemInteractionApiProxy(
+            context.RegisterApi<SysApi>(new WorkerSystemInteractionApiProxy(
                 context.GetApi<IClipboardScriptApi>()!, context.GetApi<IUserInteractionScriptApi>()!));
             var outcome = await _executor.ExecuteAsync(build.Program, payload.Request, context, cancellationToken: CancellationToken.None, executionId: executionId);
             await WriteResultAsync(message, new(outcome.Result.Status, outcome.Result.Diagnostics, DurationMilliseconds: (long)outcome.Duration.TotalMilliseconds));

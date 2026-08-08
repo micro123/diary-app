@@ -7,7 +7,7 @@ namespace Diary.ScriptTests;
 public sealed class ScriptRuntimeTests
 {
     private static readonly ScriptExecutionRequest ApplicationRequest =
-        new(new ScriptTarget(ScriptScope.Application));
+        new();
 
     [TestMethod]
     public void EngineRegistry_SelectsHighestPriorityAndRejectsDuplicateStableName()
@@ -218,7 +218,7 @@ public sealed class ScriptRuntimeTests
     public async Task Executor_RejectsMismatchedTarget()
     {
         var editorRequest = new ScriptExecutionRequest(
-            new ScriptTarget(ScriptScope.Editor, new EditorScriptContext("2026-08-01", "2026-08-01")));
+            ScriptEditorTarget.ForDay("2026-08-01"));
 
         var outcome = await new ScriptExecutor().ExecuteAsync(
             new FakeProgram("application"),
@@ -230,7 +230,7 @@ public sealed class ScriptRuntimeTests
     }
 
     [TestMethod]
-    public async Task Executor_ValidatesEditorGranularityAndTrackerIdentity()
+    public async Task Executor_ValidatesEditorTargets()
     {
         var editorProgram = new FakeProgram(
             "editor",
@@ -241,26 +241,18 @@ public sealed class ScriptRuntimeTests
                  ScriptScope.Editor));
         var invalidDay = await new ScriptExecutor().ExecuteAsync(
             editorProgram,
-            new ScriptExecutionRequest(new ScriptTarget(
-                ScriptScope.Editor,
-                new EditorScriptContext("2026-08-01", "2026-08-02", ScriptTimeGranularity.Day))),
+            new ScriptExecutionRequest(new ScriptEditorTarget(
+                ScriptEditorTargetKind.Day)),
             EmptyContext());
 
-        var invalidTracker = await new ScriptExecutor().ExecuteAsync(
-            new FakeProgram(
-                "tracker",
-                descriptor: new ScriptDescriptor(
-                    "tracker",
-                    "Tracker",
-                    ScriptApiVersion.V1,
-                     ScriptScope.Application)),
-            new ScriptExecutionRequest(new ScriptTarget(
-                ScriptScope.Application,
-                Business: new ScriptBusinessTarget(ScriptBusinessTargetKind.TrackerIssue, "42"))),
+        var invalidWorkItem = await new ScriptExecutor().ExecuteAsync(
+            editorProgram,
+            new ScriptExecutionRequest(new ScriptEditorTarget(
+                ScriptEditorTargetKind.WorkItem)),
             EmptyContext());
 
         Assert.AreEqual("SCRIPT_TARGET_INVALID", invalidDay.Result.Diagnostics.Single().Code);
-        Assert.AreEqual("SCRIPT_TARGET_INVALID", invalidTracker.Result.Diagnostics.Single().Code);
+        Assert.AreEqual("SCRIPT_TARGET_INVALID", invalidWorkItem.Result.Diagnostics.Single().Code);
     }
 
     [TestMethod]
@@ -327,7 +319,8 @@ public sealed class ScriptRuntimeTests
             new ScriptBuildService(registry),
             catalog,
             new ScriptExecutor(),
-             new ScriptExecutionContextFactory(metadata => new ScriptExecutionContext(metadata)));
+             new ScriptExecutionContextFactory((metadata, request) =>
+                 new ScriptExecutionContext(metadata, request.Target, request.Arguments)));
         await manager.BuildAndRegisterAsync(new ScriptBuildRequest("fresh.fake", "fresh"));
 
         await manager.ExecuteAsync("fresh", ApplicationRequest);
@@ -358,14 +351,14 @@ public sealed class ScriptRuntimeTests
             new ScriptBuildService(registry),
             new ScriptCatalog(),
             new ScriptExecutor(),
-             new ScriptExecutionContextFactory(metadata => new ScriptExecutionContext(metadata)),
+             new ScriptExecutionContextFactory((metadata, request) =>
+                 new ScriptExecutionContext(metadata, request.Target, request.Arguments)),
             history);
         await manager.BuildAndRegisterAsync(new ScriptBuildRequest("history.fake", "history"));
 
         var outcome = await manager.ExecuteAsync(
             "history",
             new ScriptExecutionRequest(
-                new ScriptTarget(ScriptScope.Application),
                 Source: ScriptExecutionSource.Manual));
         var entry = history.GetRecent(1).Single();
 

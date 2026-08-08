@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 
 namespace Diary.ScriptBase;
 
@@ -18,6 +19,15 @@ public enum ScriptScope
     Editor = 2,
 }
 
+public enum ScriptEditorTargetKind
+{
+    Year = 1,
+    Quarter = 2,
+    Month = 3,
+    Day = 4,
+    WorkItem = 5,
+}
+
 public enum ScriptExecutionSource
 {
     Unknown = 0,
@@ -25,25 +35,6 @@ public enum ScriptExecutionSource
     Editor = 2,
     Startup = 3,
     Automation = 4,
-}
-
-public enum ScriptTimeGranularity
-{
-    Custom = 0,
-    Day = 1,
-    Week = 2,
-    Month = 3,
-    Quarter = 4,
-    Year = 5,
-}
-
-public enum ScriptBusinessTargetKind
-{
-    Diary = 1,
-    WorkItem = 2,
-    Project = 3,
-    TrackerIssue = 4,
-    TrackerInstance = 5,
 }
 
 public sealed record ScriptDescriptor(
@@ -115,24 +106,135 @@ public enum ScriptExecutionStatus
     TimedOut = 5,
 }
 
-public sealed record EditorScriptContext(
-    string StartDate,
-    string EndDate,
-    ScriptTimeGranularity Granularity = ScriptTimeGranularity.Custom);
+public sealed record ScriptDateRange(string StartDate, string EndDate);
 
-public sealed record ScriptBusinessTarget(
-    ScriptBusinessTargetKind Kind,
-    string TargetId,
-    string? PluginId = null,
-    string? InstanceId = null);
+public sealed record ScriptWorkTag(
+    int Id,
+    string Name,
+    int Color,
+    int Level,
+    bool Disabled);
 
-public sealed record ScriptTarget(
-    ScriptScope Scope,
-    EditorScriptContext? Editor = null,
-    ScriptBusinessTarget? Business = null);
+public sealed record ScriptWorkItem(
+    int Id,
+    string Date,
+    string Comment,
+    double Hours,
+    int Priority,
+    string? Note,
+    ImmutableArray<ScriptWorkTag> Tags);
+
+public sealed record ScriptEditorTarget(
+    ScriptEditorTargetKind Kind,
+    int? Year = null,
+    int? Quarter = null,
+    int? Month = null,
+    string? Date = null,
+    ScriptWorkItem? WorkItem = null)
+{
+    public static ScriptEditorTarget ForYear(int year) => new(ScriptEditorTargetKind.Year, Year: year);
+
+    public static ScriptEditorTarget ForQuarter(int year, int quarter) =>
+        new(ScriptEditorTargetKind.Quarter, Year: year, Quarter: quarter);
+
+    public static ScriptEditorTarget ForMonth(int year, int month) =>
+        new(ScriptEditorTargetKind.Month, Year: year, Month: month);
+
+    public static ScriptEditorTarget ForDay(string date) => new(ScriptEditorTargetKind.Day, Date: date);
+
+    public static ScriptEditorTarget ForWorkItem(ScriptWorkItem workItem) =>
+        new(ScriptEditorTargetKind.WorkItem, WorkItem: workItem);
+}
+
+public static class ScriptEditorTargetResolver
+{
+    public static bool TryValidate(
+        ScriptEditorTarget? target,
+        out ScriptDateRange? range,
+        out string error)
+    {
+        range = null;
+        error = string.Empty;
+        if (target is null)
+            return Fail("编辑器脚本必须提供目标。", out error);
+
+        switch (target.Kind)
+        {
+            case ScriptEditorTargetKind.Year when target.Year is { } year:
+                if (year is < 1 or > 9999)
+                    return Fail("年份无效。", out error);
+                if (HasUnexpectedFields(target, year: true))
+                    return Fail("年度目标参数无效。", out error);
+                range = new ScriptDateRange(
+                    new DateOnly(year, 1, 1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    new DateOnly(year, 12, 31).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+                return true;
+            case ScriptEditorTargetKind.Quarter when target.Year is { } quarterYear && target.Quarter is { } quarter:
+                if (quarterYear is < 1 or > 9999 || quarter is < 1 or > 4)
+                    return Fail("季度目标参数无效。", out error);
+                if (HasUnexpectedFields(target, year: true, quarter: true))
+                    return Fail("季度目标参数无效。", out error);
+                var startMonth = (quarter - 1) * 3 + 1;
+                range = new ScriptDateRange(
+                    new DateOnly(quarterYear, startMonth, 1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    new DateOnly(quarterYear, startMonth + 2, DateTime.DaysInMonth(quarterYear, startMonth + 2))
+                        .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+                return true;
+            case ScriptEditorTargetKind.Month when target.Year is { } monthYear && target.Month is { } month:
+                if (monthYear is < 1 or > 9999 || month is < 1 or > 12)
+                    return Fail("月份目标参数无效。", out error);
+                if (HasUnexpectedFields(target, year: true, month: true))
+                    return Fail("月份目标参数无效。", out error);
+                range = new ScriptDateRange(
+                    new DateOnly(monthYear, month, 1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    new DateOnly(monthYear, month, DateTime.DaysInMonth(monthYear, month))
+                        .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+                return true;
+            case ScriptEditorTargetKind.Day when target.Date is { } date:
+                if (!DateOnly.TryParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var day))
+                    return Fail("日期目标参数无效。", out error);
+                if (HasUnexpectedFields(target, date: true))
+                    return Fail("日期目标参数无效。", out error);
+                range = new ScriptDateRange(date, date);
+                return true;
+            case ScriptEditorTargetKind.WorkItem when target.WorkItem is { Id: > 0 }:
+                if (HasUnexpectedFields(target, workItem: true))
+                    return Fail("事项目标参数无效。", out error);
+                return true;
+            default:
+                return Fail("编辑器目标参数不完整或类型无效。", out error);
+        }
+    }
+
+    public static ScriptDateRange? GetDateRange(ScriptEditorTarget target)
+    {
+        if (!TryValidate(target, out var range, out var error))
+            throw new ArgumentException(error, nameof(target));
+        return range;
+    }
+
+    private static bool HasUnexpectedFields(
+        ScriptEditorTarget target,
+        bool year = false,
+        bool quarter = false,
+        bool month = false,
+        bool date = false,
+        bool workItem = false) =>
+        (!year && target.Year is not null)
+        || (!quarter && target.Quarter is not null)
+        || (!month && target.Month is not null)
+        || (!date && target.Date is not null)
+        || (!workItem && target.WorkItem is not null);
+
+    private static bool Fail(string message, out string error)
+    {
+        error = message;
+        return false;
+    }
+}
 
 public sealed record ScriptExecutionRequest(
-    ScriptTarget Target,
+    ScriptEditorTarget? Target = null,
     ImmutableDictionary<string, string>? Arguments = null,
     ScriptExecutionSource Source = ScriptExecutionSource.Unknown);
 
@@ -162,6 +264,20 @@ public interface IScriptExecutionContext
     ScriptExecutionMetadata? Metadata { get; }
 
     TApi? GetApi<TApi>() where TApi : class;
+}
+
+public interface IScriptApplicationContext : IScriptExecutionContext
+{
+}
+
+public interface IScriptEditorContext : IScriptExecutionContext
+{
+    ScriptEditorTarget Target { get; }
+    ScriptWorkItem? WorkItem { get; }
+    IReadOnlyDictionary<string, string> Arguments { get; }
+    ScriptDateRange? GetDateRange();
+    IAsyncEnumerable<ScriptWorkItem> StreamItemsAsync(
+        CancellationToken cancellationToken = default);
 }
 
 public interface IScriptProgramV1

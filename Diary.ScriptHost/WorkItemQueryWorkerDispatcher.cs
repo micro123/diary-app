@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Diary.Script.Runtime;
+using Diary.ScriptBase;
 
 namespace Diary.ScriptHost;
 
@@ -9,7 +10,8 @@ public sealed class WorkItemQueryWorkerDispatcher(
     Func<ILogItemScriptApi>? logItemApiFactory = null,
     Func<ITemplateLogItemScriptApi>? templateLogItemApiFactory = null,
     Func<IClipboardScriptApi>? clipboardApiFactory = null,
-    Func<IUserInteractionScriptApi>? interactionApiFactory = null) : IWorkerHostCallDispatcher
+    Func<IUserInteractionScriptApi>? interactionApiFactory = null,
+    Func<string, ILogApi>? scriptLogApiFactory = null) : IWorkerHostCallDispatcher
 {
     public async ValueTask<WorkerHostResultPayload> DispatchAsync(
         string executionId,
@@ -28,6 +30,8 @@ public sealed class WorkItemQueryWorkerDispatcher(
         if (string.Equals(call.Method, "ui.notify", StringComparison.Ordinal)
             || string.Equals(call.Method, "ui.confirm", StringComparison.Ordinal))
             return await DispatchInteractionAsync(interactionApiFactory, call, cancellationToken);
+        if (string.Equals(call.Method, "log.write", StringComparison.Ordinal))
+            return await DispatchScriptLogAsync(scriptLogApiFactory, executionId, call, cancellationToken);
         if (!string.Equals(call.Method, "workItems.query", StringComparison.Ordinal))
             return new(false, Error: new("InvalidInput", "不支持的 Worker 宿主 API。"));
         try
@@ -143,7 +147,54 @@ public sealed class WorkItemQueryWorkerDispatcher(
         }
     }
 
+    private static async ValueTask<WorkerHostResultPayload> DispatchScriptLogAsync(
+        Func<string, ILogApi>? factory,
+        string executionId,
+        WorkerHostCallPayload call,
+        CancellationToken cancellationToken)
+    {
+        if (factory is null)
+            return new(false, Error: new("ProviderFailure", "脚本日志 API 未配置。"));
+        try
+        {
+            var request = call.Params.Deserialize<ScriptLogRequest>(WorkerProtocol.JsonOptions)
+                ?? throw new JsonException();
+            var api = factory(executionId);
+            switch (request.Level)
+            {
+                case ScriptLogLevel.Debug:
+                    await api.DebugAsync(request.Message, cancellationToken);
+                    break;
+                case ScriptLogLevel.Info:
+                    await api.InfoAsync(request.Message, cancellationToken);
+                    break;
+                case ScriptLogLevel.Warning:
+                    await api.WarningAsync(request.Message, cancellationToken);
+                    break;
+                case ScriptLogLevel.Error:
+                    await api.ErrorAsync(request.Message, cancellationToken);
+                    break;
+                default:
+                    return new(false, Error: new("InvalidInput", "脚本日志级别无效。"));
+            }
+            return new(true);
+        }
+        catch (JsonException)
+        {
+            return new(false, Error: new("InvalidInput", "脚本日志参数格式无效。"));
+        }
+        catch (OperationCanceledException)
+        {
+            return new(false, Error: new("Cancelled", "脚本日志已取消。"));
+        }
+        catch (Exception exception)
+        {
+            return new(false, Error: new("ProviderFailure", exception.Message));
+        }
+    }
+
     private sealed record TrackerInstanceRequest(string PluginId, string InstanceId);
     private sealed record ClipboardInput(string Text);
     private sealed record InteractionInput(string Title, string Body);
+    private sealed record ScriptLogRequest(ScriptLogLevel Level, string Message);
 }

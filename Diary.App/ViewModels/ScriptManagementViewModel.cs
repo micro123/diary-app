@@ -62,6 +62,8 @@ public sealed record ScriptListItem(
 
     public bool IsLoadFailed => !BuildSucceeded;
 
+    public bool IsRunnable => BuildSucceeded && Scope == ScriptScope.Application;
+
     public string CapabilityLabel => "宿主 API 默认可用";
 
 }
@@ -129,9 +131,6 @@ public partial class ScriptManagementViewModel(
     public IReadOnlyList<string> StatusFilters { get; } = ["全部状态", "已加载", "加载失败"];
     public IReadOnlyList<string> HistoryStatusFilters { get; } = ["全部结果", "成功", "失败", "已取消", "已超时", "已拒绝"];
     public IReadOnlyList<string> HistorySourceFilters { get; } = ["全部来源", "手动执行", "编辑器调用", "启动加载", "自动化调用"];
-    public IReadOnlyList<string> ExecutionRanges { get; } =
-        ["当前日期", "本周", "本月", "本季度", "本年度", "自定义范围"];
-
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RunCommand))]
     [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
@@ -148,15 +147,6 @@ public partial class ScriptManagementViewModel(
     [ObservableProperty] private string _selectedHistorySourceFilter = "全部来源";
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RunCommand))]
-    private string _selectedExecutionRange = "当前日期";
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(RunCommand))]
-    private DateTime? _executionStartDate = DateTime.Today;
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(RunCommand))]
-    private DateTime? _executionEndDate = DateTime.Today;
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(RunCommand))]
     [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
     private bool _isExecuting;
     private CancellationTokenSource? _executionCancellation;
@@ -170,27 +160,6 @@ public partial class ScriptManagementViewModel(
     public bool HasSelectedDiagnostics => SelectedScript?.Diagnostics.Count > 0;
     public bool HasDirectoryDiagnostics => DirectoryDiagnostics.Count > 0;
     public bool HasStartupDiagnostics => StartupDiagnostics.Count > 0;
-    public bool ShowEditorRange => SelectedScript?.Scope == ScriptScope.Editor;
-    public bool ShowCustomRange => ShowEditorRange && SelectedExecutionRange == "自定义范围";
-    public string ExecutionRangeSummary => ShowEditorRange
-        ? $"{ExecutionStartDate:yyyy-MM-dd} 至 {ExecutionEndDate:yyyy-MM-dd}"
-        : "应用脚本，不限定编辑器日期范围";
-
-    [RelayCommand]
-    private void QuickSelectDate(string which)
-    {
-        if (ExecutionStartDate is null || ExecutionEndDate is null)
-            return;
-
-        var part = (AdjustPart)(which[2] - '0');
-        var direction = (AdjustDirection)(which[1] - '0');
-        var start = ExecutionStartDate.Value;
-        var end = ExecutionEndDate.Value;
-        TimeTools.AdjustDate(ref start, ref end, part, direction);
-        ExecutionStartDate = start;
-        ExecutionEndDate = end;
-    }
-
     partial void OnLoadingChanged(bool value) => OnPropertyChanged(nameof(CanReload));
 
     partial void OnIsExecutingChanged(bool value) => OnPropertyChanged(nameof(CanReload));
@@ -210,41 +179,9 @@ public partial class ScriptManagementViewModel(
         if (value is not null && ApiReference.Languages.Contains(value.Language))
             ApiReference.SelectedLanguage = value.Language;
         OnPropertyChanged(nameof(HasSelectedDiagnostics));
-        OnPropertyChanged(nameof(ShowEditorRange));
-        OnPropertyChanged(nameof(ShowCustomRange));
-        OnPropertyChanged(nameof(ExecutionRangeSummary));
         RunCommand.NotifyCanExecuteChanged();
         OpenSelectedScriptCommand.NotifyCanExecuteChanged();
     }
-
-    partial void OnSelectedExecutionRangeChanged(string value)
-    {
-        if (value != "自定义范围")
-        {
-            var today = DateTime.Today;
-            (ExecutionStartDate, ExecutionEndDate) = value switch
-            {
-                "本周" => (today.AddDays(-(((int)today.DayOfWeek + 6) % 7)),
-                    today.AddDays(6 - ((int)today.DayOfWeek + 6) % 7)),
-                "本月" => (new DateTime(today.Year, today.Month, 1), new DateTime(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month))),
-                "本季度" => (new DateTime(today.Year, (today.Month - 1) / 3 * 3 + 1, 1),
-                    new DateTime(today.Year, (today.Month - 1) / 3 * 3 + 3, DateTime.DaysInMonth(today.Year, (today.Month - 1) / 3 * 3 + 3))),
-                _ => (today, today),
-            };
-        }
-        OnPropertyChanged(nameof(ShowCustomRange));
-        OnPropertyChanged(nameof(ExecutionRangeSummary));
-        RunCommand.NotifyCanExecuteChanged();
-    }
-
-    partial void OnExecutionStartDateChanged(DateTime? value)
-    {
-        if (SelectedExecutionRange == "当前日期")
-            ExecutionEndDate = value;
-        OnPropertyChanged(nameof(ExecutionRangeSummary));
-    }
-
-    partial void OnExecutionEndDateChanged(DateTime? value) => OnPropertyChanged(nameof(ExecutionRangeSummary));
 
     public override void OnShow()
     {
@@ -324,8 +261,7 @@ public partial class ScriptManagementViewModel(
     private bool CanRun() =>
         !IsExecuting
         && SelectedScript is { BuildSucceeded: true }
-        && (SelectedScript.Scope == ScriptScope.Application
-            || ExecutionStartDate is not null && ExecutionEndDate is not null && ExecutionStartDate <= ExecutionEndDate);
+        && SelectedScript.Scope == ScriptScope.Application;
 
     private bool CanCancel() => IsExecuting;
 
@@ -717,33 +653,6 @@ public partial class ScriptManagementViewModel(
 
     private ScriptExecutionRequest CreateExecutionRequest(ScriptListItem script)
     {
-        if (script.Scope == ScriptScope.Application)
-            return new ScriptExecutionRequest(
-                new ScriptTarget(ScriptScope.Application),
-                Source: ScriptExecutionSource.Manual);
-
-        var startDate = ExecutionStartDate!.Value;
-        var endDate = ExecutionEndDate!.Value;
-        return new ScriptExecutionRequest(
-            new ScriptTarget(
-                ScriptScope.Editor,
-                new EditorScriptContext(
-                    startDate.ToString("yyyy-MM-dd"),
-                    endDate.ToString("yyyy-MM-dd"),
-                    GetGranularity(startDate, endDate))),
-            Source: ScriptExecutionSource.Manual);
-    }
-
-    private static ScriptTimeGranularity GetGranularity(DateTime startDate, DateTime endDate)
-    {
-        if (startDate.Date == endDate.Date)
-            return ScriptTimeGranularity.Day;
-        if (startDate.Day == 1 && endDate.Year == startDate.Year && endDate.Month == startDate.Month
-            && endDate.Day == DateTime.DaysInMonth(endDate.Year, endDate.Month))
-            return ScriptTimeGranularity.Month;
-        if (startDate.Month == 1 && startDate.Day == 1 && endDate.Month == 12 && endDate.Day == 31
-            && startDate.Year == endDate.Year)
-            return ScriptTimeGranularity.Year;
-        return ScriptTimeGranularity.Custom;
+        return new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual);
     }
 }

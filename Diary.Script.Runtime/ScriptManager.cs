@@ -112,8 +112,8 @@ public sealed class ScriptManager(
         var startedAt = DateTimeOffset.UtcNow;
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         var metadata = new ScriptExecutionMetadata(executionId, startedAt, request.Source, scriptId);
-        var context = contextFactory?.Create(metadata)
-            ?? new ScriptExecutionContext(metadata);
+        var context = contextFactory?.Create(metadata, request)
+            ?? new ScriptExecutionContext(metadata, request.Target, request.Arguments);
         var outcome = workerExecutor is null
             ? await executor.ExecuteAsync(
                 program,

@@ -9,7 +9,7 @@
              x:DataType="vm:ScriptManagementViewModel"
              mc:Ignorable="d" d:DesignWidth="960" d:DesignHeight="640"
              Padding="16">
-    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" RowSpacing="12">
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="12">
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
             <StackPanel>
                 <TextBlock Text="脚本工作台" FontSize="30" FontWeight="Bold" />
@@ -37,23 +37,7 @@
                       SelectedItem="{Binding SelectedStatusFilter, Mode=TwoWay}" />
         </Grid>
 
-        <Border Grid.Row="3" Padding="10" CornerRadius="8" IsEnabled="{Binding ShowEditorRange}"
-                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
-            <Grid ColumnDefinitions="Auto,180,*,Auto,Auto,Auto" ColumnSpacing="8">
-                <TextBlock Text="执行范围" VerticalAlignment="Center" />
-                <ComboBox Grid.Column="1" ItemsSource="{Binding ExecutionRanges}"
-                          SelectedItem="{Binding SelectedExecutionRange, Mode=TwoWay}" />
-                <TextBlock Grid.Column="2" Text="{Binding ExecutionRangeSummary}"
-                           VerticalAlignment="Center" Opacity="0.68" />
-                <CalendarDatePicker Grid.Column="3" SelectedDate="{Binding ExecutionStartDate, Mode=TwoWay}"
-                                    IsVisible="{Binding ShowCustomRange}" />
-                <CalendarDatePicker Grid.Column="4" SelectedDate="{Binding ExecutionEndDate, Mode=TwoWay}"
-                                    IsVisible="{Binding ShowCustomRange}" />
-                <views:QuickDateSelectButton Grid.Column="5" IsVisible="{Binding ShowCustomRange}" />
-            </Grid>
-        </Border>
-
-        <Grid Grid.Row="4" ColumnDefinitions="3*,2*" ColumnSpacing="16">
+        <Grid Grid.Row="3" ColumnDefinitions="3*,2*" ColumnSpacing="16">
             <Grid>
                 <ListBox ItemsSource="{Binding VisibleScripts}" SelectedItem="{Binding SelectedScript}">
                     <ListBox.ItemContainerTheme>
@@ -79,9 +63,10 @@
                                         <MenuItem Header="重新检查"
                                                   Command="{Binding $parent[UserControl].((vm:ScriptManagementViewModel)DataContext).RecheckScriptCommand}"
                                                   CommandParameter="{Binding}" />
-                                         <MenuItem Header="运行脚本"
-                                                   Command="{Binding $parent[UserControl].((vm:ScriptManagementViewModel)DataContext).RunScriptCommand}"
-                                                   CommandParameter="{Binding}" />
+                                          <MenuItem Header="运行脚本"
+                                                    Command="{Binding $parent[UserControl].((vm:ScriptManagementViewModel)DataContext).RunScriptCommand}"
+                                                    CommandParameter="{Binding}"
+                                                    IsEnabled="{Binding IsRunnable}" />
                                          <MenuItem Header="删除脚本"
                                                    Command="{Binding $parent[UserControl].((vm:ScriptManagementViewModel)DataContext).DeleteScriptCommand}"
                                                    CommandParameter="{Binding}" />
@@ -112,9 +97,10 @@
                                      <TextBlock Text="{Binding Status}" Opacity="0.78" />
                                  </StackPanel>
                                   <StackPanel Grid.Column="2" Spacing="6" VerticalAlignment="Center">
-                                      <Button Content="执行" MinWidth="54"
-                                           Command="{Binding $parent[UserControl].((vm:ScriptManagementViewModel)DataContext).RunScriptCommand}"
-                                           CommandParameter="{Binding}" />
+                                       <Button Content="执行" MinWidth="54"
+                                            Command="{Binding $parent[UserControl].((vm:ScriptManagementViewModel)DataContext).RunScriptCommand}"
+                                            CommandParameter="{Binding}"
+                                            IsVisible="{Binding IsRunnable}" />
                                       <Button Content="删除" MinWidth="54"
                                               Command="{Binding $parent[UserControl].((vm:ScriptManagementViewModel)DataContext).DeleteScriptCommand}"
                                               CommandParameter="{Binding}" />

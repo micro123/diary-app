@@ -24,11 +24,27 @@ def main(context):
 | --- | --- |
 | `request` | 完整执行请求字典。 |
 | `arguments` | 执行参数字典。 |
-| `target` | 执行目标字典；编辑器日期范围在 `target["editor"]`。 |
+| `target` | 编辑器目标字典；包含 `kind` 和目标对应的字段。 |
 | `source` | 执行来源名称。 |
 | `diary` | 宿主 API 根对象。 |
+| `dateRange` | 年、季度、月、日目标的日期范围；事项目标为 `None`。 |
+| `workItem` | 事项目标的不可变事项快照；其他目标为 `None`。 |
+| `getDateRange()` | 获取当前目标日期范围；无范围时返回 `None`。 |
+| `items.stream()` | 按当前日期范围分页迭代事项。 |
+| `log` | 调试日志 API。 |
 
 请求、参数和结果字段使用 camelCase，例如 `startDate`、`endDate`、`normalizedQuery`。
+
+`target["kind"]` 为 `Year`、`Quarter`、`Month`、`Day` 或 `WorkItem`。季度使用自然季度：1-3、4-6、7-9、10-12 月。
+
+```python
+date_range = context.getDateRange()
+if date_range is not None:
+    for item in context.items.stream():
+        print(item["date"], item["comment"])
+elif context.workItem is not None:
+    context.log.info(f"当前事项：{context.workItem['comment']}")
+```
 
 ## 2. 查询工作项
 
@@ -158,6 +174,8 @@ if confirmed:
 
 `notify(title, body)` 无返回值；`confirm(title, body)` 返回 bool。
 
+`context.log.debug(message)`、`context.log.info(message)`、`context.log.warning(message)` 和 `context.log.error(message)` 将调试信息写入宿主日志。单条日志受大小限制，不能输出敏感配置。
+
 所有 HostCall 失败都会抛出 `HostCallError`，其 `code` 属性可用于分类处理：
 
 ```python
@@ -178,5 +196,6 @@ except HostCallError as error:
 | `context.diary.clipboard.set` | `clipboard.set` |
 | `context.diary.ui.notify` | `ui.notify` |
 | `context.diary.ui.confirm` | `ui.confirm` |
+| `context.log.*` | `log.write` |
 
 Python Worker 禁止导入模块、文件访问、动态代码执行、运行时自省、输入和双下划线属性。仅允许安全内置函数；`print` 重定向到 Worker 日志流并受大小限制。脚本不能直接访问网络、进程、数据库、DI 或 UI 控件。

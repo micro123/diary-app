@@ -332,14 +332,15 @@ namespace Diary.App
             services.AddSingleton<IWorkerHostCallDispatcher>(_ =>
                  new WorkItemQueryWorkerDispatcher(
                       () => new WorkItemQueryScriptApi(() => UseDb),
-                      () => new TrackerInstanceScriptApi(
-                          Services.GetRequiredService<PluginInstanceRegistry>()),
-                      () => new LogItemScriptApi(() => UseDb),
+                     () => new TrackerInstanceScriptApi(
+                         Services.GetRequiredService<PluginInstanceRegistry>()),
+                     () => new LogItemScriptApi(() => UseDb),
                       () => new TemplateLogItemScriptApi(
                           () => UseDb,
                           () => TemplateManager.Instance.Templates.ToArray()),
                       () => new AppClipboardScriptApi(this),
-                      () => new AppUserInteractionScriptApi()));
+                      () => new AppUserInteractionScriptApi(),
+                      executionId => CreateScriptLogApi(null, executionId)));
             services.AddSingleton<IWorkerScriptExecutor>(services =>
             {
                 var workerName = OperatingSystem.IsWindows()
@@ -352,11 +353,11 @@ namespace Diary.App
                 var csharpRuntime = new WorkerRuntime(
                     "csharp",
                     new WorkerSupervisor(new ProcessWorkerTransportFactory(csharpOptions), hostDispatcher),
-                     new WorkerHandshakeOptions("csharp", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm"]));
+                     new WorkerHandshakeOptions("csharp", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write"]));
                 var luaRuntime = new WorkerRuntime(
                     "lua",
                     new WorkerSupervisor(new ProcessWorkerTransportFactory(luaOptions), hostDispatcher),
-                     new WorkerHandshakeOptions("lua", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm"]));
+                     new WorkerHandshakeOptions("lua", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write"]));
                 var pythonRuntime = new WorkerRuntime(
                     "python",
                     new WorkerSupervisor(
@@ -364,7 +365,7 @@ namespace Diary.App
                             services.GetRequiredService<PythonRuntimeResolver>()),
                         hostDispatcher,
                         maxRequestsPerWorker: 1),
-                     new WorkerHandshakeOptions("python", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm"]));
+                     new WorkerHandshakeOptions("python", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write"]));
                 return new WorkerScriptExecutor(
                     services.GetRequiredService<IScriptCatalog>(),
                     new Dictionary<string, WorkerRuntime>(StringComparer.OrdinalIgnoreCase)
@@ -379,25 +380,34 @@ namespace Diary.App
             services.AddSingleton<IScriptDirectoryLoader, ScriptDirectoryLoader>();
             services.AddSingleton<ScriptStartupDiagnosticsStore>();
             services.AddSingleton<IScriptExecutionContextFactory>(_ =>
-                new ScriptExecutionContextFactory(metadata =>
+                new ScriptExecutionContextFactory((metadata, request) =>
                 {
-                    var context = new ScriptExecutionContext(metadata);
-                    context.RegisterApi<IWorkItemQueryScriptApi>(
-                        new WorkItemQueryScriptApi(() => UseDb));
+                    IWorkItemQueryScriptApi queryApi = new WorkItemQueryScriptApi(() => UseDb);
+                    var context = new ScriptExecutionContext(
+                        metadata,
+                        request.Target,
+                        request.Arguments,
+                        (range, cancellationToken) => queryApi.StreamAsync(new ScriptWorkItemQuery
+                        {
+                            StartDate = range.StartDate,
+                            EndDate = range.EndDate,
+                        }, cancellationToken: cancellationToken));
+                    context.RegisterApi<IWorkItemQueryScriptApi>(queryApi);
+                    context.RegisterApi<ILogApi>(CreateScriptLogApi(metadata, null));
                     context.RegisterApi<ITrackerInstanceScriptApi>(
-                        new TrackerInstanceScriptApi(
-                            Services.GetRequiredService<PluginInstanceRegistry>()));
+                         new TrackerInstanceScriptApi(
+                             Services.GetRequiredService<PluginInstanceRegistry>()));
                     context.RegisterApi<ILogItemScriptApi>(new LogItemScriptApi(() => UseDb));
                     context.RegisterApi<ITemplateLogItemScriptApi>(new TemplateLogItemScriptApi(
-                        () => UseDb,
-                        () => TemplateManager.Instance.Templates.ToArray()));
+                         () => UseDb,
+                         () => TemplateManager.Instance.Templates.ToArray()));
                     context.RegisterApi<IDiaryApi>(new DiaryApi(
-                        context.GetApi<IWorkItemQueryScriptApi>()!,
-                        context.GetApi<ILogItemScriptApi>()!,
-                        context.GetApi<ITemplateLogItemScriptApi>()!));
+                         context.GetApi<IWorkItemQueryScriptApi>()!,
+                         context.GetApi<ILogItemScriptApi>()!,
+                         context.GetApi<ITemplateLogItemScriptApi>()!));
                     context.RegisterApi<ITrackerApi>(new TrackerApi(context.GetApi<ITrackerInstanceScriptApi>()!));
-                    context.RegisterApi<ISystemInteractionApi>(new SystemInteractionApi(
-                        context.GetApi<IClipboardScriptApi>()!, context.GetApi<IUserInteractionScriptApi>()!));
+                    context.RegisterApi<SysApi>(new SystemInteractionApi(
+                       context.GetApi<IClipboardScriptApi>()!, context.GetApi<IUserInteractionScriptApi>()!));
                     return context;
                 }));
             var compatibility = new PluginCompatibilityContext(
@@ -771,6 +781,33 @@ namespace Diary.App
 
         private AppSurveyor _surveyor = new();
         private AppRespondent _respondent = new();
+
+        private static ScriptLogApi CreateScriptLogApi(
+            ScriptExecutionMetadata? metadata,
+            string? executionId)
+        {
+            var scriptId = metadata?.ScriptId ?? "worker";
+            var correlationId = metadata?.ExecutionId.ToString("N") ?? executionId ?? "unknown";
+            return new ScriptLogApi((level, message) =>
+            {
+                var formatted = $"[Script:{scriptId}][Execution:{correlationId}] {message}";
+                switch (level)
+                {
+                    case ScriptLogLevel.Debug:
+                        Logging.Logger.LogDebug("{ScriptMessage}", formatted);
+                        break;
+                    case ScriptLogLevel.Info:
+                        Logging.Logger.LogInformation("{ScriptMessage}", formatted);
+                        break;
+                    case ScriptLogLevel.Warning:
+                        Logging.Logger.LogWarning("{ScriptMessage}", formatted);
+                        break;
+                    case ScriptLogLevel.Error:
+                        Logging.Logger.LogError("{ScriptMessage}", formatted);
+                        break;
+                }
+            });
+        }
     }
 
     internal sealed class AppClipboardScriptApi(App app) : IClipboardScriptApi

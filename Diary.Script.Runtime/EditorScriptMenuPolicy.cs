@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Diary.ScriptBase;
 
 namespace Diary.Script.Runtime;
@@ -11,24 +12,22 @@ public static class EditorScriptMenuPolicy
             .ToArray();
 
     public static ScriptExecutionRequest CreateRequest(
-        string startDate,
-        string endDate,
-        ScriptTimeGranularity granularity,
-        int? workItemId = null) =>
+        ScriptEditorTarget target,
+        IReadOnlyDictionary<string, string>? arguments = null) =>
         new(
-            new ScriptTarget(
-                ScriptScope.Editor,
-                new EditorScriptContext(startDate, endDate, granularity),
-                workItemId is > 0
-                    ? new ScriptBusinessTarget(ScriptBusinessTargetKind.WorkItem, workItemId.Value.ToString())
-                    : null),
-            Source: ScriptExecutionSource.Editor);
+            target,
+            arguments is null
+                ? null
+                : arguments.ToImmutableDictionary(StringComparer.Ordinal),
+            ScriptExecutionSource.Editor);
 
-    public static string GetRangeLabel(ScriptTimeGranularity granularity) => granularity switch
+    public static string GetRangeLabel(ScriptEditorTargetKind kind) => kind switch
     {
-        ScriptTimeGranularity.Day => "当天",
-        ScriptTimeGranularity.Month => "当前月份",
-        ScriptTimeGranularity.Year => "当前年份",
-        _ => "所选范围",
+        ScriptEditorTargetKind.Day => "当天",
+        ScriptEditorTargetKind.Month => "当前月份",
+        ScriptEditorTargetKind.Quarter => "当前季度",
+        ScriptEditorTargetKind.Year => "当前年份",
+        ScriptEditorTargetKind.WorkItem => "当前事项",
+        _ => "当前目标",
     };
 }

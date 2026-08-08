@@ -84,19 +84,23 @@ public sealed class LegacyScriptProgramAdapter : IScriptProgramV1
 
     private void Execute(ScriptExecutionRequest request, IScriptApi api)
     {
-        if (_script is IApplicationScript application && request.Target.Scope == ScriptScope.Application)
+        if (_script is IApplicationScript application && request.Target is null)
         {
             application.Execute(api);
             return;
         }
 
-        if (_script is IEditorScript editor
-            && request.Target is { Scope: ScriptScope.Editor, Editor: not null } target)
+        if (_script is IEditorScript editor && request.Target is { } target)
         {
-            if (target.Editor.StartDate == target.Editor.EndDate && editor.ApplyToDay)
-                editor.ExecuteDay(target.Editor.StartDate, api);
+            var range = ScriptEditorTargetResolver.GetDateRange(target);
+            var startDate = range?.StartDate ?? target.WorkItem?.Date;
+            var endDate = range?.EndDate ?? target.WorkItem?.Date;
+            if (startDate is null || endDate is null)
+                throw new InvalidOperationException("The legacy editor script target has no date.");
+            if (startDate == endDate && editor.ApplyToDay)
+                editor.ExecuteDay(startDate, api);
             else if (editor.ApplyToRange)
-                editor.ExecuteRange(target.Editor.StartDate, target.Editor.EndDate, api);
+                editor.ExecuteRange(startDate, endDate, api);
             else
                 throw new InvalidOperationException("The legacy editor script does not support this target.");
             return;

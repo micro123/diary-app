@@ -402,21 +402,10 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     private IAsyncRelayCommand CreateEditorScriptCommand(
         string scriptId,
-        DateTime startDate,
-        DateTime endDate,
-        WorkEditorViewModel? workItem = null) =>
+        ScriptEditorTarget target) =>
         new AsyncRelayCommand(async () =>
         {
-            if (workItem is not null)
-            {
-                startDate = TimeTools.FromFormatedDate(workItem.Date);
-                endDate = startDate;
-            }
-            var request = EditorScriptMenuPolicy.CreateRequest(
-                TimeTools.FormatDateTime(startDate),
-                TimeTools.FormatDateTime(endDate),
-                GetGranularity(startDate, endDate),
-                workItem?.WorkId);
+            var request = EditorScriptMenuPolicy.CreateRequest(target);
             var outcome = await Task.Run(async () => await _scriptManager.ExecuteAsync(
                 scriptId,
                 request));
@@ -437,49 +426,69 @@ public partial class DiaryEditorViewModel : ViewModelBase
                 workItem.WorkId > 0 ? program.Descriptor.Name : $"{program.Descriptor.Name}（请先保存）",
                 CreateEditorScriptCommand(
                     program.Descriptor.Id,
-                    TimeTools.FromFormatedDate(workItem.Date),
-                    TimeTools.FromFormatedDate(workItem.Date),
-                    workItem: workItem),
+                    ScriptEditorTarget.ForWorkItem(ToScriptWorkItem(workItem))),
                 workItem.WorkId > 0))
             .ToArray();
         workItem.SetEditorScriptActions(actions);
     }
 
-    private static ScriptTimeGranularity GetGranularity(DateTime startDate, DateTime endDate)
+    private void AddEditorScriptActions(DateTime startDate, DateTime endDate)
     {
-        if (startDate.Date == endDate.Date)
-            return ScriptTimeGranularity.Day;
-        if (startDate.Day == 1 && startDate.Year == endDate.Year && startDate.Month == endDate.Month
-            && endDate.Day == DateTime.DaysInMonth(endDate.Year, endDate.Month))
-        {
-            return ScriptTimeGranularity.Month;
-        }
-        if (startDate.Month == 1 && startDate.Day == 1 && endDate.Month == 12 && endDate.Day == 31
-            && startDate.Year == endDate.Year)
-        {
-            return ScriptTimeGranularity.Year;
-        }
-        return ScriptTimeGranularity.Custom;
+        var target = GetEditorTarget(startDate, endDate);
+        if (target is null)
+            return;
+        AddEditorScriptActions(target);
     }
 
-    private void AddEditorScriptActions(DateTime startDate, DateTime endDate)
+    private void AddEditorScriptActions(ScriptEditorTarget target, string menuHeader = "脚本")
     {
         var scripts = EditorScriptMenuPolicy.GetRunnableScripts(_scriptCatalog);
         if (scripts.Count == 0)
             return;
 
-        var scriptMenu = new DayMenuItem { Header = "脚本", Enabled = true };
+        var scriptMenu = new DayMenuItem { Header = menuHeader, Enabled = true };
         foreach (var script in scripts)
         {
             scriptMenu.Children.Add(new DayMenuItem
             {
-                Header = $"对{EditorScriptMenuPolicy.GetRangeLabel(GetGranularity(startDate, endDate))}运行：{script.Descriptor.Name}",
-                Command = CreateEditorScriptCommand(script.Descriptor.Id, startDate, endDate),
+                Header = $"对{EditorScriptMenuPolicy.GetRangeLabel(target.Kind)}运行：{script.Descriptor.Name}",
+                Command = CreateEditorScriptCommand(script.Descriptor.Id, target),
                 Enabled = true,
             });
         }
         QuickMenuItems.Add(scriptMenu);
     }
+
+    private static ScriptEditorTarget? GetEditorTarget(DateTime startDate, DateTime endDate)
+    {
+        if (startDate.Date == endDate.Date)
+            return ScriptEditorTarget.ForDay(TimeTools.FormatDateTime(startDate));
+        if (startDate.Day == 1 && endDate.Year == startDate.Year && endDate.Month == startDate.Month
+            && endDate.Day == DateTime.DaysInMonth(endDate.Year, endDate.Month))
+            return ScriptEditorTarget.ForMonth(startDate.Year, startDate.Month);
+        if (startDate.Month is 1 or 4 or 7 or 10 && startDate.Day == 1
+            && endDate == startDate.AddMonths(3).AddDays(-1))
+            return ScriptEditorTarget.ForQuarter(startDate.Year, (startDate.Month - 1) / 3 + 1);
+        if (startDate.Month == 1 && startDate.Day == 1 && endDate.Month == 12 && endDate.Day == 31
+            && startDate.Year == endDate.Year)
+            return ScriptEditorTarget.ForYear(startDate.Year);
+        return null;
+    }
+
+    private static ScriptWorkItem ToScriptWorkItem(WorkEditorViewModel workItem) =>
+        new(
+            workItem.WorkId,
+            workItem.Date,
+            workItem.Comment,
+            workItem.Time,
+            (int)workItem.Priority,
+            workItem.Note,
+            [.. workItem.WorkTags.Select(tag => new ScriptWorkTag(
+                tag.Id,
+                tag.Name,
+                tag.Color,
+                (int)tag.Level,
+                tag.Disabled))]);
 
     private void FillDayMenus(DateTime date)
     {
@@ -519,6 +528,9 @@ public partial class DiaryEditorViewModel : ViewModelBase
         AddEditorScriptActions(
             new DateTime(date.Year, date.Month, 1),
             new DateTime(date.Year, date.Month, DateTime.DaysInMonth(date.Year, date.Month)));
+        AddEditorScriptActions(
+            ScriptEditorTarget.ForQuarter(date.Year, (date.Month - 1) / 3 + 1),
+            $"脚本（{date.Year} 年第{(date.Month - 1) / 3 + 1}季度）");
     }
 
     private void FillYearMenus(DateTime date)

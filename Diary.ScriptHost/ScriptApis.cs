@@ -1,3 +1,5 @@
+using Diary.ScriptBase;
+
 namespace Diary.ScriptHost;
 
 public interface IDiaryApi
@@ -25,7 +27,7 @@ public interface ITrackerApi
     TrackerScriptResult GetInstance(string pluginId, string instanceId);
 }
 
-public interface ISystemInteractionApi
+public interface SysApi
 {
     ValueTask<string?> GetClipboardTextAsync(CancellationToken cancellationToken = default);
     ValueTask<bool> SetClipboardTextAsync(string text, CancellationToken cancellationToken = default);
@@ -58,7 +60,7 @@ public sealed class TrackerApi(ITrackerInstanceScriptApi instances) : ITrackerAp
 
 public sealed class SystemInteractionApi(
     IClipboardScriptApi clipboard,
-    IUserInteractionScriptApi interaction) : ISystemInteractionApi
+    IUserInteractionScriptApi interaction) : SysApi
 {
     public ValueTask<string?> GetClipboardTextAsync(CancellationToken cancellationToken = default) => clipboard.GetTextAsync(cancellationToken);
     public ValueTask<bool> SetClipboardTextAsync(string text, CancellationToken cancellationToken = default) => clipboard.SetTextAsync(text, cancellationToken);
