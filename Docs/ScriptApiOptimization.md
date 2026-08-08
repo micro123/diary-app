@@ -58,7 +58,56 @@
 4. 脚本默认通过 Worker 执行，不能访问主程序对象。
 5. 脚本失败、超时或取消时会发生什么。
 
-### 3.2 查询工作项
+### 3.2 按功能区分程序入口
+
+当前底层只有统一的 IScriptProgramV1.ExecuteAsync(request, context) 入口，ScriptDescriptor 通过 ScriptScope 区分 Application 和 Editor，ScriptExecutionSource 再区分 Manual、Editor、Startup、Automation。
+
+这个设计便于 Worker 统一调度，但从脚本作者角度看，入口语义过于宽泛：手动应用脚本、编辑器目标脚本和自动化触发脚本的生命周期、输入数据和副作用预期并不相同。当前 ScriptExecutionContext 同时实现应用和编辑器上下文，脚本还需要自己判断当前是否存在目标。
+
+建议在 SDK 层按功能提供不同的程序入口，底层继续用统一适配器接入 Worker：
+
+| 功能 | 建议入口 | 主要输入 |
+| --- | --- | --- |
+| 应用命令脚本 | ApplicationScript | 参数、当前应用环境、手动执行来源 |
+| 编辑器脚本 | EditorScript | 年/月/日/季度/事项目标和日期范围 |
+| 自动化脚本 | AutomationScript | 触发器类型、事件数据、幂等键和取消信号 |
+| 查询/报表脚本 | QueryScript 或 ReportScript | 查询参数，只读结果或可展示报告 |
+
+C# 可以提供不同的强类型接口：
+
+~~~csharp
+public interface IApplicationScriptV1
+{
+    ScriptDescriptor Descriptor { get; }
+    ValueTask<ScriptExecutionResult> RunAsync(
+        ApplicationScriptContext context,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IEditorScriptV1
+{
+    ScriptDescriptor Descriptor { get; }
+    ValueTask<ScriptExecutionResult> RunAsync(
+        EditorScriptContext context,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAutomationScriptV1
+{
+    ScriptDescriptor Descriptor { get; }
+    ValueTask<ScriptExecutionResult> RunAsync(
+        AutomationScriptContext context,
+        CancellationToken cancellationToken = default);
+}
+~~~
+
+IScriptProgramV1 可以保留为 Worker 和运行时的底层兼容契约，由宿主将不同入口适配为统一执行请求。这样脚本作者不需要自己判断 Application/Editor，也不会把编辑器脚本误写成应用脚本。
+
+Lua/Python 也可以按入口类型约定函数名或 manifest 元数据，例如 application.run、editor.run、automation.run；具体语法可以遵循各语言习惯，但入口类型、输入字段和错误语义必须一致。
+
+自动化入口尤其不应只复用 Manual/Automation 字符串来源。它需要明确的触发器数据和幂等语义，否则脚本作者无法判断同一事件是否已经处理过。
+
+### 3.3 查询工作项
 
 当前查询接口能够覆盖常见过滤条件，但用户需要理解日期字符串格式、标签过滤枚举、分页上限和 offset 行为。
 
@@ -74,23 +123,26 @@ queryByDateRange(startDate, endDate)
 
 跨语言应保持相同语义，而不要求语法完全一致。C# 可以使用类型安全的日期范围对象，Lua/Python 继续使用字符串和表/字典。
 
-### 3.3 创建日志项
+### 3.4 创建日志项
 
-当前只支持创建，不支持修改和删除。这有利于控制副作用，但用户会遇到两个实际问题：
+当前只支持追加创建，不提供脚本删除历史记录的能力。这不是 API 缺口，而是工作记录程序的业务约束：历史记录应保持可追溯，脚本自动化不应删除或直接改写已经产生的记录。
+
+当前真正需要优化的是追加操作的安全性：
 
 - 重复执行脚本可能创建重复日志项。
 - 创建前无法预览或确认将要写入的内容。
+- 如果业务需要更正，应通过明确的修正记录或冲正记录表达，而不是删除原始记录。
 
-建议增加幂等键和预览能力，而不是直接开放无约束的更新/删除：
+建议增加幂等键和预览能力：
 
 ~~~text
 CreateLogItem(..., idempotencyKey)
 PreviewCreateLogItem(...)
 ~~~
 
-更新和删除能力应在后续通过字段白名单、用户确认和审计记录逐步开放。
+更新、删除不属于脚本自动化 API 的目标能力；后续如需处理错误记录，应设计独立的可追溯修正模型。
 
-### 3.4 使用模板和 Tracker
+### 3.5 使用模板和 Tracker
 
 当前模板和 Tracker API 都要求脚本作者提前知道一个外部 ID：
 
@@ -212,9 +264,9 @@ C# 要求脚本作者手动将 CancellationToken 传给每一个异步 API；Pyt
 context.progress.report(0.5, "正在处理工作项")
 ~~~
 
-### 4.5 写入 API 缺少幂等和预览
+### 4.5 写入 API 的幂等和预览能力
 
-脚本管理页面允许手动执行脚本，但脚本失败后用户可能重试。当前创建接口没有幂等键，重复执行可能产生重复日志项。
+脚本管理页面允许手动执行脚本，但脚本失败后用户可能重试。当前创建接口没有幂等键，重复执行可能产生重复日志项。对于工作记录程序，这比缺少删除或更新更值得优先处理。
 
 建议先增加：
 
@@ -222,7 +274,7 @@ context.progress.report(0.5, "正在处理工作项")
 - preview 或 dryRun：返回将要创建的内容，不立即写入。
 - 执行历史中记录副作用摘要。
 
-更新和删除应在这些机制完善后再开放。
+不建议为脚本自动化开放更新和删除；如果业务需要修正历史记录，应设计追加式的修正或冲正记录，并保留原始记录。
 
 ### 4.6 发现型 API 不足
 
@@ -253,7 +305,7 @@ public abstract class DiaryScript
 当前所有语言默认使用 Worker，这是合理的隔离边界。后续 API 优化仍应保持以下原则：
 
 - 脚本不能直接获取数据库连接、DI 容器、App 实例或 UI 控件。
-- 写入 API 应默认提供明确的副作用结果。
+- 写入 API 应默认提供明确的追加结果和副作用摘要。
 - Worker 不应自动重试可能产生副作用的请求。
 - 超时、取消、Worker 崩溃和宿主错误必须转换为稳定诊断码。
 - 查询结果应保持为不可变 DTO。
@@ -274,7 +326,7 @@ public abstract class DiaryScript
 - 增加 GetRequiredApi<T>()。
 - 增加日期范围快捷方法。
 - 增加模板和 Tracker 实例发现 API。
-- 增加 C# SDK 基类和最小示例。
+- 增加按 Application/Editor/Automation 入口划分的 C# SDK 基类和最小示例。
 - 为三种语言各提供一个完整的“查询并创建日志项”示例。
 
 ### P2：增强自动化能力
@@ -282,7 +334,7 @@ public abstract class DiaryScript
 - 增加幂等键和 DryRun/预览。
 - 增加统一进度报告。
 - 改善取消传播。
-- 设计安全的工作项更新能力。
+- 设计可追溯的记录修正/冲正能力（仅在业务确有需要时）。
 - 增加稳定游标分页。
 
 ## 7. 推荐实施顺序
@@ -291,7 +343,7 @@ public abstract class DiaryScript
 2. 抽象跨语言共享的宿主 API 语义和错误码。
 3. 增加模板、Tracker 实例和日期范围的发现/快捷 API。
 4. 增加 C# SDK 辅助层，减少 descriptor 和入口样板代码。
-5. 最后增加幂等、预览、进度和更安全的写入能力。
+5. 最后增加幂等、预览、进度和可追溯的记录修正/冲正能力。
 
 ## 8. 评审结论
 
