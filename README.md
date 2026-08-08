@@ -1,6 +1,6 @@
 # DiaryApp
 
-工作日记桌面应用，基于 .NET 9.0 + Avalonia UI 构建。
+工作日记桌面应用，基于 .NET 10.0 + Avalonia UI 构建。
 
 ## 配置文件加密
 
@@ -8,11 +8,11 @@
 
 ```bash
 # 解密
-openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -d \
+openssl enc -aes-256-cbc -md sha256 -pbkdf2 -iter 100000 -d \
     -in DiaryApp.config -pass pass:你的密码
 
 # 加密（如需手动生成）
-openssl enc -aes-256-cbc -pbkdf2 -iter 100000 \
+openssl enc -aes-256-cbc -md sha256 -pbkdf2 -iter 100000 \
     -in 明文.json -out DiaryApp.config -pass pass:你的密码
 ```
 
@@ -22,6 +22,7 @@ openssl enc -aes-256-cbc -pbkdf2 -iter 100000 \
 |------|------|
 | `enc` | 对称加密子命令 |
 | `-aes-256-cbc` | 算法 AES-256，CBC 模式 |
+| `-md sha256` | 指定与程序一致的 PBKDF2 摘要算法 |
 | `-pbkdf2` | 使用 PBKDF2 派生密钥 |
 | `-iter 100000` | PBKDF2 迭代次数（与程序一致） |
 | `-d` | 解密模式，不加为加密模式 |

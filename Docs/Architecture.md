@@ -12,8 +12,8 @@
 - Core：核心数据结构定义
   - Diary.Core：定义主要数据结构和程序配置，也带有一些数据工具
   - Diary.Database：数据库的接口定义，所有数据库实现都是实现此接口
-  - Diary.ScriptBase：版本化脚本契约、诊断、能力和执行模型
-  - Diary.ScriptHost：受限只读事项查询宿主
+  - Diary.ScriptBase：版本化脚本契约、诊断和执行模型
+  - Diary.ScriptHost：脚本查询、日志、Tracker 目录和系统交互宿主 API
   - Diary.Script.Runtime：脚本目录项、引擎注册、构建和执行运行时
 - Plugin：插件稳定契约和插件 UI 扩展
   - Diary.PluginBase：插件 manifest、生命周期、实例和迁移契约
@@ -28,13 +28,15 @@
   - Diary.RedMine.UI：Redmine 设置、管理页和编辑器 UI 扩展
 - Scripting：各种脚本支持的实现
   - Diary.Script.CSharp：`C#`脚本支持
-  - Diary.Script.Lua：`Lua`脚本支持（目标：受限独立 worker）
-  - Diary.Script.Python：`Python 3`脚本支持（目标：独立解释器 worker）
+  - Diary.Script.Lua：`Lua`脚本支持（受限独立 worker）
+  - Diary.Script.Python：`Python 3`脚本支持（独立解释器 worker）
+  - Diary.Script.Worker：C#/Lua Worker 适配器、协议入口和受限执行进程
 
-脚本系统的目标架构、运行时边界、权限模型、Tracker API 和分阶段实现计划见
-[`ScriptSystemDesign.md`](ScriptSystemDesign.md)。当前已经完成 C# 脚本目录扫描、Roslyn 构建、脚本管理页、
-构建/执行抽象和只读查询宿主；Lua/Python 引擎尚未接入，已在
-[`ScriptSystemDesign.md`](ScriptSystemDesign.md) 和 [`ScriptWorkerDesign.md`](ScriptWorkerDesign.md) 中确定独立 worker、语言路由和运行时诊断方案。
+脚本系统的目标架构、运行时边界、宿主 API、Tracker API 和分阶段实现计划见
+[`ScriptSystemDesign.md`](ScriptSystemDesign.md)。当前已经完成 C#、Lua 和 Python 脚本目录扫描、构建、
+脚本管理页、构建/执行抽象、独立 Worker 路由和 HostCall 宿主转发；Lua/Python 的跨平台运行时打包矩阵、
+更细粒度资源限制和更完整的 Tracker 脚本 API 仍在后续计划中，详见
+[`ScriptSystemDesign.md`](ScriptSystemDesign.md) 和 [`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)。
 
 标签与 Tracker 默认字段的关联规则设计见
 [`TagAutomationDesign.md`](TagAutomationDesign.md)。规则属于 Tracker 实例配置，

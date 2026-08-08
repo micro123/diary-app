@@ -61,7 +61,7 @@ public readonly record struct TrackerKey(
 
 ### 3.2 编辑器扩展
 
-现有 `ITrackerEditorExtension` 应逐步扩展为：
+当前 `ITrackerEditorExtension` 契约为：
 
 ```csharp
 public interface ITrackerEditorExtension
@@ -70,13 +70,12 @@ public interface ITrackerEditorExtension
     ViewModelBase View { get; }
 
     void Load(WorkItem? item, object? binding = null);
-    void Save(WorkItem item);
-    void CloneTo(ITrackerEditorExtension target);
+    bool Save(WorkItem item);
+    void CloneTo(ITrackerEditorExtension? target);
 
     bool IsLocked { get; }
     bool CanDelete { get; }
     Task<TrackerOperationResult> UploadAsync(WorkItem item);
-    void ApplyTemplateData(object data);
 }
 ```
 
@@ -212,7 +211,8 @@ end
   -> CommitTransaction
 ```
 
-注意：当前 `WorkEditorViewModel.Save()` 直接调用数据库方法，下一步应将这段流程移动到协调器。核心 ViewModel 只接收结果并刷新 `WorkId`、`IsNewItem` 和命令状态。
+当前 `WorkEditorViewModel.Save()` 已通过 `IWorkItemPersistenceCoordinator` 执行上述流程；核心 ViewModel
+只接收结果并刷新 `WorkId`、`IsNewItem` 和命令状态。
 
 ### 6.3 失败处理
 
@@ -224,7 +224,7 @@ end
 
 ## 7. 克隆设计
 
-当前按索引复制扩展，目标改为按 `TrackerKey`：
+当前按 `TrackerKey` 复制扩展：
 
 ```text
 创建新的核心工作项草稿
@@ -280,7 +280,8 @@ CanDelete = 所有已创建扩展 CanDelete == true
 
 ### 9.1 结果模型
 
-当前 `TrackerOperationResult` 只表达单次结果。编辑器需要额外的实例结果：
+扩展的 `UploadAsync()` 仍返回单次 `TrackerOperationResult`；`TrackerUploadCoordinator`
+负责按实例聚合为以下结果模型：
 
 ```csharp
 public sealed record TrackerUploadResult(
@@ -297,7 +298,7 @@ public sealed record TrackerUploadResult(
 public sealed record WorkUploadResult(
     IReadOnlyList<TrackerUploadResult> Results)
 {
-    public bool Success => Results.All(x => x.Success || x.Skipped);
+    public bool Success => Results.Count > 0 && Results.All(x => x.Success || x.Skipped);
 }
 ```
 
@@ -358,39 +359,38 @@ WorkEditor
 
 ## 11. 接口改造策略
 
-按以下顺序改动，避免一次性重写核心编辑器：
+以下顺序记录已落地的接口改造和仍需补强的验收工作：
 
 ### 第一步：身份改造
 
-- 新增 `TrackerKey`。
-- 给 `ITrackerEditorExtension` 增加 `Key`。
-- `ITrackerUiContribution` 的实例和扩展校验 `PluginId + InstanceId` 一致。
-- 将 `bindingsByTracker` 改为 `TrackerKey` key。
+- [x] 新增 `TrackerKey`。
+- [x] 给 `ITrackerEditorExtension` 增加 `Key`。
+- [x] `ITrackerUiContribution` 的实例和扩展校验 `PluginId + InstanceId` 一致。
+- [x] 将 `bindingsByTracker` 改为 `TrackerKey` key。
 
 ### 第二步：提取保存协调器
 
-- 新增 `IWorkItemPersistenceCoordinator`。
-- 将 `WorkEditorViewModel.Save()` 中核心保存、备注、标签和扩展保存移入协调器。
-- 由 provider 的 `BeginTransaction/CommitTransaction/RollbackTransaction` 控制事务。
-- 保持现有 `Save(out bool created)` 作为 ViewModel 兼容入口。
+- [x] 新增 `IWorkItemPersistenceCoordinator`。
+- [x] 将 `WorkEditorViewModel.Save()` 中核心保存、备注、标签和扩展保存移入协调器。
+- [x] 由 provider 的 `BeginTransaction/CommitTransaction/RollbackTransaction` 控制事务。
+- [x] 保持现有 `Save(out bool created)` 作为 ViewModel 兼容入口。
 
 ### 第三步：提取上传协调器
 
-- 新增 `ITrackerUploadCoordinator`。
-- 将当前 `Upload()` 的遍历逻辑移入协调器。
-- 返回结构化的按实例结果。
-- UI 先保持现有 Toast，再逐步增加按实例状态展示。
+- [x] 新增 `ITrackerUploadCoordinator`。
+- [x] 将当前 `Upload()` 的遍历逻辑移入协调器。
+- [x] 返回结构化的按实例结果。
+- [~] UI 已保留按实例结果集合，按实例状态展示和失败重试入口仍需继续补强。
 
 ### 第四步：按 key 克隆和状态聚合
 
-- 删除按索引 `CloneTo`。
-- 增加锁定原因和上传状态集合。
-- 统一刷新命令状态。
+- [x] 删除按索引 `CloneTo`，改为按 `TrackerKey` 克隆。
+- [~] 上传状态集合已接入；锁定原因和统一命令刷新仍需继续补强。
 
 ### 第五步：多实例 UI
 
-- 让每个已启用实例创建独立 `ITrackerUiContribution`。
-- Redmine manifest 已开启多实例；UI、数据库和模板当前均按 `TrackerKey` 工作，仍需继续补充多实例端到端验收。
+- [x] 让每个已启用实例创建独立 `ITrackerUiContribution`。
+- [~] Redmine manifest 已开启多实例；UI、数据库和模板当前均按 `TrackerKey` 工作，仍需继续补充多实例端到端验收。
 
 ## 12. 测试设计
 

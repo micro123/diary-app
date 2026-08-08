@@ -252,7 +252,7 @@ public interface IScriptManager
 - [已完成] 根据扩展名选择引擎，读取相邻 JSON 元数据并按加载结果处理可执行状态；旧 Enabled 字段仅作兼容读取。
 - 扫描脚本包。
 - 维护脚本 ID、显示名称、类型、状态和错误信息。
-- [已完成] 使用源码哈希、引擎版本、契约版本和权限策略管理 C# 编译缓存。
+- [已完成] 使用源码哈希、引擎版本、契约版本和安全策略版本管理 C# 编译缓存。
 - [已完成] 创建每次执行独立的上下文。
 - 编辑器菜单按脚本声明的 `SupportedEditorTargets` 过滤目标；旧脚本未声明时兼容为全部目标。
 - 统一处理取消、超时、异常和执行结果。
@@ -342,7 +342,7 @@ Python 等外部进程引擎应使用独立进程，以便在超时或崩溃时�
 ## 10. 宿主边界和日志
 
 V1 不把脚本 capability 当作用户授权门禁。宿主只注册已经实现的 API，未注册的 API
-返回 `null`；独立 Worker 通过握手声明实际支持的 HostCall，宿主仍会校验方法、参数、
+返回结构化的不支持错误；独立 Worker 通过握手声明实际支持的 HostCall，宿主仍会校验方法、参数、
 目标、执行 ID 和消息大小。
 
 已实现的边界 API 包括 `IDiaryApi`、`ITrackerApi`、`SysApi` 和 `ILogApi`。网络、文件系统、
@@ -370,8 +370,8 @@ IScriptExecutionContext
 这样可以：
 
 - 降低单个接口的增长速度。
-- 便于为脚本提供测试替身。
-- 让脚本文档可以按能力生成。
+  - 便于为脚本提供测试替身。
+  - 让脚本文档可以按领域和实际 HostCall 生成。
 
 ### 11.1 Tracker API
 
@@ -406,7 +406,7 @@ public interface ITrackerScriptApi
 引擎版本
 源码哈希
 ScriptBase API 版本
-权限策略
+安全策略版本
 ```
 
 缓存失效条件包括：
@@ -414,12 +414,12 @@ ScriptBase API 版本
 - 源码发生变化。
 - 引擎版本发生变化。
 - 脚本契约版本发生变化。
-- 权限策略发生变化。
+- 安全策略版本发生变化。
 - 脚本元数据发生变化。
 
 缓存文件应通过临时文件写入后原子替换，避免程序异常留下损坏缓存。
 
-脚本缓存不是信任边界。加载缓存前仍必须校验脚本 ID、引擎版本和权限策略。
+脚本缓存不是信任边界。加载缓存前仍必须校验脚本 ID、引擎版本和安全策略版本。
 
 ## 13. 错误和诊断
 
@@ -495,13 +495,14 @@ ScriptCatalog（保存 EngineName 和 Descriptor）
 
 #### 14.4.1 共同范围
 
-第一版 Lua/Python 只支持 `ScriptApiVersion.V1`、应用脚本和编辑器脚本，默认能力为
-`None`；获得授权后只开放 `ReadDiary`。第一版不提供模板写入、工作项写入、Tracker
-远程写入、网络、文件系统、剪贴板、UI、进程创建或动态加载能力，也不自动安装第三方依赖。
+当前 Lua/Python 均支持 `ScriptApiVersion.V1`、应用脚本和编辑器脚本。脚本 metadata 中的
+capability 字段已移除并兼容忽略；Worker 通过 `supportedHostApis` 声明实际支持的方法。
+当前开放工作项查询、受控日志项/模板日志项创建、Tracker 只读实例目录、剪贴板、用户交互和
+`log.write`，不提供工作项更新、Tracker 远程写入、网络、文件系统或进程创建，也不自动安装第三方依赖。
 
-脚本相邻 metadata 或脚本包中的 `manifest.json` 是 ID、名称、Engine、Scope 和 capability
-的权威来源。引擎构建请求需要携带已解析的 descriptor hint，构建结果中的 Descriptor 必须与
-metadata 一致，不能由脚本源码静默提升权限或改变脚本身份。
+脚本相邻 metadata 或脚本包中的 `manifest.json` 是 ID、名称、Engine、Scope 和目标类型的权威来源。
+引擎构建请求需要携带已解析的 descriptor hint，构建结果中的 Descriptor 必须与 metadata 一致，
+不能由脚本源码静默改变脚本身份或执行范围；历史 capability 字段不参与权限判断。
 
 `ScriptCatalog` 和执行路由必须保存稳定的 `EngineName`，不能在执行时再次根据文件扩展名猜测
 worker。C#、Lua、Python 使用相互独立的 supervisor；某一种语言 worker 故障、重启或运行时缺失

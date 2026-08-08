@@ -440,10 +440,10 @@ public interface ITrackerInstance
 
 ## 10. 工作项编辑器扩展
 
-当前 `WorkEditorViewModel` 只有一个 `_tracker`，需要改为多个扩展：
+当前 `WorkEditorViewModel` 已使用按实例创建的扩展集合：
 
 ```csharp
-private IReadOnlyList<ITrackerEditorExtension> _trackerExtensions;
+public ObservableCollection<ITrackerEditorExtension> Extensions { get; }
 ```
 
 建议接口：
@@ -451,12 +451,13 @@ private IReadOnlyList<ITrackerEditorExtension> _trackerExtensions;
 ```csharp
 public interface ITrackerEditorExtension
 {
+    TrackerKey Key { get; }
     string InstanceId { get; }
     ViewModelBase View { get; }
 
-    void Load(WorkItem item, object? binding);
-    void Save(WorkItem item);
-    void CloneTo(ITrackerEditorExtension target);
+    void Load(WorkItem? item, object? binding = null);
+    bool Save(WorkItem item);
+    void CloneTo(ITrackerEditorExtension? target);
 
     bool IsLocked { get; }
     bool CanDelete { get; }
@@ -593,7 +594,9 @@ TemplateEditor
 
 ## 12. 配置系统
 
-当前 Redmine 配置直接挂在 `AllConfig.RedMineSettings` 上，后续应改成插件贡献配置。
+当前 Redmine 配置由 `ITrackerConfigurationProvider` 提供，宿主保存到
+`App.PluginConfigurations` 并通过 `PluginConfigurationLoader` 处理加载、加密和 schema 迁移；
+不再由核心设置模型直接承载 `AllConfig.RedMineSettings`。
 
 插件通过 `Diary.PluginUI` 提供配置页面：
 

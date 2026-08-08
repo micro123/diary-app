@@ -188,19 +188,19 @@ public sealed class RedMineTagRuleAction
 
 ```csharp
 public sealed record TagAutomationContext(
-    bool UserInitiated,
-    bool OnlyApplyUnsetFields,
     TagAddSource Source,
-    int Sequence,
-    IReadOnlyCollection<int> AddedTagIds,
-    IReadOnlyCollection<int> RemovedTagIds);
+    int Sequence);
+
+public sealed record TagAutomationInstanceResult(
+    TrackerKey TrackerKey,
+    bool Succeeded,
+    IReadOnlyCollection<string> ChangedFields,
+    IReadOnlyCollection<TrackerTagDefaultConflict> Conflicts,
+    IReadOnlyCollection<TrackerTagDefaultInvalidTarget> InvalidTargets,
+    string? Error = null);
 
 public sealed record TagAutomationResult(
-    TrackerKey Key,
-    bool Applied,
-    IReadOnlyCollection<string> ChangedFields,
-    IReadOnlyCollection<string> Conflicts,
-    string? Error = null);
+    IReadOnlyCollection<TagAutomationInstanceResult> Instances);
 ```
 
 当前已实现的 Tracker 能力接口更小，只负责向当前实例编辑器应用默认值：
@@ -208,11 +208,12 @@ public sealed record TagAutomationResult(
 ```csharp
 public interface ITrackerTagDefaults
 {
-    IReadOnlyCollection<string> ApplyTagDefaults(WorkTag tag);
+    TrackerTagDefaultsResult ApplyTagDefaults(WorkTag tag);
 }
 ```
 
-当前协调器遍历编辑器扩展并调用这个可选能力，按实例聚合字段名称和异常；结果尚未展示为用户可见诊断。
+当前协调器遍历编辑器扩展并调用这个可选能力，按实例聚合已修改字段、冲突、无效目标和异常；
+结果保存在 `WorkEditorViewModel.LastTagAutomationResult`，当前没有单独的用户可见诊断面板。
 
 长期建议的 Tracker Provider 接口：
 

@@ -6,10 +6,10 @@
 取消和超时语义。本文适用于 C#、Lua 和 Python worker；语言实现不应把自己的对象模型
 暴露给 `Diary.App` 或 `Diary.Core`。
 
-本文同时记录目标设计和当前实现。当前已实现协议握手、版本/能力协商、UTF-8 JSON 行编解码、
+本文同时记录目标设计和当前实现。当前已实现协议握手、版本和 HostCall 协商、UTF-8 JSON 行编解码、
 可注入传输层、本机进程 transport、C#/Lua/Python Worker 执行链路、按 EngineName 隔离的 supervisor、
 双向宿主 API 转发、通道终止结构化失败以及执行消息和宿主调用次数限制。
-操作系统级强内存限制按平台能力处理，多语言 worker 仍在后续阶段。Worker 协议 stdout 已与脚本标准输出隔离，并限制脚本输出大小。现有脚本 V1 类型和执行结果见
+操作系统级强内存限制按平台能力处理，跨平台运行时和打包矩阵仍需持续验证。Worker 协议 stdout 已与脚本标准输出隔离，并限制脚本输出大小。现有脚本 V1 类型和执行结果见
 [`ScriptSystemDesign.md`](ScriptSystemDesign.md) 及 `Diary.ScriptBase`。
 
 ## 2. 设计结论
@@ -21,7 +21,7 @@
 - 协议支持双向消息。主程序等待脚本结果期间，worker 可以发送宿主 API 请求。
 - 超时首先发送取消消息；宽限期结束后由 supervisor 终止 worker 进程。
 - worker 崩溃只影响该 worker 中的请求，不应影响主程序；未完成请求统一标记为 worker 崩溃。
-- 所有远程写入操作必须使用幂等键和显式确认，第一版只开放只读宿主 API。
+- 远程 Tracker 写入仍要求幂等键和显式确认；当前 Worker 已开放工作项查询、受控日志项/模板日志项创建、Tracker 只读实例目录、剪贴板、用户交互和日志 HostCall，但不提供工作项更新、Tracker 远程写入、网络、文件系统或进程创建。
 
 ## 3. 目标和非目标
 
@@ -240,13 +240,24 @@ worker 启动后必须先发送 `hello`：
   "executionId": "exec-01J...",
   "payload": {
     "scriptId": "daily-summary",
-    "sourcePath": "scripts/application/daily-summary.py",
-    "target": null,
-    "arguments": {
-      "date": "2026-08-06"
-    },
-    "grantedCapabilities": ["workItems.query", "log.write"],
-    "deadline": "2026-08-06T08:00:30Z"
+    "payload": {
+      "scriptId": "daily-summary",
+      "sourcePath": "scripts/application/daily-summary.py",
+      "source": "def main(context):\\n    return None",
+      "request": {
+        "target": null,
+        "arguments": {
+          "date": "2026-08-06"
+        },
+        "source": "Manual"
+      },
+      "descriptorHint": {
+        "id": "daily-summary",
+        "name": "日报汇总",
+        "scope": "Application",
+        "engineName": "python"
+      }
+    }
   }
 }
 ```
@@ -323,7 +334,7 @@ worker 执行脚本时可以发送 `host.call`：
 - `executionId` 是否仍然有效。
 - 脚本是否仍在运行。
 - `method` 是否在协商后的 API 白名单中。
-- 当前执行是否拥有所需 capability。
+- `method` 是否仍由当前宿主 dispatcher 实现并在握手结果中可用。
 - 参数大小、数量、日期范围和分页上限。
 - 结果是否需要脱敏。
 
@@ -444,10 +455,8 @@ worker 在执行脚本期间仍必须响应协议层的 `cancel` 和宿主响应
 
 ## 14. 能力和数据安全
 
-脚本元数据中的 capability 是请求能力，不是授权结果。真正传给 worker 的
-`grantedCapabilities` 必须由主程序根据用户授权、脚本 ID、目标和当前操作计算。
-
-worker 只能看到当前 execution 的授权集合。主程序不应把完整配置传给 worker，而应：
+当前实现不读取脚本 metadata 中的 capability，也不生成 `grantedCapabilities`；Worker 只通过
+握手声明自身支持的 HostCall，宿主再与允许的方法求交集。主程序不应把完整配置传给 worker，而应：
 
 - 通过宿主 API 返回脱敏后的配置 DTO。
 - 对 Tracker 使用 `PluginId + InstanceId` 定位实例。
@@ -465,7 +474,7 @@ worker 可拥有独立的临时目录，但该目录不等于宿主文件系统�
 - worker 协议主版本。
 - `ScriptApiVersion`。
 - 支持的宿主 API 方法。
-- 支持的 capability 名称。
+- 当前协商后的 HostCall 方法。
 
 新增字段必须可选，未知字段默认忽略。新增消息类型不能要求旧版本理解；如果旧版本
 收到无法忽略的消息，应返回 `WORKER_PROTOCOL_UNSUPPORTED` 并断开连接。
@@ -541,7 +550,7 @@ supervisor 应支持以下限制，并在 worker 启动或执行前配置：
 - `ScriptCatalog` 保存稳定的 `EngineName`，`WorkerScriptExecutor` 按 EngineName 选择独立 supervisor，不根据扩展名临时猜测。
 - C#、Lua、Python worker 使用独立进程和独立故障状态；一个 worker 终止不得影响其他语言。
 - `WorkerHelloPayload` 的语言值固定为 `csharp`、`lua` 或 `python`，运行时版本和 worker 版本作为可选诊断字段传递。
-- 统一使用 `grantedCapabilities`、目标校验和 `executionId` 校验 HostCall；只允许当前执行已协商的宿主 API。
+- 统一使用目标校验和 `executionId` 校验 HostCall；只允许当前 Worker 握手已协商的宿主 API。
 
 ## 19. 测试和验收
 

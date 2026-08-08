@@ -30,6 +30,10 @@ package "稳定契约" {
   [Diary.Script.Runtime] as ScriptRuntime
 }
 
+package "脚本 Worker" {
+  [Diary.Script.Worker] as ScriptWorker
+}
+
 package "Redmine 可选组件" {
   [Diary.RedMine] as RedMine
   [Diary.RedMine.UI] as RedMineUI
@@ -45,8 +49,10 @@ App --> CoreUI : 创建主窗口
 Host --> PluginBase : manifest / 生命周期
 Host --> PluginUI : 注册 UI 贡献
 App --> ScriptBase : 兼容脚本契约
-ScriptRuntime --> ScriptBase : 契约与执行模型
-ScriptHost --> ScriptBase : 只读宿主 API
+  ScriptRuntime --> ScriptBase : 契约与执行模型
+  ScriptHost --> ScriptBase : 只读宿主 API
+  ScriptRuntime --> ScriptWorker : 按 EngineName 启动 Worker
+  ScriptWorker --> ScriptHost : HostCall
 ScriptHost --> Core
 ScriptHost --> Database
 CoreUI --> Core : 工作项、模板、统计
@@ -76,9 +82,12 @@ RedMine --> Api
 | `Diary.Database` | 核心数据库抽象、provider 原语、扩展工厂加载 | 通过 `GetExtension<T>(instanceId)` 延迟取得可选扩展 |
 | `Diary.PluginBase` | manifest、兼容性检查、插件入口、实例注册、迁移调度 | 不依赖 Avalonia 和具体 UI |
 | `Diary.PluginUI` | tracker 配置页、管理页和编辑器扩展契约 | 由宿主把插件 UI 挂载到核心 UI |
-| `Diary.ScriptBase` | 脚本版本化契约、描述符、诊断、执行请求和能力模型 | 不依赖核心数据库、DI 或 UI |
-| `Diary.ScriptHost` | 受限脚本宿主 API，当前提供只读事项查询 | 只暴露不可变 DTO 和结构化错误 |
+| `Diary.Db.SQLite` | SQLite 核心数据库 provider | 提供核心 schema、查询和事务实现，并加载 SQLite Redmine 扩展 |
+| `Diary.Db.PostgreSQL` | PostgreSQL 核心数据库 provider | 提供核心 schema、查询和事务实现，并加载 PostgreSQL Redmine 扩展 |
+| `Diary.ScriptBase` | 脚本版本化契约、描述符、诊断和执行请求 | 不依赖核心数据库、DI 或 UI |
+| `Diary.ScriptHost` | 工作项查询、日志项/模板日志项、Tracker 只读目录及系统交互的宿主契约 | 数据访问和副作用均由宿主 API 控制，返回 DTO 或结构化错误 |
 | `Diary.Script.Runtime` | 引擎注册、构建服务、目录加载、执行器和脚本管理器 | 已接入 App DI；应用启动时通过共享加载状态在后台预加载 application/editor 脚本，脚本管理页复用结果 |
+| `Diary.Script.Worker` | C#、Lua Worker 进程入口、协议适配和受限执行上下文 | 只通过 stdin/stdout 协议与宿主通信；不直接访问 App、DI、数据库或 UI |
 | `Diary.RedMine` | Redmine API、模型、配置、插件迁移和插件入口 | 当前仍是 Redmine 专用插件实现 |
 | `Diary.RedMine.UI` | Redmine 设置、管理页、编辑器区域和缓存数据 | 通过工厂按实例注册 UI 贡献 |
 | `Diary.RedMine.SQLite` | SQLite Redmine 数据访问实现 | 通过 `IDbExtensionFactory` 按 provider 加载 |
@@ -296,13 +305,14 @@ Redmine 实例设置页和核心标签编辑器复用规则编辑 ViewModel，�
 
 ## 14. 脚本运行时
 
-`Diary.Script.Runtime` 当前提供 `IScriptManager`、`ScriptCatalog`、构建服务和
-`ScriptExecutor` 的最小实现。执行器为每次执行生成 ID，校验目标和超时参数，
-隔离脚本异常，并返回成功、失败、取消、超时或拒绝状态；能力检查由
-`ScriptExecutionContext` 和 `Diary.ScriptHost` 的只读 API 执行。
+`Diary.Script.Runtime` 当前提供 `IScriptManager`、`ScriptCatalog`、构建服务、进程内
+`ScriptExecutor` 和按语言路由的 `WorkerScriptExecutor`。应用启动时注册 C#、Lua、Python 三个引擎，
+并为三种语言分别配置 Worker supervisor；执行器为每次执行生成 ID，校验目标和超时参数，
+隔离脚本异常，并返回成功、失败、取消、超时或拒绝状态。
 
-当前尚未接入独立后台任务调度、Lua 或 Python 引擎。Lua/Python 的目标方案已确定为独立 worker、按
-`EngineName` 路由、共享只读 HostCall 协议和结构化运行时降级诊断；执行历史目前为内存数据，脚本包和强隔离仍需继续扩展。
+Worker 握手通过 `supportedHostApis` 协商实际可用的 HostCall，宿主 dispatcher 还会校验方法、参数、
+执行 ID 和消息大小；脚本 metadata 中的 capability 字段不再作为权限门禁。执行历史目前只保存在内存，
+脚本包管理、跨平台运行时打包和更强的操作系统级资源限制仍需继续扩展。
 
 ## 15. 维护约定
 
