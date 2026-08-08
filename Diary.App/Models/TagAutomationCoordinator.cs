@@ -10,6 +10,7 @@ public enum TagAddSource
     User,
     Template,
     Batch,
+    Duplicate,
 }
 
 public sealed record TagAutomationContext(

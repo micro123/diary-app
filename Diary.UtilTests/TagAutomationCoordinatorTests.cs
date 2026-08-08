@@ -48,6 +48,17 @@ public sealed class TagAutomationCoordinatorTests
     }
 
     [TestMethod]
+    public void WorkEditor_AllowsUploadingUnsavedWorkWhenTrackerIsOpen()
+    {
+        var editor = CreateEditor(new RecordingAutomation());
+
+        Assert.IsFalse(editor.CanUpload());
+        editor.Extensions.Add(new PlainExtension());
+
+        Assert.IsTrue(editor.CanUpload());
+    }
+
+    [TestMethod]
     public void AddTags_TemplateSourcePreservesAddedTagOrder()
     {
         var automation = new RecordingAutomation();
@@ -64,6 +75,27 @@ public sealed class TagAutomationCoordinatorTests
         CollectionAssert.AreEqual(new[] { 3, 4, 5 }, automation.Tags.ToArray());
         CollectionAssert.AreEqual(new[] { 0, 1, 2 }, automation.Sequences.ToArray());
         Assert.IsTrue(automation.Sources.All(source => source == TagAddSource.Template));
+    }
+
+    [TestMethod]
+    public void Clone_ReappliesTagAutomationForCopiedTags()
+    {
+        var automation = new RecordingAutomation();
+        var editor = CreateEditor(automation);
+        editor.AddTags([
+            new WorkTag { Id = 6, Name = "development" },
+            new WorkTag { Id = 7, Name = "urgent" },
+        ], TagAddSource.User);
+        automation.Tags.Clear();
+        automation.Sequences.Clear();
+        automation.Sources.Clear();
+
+        var clone = editor.Clone();
+
+        CollectionAssert.AreEqual(new[] { 6, 7 }, clone.WorkTags.Select(tag => tag.Id).ToArray());
+        CollectionAssert.AreEqual(new[] { 6, 7 }, automation.Tags.ToArray());
+        CollectionAssert.AreEqual(new[] { 0, 1 }, automation.Sequences.ToArray());
+        Assert.IsTrue(automation.Sources.All(source => source == TagAddSource.Duplicate));
     }
 
     [TestMethod]

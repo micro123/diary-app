@@ -22,6 +22,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     private readonly IWorkItemPersistenceCoordinator _persistence;
     private readonly ITrackerUploadCoordinator _uploadCoordinator;
     private readonly ITagAutomationCoordinator _tagAutomation;
+    private readonly TrackerUiContributionRegistry _trackerRegistry;
 
     // db data fields
     private WorkItem? WorkItem { get; set; } // ref to existed db item, may null
@@ -83,6 +84,8 @@ public partial class WorkEditorViewModel : ViewModelBase
             ?? App.Instance.Services.GetRequiredService<ITrackerUploadCoordinator>();
         _tagAutomation = tagAutomation
             ?? App.Instance.Services.GetRequiredService<ITagAutomationCoordinator>();
+        _trackerRegistry = trackerRegistry ?? App.Instance.Services
+            .GetRequiredService<TrackerUiContributionRegistry>();
         Date = TimeTools.Today();
         Comment = defaultTaskTitle ?? App.Instance.AppConfig.WorkSettings.DefaultTaskTitle;
         Note = string.Empty;
@@ -90,8 +93,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         Priority = WorkPriorities.P0;
 
         // 解析全部已注册 tracker，为每个创建一个编辑器扩展。
-        var trackers = (trackerRegistry ?? App.Instance.Services
-            .GetRequiredService<TrackerUiContributionRegistry>()).Contributions;
+        var trackers = _trackerRegistry.Contributions;
         foreach (var t in trackers)
         {
             try
@@ -258,7 +260,13 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     public WorkEditorViewModel Clone()
     {
-        var result = new WorkEditorViewModel(_shareData)
+        var result = new WorkEditorViewModel(
+            _shareData,
+            _persistence,
+            _uploadCoordinator,
+            _trackerRegistry,
+            Comment,
+            _tagAutomation)
         {
             WorkItem = null,
             Date = Date,
@@ -267,16 +275,13 @@ public partial class WorkEditorViewModel : ViewModelBase
             Time = 0.0,
             Priority = Priority,
         };
-        foreach (var tag in WorkTags)
-        {
-            result.WorkTags.Add(tag);
-        }
         var targetExtensions = result.Extensions.ToDictionary(extension => extension.Key);
         foreach (var extension in Extensions)
         {
             if (targetExtensions.TryGetValue(extension.Key, out var target))
                 extension.CloneTo(target);
         }
+        result.AddTags(WorkTags, TagAddSource.Duplicate);
 
         return result;
     }
@@ -287,7 +292,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     }
 
     public bool CanUpload()
-        => WorkItem is { Id: > 0 } && Extensions.Any(extension => !extension.IsLocked);
+        => Extensions.Any(extension => !extension.IsLocked);
 
     [RelayCommand]
     private void AddTag(WorkTag tag)
