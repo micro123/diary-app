@@ -292,6 +292,14 @@ public interface IScriptProgramV1
         CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Marks a script program that can execute inside the host process.
+/// Programs without this marker must use their configured Worker runtime.
+/// </summary>
+public interface IInProcessScriptProgram : IScriptProgramV1
+{
+}
+
 public interface IScriptEngineV1
 {
     string Name { get; }

@@ -10,8 +10,6 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using System.Windows.Input;
-using CommunityToolkit.Mvvm.Input;
-using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.Models;
 using Diary.App.ViewModels;
 using Diary.App.Views;
@@ -33,6 +31,8 @@ using Diary.ScriptBase;
 using Diary.ScriptHost;
 using Diary.Survey;
 using Diary.Utils;
+using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -376,6 +376,8 @@ namespace Diary.App
                     });
             });
             services.AddSingleton<IScriptExecutionHistory, ScriptExecutionHistory>();
+            services.AddSingleton<IScriptExecutionModeProvider>(_ =>
+                new ScriptExecutionModeProvider(() => AppConfig.ScriptSettings.UseInProcessExecution));
             services.AddSingleton<IScriptManager, ScriptManager>();
             services.AddSingleton<IScriptDirectoryLoader, ScriptDirectoryLoader>();
             services.AddSingleton<ScriptLogStore>();
@@ -402,6 +404,8 @@ namespace Diary.App
                     context.RegisterApi<ITemplateLogItemScriptApi>(new TemplateLogItemScriptApi(
                          () => UseDb,
                          () => TemplateManager.Instance.Templates.ToArray()));
+                    context.RegisterApi<IClipboardScriptApi>(new AppClipboardScriptApi(this));
+                    context.RegisterApi<IUserInteractionScriptApi>(new AppUserInteractionScriptApi());
                     context.RegisterApi<IDiaryApi>(new DiaryApi(
                          context.GetApi<IWorkItemQueryScriptApi>()!,
                          context.GetApi<ILogItemScriptApi>()!,

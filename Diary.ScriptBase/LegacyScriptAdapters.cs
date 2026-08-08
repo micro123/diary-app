@@ -38,7 +38,7 @@ public sealed class LegacyScriptEngineAdapter(IScriptEngine engine) : IScriptEng
     }
 }
 
-public sealed class LegacyScriptProgramAdapter : IScriptProgramV1
+public sealed class LegacyScriptProgramAdapter : IInProcessScriptProgram
 {
     private readonly IScript _script;
 

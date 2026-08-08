@@ -331,6 +331,71 @@ public sealed class ScriptRuntimeTests
     }
 
     [TestMethod]
+    public async Task Manager_UsesWorkerByDefaultAndCanSwitchToInProcess()
+    {
+        var inProcessExecutions = 0;
+        var useInProcess = false;
+        var catalog = new ScriptCatalog();
+        var program = new FakeProgram(
+            "execution-mode",
+            (_, _, _) =>
+            {
+                inProcessExecutions++;
+                return ValueTask.FromResult(ScriptExecutionResult.Succeeded());
+            });
+        Assert.IsTrue(catalog.Register(program).Succeeded);
+        catalog.SetSource("execution-mode", new ScriptSourceInfo(
+            "execution-mode.fake",
+            "same source",
+            "fake"));
+        var worker = new RecordingWorkerExecutor();
+        var manager = new ScriptManager(
+            new ScriptBuildService(new ScriptEngineRegistry()),
+            catalog,
+            new ScriptExecutor(),
+            workerExecutor: worker,
+            executionModeProvider: new ScriptExecutionModeProvider(() => useInProcess));
+
+        var workerOutcome = await manager.ExecuteAsync("execution-mode", ApplicationRequest, EmptyContext());
+
+        Assert.AreEqual(ScriptExecutionStatus.Succeeded, workerOutcome.Result.Status);
+        Assert.AreEqual(1, worker.Calls);
+        Assert.AreEqual(0, inProcessExecutions);
+
+        useInProcess = true;
+        var inProcessOutcome = await manager.ExecuteAsync("execution-mode", ApplicationRequest, EmptyContext());
+
+        Assert.AreEqual(ScriptExecutionStatus.Succeeded, inProcessOutcome.Result.Status);
+        Assert.AreEqual(1, worker.Calls);
+        Assert.AreEqual(1, inProcessExecutions);
+        Assert.IsNull(inProcessOutcome.WorkerId);
+    }
+
+    [TestMethod]
+    public async Task Manager_FallsBackToWorkerForProgramsWithoutInProcessSupport()
+    {
+        var catalog = new ScriptCatalog();
+        var program = new WorkerOnlyProgram("worker-only");
+        Assert.IsTrue(catalog.Register(program).Succeeded);
+        catalog.SetSource("worker-only", new ScriptSourceInfo(
+            "worker-only.py",
+            "same source",
+            "python"));
+        var worker = new RecordingWorkerExecutor();
+        var manager = new ScriptManager(
+            new ScriptBuildService(new ScriptEngineRegistry()),
+            catalog,
+            new ScriptExecutor(),
+            workerExecutor: worker,
+            executionModeProvider: new ScriptExecutionModeProvider(() => true));
+
+        var outcome = await manager.ExecuteAsync("worker-only", ApplicationRequest, EmptyContext());
+
+        Assert.AreEqual(ScriptExecutionStatus.Succeeded, outcome.Result.Status);
+        Assert.AreEqual(1, worker.Calls);
+    }
+
+    [TestMethod]
     public async Task Manager_RecordsDurationAndSanitizesHistory()
     {
         var registry = new ScriptEngineRegistry();
@@ -474,7 +539,7 @@ public sealed class ScriptRuntimeTests
         }
     }
 
-    private sealed class FakeProgram : IScriptProgramV1
+    private sealed class FakeProgram : IInProcessScriptProgram
     {
         private readonly Func<ScriptExecutionRequest, IScriptExecutionContext, CancellationToken,
             ValueTask<ScriptExecutionResult>> _execute;
@@ -500,5 +565,39 @@ public sealed class ScriptRuntimeTests
             IScriptExecutionContext context,
             CancellationToken cancellationToken = default) =>
             _execute(request, context, cancellationToken);
+    }
+
+    private sealed class WorkerOnlyProgram(string id) : IScriptProgramV1
+    {
+        public ScriptDescriptor Descriptor { get; } = new(
+            id,
+            id,
+            ScriptApiVersion.V1,
+            ScriptScope.Application);
+
+        public ValueTask<ScriptExecutionResult> ExecuteAsync(
+            ScriptExecutionRequest request,
+            IScriptExecutionContext context,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(ScriptExecutionResult.Succeeded());
+    }
+
+    private sealed class RecordingWorkerExecutor : IWorkerScriptExecutor
+    {
+        public int Calls { get; private set; }
+
+        public ValueTask<ScriptExecutionOutcome> ExecuteAsync(
+            string scriptId,
+            ScriptExecutionRequest request,
+            TimeSpan? timeout = null,
+            CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            return ValueTask.FromResult(new ScriptExecutionOutcome(
+                Guid.NewGuid(),
+                ScriptExecutionResult.Succeeded(),
+                WorkerId: "test-worker",
+                WorkerRequestId: "test-request"));
+        }
     }
 }

@@ -316,6 +316,9 @@
 - [~] 目标校验已覆盖五类目标；项目、Tracker Issue 和 Tracker 实例目标待扩展。
 - [x] 保留 `ExecuteDay`/`ExecuteRange` 兼容适配，新脚本使用上下文式执行入口。
 - [x] 定义并实现最小 `IScriptManager`、`ScriptCatalog`、`ScriptBuildService` 和 `ScriptExecutor` 职责边界。
+- [x] 增加默认 Worker、可选进程内执行的统一路由；通过 `IInProcessScriptProgram` 声明能力，
+  两种通道复用同一份源码、元数据和构建结果，未支持的语言自动回退 Worker。
+- [x] 在脚本设置中增加“允许在主进程内执行脚本”开关，默认关闭，并补充 C#、Worker 回退和进程内路由测试。
 - [x] 实现脚本目录扫描、扩展名匹配、元数据读取和按加载结果管理可执行状态。
 - [x] 确保单个脚本发现或构建失败不会阻断其他脚本和核心启动。
 
@@ -389,6 +392,7 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [x] 确定 Lua/Python 按 `EngineName` 路由到独立 supervisor，并与 C# worker 隔离故障状态。
 - [x] 确定 metadata/manifest 作为 ID、Engine、Scope 和描述的权威来源，构建请求携带 descriptor hint。
 - [x] 确定 Lua/Python 复用现有受限 UTF-8 JSON 行协议传递执行请求、宿主 API 调用和结果。
+- [x] 进程内模式不改变脚本源码契约；Lua/Python 在未具备等价进程内宿主 API 或嵌入式运行时前继续使用 Worker。
 - [x] 处理 Python worker 的协议异常、标准输出隔离、取消、超时和独立进程退出。
 - [x] 实现运行时缺失、版本不支持、语法错误、worker 启动/握手失败和非零退出的稳定诊断码。
 - [~] 已增加强制终止和忽略取消脚本的超时回收；Windows/Linux/macOS 启动与 native/runtime 打包矩阵待持续验证。
