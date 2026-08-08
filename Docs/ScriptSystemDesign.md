@@ -62,6 +62,9 @@
 Worker 进程边界、消息封装、生命周期和重启语义见
 [`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)。
 
+脚本作者视角的 API 使用评审、已发现问题和优化优先级见
+[`ScriptApiOptimization.md`](ScriptApiOptimization.md)。
+
 当前尚未完成：
 
 - 更细粒度的 Tracker、网络和文件系统权限。
