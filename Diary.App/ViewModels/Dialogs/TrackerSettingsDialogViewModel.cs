@@ -19,12 +19,15 @@ public partial class TrackerSettingsDialogViewModel : ViewModelBase, IDialogCont
     private readonly ILogger _logger;
 
     public ObservableCollection<ViewModelBase> Pages { get; } = new();
+    public TrackerPluginDiagnosticsViewModel Diagnostics { get; }
 
     public TrackerSettingsDialogViewModel(
         IEnumerable<ITrackerConfigurationProvider> providers,
-        ILogger logger)
+        ILogger logger,
+        TrackerPluginDiagnosticsViewModel diagnostics)
     {
         _logger = logger;
+        Diagnostics = diagnostics;
         _pluginSettings = LoadPluginSettings(providers);
         foreach (var (configuration, provider) in _pluginSettings)
         {

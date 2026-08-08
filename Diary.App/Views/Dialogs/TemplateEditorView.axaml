@@ -60,8 +60,9 @@
                                 <u:NumericDoubleUpDown Grid.Column="1" Grid.Row="2" Value="{Binding Time}"
                                                        ShowButtonSpinner="False" />
                                 <TextBlock Grid.Column="0" Grid.Row="3" Text="标签列表：" />
-                                <Button Grid.Column="2" Grid.Row="3" Classes="Primary"
-                                        Theme="{DynamicResource BorderlessButton}">
+                                 <Button Grid.Column="2" Grid.Row="3" Classes="Primary"
+                                         Theme="{DynamicResource BorderlessButton}"
+                                         IsEnabled="{Binding #TemplatesView.((dialogs1:TemplateEditorViewModel)DataContext).HasTags}">
                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                         <i:Icon Value="" />
                                         <TextBlock Text="添加标签" />

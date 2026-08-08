@@ -29,6 +29,25 @@ public sealed class TagAutomationCoordinatorTests
     }
 
     [TestMethod]
+    public void WorkEditor_ReportsAvailableTagsAfterTagDataIsLoaded()
+    {
+        var shareData = new DbShareData(NullLogger.Instance);
+        var editor = new WorkEditorViewModel(
+            shareData,
+            new NoopPersistence(),
+            new NoopUpload(),
+            new TrackerUiContributionRegistry(),
+            "test",
+            new RecordingAutomation());
+
+        Assert.IsFalse(editor.HasAvailableTags);
+        shareData.WorkTags.Add(new WorkTag { Id = 1, Level = TagLevels.Primary });
+        editor.SyncTags();
+
+        Assert.IsTrue(editor.HasAvailableTags);
+    }
+
+    [TestMethod]
     public void AddTags_TemplateSourcePreservesAddedTagOrder()
     {
         var automation = new RecordingAutomation();

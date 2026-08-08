@@ -112,7 +112,7 @@
 
     <!-- 标题栏 -->
     <u:UrsaWindow.TitleBarContent>
-        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" Height="32" Margin="4 0" ColumnSpacing="0">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto" Height="32" Margin="4 0" ColumnSpacing="0">
             <Button Grid.Column="0" Margin="0" Padding="0" BorderThickness="0"
                     Background="Transparent">
                 <Image Source="/Assets/Icons/diary-app.ico" Width="32" Height="32" />
@@ -141,7 +141,13 @@
                     </MenuFlyout>
                 </Button.Flyout>
             </Button>
-            <Button Grid.Column="4" Classes="Success ActionButton" Command="{Binding ShowSettingsCommand}"
+            <Button Grid.Column="4" Classes="Success ActionButton" Command="{Binding ShowTrackerSettingsCommand}"
+                    Theme="{DynamicResource BorderlessButton}"
+                    ToolTip.Tip="Tracker 配置" ToolTip.ShowDelay="250" Width="32" Height="32" Padding="0" BorderThickness="0"
+                    Background="Transparent" HotKey="Alt+T">
+                <i:Icon Value="mdi-server-network-outline" />
+            </Button>
+            <Button Grid.Column="5" Classes="Success ActionButton" Command="{Binding ShowSettingsCommand}"
                     Theme="{DynamicResource BorderlessButton}"
                     ToolTip.Tip="程序设置" ToolTip.ShowDelay="250" Width="32" Height="32" Padding="0" BorderThickness="0"
                     Background="Transparent" HotKey="Alt+S">

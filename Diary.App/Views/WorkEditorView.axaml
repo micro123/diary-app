@@ -85,7 +85,8 @@
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
-        <Button DockPanel.Dock="Top" HorizontalAlignment="Left">
+        <Button DockPanel.Dock="Top" HorizontalAlignment="Left"
+                IsEnabled="{Binding HasAvailableTags}">
             <StackPanel Orientation="Horizontal" Spacing="4">
                 <i:Icon Value="mdi-tag-plus-outline" />
                 <TextBlock Text="添加标签" />

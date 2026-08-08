@@ -41,6 +41,8 @@ public partial class WorkEditorViewModel : ViewModelBase
     [ObservableProperty] private ObservableCollection<WorkTag> _workTags = new();
     [ObservableProperty] private ObservableCollection<WorkTag> _availableTags = new();
 
+    public bool HasAvailableTags => AvailableTags.Count > 0;
+
     /// <summary>是否锁住 generic 编辑字段（任一 tracker 区已上传到远程即锁定）。</summary>
     [ObservableProperty] private bool _isLocked;
 
@@ -375,6 +377,7 @@ public partial class WorkEditorViewModel : ViewModelBase
                 AvailableTags.Add(tag);
             }
         }
+        OnPropertyChanged(nameof(HasAvailableTags));
     }
 
     /// <summary>上传所有 tracker 扩展，聚合结果。任一失败即整体失败。</summary>

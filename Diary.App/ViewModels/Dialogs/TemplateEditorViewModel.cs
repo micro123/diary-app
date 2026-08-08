@@ -85,6 +85,7 @@ public partial class TemplateEditorViewModel : ViewModelBase, IDialogContext
     [ObservableProperty] private ObservableCollection<TemplateViewModel> _templates = new();
 
     public ObservableCollection<WorkTag> Tags => _dbShareData.WorkTags;
+    public bool HasTags => Tags.Count > 0;
 
     private bool CanAdd => !string.IsNullOrWhiteSpace(NewTemplateName);
 

@@ -8,7 +8,7 @@
              x:Class="Diary.App.Views.Dialogs.TrackerPluginDiagnosticsView"
              x:DataType="dialogs:TrackerPluginDiagnosticsViewModel"
              MinWidth="620" MinHeight="420" Padding="24">
-    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="16">
+    <Grid RowDefinitions="Auto,*" RowSpacing="16">
         <StackPanel Spacing="4">
             <TextBlock Text="Tracker 插件状态" FontSize="22" FontWeight="SemiBold" />
             <TextBlock Text="查看实例运行状态，管理启用、重试和卸载操作。"
@@ -63,7 +63,5 @@
             </ItemsControl>
             </ScrollViewer>
         </Grid>
-        <Button Grid.Row="2" Classes="Primary" Content="关闭"
-                Command="{Binding CloseDialogCommand}" HorizontalAlignment="Center" />
     </Grid>
 </UserControl>

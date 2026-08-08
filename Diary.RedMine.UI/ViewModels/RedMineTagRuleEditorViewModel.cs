@@ -77,9 +77,11 @@ public sealed partial class RedMineTagRuleEditorViewModel : ViewModelBase
 {
     private RedMineInstanceSettings _settings;
     private int? _tagId;
+    private IReadOnlyList<RedMineTagRuleOption> _availableTags = Array.Empty<RedMineTagRuleOption>();
 
     public ObservableCollection<RedMineTagRuleViewModel> TagRules { get; } = new();
     public string Title => _tagId is null ? "RedMine 标签自动规则" : _settings.DisplayName;
+    public bool ShowNoTagsHint => !CanAddTagRule();
 
     public RedMineTagRuleEditorViewModel(RedMineInstanceSettings settings, int? tagId = null)
     {
@@ -109,6 +111,9 @@ public sealed partial class RedMineTagRuleEditorViewModel : ViewModelBase
             .Where(tag => !tag.Disabled)
             .Select(tag => new RedMineTagRuleOption(tag.Id, tag.Name))
             .ToArray() ?? Array.Empty<RedMineTagRuleOption>();
+        _availableTags = tags;
+        OnPropertyChanged(nameof(ShowNoTagsHint));
+        AddTagRuleCommand.NotifyCanExecuteChanged();
         var activities = new List<RedMineTagRuleOption> { new(0, "不设置活动") };
         var issues = new List<RedMineTagRuleOption> { new(0, "不设置问题") };
         try
@@ -135,16 +140,17 @@ public sealed partial class RedMineTagRuleEditorViewModel : ViewModelBase
             TagRules.Add(new RedMineTagRuleViewModel(rule, tags, activities, issues));
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanAddTagRule))]
     private void AddTagRule()
     {
-        var tagId = _tagId ?? BaseApp.Instance.UseDb?.AllWorkTags()
-            .FirstOrDefault(tag => !tag.Disabled)?.Id;
+        var tagId = _tagId ?? _availableTags.FirstOrDefault()?.Id;
         if (tagId is null)
             return;
         _settings.TagRules.Add(new RedMineTagRule { TagId = tagId.Value });
         Reload();
     }
+
+    private bool CanAddTagRule() => _tagId is not null || _availableTags.Count > 0;
 
     [RelayCommand]
     private void RemoveTagRule(RedMineTagRuleViewModel rule)

@@ -1,17 +1,15 @@
 using System.Collections.ObjectModel;
 using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
 using Diary.PluginBase;
 using Diary.Utils;
-using Irihi.Avalonia.Shared.Contracts;
 
 namespace Diary.App.ViewModels.Dialogs;
 
 [DiAutoRegister]
-public partial class TrackerPluginDiagnosticsViewModel : ViewModelBase, IDialogContext
+public partial class TrackerPluginDiagnosticsViewModel : ViewModelBase
 {
     private readonly TrackerPluginDiagnosticsService _diagnostics;
 
@@ -24,14 +22,7 @@ public partial class TrackerPluginDiagnosticsViewModel : ViewModelBase, IDialogC
         Refresh();
     }
 
-    public event EventHandler<object?>? RequestClose;
-
     public bool IsEmpty => Entries.Count == 0;
-
-    public void Close() => RequestClose?.Invoke(this, null);
-
-    [RelayCommand]
-    private void CloseDialog() => Close();
 
     private void Refresh()
     {
