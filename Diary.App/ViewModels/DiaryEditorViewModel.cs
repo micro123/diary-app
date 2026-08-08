@@ -421,7 +421,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     private void ConfigureEditorScriptActions(WorkEditorViewModel workItem)
     {
-        var actions = EditorScriptMenuPolicy.GetRunnableScripts(_scriptCatalog)
+        var actions = EditorScriptMenuPolicy.GetRunnableScripts(_scriptCatalog, ScriptEditorTargetKind.WorkItem)
             .Select(program => new WorkEditorScriptMenuItem(
                 workItem.WorkId > 0 ? program.Descriptor.Name : $"{program.Descriptor.Name}（请先保存）",
                 CreateEditorScriptCommand(
@@ -442,7 +442,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     private void AddEditorScriptActions(ScriptEditorTarget target, string menuHeader = "脚本")
     {
-        var scripts = EditorScriptMenuPolicy.GetRunnableScripts(_scriptCatalog);
+        var scripts = EditorScriptMenuPolicy.GetRunnableScripts(_scriptCatalog, target.Kind);
         if (scripts.Count == 0)
             return;
 

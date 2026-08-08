@@ -42,14 +42,16 @@ public sealed record ScriptDescriptor(
     string Name,
     ScriptApiVersion ApiVersion,
     ScriptScope Scope,
-    string? Description = null);
+    string? Description = null,
+    IReadOnlyList<ScriptEditorTargetKind>? SupportedEditorTargets = null);
 
 public sealed record ScriptDescriptorHint(
     string? Id = null,
     string? Name = null,
     ScriptScope? Scope = null,
     string? Description = null,
-    string? EngineName = null);
+    string? EngineName = null,
+    IReadOnlyList<ScriptEditorTargetKind>? SupportedEditorTargets = null);
 
 public enum ScriptDiagnosticSeverity
 {

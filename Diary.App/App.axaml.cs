@@ -378,6 +378,7 @@ namespace Diary.App
             services.AddSingleton<IScriptExecutionHistory, ScriptExecutionHistory>();
             services.AddSingleton<IScriptManager, ScriptManager>();
             services.AddSingleton<IScriptDirectoryLoader, ScriptDirectoryLoader>();
+            services.AddSingleton<ScriptLogStore>();
             services.AddSingleton<ScriptStartupDiagnosticsStore>();
             services.AddSingleton<IScriptExecutionContextFactory>(_ =>
                 new ScriptExecutionContextFactory((metadata, request) =>
@@ -782,15 +783,17 @@ namespace Diary.App
         private AppSurveyor _surveyor = new();
         private AppRespondent _respondent = new();
 
-        private static ScriptLogApi CreateScriptLogApi(
+        private ScriptLogApi CreateScriptLogApi(
             ScriptExecutionMetadata? metadata,
             string? executionId)
         {
             var scriptId = metadata?.ScriptId ?? "worker";
             var correlationId = metadata?.ExecutionId.ToString("N") ?? executionId ?? "unknown";
+            var store = Services.GetRequiredService<ScriptLogStore>();
             return new ScriptLogApi((level, message) =>
             {
                 var formatted = $"[Script:{scriptId}][Execution:{correlationId}] {message}";
+                store.Append(level, formatted);
                 switch (level)
                 {
                     case ScriptLogLevel.Debug:

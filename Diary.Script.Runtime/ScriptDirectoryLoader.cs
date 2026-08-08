@@ -11,7 +11,8 @@ public sealed record ScriptFileMetadata(
     string? Name = null,
     string? Description = null,
     string? Engine = null,
-    ScriptScope? Scope = null);
+    ScriptScope? Scope = null,
+    IReadOnlyList<ScriptEditorTargetKind>? SupportedEditorTargets = null);
 
 public sealed record ScriptPackageManifest(
     string Entry,
@@ -21,7 +22,8 @@ public sealed record ScriptPackageManifest(
     string? Name = null,
     string? Description = null,
     string? Engine = null,
-    ScriptScope? Scope = null);
+    ScriptScope? Scope = null,
+    IReadOnlyList<ScriptEditorTargetKind>? SupportedEditorTargets = null);
 
 public sealed record ScriptDirectoryEntry(
     string SourcePath,
@@ -118,7 +120,8 @@ public sealed class ScriptDirectoryLoader(
                                     metadata.Name,
                                     metadata.Scope ?? scope,
                                     metadata.Description,
-                                    metadata.Engine ?? selection.Engine.StableName)),
+                                    metadata.Engine ?? selection.Engine.StableName,
+                                    metadata.SupportedEditorTargets)),
                             cancellationToken);
                     }
                     catch (IOException)
@@ -281,8 +284,9 @@ public sealed class ScriptDirectoryLoader(
                         manifest.Id,
                         manifest.Name,
                         manifest.Description,
-                         manifest.Engine,
-                        manifest.Scope)));
+                        manifest.Engine,
+                        manifest.Scope,
+                        manifest.SupportedEditorTargets)));
             }
             catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException or InvalidDataException)
             {
@@ -317,6 +321,11 @@ public sealed class ScriptDirectoryLoader(
         if (metadata.Description is not null && !string.Equals(metadata.Description, descriptor.Description, StringComparison.Ordinal))
             return false;
         if (metadata.Scope is not null && metadata.Scope.Value != descriptor.Scope)
+            return false;
+        if (descriptor.Scope == ScriptScope.Editor && metadata.SupportedEditorTargets is not null
+            && !metadata.SupportedEditorTargets.Order().SequenceEqual(
+                descriptor.SupportedEditorTargets?.Order()
+                ?? Enumerable.Empty<ScriptEditorTargetKind>()))
             return false;
         return true;
     }

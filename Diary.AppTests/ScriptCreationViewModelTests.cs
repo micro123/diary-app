@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.ViewModels.Dialogs;
+using Diary.Script.CSharp;
 using Diary.Script.Runtime;
 using Diary.ScriptBase;
 
@@ -89,5 +90,65 @@ public sealed class ScriptCreationViewModelTests
                     Directory.Delete(root, true);
             }
         }
+    }
+
+    [TestMethod]
+    public async Task CreateCommand_GeneratesEditorTargetTemplateMetadata()
+    {
+        foreach (var (template, target) in new[]
+                 {
+                     ("日目标脚本", ScriptEditorTargetKind.Day),
+                     ("月目标脚本", ScriptEditorTargetKind.Month),
+                     ("季度目标脚本", ScriptEditorTargetKind.Quarter),
+                     ("年目标脚本", ScriptEditorTargetKind.Year),
+                     ("当前事项脚本", ScriptEditorTargetKind.WorkItem),
+                 })
+        {
+            var root = Path.Combine(Path.GetTempPath(), $"diary-app-script-target-{Guid.NewGuid():N}");
+            try
+            {
+                var viewModel = new ScriptCreationViewModel(root)
+                {
+                    Name = "目标脚本",
+                    Id = $"target-{target}",
+                    SelectedScope = "编辑器脚本",
+                    SelectedTemplate = template,
+                };
+                object? createdPath = null;
+                viewModel.RequestClose += (_, value) => createdPath = value;
+
+                await Assert.IsInstanceOfType<IAsyncRelayCommand>(viewModel.CreateCommand).ExecuteAsync(null);
+
+                var sourcePath = Assert.IsInstanceOfType<string>(createdPath);
+                var source = await File.ReadAllTextAsync(sourcePath);
+                var metadata = JsonSerializer.Deserialize<ScriptFileMetadata>(
+                    await File.ReadAllTextAsync(sourcePath + ".json"));
+                Assert.IsNotNull(metadata);
+                CollectionAssert.AreEqual(new[] { target }, metadata.SupportedEditorTargets?.ToArray());
+                StringAssert.Contains(source, $"ScriptEditorTargetKind.{target}");
+                var build = await new CSharpEngine().BuildAsync(new ScriptBuildRequest(sourcePath, source));
+                Assert.IsTrue(build.Succeeded, string.Join(Environment.NewLine, build.Diagnostics.Select(item => item.Message)));
+            }
+            finally
+            {
+                if (Directory.Exists(root))
+                    Directory.Delete(root, true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void Templates_ChangeWithScope()
+    {
+        var viewModel = new ScriptCreationViewModel();
+
+        Assert.IsFalse(viewModel.Templates.Contains("日目标脚本"));
+
+        viewModel.SelectedScope = "编辑器脚本";
+        Assert.IsTrue(viewModel.Templates.Contains("日目标脚本"));
+
+        viewModel.SelectedTemplate = "日目标脚本";
+        viewModel.SelectedScope = "应用脚本";
+        Assert.AreEqual("空白脚本", viewModel.SelectedTemplate);
     }
 }

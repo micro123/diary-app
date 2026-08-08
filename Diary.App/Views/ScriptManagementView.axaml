@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
               xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                xmlns:vm="using:Diary.App.ViewModels"
+               xmlns:models="using:Diary.App.Models"
                xmlns:views="using:Diary.App.Views"
               xmlns:i="https://github.com/projektanker/icons.avalonia"
              x:Class="Diary.App.Views.ScriptManagementView"
@@ -243,6 +244,30 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
+                    </Grid>
+                </TabItem>
+                <TabItem Header="运行日志">
+                    <Grid RowDefinitions="Auto,*" RowSpacing="8" Margin="8">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                            <TextBlock Text="当前会话的脚本日志" Opacity="0.68" VerticalAlignment="Center" />
+                            <Button Content="清空日志" Command="{Binding ClearScriptLogsCommand}"
+                                    IsEnabled="{Binding HasScriptLogs}" />
+                        </StackPanel>
+                        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto">
+                            <Grid>
+                                <ItemsControl ItemsSource="{Binding ScriptLogs}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="models:ScriptLogEntry">
+                                            <TextBlock Text="{Binding DisplayText}" TextWrapping="Wrap" Margin="2"
+                                                       FontFamily="Cascadia Code,Consolas,Menlo,Monospace" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="暂无脚本运行日志" Opacity="0.68"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           IsVisible="{Binding !HasScriptLogs}" />
+                            </Grid>
+                        </ScrollViewer>
                     </Grid>
                 </TabItem>
                 <TabItem Header="API Reference">

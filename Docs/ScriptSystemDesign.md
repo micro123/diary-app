@@ -132,7 +132,8 @@ IScriptApi
 
 编辑器目标固定为 `Year`、`Quarter`、`Month`、`Day` 和 `WorkItem`。季度是自然季度，
 范围包含开始日期和结束日期；年、季度、月、日目标都可以通过 `GetDateRange()` 和
-`StreamItemsAsync()` 读取，事项目标直接提供不可变的 `ScriptWorkItem` 快照。
+`StreamItemsAsync()` 读取，事项目标直接提供不可变的 `ScriptWorkItem` 快照。编辑器脚本
+可以在 metadata 中声明 `supportedEditorTargets`；未声明时视为支持全部五类目标。
 
 ```csharp
 public sealed record ScriptEditorTarget(
@@ -253,6 +254,7 @@ public interface IScriptManager
 - 维护脚本 ID、显示名称、类型、状态和错误信息。
 - [已完成] 使用源码哈希、引擎版本、契约版本和权限策略管理 C# 编译缓存。
 - [已完成] 创建每次执行独立的上下文。
+- 编辑器菜单按脚本声明的 `SupportedEditorTargets` 过滤目标；旧脚本未声明时兼容为全部目标。
 - 统一处理取消、超时、异常和执行结果。
 
 目录加载由应用层的共享加载状态协调。应用初始化阶段立即在后台启动一次异步预加载，目录枚举、元数据读取和脚本构建不会占用 UI 线程；脚本管理页显示时复用进行中的任务或缓存结果，手动重新加载和脚本变更后的检查才会强制启动新一轮扫描。
@@ -271,7 +273,8 @@ ViewModel 不应直接调用 `IScriptEngine` 或具体脚本类型。
 
 ## 8. 脚本元数据和目录
 
-当前支持源码文件旁的元数据文件和包含 `manifest.json` 的脚本包：
+当前支持源码文件旁的元数据文件和包含 `manifest.json` 的脚本包。编辑器脚本可通过
+`supportedEditorTargets` 声明适用目标；应用脚本忽略该字段：
 
 ```text
 配置目录/scripts/
@@ -288,7 +291,8 @@ public sealed record ScriptDescriptor(
     string Name,
     ScriptApiVersion ApiVersion,
     ScriptScope Scope,
-    string? Description = null);
+    string? Description = null,
+    IReadOnlyList<ScriptEditorTargetKind>? SupportedEditorTargets = null);
 ```
 
 脚本 ID 必须稳定且唯一。不能直接使用显示名称作为 ID。
@@ -343,7 +347,9 @@ V1 不把脚本 capability 当作用户授权门禁。宿主只注册已经实�
 
 已实现的边界 API 包括 `IDiaryApi`、`ITrackerApi`、`SysApi` 和 `ILogApi`。网络、文件系统、
 数据库连接、DI 容器和 Avalonia 对象不会注入脚本。`ILogApi` 的日志通过 `log.write`
-HostCall 转发到宿主，并限制单条消息大小；诊断和日志不得包含密码、API Key 或授权令牌。
+HostCall 转发到宿主，并限制单条消息大小。宿主会把格式化后的脚本日志同时写入主程序
+logger 和脚本管理页的共享运行日志窗口；共享窗口只接收脚本日志，不显示其他程序日志，
+当前会话最多保留 2000 条。诊断和日志不得包含密码、API Key 或授权令牌。
 
 C# 脚本尤其需要限制引用和宿主对象。不能将 `App`、数据库连接、服务容器或任意程序集实例直接注入脚本。
 进程内策略只能降低误用和常见逃逸风险，不能隔离堆栈溢出、内存耗尽、运行时故障或忽略取消的代码；
@@ -579,6 +585,7 @@ Python 运行时发现只属于 `Diary.Script.Python`，不下沉到通用 trans
 - 权限不足时 API 调用被拒绝。
 - 日记读写 API 的成功和失败路径。
 - 新建脚本向导为 C#、Lua 和 Python 生成正确扩展名、入口和 metadata。
+- 新建编辑器脚本向导按日、月、季度、年和当前事项提供目标样板，并将目标兼容性写入 metadata。
 - Tracker 使用 `PluginId + InstanceId` 定位正确实例。
 - 日志和诊断不会泄露敏感配置。
 - Python worker 崩溃和退出码错误可以被宿主识别。

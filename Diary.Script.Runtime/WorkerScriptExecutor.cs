@@ -47,9 +47,10 @@ public sealed class WorkerScriptExecutor(
                     new ScriptDescriptorHint(
                         descriptor.Id,
                         descriptor.Name,
-                        descriptor.Scope,
-                        descriptor.Description,
-                        engineName)),
+                         descriptor.Scope,
+                         descriptor.Description,
+                         engineName,
+                         descriptor.SupportedEditorTargets)),
                 timeout,
                 cancellationToken);
             return new(executionId, new ScriptExecutionResult(

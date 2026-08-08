@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.ViewModels.Dialogs;
@@ -115,6 +116,7 @@ public partial class ScriptManagementViewModel(
     IScriptCatalog scriptCatalog,
     IScriptExecutionHistory executionHistory,
     ScriptStartupDiagnosticsStore startupDiagnostics,
+    ScriptLogStore scriptLogStore,
     ILogger logger,
     IServiceProvider services) : ViewModelBase
 {
@@ -125,6 +127,7 @@ public partial class ScriptManagementViewModel(
     public ObservableCollection<ScriptListItem> VisibleScripts { get; } = new();
     public ObservableCollection<ScriptHistoryListItem> History { get; } = new();
     public ObservableCollection<ScriptHistoryListItem> VisibleHistory { get; } = new();
+    public ObservableCollection<ScriptLogEntry> ScriptLogs { get; } = new();
     public ObservableCollection<ScriptDiagnosticListItem> DirectoryDiagnostics { get; } = new();
     public ObservableCollection<ScriptDiagnosticListItem> StartupDiagnostics => startupDiagnostics.Diagnostics;
     public IReadOnlyList<string> ScopeFilters { get; } = ["全部类型", "应用脚本", "编辑器脚本"];
@@ -158,8 +161,10 @@ public partial class ScriptManagementViewModel(
     public bool ShowEmptyState => !Loading && !HasScripts;
     public bool ShowNoResultsState => !Loading && HasScripts && !HasVisibleScripts;
     public bool HasSelectedDiagnostics => SelectedScript?.Diagnostics.Count > 0;
+    public bool HasScriptLogs => ScriptLogs.Count > 0;
     public bool HasDirectoryDiagnostics => DirectoryDiagnostics.Count > 0;
     public bool HasStartupDiagnostics => StartupDiagnostics.Count > 0;
+    private bool _scriptLogSubscribed;
     partial void OnLoadingChanged(bool value) => OnPropertyChanged(nameof(CanReload));
 
     partial void OnIsExecutingChanged(bool value) => OnPropertyChanged(nameof(CanReload));
@@ -185,7 +190,29 @@ public partial class ScriptManagementViewModel(
 
     public override void OnShow()
     {
+        if (!_scriptLogSubscribed)
+        {
+            _scriptLogSubscribed = true;
+            scriptLogStore.Changed += OnScriptLogsChanged;
+        }
+        RefreshScriptLogs();
         _ = LoadAsync();
+    }
+
+    private void OnScriptLogsChanged(object? sender, EventArgs e) => RefreshScriptLogs();
+
+    private void RefreshScriptLogs()
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(RefreshScriptLogs);
+            return;
+        }
+
+        ScriptLogs.Clear();
+        foreach (var entry in scriptLogStore.GetSnapshot())
+            ScriptLogs.Add(entry);
+        OnPropertyChanged(nameof(HasScriptLogs));
     }
 
     [RelayCommand]
@@ -360,6 +387,14 @@ public partial class ScriptManagementViewModel(
             return;
         if (await CopyStringToClipboardAsync(history.Log))
             NotificationManager?.Show("执行日志已复制", NotificationType.Success);
+    }
+
+    [RelayCommand]
+    private Task ClearScriptLogs()
+    {
+        scriptLogStore.Clear();
+        Status = "脚本运行日志已清空";
+        return Task.CompletedTask;
     }
 
     [RelayCommand]

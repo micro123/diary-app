@@ -20,6 +20,23 @@ public sealed class EditorScriptMenuPolicyTests
     }
 
     [TestMethod]
+    public void GetRunnableScripts_FiltersByTargetWhenDeclared()
+    {
+        var catalog = new ScriptCatalog();
+        catalog.Register(new TestProgram(new(
+            "day", "Day", ScriptApiVersion.V1, ScriptScope.Editor,
+            SupportedEditorTargets: [ScriptEditorTargetKind.Day])));
+        catalog.Register(new TestProgram(new(
+            "work", "Work", ScriptApiVersion.V1, ScriptScope.Editor,
+            SupportedEditorTargets: [ScriptEditorTargetKind.WorkItem])));
+        catalog.Register(new TestProgram(new("generic", "Generic", ScriptApiVersion.V1, ScriptScope.Editor)));
+
+        var scripts = EditorScriptMenuPolicy.GetRunnableScripts(catalog, ScriptEditorTargetKind.Day);
+
+        CollectionAssert.AreEqual(new[] { "Day", "Generic" }, scripts.Select(item => item.Descriptor.Name).ToArray());
+    }
+
+    [TestMethod]
     public void CreateRequest_UsesStructuredEditorTarget()
     {
         var item = new ScriptWorkItem(42, "2026-08-08", "item", 1, 0, null, []);

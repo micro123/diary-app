@@ -5,9 +5,14 @@ namespace Diary.Script.Runtime;
 
 public static class EditorScriptMenuPolicy
 {
-    public static IReadOnlyList<IScriptProgramV1> GetRunnableScripts(IScriptCatalog catalog) =>
+    public static IReadOnlyList<IScriptProgramV1> GetRunnableScripts(
+        IScriptCatalog catalog,
+        ScriptEditorTargetKind? targetKind = null) =>
         catalog.GetAll()
             .Where(program => program.Descriptor.Scope == ScriptScope.Editor)
+            .Where(program => targetKind is null
+                || program.Descriptor.SupportedEditorTargets is null
+                || program.Descriptor.SupportedEditorTargets.Contains(targetKind.Value))
             .OrderBy(program => program.Descriptor.Name, StringComparer.Ordinal)
             .ToArray();
 

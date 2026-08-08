@@ -14,7 +14,25 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
 {
     private const string BlankTemplate = "空白脚本";
     private const string WorkItemQueryTemplate = "查询工作项";
+    private const string DayTargetTemplate = "日目标脚本";
+    private const string MonthTargetTemplate = "月目标脚本";
+    private const string QuarterTargetTemplate = "季度目标脚本";
+    private const string YearTargetTemplate = "年目标脚本";
+    private const string WorkItemTargetTemplate = "当前事项脚本";
     private readonly string _scriptRoot;
+
+    private static readonly IReadOnlyList<string> ApplicationTemplates =
+        [BlankTemplate, WorkItemQueryTemplate];
+    private static readonly IReadOnlyList<string> EditorTemplates =
+        [
+            BlankTemplate,
+            WorkItemQueryTemplate,
+            DayTargetTemplate,
+            MonthTargetTemplate,
+            QuarterTargetTemplate,
+            YearTargetTemplate,
+            WorkItemTargetTemplate,
+        ];
 
     public ScriptCreationViewModel(string? scriptRoot = null)
     {
@@ -23,7 +41,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
 
     public IReadOnlyList<string> Scopes { get; } = ["应用脚本", "编辑器脚本"];
     public IReadOnlyList<string> Languages { get; } = ["C#", "Lua", "Python"];
-    public IReadOnlyList<string> Templates { get; } = [BlankTemplate, WorkItemQueryTemplate];
+    public IReadOnlyList<string> Templates => IsEditorScope ? EditorTemplates : ApplicationTemplates;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CreateCommand))]
@@ -39,11 +57,16 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
     [ObservableProperty] private bool _creating;
 
     public bool HasError => !string.IsNullOrWhiteSpace(Error);
+    public bool IsEditorScope => SelectedScope == "编辑器脚本";
 
     partial void OnErrorChanged(string value) => OnPropertyChanged(nameof(HasError));
 
-    partial void OnSelectedTemplateChanged(string value)
+    partial void OnSelectedScopeChanged(string value)
     {
+        OnPropertyChanged(nameof(IsEditorScope));
+        OnPropertyChanged(nameof(Templates));
+        if (!Templates.Contains(SelectedTemplate))
+            SelectedTemplate = BlankTemplate;
     }
 
     [RelayCommand]
@@ -94,7 +117,8 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
                 Name: Name,
                 Description: Description,
                 Engine: GetEngineName(),
-                Scope: scope), new JsonSerializerOptions { WriteIndented = true });
+                Scope: scope,
+                SupportedEditorTargets: GetSupportedEditorTargets()), new JsonSerializerOptions { WriteIndented = true });
             await WriteFilesAtomicallyAsync(sourcePath, source, metadataPath, metadata);
             RequestClose?.Invoke(this, sourcePath);
         }
@@ -132,6 +156,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
     private string CreateSource(ScriptScope scope) => SelectedLanguage switch
     {
         "C#" => CreateCSharpSource(scope),
+        "Lua" when IsEditorTargetTemplate => CreateLuaTargetSource(),
         "Lua" when SelectedTemplate == WorkItemQueryTemplate && scope == ScriptScope.Editor => string.Join(Environment.NewLine, [
             "function main(context)",
             "    local range = context.getDateRange()",
@@ -156,6 +181,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
             "    -- context.getDateRange() 在事项目标下返回 nil。",
             "    diary.log.debug(\"开始执行脚本\")",
             "end", ""]),
+        "Python" when IsEditorTargetTemplate => CreatePythonTargetSource(),
         "Python" when SelectedTemplate == WorkItemQueryTemplate && scope == ScriptScope.Editor => string.Join(Environment.NewLine, [
             "def main(context):",
             "    date_range = context.getDateRange()",
@@ -197,7 +223,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
             $"        \"{Escape(Id)}\",", $"        \"{Escape(Name)}\",",
             "        ScriptApiVersion.V1,", $"        ScriptScope.{scope},",
             $"        \"{Escape(Description)}\");", "",
-            $"    public {(SelectedTemplate == WorkItemQueryTemplate ? "async " : string.Empty)}ValueTask<ScriptExecutionResult> ExecuteAsync(",
+            $"    public {(SelectedTemplate == WorkItemQueryTemplate || IsEditorTargetTemplate ? "async " : string.Empty)}ValueTask<ScriptExecutionResult> ExecuteAsync(",
             "        ScriptExecutionRequest request,",
             "        IScriptExecutionContext context,",
             "        CancellationToken cancellationToken = default)", "    {",
@@ -221,6 +247,10 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
                 "        return ScriptExecutionResult.Succeeded();",
             ]);
         }
+        else if (IsEditorTargetTemplate)
+        {
+            AddCSharpEditorTargetTemplate(lines);
+        }
         else if (SelectedTemplate == WorkItemQueryTemplate)
         {
             lines.AddRange([
@@ -238,8 +268,95 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
             lines.Add("        return ValueTask.FromResult(ScriptExecutionResult.Succeeded());");
         }
         lines.AddRange(["    }", "}", ""]);
-        return string.Join(Environment.NewLine, lines);
+        var source = string.Join(Environment.NewLine, lines);
+        if (GetSupportedEditorTargets() is { } supportedTargets)
+        {
+            var descriptorEnd = $"        \"{Escape(Description)}\");";
+            var targetList = string.Join(", ", supportedTargets.Select(target => $"ScriptEditorTargetKind.{target}"));
+            source = source.Replace(
+                descriptorEnd,
+                $"        \"{Escape(Description)}\", SupportedEditorTargets: [{targetList}]);",
+                StringComparison.Ordinal);
+        }
+        return source;
     }
+
+    private bool IsEditorTargetTemplate =>
+        IsEditorScope && SelectedTemplate is not BlankTemplate and not WorkItemQueryTemplate;
+
+    private void AddCSharpEditorTargetTemplate(List<string> lines)
+    {
+        lines.AddRange([
+            "        if (context is not IScriptEditorContext editor)",
+            "            return new ScriptExecutionResult(ScriptExecutionStatus.Rejected, []);",
+        ]);
+        if (SelectedTemplate == WorkItemTargetTemplate)
+        {
+            lines.AddRange([
+                "        if (editor.WorkItem is null)",
+                "            return new ScriptExecutionResult(ScriptExecutionStatus.Rejected, []);",
+                "        _ = editor.WorkItem;",
+            ]);
+        }
+        else
+        {
+            lines.AddRange([
+                "        if (editor.GetDateRange() is null)",
+                "            return new ScriptExecutionResult(ScriptExecutionStatus.Rejected, []);",
+                "        await foreach (var item in editor.StreamItemsAsync(cancellationToken))",
+                "            _ = item;",
+            ]);
+        }
+        lines.Add("        return ScriptExecutionResult.Succeeded();");
+    }
+
+    private string CreateLuaTargetSource() => string.Join(Environment.NewLine,
+        SelectedTemplate == WorkItemTargetTemplate
+            ? [
+                "function main(context)",
+                "    if context.workItem == nil then error('需要当前事项目标') end",
+                "    print(context.workItem.comment)",
+                "end", "",
+            ]
+            : [
+                "function main(context)",
+                "    if context.getDateRange() == nil then error('需要日期目标') end",
+                "    for item in context.items.stream() do",
+                "        print(item.date .. ': ' .. item.comment)",
+                "    end",
+                "end", "",
+            ]);
+
+    private string CreatePythonTargetSource() => string.Join(Environment.NewLine,
+        SelectedTemplate == WorkItemTargetTemplate
+            ? [
+                "def main(context):",
+                "    if context.workItem is None:",
+                "        raise RuntimeError('需要当前事项目标')",
+                "    print(context.workItem['comment'])",
+                "    return None", "",
+            ]
+            : [
+                "def main(context):",
+                "    if context.getDateRange() is None:",
+                "        raise RuntimeError('需要日期目标')",
+                "    for item in context.items.stream():",
+                "        print(item['date'], item['comment'])",
+                "    return None", "",
+            ]);
+
+    private IReadOnlyList<ScriptEditorTargetKind>? GetSupportedEditorTargets() =>
+        !IsEditorScope || SelectedTemplate is BlankTemplate or WorkItemQueryTemplate
+            ? null
+            : SelectedTemplate switch
+            {
+                DayTargetTemplate => [ScriptEditorTargetKind.Day],
+                MonthTargetTemplate => [ScriptEditorTargetKind.Month],
+                QuarterTargetTemplate => [ScriptEditorTargetKind.Quarter],
+                YearTargetTemplate => [ScriptEditorTargetKind.Year],
+                WorkItemTargetTemplate => [ScriptEditorTargetKind.WorkItem],
+                _ => null,
+            };
 
 
     private static string Escape(string value) => value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", " ").Replace("\n", " ");
