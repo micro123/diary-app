@@ -387,3 +387,20 @@
 - [x] 模板增加稳定 UUID，并在模板管理页面展示只读 ID。
 - [x] 增加按模板创建日志项 API，支持日期、模板 ID、工时、可选标题和备注；Tracker 数据由标签规则处理。
 - [x] 移除模板中的旧 Tracker 核心字段，Tracker 专属数据统一存储于透明 `Extensions`。
+
+## 阶段 9.10：脚本 API 用户体验和功能入口优化
+
+完成日期：2026-08-09。设计评审：[`ScriptApiOptimization.md`](ScriptApiOptimization.md)。
+
+目标：在保持所有脚本默认通过 Worker、工作记录追加式的前提下，按功能提供清晰的 Application、Editor、Automation 入口，统一 C#、Lua、Python 的宿主 API 语义，并降低脚本作者的学习和维护成本。
+
+- [x] 定义 `ScriptEntryKind`，完成 Application、Editor、Automation 入口和预留只读 Query 入口；C# SDK 提供对应基类，Lua/Python 使用 `application_main`、`editor_main`、`automation_main`、`query_main`。
+- [x] 统一入口上下文、参数、目标快照、取消、进度、预览、幂等和领域 API 外观；C# 提供 `context.Api()` 与 `GetRequiredApi<T>()`，Lua/Python 提供 `context.diary` 领域树。
+- [x] 统一日期、标签、优先级、分页、流式查询、模板发现、Tracker 实例发现和 Worker HostCall 能力发现契约。
+- [x] 统一 `ScriptApiError`、稳定错误码和三语言错误处理示例，补充成功、失败、取消、超时和 Worker 终止的跨语言对照测试。
+- [x] 普通日志项和模板日志项支持 Preview、副作用摘要和宿主共享持久化幂等；幂等结果按 API 作用域隔离并可跨应用重启恢复。
+- [x] 明确脚本自动化不提供删除或直接改写历史记录；Tracker 远程写入、历史修正/冲正暂不纳入当前脚本 API。
+- [x] 提供 C#、Lua、Python 的“5 分钟入门”和“查询并追加日志项”完整示例，并同步更新三种语言 Reference、系统设计文档和 Worker 设计文档。
+- [x] 通过脚本构建、Worker 入口、模板、跨语言错误/取消/超时和幂等存储回归测试；当前环境使用 `dotnet run` 直接运行测试程序集，以规避 .NET 10 MTP/VSTest 配置限制。
+
+验收结果：运行时契约、语言文档、创建模板、示例和测试对同一入口/API 语义保持一致；重复执行、预览、取消、超时和 Worker 异常不会产生未声明的脚本副作用。UI 稳定 ID 复制入口属于后续非阻塞 UI 体验增强，不影响 9.10 API 契约完成。
