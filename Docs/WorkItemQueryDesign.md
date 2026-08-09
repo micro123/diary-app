@@ -6,7 +6,7 @@
 
 当前已经实现查询模型、规范化校验、SQLite/PostgreSQL provider、跨数据库契约测试、独立查询页面、统计详情复用和保存查询。
 脚本宿主已经提供受限的只读查询 API，C#、Lua 和 Python 脚本目录发现、构建、管理入口及独立 Worker
-路由已经接入；数据库 reader 级流式查询、跨平台运行时打包和更完整的 Tracker 脚本 API 仍在后续计划中。
+路由已经接入。Worker 查询采用受限分页 HostCall；数据库 reader 级流式查询已经评估，暂不纳入当前版本，跨平台运行时打包和更完整的 Tracker 脚本 API 仍在后续计划中。
 
 ## 2. 目标
 
@@ -107,7 +107,7 @@ create_date <= EndDate
 create_date ASC, id ASC
 ```
 
-规范化后的 `Limit` 应用分页，稳定排序保证同一查询条件下分页不会因为未定义行顺序而漂移。
+规范化后的 `Limit` 应用分页，稳定排序保证同一查询条件下分页不会因为未定义行顺序而漂移。脚本 `StreamAsync` 将 `Limit` 固定为不超过 500 的页面大小，逐页发起 HostCall，并在页面之间检查取消。
 
 ## 6. Provider 实现
 
@@ -183,6 +183,12 @@ WorkItemQuery
 
 ## 10. 脚本只读宿主
 
+### 10.1 Worker 流式查询取舍
+
+当前采用“数据库集合查询 + Worker 分页 HostCall + 脚本侧异步迭代”的三段式边界，而不是让数据库 reader 跨越脚本执行生命周期。这样可以把单次消息、单页 DTO 和数据库连接占用控制在明确范围内，同时保持 SQLite 与 PostgreSQL 共用同一查询语义。
+
+reader 级流式查询保留为性能驱动的后续选项：实施前必须先有跨 provider 的异步 reader 契约、chunk 传输格式、取消和连接释放测试，并用基准数据证明当前分页物化确实是瓶颈。
+
 `Diary.ScriptHost` 提供 `IDiaryApi`，将脚本 DTO 转换为核心
 `WorkItemQuery`，复用同一规范化和 provider 查询语义。工作项查询只返回事项、备注和
 标签的不可变 DTO；输入无效、数据库失败或取消时返回结构化错误。脚本查询已覆盖
@@ -191,6 +197,7 @@ WorkItemQuery
 后续计划：
 
 - 评估总数查询和真正的分页结果模型。
+- reader 级流式查询仅在分页物化被基准证明为瓶颈后重新评估。
 - 评估按 Tracker 绑定条件查询，但不能让核心模型依赖具体 Tracker 类型。
 
 ## 11. 维护约定

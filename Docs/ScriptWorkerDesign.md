@@ -9,7 +9,7 @@
 本文同时记录目标设计和当前实现。当前已实现协议握手、版本和 HostCall 协商、UTF-8 JSON 行编解码、
 可注入传输层、本机进程 transport、C#/Lua/Python Worker 执行链路、按 EngineName 隔离的 supervisor、
 双向宿主 API 转发、通道终止结构化失败以及执行消息和宿主调用次数限制。
-工作集上限按 supervisor 的资源检查周期持续监控，stderr 超限会触发 Worker 回收；操作系统级硬内存限制仍按平台能力处理，跨平台运行时和打包矩阵仍需持续验证。Worker 协议 stdout 已与脚本标准输出隔离，并限制脚本输出大小。现有脚本 V1 类型和执行结果见
+工作集上限按 supervisor 的资源检查周期持续监控，stderr 超限会触发 Worker 回收；操作系统级硬内存限制仍按平台能力处理，跨平台运行时和打包矩阵仍需持续验证。Worker 协议 stdout 已与脚本标准输出隔离，并限制脚本输出大小。工作项流当前采用受限分页 HostCall，不跨 Worker 边界持有数据库连接或 reader，详见查询设计文档。现有脚本 V1 类型和执行结果见
 [`ScriptSystemDesign.md`](ScriptSystemDesign.md) 及 `Diary.ScriptBase`。
 
 ## 2. 设计结论
@@ -391,6 +391,16 @@ RemoteFailure
 ```
 
 错误消息不得包含 API Key、Token、密码、数据库连接字符串或完整远程响应中的敏感字段。
+
+### 9.4 查询流与数据库边界
+
+`workItems.query` 每次 HostCall 返回一个有上限的 DTO 页面，脚本侧 `StreamAsync` 在页面之间继续请求，当前页面大小上限为 500。该方案具备以下稳定性特征：
+
+- 单次协议消息和单次数据库结果均有边界，避免大结果集一次性穿过进程管道。
+- 每页完成后检查取消令牌，Worker 超时或终止时不会遗留跨请求数据库 reader。
+- SQLite 和 PostgreSQL 只需实现同一个集合查询契约，并通过日期、事项 ID 稳定排序保证分页结果可预测。
+
+数据库 reader 级流式查询暂不升级为当前 Worker 协议。它虽然可能减少单页物化开销，但需要同时定义异步 provider reader、连接/事务生命周期、跨页取消、chunk 协议、失败重试和 SQLite/PostgreSQL 对等实现；更重要的是，会让脚本执行时间直接占用数据库连接。只有性能测试证明分页物化成为瓶颈时，才应在新的版本化协议中引入 reader/chunk 能力。
 
 ## 10. 取消、超时和终止
 

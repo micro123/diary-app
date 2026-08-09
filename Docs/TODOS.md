@@ -151,7 +151,7 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 目标：通过常驻 worker 隔离脚本崩溃、超时和资源问题，同时复用统一宿主 API。
 
 - [x] 已实现显式 Worker 隔离策略：C#、Lua 使用共享 worker，Python 使用每请求独立 worker；高风险脚本可在运行时注册层选择 `Dedicated`。
-- [ ] 数据库层增加 reader 级流式查询后，将分页式 Worker 流升级为数据库流/chunk 传输。
+- [x] 已评估查询流架构：当前保留分页式 Worker HostCall；reader/chunk 仅在跨 provider 异步契约和性能基准证明分页物化为瓶颈后再引入新协议。
 - [~] 已增加 C#、Lua、Python Worker 执行对照、跨平台进程终止、工作集和 stderr 超限回收测试，并完成 runtime 缺失结构化诊断；工作集/输出超限真实进程集成测试及其他平台运行时打包矩阵仍待完成。
 
 验收：脚本 worker 崩溃、协议失步、超时或被强制终止时，主程序和其他语言 worker 继续运行；
