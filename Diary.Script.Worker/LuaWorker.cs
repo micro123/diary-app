@@ -89,7 +89,9 @@ internal sealed class LuaWorker(Stream input, Stream output)
     {
         try
         {
-            await ExecuteAsync(message, cancellation.Token);
+            await Task.Run(
+                () => ExecuteAsync(message, cancellation.Token),
+                CancellationToken.None);
         }
         finally
         {
@@ -187,8 +189,8 @@ internal sealed class LuaWorker(Stream input, Stream output)
                     payload.SourcePath)]);
             }
 
-            lua.NewTable("__diary_context");
-            var context = (LuaTable)lua["__diary_context"];
+            var context = (LuaTable?)lua["__diary_context"]
+                ?? throw new InvalidOperationException("Lua 执行上下文初始化失败。");
             context["request"] = JsonToLua(JsonSerializer.SerializeToElement(payload.Request, WorkerProtocol.JsonOptions));
             context["arguments"] = JsonToLua(JsonSerializer.SerializeToElement(payload.Request.Arguments, WorkerProtocol.JsonOptions));
             entry.Call(context);

@@ -163,8 +163,8 @@ public sealed class WorkerSupervisorTests
 
         public async ValueTask<WorkerMessage<TPayload>> ReceiveAsync<TPayload>(CancellationToken cancellationToken = default)
         {
-            if (DelayExecute && _responses.Count == 0)
-                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            while (DelayExecute && _responses.Count == 0)
+                await Task.Delay(TimeSpan.FromMilliseconds(1), cancellationToken);
             if (TerminateExecute && _responses.Count == 0)
                 throw new EndOfStreamException("worker exited");
             var json = JsonSerializer.Serialize(_responses.Dequeue(), WorkerProtocol.JsonOptions);

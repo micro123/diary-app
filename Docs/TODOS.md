@@ -204,7 +204,7 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 
 - [~] 已定义 `ScriptApiError`、错误分类和基础错误码；结果类 API 和动态语言 HostCall 的稳定错误码示例已统一，跨语言错误对象契约测试仍待补齐。
 - [~] C#、Lua、Python 已具备结构化失败结果或 HostCall 异常；C# `ApiError`、Python `HostCallError.code` 和 Lua `[ERROR_CODE] message` 已补充示例，对照测试仍待补齐。
-- [~] C#、Lua、Python Worker 已支持在执行任务和等待 HostCall 时接收取消；supervisor 已增加取消宽限期，C# 上下文、Lua `context.isCancelled()` 和 Python 均提供显式取消状态查询，真实语言集成测试仍待补齐。
+- [~] C#、Lua、Python Worker 已支持在执行任务和等待 HostCall 时接收取消；supervisor 已增加取消宽限期，C# 上下文、Lua `context.isCancelled()` 和 Python 均提供显式取消状态查询，三语言取消集成测试已补充，完整错误/超时/终止对照测试仍待补齐。
 - [x] 增加 `ReportProgressAsync`、`context.progress.report(...)` 和 `script.progress` Worker HostCall，区分日志、用户通知和执行进度。
 - [x] 已为 Worker 终止、宿主调用失败、取消和超时补充 C#、Lua、Python 脚本作者可读的处理示例。
 

@@ -178,14 +178,28 @@ public sealed class WorkerSupervisor(
             _requestCount++;
             using var timeoutCancellation = timeout is null ? null : new CancellationTokenSource(timeout.Value);
             using var receiveCancellation = CancellationTokenSource.CreateLinkedTokenSource(
-                cancellationToken, timeoutCancellation?.Token ?? CancellationToken.None);
+                timeoutCancellation?.Token ?? CancellationToken.None);
+            var cancellationSignal = WaitForCancellationAsync(cancellationToken);
             WorkerMessage<WorkerExecutionResultPayload> result;
             var hostCallCount = 0;
             try
             {
                 while (true)
                 {
-                    var message = await ReceiveMessageAsync(receiveCancellation.Token);
+                    var receiveTask = ReceiveMessageAsync(receiveCancellation.Token).AsTask();
+                    if (cancellationToken.CanBeCanceled
+                        && await Task.WhenAny(receiveTask, cancellationSignal) == cancellationSignal)
+                    {
+                        await TrySendCancelAsync(executionId, "Cancelled", null, CancellationToken.None);
+                        var gracefulResult = await TryReceiveCancelledResultAsync(requestId, executionId, receiveTask);
+                        if (gracefulResult is { } completed)
+                            return MarkCancelledResult(completed);
+
+                        State = WorkerState.Failed;
+                        await StopTransportAsync(CancellationToken.None);
+                        return Result(requestId, executionId, ScriptExecutionStatus.Cancelled);
+                    }
+                    var message = await receiveTask;
                     if (message.Type == WorkerMessageType.HostCall)
                     {
                         hostCallCount++;
@@ -200,9 +214,11 @@ public sealed class WorkerSupervisor(
                             ?? throw new WorkerProtocolException(new ScriptDiagnostic(
                                 "WORKER_HOST_CALL_INVALID", "Worker 宿主调用载荷无效。", ScriptDiagnosticSeverity.Error,
                                 ScriptDiagnosticCategory.Validation));
+                        using var hostCallCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                            receiveCancellation.Token, cancellationToken);
                         var hostResult = hostCallDispatcher is null
                             ? new WorkerHostResultPayload(false, Error: new("PermissionDenied", "当前 Worker 未配置宿主 API。"))
-                            : await hostCallDispatcher.DispatchAsync(executionId, call, receiveCancellation.Token);
+                            : await hostCallDispatcher.DispatchAsync(executionId, call, hostCallCancellation.Token);
                         await _transport.SendAsync(new WorkerMessage<WorkerHostResultPayload>(
                             WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.HostResult,
                             message.RequestId, executionId, hostResult), receiveCancellation.Token);
@@ -243,13 +259,7 @@ public sealed class WorkerSupervisor(
                 await TrySendCancelAsync(executionId, "Cancelled", null, CancellationToken.None);
                 var gracefulResult = await TryReceiveCancelledResultAsync(requestId, executionId);
                 if (gracefulResult is { } completed)
-                {
-                    State = _requestCount >= MaxRequestsPerWorker ? WorkerState.Failed : WorkerState.Ready;
-                    return completed with
-                    {
-                        Payload = completed.Payload with { Status = ScriptExecutionStatus.Cancelled },
-                    };
-                }
+                    return MarkCancelledResult(completed);
 
                 State = WorkerState.Failed;
                 await StopTransportAsync(CancellationToken.None);
@@ -278,6 +288,8 @@ public sealed class WorkerSupervisor(
                 throw new WorkerProtocolException(new ScriptDiagnostic(
                     "WORKER_REQUEST_MISMATCH", "Worker 返回的 requestId 或 executionId 不匹配。",
                     ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Validation));
+            if (cancellationToken.IsCancellationRequested)
+                return MarkCancelledResult(result);
             if (_requestCount >= MaxRequestsPerWorker)
                 State = WorkerState.Failed;
             return result;
@@ -388,7 +400,8 @@ public sealed class WorkerSupervisor(
 
     private async ValueTask<WorkerMessage<WorkerExecutionResultPayload>?> TryReceiveCancelledResultAsync(
         string requestId,
-        string executionId)
+        string executionId,
+        Task<WorkerMessage<JsonElement>>? pendingReceive = null)
     {
         if (_transport is null || CancellationGracePeriod <= TimeSpan.Zero)
             return null;
@@ -396,9 +409,13 @@ public sealed class WorkerSupervisor(
         using var graceCancellation = new CancellationTokenSource(CancellationGracePeriod);
         try
         {
+            var receiveTask = pendingReceive ?? ReceiveMessageAsync(graceCancellation.Token).AsTask();
+            var graceTask = Task.Delay(Timeout.InfiniteTimeSpan, graceCancellation.Token);
             while (true)
             {
-                var message = await ReceiveMessageAsync(graceCancellation.Token);
+                if (await Task.WhenAny(receiveTask, graceTask) != receiveTask)
+                    return null;
+                var message = await receiveTask;
                 if (message.Type == WorkerMessageType.HostCall)
                 {
                     await _transport.SendAsync(new WorkerMessage<WorkerHostResultPayload>(
@@ -406,6 +423,7 @@ public sealed class WorkerSupervisor(
                         message.RequestId, executionId,
                         new(false, Error: new("Cancelled", "脚本执行已取消。"))),
                         graceCancellation.Token);
+                    receiveTask = ReceiveMessageAsync(graceCancellation.Token).AsTask();
                     continue;
                 }
 
@@ -426,6 +444,27 @@ public sealed class WorkerSupervisor(
         {
             return null;
         }
+    }
+
+    private static async Task WaitForCancellationAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private WorkerMessage<WorkerExecutionResultPayload> MarkCancelledResult(
+        WorkerMessage<WorkerExecutionResultPayload> result)
+    {
+        State = _requestCount >= MaxRequestsPerWorker ? WorkerState.Failed : WorkerState.Ready;
+        return result with
+        {
+            Payload = result.Payload with { Status = ScriptExecutionStatus.Cancelled },
+        };
     }
 
     private async ValueTask TrySendCancelAsync(

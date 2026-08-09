@@ -55,6 +55,7 @@ public sealed class ProcessWorkerTransport : IWorkerTransport, IWorkerTerminatio
     private readonly Process _process;
     private readonly Stream _input;
     private readonly Stream _output;
+    private readonly SemaphoreSlim _sendGate = new(1, 1);
     private readonly Task _stderrDrain;
     private readonly TimeSpan _shutdownGracePeriod;
 
@@ -81,8 +82,18 @@ public sealed class ProcessWorkerTransport : IWorkerTransport, IWorkerTerminatio
         process.Exited += OnProcessExited;
     }
 
-    public ValueTask SendAsync<TPayload>(WorkerMessage<TPayload> message, CancellationToken cancellationToken = default) =>
-        WorkerMessageCodec.WriteAsync(_input, message, MaxMessageBytes, cancellationToken);
+    public async ValueTask SendAsync<TPayload>(WorkerMessage<TPayload> message, CancellationToken cancellationToken = default)
+    {
+        await _sendGate.WaitAsync(cancellationToken);
+        try
+        {
+            await WorkerMessageCodec.WriteAsync(_input, message, MaxMessageBytes, cancellationToken);
+        }
+        finally
+        {
+            _sendGate.Release();
+        }
+    }
 
     public ValueTask<WorkerMessage<TPayload>> ReceiveAsync<TPayload>(CancellationToken cancellationToken = default) =>
         WorkerMessageCodec.ReadAsync<TPayload>(_output, MaxMessageBytes, cancellationToken);
@@ -119,6 +130,7 @@ public sealed class ProcessWorkerTransport : IWorkerTransport, IWorkerTerminatio
     {
         _process.Exited -= OnProcessExited;
         _process.Dispose();
+        _sendGate.Dispose();
         return ValueTask.CompletedTask;
     }
 

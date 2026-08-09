@@ -33,7 +33,7 @@ public sealed class ProcessWorkerTransportTests
             ScriptId = "demo",
             SourcePath = "demo.cs",
             Source = "public sealed class Demo : Diary.ScriptBase.IScriptProgramV1 { public Diary.ScriptBase.ScriptDescriptor Descriptor { get; } = new(\"demo\", \"Demo\", Diary.ScriptBase.ScriptApiVersion.V1, Diary.ScriptBase.ScriptScope.Application); public System.Threading.Tasks.ValueTask<Diary.ScriptBase.ScriptExecutionResult> ExecuteAsync(Diary.ScriptBase.ScriptExecutionRequest request, Diary.ScriptBase.IScriptExecutionContext context, System.Threading.CancellationToken cancellationToken = default) => System.Threading.Tasks.ValueTask.FromResult(Diary.ScriptBase.ScriptExecutionResult.Succeeded()); }",
-             Request = new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual),
+            Request = new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual),
         });
 
         Assert.AreEqual(ScriptExecutionStatus.Succeeded, result.Payload.Status,
@@ -186,6 +186,109 @@ public sealed class ProcessWorkerTransportTests
     }
 
     [TestMethod]
+    public async Task ProcessTransport_CancelledPollingScriptsReturnCancelledAcrossLanguages()
+    {
+        var workerPath = GetWorkerPath();
+        Assert.IsTrue(File.Exists(workerPath), $"Worker 文件不存在：{workerPath}");
+        var dotnetPath = GetDotnetPath();
+        if (dotnetPath is null)
+        {
+            Assert.Inconclusive("当前环境没有可用的绝对 dotnet 路径。");
+            return;
+        }
+
+        var csharpDispatcher = new ProgressDispatcher();
+        var luaDispatcher = new ProgressDispatcher();
+        var pythonDispatcher = new ProgressDispatcher();
+        var pythonRuntime = await new Diary.Script.Py.PythonRuntimeResolver().ResolveAsync();
+        if (!pythonRuntime.Succeeded || pythonRuntime.ExecutablePath is null)
+        {
+            Assert.Inconclusive("当前环境没有可用的 Python 3.10+ runtime。");
+            return;
+        }
+
+        var cases = new[]
+        {
+            (
+                Language: "csharp",
+                Supervisor: CreateDotnetSupervisor(workerPath, "csharp", dotnetPath, csharpDispatcher),
+                Dispatcher: csharpDispatcher,
+                Payload: new WorkerExecutePayload(
+                    "cancel-csharp",
+                    "cancel.cs",
+                    CSharpCancellationSource,
+                    new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual),
+                    new ScriptDescriptorHint("cancel-csharp", "Cancel C#", ScriptScope.Application, EngineName: "csharp"))),
+            (
+                Language: "lua",
+                Supervisor: CreateDotnetSupervisor(workerPath, "lua", dotnetPath, luaDispatcher),
+                Dispatcher: luaDispatcher,
+                Payload: new WorkerExecutePayload(
+                    "cancel-lua",
+                    "cancel.lua",
+                    "function application_main(context)\n    context.progress.report(0.1, 'started')\n    while not context.isCancelled() do end\nend\n",
+                    new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual),
+                    new ScriptDescriptorHint("cancel-lua", "Cancel Lua", ScriptScope.Application, EngineName: "lua"))),
+            (
+                Language: "python",
+                Supervisor: new WorkerSupervisor(
+                    new ProcessWorkerTransportFactory(new WorkerProcessOptions(
+                        pythonRuntime.ExecutablePath,
+                        Diary.Script.Py.PythonWorkerSource.CreateArguments(),
+                        AppContext.BaseDirectory,
+                        new Dictionary<string, string>
+                        {
+                            ["PYTHONIOENCODING"] = "utf-8",
+                            ["PYTHONUNBUFFERED"] = "1",
+                        })),
+                    pythonDispatcher,
+                    cancellationGracePeriod: TimeSpan.FromSeconds(2)),
+                Dispatcher: pythonDispatcher,
+                Payload: new WorkerExecutePayload(
+                    "cancel-python",
+                    "cancel.py",
+                    "def application_main(context):\n    context.progress.report(0.1, 'started')\n    while not context.isCancelled():\n        pass\n    return None\n",
+                    new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual),
+                    new ScriptDescriptorHint("cancel-python", "Cancel Python", ScriptScope.Application, EngineName: "python"))),
+        };
+
+        foreach (var testCase in cases)
+        {
+            try
+            {
+                await testCase.Supervisor.StartAsync(new(testCase.Language, [ScriptApiVersion.V1], ["script.progress"]));
+                using var cancellation = new CancellationTokenSource();
+                var execution = testCase.Supervisor.ExecuteAsync(
+                    testCase.Payload.ScriptId,
+                    $"{testCase.Language}-cancel",
+                    testCase.Payload,
+                    cancellationToken: cancellation.Token).AsTask();
+                var progressWait = testCase.Dispatcher.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                var completed = await Task.WhenAny(execution, progressWait);
+                if (completed == execution)
+                {
+                    var earlyResult = await execution;
+                    Assert.Fail($"{testCase.Language} 在取消前结束：{earlyResult.Payload.Status}；{string.Join("; ", earlyResult.Payload.Diagnostics.Select(item => $"{item.Code}: {item.Message}"))}");
+                }
+                await progressWait;
+                cancellation.Cancel();
+
+                var result = await execution.WaitAsync(TimeSpan.FromSeconds(5));
+
+                Assert.AreEqual(
+                    ScriptExecutionStatus.Cancelled,
+                    result.Payload.Status,
+                    $"{testCase.Language}: {string.Join("; ", result.Payload.Diagnostics.Select(item => $"{item.Code}: {item.Message}"))}");
+                Assert.AreEqual(WorkerState.Ready, testCase.Supervisor.State, testCase.Language);
+            }
+            finally
+            {
+                await testCase.Supervisor.StopAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+            }
+        }
+    }
+
+    [TestMethod]
     public async Task ProcessTransport_ReportsExitCodeWhenProcessTerminates()
     {
         if (!OperatingSystem.IsLinux())
@@ -254,14 +357,68 @@ public sealed class ProcessWorkerTransportTests
             new ProcessWorkerTransportFactory(new("/bin/sh", [], "tmp")).CreateAsync().AsTask());
     }
 
-    private static WorkerSupervisor CreateDotnetSupervisor(string workerPath, string language) =>
+    private static WorkerSupervisor CreateDotnetSupervisor(
+        string workerPath,
+        string language,
+        string? dotnetPath = null,
+        IWorkerHostCallDispatcher? dispatcher = null) =>
         new(new ProcessWorkerTransportFactory(new(
-            "/usr/share/dotnet/dotnet",
+            dotnetPath ?? GetDotnetPath() ?? throw new InvalidOperationException("dotnet 路径不可用。"),
             [workerPath, "--language", language],
             Path.GetDirectoryName(workerPath)!,
-            new Dictionary<string, string> { ["DOTNET_CLI_UI_LANGUAGE"] = "en-US" })));
+            new Dictionary<string, string> { ["DOTNET_CLI_UI_LANGUAGE"] = "en-US" })),
+            dispatcher,
+            cancellationGracePeriod: TimeSpan.FromSeconds(2));
+    private static string? GetDotnetPath()
+    {
+        var executableName = OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet";
+        var roots = new[]
+        {
+            Environment.GetEnvironmentVariable("DOTNET_ROOT"),
+            Environment.GetEnvironmentVariable("DOTNET_ROOT(x86)"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "dotnet"),
+            "/usr/share/dotnet",
+        };
+        return roots
+            .Where(root => !string.IsNullOrWhiteSpace(root))
+            .Select(root => Path.Combine(root!, executableName))
+            .FirstOrDefault(File.Exists);
+    }
 
     private static string GetWorkerPath() => Path.GetFullPath(Path.Combine(
         AppContext.BaseDirectory,
         "../../../../Diary.Script.Worker/bin/Debug/net10.0/Diary.Script.Worker.dll"));
+
+    private const string CSharpCancellationSource = """
+public sealed class CancelDemo : Diary.ScriptBase.IScriptProgramV1
+{
+    public Diary.ScriptBase.ScriptDescriptor Descriptor { get; } = new("cancel-csharp", "Cancel C#", Diary.ScriptBase.ScriptApiVersion.V1, Diary.ScriptBase.ScriptScope.Application);
+
+    public async System.Threading.Tasks.ValueTask<Diary.ScriptBase.ScriptExecutionResult> ExecuteAsync(
+        Diary.ScriptBase.ScriptExecutionRequest request,
+        Diary.ScriptBase.IScriptExecutionContext context,
+        System.Threading.CancellationToken cancellationToken = default)
+    {
+        await context.ReportProgressAsync(new Diary.ScriptBase.ScriptProgressUpdate(0.1, "started"));
+        while (!context.IsCancellationRequested) { }
+        return Diary.ScriptBase.ScriptExecutionResult.Succeeded();
+    }
+}
+""";
+
+    private sealed class ProgressDispatcher : IWorkerHostCallDispatcher
+    {
+        public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ValueTask<WorkerHostResultPayload> DispatchAsync(
+            string executionId,
+            WorkerHostCallPayload call,
+            CancellationToken cancellationToken = default)
+        {
+            if (call.Method == "script.progress")
+                Started.TrySetResult(true);
+            return ValueTask.FromResult(new WorkerHostResultPayload(true));
+        }
+    }
 }
