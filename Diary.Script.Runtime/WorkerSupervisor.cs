@@ -64,7 +64,8 @@ public sealed class WorkerSupervisor(
     int maxRequestsPerWorker = 1000,
     int maxResultMessageBytes = 16 * 1024 * 1024,
     long? maxWorkingSetBytes = null,
-    TimeSpan? cancellationGracePeriod = null)
+    TimeSpan? cancellationGracePeriod = null,
+    TimeSpan? resourceCheckInterval = null)
 {
     private readonly SemaphoreSlim _executionGate = new(1, 1);
     private IWorkerTransport? _transport;
@@ -97,6 +98,9 @@ public sealed class WorkerSupervisor(
     public long? MaxWorkingSetBytes { get; } = maxWorkingSetBytes is null or > 0
         ? maxWorkingSetBytes
         : throw new ArgumentOutOfRangeException(nameof(maxWorkingSetBytes));
+    public TimeSpan ResourceCheckInterval { get; } = resourceCheckInterval is null || resourceCheckInterval.Value > TimeSpan.Zero
+        ? resourceCheckInterval ?? TimeSpan.FromSeconds(1)
+        : throw new ArgumentOutOfRangeException(nameof(resourceCheckInterval));
     public TimeSpan CancellationGracePeriod { get; } = cancellationGracePeriod is null || cancellationGracePeriod.Value >= TimeSpan.Zero
         ? cancellationGracePeriod ?? TimeSpan.FromMilliseconds(500)
         : throw new ArgumentOutOfRangeException(nameof(cancellationGracePeriod));
@@ -331,6 +335,10 @@ public sealed class WorkerSupervisor(
         await StartAsync(options, cancellationToken);
     }
 
+    private TimeSpan GetMonitorInterval() => IdleTimeout == Timeout.InfiniteTimeSpan
+        ? ResourceCheckInterval
+        : IdleTimeout < ResourceCheckInterval ? IdleTimeout : ResourceCheckInterval;
+
     private TimeSpan GetRestartDelay() =>
         TimeSpan.FromMilliseconds(Math.Min(RestartBaseDelay.TotalMilliseconds * Math.Pow(2, _restartAttempts - 1), 30_000));
 
@@ -366,10 +374,17 @@ public sealed class WorkerSupervisor(
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                await Task.Delay(IdleTimeout, cancellationToken);
-                if (State == WorkerState.Ready && DateTimeOffset.UtcNow - _lastActivity >= IdleTimeout)
+                await Task.Delay(GetMonitorInterval(), cancellationToken);
+                if (State == WorkerState.Ready && IdleTimeout != Timeout.InfiniteTimeSpan
+                    && DateTimeOffset.UtcNow - _lastActivity >= IdleTimeout)
                 {
                     await StopAsync(CancellationToken.None);
+                    return;
+                }
+                if (_transport is IWorkerTerminationNotification { StderrLimitExceeded: true })
+                {
+                    State = WorkerState.Failed;
+                    await StopTransportAsync(CancellationToken.None);
                     return;
                 }
                 if (_transport is IWorkerResourceUsage usage

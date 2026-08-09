@@ -109,6 +109,45 @@ public sealed class WorkerSupervisorTests
     }
 
     [TestMethod]
+    public async Task Supervisor_ReclaimsWorkerWhenWorkingSetExceedsLimit()
+    {
+        var transport = new FakeTransport { WorkingSetBytes = 100 };
+        var supervisor = new WorkerSupervisor(
+            new FakeFactory(transport),
+            maxWorkingSetBytes: 50,
+            resourceCheckInterval: TimeSpan.FromMilliseconds(10));
+        await supervisor.StartAsync(new("csharp", [ScriptApiVersion.V1], []));
+
+        await WaitForStateAsync(supervisor, WorkerState.Failed);
+
+        Assert.AreEqual(WorkerState.Failed, supervisor.State);
+        Assert.IsTrue(transport.StopCalled);
+    }
+
+    [TestMethod]
+    public async Task Supervisor_ReclaimsWorkerWhenStderrExceedsLimit()
+    {
+        var transport = new FakeTransport { StderrLimitExceeded = true };
+        var supervisor = new WorkerSupervisor(
+            new FakeFactory(transport),
+            resourceCheckInterval: TimeSpan.FromMilliseconds(10));
+        await supervisor.StartAsync(new("csharp", [ScriptApiVersion.V1], []));
+
+        await WaitForStateAsync(supervisor, WorkerState.Failed);
+
+        Assert.AreEqual(WorkerState.Failed, supervisor.State);
+        Assert.IsTrue(transport.StopCalled);
+    }
+
+    private static async Task WaitForStateAsync(WorkerSupervisor supervisor, WorkerState expected)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
+        while (supervisor.State != expected && DateTime.UtcNow < deadline)
+            await Task.Delay(10);
+        Assert.AreEqual(expected, supervisor.State);
+    }
+
+    [TestMethod]
     public async Task Supervisor_ReclaimsIdleWorkerInBackground()
     {
         var transport = new FakeTransport();
@@ -125,13 +164,23 @@ public sealed class WorkerSupervisorTests
         public ValueTask<IWorkerTransport> CreateAsync(CancellationToken cancellationToken = default) => ValueTask.FromResult<IWorkerTransport>(transport);
     }
 
-    private sealed class FakeTransport(string language = "csharp") : IWorkerTransport
+    private sealed class FakeTransport(string language = "csharp") : IWorkerTransport, IWorkerTerminationNotification, IWorkerResourceUsage
     {
         public List<WorkerMessage<object>> Sent { get; } = [];
         public bool DelayExecute { get; init; }
         public bool TerminateExecute { get; init; }
         public bool CompleteOnCancel { get; init; }
         public TaskCompletionSource<bool> ExecuteSent { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private EventHandler<WorkerTerminatedEventArgs>? _terminated;
+        public event EventHandler<WorkerTerminatedEventArgs>? Terminated
+        {
+            add => _terminated += value;
+            remove => _terminated -= value;
+        }
+        public int? ExitCode => null;
+        public bool StderrLimitExceeded { get; init; }
+        public long? WorkingSetBytes { get; init; }
+        public bool StopCalled { get; private set; }
         private string? _executeRequestId;
         private string? _executionId;
         private readonly Queue<object> _responses = new([
@@ -171,7 +220,11 @@ public sealed class WorkerSupervisorTests
             return JsonSerializer.Deserialize<WorkerMessage<TPayload>>(json, WorkerProtocol.JsonOptions)!;
         }
 
-        public Task StopAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task StopAsync(CancellationToken cancellationToken = default)
+        {
+            StopCalled = true;
+            return Task.CompletedTask;
+        }
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }

@@ -415,25 +415,7 @@ public sealed class ProcessWorkerTransportTests
     [TestMethod]
     public async Task ProcessTransport_ReportsExitCodeWhenProcessTerminates()
     {
-        if (!OperatingSystem.IsLinux())
-        {
-            Assert.Inconclusive("当前集成测试使用 Linux shell 退出码。");
-            return;
-        }
-
-        var process = new System.Diagnostics.Process
-        {
-            StartInfo = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "/bin/sh",
-                ArgumentList = { "-c", "exit 7" },
-                UseShellExecute = false,
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-            },
-        };
-        process.Start();
+        using var process = StartTestProcess("exit 7", "exit /b 7");
         await process.WaitForExitAsync();
         await using var transport = new ProcessWorkerTransport(process);
 
@@ -443,26 +425,7 @@ public sealed class ProcessWorkerTransportTests
     [TestMethod]
     public async Task ProcessTransport_StopKillsProcessAfterGracePeriod()
     {
-        if (!OperatingSystem.IsLinux())
-        {
-            Assert.Inconclusive("当前集成测试使用 Linux shell 进程。");
-            return;
-        }
-
-        var process = new System.Diagnostics.Process
-        {
-            StartInfo = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "/bin/sh",
-                ArgumentList = { "-c", "trap '' TERM; sleep 30" },
-                UseShellExecute = false,
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-            },
-            EnableRaisingEvents = true,
-        };
-        process.Start();
+        using var process = StartTestProcess("trap '' TERM; sleep 30", "timeout /t 30 /nobreak > nul");
         await using var transport = new ProcessWorkerTransport(
             process,
             shutdownGracePeriod: TimeSpan.FromMilliseconds(50));
@@ -470,6 +433,40 @@ public sealed class ProcessWorkerTransportTests
         await transport.StopAsync();
 
         Assert.IsTrue(process.HasExited);
+    }
+
+    [TestMethod]
+    public async Task ProcessTransport_StopKillsProcessWhenCallerCancellationIsRequested()
+    {
+        using var process = StartTestProcess("trap '' TERM; sleep 30", "timeout /t 30 /nobreak > nul");
+        await using var transport = new ProcessWorkerTransport(
+            process,
+            shutdownGracePeriod: TimeSpan.FromMilliseconds(50));
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await transport.StopAsync(cancellation.Token);
+
+        Assert.IsTrue(process.HasExited);
+    }
+
+    private static System.Diagnostics.Process StartTestProcess(string unixCommand, string windowsCommand)
+    {
+        var startInfo = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = OperatingSystem.IsWindows()
+                ? Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe"
+                : "/bin/sh",
+            UseShellExecute = false,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        startInfo.ArgumentList.Add(OperatingSystem.IsWindows() ? "/c" : "-c");
+        startInfo.ArgumentList.Add(OperatingSystem.IsWindows() ? windowsCommand : unixCommand);
+        var process = new System.Diagnostics.Process { StartInfo = startInfo, EnableRaisingEvents = true };
+        Assert.IsTrue(process.Start());
+        return process;
     }
 
     [TestMethod]

@@ -105,7 +105,7 @@ public sealed class ProcessWorkerTransport : IWorkerTransport, IWorkerTerminatio
             await _process.StandardInput.FlushAsync(cancellationToken);
             _process.StandardInput.Close();
         }
-        catch (IOException)
+        catch (Exception exception) when (exception is IOException or OperationCanceledException)
         {
         }
         if (_process.HasExited)
@@ -119,10 +119,11 @@ public sealed class ProcessWorkerTransport : IWorkerTransport, IWorkerTerminatio
         {
             await _process.WaitForExitAsync(waitCancellation.Token);
         }
-        catch (OperationCanceledException) when (graceCancellation.IsCancellationRequested)
+        catch (OperationCanceledException) when (graceCancellation.IsCancellationRequested || cancellationToken.IsCancellationRequested)
         {
-            _process.Kill(entireProcessTree: true);
-            await _process.WaitForExitAsync(cancellationToken);
+            if (!_process.HasExited)
+                _process.Kill(entireProcessTree: true);
+            await _process.WaitForExitAsync(CancellationToken.None);
         }
     }
 

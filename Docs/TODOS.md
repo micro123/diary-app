@@ -142,7 +142,7 @@
 
 Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 
-- [~] 已增加强制终止和忽略取消脚本的超时回收；Windows/Linux/macOS 启动与 native/runtime 打包矩阵待持续验证。
+- [~] 已增加强制终止、忽略取消脚本的超时回收、跨平台进程终止测试和资源超限回收；Windows/Linux/macOS 启动与 native/runtime 打包矩阵仍待持续验证。
 
 ### 9.9 Worker 落地
 
@@ -152,7 +152,7 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 
 - [ ] 默认同语言脚本共享 worker；高风险或无法清理状态的脚本支持独立 worker。
 - [ ] 数据库层增加 reader 级流式查询后，将分页式 Worker 流升级为数据库流/chunk 传输。
-- [~] 已增加 C# Linux 进程启动、握手、心跳、执行、取消、超时、强制终止、通道终止、退出码和历史关联测试；工作集/输出超限集成测试及其他平台运行时测试待完成。
+- [~] 已增加 C#、Lua、Python Worker 执行对照、跨平台进程终止、工作集和 stderr 超限回收测试；工作集/输出超限真实进程集成测试及其他平台运行时打包矩阵仍待完成。
 
 验收：脚本 worker 崩溃、协议失步、超时或被强制终止时，主程序和其他语言 worker 继续运行；
 脚本执行历史可以关联 worker ID、请求 ID 和执行 ID；只读宿主调用跨 C#、Lua、Python 使用一致协议。

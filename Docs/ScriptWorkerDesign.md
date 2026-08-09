@@ -9,7 +9,7 @@
 本文同时记录目标设计和当前实现。当前已实现协议握手、版本和 HostCall 协商、UTF-8 JSON 行编解码、
 可注入传输层、本机进程 transport、C#/Lua/Python Worker 执行链路、按 EngineName 隔离的 supervisor、
 双向宿主 API 转发、通道终止结构化失败以及执行消息和宿主调用次数限制。
-操作系统级强内存限制按平台能力处理，跨平台运行时和打包矩阵仍需持续验证。Worker 协议 stdout 已与脚本标准输出隔离，并限制脚本输出大小。现有脚本 V1 类型和执行结果见
+工作集上限按 supervisor 的资源检查周期持续监控，stderr 超限会触发 Worker 回收；操作系统级硬内存限制仍按平台能力处理，跨平台运行时和打包矩阵仍需持续验证。Worker 协议 stdout 已与脚本标准输出隔离，并限制脚本输出大小。现有脚本 V1 类型和执行结果见
 [`ScriptSystemDesign.md`](ScriptSystemDesign.md) 及 `Diary.ScriptBase`。
 
 ## 2. 设计结论
@@ -116,7 +116,7 @@ supervisor 启动 worker 时必须：
 
 supervisor 应支持：
 
-- 空闲回收，例如连续空闲 10 分钟后退出。
+- 空闲回收，例如连续空闲 10 分钟后退出；资源监控不能依赖空闲周期，Worker 忙碌时也必须持续检查。
 - 最大请求数回收，防止解释器或运行库长期积累状态。
 - 内存上限和工作集监控。
 - 协议无响应、stderr 持续异常或心跳超时时的强制终止。
@@ -511,6 +511,8 @@ supervisor 应支持以下限制，并在 worker 启动或执行前配置：
 
 跨平台资源限制能力可能不同。无法强制设置的限制必须在握手诊断中记录为“软限制”，
 不能伪装成硬隔离。
+
+当前实现：`WorkerSupervisor` 以独立的 `ResourceCheckInterval` 检查工作集和 stderr 配额；超过限制时先标记 Worker 为 `Failed`，再终止进程树并拒绝后续请求。`ProcessWorkerTransport.StopAsync` 在正常关闭超时或调用方取消时都执行进程树终止，避免留下孤儿进程。
 
 ## 18. 各语言适配要求
 
