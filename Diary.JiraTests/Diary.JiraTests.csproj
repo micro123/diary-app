@@ -10,20 +10,11 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
     <PackageReference Include="MSTest" Version="4.3.3" />
-    <PackageReference Include="Avalonia.Headless" Version="11.3.18" />
-    <PackageReference Include="Testcontainers.PostgreSql" Version="4.13.0" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Diary.Db.SQLite\Diary.Db.SQLite.csproj" />
-    <ProjectReference Include="..\Diary.Db.PostgreSQL\Diary.Db.PostgreSQL.csproj" />
-    <ProjectReference Include="..\Diary.Database\Diary.Database.csproj" />
-    <ProjectReference Include="..\Diary.Core\Diary.Core.csproj" />
-    <ProjectReference Include="..\Diary.RedMine\Diary.RedMine.csproj" />
     <ProjectReference Include="..\Diary.Jira\Diary.Jira.csproj" />
-    <ProjectReference Include="..\Diary.Jira.SQLite\Diary.Jira.SQLite.csproj" />
-    <ProjectReference Include="..\Diary.App\Diary.App.csproj" />
   </ItemGroup>
 </Project>

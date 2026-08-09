@@ -20,6 +20,10 @@
         <TrackerPluginProject Include="..\Diary.RedMine.UI\Diary.RedMine.UI.csproj" />
         <TrackerPluginProject Include="..\Diary.RedMine.SQLite\Diary.RedMine.SQLite.csproj" />
         <TrackerPluginProject Include="..\Diary.RedMine.PostgreSQL\Diary.RedMine.PostgreSQL.csproj" />
+        <TrackerPluginProject Include="..\Diary.Jira\Diary.Jira.csproj" />
+        <TrackerPluginProject Include="..\Diary.Jira.UI\Diary.Jira.UI.csproj" />
+        <TrackerPluginProject Include="..\Diary.Jira.SQLite\Diary.Jira.SQLite.csproj" />
+        <TrackerPluginProject Include="..\Diary.Jira.PostgreSQL\Diary.Jira.PostgreSQL.csproj" />
     </ItemGroup>
 
     <ItemGroup>

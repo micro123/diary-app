@@ -1,0 +1,38 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:viewModels="clr-namespace:Diary.Jira.UI.ViewModels"
+             x:Class="Diary.Jira.UI.Views.JiraConfigurationView"
+             x:DataType="viewModels:JiraConfigurationViewModel"
+             Padding="8">
+    <Grid RowDefinitions="Auto,*" RowSpacing="12">
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+            <TextBlock Text="Jira 工时 Tracker 实例" FontSize="18" FontWeight="SemiBold" />
+            <Button Grid.Column="1" Content="添加实例" Command="{Binding AddInstanceCommand}" />
+            <Button Grid.Column="2" Content="删除实例" Classes="Danger" Command="{Binding RemoveInstanceCommand}" IsEnabled="{Binding CanRemoveInstance}" />
+        </Grid>
+        <Grid Grid.Row="1" ColumnDefinitions="220,*" ColumnSpacing="16">
+            <ListBox ItemsSource="{Binding Instances}" SelectedItem="{Binding SelectedInstance}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Spacing="2" Margin="4">
+                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding InstanceId}" FontSize="11" Opacity="0.6" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+            <ScrollViewer Grid.Column="1" IsVisible="{Binding HasSelectedInstance}">
+                <StackPanel Spacing="12">
+                    <Expander Header="实例配置" IsExpanded="True">
+                        <ItemsControl Classes="Settings" ItemsSource="{Binding InstanceSettings.Children}" />
+                    </Expander>
+                    <StackPanel Spacing="6">
+                        <Button Content="测试连接" Command="{Binding TestConnectionCommand}" IsEnabled="{Binding !TestingConnection}" HorizontalAlignment="Left" />
+                        <TextBlock Text="{Binding ConnectionMessage}" Opacity="0.8" TextWrapping="Wrap" />
+                        <TextBlock Text="Jira Cloud 使用账号邮箱 + API Token；自托管 Jira 可使用 Bearer Token。" Opacity="0.7" TextWrapping="Wrap" />
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>

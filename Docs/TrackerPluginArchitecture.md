@@ -28,6 +28,7 @@
 - SQLite 和 PostgreSQL 使用共享的数据库扩展契约测试。
 - Redmine schema 已有独立版本表和 0 -> 1 迁移链；当前版本为 1。
 - Redmine 表已经使用 `instance_id` 做数据隔离。
+- Jira 工时插件已加入核心插件、SQLite/PostgreSQL 数据扩展、实例配置和编辑器扩展，按 Issue + Worklog 最小边界接入。
 
 当前实现仍然存在以下缺口：
 

@@ -1,0 +1,111 @@
+using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Diary.Core.Data.Base;
+using Diary.GUIBase.ViewModels;
+using Diary.PluginBase;
+using Diary.PluginUI;
+
+namespace Diary.Jira.UI.ViewModels;
+
+public partial class JiraEditorRegionViewModel : ViewModelBase, ITrackerEditorExtension
+{
+    private readonly JiraUiDataStore _data;
+    private readonly IJiraApi _api;
+    private readonly IJiraDb _database;
+    private JiraWorkTimeEntry? _timeEntry;
+    private JiraInstanceSettings _settings;
+
+    public ObservableCollection<JiraIssueDisplay> Issues { get; } = new();
+    [ObservableProperty] private int _issueIndex = -1;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsLocked))]
+    [NotifyPropertyChangedFor(nameof(CanDelete))]
+    private bool _uploaded;
+    [ObservableProperty] private string _issueText = string.Empty;
+    [ObservableProperty] private bool _refreshing;
+
+    public JiraEditorRegionViewModel(JiraUiDataStore data, IJiraApi api, IJiraDb database, JiraInstanceSettings settings)
+    {
+        _data = data;
+        _api = api;
+        _database = database;
+        _settings = settings;
+    }
+
+    public TrackerKey Key => new(JiraPluginConstants.PluginId, InstanceId);
+    public string InstanceId => _settings.InstanceId;
+    public bool IsLocked => Uploaded;
+    public bool CanDelete => !Uploaded;
+    ViewModelBase ITrackerEditorExtension.View => this;
+
+    public void Load(WorkItem? item, object? binding = null)
+    {
+        _timeEntry = item is { Id: > 0 }
+            ? binding as JiraWorkTimeEntry ?? _database.WorkItemGetTimeEntry(item)
+            : null;
+        ReloadIssues();
+        SyncFromEntry();
+    }
+
+    public bool Save(WorkItem item)
+    {
+        if (item.Id <= 0 || IssueIndex < 0 || IssueIndex >= Issues.Count) return true;
+        _timeEntry = _database.CreateWorkTimeEntry(item.Id, Issues[IssueIndex].Key);
+        return _timeEntry is not null;
+    }
+
+    public void CloneTo(ITrackerEditorExtension? target)
+    {
+        if (target is not JiraEditorRegionViewModel jira) return;
+        jira.IssueIndex = IssueIndex;
+        jira.IssueText = IssueText;
+    }
+
+    public async Task<TrackerOperationResult> UploadAsync(WorkItem item)
+    {
+        if (Uploaded) return new TrackerOperationResult(false);
+        if (_timeEntry is null || string.IsNullOrWhiteSpace(_timeEntry.IssueKey)) return new(false, "请先选择 Jira Issue。");
+        if (item.Time <= 0) return new(false, "耗时必须大于 0。");
+        var result = await _api.AddWorklogAsync(_timeEntry.IssueKey, DateOnly.Parse(item.CreateDate), item.Time, item.Comment);
+        if (!result.Success || result.Value is null) return new(false, result.Error ?? "Jira 工时提交失败。");
+        _timeEntry.RemoteWorklogId = result.Value.Id;
+        Uploaded = _database.UpdateWorkTimeEntry(_timeEntry);
+        return Uploaded ? new(true, RemoteId: result.Value.Id) : new(false, "Jira 工时已提交，但本地状态保存失败。");
+    }
+
+    [RelayCommand]
+    private async Task RefreshIssuesAsync()
+    {
+        if (Refreshing) return;
+        try
+        {
+            Refreshing = true;
+            await _data.RefreshAsync(_api);
+            ReloadIssues();
+            SyncFromEntry();
+        }
+        catch
+        {
+            // 编辑器不应因远程刷新失败阻止本地记录。
+        }
+        finally
+        {
+            Refreshing = false;
+        }
+    }
+
+    private void ReloadIssues()
+    {
+        Issues.Clear();
+        foreach (var issue in _data.Issues.Where(issue => !issue.Disabled))
+            Issues.Add(issue);
+    }
+
+    private void SyncFromEntry()
+    {
+        Uploaded = _timeEntry?.Uploaded == true;
+        IssueIndex = _timeEntry is null ? -1 : Enumerable.Range(0, Issues.Count).FirstOrDefault(index => Issues[index].Key == _timeEntry.IssueKey, -1);
+        IssueText = IssueIndex >= 0 ? Issues[IssueIndex].DisplayTitle : _timeEntry?.IssueKey ?? string.Empty;
+    }
+}
