@@ -329,15 +329,18 @@ namespace Diary.App
             services.AddSingleton<IScriptCatalog, ScriptCatalog>();
             services.AddSingleton<IScriptBuildService, ScriptBuildService>();
             services.AddSingleton<IScriptExecutor, ScriptExecutor>();
+            services.AddSingleton<IScriptIdempotencyStore>(_ => new ScriptIdempotencyStore(
+                Path.Combine(FsTools.GetApplicationConfigDirectory(), "scripts", "idempotency.json")));
             services.AddSingleton<IWorkerHostCallDispatcher>(_ =>
                  new WorkItemQueryWorkerDispatcher(
                       () => new WorkItemQueryScriptApi(() => UseDb),
                      () => new TrackerInstanceScriptApi(
                          Services.GetRequiredService<PluginInstanceRegistry>()),
-                     () => new LogItemScriptApi(() => UseDb),
+                     () => new LogItemScriptApi(() => UseDb, Services.GetRequiredService<IScriptIdempotencyStore>()),
                       () => new TemplateLogItemScriptApi(
                           () => UseDb,
-                          () => TemplateManager.Instance.Templates.ToArray()),
+                          () => TemplateManager.Instance.Templates.ToArray(),
+                          Services.GetRequiredService<IScriptIdempotencyStore>()),
                        () => new TemplateScriptApi(
                            () => TemplateManager.Instance.Templates.ToArray()),
                       () => new HostCapabilitiesScriptApi(() => ScriptHostApiCatalog.All),
@@ -401,10 +404,11 @@ namespace Diary.App
                     context.RegisterApi<ITrackerInstanceScriptApi>(
                          new TrackerInstanceScriptApi(
                              Services.GetRequiredService<PluginInstanceRegistry>()));
-                    context.RegisterApi<ILogItemScriptApi>(new LogItemScriptApi(() => UseDb));
+                    context.RegisterApi<ILogItemScriptApi>(new LogItemScriptApi(() => UseDb, Services.GetRequiredService<IScriptIdempotencyStore>()));
                     context.RegisterApi<ITemplateLogItemScriptApi>(new TemplateLogItemScriptApi(
                          () => UseDb,
-                         () => TemplateManager.Instance.Templates.ToArray()));
+                         () => TemplateManager.Instance.Templates.ToArray(),
+                         Services.GetRequiredService<IScriptIdempotencyStore>()));
                     context.RegisterApi<ITemplateScriptApi>(new TemplateScriptApi(
                          () => TemplateManager.Instance.Templates.ToArray()));
                     context.RegisterApi<IHostCapabilitiesScriptApi>(new HostCapabilitiesScriptApi(

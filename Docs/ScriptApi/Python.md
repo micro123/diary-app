@@ -31,7 +31,7 @@ def application_main(context):
 | `arguments` | 执行参数字典。 |
 | `target` | 编辑器目标字典；包含 `kind` 和目标对应的字段。 |
 | `source` | 执行来源名称。 |
-| `idempotencyKey` | 追加式写入的业务幂等键。 |
+| `idempotencyKey` | 追加式写入的业务幂等键；已提交结果由宿主共享存储持久化，应用重启后仍可识别重复请求。 |
 | `preview` | 是否只预览而不写入。 |
 | `isCancelled()` | 查询当前执行是否已请求取消。 |
 | `progress.report(fraction, message)` | 报告 0 到 1 之间的执行进度。 |

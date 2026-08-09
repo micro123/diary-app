@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using Diary.Core.Data.App;
 using Diary.Database;
@@ -8,9 +7,10 @@ namespace Diary.ScriptHost;
 
 public sealed class TemplateLogItemScriptApi(
     Func<DbInterfaceBase?> databaseProvider,
-    Func<IReadOnlyCollection<Template>> templatesProvider) : ITemplateLogItemScriptApi
+    Func<IReadOnlyCollection<Template>> templatesProvider,
+    IScriptIdempotencyStore? idempotencyStore = null) : ITemplateLogItemScriptApi
 {
-    private readonly ConcurrentDictionary<string, ScriptLogItemResult> _idempotentResults = new(StringComparer.Ordinal);
+    private readonly IScriptIdempotencyStore _idempotencyStore = idempotencyStore ?? new ScriptIdempotencyStore();
     public ValueTask<ScriptLogItemResult> CreateAsync(
         ScriptTemplateLogItemRequest request, CancellationToken cancellationToken = default)
     {
@@ -18,6 +18,9 @@ public sealed class TemplateLogItemScriptApi(
             return ValueTask.FromResult(Failure(ScriptLogItemErrorCode.Cancelled, "记录已取消。"));
         if (!TryValidate(request, out var error))
             return ValueTask.FromResult(Failure(ScriptLogItemErrorCode.InvalidInput, error));
+        using var idempotencyLease = string.IsNullOrWhiteSpace(request.IdempotencyKey)
+            ? null
+            : _idempotencyStore.Acquire("templateLogItems.create", request.IdempotencyKey);
         var template = templatesProvider().FirstOrDefault(item =>
             string.Equals(item.Id, request.TemplateId, StringComparison.OrdinalIgnoreCase));
         if (template is null)
@@ -26,7 +29,7 @@ public sealed class TemplateLogItemScriptApi(
         if (string.IsNullOrWhiteSpace(title) || title.Length > LogItemScriptApi.MaxTitleLength)
             return ValueTask.FromResult(Failure(ScriptLogItemErrorCode.InvalidInput, "标题不能为空或超过长度限制。"));
         if (!string.IsNullOrWhiteSpace(request.IdempotencyKey)
-            && _idempotentResults.TryGetValue(request.IdempotencyKey, out var previous))
+            && _idempotencyStore.TryGet("templateLogItems.create", request.IdempotencyKey, out var previous))
         {
             return ValueTask.FromResult(previous with
             {
@@ -73,16 +76,8 @@ public sealed class TemplateLogItemScriptApi(
                     string.IsNullOrWhiteSpace(request.Note) ? null : request.Note,
                     [.. tags.Select(tag => new ScriptWorkTag(tag.Id, tag.Name, tag.Color, (int)tag.Level, tag.Disabled))]),
                 new ScriptEffectSummary(1, false, request.IdempotencyKey, [item.Id]));
-            if (!string.IsNullOrWhiteSpace(request.IdempotencyKey)
-                && !_idempotentResults.TryAdd(request.IdempotencyKey, result)
-                && _idempotentResults.TryGetValue(request.IdempotencyKey, out var existing))
-            {
-                return ValueTask.FromResult(existing with
-                {
-                    Duplicate = true,
-                    Effects = existing.Effects is { } effects ? effects with { AppendedCount = 0 } : null,
-                });
-            }
+            if (!string.IsNullOrWhiteSpace(request.IdempotencyKey))
+                _idempotencyStore.Save("templateLogItems.create", request.IdempotencyKey, result);
             return ValueTask.FromResult(result);
         }
         catch (OperationCanceledException)
@@ -107,6 +102,8 @@ public sealed class TemplateLogItemScriptApi(
             return Fail("耗时必须大于 0 且不超过 24 小时。", out error);
         if (request.Title?.Length > LogItemScriptApi.MaxTitleLength || request.Note?.Length > LogItemScriptApi.MaxNoteLength)
             return Fail("标题或备注超过长度限制。", out error);
+        if (request.IdempotencyKey?.Length > LogItemScriptApi.MaxIdempotencyKeyLength)
+            return Fail($"幂等键不能超过 {LogItemScriptApi.MaxIdempotencyKeyLength} 个字符。", out error);
         return true;
     }
 

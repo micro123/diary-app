@@ -68,7 +68,7 @@ var trackers = api.Tracker.ListInstances();
 | `Arguments` | `ImmutableDictionary<string, string>?` | 用户传入的字符串参数。 |
 | `Source` | `ScriptExecutionSource` | `Manual`、`Editor`、`Startup` 或 `Automation`。 |
 | `EntryKind` | `ScriptEntryKind?` | 脚本入口类型；由宿主和 descriptor 共同校验。 |
-| `IdempotencyKey` | `string?` | 追加式写入的业务幂等键；当前结果缓存于宿主进程内。 |
+| `IdempotencyKey` | `string?` | 追加式写入的业务幂等键；结果由宿主共享幂等存储持久化，应用重启后仍可识别已提交的重复请求。 |
 | `Preview` | `bool` | 只返回待追加记录和副作用摘要，不写入数据库。 |
 
 编辑器脚本的目标有 `Year`、`Quarter`、`Month`、`Day` 和 `WorkItem` 五种。目标字段由宿主校验，脚本不需要自行计算季度或月份边界。
@@ -293,7 +293,7 @@ var confirmed = await system.ConfirmAsync("继续操作", "是否继续？", can
 | `ILogApi.*Async` | `log.write` |
 | `ReportProgressAsync` | `script.progress` |
 
-Worker 调用由主进程执行并返回结构化结果。普通日志项和模板日志项支持 `IdempotencyKey` 与 `Preview`，结果会带 `ScriptEffectSummary`。幂等结果当前只在宿主进程内存中保留。脚本不能直接访问文件、网络、进程、反射、数据库、DI 或任意 UI 控件。超时、取消、Worker 退出和宿主失败都会转换为执行诊断。
+Worker 调用由主进程执行并返回结构化结果。普通日志项和模板日志项支持 `IdempotencyKey` 与 `Preview`，结果会带 `ScriptEffectSummary`。已提交的幂等结果由宿主共享存储持久化，应用重启后仍能识别重复请求；脚本不能直接访问文件、网络、进程、反射、数据库、DI 或任意 UI 控件。超时、取消、Worker 退出和宿主失败都会转换为执行诊断。
 
 ## 11. 错误、取消、超时和 Worker 终止
 
