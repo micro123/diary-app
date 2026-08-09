@@ -15,9 +15,9 @@ public sealed class ScriptCreationViewModelTests
     {
         foreach (var (language, extension, engine, marker) in new[]
                  {
-                     ("C#", ".cs", "csharp", "IScriptProgramV1"),
-                     ("Lua", ".lua", "lua", "function main(context)"),
-                     ("Python", ".py", "python", "def main(context):"),
+                     ("C#", ".cs", "csharp", "EditorScript"),
+                     ("Lua", ".lua", "lua", "function editor_main(context)"),
+                     ("Python", ".py", "python", "def editor_main(context):"),
                  })
         {
             var root = Path.Combine(Path.GetTempPath(), $"diary-app-script-create-{Guid.NewGuid():N}");

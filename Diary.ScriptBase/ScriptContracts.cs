@@ -19,6 +19,24 @@ public enum ScriptScope
     Editor = 2,
 }
 
+public enum ScriptEntryKind
+{
+    Application = 1,
+    Editor = 2,
+    Automation = 3,
+    Query = 4,
+}
+
+public enum ScriptAutomationTriggerKind
+{
+    Unknown = 0,
+    Startup = 1,
+    Scheduled = 2,
+    WorkItemCreated = 3,
+    WorkItemSaved = 4,
+    TagAdded = 5,
+}
+
 public enum ScriptEditorTargetKind
 {
     Year = 1,
@@ -43,7 +61,8 @@ public sealed record ScriptDescriptor(
     ScriptApiVersion ApiVersion,
     ScriptScope Scope,
     string? Description = null,
-    IReadOnlyList<ScriptEditorTargetKind>? SupportedEditorTargets = null);
+    IReadOnlyList<ScriptEditorTargetKind>? SupportedEditorTargets = null,
+    ScriptEntryKind? EntryKind = null);
 
 public sealed record ScriptDescriptorHint(
     string? Id = null,
@@ -51,7 +70,8 @@ public sealed record ScriptDescriptorHint(
     ScriptScope? Scope = null,
     string? Description = null,
     string? EngineName = null,
-    IReadOnlyList<ScriptEditorTargetKind>? SupportedEditorTargets = null);
+    IReadOnlyList<ScriptEditorTargetKind>? SupportedEditorTargets = null,
+    ScriptEntryKind? EntryKind = null);
 
 public enum ScriptDiagnosticSeverity
 {
@@ -78,6 +98,43 @@ public sealed record ScriptDiagnostic(
     string? SourcePath = null,
     int? Line = null,
     int? Column = null);
+
+public enum ScriptErrorCategory
+{
+    Validation = 1,
+    Permission = 2,
+    Host = 3,
+    Provider = 4,
+    Cancellation = 5,
+    Conflict = 6,
+    Runtime = 7,
+}
+
+public sealed record ScriptApiError(
+    string Code,
+    string Message,
+    ScriptErrorCategory Category,
+    bool Retryable = false,
+    IReadOnlyDictionary<string, string>? Details = null);
+
+public static class ScriptApiErrorCodes
+{
+    public const string InvalidArgument = "INVALID_ARGUMENT";
+    public const string ApiUnavailable = "SCRIPT_API_UNAVAILABLE";
+    public const string ApiScopeNotSupported = "SCRIPT_API_SCOPE_NOT_SUPPORTED";
+    public const string HostNotConfigured = "SCRIPT_API_HOST_NOT_CONFIGURED";
+    public const string Cancelled = "CANCELLED";
+    public const string Timeout = "TIMEOUT";
+    public const string WorkerTerminated = "WORKER_TERMINATED";
+    public const string DuplicateRequest = "DUPLICATE_REQUEST";
+}
+
+public sealed record ScriptEffectSummary(
+    int AppendedCount = 0,
+    bool Preview = false,
+    string? IdempotencyKey = null,
+    IReadOnlyCollection<int>? CreatedWorkItemIds = null,
+    IReadOnlyCollection<string>? RemoteEffects = null);
 
 public sealed record ScriptBuildRequest(
     string SourcePath,
@@ -238,17 +295,33 @@ public static class ScriptEditorTargetResolver
 public sealed record ScriptExecutionRequest(
     ScriptEditorTarget? Target = null,
     ImmutableDictionary<string, string>? Arguments = null,
-    ScriptExecutionSource Source = ScriptExecutionSource.Unknown);
+    ScriptExecutionSource Source = ScriptExecutionSource.Unknown,
+    ScriptEntryKind? EntryKind = null,
+    string? IdempotencyKey = null,
+    bool Preview = false);
+
+public sealed record ScriptProgressUpdate(
+    double Fraction,
+    string Message);
+
+public sealed record ScriptAutomationContext(
+    ScriptAutomationTriggerKind Trigger,
+    IReadOnlyDictionary<string, string> EventData,
+    string? IdempotencyKey = null);
 
 public sealed record ScriptExecutionMetadata(
     Guid ExecutionId,
     DateTimeOffset StartedAt,
     ScriptExecutionSource Source,
-    string ScriptId);
+    string ScriptId,
+    ScriptEntryKind EntryKind = ScriptEntryKind.Application,
+    string? IdempotencyKey = null,
+    bool Preview = false);
 
 public sealed record ScriptExecutionResult(
     ScriptExecutionStatus Status,
-    ImmutableArray<ScriptDiagnostic> Diagnostics)
+    ImmutableArray<ScriptDiagnostic> Diagnostics,
+    ScriptEffectSummary? Effects = null)
 {
     public static ScriptExecutionResult Succeeded() =>
         new(ScriptExecutionStatus.Succeeded, ImmutableArray<ScriptDiagnostic>.Empty);
@@ -265,21 +338,41 @@ public interface IScriptExecutionContext
 {
     ScriptExecutionMetadata? Metadata { get; }
 
+    ScriptEntryKind EntryKind { get; }
+
+    IReadOnlyDictionary<string, string> Arguments { get; }
+
+    CancellationToken CancellationToken { get; }
+
+    ValueTask ReportProgressAsync(ScriptProgressUpdate update);
+
     TApi? GetApi<TApi>() where TApi : class;
+
+    TApi GetRequiredApi<TApi>() where TApi : class;
+
+    bool IsCancellationRequested { get; }
 }
 
 public interface IScriptApplicationContext : IScriptExecutionContext
 {
+
 }
 
 public interface IScriptEditorContext : IScriptExecutionContext
 {
     ScriptEditorTarget Target { get; }
     ScriptWorkItem? WorkItem { get; }
-    IReadOnlyDictionary<string, string> Arguments { get; }
+
     ScriptDateRange? GetDateRange();
     IAsyncEnumerable<ScriptWorkItem> StreamItemsAsync(
         CancellationToken cancellationToken = default);
+}
+
+public interface IScriptAutomationContext : IScriptExecutionContext
+{
+    ScriptAutomationContext Automation { get; }
+
+
 }
 
 public interface IScriptProgramV1
@@ -290,6 +383,125 @@ public interface IScriptProgramV1
         ScriptExecutionRequest request,
         IScriptExecutionContext context,
         CancellationToken cancellationToken = default);
+}
+
+public interface IApplicationScriptV1
+{
+    ScriptDescriptor Descriptor { get; }
+
+    ValueTask<ScriptExecutionResult> ExecuteAsync(
+        IScriptApplicationContext context,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IEditorScriptV1
+{
+    ScriptDescriptor Descriptor { get; }
+
+    ValueTask<ScriptExecutionResult> ExecuteAsync(
+        IScriptEditorContext context,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAutomationScriptV1
+{
+    ScriptDescriptor Descriptor { get; }
+
+    ValueTask<ScriptExecutionResult> ExecuteAsync(
+        IScriptAutomationContext context,
+        CancellationToken cancellationToken = default);
+}
+
+public static class ScriptProgramAdapter
+{
+    public static bool TryAdapt(object program, out IScriptProgramV1? adapted)
+    {
+        ArgumentNullException.ThrowIfNull(program);
+        adapted = program switch
+        {
+            IScriptProgramV1 v1 => v1,
+            IApplicationScriptV1 application => new TypedScriptProgramAdapter(application),
+            IEditorScriptV1 editor => new TypedScriptProgramAdapter(editor),
+            IAutomationScriptV1 automation => new TypedScriptProgramAdapter(automation),
+            _ => null,
+        };
+        return adapted is not null;
+    }
+
+    private sealed class TypedScriptProgramAdapter : IScriptProgramV1, IDisposable
+    {
+        private readonly object _program;
+
+        public TypedScriptProgramAdapter(object program)
+        {
+            _program = program;
+            Descriptor = program switch
+            {
+                IApplicationScriptV1 application => application.Descriptor,
+                IEditorScriptV1 editor => editor.Descriptor,
+                IAutomationScriptV1 automation => automation.Descriptor,
+                _ => throw new ArgumentException("Unsupported typed script program.", nameof(program)),
+            };
+        }
+
+        public ScriptDescriptor Descriptor { get; }
+
+        public ValueTask<ScriptExecutionResult> ExecuteAsync(
+            ScriptExecutionRequest request,
+            IScriptExecutionContext context,
+            CancellationToken cancellationToken = default)
+        {
+            var entryKind = ScriptEntryKindResolver.Resolve(request, Descriptor);
+            return entryKind switch
+            {
+                ScriptEntryKind.Application when _program is IApplicationScriptV1 application
+                    && context is IScriptApplicationContext applicationContext =>
+                    application.ExecuteAsync(applicationContext, cancellationToken),
+                ScriptEntryKind.Editor when _program is IEditorScriptV1 editor
+                    && context is IScriptEditorContext editorContext =>
+                    editor.ExecuteAsync(editorContext, cancellationToken),
+                ScriptEntryKind.Automation when _program is IAutomationScriptV1 automation
+                    && context is IScriptAutomationContext automationContext =>
+                    automation.ExecuteAsync(automationContext, cancellationToken),
+                _ => ValueTask.FromResult(new ScriptExecutionResult(
+                    ScriptExecutionStatus.Rejected,
+                    [new ScriptDiagnostic(
+                        "SCRIPT_ENTRY_CONTEXT_MISMATCH",
+                        "The script entry point and execution context do not match.",
+                        ScriptDiagnosticSeverity.Error,
+                        ScriptDiagnosticCategory.Validation)])),
+            };
+        }
+
+        public void Dispose()
+        {
+            if (_program is IDisposable disposable)
+                disposable.Dispose();
+        }
+    }
+}
+
+public static class ScriptEntryKindResolver
+{
+    public static ScriptEntryKind Resolve(ScriptDescriptor descriptor) =>
+        descriptor.EntryKind ?? (descriptor.Scope == ScriptScope.Editor
+            ? ScriptEntryKind.Editor
+            : ScriptEntryKind.Application);
+
+    public static ScriptEntryKind Resolve(ScriptExecutionRequest request, ScriptDescriptor descriptor) =>
+        request.EntryKind ?? Resolve(descriptor);
+
+    public static bool IsCompatible(ScriptEntryKind entryKind, ScriptScope scope) =>
+        entryKind switch
+        {
+            ScriptEntryKind.Editor => scope == ScriptScope.Editor,
+            ScriptEntryKind.Application or ScriptEntryKind.Automation or ScriptEntryKind.Query =>
+                scope == ScriptScope.Application,
+            _ => false,
+        };
+
+    public static bool RequiresEditorTarget(ScriptEntryKind entryKind) =>
+        entryKind == ScriptEntryKind.Editor;
 }
 
 public interface IScriptEngineV1

@@ -26,12 +26,19 @@ public sealed class LuaProgram(
             using var lua = LuaSandbox.Create();
             lua.LoadString(Source, SourcePath);
             lua.DoString(Source);
-            var entry = lua.GetFunction("main") ?? lua.GetFunction("execute");
+            var entryName = Descriptor.EntryKind switch
+            {
+                ScriptEntryKind.Editor => "editor_main",
+                ScriptEntryKind.Automation => "automation_main",
+                ScriptEntryKind.Query => "query_main",
+                _ => "application_main",
+            };
+            var entry = lua.GetFunction(entryName);
             if (entry is null)
             {
                 return ValueTask.FromResult(Failure(
                     "LUA_ENTRYPOINT_MISSING",
-                    "Lua scripts must define main(context) or execute(context).",
+                    $"Lua scripts must define {entryName}(context).",
                     ScriptDiagnosticCategory.Validation));
             }
 

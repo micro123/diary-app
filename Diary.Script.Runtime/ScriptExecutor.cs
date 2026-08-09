@@ -52,8 +52,12 @@ public sealed class ScriptExecutor : IScriptExecutor
             return Rejected(actualExecutionId, "SCRIPT_DESCRIPTOR_EXCEPTION", "The script descriptor could not be read.");
         }
 
-        if (!IsValidTarget(descriptor, request.Target, out var targetError))
-            return Rejected(actualExecutionId, "SCRIPT_TARGET_INVALID", "The execution target does not match the script descriptor.");
+        var entryKind = ScriptEntryKindResolver.Resolve(request, descriptor);
+        if (!ScriptEntryKindResolver.IsCompatible(entryKind, descriptor.Scope))
+            return Rejected(actualExecutionId, "SCRIPT_ENTRY_KIND_MISMATCH", "The execution entry does not match the script descriptor.");
+        if (!IsValidTarget(entryKind, request.Target, out var targetError))
+            return Rejected(actualExecutionId, "SCRIPT_TARGET_INVALID", "The execution target does not match the script entry.");
+        request = request with { EntryKind = entryKind };
         using var executionCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         Task<ScriptExecutionResult> executionTask;
         try
@@ -102,27 +106,15 @@ public sealed class ScriptExecutor : IScriptExecutor
     }
 
     private static bool IsValidTarget(
-        ScriptDescriptor? descriptor,
+        ScriptEntryKind entryKind,
         ScriptEditorTarget? target,
         out string error)
     {
         error = string.Empty;
-        if (descriptor is null)
+        if (entryKind != ScriptEntryKind.Editor)
         {
-            error = "脚本 descriptor 为空。";
-            return false;
-        }
-
-        if (descriptor.Scope == ScriptScope.Application)
-        {
-            error = target is null ? string.Empty : "应用程序扩展不能提供编辑器目标。";
+            error = target is null ? string.Empty : "非编辑器脚本不能提供编辑器目标。";
             return target is null;
-        }
-
-        if (descriptor.Scope != ScriptScope.Editor)
-        {
-            error = "脚本范围无效。";
-            return false;
         }
 
         return ScriptEditorTargetResolver.TryValidate(target, out _, out error);

@@ -418,7 +418,8 @@ public sealed record WorkerExecutionResultPayload(
     ScriptExecutionStatus Status,
     IReadOnlyCollection<ScriptDiagnostic> Diagnostics,
     object? Value = null,
-    long DurationMilliseconds = 0);
+    long DurationMilliseconds = 0,
+    ScriptEffectSummary? Effects = null);
 
 public sealed record WorkerCancelPayload(string Reason, DateTimeOffset? Deadline = null);
 

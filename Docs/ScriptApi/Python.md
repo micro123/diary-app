@@ -4,8 +4,12 @@ Python 使用 `ScriptApiVersion.V1`。脚本在独立 Python Worker 中执行，
 
 ## 1. 脚本入口和上下文
 
-```python
-def main(context):
+入口函数由脚本的 `entryKind` 决定：`application_main(context)`、`editor_main(context)`、`automation_main(context)`，以及当前仅预留的 `query_main(context)`。Worker 不再通过通用 `main(context)` 或 `execute(context)` 隐式判断场景。
+
+最小应用脚本示例：
+
+~~~python
+def application_main(context):
     result = context.diary.workItems.query(
         startDate="2026-08-01",
         endDate="2026-08-31",
@@ -16,16 +20,21 @@ def main(context):
 
     for item in result["items"]:
         print(f"{item['date']}: {item['comment']}")
-```
+~~~
 
 `context` 同时支持属性访问和字典式访问：
 
 | 字段 | 说明 |
 | --- | --- |
 | `request` | 完整执行请求字典。 |
+| `entryKind` | 当前入口类型。 |
 | `arguments` | 执行参数字典。 |
 | `target` | 编辑器目标字典；包含 `kind` 和目标对应的字段。 |
 | `source` | 执行来源名称。 |
+| `idempotencyKey` | 追加式写入的业务幂等键。 |
+| `preview` | 是否只预览而不写入。 |
+| `isCancelled()` | 查询当前执行是否已请求取消。 |
+| `progress.report(fraction, message)` | 报告 0 到 1 之间的执行进度。 |
 | `diary` | 宿主 API 根对象。 |
 | `dateRange` | 年、季度、月、日目标的日期范围；事项目标为 `None`。 |
 | `workItem` | 事项目标的不可变事项快照；其他目标为 `None`。 |
@@ -33,19 +42,7 @@ def main(context):
 | `items.stream()` | 按当前日期范围分页迭代事项。 |
 | `log` | 调试日志 API。 |
 
-请求、参数和结果字段使用 camelCase，例如 `startDate`、`endDate`、`normalizedQuery`。
-
-`target["kind"]` 为 `Year`、`Quarter`、`Month`、`Day` 或 `WorkItem`。季度使用自然季度：1-3、4-6、7-9、10-12 月。
-
-```python
-date_range = context.getDateRange()
-if date_range is not None:
-    for item in context.items.stream():
-        print(item["date"], item["comment"])
-elif context.workItem is not None:
-    context.log.info(f"当前事项：{context.workItem['comment']}")
-```
-
+请求、参数和结果字段使用 camelCase，例如 `startDate`、`endDate`、`normalizedQuery`。脚本自动化只能追加工作记录，不提供删除或直接改写历史记录；`idempotencyKey` 当前只在宿主进程生命周期内有效。
 ## 2. 查询工作项
 
 调用：`context.diary.workItems.query(params=None, **kwargs)`。可以传字典、关键字参数或同时传入两者：

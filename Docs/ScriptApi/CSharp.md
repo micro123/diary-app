@@ -1,32 +1,36 @@
 # C# 脚本 API Reference
 
-本文对应 `ScriptApiVersion.V1`。C# 脚本在独立 Worker 或进程内执行时使用相同的 `Diary.ScriptBase` 契约和 `Diary.ScriptHost` API。宿主只注册已经实现的 API，脚本不需要声明或申请 capability。
+本文对应 `ScriptApiVersion.V1`。C# 脚本统一在独立 Worker 中执行，使用 `Diary.ScriptBase` 契约和 `Diary.ScriptHost` API。宿主只注册已经实现的 API，脚本不需要声明或申请 capability。
 
 ## 1. 最小脚本
 
-```csharp
+按功能选择 SDK 基类，入口和 descriptor 会自动带上对应的入口类型：
+
+~~~csharp
 using System.Threading;
 using System.Threading.Tasks;
 using Diary.ScriptBase;
 
-public sealed class DemoScript : IScriptProgramV1
+public sealed class DemoScript : ApplicationScript
 {
-    public ScriptDescriptor Descriptor { get; } = new(
-        "demo", "示例", ScriptApiVersion.V1, ScriptScope.Application,
-        Description: "脚本说明");
+    public override string Id => "demo";
+    public override string Name => "示例";
+    public override string? Description => "脚本说明";
 
-    public ValueTask<ScriptExecutionResult> ExecuteAsync(
-        ScriptExecutionRequest request,
-        IScriptExecutionContext context,
+    public override ValueTask<ScriptExecutionResult> ExecuteAsync(
+        IScriptApplicationContext context,
         CancellationToken cancellationToken = default)
     {
         return ValueTask.FromResult(ScriptExecutionResult.Succeeded());
     }
 }
-```
+~~~
 
-入口必须是同步或异步的 `ExecuteAsync`。长时间运行的 API 调用应传递 `cancellationToken`。脚本只能通过 `GetApi<T>()` 获取宿主 API，不能访问 `IServiceProvider`、数据库对象或 UI 对象。
+编辑器脚本继承 `EditorScript`，自动化脚本继承 `AutomationScript`。底层 `IScriptProgramV1.ExecuteAsync` 由 Worker 适配器使用，不是普通脚本作者必须实现的唯一入口。
 
+脚本不能访问 `IServiceProvider`、数据库对象或 UI 对象；宿主 API 只能通过上下文获取。
+
+`GetApi<T>()` 适合可选 API，必需 API 使用 `GetRequiredApi<T>()`。
 ## 2. Descriptor
 
 `ScriptDescriptor` 字段：
@@ -37,6 +41,7 @@ public sealed class DemoScript : IScriptProgramV1
 | `Name` | `string` | UI 展示名称。 |
 | `ApiVersion` | `ScriptApiVersion` | 当前使用 `V1`。 |
 | `Scope` | `ScriptScope` | `Application` 或 `Editor`。 |
+| `EntryKind` | `ScriptEntryKind?` | `Application`、`Editor`、`Automation` 或预留的 `Query`；与作用域和目标必须一致。 |
 | `Description` | `string?` | 可选描述。 |
 
 脚本 metadata 仍可包含旧版 `capabilities` 字段，但当前会忽略该字段，不再作为 API 门禁。
@@ -50,6 +55,9 @@ public sealed class DemoScript : IScriptProgramV1
 | `Target` | `ScriptEditorTarget?` | 应用程序扩展为 `null`；编辑器扩展由上下文菜单提供。 |
 | `Arguments` | `ImmutableDictionary<string, string>?` | 用户传入的字符串参数。 |
 | `Source` | `ScriptExecutionSource` | `Manual`、`Editor`、`Startup` 或 `Automation`。 |
+| `EntryKind` | `ScriptEntryKind?` | 脚本入口类型；由宿主和 descriptor 共同校验。 |
+| `IdempotencyKey` | `string?` | 追加式写入的业务幂等键；当前结果缓存于宿主进程内。 |
+| `Preview` | `bool` | 只返回待追加记录和副作用摘要，不写入数据库。 |
 
 编辑器脚本的目标有 `Year`、`Quarter`、`Month`、`Day` 和 `WorkItem` 五种。目标字段由宿主校验，脚本不需要自行计算季度或月份边界。
 
@@ -57,8 +65,13 @@ public sealed class DemoScript : IScriptProgramV1
 
 | 成员 | 说明 |
 | --- | --- |
-| `Metadata` | 执行 ID、开始时间、来源和脚本 ID。 |
+| `Metadata` | 执行 ID、开始时间、来源、入口类型、幂等键和预览标志。 |
+| `EntryKind` | 当前入口类型。 |
+| `Arguments` | 用户传入的字符串参数。 |
+| `CancellationToken` / `IsCancellationRequested` | 当前执行的取消信号。 |
+| `ReportProgressAsync(...)` | 报告 0 到 1 之间的执行进度，不写入脚本日志。 |
 | `GetApi<TApi>()` | 获取已注册 API。API 未实现或不可用时返回 `null`。 |
+| `GetRequiredApi<TApi>()` | 获取必需 API；不可用时抛出宿主可转换为稳定错误码的异常。 |
 
 应用程序扩展只接收没有目标的执行请求。编辑器扩展可以将上下文转换为 `IScriptEditorContext`：
 
@@ -245,5 +258,6 @@ var confirmed = await system.ConfirmAsync("继续操作", "是否继续？", can
 | `SysApi.NotifyAsync` | `ui.notify` |
 | `SysApi.ConfirmAsync` | `ui.confirm` |
 | `ILogApi.*Async` | `log.write` |
+| `ReportProgressAsync` | `script.progress` |
 
-Worker 调用由主进程执行并返回结构化结果。脚本不能直接访问文件、网络、进程、反射、数据库、DI 或任意 UI 控件。超时、取消、Worker 退出和宿主失败都会转换为执行诊断。
+Worker 调用由主进程执行并返回结构化结果。普通日志项和模板日志项支持 `IdempotencyKey` 与 `Preview`，结果会带 `ScriptEffectSummary`。幂等结果当前只在宿主进程内存中保留。脚本不能直接访问文件、网络、进程、反射、数据库、DI 或任意 UI 控件。超时、取消、Worker 退出和宿主失败都会转换为执行诊断。

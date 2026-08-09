@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using Diary.Database;
 using Diary.ScriptBase;
@@ -8,6 +9,7 @@ public sealed class LogItemScriptApi(Func<DbInterfaceBase?> databaseProvider) : 
 {
     public const int MaxTitleLength = 500;
     public const int MaxNoteLength = 10_000;
+    private readonly ConcurrentDictionary<string, ScriptLogItemResult> _idempotentResults = new(StringComparer.Ordinal);
 
     public ValueTask<ScriptLogItemResult> CreateAsync(
         ScriptLogItemRequest? request,
@@ -17,6 +19,24 @@ public sealed class LogItemScriptApi(Func<DbInterfaceBase?> databaseProvider) : 
             return ValueTask.FromResult(ScriptLogItemResult.Failure(ScriptLogItemErrorCode.Cancelled, "记录已取消。"));
         if (!TryValidate(request, out var error))
             return ValueTask.FromResult(ScriptLogItemResult.Failure(ScriptLogItemErrorCode.InvalidInput, error));
+        if (!string.IsNullOrWhiteSpace(request!.IdempotencyKey)
+            && _idempotentResults.TryGetValue(request.IdempotencyKey, out var previous))
+        {
+            return ValueTask.FromResult(previous with
+            {
+                Duplicate = true,
+                Effects = previous.Effects is { } effects ? effects with { AppendedCount = 0 } : null,
+            });
+        }
+        if (request.Preview)
+        {
+            var previewItem = new ScriptWorkItem(
+                0, request.Date, request.Title, request.Hours, 0, request.Note,
+                ImmutableArray<ScriptWorkTag>.Empty);
+            return ValueTask.FromResult(ScriptLogItemResult.Success(
+                previewItem,
+                new ScriptEffectSummary(0, true, request.IdempotencyKey, [])));
+        }
 
         DbInterfaceBase? database;
         try { database = databaseProvider(); }
@@ -33,10 +53,23 @@ public sealed class LogItemScriptApi(Func<DbInterfaceBase?> databaseProvider) : 
                 return ValueTask.FromResult(ScriptLogItemResult.Failure(ScriptLogItemErrorCode.ProviderFailure, "保存记录失败。"));
             if (!string.IsNullOrWhiteSpace(request.Note))
                 database.WorkUpdateNote(item, request.Note);
-            return ValueTask.FromResult(ScriptLogItemResult.Success(new(
-                item.Id, item.CreateDate, item.Comment, item.Time, (int)item.Priority,
-                string.IsNullOrWhiteSpace(request.Note) ? null : request.Note,
-                ImmutableArray<ScriptWorkTag>.Empty)));
+            var result = ScriptLogItemResult.Success(
+                new ScriptWorkItem(
+                    item.Id, item.CreateDate, item.Comment, item.Time, (int)item.Priority,
+                    string.IsNullOrWhiteSpace(request.Note) ? null : request.Note,
+                    ImmutableArray<ScriptWorkTag>.Empty),
+                new ScriptEffectSummary(1, false, request.IdempotencyKey, [item.Id]));
+            if (!string.IsNullOrWhiteSpace(request.IdempotencyKey)
+                && !_idempotentResults.TryAdd(request.IdempotencyKey, result)
+                && _idempotentResults.TryGetValue(request.IdempotencyKey, out var existing))
+            {
+                return ValueTask.FromResult(existing with
+                {
+                    Duplicate = true,
+                    Effects = existing.Effects is { } effects ? effects with { AppendedCount = 0 } : null,
+                });
+            }
+            return ValueTask.FromResult(result);
         }
         catch (OperationCanceledException)
         { return ValueTask.FromResult(ScriptLogItemResult.Failure(ScriptLogItemErrorCode.Cancelled, "记录已取消。")); }

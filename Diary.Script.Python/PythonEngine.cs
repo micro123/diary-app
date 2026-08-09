@@ -82,7 +82,8 @@ public sealed class PythonEngine : IScriptEngineV1
             request.ApiVersion,
             descriptorHint.Scope!.Value,
             descriptorHint.Description,
-            descriptorHint.SupportedEditorTargets);
+            descriptorHint.SupportedEditorTargets,
+            descriptorHint.EntryKind);
         return ScriptBuildResult.Success(new PythonProgram(
             descriptor,
             request.SourcePath,

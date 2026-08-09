@@ -243,7 +243,7 @@ worker 启动后必须先发送 `hello`：
     "payload": {
       "scriptId": "daily-summary",
       "sourcePath": "scripts/application/daily-summary.py",
-      "source": "def main(context):\\n    return None",
+      "source": "def application_main(context):\\n    return None",
       "request": {
         "target": null,
         "arguments": {

@@ -22,12 +22,31 @@ public sealed class ScriptExecutionContext(
     ScriptExecutionMetadata? metadata = null,
     ScriptEditorTarget? target = null,
     ImmutableDictionary<string, string>? arguments = null,
-    Func<ScriptDateRange, CancellationToken, IAsyncEnumerable<ScriptWorkItem>>? streamItems = null)
-    : IScriptApplicationContext, IScriptEditorContext
+    Func<ScriptDateRange, CancellationToken, IAsyncEnumerable<ScriptWorkItem>>? streamItems = null,
+    ScriptAutomationContext? automation = null,
+    Func<ScriptProgressUpdate, ValueTask>? progressReporter = null,
+    CancellationToken cancellationToken = default)
+    : IScriptApplicationContext, IScriptEditorContext, IScriptAutomationContext
 {
     private readonly Dictionary<Type, ApiRegistration> _apis = [];
 
     public ScriptExecutionMetadata? Metadata { get; } = metadata;
+
+    public bool IsCancellationRequested => cancellationToken.IsCancellationRequested;
+
+    public CancellationToken CancellationToken => cancellationToken;
+
+    public ScriptEntryKind EntryKind => Metadata?.EntryKind
+        ?? (EditorTarget is null ? ScriptEntryKind.Application : ScriptEntryKind.Editor);
+
+    public ValueTask ReportProgressAsync(ScriptProgressUpdate update)
+    {
+        if (update.Fraction is < 0 or > 1 || double.IsNaN(update.Fraction))
+            throw new ArgumentOutOfRangeException(nameof(update), "进度必须位于 0 到 1 之间。");
+        if (string.IsNullOrWhiteSpace(update.Message))
+            throw new ArgumentException("进度消息不能为空。", nameof(update));
+        return progressReporter?.Invoke(update) ?? ValueTask.CompletedTask;
+    }
 
     public ScriptEditorTarget? EditorTarget { get; } = target;
 
@@ -38,6 +57,12 @@ public sealed class ScriptExecutionContext(
 
     public IReadOnlyDictionary<string, string> Arguments { get; } =
         arguments ?? ImmutableDictionary<string, string>.Empty;
+
+    public ScriptAutomationContext Automation { get; } = automation
+        ?? new ScriptAutomationContext(
+            ScriptAutomationTriggerKind.Unknown,
+            ImmutableDictionary<string, string>.Empty,
+            metadata?.IdempotencyKey);
 
     public ScriptDateRange? GetDateRange() => EditorTarget is null
         ? null
@@ -73,6 +98,11 @@ public sealed class ScriptExecutionContext(
             return null;
         return (TApi)registration.Api;
     }
+
+    public TApi GetRequiredApi<TApi>() where TApi : class =>
+        GetApi<TApi>()
+        ?? throw new InvalidOperationException(
+            $"The script host API '{typeof(TApi).Name}' is not available.");
 
     private sealed record ApiRegistration(object Api);
 }

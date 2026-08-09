@@ -12,7 +12,8 @@ public sealed record ScriptFileMetadata(
     string? Description = null,
     string? Engine = null,
     ScriptScope? Scope = null,
-    IReadOnlyList<ScriptEditorTargetKind>? SupportedEditorTargets = null);
+    IReadOnlyList<ScriptEditorTargetKind>? SupportedEditorTargets = null,
+    ScriptEntryKind? EntryKind = null);
 
 public sealed record ScriptPackageManifest(
     string Entry,
@@ -23,7 +24,8 @@ public sealed record ScriptPackageManifest(
     string? Description = null,
     string? Engine = null,
     ScriptScope? Scope = null,
-    IReadOnlyList<ScriptEditorTargetKind>? SupportedEditorTargets = null);
+    IReadOnlyList<ScriptEditorTargetKind>? SupportedEditorTargets = null,
+    ScriptEntryKind? EntryKind = null);
 
 public sealed record ScriptDirectoryEntry(
     string SourcePath,
@@ -121,7 +123,8 @@ public sealed class ScriptDirectoryLoader(
                                     metadata.Scope ?? scope,
                                     metadata.Description,
                                     metadata.Engine ?? selection.Engine.StableName,
-                                    metadata.SupportedEditorTargets)),
+                                    metadata.SupportedEditorTargets,
+                                    metadata.EntryKind)),
                             cancellationToken);
                     }
                     catch (IOException)
@@ -139,15 +142,17 @@ public sealed class ScriptDirectoryLoader(
                             sourcePath);
                     }
 
-                    if (result.Succeeded && result.Program is not null && result.Program.Descriptor.Scope != scope)
+                    if (result.Succeeded && result.Program is not null
+                        && !ScriptEntryKindResolver.IsCompatible(
+                            ScriptEntryKindResolver.Resolve(result.Program.Descriptor), scope))
                     {
                         DisposeProgram(result.Program);
                         result = new ScriptBuildResult(
                             false,
                             null,
                             result.Diagnostics.Add(new ScriptDiagnostic(
-                                "SCRIPT_SCOPE_MISMATCH",
-                                $"The script scope must be '{scope}' for this directory.",
+                                "SCRIPT_ENTRY_KIND_MISMATCH",
+                                "The script entry kind does not match its directory scope.",
                                 ScriptDiagnosticSeverity.Error,
                                 ScriptDiagnosticCategory.Validation,
                                 sourcePath)));
@@ -286,7 +291,8 @@ public sealed class ScriptDirectoryLoader(
                         manifest.Description,
                         manifest.Engine,
                         manifest.Scope,
-                        manifest.SupportedEditorTargets)));
+                        manifest.SupportedEditorTargets,
+                         manifest.EntryKind)));
             }
             catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException or InvalidDataException)
             {
@@ -321,6 +327,9 @@ public sealed class ScriptDirectoryLoader(
         if (metadata.Description is not null && !string.Equals(metadata.Description, descriptor.Description, StringComparison.Ordinal))
             return false;
         if (metadata.Scope is not null && metadata.Scope.Value != descriptor.Scope)
+            return false;
+        if (metadata.EntryKind is { } entryKind
+            && entryKind != ScriptEntryKindResolver.Resolve(descriptor))
             return false;
         if (descriptor.Scope == ScriptScope.Editor && metadata.SupportedEditorTargets is not null
             && !metadata.SupportedEditorTargets.Order().SequenceEqual(

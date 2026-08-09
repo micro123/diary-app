@@ -20,7 +20,7 @@ public sealed class LuaEngineTests
     {
         var result = await _engine.BuildAsync(new ScriptBuildRequest(
             "test.lua",
-            "function main(context) return nil end",
+            "function application_main(context) return nil end",
             DescriptorHint: new ScriptDescriptorHint(
                 "lua-test",
                 "Lua Test",
@@ -37,7 +37,7 @@ public sealed class LuaEngineTests
     [TestMethod]
     public async Task BuildAsync_ReportsMissingDescriptorHint()
     {
-        var result = await _engine.BuildAsync(new ScriptBuildRequest("missing.lua", "function main() end"));
+        var result = await _engine.BuildAsync(new ScriptBuildRequest("missing.lua", "function application_main() end"));
 
         Assert.IsFalse(result.Succeeded);
         Assert.AreEqual("LUA_DESCRIPTOR_HINT_REQUIRED", result.Diagnostics.Single().Code);
@@ -48,7 +48,7 @@ public sealed class LuaEngineTests
     {
         var result = await _engine.BuildAsync(new ScriptBuildRequest(
             "broken.lua",
-            "function main(context)\n  return (\nend",
+            "function application_main(context)\n  return (\nend",
             DescriptorHint: new ScriptDescriptorHint(
                 "broken",
                 "Broken",

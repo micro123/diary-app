@@ -48,7 +48,8 @@ public sealed class LuaEngine : IScriptEngineV1
             request.ApiVersion,
             hint.Scope!.Value,
             hint.Description,
-            hint.SupportedEditorTargets);
+            hint.SupportedEditorTargets,
+            hint.EntryKind);
         return ValueTask.FromResult(ScriptBuildResult.Success(new LuaProgram(
             descriptor,
             request.SourcePath,

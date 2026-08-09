@@ -107,7 +107,7 @@ public sealed class ScriptDirectoryLoaderTests
 
         var result = await loader.LoadAsync(_root);
 
-        Assert.AreEqual("SCRIPT_SCOPE_MISMATCH", result.Diagnostics.Single().Code);
+        Assert.AreEqual("SCRIPT_ENTRY_KIND_MISMATCH", result.Diagnostics.Single().Code);
         Assert.IsFalse(result.Entries.Single().Enabled);
         Assert.IsFalse(catalog.TryGet("wrong", out _));
     }

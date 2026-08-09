@@ -6,7 +6,9 @@ public sealed record ScriptLogItemRequest(
     string Date,
     double Hours,
     string Title,
-    string? Note = null);
+    string? Note = null,
+    string? IdempotencyKey = null,
+    bool Preview = false);
 
 public enum ScriptLogItemErrorCode
 {
@@ -16,14 +18,33 @@ public enum ScriptLogItemErrorCode
     Cancelled = 4,
 }
 
-public sealed record ScriptLogItemError(ScriptLogItemErrorCode Code, string Message);
+public sealed record ScriptLogItemError(ScriptLogItemErrorCode Code, string Message)
+{
+    public ScriptApiError ToApiError() => Code switch
+    {
+        ScriptLogItemErrorCode.InvalidInput => new(ScriptApiErrorCodes.InvalidArgument, Message, ScriptErrorCategory.Validation),
+        ScriptLogItemErrorCode.DatabaseUnavailable => new(ScriptApiErrorCodes.HostNotConfigured, Message, ScriptErrorCategory.Host, true),
+        ScriptLogItemErrorCode.ProviderFailure => new("PROVIDER_FAILURE", Message, ScriptErrorCategory.Provider, true),
+        ScriptLogItemErrorCode.Cancelled => new(ScriptApiErrorCodes.Cancelled, Message, ScriptErrorCategory.Cancellation),
+        _ => new("SCRIPT_LOG_ITEM_FAILED", Message, ScriptErrorCategory.Host),
+    };
+}
 
 public sealed record ScriptLogItemResult(
     bool Succeeded,
     ScriptWorkItem? Item,
     ScriptLogItemError? Error)
 {
-    public static ScriptLogItemResult Success(ScriptWorkItem item) => new(true, item, null);
+    public ScriptEffectSummary? Effects { get; init; }
+    public bool Duplicate { get; init; }
+    public ScriptApiError? ApiError => Error?.ToApiError();
+
+    public static ScriptLogItemResult Success(
+        ScriptWorkItem item,
+        ScriptEffectSummary? effects = null,
+        bool duplicate = false) =>
+        new(true, item, null) { Effects = effects, Duplicate = duplicate };
+
     public static ScriptLogItemResult Failure(ScriptLogItemErrorCode code, string message) =>
         new(false, null, new(code, message));
 }
@@ -40,7 +61,9 @@ public sealed record ScriptTemplateLogItemRequest(
     string TemplateId,
     double Hours,
     string? Title = null,
-    string? Note = null);
+    string? Note = null,
+    string? IdempotencyKey = null,
+    bool Preview = false);
 
 public interface ITemplateLogItemScriptApi
 {

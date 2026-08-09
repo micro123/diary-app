@@ -20,7 +20,7 @@ public sealed class PythonEngineTests
     {
         var engine = new PythonEngine(new PythonRuntimeResolver(_ => null));
 
-        var result = await engine.BuildAsync(new ScriptBuildRequest("missing.py", "def main(context):\n    return None"));
+        var result = await engine.BuildAsync(new ScriptBuildRequest("missing.py", "def application_main(context):\n    return None"));
 
         Assert.IsFalse(result.Succeeded);
         Assert.AreEqual("PYTHON_DESCRIPTOR_HINT_REQUIRED", result.Diagnostics.Single().Code);
@@ -38,7 +38,7 @@ public sealed class PythonEngineTests
         var engine = new PythonEngine(runtime);
         var result = await engine.BuildAsync(new ScriptBuildRequest(
             "hint.py",
-            "def main(context):\n    return None",
+            "def application_main(context):\n    return None",
             DescriptorHint: new ScriptDescriptorHint(
                 "metadata-id",
                 "Metadata Name",
@@ -61,7 +61,7 @@ public sealed class PythonEngineTests
         var engine = new PythonEngine(runtime);
         var result = await engine.BuildAsync(new ScriptBuildRequest(
             "broken.py",
-            "def main(context):\n    return (",
+            "def application_main(context):\n    return (",
             DescriptorHint: new ScriptDescriptorHint(
                 "broken",
                 "Broken",

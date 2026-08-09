@@ -161,6 +161,18 @@ class TargetItemsApi:
         return self.context.diary.workItems.stream(query)
 
 
+class ProgressApi:
+    def __init__(self, state):
+        self._report = HostApi(state, "script.progress")
+
+    def report(self, fraction, message):
+        if not isinstance(fraction, (int, float)) or fraction < 0 or fraction > 1:
+            raise ValueError("fraction must be between 0 and 1")
+        if not isinstance(message, str) or not message.strip():
+            raise ValueError("message must not be empty")
+        return self._report({"fraction": fraction, "message": message})
+
+
 class ClipboardApi:
     def __init__(self, state):
         self._get = HostApi(state, "clipboard.get")
@@ -187,18 +199,26 @@ class UiApi:
 
 class ScriptContext:
     def __init__(self, state, request):
+        self.state = state
         self.request = request if isinstance(request, dict) else {}
         self.arguments = self.request.get("arguments") or {}
         self.target = self.request.get("target")
         self.source = self.request.get("source", "Unknown")
+        self.entryKind = self.request.get("entryKind", "Application")
+        self.idempotencyKey = self.request.get("idempotencyKey")
+        self.preview = bool(self.request.get("preview", False))
         self.diary = DiaryApi(state)
         self.log = self.diary.log
+        self.progress = ProgressApi(state)
         self.dateRange = resolve_date_range(self.target)
         self.workItem = self.target.get("workItem") if isinstance(self.target, dict) else None
         self.items = TargetItemsApi(self)
 
     def getDateRange(self):
         return self.dateRange
+
+    def isCancelled(self):
+        return self.state.cancelled.is_set()
 
     def __getitem__(self, key):
         if key == "diary":
@@ -211,6 +231,12 @@ class ScriptContext:
             return self.target
         if key == "source":
             return self.source
+        if key == "entryKind":
+            return self.entryKind
+        if key == "idempotencyKey":
+            return self.idempotencyKey
+        if key == "preview":
+            return self.preview
         if key == "dateRange":
             return self.dateRange
         if key == "workItem":
@@ -219,6 +245,8 @@ class ScriptContext:
             return self.items
         if key == "log":
             return self.log
+        if key == "progress":
+            return self.progress
         raise KeyError(key)
 
 
@@ -437,9 +465,15 @@ def execute_script(state):
             return
         request = payload.get("request") or {}
         target = request.get("target") if isinstance(request, dict) else None
-        is_application = descriptor.get("scope") == "Application"
-        if (is_application and target is not None) or (not is_application and not isinstance(target, dict)):
-            send_result(message, "Rejected", [diagnostic("SCRIPT_TARGET_INVALID", "The execution target does not match the script descriptor.", source_path, "Validation")])
+        entry_kind = descriptor.get("entryKind")
+        if not isinstance(entry_kind, str):
+            entry_kind = "Editor" if descriptor.get("scope") == "Editor" else "Application"
+        request_entry_kind = request.get("entryKind") if isinstance(request, dict) else None
+        if request_entry_kind is not None and request_entry_kind != entry_kind:
+            send_result(message, "Rejected", [diagnostic("SCRIPT_ENTRY_KIND_MISMATCH", "The execution entry does not match the script descriptor.", source_path, "Validation")])
+            return
+        if (entry_kind == "Editor") != isinstance(target, dict):
+            send_result(message, "Rejected", [diagnostic("SCRIPT_TARGET_INVALID", "The execution target does not match the script entry.", source_path, "Validation")])
             return
         diagnostics = source_diagnostics(source, source_path)
         if diagnostics:
@@ -452,13 +486,23 @@ def execute_script(state):
         }
         code = compile(source, source_path, "exec")
         context = ScriptContext(state, payload.get("request"))
+        entry_names = {
+            "Application": "application_main",
+            "Editor": "editor_main",
+            "Automation": "automation_main",
+            "Query": "query_main",
+        }
+        entry_name = entry_names.get(entry_kind)
+        if entry_name is None:
+            send_result(message, "Rejected", [diagnostic("SCRIPT_ENTRY_KIND_INVALID", "The script entry kind is invalid.", source_path, "Validation")])
+            return
         with redirect_script_output():
             exec(code, namespace, namespace)
-            entry = namespace.get("main") or namespace.get("execute")
+            entry = namespace.get(entry_name)
             if not callable(entry):
                 send_result(message, "Failed", [{
                     "code": "PYTHON_ENTRYPOINT_MISSING",
-                    "message": "Python scripts must define main(context) or execute(context).",
+                    "message": f"Python scripts must define {entry_name}(context).",
                     "severity": "Error",
                     "category": "Validation",
                     "sourcePath": source_path,
@@ -546,7 +590,7 @@ def run():
         "language": "python",
         "workerVersion": "0.2",
         "supportedApiVersions": ["V1"],
-        "supportedHostApis": ["workItems.query", "logItems.create", "templateLogItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write"],
+        "supportedHostApis": ["workItems.query", "logItems.create", "templateLogItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress"],
         "processId": os.getpid(),
     })
     accepted = read_message()

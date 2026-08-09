@@ -40,7 +40,7 @@ public sealed class PythonProgram(
                 executionId.ToString("N"),
                 new WorkerExecutePayload(Descriptor.Id, SourcePath, Source, request),
                 cancellationToken: cancellationToken);
-            return new ScriptExecutionResult(result.Payload.Status, result.Payload.Diagnostics.ToImmutableArray());
+            return new ScriptExecutionResult(result.Payload.Status, result.Payload.Diagnostics.ToImmutableArray(), result.Payload.Effects);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

@@ -147,22 +147,26 @@ public sealed class CSharpEngine : IScriptEngineV1
             using var assemblyStream = new MemoryStream(assemblyBytes, writable: false);
             var assembly = loadContext.LoadFromStream(assemblyStream);
             var programs = assembly.GetTypes()
-                .Where(type => typeof(IScriptProgramV1).IsAssignableFrom(type)
-                    && !type.IsAbstract
-                    && type.GetConstructor(Type.EmptyTypes) is not null)
+                .Where(type => !type.IsAbstract
+                    && type.GetConstructor(Type.EmptyTypes) is not null
+                    && (typeof(IScriptProgramV1).IsAssignableFrom(type)
+                        || typeof(IApplicationScriptV1).IsAssignableFrom(type)
+                        || typeof(IEditorScriptV1).IsAssignableFrom(type)
+                        || typeof(IAutomationScriptV1).IsAssignableFrom(type)))
                 .ToArray();
             if (programs.Length != 1)
             {
                 loadContext.Unload();
                 return ScriptBuildResult.Failure(new ScriptDiagnostic(
                     "CSHARP_ENTRYPOINT_COUNT",
-                    "The script must contain exactly one public parameterless IScriptProgramV1 implementation.",
+                    "The script must contain exactly one public parameterless typed script entry implementation.",
                     ScriptDiagnosticSeverity.Error,
                     ScriptDiagnosticCategory.Validation,
                     sourcePath));
             }
 
-            if (Activator.CreateInstance(programs[0]) is not IScriptProgramV1 program)
+            var instance = Activator.CreateInstance(programs[0]);
+            if (instance is null || !ScriptProgramAdapter.TryAdapt(instance, out var program) || program is null)
             {
                 loadContext.Unload();
                 return ScriptBuildResult.Failure(new ScriptDiagnostic(

@@ -59,7 +59,7 @@ public sealed class ProcessWorkerTransportTests
             var result = await supervisor.ExecuteAsync("lua-demo", "lua-exec-1", new WorkerExecutePayload(
                 "lua-demo",
                 "demo.lua",
-                "function main(context) return nil end",
+                "function application_main(context) return nil end",
                  new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual),
                  new ScriptDescriptorHint("lua-demo", "Lua Demo", ScriptScope.Application, EngineName: "lua")));
 
@@ -103,7 +103,7 @@ public sealed class ProcessWorkerTransportTests
             var result = await supervisor.ExecuteAsync("python-demo", "python-exec-1", new WorkerExecutePayload(
                 "python-demo",
                 "demo.py",
-                "def main(context):\n    print(\"not protocol\")\n    return None\n",
+                "def application_main(context):\n    print(\"not protocol\")\n    return None\n",
                  new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual),
                  new ScriptDescriptorHint("python-demo", "Python Demo", ScriptScope.Application, EngineName: "python")));
 
@@ -138,8 +138,8 @@ public sealed class ProcessWorkerTransportTests
         }
 
         var catalog = new ScriptCatalog();
-        RegisterSource(catalog, "lua-app", "lua", "demo.lua", "function main(context) return nil end");
-        RegisterSource(catalog, "python-app", "python", "demo.py", "def main(context):\n    return None\n");
+        RegisterSource(catalog, "lua-app", "lua", "demo.lua", "function application_main(context) return nil end");
+        RegisterSource(catalog, "python-app", "python", "demo.py", "def application_main(context):\n    return None\n");
         var runtimes = new Dictionary<string, WorkerRuntime>(StringComparer.OrdinalIgnoreCase)
         {
             ["lua"] = new("lua", new WorkerSupervisor(new ProcessWorkerTransportFactory(new(

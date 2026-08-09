@@ -18,7 +18,7 @@ internal sealed class LuaWorker(Stream input, Stream output)
             WorkerMessageType.Hello,
             Guid.NewGuid().ToString("N"),
             null,
-             new("lua", "0.3", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write"], Environment.ProcessId));
+             new("lua", "0.3", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress"], Environment.ProcessId));
         Console.SetOut(new BoundedTextWriter(1 * 1024 * 1024));
         await WorkerMessageCodec.WriteAsync(output, hello);
         var accepted = await WorkerMessageCodec.ReadAsync<WorkerHelloAcceptedPayload>(input);
@@ -82,11 +82,23 @@ internal sealed class LuaWorker(Stream input, Stream output)
                     payload.SourcePath)]));
                 return;
             }
-            if ((hint.Scope == ScriptScope.Application) != (payload.Request.Target is null))
+            var entryKind = hint.EntryKind
+                ?? (hint.Scope == ScriptScope.Editor ? ScriptEntryKind.Editor : ScriptEntryKind.Application);
+            if (payload.Request.EntryKind is { } requestEntryKind && requestEntryKind != entryKind)
+            {
+                await WriteResultAsync(message, new(ScriptExecutionStatus.Rejected, [new ScriptDiagnostic(
+                    "SCRIPT_ENTRY_KIND_MISMATCH",
+                    "执行入口与脚本 descriptor 不匹配。",
+                    ScriptDiagnosticSeverity.Error,
+                    ScriptDiagnosticCategory.Validation,
+                    payload.SourcePath)]));
+                return;
+            }
+            if ((entryKind == ScriptEntryKind.Editor) != (payload.Request.Target is not null))
             {
                 await WriteResultAsync(message, new(ScriptExecutionStatus.Rejected, [new ScriptDiagnostic(
                     "SCRIPT_TARGET_INVALID",
-                    "执行目标与脚本 descriptor 不匹配。",
+                    "执行目标与脚本入口不匹配。",
                     ScriptDiagnosticSeverity.Error,
                     ScriptDiagnosticCategory.Validation,
                     payload.SourcePath)]));
@@ -103,7 +115,7 @@ internal sealed class LuaWorker(Stream input, Stream output)
             }
 
             var executionId = Guid.TryParse(message.ExecutionId, out var parsedId) ? parsedId : Guid.NewGuid();
-            var status = await ExecuteLuaAsync(payload, executionId);
+            var status = await ExecuteLuaAsync(payload, executionId, entryKind);
             await WriteResultAsync(message, status);
         }
         catch (Exception exception)
@@ -115,19 +127,20 @@ internal sealed class LuaWorker(Stream input, Stream output)
 
     private async ValueTask<WorkerExecutionResultPayload> ExecuteLuaAsync(
         WorkerExecutePayload payload,
-        Guid executionId)
+        Guid executionId,
+        ScriptEntryKind entryKind)
     {
         using var lua = CreateLua(executionId, payload.Request);
         try
         {
             lua.LoadString(payload.Source, payload.SourcePath);
             lua.DoString(payload.Source, payload.SourcePath);
-            var entry = lua.GetFunction("main") ?? lua.GetFunction("execute");
+            var entry = lua.GetFunction(GetEntryFunctionName(entryKind));
             if (entry is null)
             {
                 return new(ScriptExecutionStatus.Failed, [new ScriptDiagnostic(
                     "LUA_ENTRYPOINT_MISSING",
-                    "Lua scripts must define main(context) or execute(context).",
+                    $"Lua scripts must define {GetEntryFunctionName(entryKind)}(context).",
                     ScriptDiagnosticSeverity.Error,
                     ScriptDiagnosticCategory.Validation,
                     payload.SourcePath)]);
@@ -174,6 +187,9 @@ internal sealed class LuaWorker(Stream input, Stream output)
         lua["__diary_context_date_range"] = dateRange;
         lua["__diary_context_work_item"] = workItem;
         lua["__diary_context_arguments"] = arguments;
+        lua["__diary_context_entry_kind"] = request.EntryKind?.ToString() ?? "Application";
+        lua["__diary_context_idempotency_key"] = request.IdempotencyKey;
+        lua["__diary_context_preview"] = request.Preview;
         lua.RegisterFunction("__diary_work_items_query", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Query))!);
         lua.RegisterFunction("__diary_log_items_create", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.CreateLogItem))!);
         lua.RegisterFunction("__diary_template_log_items_create", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.CreateTemplateLogItem))!);
@@ -183,7 +199,9 @@ internal sealed class LuaWorker(Stream input, Stream output)
         lua.RegisterFunction("__diary_ui_notify", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Notify))!);
         lua.RegisterFunction("__diary_ui_confirm", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Confirm))!);
         lua.RegisterFunction("__diary_log_write", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Log))!);
-        lua.DoString("diary = { workItems = { query = function(params) return __diary_work_items_query(params) end }, logItems = { create = function(params) return __diary_log_items_create(params) end }, templateLogItems = { create = function(params) return __diary_template_log_items_create(params) end }, trackerInstances = { get = function(params) return __diary_tracker_get(params) end }, clipboard = { get = function() return __diary_clipboard_get() end, set = function(text) return __diary_clipboard_set(text) end }, ui = { notify = function(title, body) return __diary_ui_notify(title, body) end, confirm = function(title, body) return __diary_ui_confirm(title, body) end }, log = { debug = function(message) return __diary_log_write('Debug', message) end, info = function(message) return __diary_log_write('Info', message) end, warning = function(message) return __diary_log_write('Warning', message) end, error = function(message) return __diary_log_write('Error', message) end } }; diary.workItems.stream = function(params) params = params or {}; local pageSize = params.pageSize or 500; if pageSize < 1 or pageSize > 500 then error('pageSize must be between 1 and 500') end; local offset = params.offset or 0; local page = {}; local index = 1; local finished = false; params.pageSize = nil; return function() while true do if index <= #page then local item = page[index]; index = index + 1; return item end; if finished then return nil end; params.limit = pageSize; params.offset = offset; local result = __diary_work_items_query(params); if not result.succeeded then error(result.error.message) end; page = result.items or {}; index = 1; offset = offset + #page; finished = #page < pageSize; end end end; __diary_context = {}; __diary_context.target = __diary_context_target; __diary_context.dateRange = __diary_context_date_range; __diary_context.workItem = __diary_context_work_item; __diary_context.arguments = __diary_context_arguments or {}; __diary_context.log = diary.log; __diary_context.getDateRange = function() return __diary_context_date_range end; __diary_context.items = { stream = function(params) local range = __diary_context_date_range; if range == nil then error('当前目标没有日期范围') end; params = params or {}; params.startDate = range.startDate; params.endDate = range.endDate; return diary.workItems.stream(params) end };");
+        lua.RegisterFunction("__diary_progress_report", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Progress))!);
+        lua.DoString("diary = { workItems = { query = function(params) return __diary_work_items_query(params) end }, logItems = { create = function(params) return __diary_log_items_create(params) end }, templateLogItems = { create = function(params) return __diary_template_log_items_create(params) end }, trackerInstances = { get = function(params) return __diary_tracker_get(params) end }, clipboard = { get = function() return __diary_clipboard_get() end, set = function(text) return __diary_clipboard_set(text) end }, ui = { notify = function(title, body) return __diary_ui_notify(title, body) end, confirm = function(title, body) return __diary_ui_confirm(title, body) end }, log = { debug = function(message) return __diary_log_write('Debug', message) end, info = function(message) return __diary_log_write('Info', message) end, warning = function(message) return __diary_log_write('Warning', message) end, error = function(message) return __diary_log_write('Error', message) end } }; diary.workItems.stream = function(params) params = params or {}; local pageSize = params.pageSize or 500; if pageSize < 1 or pageSize > 500 then error('pageSize must be between 1 and 500') end; local offset = params.offset or 0; local page = {}; local index = 1; local finished = false; params.pageSize = nil; return function() while true do if index <= #page then local item = page[index]; index = index + 1; return item end; if finished then return nil end; params.limit = pageSize; params.offset = offset; local result = __diary_work_items_query(params); if not result.succeeded then error(result.error.message) end; page = result.items or {}; index = 1; offset = offset + #page; finished = #page < pageSize; end end end; __diary_context = {}; __diary_context.target = __diary_context_target; __diary_context.dateRange = __diary_context_date_range; __diary_context.workItem = __diary_context_work_item; __diary_context.arguments = __diary_context_arguments or {}; __diary_context.log = diary.log; __diary_context.progress = { report = function(fraction, message) return __diary_progress_report(fraction, message) end }; __diary_context.getDateRange = function() return __diary_context_date_range end; __diary_context.items = { stream = function(params) local range = __diary_context_date_range; if range == nil then error('当前目标没有日期范围') end; params = params or {}; params.startDate = range.startDate; params.endDate = range.endDate; return diary.workItems.stream(params) end };");
+        lua.DoString("__diary_context.entryKind = __diary_context_entry_kind; __diary_context.idempotencyKey = __diary_context_idempotency_key; __diary_context.preview = __diary_context_preview;");
         return lua;
     }
 
@@ -221,6 +239,16 @@ internal sealed class LuaWorker(Stream input, Stream output)
         _ => null,
     };
 
+    private static string GetEntryFunctionName(ScriptEntryKind entryKind) =>
+        entryKind switch
+        {
+            ScriptEntryKind.Application => "application_main",
+            ScriptEntryKind.Editor => "editor_main",
+            ScriptEntryKind.Automation => "automation_main",
+            ScriptEntryKind.Query => "query_main",
+            _ => throw new ArgumentOutOfRangeException(nameof(entryKind)),
+        };
+
     private static (int? Line, int? Column) ParseLocation(string message)
     {
         var match = Regex.Match(message, @":(?<line>\d+)(?::(?<column>\d+))?(?:[:\s]|$)", RegexOptions.CultureInvariant);
@@ -246,6 +274,7 @@ internal sealed class LuaWorker(Stream input, Stream output)
         public object? Notify(object? title, object? body) => Call("ui.notify", new { title = title?.ToString() ?? string.Empty, body = body?.ToString() ?? string.Empty });
         public object? Confirm(object? title, object? body) => Call("ui.confirm", new { title = title?.ToString() ?? string.Empty, body = body?.ToString() ?? string.Empty });
         public object? Log(object? level, object? message) => Call("log.write", new { level = level?.ToString() ?? "Info", message = message?.ToString() ?? string.Empty });
+        public object? Progress(object? fraction, object? message) => Call("script.progress", new { fraction = Convert.ToDouble(fraction ?? 0), message = message?.ToString() ?? string.Empty });
 
         private object? Call(string method, object parameters)
         {

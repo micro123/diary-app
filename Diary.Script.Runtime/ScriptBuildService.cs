@@ -75,11 +75,15 @@ public sealed class ScriptBuildService(IScriptEngineRegistry engines) : IScriptB
         try
         {
             var descriptor = result.Program.Descriptor;
+            var entryKind = ScriptEntryKindResolver.Resolve(descriptor);
+            var hintedEntryKind = request.DescriptorHint?.EntryKind;
             if (descriptor is null
                 || string.IsNullOrWhiteSpace(descriptor.Id)
                 || string.IsNullOrWhiteSpace(descriptor.Name)
                 || descriptor.ApiVersion != request.ApiVersion
-                || !Enum.IsDefined(descriptor.Scope))
+                || !Enum.IsDefined(descriptor.Scope)
+                || !Enum.IsDefined(entryKind)
+                || !ScriptEntryKindResolver.IsCompatible(entryKind, descriptor.Scope))
             {
                 return MergeFailure(diagnostics, new ScriptDiagnostic(
                     "SCRIPT_DESCRIPTOR_INVALID",
@@ -89,6 +93,15 @@ public sealed class ScriptBuildService(IScriptEngineRegistry engines) : IScriptB
                     request.SourcePath));
             }
 
+            if (hintedEntryKind is { } expectedEntryKind && expectedEntryKind != entryKind)
+            {
+                return MergeFailure(diagnostics, new ScriptDiagnostic(
+                    "SCRIPT_ENTRY_KIND_MISMATCH",
+                    "The built script entry kind does not match its metadata.",
+                    ScriptDiagnosticSeverity.Error,
+                    ScriptDiagnosticCategory.Validation,
+                    request.SourcePath));
+            }
         }
         catch (Exception)
         {

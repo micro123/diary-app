@@ -5,7 +5,7 @@
 本文描述 Diary.App 脚本系统的目标设计、运行时边界和分阶段实现计划。
 
 本文同时记录目标设计和当前实现。当前代码已经定义版本化基础契约、最小脚本管理器、
-构建与执行边界、受限只读事项查询宿主、脚本目录自动加载和脚本管理页；C#、Lua 和 Python 已接入独立 Worker 执行链路。
+构建与执行边界、受限只读事项查询宿主、脚本目录自动加载和脚本管理页；C#、Lua 和 Python 均通过独立 Worker 执行链路。
 
 ## 2. 设计目标
 
@@ -32,21 +32,21 @@
 当前版本化契约位于 `Diary.ScriptBase`：
 
 - `ScriptApiVersion.V1`、`IScriptProgramV1` 和 `IScriptEngineV1`：稳定的执行与引擎边界。
-- `ScriptDescriptor`：稳定 ID、名称、API 版本、应用/编辑器范围和描述。
+- `ScriptDescriptor`：稳定 ID、名称、API 版本、应用/编辑器范围、入口类型和描述。
 - `ScriptDiagnostic`、`ScriptBuildResult` 和 `ScriptExecutionResult`：结构化构建与运行诊断。
-- `ScriptEditorTarget`、`ScriptDateRange`、`IScriptApplicationContext`、`IScriptEditorContext` 和 `ScriptExecutionRequest`：应用与编辑器扩展的执行上下文。
+- `ScriptEntryKind`、`ScriptAutomationContext`、`IScriptApplicationContext`、`IScriptEditorContext`、`IScriptAutomationContext` 和 `ScriptExecutionRequest`：按功能入口划分的执行上下文。
 - `ILogApi`：跨进程异步调试日志 API，Worker 通过 `log.write` 转发到宿主。
-- `LegacyScriptAdapters`：保留现有应用脚本和日期/范围编辑器脚本的兼容适配。
+- `ScriptProgramAdapter`：将按功能划分的 C# 入口适配到 Worker 使用的 `IScriptProgramV1`。
 
 `Diary.Script.Runtime` 当前提供：
 
 - `ScriptEngineRegistry`：注册引擎并按匹配优先级选择。
 - `ScriptBuildService`：选择引擎、构建并规范化失败诊断。
 - `ScriptCatalog`：按稳定脚本 ID 注册和读取构建后的程序。
-- `ScriptExecutionContext`：按执行作用域暴露目标、参数、日期范围和事项迭代 API。
+- `ScriptExecutionContext`：按入口类型暴露目标、参数、日期范围、自动化事件、取消和进度 API。
 - `ScriptExecutor`：目标校验、独立执行 ID、取消、超时和异常隔离。
 - `ScriptManager`：组合构建、注册和执行的最小入口。
-- `ScriptDirectoryLoader`：扫描 application/editor 目录，读取元数据，按加载结果标记可执行状态并隔离单个脚本失败。
+- `ScriptDirectoryLoader`：扫描 application/editor 目录和脚本包，读取入口类型元数据，校验 descriptor/manifest 与作用域、目标的一致性，并隔离单个脚本失败。
 
 `Diary.ScriptHost` 当前提供 `IDiaryApi`，只返回不可变事项、备注和标签 DTO，
 复用核心 `WorkItemQuery` 的校验和查询语义，并返回权限、输入、数据库和取消错误。
@@ -55,7 +55,7 @@
 
 - `Diary.Script.CSharp`：已实现基于 Roslyn 的 V1 构建、入口发现和行列诊断，并拒绝动态绑定、
   类型反射入口、线程、脱离生命周期的任务调度及文件、网络、进程、原生调用等危险 API；
-  当前仍为受信任进程内执行，静态策略不构成安全沙箱。
+  运行时统一由 C# Worker 承载；Roslyn 策略减少危险引用，但不构成单独的安全沙箱。
 - `Diary.Script.Lua`：使用 `NLua 1.7.9 + KeraLua` 做语法构建和 descriptor 校验，运行时由独立 .NET worker 承载。
 - `Diary.Script.Python`：通过 `PythonRuntimeResolver` 发现本机 Python 3 解释器，使用受控 `worker.py` 做语法检查和独立进程执行。
 
@@ -78,7 +78,7 @@ Worker 进程边界、消息封装、生命周期和重启语义见
 metadata 随源码移动、外部修改冲突保护、编译诊断和按行列跳转，窗口内容避让系统标题栏；对应窗口交互由 Avalonia Headless 测试覆盖。
 脚本管理列表中的 C#、Python 和 Lua 脚本使用官方 SVG 图标（[C#](https://github.com/dotnet/brand/blob/main/logo/language-icons/csharp-72.svg)、
 [Python](https://s3.dualstack.us-east-2.amazonaws.com/pythondotorg-assets/media/files/python-logo-only.svg)、[Lua](https://upload.wikimedia.org/wikipedia/commons/c/cf/Lua-Logo.svg)），未知语言继续使用 Material 图标回退。
-脚本管理页的新建向导支持 C#、Lua 和 Python，并为源码写入对应扩展名和引擎元数据；Lua/Python 模板提供 `main(context)` 入口。
+脚本管理页的新建向导支持 C#、Lua 和 Python，并为源码写入对应扩展名、引擎元数据和入口类型；Lua/Python 模板按入口类型生成 `application_main(context)` 或 `editor_main(context)`。
 
 ## 4. 分层架构
 
@@ -116,95 +116,48 @@ IScriptApi
 
 ## 5. 脚本类型、执行上下文和生命周期
 
-脚本继续分为两类：
+脚本按功能入口分为 Application、Editor、Automation，Query 作为只读扩展预留。底层 Worker 仍使用统一的 `IScriptProgramV1` 适配协议。
 
 ### 5.1 应用脚本
 
-应用程序扩展通过 `IScriptProgramV1.ExecuteAsync` 执行，使用 `IScriptApplicationContext`，适合：
-
-- 批量整理日记。
-- 导出或统计数据。
-- 创建或整理工作项数据。
-- 调用 Tracker 的批量操作。
+应用脚本使用 `IApplicationScriptV1` 或 `ApplicationScript`，对应 `ScriptEntryKind.Application`。它接收没有编辑器目标的 `IScriptApplicationContext`，适合批量整理、导出统计和创建追加式工作记录。
 
 ### 5.2 编辑器脚本
 
-编辑器脚本不增加 `ExecuteWeek`、`ExecuteMonth`、`ExecuteYear` 等固定方法。V1 使用一个
-`ExecuteAsync` 入口，但由宿主按作用域提供不同的强类型上下文：应用程序扩展接收
-`IScriptApplicationContext`，编辑器扩展接收 `IScriptEditorContext`。
+编辑器脚本使用 `IEditorScriptV1` 或 `EditorScript`，对应 `ScriptEntryKind.Editor`。它必须收到 `Year`、`Quarter`、`Month`、`Day` 或 `WorkItem` 目标，并可通过 `GetDateRange()`、`StreamItemsAsync()` 或不可变的 `ScriptWorkItem` 快照读取上下文。
 
-编辑器目标固定为 `Year`、`Quarter`、`Month`、`Day` 和 `WorkItem`。季度是自然季度，
-范围包含开始日期和结束日期；年、季度、月、日目标都可以通过 `GetDateRange()` 和
-`StreamItemsAsync()` 读取，事项目标直接提供不可变的 `ScriptWorkItem` 快照。编辑器脚本
-可以在 metadata 中声明 `supportedEditorTargets`；未声明时视为支持全部五类目标。
+编辑器脚本可以在 metadata 中声明 `supportedEditorTargets`；未声明时视为支持全部五类目标。`ScriptExecutionRequest.Target` 对应用程序扩展必须为 `null`，对编辑器扩展必须是上述五类目标之一。
 
-```csharp
-public sealed record ScriptEditorTarget(
-    ScriptEditorTargetKind Kind,
-    int? Year = null,
-    int? Quarter = null,
-    int? Month = null,
-    string? Date = null,
-    ScriptWorkItem? WorkItem = null);
+### 5.3 自动化脚本
 
-public interface IScriptEditorContext : IScriptExecutionContext
-{
-    ScriptEditorTarget Target { get; }
-    ScriptWorkItem? WorkItem { get; }
-    IReadOnlyDictionary<string, string> Arguments { get; }
-    ScriptDateRange? GetDateRange();
-    IAsyncEnumerable<ScriptWorkItem> StreamItemsAsync(CancellationToken cancellationToken = default);
-}
-```
+自动化脚本使用 `IAutomationScriptV1` 或 `AutomationScript`，对应 `ScriptEntryKind.Automation`。`IScriptAutomationContext.Automation` 携带触发器类型、事件数据和幂等键；当前触发器包括 Startup、Scheduled、WorkItemCreated、WorkItemSaved 和 TagAdded。自动化脚本只允许通过追加式 API 产生工作记录，不提供删除或直接改写历史记录。
 
-模板不是脚本上下文的一部分。模板的选择、读取、应用和持久化均由编辑器或宿主完成；脚本不能：
+### 5.4 查询入口和模板边界
 
-- 选择模板或切换当前模板。
-- 创建、修改或删除模板。
-- 将模板 ID 作为脚本参数来批量应用。
-- 直接修改模板中的 Tracker 数据；模板只提供核心字段和默认标签。
+Query 入口已在契约中预留，当前创建向导和 SDK 尚未提供独立的 `QueryScript` 基类。模板的选择、读取、应用和持久化均由编辑器或宿主完成；脚本不能创建、修改、删除或直接应用模板。
 
-如果编辑器已经根据用户选择模板创建了工作项草稿，脚本可以处理宿主传入的草稿内容，
-但这不表示脚本拥有模板操作权限。脚本 API 默认也不提供模板写入接口。
-
-`ScriptExecutionRequest.Target` 对应用程序扩展必须为 `null`，对编辑器扩展必须是上述五类目标之一。
-现有 `IEditorScript.ExecuteDay` 和 `ExecuteRange` 继续由兼容适配层处理；新脚本优先使用
-`IScriptProgramV1.ExecuteAsync` 和作用域上下文。
-
-编辑器脚本适合：
-
-- 处理当前日期的工作项。
-- 对日期范围执行格式化或汇总。
-- 在编辑器中读取当前目标并生成处理结果。
-
-### 5.3 工作流脚本
-
-当脚本面向时间周期、项目或 Tracker 批处理，而不是当前编辑器 UI 时，建议使用 `Workflow` 概念。
-它可以先作为 `IContextScript` 的一种使用方式，不必立即新增独立接口。
-
-建议后续将 `ScriptUsage` 扩展为 `Application`、`Editor` 和 `Workflow`，但不应为了年/月/日分别增加脚本类型。
-
-脚本生命周期建议为：
+脚本生命周期为：
 
 ```text
-发现 -> 读取元数据 -> 检查权限 -> 选择引擎 -> 构建/加载缓存
-     -> 注册脚本 -> 用户执行 -> 创建执行上下文
-     -> 执行 -> 返回结果/诊断 -> 释放上下文
+发现 -> 读取元数据/manifest -> 校验入口和目标 -> 选择引擎 -> 构建/加载缓存
+     -> 注册脚本 -> 用户执行 -> 创建执行上下文 -> Worker 执行
+     -> 返回结果/诊断/副作用摘要 -> 释放上下文
 ```
 
 构建失败的脚本可以显示在诊断列表中，但不得阻止其他脚本和核心程序启动。
 
 ## 6. 引擎契约
 
-现有 `IScriptEngine` 需要逐步扩展为结构化的构建请求和构建结果。
+当前使用 `IScriptEngineV1`，构建请求携带源码和 descriptor hint，构建结果携带 `IScriptProgramV1` 及结构化诊断。不同语言的程序最终都由 Worker 适配层执行。
 
-建议模型：
+当前契约模型：
 
 ```csharp
 public sealed record ScriptBuildRequest(
     string SourcePath,
     string Source,
-    ScriptExecutionPolicy Policy);
+    ScriptApiVersion ApiVersion = ScriptApiVersion.V1,
+    ScriptDescriptorHint? DescriptorHint = null);
 
 public sealed record ScriptDiagnostic(
     string Severity,
@@ -215,8 +168,8 @@ public sealed record ScriptDiagnostic(
 
 public sealed record ScriptBuildResult(
     bool Success,
-    IScript? Script,
-    IReadOnlyList<ScriptDiagnostic> Diagnostics);
+    IScriptProgramV1? Program,
+    ImmutableArray<ScriptDiagnostic> Diagnostics);
 ```
 
 引擎应提供以下能力：
@@ -257,7 +210,7 @@ public interface IScriptManager
 - 维护脚本 ID、显示名称、类型、状态和错误信息。
 - [已完成] 使用源码哈希、引擎版本、契约版本和安全策略版本管理 C# 编译缓存。
 - [已完成] 创建每次执行独立的上下文。
-- 编辑器菜单按脚本声明的 `SupportedEditorTargets` 过滤目标；旧脚本未声明时兼容为全部目标。
+- 编辑器菜单按脚本声明的 `SupportedEditorTargets` 过滤目标；未声明时当前契约默认支持全部目标。
 - 统一处理取消、超时、异常和执行结果。
 
 目录加载由应用层的共享加载状态协调。应用初始化阶段立即在后台启动一次异步预加载，目录枚举、元数据读取和脚本构建不会占用 UI 线程；脚本管理页显示时复用进行中的任务或缓存结果，手动重新加载和脚本变更后的检查才会强制启动新一轮扫描。
@@ -355,8 +308,7 @@ logger 和脚本管理页的共享运行日志窗口；共享窗口只接收脚�
 当前会话最多保留 2000 条。诊断和日志不得包含密码、API Key 或授权令牌。
 
 C# 脚本尤其需要限制引用和宿主对象。不能将 `App`、数据库连接、服务容器或任意程序集实例直接注入脚本。
-进程内策略只能降低误用和常见逃逸风险，不能隔离堆栈溢出、内存耗尽、运行时故障或忽略取消的代码；
-需要运行不受信任的 C# 脚本时，应使用可被宿主终止的独立 worker 进程。
+当前所有脚本都在独立 Worker 中执行。C# 的 Roslyn 限制策略用于减少危险引用和常见逃逸，Worker 进程边界负责隔离崩溃、超时和资源失控；它仍不是面向不受信任代码的完整安全沙箱。
 
 ## 11. 脚本 API
 

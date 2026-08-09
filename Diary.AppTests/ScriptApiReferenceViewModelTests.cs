@@ -13,8 +13,8 @@ public sealed class ScriptApiReferenceViewModelTests
         try
         {
             File.WriteAllText(Path.Combine(root, "CSharp.md"), "# C# API\n\n说明文字。\n\n```csharp\nvar value = 1;\n```");
-            File.WriteAllText(Path.Combine(root, "Lua.md"), "# Lua API\n\n```lua\nfunction main(context)\nend\n```");
-            File.WriteAllText(Path.Combine(root, "Python.md"), "# Python API\n\n```python\ndef main(context):\n    return None\n```");
+            File.WriteAllText(Path.Combine(root, "Lua.md"), "# Lua API\n\n```lua\nfunction application_main(context)\nend\n```");
+            File.WriteAllText(Path.Combine(root, "Python.md"), "# Python API\n\n```python\ndef application_main(context):\n    return None\n```");
 
             var viewModel = new ScriptApiReferenceViewModel(root);
 
@@ -26,7 +26,7 @@ public sealed class ScriptApiReferenceViewModelTests
             viewModel.SelectedLanguage = "Python";
 
             Assert.AreEqual("Python API Reference", viewModel.Title);
-            Assert.IsTrue(viewModel.Blocks.Any(block => block.IsCode && block.Text.Contains("def main(context):", StringComparison.Ordinal)));
+            Assert.IsTrue(viewModel.Blocks.Any(block => block.IsCode && block.Text.Contains("def application_main(context):", StringComparison.Ordinal)));
         }
         finally
         {

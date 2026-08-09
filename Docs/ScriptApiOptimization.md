@@ -4,9 +4,21 @@
 
 本文从脚本作者的角度评估当前脚本 API，记录实际使用流程中的阻力、跨语言差异、文档问题和后续优化方向。
 
-本文是脚本系统设计的补充评审文档，不作为当前工作项清单；具体实施时应根据版本目标拆分为独立任务，不直接写入 Docs/TODOS.md。
+本文是脚本系统设计的补充评审文档，记录用户体验判断、已落地契约和仍待实施的建议。实施状态以 `Docs/TODOS.md` 为准。
 
 关联设计：Docs/ScriptSystemDesign.md、Docs/ScriptWorkerDesign.md。
+
+## 实施状态（2026-08-08）
+
+本轮已按推荐顺序完成入口契约的第一版实现，并统一保持 Worker 执行：
+
+- C# 提供 `ApplicationScript`、`EditorScript` 和 `AutomationScript` SDK 基类；底层 `IScriptProgramV1` 只作为 Worker 适配契约。
+- Lua/Python 使用 `application_main`、`editor_main`、`automation_main`、`query_main` 明确入口名；当前创建向导生成应用或编辑器入口。
+- `ScriptEntryKind` 已进入 descriptor、metadata、manifest 和执行请求，入口、作用域、编辑器目标不一致时在构建/加载/执行边界拒绝。
+- 上下文已提供入口类型、参数、取消状态、`GetRequiredApi` 和进度报告；自动化上下文携带触发器、事件数据和幂等键。
+- 普通日志项和模板日志项支持幂等键、预览和副作用摘要。当前幂等结果存于宿主进程内存，应用重启后不会保留，持久化幂等记录仍是后续工作。
+
+仍未实现的建议包括 API 发现列表、日期范围快捷 API、持久化幂等、追加式修正/冲正和完整的跨语言契约测试。
 
 ## 2. 当前能力概览
 
@@ -46,9 +58,9 @@
 
 主要问题是三种语言生成的代码模型不同：
 
-- C# 需要实现 IScriptProgramV1、填写 ScriptDescriptor 并实现 ExecuteAsync。
-- Lua 和 Python 只需要实现 main(context) 或 execute(context)。
-- C# 用户需要手动通过 context.GetApi<T>() 查找宿主 API，样板代码较多。
+- C# 可继承与功能对应的 SDK 基类，入口和 descriptor 由基类生成；高级场景仍可直接实现 `IApplicationScriptV1` 等接口。
+- Lua/Python 按 `ScriptEntryKind` 使用明确入口函数，例如 `application_main(context)` 或 `editor_main(context)`。
+- C# 仍可通过 `GetApi<T>()` 获取底层 API，并可用 `GetRequiredApi<T>()` 把缺失 API 转成明确异常。
 
 建议增加统一的“5 分钟入门”示例，并在创建向导中明确显示：
 
@@ -60,53 +72,20 @@
 
 ### 3.2 按功能区分程序入口
 
-当前底层只有统一的 IScriptProgramV1.ExecuteAsync(request, context) 入口，ScriptDescriptor 通过 ScriptScope 区分 Application 和 Editor，ScriptExecutionSource 再区分 Manual、Editor、Startup、Automation。
+底层仍保留统一的 `IScriptProgramV1.ExecuteAsync(request, context)`，用于 Worker 协议和运行时调度；面向脚本作者的入口已经按 `ScriptEntryKind` 拆分。入口类型由 descriptor、metadata/manifest 和执行请求共同确认，不能只依赖 `ScriptExecutionSource` 推断场景。
 
-这个设计便于 Worker 统一调度，但从脚本作者角度看，入口语义过于宽泛：手动应用脚本、编辑器目标脚本和自动化触发脚本的生命周期、输入数据和副作用预期并不相同。当前 ScriptExecutionContext 同时实现应用和编辑器上下文，脚本还需要自己判断当前是否存在目标。
+这样既保留 Worker 的统一生命周期、超时、取消和诊断模型，又让脚本作者在入口层获得明确的上下文边界：应用脚本没有编辑器目标，编辑器脚本必须收到目标，自动化脚本通过自动化上下文读取触发器和事件数据。
 
-建议在 SDK 层按功能提供不同的程序入口，底层继续用统一适配器接入 Worker：
+当前入口约定如下：
 
-| 功能 | 建议入口 | 主要输入 |
+| 功能 | 入口 | 主要输入 |
 | --- | --- | --- |
-| 应用命令脚本 | ApplicationScript | 参数、当前应用环境、手动执行来源 |
-| 编辑器脚本 | EditorScript | 年/月/日/季度/事项目标和日期范围 |
-| 自动化脚本 | AutomationScript | 触发器类型、事件数据、幂等键和取消信号 |
-| 查询/报表脚本 | QueryScript 或 ReportScript | 查询参数，只读结果或可展示报告 |
+| 应用命令脚本 | Application | 参数、当前应用环境、手动执行来源 |
+| 编辑器脚本 | Editor | 年/月/日/季度/事项目标和日期范围 |
+| 自动化脚本 | Automation | 触发器类型、事件数据、幂等键和取消信号 |
+| 查询/报表脚本 | Query（契约已预留） | 查询参数，只读结果或可展示报告 |
 
-C# 可以提供不同的强类型接口：
-
-~~~csharp
-public interface IApplicationScriptV1
-{
-    ScriptDescriptor Descriptor { get; }
-    ValueTask<ScriptExecutionResult> RunAsync(
-        ApplicationScriptContext context,
-        CancellationToken cancellationToken = default);
-}
-
-public interface IEditorScriptV1
-{
-    ScriptDescriptor Descriptor { get; }
-    ValueTask<ScriptExecutionResult> RunAsync(
-        EditorScriptContext context,
-        CancellationToken cancellationToken = default);
-}
-
-public interface IAutomationScriptV1
-{
-    ScriptDescriptor Descriptor { get; }
-    ValueTask<ScriptExecutionResult> RunAsync(
-        AutomationScriptContext context,
-        CancellationToken cancellationToken = default);
-}
-~~~
-
-IScriptProgramV1 可以保留为 Worker 和运行时的底层兼容契约，由宿主将不同入口适配为统一执行请求。这样脚本作者不需要自己判断 Application/Editor，也不会把编辑器脚本误写成应用脚本。
-
-Lua/Python 也可以按入口类型约定函数名或 manifest 元数据，例如 application.run、editor.run、automation.run；具体语法可以遵循各语言习惯，但入口类型、输入字段和错误语义必须一致。
-
-自动化入口尤其不应只复用 Manual/Automation 字符串来源。它需要明确的触发器数据和幂等语义，否则脚本作者无法判断同一事件是否已经处理过。
-
+C# 的公开入口接口分别是 `IApplicationScriptV1`、`IEditorScriptV1` 和 `IAutomationScriptV1`，SDK 基类进一步减少 descriptor 和入口样板代码。Lua/Python 使用同一组入口名：`application_main`、`editor_main`、`automation_main` 和预留的 `query_main`；当前不再依赖通用 `main(context)` 的隐式判断。
 ### 3.3 查询工作项
 
 当前查询接口能够覆盖常见过滤条件，但用户需要理解日期字符串格式、标签过滤枚举、分页上限和 offset 行为。
@@ -133,7 +112,7 @@ queryByDateRange(startDate, endDate)
 - 创建前无法预览或确认将要写入的内容。
 - 如果业务需要更正，应通过明确的修正记录或冲正记录表达，而不是删除原始记录。
 
-建议增加幂等键和预览能力：
+幂等键和预览能力已提供；当前实现仍需补充持久化幂等和更完整的审计边界：
 
 ~~~text
 CreateLogItem(..., idempotencyKey)
@@ -212,7 +191,7 @@ IScriptExecutionContext.GetApi<T>() 在 API 未注册时返回 null。这会把�
 建议增加：
 
 ~~~csharp
-GetRequiredApi<T>()
+var diary = context.GetRequiredApi<IDiaryApi>();
 ~~~
 
 并返回明确诊断：
@@ -249,14 +228,14 @@ Lua 尤其应提供带 code 属性的错误对象，避免脚本只能解析错�
 
 ### 4.4 取消和进度反馈不够统一
 
-C# 要求脚本作者手动将 CancellationToken 传给每一个异步 API；Python 依赖 Worker 的执行跟踪；Lua 的宿主桥接目前没有完整传递取消令牌。
+C# 上下文直接暴露 `CancellationToken`、`IsCancellationRequested` 和 `ReportProgressAsync`；Python 提供 `context.isCancelled()`、`context.progress.report(...)`，Lua 提供 `context.isCancelled()`、`context.progress.report(...)`。宿主调用由 Worker 负责关联当前执行的取消生命周期。
 
-建议：
+当前已提供：
 
 - 上下文直接暴露当前取消状态。
 - 宿主 API 默认使用当前执行的取消令牌。
-- 动态语言提供 context.isCancelled() 或等价方法。
-- 增加统一进度 API，而不是让用户用日志模拟进度。
+- 动态语言提供 `context.isCancelled()` 或等价方法。
+- 统一进度 API，不再要求用户用日志模拟进度。
 
 示例：
 
@@ -266,7 +245,7 @@ context.progress.report(0.5, "正在处理工作项")
 
 ### 4.5 写入 API 的幂等和预览能力
 
-脚本管理页面允许手动执行脚本，但脚本失败后用户可能重试。当前创建接口没有幂等键，重复执行可能产生重复日志项。对于工作记录程序，这比缺少删除或更新更值得优先处理。
+脚本管理页面允许手动执行脚本，但脚本失败后用户可能重试。当前创建接口已接受幂等键，重复提交同一业务动作会返回重复结果而不再次追加；预览请求只返回投影记录和副作用摘要。当前幂等表是进程内缓存，尚不能跨重启保证幂等。
 
 建议先增加：
 
@@ -284,21 +263,22 @@ context.progress.report(0.5, "正在处理工作项")
 
 ### 4.7 C# 样板代码偏多
 
-当前最小 C# 脚本需要实现完整的 IScriptProgramV1 和 descriptor。建议增加 SDK 层基类或辅助工厂：
+当前最小 C# 脚本可以继承按功能划分的 SDK 基类，descriptor 和入口适配由基类完成：
 
 ~~~csharp
-public abstract class DiaryScript
+public sealed class DemoScript : ApplicationScript
 {
-    public abstract string Id { get; }
-    public abstract string Name { get; }
+    public override string Id => "demo";
+    public override string Name => "示例";
 
-    public abstract ValueTask RunAsync(
-        ScriptContext context,
-        CancellationToken cancellationToken);
+    public override ValueTask<ScriptExecutionResult> ExecuteAsync(
+        IScriptApplicationContext context,
+        CancellationToken cancellationToken = default) =>
+        ValueTask.FromResult(ScriptExecutionResult.Succeeded());
 }
 ~~~
 
-底层 V1 契约继续保留，用于高级扩展和兼容性控制。
+底层 V1 契约仍保留为 Worker 适配边界；由于当前版本未发布，不额外承诺旧入口源码兼容。
 
 ## 5. 安全和可靠性建议
 
@@ -315,15 +295,14 @@ public abstract class DiaryScript
 
 ### P0：修正文档和契约表达
 
-- 修正所有文档中的 Worker/进程内执行描述。
+- 已修正 Worker/进程内执行描述，当前三种语言统一通过 Worker。
 - 修正 Offset 限制、章节编号和 Get/GetInstance 命名。
 - 统一 Title/Comment 的语义说明。
 - 建立统一错误码和宿主 API 可用性文档。
 
 ### P1：改善脚本日常开发体验
 
-- 增加强类型 ScriptContext 外观。
-- 增加 GetRequiredApi<T>()。
+- 已增加入口类型、强类型上下文、`GetRequiredApi<T>()` 和统一进度报告。
 - 增加日期范围快捷方法。
 - 增加模板和 Tracker 实例发现 API。
 - 增加按 Application/Editor/Automation 入口划分的 C# SDK 基类和最小示例。
@@ -331,19 +310,17 @@ public abstract class DiaryScript
 
 ### P2：增强自动化能力
 
-- 增加幂等键和 DryRun/预览。
-- 增加统一进度报告。
-- 改善取消传播。
+- 已增加幂等键、预览、副作用摘要和统一进度报告；持久化幂等和完整取消示例仍待补齐。
 - 设计可追溯的记录修正/冲正能力（仅在业务确有需要时）。
 - 增加稳定游标分页。
 
 ## 7. 推荐实施顺序
 
-1. 先修正文档与现有契约说明，避免用户按照错误限制编写脚本。
-2. 抽象跨语言共享的宿主 API 语义和错误码。
-3. 增加模板、Tracker 实例和日期范围的发现/快捷 API。
-4. 增加 C# SDK 辅助层，减少 descriptor 和入口样板代码。
-5. 最后增加幂等、预览、进度和可追溯的记录修正/冲正能力。
+1. 修正文档与入口契约，统一 Worker 执行说明和入口命名。
+2. 抽象跨语言共享的宿主 API 语义、错误码、取消和进度模型。
+3. 增加追加写入的幂等、预览和副作用摘要；持久化幂等另行实施。
+4. 增加 C# SDK 和三种语言模板。
+5. 再评估模板/Tracker/日期范围发现 API，以及确有业务需要时的追加式修正/冲正。
 
 ## 8. 评审结论
 

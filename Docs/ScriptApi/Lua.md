@@ -4,10 +4,19 @@ Lua 使用 `ScriptApiVersion.V1`。脚本在独立 Lua Worker 中执行，通过
 
 ## 1. 脚本入口和上下文
 
-脚本必须定义同步函数 `main(context)` 或 `execute(context)`，不能依赖上一次执行留下的 Lua 全局状态。
+入口函数由脚本的 `entryKind` 决定，必须使用以下固定名称之一：
 
-```lua
-function main(context)
+| 入口类型 | 函数名 | 是否有编辑器目标 |
+| --- | --- | --- |
+| Application | `application_main(context)` | 否 |
+| Editor | `editor_main(context)` | 是 |
+| Automation | `automation_main(context)` | 否 |
+| Query | `query_main(context)` | 否；当前仅预留 |
+
+最小应用脚本示例：
+
+~~~lua
+function application_main(context)
     local result = diary.workItems.query({
         startDate = "2026-08-01",
         endDate = "2026-08-31",
@@ -22,34 +31,27 @@ function main(context)
         print(item.date .. ": " .. item.comment)
     end
 end
-```
+~~~
 
 `context` 字段：
 
 | 字段 | 说明 |
 | --- | --- |
-| `request` | 完整执行请求。字段名使用 camelCase。 |
+| `request` | 完整执行请求，包含 `entryKind`、`source`、`arguments`、`idempotencyKey` 和 `preview`。 |
+| `entryKind` | 当前入口类型。 |
 | `arguments` | 执行参数表；未传参数时为空表。 |
 | `target` | 编辑器目标；包含 `kind` 以及目标对应的字段。 |
 | `dateRange` | 年、季度、月、日目标的 `{ startDate, endDate }`；事项目标为 `nil`。 |
 | `workItem` | 事项目标的不可变事项快照；其他目标为 `nil`。 |
+| `isCancelled()` | 查询当前执行是否已请求取消。 |
+| `progress.report(fraction, message)` | 报告 0 到 1 之间的执行进度。 |
 | `getDateRange()` | 获取当前目标日期范围；无范围时返回 `nil`。 |
 | `items.stream()` | 按当前日期范围分页迭代事项。 |
 | `log` | 调试日志 API。 |
 
 `target.kind` 为 `Year`、`Quarter`、`Month`、`Day` 或 `WorkItem`。季度使用自然季度：1-3、4-6、7-9、10-12 月。`context.request.source` 是 `Manual`、`Editor`、`Startup` 或 `Automation`。
 
-```lua
-local range = context.getDateRange()
-if range ~= nil then
-    for item in context.items.stream() do
-        print(item.date .. ": " .. item.comment)
-    end
-elseif context.workItem ~= nil then
-    context.log.info("当前事项：" .. context.workItem.comment)
-end
-```
-
+脚本自动化只能追加工作记录，不提供删除或直接改写历史记录；创建 API 的 `idempotencyKey` 和 `preview` 用于控制重复提交和预览副作用。`idempotencyKey` 当前只在宿主进程生命周期内有效。
 ## 2. 查询工作项
 
 调用：`diary.workItems.query(params)`。

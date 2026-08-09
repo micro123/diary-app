@@ -50,12 +50,14 @@ public sealed class WorkerScriptExecutor(
                          descriptor.Scope,
                          descriptor.Description,
                          engineName,
-                         descriptor.SupportedEditorTargets)),
+                         descriptor.SupportedEditorTargets,
+                         descriptor.EntryKind)),
                 timeout,
                 cancellationToken);
             return new(executionId, new ScriptExecutionResult(
                 result.Payload.Status,
-                result.Payload.Diagnostics.ToImmutableArray()), Source: request.Source,
+                result.Payload.Diagnostics.ToImmutableArray(),
+                result.Payload.Effects), Source: request.Source,
                 WorkerId: runtime.Supervisor.WorkerId, WorkerRequestId: result.RequestId,
                 Duration: TimeSpan.FromMilliseconds(result.Payload.DurationMilliseconds));
         }

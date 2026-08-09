@@ -111,9 +111,18 @@ public sealed class ScriptManager(
         var executionId = Guid.NewGuid();
         var startedAt = DateTimeOffset.UtcNow;
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        var metadata = new ScriptExecutionMetadata(executionId, startedAt, request.Source, scriptId);
-        var context = contextFactory?.Create(metadata, request)
-            ?? new ScriptExecutionContext(metadata, request.Target, request.Arguments);
+        var entryKind = ScriptEntryKindResolver.Resolve(request, program.Descriptor);
+        var normalizedRequest = request with { EntryKind = entryKind };
+        var metadata = new ScriptExecutionMetadata(
+            executionId,
+            startedAt,
+            request.Source,
+            scriptId,
+            entryKind,
+            request.IdempotencyKey,
+            request.Preview);
+        var context = contextFactory?.Create(metadata, normalizedRequest)
+            ?? new ScriptExecutionContext(metadata, normalizedRequest.Target, normalizedRequest.Arguments);
         var outcome = workerExecutor is null
             ? await executor.ExecuteAsync(
                 program,

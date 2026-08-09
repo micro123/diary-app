@@ -11,7 +11,8 @@ public sealed class WorkItemQueryWorkerDispatcher(
     Func<ITemplateLogItemScriptApi>? templateLogItemApiFactory = null,
     Func<IClipboardScriptApi>? clipboardApiFactory = null,
     Func<IUserInteractionScriptApi>? interactionApiFactory = null,
-    Func<string, ILogApi>? scriptLogApiFactory = null) : IWorkerHostCallDispatcher
+    Func<string, ILogApi>? scriptLogApiFactory = null,
+    Func<string, ScriptProgressUpdate, CancellationToken, ValueTask>? progressReporter = null) : IWorkerHostCallDispatcher
 {
     public async ValueTask<WorkerHostResultPayload> DispatchAsync(
         string executionId,
@@ -32,6 +33,8 @@ public sealed class WorkItemQueryWorkerDispatcher(
             return await DispatchInteractionAsync(interactionApiFactory, call, cancellationToken);
         if (string.Equals(call.Method, "log.write", StringComparison.Ordinal))
             return await DispatchScriptLogAsync(scriptLogApiFactory, executionId, call, cancellationToken);
+        if (string.Equals(call.Method, "script.progress", StringComparison.Ordinal))
+            return await DispatchProgressAsync(progressReporter, executionId, call, cancellationToken);
         if (!string.Equals(call.Method, "workItems.query", StringComparison.Ordinal))
             return new(false, Error: new("InvalidInput", "不支持的 Worker 宿主 API。"));
         try
@@ -55,6 +58,31 @@ public sealed class WorkItemQueryWorkerDispatcher(
         {
             return new(false, Error: new("ProviderFailure", "数据库查询失败。"));
         }
+    }
+
+    private static async ValueTask<WorkerHostResultPayload> DispatchProgressAsync(
+        Func<string, ScriptProgressUpdate, CancellationToken, ValueTask>? reporter,
+        string executionId,
+        WorkerHostCallPayload call,
+        CancellationToken cancellationToken)
+    {
+        if (reporter is null)
+            return new(true, JsonSerializer.SerializeToElement(new { accepted = true }, WorkerProtocol.JsonOptions));
+        try
+        {
+            var update = call.Params.Deserialize<ScriptProgressUpdate>(WorkerProtocol.JsonOptions)
+                ?? throw new JsonException();
+            await reporter(executionId, update, cancellationToken);
+            return new(true, JsonSerializer.SerializeToElement(new { accepted = true }, WorkerProtocol.JsonOptions));
+        }
+        catch (JsonException)
+        { return new(false, Error: new("InvalidInput", "进度参数格式无效。")); }
+        catch (ArgumentException exception)
+        { return new(false, Error: new("InvalidInput", exception.Message)); }
+        catch (OperationCanceledException)
+        { return new(false, Error: new("Cancelled", "进度报告已取消。")); }
+        catch (Exception exception)
+        { return new(false, Error: new("ProviderFailure", exception.Message)); }
     }
 
     private static async ValueTask<WorkerHostResultPayload> DispatchTemplateLogItemAsync(

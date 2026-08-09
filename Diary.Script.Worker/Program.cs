@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 using System.Text;
 using Diary.Script.CSharp;
@@ -107,7 +108,16 @@ internal sealed class CSharpWorker(Stream input, Stream output)
             }
 
             var executionId = Guid.TryParse(message.ExecutionId, out var parsedId) ? parsedId : Guid.NewGuid();
-            var metadata = new ScriptExecutionMetadata(executionId, DateTimeOffset.UtcNow, payload.Request.Source, payload.ScriptId);
+            var entryKind = payload.Request.EntryKind
+                ?? ScriptEntryKindResolver.Resolve(build.Program.Descriptor);
+            var metadata = new ScriptExecutionMetadata(
+                executionId,
+                DateTimeOffset.UtcNow,
+                payload.Request.Source,
+                payload.ScriptId,
+                entryKind,
+                payload.Request.IdempotencyKey,
+                payload.Request.Preview);
             IWorkItemQueryScriptApi queryApi = new WorkerWorkItemQueryProxy(CallHostAsync);
             var context = new ScriptExecutionContext(
                 metadata,
@@ -117,7 +127,23 @@ internal sealed class CSharpWorker(Stream input, Stream output)
                 {
                     StartDate = range.StartDate,
                     EndDate = range.EndDate,
-                }, cancellationToken: cancellationToken));
+                }, cancellationToken: cancellationToken),
+                new ScriptAutomationContext(
+                    payload.Request.Source == ScriptExecutionSource.Automation
+                        ? ScriptAutomationTriggerKind.Scheduled
+                        : ScriptAutomationTriggerKind.Unknown,
+                    payload.Request.Arguments ?? ImmutableDictionary<string, string>.Empty,
+                    payload.Request.IdempotencyKey),
+                async update =>
+                {
+                    var response = await CallHostAsync(new WorkerHostCallPayload(
+                        "script.progress",
+                        JsonSerializer.SerializeToElement(update, WorkerProtocol.JsonOptions)),
+                        CancellationToken.None);
+                    if (!response.Success)
+                        throw new InvalidOperationException(response.Error?.Message ?? "脚本进度报告失败。");
+                },
+                CancellationToken.None);
             context.RegisterApi<IWorkItemQueryScriptApi>(queryApi);
             context.RegisterApi<ITrackerInstanceScriptApi>(new TrackerInstanceWorkerProxy(CallHostAsync));
             context.RegisterApi<ILogItemScriptApi>(new WorkerLogItemProxy(CallHostAsync));
@@ -133,7 +159,7 @@ internal sealed class CSharpWorker(Stream input, Stream output)
             context.RegisterApi<SysApi>(new WorkerSystemInteractionApiProxy(
                 context.GetApi<IClipboardScriptApi>()!, context.GetApi<IUserInteractionScriptApi>()!));
             var outcome = await _executor.ExecuteAsync(build.Program, payload.Request, context, cancellationToken: CancellationToken.None, executionId: executionId);
-            await WriteResultAsync(message, new(outcome.Result.Status, outcome.Result.Diagnostics, DurationMilliseconds: (long)outcome.Duration.TotalMilliseconds));
+            await WriteResultAsync(message, new(outcome.Result.Status, outcome.Result.Diagnostics, DurationMilliseconds: (long)outcome.Duration.TotalMilliseconds, Effects: outcome.Result.Effects));
         }
         catch (Exception exception)
         {

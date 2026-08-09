@@ -33,7 +33,18 @@ public enum ScriptQueryErrorCode
     Cancelled = 5,
 }
 
-public sealed record ScriptQueryError(ScriptQueryErrorCode Code, string Message);
+public sealed record ScriptQueryError(ScriptQueryErrorCode Code, string Message)
+{
+    public ScriptApiError ToApiError() => Code switch
+    {
+        ScriptQueryErrorCode.PermissionDenied => new("PERMISSION_DENIED", Message, ScriptErrorCategory.Permission),
+        ScriptQueryErrorCode.DatabaseUnavailable => new(ScriptApiErrorCodes.HostNotConfigured, Message, ScriptErrorCategory.Host, true),
+        ScriptQueryErrorCode.InvalidInput => new(ScriptApiErrorCodes.InvalidArgument, Message, ScriptErrorCategory.Validation),
+        ScriptQueryErrorCode.ProviderFailure => new("PROVIDER_FAILURE", Message, ScriptErrorCategory.Provider, true),
+        ScriptQueryErrorCode.Cancelled => new(ScriptApiErrorCodes.Cancelled, Message, ScriptErrorCategory.Cancellation),
+        _ => new("SCRIPT_QUERY_FAILED", Message, ScriptErrorCategory.Host),
+    };
+}
 
 public sealed record ScriptWorkItemQueryResult(
     bool Succeeded,
@@ -41,6 +52,8 @@ public sealed record ScriptWorkItemQueryResult(
     ScriptWorkItemQuery? NormalizedQuery,
     ScriptQueryError? Error)
 {
+    public ScriptApiError? ApiError => Error?.ToApiError();
+
     public static ScriptWorkItemQueryResult Success(
         ImmutableArray<ScriptWorkItem> items,
         ScriptWorkItemQuery normalizedQuery) =>
