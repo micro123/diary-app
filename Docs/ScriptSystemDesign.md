@@ -452,8 +452,9 @@ ScriptCatalog（保存 EngineName 和 Descriptor）
 
 当前 Lua/Python 均支持 `ScriptApiVersion.V1`、应用脚本和编辑器脚本。脚本 metadata 中的
 capability 字段已移除并兼容忽略；Worker 通过 `supportedHostApis` 声明实际支持的方法。
-当前开放工作项查询、受控日志项/模板日志项创建、Tracker 只读实例目录、剪贴板、用户交互和
-`log.write`，不提供工作项更新、Tracker 远程写入、网络、文件系统或进程创建，也不自动安装第三方依赖。
+当前开放工作项查询、受控日志项/模板日志项创建、Tracker 只读实例目录、剪贴板、用户交互、
+`log.write` 和 `host.capabilities.list`；脚本可通过能力列表发现当前 Worker 实际注册的 HostCall。能力列表不替代权限、作用域和参数校验。
+不提供工作项更新、Tracker 远程写入、网络、文件系统或进程创建，也不自动安装第三方依赖。
 
 脚本相邻 metadata 或脚本包中的 `manifest.json` 是 ID、名称、Engine、Scope 和目标类型的权威来源。
 引擎构建请求需要携带已解析的 descriptor hint，构建结果中的 Descriptor 必须与 metadata 一致，

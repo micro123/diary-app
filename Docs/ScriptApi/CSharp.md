@@ -10,6 +10,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Diary.ScriptBase;
+using Diary.ScriptHost;
 
 public sealed class DemoScript : ApplicationScript
 {
@@ -160,7 +161,7 @@ foreach (var item in result.Items)
 | `Text` | `string?` | 匹配工作项标题、备注等文本。 |
 | `Priority` | `int?` | 优先级，当前范围为 0 到 9。 |
 | `Limit` | `int?` | 默认 100，最大 1000。 |
-| `Offset` | `int` | 默认 0，最大 10000。 |
+| `Offset` | `int` | 默认 0，最大 1,000,000。 |
 
 返回的 `ScriptWorkItemQueryResult` 包含 `Succeeded`、`Items`、`NormalizedQuery` 和 `Error`。`ScriptWorkItem` 仅是安全 DTO：`Id`、`Date`、`Comment`、`Hours`、`Priority`、`Note`、`Tags`。该 API 没有更新或删除方法。
 
@@ -234,6 +235,15 @@ foreach (var template in diary!.Templates.List())
 
 `ScriptTemplateInfo` 的 `DefaultTitle`、`DefaultHours` 和 `DefaultWorkTagIds` 只描述模板默认值，不授予脚本修改模板的权限。
 
+宿主能力发现：
+
+```csharp
+foreach (var capability in diary!.Host.List())
+    Console.WriteLine(capability);
+```
+
+返回的是当前执行上下文实际注册的 Worker HostCall 名称，按序稳定排列，例如 `workItems.query`、`templates.list` 和 `host.capabilities.list`。能力列表只用于发现，不替代宿主的权限、作用域和参数校验。
+
 ## 7. Tracker 实例目录
 
 ```csharp
@@ -273,6 +283,7 @@ var confirmed = await system.ConfirmAsync("继续操作", "是否继续？", can
 | `IDiaryApi.CreateLogItemAsync` | `logItems.create` |
 | `IDiaryApi.CreateFromTemplateAsync` | `templateLogItems.create` |
 | `IDiaryApi.Templates.List` | `templates.list` |
+| `IDiaryApi.Host.List` | `host.capabilities.list` |
 | `ITrackerApi.GetInstance` | `trackerInstances.get` |
 | `ITrackerApi.ListInstances` | `trackerInstances.list` |
 | `SysApi.GetClipboardTextAsync` | `clipboard.get` |

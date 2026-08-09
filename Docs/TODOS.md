@@ -193,8 +193,8 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [x] C# 提供 `GetRequiredApi<T>()`，保留 `GetApi<T>()` 作为可选 API 访问入口。
 - [x] Lua/Python 已映射入口、参数、目标、幂等、预览、取消和进度语义。
 - [x] 已明确 `Title`/`Comment`、`Hours`/`DefaultHours`、模板默认标签和 `ScriptWorkItem` 返回 DTO 的字段映射。
-- [ ] 统一日期、标签过滤、优先级、分页和流式查询的默认值、上限及错误信息。
-- [x] 已为模板和已启用 Tracker 实例补充只读发现 API；UI 复制稳定 ID 入口仍待补充。
+- [x] 已统一日期格式、标签过滤、优先级、分页和流式查询的默认值、上限及 `InvalidInput` 错误信息。
+- [x] 已为模板、已启用 Tracker 实例和当前 Worker HostCall 能力补充只读发现 API；UI 复制稳定 ID 入口仍待补充。
 
 验收：同一功能在三种语言文档中可以按相同的领域概念查找；缺少宿主 API、作用域不适用和宿主未配置时，用户能得到可区分的结构化诊断。
 

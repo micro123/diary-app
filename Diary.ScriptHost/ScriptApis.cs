@@ -5,6 +5,7 @@ namespace Diary.ScriptHost;
 public interface IDiaryApi
 {
     ITemplateScriptApi Templates { get; }
+    IHostCapabilitiesScriptApi Host { get; }
 
     ValueTask<ScriptWorkItemQueryResult> QueryAsync(
         ScriptWorkItemQuery query,
@@ -42,9 +43,11 @@ public sealed class DiaryApi(
     IWorkItemQueryScriptApi query,
     ILogItemScriptApi logItems,
     ITemplateLogItemScriptApi templateLogItems,
-    ITemplateScriptApi? templates = null) : IDiaryApi
+    ITemplateScriptApi? templates = null,
+    IHostCapabilitiesScriptApi? host = null) : IDiaryApi
 {
     public ITemplateScriptApi Templates { get; } = templates ?? EmptyTemplateScriptApi.Instance;
+    public IHostCapabilitiesScriptApi Host { get; } = host ?? EmptyHostCapabilitiesScriptApi.Instance;
 
     public ValueTask<ScriptWorkItemQueryResult> QueryAsync(ScriptWorkItemQuery request, CancellationToken cancellationToken = default) =>
         query.QueryAsync(request, cancellationToken);
@@ -69,6 +72,12 @@ internal sealed class EmptyTemplateScriptApi : ITemplateScriptApi
 {
     public static EmptyTemplateScriptApi Instance { get; } = new();
     public IReadOnlyList<ScriptTemplateInfo> List() => [];
+}
+
+internal sealed class EmptyHostCapabilitiesScriptApi : IHostCapabilitiesScriptApi
+{
+    public static EmptyHostCapabilitiesScriptApi Instance { get; } = new();
+    public IReadOnlyList<string> List() => [];
 }
 
 public sealed class SystemInteractionApi(

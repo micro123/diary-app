@@ -160,6 +160,16 @@ end
 
 `template.defaultTitle`、`template.defaultHours` 和 `template.defaultWorkTagIds` 只描述模板默认值，不提供模板写入能力。
 
+宿主能力发现：
+
+```lua
+for _, capability in ipairs(diary.host.list()) do
+    print(capability)
+end
+```
+
+返回当前执行上下文实际注册的 Worker HostCall 名称，按序稳定排列；能力列表只用于发现，不替代宿主的权限、作用域和参数校验。
+
 ## 4. Tracker 实例目录
 
 调用 `diary.trackerInstances.get({ pluginId = "tracker.memory", instanceId = "company" })`。
@@ -211,6 +221,8 @@ end
 | Lua API | Worker HostCall |
 | --- | --- |
 | `diary.workItems.query` | `workItems.query` |
+| `diary.templates.list` | `templates.list` |
+| `diary.host.list` | `host.capabilities.list` |
 | `diary.logItems.create` | `logItems.create` |
 | `diary.trackerInstances.get` | `trackerInstances.get` |
 | `diary.clipboard.get` | `clipboard.get` |

@@ -10,6 +10,7 @@ public sealed class WorkItemQueryWorkerDispatcher(
     Func<ILogItemScriptApi>? logItemApiFactory = null,
     Func<ITemplateLogItemScriptApi>? templateLogItemApiFactory = null,
     Func<ITemplateScriptApi>? templateApiFactory = null,
+    Func<IHostCapabilitiesScriptApi>? hostCapabilitiesApiFactory = null,
     Func<IClipboardScriptApi>? clipboardApiFactory = null,
     Func<IUserInteractionScriptApi>? interactionApiFactory = null,
     Func<string, ILogApi>? scriptLogApiFactory = null,
@@ -25,6 +26,8 @@ public sealed class WorkItemQueryWorkerDispatcher(
             return await DispatchTrackerAsync(trackerApiFactory, call);
         if (string.Equals(call.Method, "templates.list", StringComparison.Ordinal))
             return await DispatchTemplates(templateApiFactory);
+        if (string.Equals(call.Method, "host.capabilities.list", StringComparison.Ordinal))
+            return await DispatchHostCapabilities(hostCapabilitiesApiFactory);
         if (string.Equals(call.Method, "logItems.create", StringComparison.Ordinal))
             return await DispatchLogItemAsync(logItemApiFactory, call, cancellationToken);
         if (string.Equals(call.Method, "templateLogItems.create", StringComparison.Ordinal))
@@ -156,6 +159,23 @@ public sealed class WorkItemQueryWorkerDispatcher(
         catch (JsonException) { return new(false, Error: new("InvalidInput", "交互参数格式无效。")); }
         catch (OperationCanceledException) { return new(false, Error: new("Cancelled", "用户交互已取消。")); }
         catch (Exception ex) { return new(false, Error: new("ProviderFailure", ex.Message)); }
+    }
+
+    private static ValueTask<WorkerHostResultPayload> DispatchHostCapabilities(
+        Func<IHostCapabilitiesScriptApi>? factory)
+    {
+        if (factory is null)
+            return ValueTask.FromResult(new WorkerHostResultPayload(false, Error: new("ProviderFailure", "宿主能力发现 API 未配置。")));
+        try
+        {
+            return ValueTask.FromResult(new WorkerHostResultPayload(
+                true,
+                JsonSerializer.SerializeToElement(factory().List(), WorkerProtocol.JsonOptions)));
+        }
+        catch (Exception exception)
+        {
+            return ValueTask.FromResult(new WorkerHostResultPayload(false, Error: new("ProviderFailure", exception.Message)));
+        }
     }
 
     private static ValueTask<WorkerHostResultPayload> DispatchTemplates(

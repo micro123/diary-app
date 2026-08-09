@@ -78,6 +78,24 @@ public sealed class WorkerQueryDispatcherTests
     }
 
     [TestMethod]
+    public async Task DispatchAsync_ListsHostCapabilities()
+    {
+        var dispatcher = new WorkItemQueryWorkerDispatcher(
+            () => new FakeQueryApi(),
+            hostCapabilitiesApiFactory: () => new FakeHostCapabilitiesApi());
+
+        var result = await dispatcher.DispatchAsync("exec", new(
+            "host.capabilities.list", JsonSerializer.SerializeToElement(new { })));
+
+        Assert.IsTrue(result.Success);
+        var capabilities = result.Result!.Value.Deserialize<string[]>(WorkerProtocol.JsonOptions);
+        Assert.IsNotNull(capabilities);
+        Assert.IsTrue(
+            capabilities!.SequenceEqual(["host.capabilities.list", "workItems.query"]),
+            string.Join(", ", capabilities));
+    }
+
+    [TestMethod]
     public async Task DispatchAsync_SupportsClipboardGetAndSet()
     {
         var clipboard = new FakeClipboardApi();
@@ -193,6 +211,11 @@ public sealed class WorkerQueryDispatcherTests
     {
         public IReadOnlyList<ScriptTemplateInfo> List() =>
             [new("template-id", "日报", "日报标题", 1.5, [1, 2])];
+    }
+
+    private sealed class FakeHostCapabilitiesApi : IHostCapabilitiesScriptApi
+    {
+        public IReadOnlyList<string> List() => ["host.capabilities.list", "workItems.query"];
     }
 
     private sealed class FakeTemplateLogItemApi : ITemplateLogItemScriptApi

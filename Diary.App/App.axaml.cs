@@ -340,6 +340,7 @@ namespace Diary.App
                           () => TemplateManager.Instance.Templates.ToArray()),
                        () => new TemplateScriptApi(
                            () => TemplateManager.Instance.Templates.ToArray()),
+                      () => new HostCapabilitiesScriptApi(() => ScriptHostApiCatalog.All),
                       () => new AppClipboardScriptApi(this),
                       () => new AppUserInteractionScriptApi(),
                       executionId => CreateScriptLogApi(null, executionId)));
@@ -355,11 +356,11 @@ namespace Diary.App
                 var csharpRuntime = new WorkerRuntime(
                     "csharp",
                     new WorkerSupervisor(new ProcessWorkerTransportFactory(csharpOptions), hostDispatcher),
-                     new WorkerHandshakeOptions("csharp", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress"]));
+                     new WorkerHandshakeOptions("csharp", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress", "host.capabilities.list"]));
                 var luaRuntime = new WorkerRuntime(
                     "lua",
                     new WorkerSupervisor(new ProcessWorkerTransportFactory(luaOptions), hostDispatcher),
-                     new WorkerHandshakeOptions("lua", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress"]));
+                     new WorkerHandshakeOptions("lua", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress", "host.capabilities.list"]));
                 var pythonRuntime = new WorkerRuntime(
                     "python",
                     new WorkerSupervisor(
@@ -367,7 +368,7 @@ namespace Diary.App
                             services.GetRequiredService<PythonRuntimeResolver>()),
                         hostDispatcher,
                         maxRequestsPerWorker: 1),
-                     new WorkerHandshakeOptions("python", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress"]));
+                     new WorkerHandshakeOptions("python", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress", "host.capabilities.list"]));
                 return new WorkerScriptExecutor(
                     services.GetRequiredService<IScriptCatalog>(),
                     new Dictionary<string, WorkerRuntime>(StringComparer.OrdinalIgnoreCase)
@@ -404,13 +405,16 @@ namespace Diary.App
                     context.RegisterApi<ITemplateLogItemScriptApi>(new TemplateLogItemScriptApi(
                          () => UseDb,
                          () => TemplateManager.Instance.Templates.ToArray()));
-                     context.RegisterApi<ITemplateScriptApi>(new TemplateScriptApi(
-                          () => TemplateManager.Instance.Templates.ToArray()));
+                    context.RegisterApi<ITemplateScriptApi>(new TemplateScriptApi(
+                         () => TemplateManager.Instance.Templates.ToArray()));
+                    context.RegisterApi<IHostCapabilitiesScriptApi>(new HostCapabilitiesScriptApi(
+                        () => ScriptHostApiCatalog.All));
                     context.RegisterApi<IDiaryApi>(new DiaryApi(
                          context.GetApi<IWorkItemQueryScriptApi>()!,
                          context.GetApi<ILogItemScriptApi>()!,
                          context.GetApi<ITemplateLogItemScriptApi>()!,
-                          context.GetApi<ITemplateScriptApi>()!));
+                          context.GetApi<ITemplateScriptApi>()!,
+                          context.GetApi<IHostCapabilitiesScriptApi>()!));
                     context.RegisterApi<ITrackerApi>(new TrackerApi(context.GetApi<ITrackerInstanceScriptApi>()!));
                     context.RegisterApi<SysApi>(new SystemInteractionApi(
                        context.GetApi<IClipboardScriptApi>()!, context.GetApi<IUserInteractionScriptApi>()!));

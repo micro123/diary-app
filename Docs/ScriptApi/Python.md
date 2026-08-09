@@ -59,7 +59,7 @@ result = context.diary.workItems.query({"limit": 100}, text="Worker")
 | `text` | str | 文本过滤条件。 |
 | `priority` | int | 0 到 9。 |
 | `limit` | int | 默认 100，最大 1000。 |
-| `offset` | int | 默认 0，最大 10000。 |
+| `offset` | int | 默认 0，最大 1,000,000。 |
 
 成功返回：
 
@@ -147,6 +147,15 @@ for template in context.diary.templates.list():
 
 `defaultTitle`、`defaultHours` 和 `defaultWorkTagIds` 只描述模板默认值，不提供模板写入能力。
 
+宿主能力发现：
+
+```python
+for capability in context.diary.host.list():
+    print(capability)
+```
+
+返回当前执行上下文实际注册的 Worker HostCall 名称，按序稳定排列；能力列表只用于发现，不替代宿主的权限、作用域和参数校验。
+
 ## 4. Tracker 实例目录
 
 ```python
@@ -196,6 +205,8 @@ except HostCallError as error:
 | Python API | Worker HostCall |
 | --- | --- |
 | `context.diary.workItems.query` | `workItems.query` |
+| `context.diary.templates.list` | `templates.list` |
+| `context.diary.host.list` | `host.capabilities.list` |
 | `context.diary.logItems.create` | `logItems.create` |
 | `context.diary.trackerInstances.get` | `trackerInstances.get` |
 | `context.diary.clipboard.get` | `clipboard.get` |
