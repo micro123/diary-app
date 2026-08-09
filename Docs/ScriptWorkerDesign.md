@@ -407,7 +407,7 @@ RemoteFailure
 `WORKER_TERMINATED`，若明确超过 deadline 则使用 `SCRIPT_EXECUTION_TIMED_OUT`。
 
 主程序不能因为 worker 不响应而同步等待。读写管道、宿主调用和进程退出监听都必须是
-异步的，并使用独立取消令牌。
+异步的，并使用独立取消令牌。当前 supervisor 已覆盖等待 HostCall 时的取消回收：返回 `Cancelled`，并将无法继续通信的 worker 标记为失败后释放。C#、Lua worker 的脚本级取消令牌传播仍是后续工作，Python worker 通过执行线程的 trace 检查取消状态。
 
 ## 11. Worker 故障和重启
 
