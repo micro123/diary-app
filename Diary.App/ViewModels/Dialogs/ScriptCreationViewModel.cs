@@ -158,11 +158,11 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
     {
         var entryName = scope == ScriptScope.Editor ? "editor_main" : "application_main";
         return SelectedLanguage switch
-    {
-        "C#" => CreateCSharpSource(scope),
-        "Lua" when IsEditorTargetTemplate => CreateLuaTargetSource(scope),
-        "Lua" when SelectedTemplate == WorkItemQueryTemplate && scope == ScriptScope.Editor => string.Join(Environment.NewLine, [
-            $"function {entryName}(context)",
+        {
+            "C#" => CreateCSharpSource(scope),
+            "Lua" when IsEditorTargetTemplate => CreateLuaTargetSource(scope),
+            "Lua" when SelectedTemplate == WorkItemQueryTemplate && scope == ScriptScope.Editor => string.Join(Environment.NewLine, [
+                $"function {entryName}(context)",
             "    local range = context.getDateRange()",
             "    if range ~= nil then",
             "        for item in context.items.stream() do",
@@ -172,22 +172,22 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
             "        print(context.workItem.comment)",
             "    end",
             "end", ""]),
-        "Lua" when SelectedTemplate == WorkItemQueryTemplate => string.Join(Environment.NewLine, [
-$"function {entryName}(context)",
+            "Lua" when SelectedTemplate == WorkItemQueryTemplate => string.Join(Environment.NewLine, [
+    $"function {entryName}(context)",
             "    local result = diary.workItems.query({ limit = 100 })",
             "    if not result.succeeded then",
             "        error(result.error.message)",
             "    end",
             "end", ""]),
-        "Lua" => string.Join(Environment.NewLine, [
-            $"function {entryName}(context)",
+            "Lua" => string.Join(Environment.NewLine, [
+                $"function {entryName}(context)",
             "    -- context.target、context.dateRange 和 context.workItem 来自上下文菜单。",
             "    -- context.getDateRange() 在事项目标下返回 nil。",
             "    diary.log.debug(\"开始执行脚本\")",
             "end", ""]),
-        "Python" when IsEditorTargetTemplate => CreatePythonTargetSource(scope),
-        "Python" when SelectedTemplate == WorkItemQueryTemplate && scope == ScriptScope.Editor => string.Join(Environment.NewLine, [
-            $"def {entryName}(context):",
+            "Python" when IsEditorTargetTemplate => CreatePythonTargetSource(scope),
+            "Python" when SelectedTemplate == WorkItemQueryTemplate && scope == ScriptScope.Editor => string.Join(Environment.NewLine, [
+                $"def {entryName}(context):",
             "    date_range = context.getDateRange()",
             "    if date_range is not None:",
             "        for item in context.items.stream():",
@@ -195,20 +195,20 @@ $"function {entryName}(context)",
             "    elif context.workItem is not None:",
             "        print(context.workItem['comment'])",
             "    return None", ""]),
-        "Python" when SelectedTemplate == WorkItemQueryTemplate => string.Join(Environment.NewLine, [
-$"def {entryName}(context):",
+            "Python" when SelectedTemplate == WorkItemQueryTemplate => string.Join(Environment.NewLine, [
+    $"def {entryName}(context):",
             "    result = context.diary.workItems.query(limit=100)",
             "    if not result[\"succeeded\"]:",
             "        raise RuntimeError(result[\"error\"][\"message\"])",
             "    return None", ""]),
-        "Python" => string.Join(Environment.NewLine, [
-            $"def {entryName}(context):",
+            "Python" => string.Join(Environment.NewLine, [
+                $"def {entryName}(context):",
             "    # context.target、context.dateRange 和 context.workItem 来自上下文菜单。",
             "    # context.getDateRange() 在事项目标下返回 None。",
             "    context.log.debug(\"开始执行脚本\")",
             "    return None", ""]),
-        _ => throw new InvalidOperationException($"不支持的脚本语言：{SelectedLanguage}"),
-    };
+            _ => throw new InvalidOperationException($"不支持的脚本语言：{SelectedLanguage}"),
+        };
     }
 
     private string CreateCSharpSource(ScriptScope scope)
