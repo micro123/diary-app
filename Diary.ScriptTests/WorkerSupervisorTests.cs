@@ -61,6 +61,25 @@ public sealed class WorkerSupervisorTests
     }
 
     [TestMethod]
+    public async Task ExecuteAsync_CancelledWorkerResultIsReclaimedGracefully()
+    {
+        var transport = new FakeTransport { DelayExecute = true, CompleteOnCancel = true };
+        var supervisor = new WorkerSupervisor(new FakeFactory(transport), cancellationGracePeriod: TimeSpan.FromMilliseconds(100));
+        await supervisor.StartAsync(new("csharp", [ScriptApiVersion.V1], []));
+        using var cancellation = new CancellationTokenSource();
+
+        var execution = supervisor.ExecuteAsync("demo", "exec-cancelled", new { }, cancellationToken: cancellation.Token).AsTask();
+        await transport.ExecuteSent.Task;
+        cancellation.Cancel();
+
+        var result = await execution;
+
+        Assert.AreEqual(ScriptExecutionStatus.Cancelled, result.Payload.Status);
+        Assert.AreEqual(WorkerState.Ready, supervisor.State);
+        Assert.IsTrue(transport.Sent.Any(message => message.Type == WorkerMessageType.Cancel));
+    }
+
+    [TestMethod]
     public async Task ExecuteAsync_TerminatedWorkerReturnsStructuredFailureAndFailsWorker()
     {
         var transport = new FakeTransport { TerminateExecute = true };
@@ -111,6 +130,10 @@ public sealed class WorkerSupervisorTests
         public List<WorkerMessage<object>> Sent { get; } = [];
         public bool DelayExecute { get; init; }
         public bool TerminateExecute { get; init; }
+        public bool CompleteOnCancel { get; init; }
+        public TaskCompletionSource<bool> ExecuteSent { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private string? _executeRequestId;
+        private string? _executionId;
         private readonly Queue<object> _responses = new([
             new WorkerMessage<WorkerHelloPayload>(WorkerProtocol.Name, 1, WorkerMessageType.Hello, "hello", null,
                 new WorkerHelloPayload(language, "1", [ScriptApiVersion.V1], [], 1))]);
@@ -120,9 +143,17 @@ public sealed class WorkerSupervisorTests
             Sent.Add(new WorkerMessage<object>(message.Protocol, message.Version, message.Type, message.RequestId, message.ExecutionId, message.Payload!));
             if (message.Type == WorkerMessageType.Execute)
             {
+                _executeRequestId = message.RequestId;
+                _executionId = message.ExecutionId;
+                ExecuteSent.TrySetResult(true);
                 if (!DelayExecute && !TerminateExecute)
                     _responses.Enqueue(new WorkerMessage<WorkerExecutionResultPayload>(WorkerProtocol.Name, 1, WorkerMessageType.ExecuteResult,
                         message.RequestId, message.ExecutionId, new(ScriptExecutionStatus.Succeeded, [])));
+            }
+            else if (message.Type == WorkerMessageType.Cancel && CompleteOnCancel)
+            {
+                _responses.Enqueue(new WorkerMessage<WorkerExecutionResultPayload>(WorkerProtocol.Name, 1, WorkerMessageType.ExecuteResult,
+                    _executeRequestId, _executionId, new(ScriptExecutionStatus.Succeeded, [])));
             }
             else if (message.Type == WorkerMessageType.Ping)
                 _responses.Enqueue(new WorkerMessage<object>(WorkerProtocol.Name, 1, WorkerMessageType.Pong,

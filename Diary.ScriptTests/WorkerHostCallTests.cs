@@ -136,7 +136,7 @@ public sealed class WorkerHostCallTests
                     new("csharp", "1", [ScriptApiVersion.V1], ["workItems.query"], 1)),
                 2 => new WorkerMessage<JsonElement>(WorkerProtocol.Name, 1, WorkerMessageType.HostCall, "host-cancel", "exec-cancelled-host-call",
                     JsonSerializer.SerializeToElement(new WorkerHostCallPayload("workItems.query", JsonSerializer.SerializeToElement(new { })))),
-                _ => throw new InvalidOperationException("取消前不应收到更多 Worker 消息。"),
+                _ => throw new EndOfStreamException("worker 未在取消宽限期内返回结果。"),
             };
             await Task.Yield();
             cancellationToken.ThrowIfCancellationRequested();

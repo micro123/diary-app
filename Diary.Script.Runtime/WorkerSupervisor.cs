@@ -63,7 +63,8 @@ public sealed class WorkerSupervisor(
     TimeSpan? restartBaseDelay = null,
     int maxRequestsPerWorker = 1000,
     int maxResultMessageBytes = 16 * 1024 * 1024,
-    long? maxWorkingSetBytes = null)
+    long? maxWorkingSetBytes = null,
+    TimeSpan? cancellationGracePeriod = null)
 {
     private readonly SemaphoreSlim _executionGate = new(1, 1);
     private IWorkerTransport? _transport;
@@ -96,6 +97,9 @@ public sealed class WorkerSupervisor(
     public long? MaxWorkingSetBytes { get; } = maxWorkingSetBytes is null or > 0
         ? maxWorkingSetBytes
         : throw new ArgumentOutOfRangeException(nameof(maxWorkingSetBytes));
+    public TimeSpan CancellationGracePeriod { get; } = cancellationGracePeriod is null || cancellationGracePeriod.Value >= TimeSpan.Zero
+        ? cancellationGracePeriod ?? TimeSpan.FromMilliseconds(500)
+        : throw new ArgumentOutOfRangeException(nameof(cancellationGracePeriod));
 
     public async ValueTask StartAsync(WorkerHandshakeOptions options, CancellationToken cancellationToken = default)
     {
@@ -237,6 +241,16 @@ public sealed class WorkerSupervisor(
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 await TrySendCancelAsync(executionId, "Cancelled", null, CancellationToken.None);
+                var gracefulResult = await TryReceiveCancelledResultAsync(requestId, executionId);
+                if (gracefulResult is { } completed)
+                {
+                    State = _requestCount >= MaxRequestsPerWorker ? WorkerState.Failed : WorkerState.Ready;
+                    return completed with
+                    {
+                        Payload = completed.Payload with { Status = ScriptExecutionStatus.Cancelled },
+                    };
+                }
+
                 State = WorkerState.Failed;
                 await StopTransportAsync(CancellationToken.None);
                 return Result(requestId, executionId, ScriptExecutionStatus.Cancelled);
@@ -370,6 +384,48 @@ public sealed class WorkerSupervisor(
             throw new IOException("Worker stderr 输出超过限制。");
         }
         return _transport!.ReceiveAsync<JsonElement>(cancellationToken);
+    }
+
+    private async ValueTask<WorkerMessage<WorkerExecutionResultPayload>?> TryReceiveCancelledResultAsync(
+        string requestId,
+        string executionId)
+    {
+        if (_transport is null || CancellationGracePeriod <= TimeSpan.Zero)
+            return null;
+
+        using var graceCancellation = new CancellationTokenSource(CancellationGracePeriod);
+        try
+        {
+            while (true)
+            {
+                var message = await ReceiveMessageAsync(graceCancellation.Token);
+                if (message.Type == WorkerMessageType.HostCall)
+                {
+                    await _transport.SendAsync(new WorkerMessage<WorkerHostResultPayload>(
+                        WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.HostResult,
+                        message.RequestId, executionId,
+                        new(false, Error: new("Cancelled", "脚本执行已取消。"))),
+                        graceCancellation.Token);
+                    continue;
+                }
+
+                if (message.Type != WorkerMessageType.ExecuteResult)
+                    return null;
+                var payload = message.Payload.Deserialize<WorkerExecutionResultPayload>(WorkerProtocol.JsonOptions);
+                if (payload is null || message.RequestId != requestId || message.ExecutionId != executionId)
+                    return null;
+                return new WorkerMessage<WorkerExecutionResultPayload>(
+                    message.Protocol, message.Version, message.Type, message.RequestId, message.ExecutionId, payload);
+            }
+        }
+        catch (OperationCanceledException) when (graceCancellation.IsCancellationRequested)
+        {
+            return null;
+        }
+        catch (Exception exception) when (exception is EndOfStreamException or IOException or ObjectDisposedException or InvalidDataException)
+        {
+            return null;
+        }
     }
 
     private async ValueTask TrySendCancelAsync(
