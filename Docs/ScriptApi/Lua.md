@@ -43,11 +43,24 @@ end
 | `target` | 编辑器目标；包含 `kind` 以及目标对应的字段。 |
 | `dateRange` | 年、季度、月、日目标的 `{ startDate, endDate }`；事项目标为 `nil`。 |
 | `workItem` | 事项目标的不可变事项快照；其他目标为 `nil`。 |
-| 取消 | Lua 当前没有可轮询的取消函数；同步 HostCall 被取消或 Worker 被终止时，当前执行会结束。 |
+| `isCancelled()` | 查询当前执行是否已请求取消；长循环应在批次之间主动轮询。 |
 | `progress.report(fraction, message)` | 报告 0 到 1 之间的执行进度。 |
 | `getDateRange()` | 获取当前目标日期范围；无范围时返回 `nil`。 |
 | `items.stream()` | 按当前日期范围分页迭代事项。 |
 | `log` | 调试日志 API。 |
+
+取消状态只在脚本主动轮询时可见；宿主调用仍会由 Worker 绑定当前执行的取消生命周期。长循环应在批次之间检查：
+
+~~~lua
+function application_main(context)
+    for i = 1, 1000 do
+        if context.isCancelled() then
+            return
+        end
+        -- 处理一小批工作
+    end
+end
+~~~
 
 `target.kind` 为 `Year`、`Quarter`、`Month`、`Day` 或 `WorkItem`。季度使用自然季度：1-3、4-6、7-9、10-12 月。`context.request.source` 是 `Manual`、`Editor`、`Startup` 或 `Automation`。
 
