@@ -11,6 +11,7 @@ public sealed class JiraConfigurationProvider(
     IJiraConfigurationEditService editService) : ITrackerConfigurationProvider
 {
     public string PluginId => JiraPluginConstants.PluginId;
+    public string DisplayName => "Jira";
     public object CreateDefaultConfiguration() => new JiraPluginConfig();
 
     public bool Validate(object configuration, out string? error)

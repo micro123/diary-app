@@ -81,7 +81,7 @@ RedMine --> Api
 | `Diary.Core` | 工作项、标签、模板、配置和统计模型 | 不应依赖具体 tracker 类型 |
 | `Diary.Database` | 核心数据库抽象、provider 原语、扩展工厂加载 | 通过 `GetExtension<T>(instanceId)` 延迟取得可选扩展 |
 | `Diary.PluginBase` | manifest、兼容性检查、插件入口、实例注册、迁移调度 | 不依赖 Avalonia 和具体 UI |
-| `Diary.PluginUI` | tracker 配置页、管理页和编辑器扩展契约 | 由宿主把插件 UI 挂载到核心 UI |
+| `Diary.PluginUI` | tracker 配置页、管理页和编辑器扩展契约 | 由宿主把插件 UI 挂载到核心 UI；多个配置提供者在配置对话框中按 Tab 分开展示 |
 | `Diary.Db.SQLite` | SQLite 核心数据库 provider | 提供核心 schema、查询和事务实现，并加载 SQLite Redmine 扩展 |
 | `Diary.Db.PostgreSQL` | PostgreSQL 核心数据库 provider | 提供核心 schema、查询和事务实现，并加载 PostgreSQL Redmine 扩展 |
 | `Diary.ScriptBase` | 脚本版本化契约、描述符、诊断和执行请求 | 不依赖核心数据库、DI 或 UI |

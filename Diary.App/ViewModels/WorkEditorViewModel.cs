@@ -64,6 +64,18 @@ public partial class WorkEditorViewModel : ViewModelBase
     /// <summary>是否锁住 generic 编辑字段（任一 tracker 区已上传到远程即锁定）。</summary>
     [ObservableProperty] private bool _isLocked;
 
+    public string LocalSaveStatusText => IsNewItem ? "未保存" : "本地已保存";
+
+    public WorkItemUploadStatus UploadStatus => WorkItemUploadStatusResolver.Resolve(
+        !IsNewItem,
+        Extensions.Count,
+        Extensions.Count(extension => extension.IsLocked),
+        UploadResults.Any(result => !result.Success && !result.Skipped));
+
+    public string UploadStatusText => WorkItemUploadStatusResolver.GetDisplayText(UploadStatus);
+
+    public string StatusSummary => $"{LocalSaveStatusText} · {UploadStatusText}";
+
     public ObservableCollection<WorkTag> AllTags => _shareData.WorkTags;
 
     // todo: plm?
@@ -191,6 +203,7 @@ public partial class WorkEditorViewModel : ViewModelBase
 
         WorkItem = result.WorkItem;
         WorkId = WorkItem.Id;
+        NotifyStatusChanged();
     }
 
     public void Delete()
@@ -203,7 +216,7 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     public bool CanDelete()
     {
-        return Extensions.Count == 0 || Extensions.All(e => e.CanDelete);
+        return Db is not null;
     }
 
     [RelayCommand]
@@ -434,8 +447,21 @@ public partial class WorkEditorViewModel : ViewModelBase
         foreach (var uploadResult in result.Results)
             UploadResults.Add(uploadResult);
         RecomputeIsLocked();
+        NotifyStatusChanged();
         return (result.Success, result.Error);
     }
 
-    private void RecomputeIsLocked() => IsLocked = Extensions.Any(e => e.IsLocked);
+    private void RecomputeIsLocked()
+    {
+        IsLocked = Extensions.Any(e => e.IsLocked);
+        NotifyStatusChanged();
+    }
+
+    private void NotifyStatusChanged()
+    {
+        OnPropertyChanged(nameof(LocalSaveStatusText));
+        OnPropertyChanged(nameof(UploadStatus));
+        OnPropertyChanged(nameof(UploadStatusText));
+        OnPropertyChanged(nameof(StatusSummary));
+    }
 }

@@ -11,6 +11,11 @@ using Microsoft.Extensions.Logging;
 
 namespace Diary.App.ViewModels.Dialogs;
 
+public sealed record TrackerSettingsPageItem(
+    string Header,
+    string PluginId,
+    ViewModelBase Page);
+
 [DiAutoRegister]
 public partial class TrackerSettingsDialogViewModel : ViewModelBase, IDialogContext
 {
@@ -19,6 +24,7 @@ public partial class TrackerSettingsDialogViewModel : ViewModelBase, IDialogCont
     private readonly ILogger _logger;
 
     public ObservableCollection<ViewModelBase> Pages { get; } = new();
+    public ObservableCollection<TrackerSettingsPageItem> ProviderPages { get; } = new();
     public TrackerPluginDiagnosticsViewModel Diagnostics { get; }
 
     public TrackerSettingsDialogViewModel(
@@ -33,7 +39,13 @@ public partial class TrackerSettingsDialogViewModel : ViewModelBase, IDialogCont
         {
             var page = provider.CreateSettingsPage(configuration);
             if (page is not null)
+            {
                 Pages.Add(page);
+                ProviderPages.Add(new TrackerSettingsPageItem(
+                    provider.DisplayName,
+                    provider.PluginId,
+                    page));
+            }
         }
     }
 

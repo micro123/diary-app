@@ -28,7 +28,7 @@ public interface ITrackerEditorExtension
     /// <summary>是否锁住核心编辑字段（如已上传到远程）。</summary>
     bool IsLocked { get; }
 
-    /// <summary>核心工作项是否可删除（如未上传才可删）。</summary>
+    /// <summary>Tracker 扩展是否允许无确认删除；核心编辑器删除时仍需根据上传状态提示用户。</summary>
     bool CanDelete { get; }
 
     /// <summary>上传到远程，返回统一结果。</summary>

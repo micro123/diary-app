@@ -10,6 +10,9 @@ public interface ITrackerConfigurationProvider
 {
     string PluginId { get; }
 
+    /// <summary>配置页在宿主 Tab 中显示的名称；默认回退到稳定插件 ID。</summary>
+    string DisplayName => PluginId;
+
     object CreateDefaultConfiguration();
     bool Validate(object configuration, out string? error);
     ViewModelBase? CreateSettingsPage(object configuration);

@@ -141,13 +141,26 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private bool _deleting;
 
     [RelayCommand(CanExecute = nameof(CanDelete))]
-    private void DeleteWorkItem()
+    private async Task DeleteWorkItem()
     {
+        var selected = SelectedWork!;
+        var message = selected.IsLocked
+            ? "该记录已经上传到外部系统。删除只会移除本地记录，远程工时不会被删除。确认继续吗？"
+            : "该记录尚未产生远程上传。确认删除这条工作记录吗？此操作不可恢复。";
+        if (!await EventDispatcher.Confirm("删除工作记录", message))
+            return;
+
         _deleting = true;
-        SelectedWork!.Delete();
-        DailyWorks.Remove(SelectedWork!);
-        SelectedWork = DailyWorks.FirstOrDefault();
-        _deleting = false;
+        try
+        {
+            selected.Delete();
+            DailyWorks.Remove(selected);
+            SelectedWork = DailyWorks.FirstOrDefault();
+        }
+        finally
+        {
+            _deleting = false;
+        }
     }
     private bool CanDelete => SelectedWork != null && SelectedWork.CanDelete();
 
@@ -509,7 +522,6 @@ public partial class DiaryEditorViewModel : ViewModelBase
         AddMenuHeader($"今日总工时{TotalTime:0.##}小时，有{TotalTime - UploadedTime:0.##}小时未提交");
         AddMenuSeparator();
         AddMenuAction("提交本日工时", UploadAllCommand);
-        AddMenuAction("提交本周工时(尚未实现)", UploadAllCommand, false);
         AddMenuAction("统计本周工时", CreateStatisticsCommand(date, AdjustPart.Week));
         if (IsSurveyorEnabled)
         {
@@ -524,7 +536,6 @@ public partial class DiaryEditorViewModel : ViewModelBase
         QuickMenuItems.Clear();
         AddMenuHeader($"{date:yyyy年MM月} 第{(date.Month - 1) / 3 + 1}季度");
         AddMenuSeparator();
-        AddMenuAction("提交本月工时(尚未实现)", UploadAllCommand, false);
         AddMenuAction("统计本月工时", CreateStatisticsCommand(date, AdjustPart.Month));
         AddMenuAction("统计本季度工时", CreateStatisticsCommand(date, AdjustPart.Quarter));
         if (IsSurveyorEnabled)

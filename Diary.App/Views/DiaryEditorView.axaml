@@ -29,22 +29,6 @@
         <Style Selector="TextBlock">
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
-        <Style Selector="StackPanel#ViewSubmitted">
-            <Style Selector="^ > i|Icon">
-                <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultSuccessForeground}" />
-            </Style>
-            <Style Selector="^ > TextBlock">
-                <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultSuccessForeground}" />
-            </Style>
-        </Style>
-        <Style Selector="StackPanel#ViewUnsubmit">
-            <Style Selector="^ > i|Icon">
-                <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultWarningForeground}" />
-            </Style>
-            <Style Selector="^ > TextBlock">
-                <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultWarningForeground}" />
-            </Style>
-        </Style>
     </UserControl.Styles>
 
     <Panel>
@@ -148,17 +132,13 @@
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
-                                            <!-- 提交状态 -->
-                                            <StackPanel Name="ViewSubmitted" Orientation="Horizontal" Spacing="2"
-                                                        IsVisible="{Binding IsLocked}">
-                                                <i:Icon Value="mdi-check-circle-outline" FontSize="20" />
-                                                <TextBlock Text="已提交" />
+                                            <!-- 本地保存和远程上传状态 -->
+                                            <StackPanel Orientation="Horizontal" Spacing="2">
+                                                <i:Icon Value="mdi-content-save-outline" FontSize="18" />
+                                                <TextBlock Text="{Binding LocalSaveStatusText}" />
                                             </StackPanel>
-                                            <StackPanel Name="ViewUnsubmit" Orientation="Horizontal" Spacing="2"
-                                                        IsVisible="{Binding !IsLocked}">
-                                                <i:Icon Value="mdi-radiobox-blank" FontSize="20" />
-                                                <TextBlock Text="未提交" />
-                                            </StackPanel>
+                                            <TextBlock Text="·" Opacity="0.6" />
+                                            <TextBlock Text="{Binding UploadStatusText}" />
                                         </StackPanel>
                                     </StackPanel>
                                 </Border>
@@ -200,6 +180,7 @@
                             Command="{Binding UploadTimeCommand}" />
                 </StackPanel>
                 <Separator DockPanel.Dock="Top" />
+                <TextBlock DockPanel.Dock="Top" Text="{Binding SelectedWork.StatusSummary}" Opacity="0.7" />
                 <Panel>
                     <TextBlock Text="当前未选中任何事项" FontSize="48" HorizontalAlignment="Center"
                                Foreground="{DynamicResource ButtonDefaultDisabledForeground}"

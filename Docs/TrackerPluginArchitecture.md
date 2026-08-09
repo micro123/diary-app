@@ -473,7 +473,7 @@ public interface ITrackerEditorExtension
 - 按顺序加载所有 tracker 的绑定。
 - 保存核心工作项和所有本地 tracker 绑定。
 - 克隆所有 tracker 扩展状态。
-- 聚合锁定状态和删除权限。
+- 聚合锁定状态、上传状态和本地删除提示。
 - 展示每个 tracker 的独立上传状态。
 
 核心编辑器不得出现：
@@ -489,7 +489,10 @@ RedMineDb!.CreateWorkTimeEntry(...)
 建议规则：
 
 - 任意 tracker 要求锁定时，核心工作项进入锁定状态。
-- 所有 tracker 都允许删除时，核心工作项才允许删除。
+- 未上传或确认误写的工作项允许直接删除。
+- 已上传工作项允许删除本地记录，但必须明确提示远程工时不会被自动删除。
+- 上传结果不确定时，核心编辑器应提示用户先查询或重试，避免删除后重复上传。
+- tracker 的 `CanDelete` 表示其是否允许无确认删除，不再作为核心本地删除的全局否决条件。
 - 每个 tracker 区域显示自己的锁定原因。
 - 未配置或不可用的 tracker 不应阻止核心工作项编辑。
 
@@ -605,12 +608,16 @@ TemplateEditor
 public interface ITrackerConfigurationProvider
 {
     string PluginId { get; }
+    string DisplayName { get; }
 
     object CreateDefaultConfiguration();
     bool Validate(object configuration, out string? error);
     ViewModelBase CreateSettingsPage(object configuration);
 }
 ```
+
+宿主将每个配置提供者作为 Tracker 配置页中的独立 Tab 展示；`DisplayName` 用于用户可见的 Tab 标题，
+`PluginId` 继续作为稳定身份。提供者内部的多实例管理由插件自己的配置页负责。
 
 主程序负责：
 
