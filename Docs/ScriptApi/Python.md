@@ -42,7 +42,9 @@ def application_main(context):
 | `items.stream()` | 按当前日期范围分页迭代事项。 |
 | `log` | 调试日志 API。 |
 
-请求、参数和结果字段使用 camelCase，例如 `startDate`、`endDate`、`normalizedQuery`。脚本自动化只能追加工作记录，不提供删除或直接改写历史记录；`idempotencyKey` 当前只在宿主进程生命周期内有效。
+请求、参数和结果字段使用 camelCase，例如 `startDate`、`endDate`、`normalizedQuery`。脚本自动化只能追加工作记录，不提供删除或直接改写历史记录；`idempotencyKey` 对已提交结果持久有效。
+
+完整示例：[Python 5 分钟入门：查询并追加日志项](Examples/PythonQuickStart.md)。
 ## 2. 查询工作项
 
 调用：`context.diary.workItems.query(params=None, **kwargs)`。可以传字典、关键字参数或同时传入两者：

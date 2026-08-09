@@ -33,6 +33,8 @@ function application_main(context)
 end
 ~~~
 
+完整示例：[Lua 5 分钟入门：查询并追加日志项](Examples/LuaQuickStart.md)。
+
 `context` 字段：
 
 | 字段 | 说明 |

@@ -43,6 +43,9 @@ var trackers = api.Tracker.ListInstances();
 ```
 
 `context.Api()` 只做已注册 API 的强类型聚合，不扩大脚本权限；缺少 API 时仍由 `GetRequiredApi<T>()` 报告不可用。
+
+完整示例：[C# 5 分钟入门：查询并追加日志项](Examples/CSharpQuickStart.md)。
+
 ## 2. Descriptor
 
 `ScriptDescriptor` 字段：
