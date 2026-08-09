@@ -144,10 +144,13 @@ public sealed class ProcessWorkerTransportTests
         {
             ["lua"] = new("lua", new WorkerSupervisor(new ProcessWorkerTransportFactory(new(
                 workerPath, ["--language", "lua"], Path.GetDirectoryName(workerPath)!))),
-                new("lua", [ScriptApiVersion.V1], ["workItems.query"])),
+                new("lua", [ScriptApiVersion.V1], ["workItems.query"]),
+                WorkerRuntimePolicy.Shared),
             ["python"] = new("python", new WorkerSupervisor(
-                new Diary.Script.Py.PythonWorkerTransportFactory(pythonResolver), maxRequestsPerWorker: 1),
-                new("python", [ScriptApiVersion.V1], ["workItems.query"])),
+                new Diary.Script.Py.PythonWorkerTransportFactory(pythonResolver),
+                maxRequestsPerWorker: WorkerRuntimePolicy.Dedicated.MaxRequestsPerWorker),
+                new("python", [ScriptApiVersion.V1], ["workItems.query"]),
+                WorkerRuntimePolicy.Dedicated),
         };
         var executor = new WorkerScriptExecutor(catalog, runtimes);
         try

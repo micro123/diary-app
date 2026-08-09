@@ -15,7 +15,7 @@
 ## 2. 设计结论
 
 - worker 是常驻进程，但单次脚本执行必须有明确开始和结束。
-- 同一种语言的普通脚本可以共享 worker；高风险脚本可以使用独立 worker。
+- 默认同语言脚本使用共享 worker；高风险、依赖进程级状态或难以确认清理完成的脚本使用独立 worker。当前生产注册显式使用 `WorkerRuntimePolicy.Shared`（C#、Lua）或 `WorkerRuntimePolicy.Dedicated`（Python）。
 - 主程序是 worker 的 supervisor 和宿主 API 服务端，worker 不能直接访问核心数据库、DI、UI 或 Tracker 客户端。
 - 主程序和 worker 之间使用带长度限制的 UTF-8 JSON 消息；每条消息一行，协议数据只写入 stdout，日志只写入 stderr。
 - 协议支持双向消息。主程序等待脚本结果期间，worker 可以发送宿主 API 请求。
@@ -124,6 +124,20 @@ supervisor 应支持：
 
 第一版同一语言 worker 默认串行执行。后续若需要并发，应启动多个 worker 实例，不能
 在同一解释器上下文中默认并发执行多个脚本。
+
+### 5.4 共享与独立隔离策略
+
+`WorkerRuntimePolicy` 同时描述隔离模式和单个 Worker 的最大请求数，生产注册必须让策略与
+`WorkerSupervisor.MaxRequestsPerWorker` 使用同一个配置值：
+
+| 策略 | 当前语言 | 请求上限 | 适用语义 |
+| --- | --- | ---: | --- |
+| `Shared` | C#、Lua | 1000 | 同语言普通脚本复用进程，但请求之间不共享脚本上下文 |
+| `Dedicated` | Python | 1 | 每个请求完成后回收进程，降低解释器状态泄漏和 native 运行时残留风险 |
+
+独立策略不是脚本状态持久化机制；它只控制 Worker 生命周期。任何需要跨请求保留的数据都必须通过
+明确的宿主持久化 API 处理。未来增加高风险脚本标记时，应在脚本目录/策略层选择
+`Dedicated`，不能由脚本代码自行改变隔离级别。
 
 ## 6. 传输和消息封装
 
@@ -633,7 +647,7 @@ worker 重启后不会自动重复未确认的副作用操作。
 
 - [x] 已增加执行消息、执行结果、stderr 和脚本 stdout 输出、调用数、请求数、后台空闲回收和工作集软限制；操作系统级强内存限制按平台能力处理。
 - 设计写入 API、预览、确认、幂等键和审计。
-- 根据风险级别选择共享 worker 或独立 worker。
+- [x] 已实现显式 `WorkerRuntimePolicy.Shared`/`Dedicated`：C#、Lua 默认共享，Python 每次请求独立回收；后续新增高风险脚本可在注册层选择独立策略。
 
 ### C# Worker 当前宿主 API
 

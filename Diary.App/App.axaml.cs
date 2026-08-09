@@ -356,22 +356,33 @@ namespace Diary.App
                 var hostDispatcher = services.GetRequiredService<IWorkerHostCallDispatcher>();
                 var csharpOptions = new WorkerProcessOptions(workerPath, [], AppContext.BaseDirectory);
                 var luaOptions = new WorkerProcessOptions(workerPath, ["--language", "lua"], AppContext.BaseDirectory);
+                var sharedWorkerPolicy = WorkerRuntimePolicy.Shared;
+                var dedicatedWorkerPolicy = WorkerRuntimePolicy.Dedicated;
                 var csharpRuntime = new WorkerRuntime(
                     "csharp",
-                    new WorkerSupervisor(new ProcessWorkerTransportFactory(csharpOptions), hostDispatcher),
-                     new WorkerHandshakeOptions("csharp", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress", "host.capabilities.list"]));
+                    new WorkerSupervisor(
+                        new ProcessWorkerTransportFactory(csharpOptions),
+                        hostDispatcher,
+                        maxRequestsPerWorker: sharedWorkerPolicy.MaxRequestsPerWorker),
+                    new WorkerHandshakeOptions("csharp", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress", "host.capabilities.list"]),
+                    sharedWorkerPolicy);
                 var luaRuntime = new WorkerRuntime(
                     "lua",
-                    new WorkerSupervisor(new ProcessWorkerTransportFactory(luaOptions), hostDispatcher),
-                     new WorkerHandshakeOptions("lua", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress", "host.capabilities.list"]));
+                    new WorkerSupervisor(
+                        new ProcessWorkerTransportFactory(luaOptions),
+                        hostDispatcher,
+                        maxRequestsPerWorker: sharedWorkerPolicy.MaxRequestsPerWorker),
+                    new WorkerHandshakeOptions("lua", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress", "host.capabilities.list"]),
+                    sharedWorkerPolicy);
                 var pythonRuntime = new WorkerRuntime(
                     "python",
                     new WorkerSupervisor(
                         new PythonWorkerTransportFactory(
                             services.GetRequiredService<PythonRuntimeResolver>()),
                         hostDispatcher,
-                        maxRequestsPerWorker: 1),
-                     new WorkerHandshakeOptions("python", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress", "host.capabilities.list"]));
+                        maxRequestsPerWorker: dedicatedWorkerPolicy.MaxRequestsPerWorker),
+                    new WorkerHandshakeOptions("python", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress", "host.capabilities.list"]),
+                    dedicatedWorkerPolicy);
                 return new WorkerScriptExecutor(
                     services.GetRequiredService<IScriptCatalog>(),
                     new Dictionary<string, WorkerRuntime>(StringComparer.OrdinalIgnoreCase)

@@ -88,7 +88,33 @@ public sealed record WorkerExecutePayload(
     ScriptExecutionRequest Request,
     ScriptDescriptorHint? DescriptorHint = null);
 
+public enum WorkerIsolationMode
+{
+    Shared,
+    Dedicated,
+}
+
+public sealed record WorkerRuntimePolicy
+{
+    public WorkerRuntimePolicy(WorkerIsolationMode isolationMode, int maxRequestsPerWorker)
+    {
+        if (maxRequestsPerWorker <= 0)
+            throw new ArgumentOutOfRangeException(nameof(maxRequestsPerWorker));
+
+        IsolationMode = isolationMode;
+        MaxRequestsPerWorker = maxRequestsPerWorker;
+    }
+
+    public WorkerIsolationMode IsolationMode { get; }
+    public int MaxRequestsPerWorker { get; }
+    public bool IsDedicated => IsolationMode == WorkerIsolationMode.Dedicated;
+
+    public static WorkerRuntimePolicy Shared { get; } = new(WorkerIsolationMode.Shared, 1000);
+    public static WorkerRuntimePolicy Dedicated { get; } = new(WorkerIsolationMode.Dedicated, 1);
+}
+
 public sealed record WorkerRuntime(
     string EngineName,
     WorkerSupervisor Supervisor,
-    WorkerHandshakeOptions HandshakeOptions);
+    WorkerHandshakeOptions HandshakeOptions,
+    WorkerRuntimePolicy Policy);
