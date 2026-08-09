@@ -289,6 +289,130 @@ public sealed class ProcessWorkerTransportTests
     }
 
     [TestMethod]
+    public async Task ProcessTransport_ReportsConsistentFailureAndTimeoutStatusesAcrossLanguages()
+    {
+        var workerPath = GetWorkerPath();
+        Assert.IsTrue(File.Exists(workerPath), $"Worker 文件不存在：{workerPath}");
+        var dotnetPath = GetDotnetPath();
+        if (dotnetPath is null)
+        {
+            Assert.Inconclusive("当前环境没有可用的绝对 dotnet 路径。");
+            return;
+        }
+
+        var pythonRuntime = await new Diary.Script.Py.PythonRuntimeResolver().ResolveAsync();
+        if (!pythonRuntime.Succeeded || pythonRuntime.ExecutablePath is null)
+        {
+            Assert.Inconclusive("当前环境没有可用的 Python 3.10+ runtime。");
+            return;
+        }
+
+        var cases = new[]
+        {
+            new WorkerComparisonCase(
+                "csharp",
+                "error-csharp",
+                "error-csharp.cs",
+                "public sealed class ErrorDemo : Diary.ScriptBase.IScriptProgramV1 { public Diary.ScriptBase.ScriptDescriptor Descriptor { get; } = new(\"error-csharp\", \"Error C#\", Diary.ScriptBase.ScriptApiVersion.V1, Diary.ScriptBase.ScriptScope.Application); public System.Threading.Tasks.ValueTask<Diary.ScriptBase.ScriptExecutionResult> ExecuteAsync(Diary.ScriptBase.ScriptExecutionRequest request, Diary.ScriptBase.IScriptExecutionContext context, System.Threading.CancellationToken cancellationToken = default) => System.Threading.Tasks.ValueTask.FromException<Diary.ScriptBase.ScriptExecutionResult>(new System.InvalidOperationException(\"expected failure\")); }",
+                "SCRIPT_EXECUTION_EXCEPTION",
+                false),
+            new WorkerComparisonCase(
+                "lua",
+                "error-lua",
+                "error-lua.lua",
+                "function application_main(context) error('expected failure') end",
+                "LUA_EXECUTION_FAILED",
+                false),
+            new WorkerComparisonCase(
+                "python",
+                "error-python",
+                "error-python.py",
+                "def application_main(context):\n    raise RuntimeError('expected failure')\n",
+                "PYTHON_EXECUTION_FAILED",
+                false),
+            new WorkerComparisonCase(
+                "csharp",
+                "timeout-csharp",
+                "timeout-csharp.cs",
+                "public sealed class TimeoutDemo : Diary.ScriptBase.IScriptProgramV1 { public Diary.ScriptBase.ScriptDescriptor Descriptor { get; } = new(\"timeout-csharp\", \"Timeout C#\", Diary.ScriptBase.ScriptApiVersion.V1, Diary.ScriptBase.ScriptScope.Application); public async System.Threading.Tasks.ValueTask<Diary.ScriptBase.ScriptExecutionResult> ExecuteAsync(Diary.ScriptBase.ScriptExecutionRequest request, Diary.ScriptBase.IScriptExecutionContext context, System.Threading.CancellationToken cancellationToken = default) { while (!context.IsCancellationRequested) { } await System.Threading.Tasks.Task.Yield(); return Diary.ScriptBase.ScriptExecutionResult.Succeeded(); } }",
+                "SCRIPT_EXECUTION_TIMED_OUT",
+                true),
+            new WorkerComparisonCase(
+                "lua",
+                "timeout-lua",
+                "timeout-lua.lua",
+                "function application_main(context) while not context.isCancelled() do end end",
+                "SCRIPT_EXECUTION_TIMED_OUT",
+                true),
+            new WorkerComparisonCase(
+                "python",
+                "timeout-python",
+                "timeout-python.py",
+                "def application_main(context):\n    while not context.isCancelled():\n        pass\n",
+                "SCRIPT_EXECUTION_TIMED_OUT",
+                true),
+        };
+
+        foreach (var testCase in cases)
+        {
+            var supervisor = CreateSupervisor(testCase.Language, workerPath, dotnetPath, pythonRuntime.ExecutablePath);
+            try
+            {
+                await supervisor.StartAsync(new(testCase.Language, [ScriptApiVersion.V1], []));
+                var result = await supervisor.ExecuteAsync(
+                    testCase.ScriptId,
+                    $"{testCase.ScriptId}-execution",
+                    new WorkerExecutePayload(
+                        testCase.ScriptId,
+                        testCase.SourcePath,
+                        testCase.Source,
+                        new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual),
+                        new ScriptDescriptorHint(testCase.ScriptId, testCase.ScriptId, ScriptScope.Application, EngineName: testCase.Language)),
+                    timeout: testCase.IsTimeout ? TimeSpan.FromMilliseconds(250) : null);
+
+                var detail = string.Join("; ", result.Payload.Diagnostics.Select(item => $"{item.Code}: {item.Message}"));
+                var expectedStatus = testCase.IsTimeout ? ScriptExecutionStatus.TimedOut : ScriptExecutionStatus.Failed;
+                Assert.AreEqual(expectedStatus, result.Payload.Status, $"{testCase.Language}: {detail}");
+                Assert.AreEqual(testCase.ExpectedDiagnosticCode, result.Payload.Diagnostics.Single().Code, $"{testCase.Language}: {detail}");
+                if (testCase.IsTimeout)
+                    Assert.AreEqual(WorkerState.Failed, supervisor.State, testCase.Language);
+            }
+            finally
+            {
+                await supervisor.StopAsync();
+            }
+        }
+    }
+
+    private static WorkerSupervisor CreateSupervisor(
+        string language,
+        string workerPath,
+        string dotnetPath,
+        string pythonPath) =>
+        language switch
+        {
+            "python" => new WorkerSupervisor(
+                new ProcessWorkerTransportFactory(new WorkerProcessOptions(
+                    pythonPath,
+                    Diary.Script.Py.PythonWorkerSource.CreateArguments(),
+                    AppContext.BaseDirectory,
+                    new Dictionary<string, string>
+                    {
+                        ["PYTHONIOENCODING"] = "utf-8",
+                        ["PYTHONUNBUFFERED"] = "1",
+                    }))),
+            _ => CreateDotnetSupervisor(workerPath, language, dotnetPath),
+        };
+
+    private sealed record WorkerComparisonCase(
+        string Language,
+        string ScriptId,
+        string SourcePath,
+        string Source,
+        string ExpectedDiagnosticCode,
+        bool IsTimeout);
+
+    [TestMethod]
     public async Task ProcessTransport_ReportsExitCodeWhenProcessTerminates()
     {
         if (!OperatingSystem.IsLinux())
