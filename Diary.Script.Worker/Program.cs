@@ -44,7 +44,7 @@ internal sealed class CSharpWorker(Stream input, Stream output)
             WorkerMessageType.Hello,
             Guid.NewGuid().ToString("N"),
             null,
-             new("csharp", "0.4", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write"], Environment.ProcessId));
+             new("csharp", "0.4", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write"], Environment.ProcessId));
         Console.SetOut(new BoundedTextWriter(1 * 1024 * 1024));
         await WorkerMessageCodec.WriteAsync(output, hello);
         var accepted = await WorkerMessageCodec.ReadAsync<WorkerHelloAcceptedPayload>(input);
@@ -148,13 +148,15 @@ internal sealed class CSharpWorker(Stream input, Stream output)
             context.RegisterApi<ITrackerInstanceScriptApi>(new TrackerInstanceWorkerProxy(CallHostAsync));
             context.RegisterApi<ILogItemScriptApi>(new WorkerLogItemProxy(CallHostAsync));
             context.RegisterApi<ITemplateLogItemScriptApi>(new WorkerTemplateLogItemProxy(CallHostAsync));
+            context.RegisterApi<ITemplateScriptApi>(new WorkerTemplateDiscoveryProxy(CallHostAsync));
             context.RegisterApi<ILogApi>(new WorkerScriptLogApi(CallHostAsync));
             context.RegisterApi<IClipboardScriptApi>(new WorkerClipboardProxy(CallHostAsync));
             context.RegisterApi<IUserInteractionScriptApi>(new WorkerUserInteractionProxy(CallHostAsync));
             context.RegisterApi<IDiaryApi>(new WorkerDiaryApiProxy(
                 context.GetApi<IWorkItemQueryScriptApi>()!,
                 context.GetApi<ILogItemScriptApi>()!,
-                context.GetApi<ITemplateLogItemScriptApi>()!));
+                context.GetApi<ITemplateLogItemScriptApi>()!,
+                 context.GetApi<ITemplateScriptApi>()!));
             context.RegisterApi<ITrackerApi>(new WorkerTrackerApiProxy(context.GetApi<ITrackerInstanceScriptApi>()!));
             context.RegisterApi<SysApi>(new WorkerSystemInteractionApiProxy(
                 context.GetApi<IClipboardScriptApi>()!, context.GetApi<IUserInteractionScriptApi>()!));

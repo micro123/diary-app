@@ -122,8 +122,6 @@ print(created["id"])
 
 失败时返回 `succeeded = False` 和 `error`。错误代码包括 `InvalidInput`、`DatabaseUnavailable`、`ProviderFailure`、`Cancelled`。该 API 只返回新建项的安全 DTO。
 
-## 4. Tracker 实例目录
-
 ## 3.1 按模板创建日志项
 
 ```python
@@ -140,6 +138,17 @@ if not result["succeeded"]:
 
 标题为空时使用模板默认标题，模板默认标签应用到新建项。日期必须为 `yyyy-MM-dd`，模板 ID 必须为 UUID。
 
+模板只读发现：
+
+```python
+for template in context.diary.templates.list():
+    print(template["id"], template["name"])
+```
+
+`defaultTitle`、`defaultHours` 和 `defaultWorkTagIds` 只描述模板默认值，不提供模板写入能力。
+
+## 4. Tracker 实例目录
+
 ```python
 result = context.diary.trackerInstances.get({
     "pluginId": "tracker.memory",
@@ -149,7 +158,7 @@ if result["succeeded"]:
     print(result["instance"]["displayName"])
 ```
 
-返回的 `instance` 包含 `pluginId`、`instanceId`、`displayName`、`icon`、`isConfigured`。错误代码为 `InvalidInput` 或 `InstanceUnavailable`。不暴露 Tracker 客户端、配置、数据库或 DI。
+返回的 `instance` 包含 `pluginId`、`instanceId`、`displayName`、`icon`、`isConfigured`。`context.diary.trackerInstances.list()` 返回当前已启用实例的同一 DTO 列表，并按显示名称稳定排序。错误代码为 `InvalidInput` 或 `InstanceUnavailable`。不暴露 Tracker 客户端、配置、数据库或 DI。
 
 ## 5. 剪贴板
 

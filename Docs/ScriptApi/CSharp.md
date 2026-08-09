@@ -31,6 +31,17 @@ public sealed class DemoScript : ApplicationScript
 脚本不能访问 `IServiceProvider`、数据库对象或 UI 对象；宿主 API 只能通过上下文获取。
 
 `GetApi<T>()` 适合可选 API，必需 API 使用 `GetRequiredApi<T>()`。
+
+C# 也可以使用强类型门面：
+
+```csharp
+var api = context.Api();
+var items = await api.Diary.QueryAsync(new ScriptWorkItemQuery { Limit = 10 }, cancellationToken);
+var templates = api.Diary.Templates.List();
+var trackers = api.Tracker.ListInstances();
+```
+
+`context.Api()` 只做已注册 API 的强类型聚合，不扩大脚本权限；缺少 API 时仍由 `GetRequiredApi<T>()` 报告不可用。
 ## 2. Descriptor
 
 `ScriptDescriptor` 字段：
@@ -202,8 +213,6 @@ var created = result.Item!;
 
 ## 6. 按模板创建日志项
 
-## 7. Tracker 实例目录
-
 ```csharp
 var diary = context.GetApi<IDiaryApi>();
 var result = await diary!.CreateFromTemplateAsync(new ScriptTemplateLogItemRequest(
@@ -216,6 +225,17 @@ var result = await diary!.CreateFromTemplateAsync(new ScriptTemplateLogItemReque
 
 标题为空时使用模板默认标题；工时使用调用参数；模板默认标签会应用到新建工作项。`Date` 必须是 `yyyy-MM-dd`，`TemplateId` 必须是 UUID。该 API 只创建新工作项，不修改或删除已有项。
 
+模板只读发现：
+
+```csharp
+foreach (var template in diary!.Templates.List())
+    Console.WriteLine($"{template.Id}: {template.Name} ({template.DefaultHours}h)");
+```
+
+`ScriptTemplateInfo` 的 `DefaultTitle`、`DefaultHours` 和 `DefaultWorkTagIds` 只描述模板默认值，不授予脚本修改模板的权限。
+
+## 7. Tracker 实例目录
+
 ```csharp
 var api = context.GetApi<ITrackerApi>();
 var result = api?.GetInstance("tracker.memory", "company");
@@ -223,7 +243,7 @@ if (result is { Succeeded: true })
     Console.WriteLine(result.Instance!.DisplayName);
 ```
 
-`Get(pluginId, instanceId)` 返回 `ScriptTrackerInstance`：`PluginId`、`InstanceId`、`DisplayName`、`Icon`、`IsConfigured`。错误代码为 `InvalidInput` 或 `InstanceUnavailable`。该 API 不暴露 Tracker 客户端、配置、数据库或 DI。
+`GetInstance(pluginId, instanceId)` 返回 `ScriptTrackerInstance`：`PluginId`、`InstanceId`、`DisplayName`、`Icon`、`IsConfigured`。`ListInstances()` 返回当前已启用实例的同一 DTO 列表，结果按显示名称稳定排序。错误代码为 `InvalidInput` 或 `InstanceUnavailable`。该 API 不暴露 Tracker 客户端、配置、数据库或 DI。
 
 ## 8. 剪贴板
 
@@ -252,7 +272,9 @@ var confirmed = await system.ConfirmAsync("继续操作", "是否继续？", can
 | `IDiaryApi.QueryAsync` | `workItems.query` |
 | `IDiaryApi.CreateLogItemAsync` | `logItems.create` |
 | `IDiaryApi.CreateFromTemplateAsync` | `templateLogItems.create` |
+| `IDiaryApi.Templates.List` | `templates.list` |
 | `ITrackerApi.GetInstance` | `trackerInstances.get` |
+| `ITrackerApi.ListInstances` | `trackerInstances.list` |
 | `SysApi.GetClipboardTextAsync` | `clipboard.get` |
 | `SysApi.SetClipboardTextAsync` | `clipboard.set` |
 | `SysApi.NotifyAsync` | `ui.notify` |

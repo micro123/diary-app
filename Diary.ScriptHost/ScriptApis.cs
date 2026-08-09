@@ -4,6 +4,8 @@ namespace Diary.ScriptHost;
 
 public interface IDiaryApi
 {
+    ITemplateScriptApi Templates { get; }
+
     ValueTask<ScriptWorkItemQueryResult> QueryAsync(
         ScriptWorkItemQuery query,
         CancellationToken cancellationToken = default);
@@ -25,6 +27,7 @@ public interface IDiaryApi
 public interface ITrackerApi
 {
     TrackerScriptResult GetInstance(string pluginId, string instanceId);
+    IReadOnlyList<ScriptTrackerInstance> ListInstances();
 }
 
 public interface SysApi
@@ -38,8 +41,11 @@ public interface SysApi
 public sealed class DiaryApi(
     IWorkItemQueryScriptApi query,
     ILogItemScriptApi logItems,
-    ITemplateLogItemScriptApi templateLogItems) : IDiaryApi
+    ITemplateLogItemScriptApi templateLogItems,
+    ITemplateScriptApi? templates = null) : IDiaryApi
 {
+    public ITemplateScriptApi Templates { get; } = templates ?? EmptyTemplateScriptApi.Instance;
+
     public ValueTask<ScriptWorkItemQueryResult> QueryAsync(ScriptWorkItemQuery request, CancellationToken cancellationToken = default) =>
         query.QueryAsync(request, cancellationToken);
 
@@ -56,6 +62,13 @@ public sealed class DiaryApi(
 public sealed class TrackerApi(ITrackerInstanceScriptApi instances) : ITrackerApi
 {
     public TrackerScriptResult GetInstance(string pluginId, string instanceId) => instances.Get(pluginId, instanceId);
+    public IReadOnlyList<ScriptTrackerInstance> ListInstances() => instances.List();
+}
+
+internal sealed class EmptyTemplateScriptApi : ITemplateScriptApi
+{
+    public static EmptyTemplateScriptApi Instance { get; } = new();
+    public IReadOnlyList<ScriptTemplateInfo> List() => [];
 }
 
 public sealed class SystemInteractionApi(

@@ -9,6 +9,7 @@ public sealed class WorkItemQueryWorkerDispatcher(
     Func<ITrackerInstanceScriptApi>? trackerApiFactory = null,
     Func<ILogItemScriptApi>? logItemApiFactory = null,
     Func<ITemplateLogItemScriptApi>? templateLogItemApiFactory = null,
+    Func<ITemplateScriptApi>? templateApiFactory = null,
     Func<IClipboardScriptApi>? clipboardApiFactory = null,
     Func<IUserInteractionScriptApi>? interactionApiFactory = null,
     Func<string, ILogApi>? scriptLogApiFactory = null,
@@ -19,8 +20,11 @@ public sealed class WorkItemQueryWorkerDispatcher(
         WorkerHostCallPayload call,
         CancellationToken cancellationToken = default)
     {
-        if (string.Equals(call.Method, "trackerInstances.get", StringComparison.Ordinal))
+        if (string.Equals(call.Method, "trackerInstances.get", StringComparison.Ordinal)
+            || string.Equals(call.Method, "trackerInstances.list", StringComparison.Ordinal))
             return await DispatchTrackerAsync(trackerApiFactory, call);
+        if (string.Equals(call.Method, "templates.list", StringComparison.Ordinal))
+            return await DispatchTemplates(templateApiFactory);
         if (string.Equals(call.Method, "logItems.create", StringComparison.Ordinal))
             return await DispatchLogItemAsync(logItemApiFactory, call, cancellationToken);
         if (string.Equals(call.Method, "templateLogItems.create", StringComparison.Ordinal))
@@ -154,6 +158,16 @@ public sealed class WorkItemQueryWorkerDispatcher(
         catch (Exception ex) { return new(false, Error: new("ProviderFailure", ex.Message)); }
     }
 
+    private static ValueTask<WorkerHostResultPayload> DispatchTemplates(
+        Func<ITemplateScriptApi>? factory)
+    {
+        if (factory is null)
+            return ValueTask.FromResult(new WorkerHostResultPayload(false, Error: new("ProviderFailure", "模板发现宿主 API 未配置。")));
+        return ValueTask.FromResult(new WorkerHostResultPayload(
+            true,
+            JsonSerializer.SerializeToElement(factory().List(), WorkerProtocol.JsonOptions)));
+    }
+
     private static ValueTask<WorkerHostResultPayload> DispatchTrackerAsync(
         Func<ITrackerInstanceScriptApi>? factory,
         WorkerHostCallPayload call)
@@ -162,6 +176,10 @@ public sealed class WorkItemQueryWorkerDispatcher(
             return ValueTask.FromResult(new WorkerHostResultPayload(false, Error: new("ProviderFailure", "Tracker 宿主 API 未配置。")));
         try
         {
+            if (call.Method == "trackerInstances.list")
+                return ValueTask.FromResult(new WorkerHostResultPayload(
+                    true,
+                    JsonSerializer.SerializeToElement(factory().List(), WorkerProtocol.JsonOptions)));
             var request = call.Params.Deserialize<TrackerInstanceRequest>(WorkerProtocol.JsonOptions)
                 ?? throw new JsonException();
             var result = factory().Get(request.PluginId, request.InstanceId);

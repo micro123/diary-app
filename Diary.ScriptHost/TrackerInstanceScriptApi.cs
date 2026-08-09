@@ -29,6 +29,7 @@ public sealed record TrackerScriptResult(
 public interface ITrackerInstanceScriptApi
 {
     TrackerScriptResult Get(string pluginId, string instanceId);
+    IReadOnlyList<ScriptTrackerInstance> List();
 }
 
 public sealed class TrackerInstanceScriptApi(PluginInstanceRegistry registry) : ITrackerInstanceScriptApi
@@ -44,11 +45,22 @@ public sealed class TrackerInstanceScriptApi(PluginInstanceRegistry registry) : 
             ? TrackerScriptResult.Failure(
                 TrackerScriptErrorCode.InstanceUnavailable,
                 "指定的 Tracker 实例不存在或未启用。")
-            : TrackerScriptResult.Success(new ScriptTrackerInstance(
-                instance.PluginId,
-                instance.InstanceId,
-                instance.DisplayName,
-                instance.Icon,
-                instance.IsConfigured));
+            : TrackerScriptResult.Success(ToScriptInstance(instance));
     }
+
+    public IReadOnlyList<ScriptTrackerInstance> List() =>
+        registry.AllEntriesWithIdentity
+            .Where(item => item.Entry.State == TrackerInstanceState.Enabled && item.Entry.Instance is not null)
+            .Select(item => ToScriptInstance(item.Entry.Instance!))
+            .OrderBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.PluginId, StringComparer.Ordinal)
+            .ThenBy(item => item.InstanceId, StringComparer.Ordinal)
+            .ToArray();
+
+    private static ScriptTrackerInstance ToScriptInstance(ITrackerInstance instance) => new(
+        instance.PluginId,
+        instance.InstanceId,
+        instance.DisplayName,
+        instance.Icon,
+        instance.IsConfigured);
 }

@@ -45,8 +45,8 @@ public sealed class CSharpEngineTests
                 public ScriptDescriptor Descriptor => new("query", "Query", ScriptApiVersion.V1, ScriptScope.Application);
                 public async ValueTask<ScriptExecutionResult> ExecuteAsync(ScriptExecutionRequest request, IScriptExecutionContext context, CancellationToken cancellationToken = default)
                 {
-                    var api = context.GetApi<IDiaryApi>();
-                    await api!.QueryAsync(new ScriptWorkItemQuery { Limit = 1 }, cancellationToken);
+                    var api = context.Api();
+                    await api.Diary.QueryAsync(new ScriptWorkItemQuery { Limit = 1 }, cancellationToken);
                     return ScriptExecutionResult.Succeeded();
                 }
             }

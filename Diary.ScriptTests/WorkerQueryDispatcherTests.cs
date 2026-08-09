@@ -59,6 +59,25 @@ public sealed class WorkerQueryDispatcherTests
     }
 
     [TestMethod]
+    public async Task DispatchAsync_ListsTemplatesAndTrackerInstances()
+    {
+        var dispatcher = new WorkItemQueryWorkerDispatcher(
+            () => new FakeQueryApi(),
+            trackerApiFactory: () => new FakeTrackerApi(),
+            templateApiFactory: () => new FakeTemplateDiscoveryApi());
+
+        var templates = await dispatcher.DispatchAsync("exec", new(
+            "templates.list", JsonSerializer.SerializeToElement(new { })));
+        var trackers = await dispatcher.DispatchAsync("exec", new(
+            "trackerInstances.list", JsonSerializer.SerializeToElement(new { })));
+
+        Assert.IsTrue(templates.Success);
+        Assert.IsTrue(trackers.Success);
+        Assert.AreEqual("日报", templates.Result!.Value.Deserialize<ScriptTemplateInfo[]>(WorkerProtocol.JsonOptions)![0].Name);
+        Assert.AreEqual("default", trackers.Result!.Value.Deserialize<ScriptTrackerInstance[]>(WorkerProtocol.JsonOptions)![0].InstanceId);
+    }
+
+    [TestMethod]
     public async Task DispatchAsync_SupportsClipboardGetAndSet()
     {
         var clipboard = new FakeClipboardApi();
@@ -170,6 +189,12 @@ public sealed class WorkerQueryDispatcherTests
             ValueTask.FromResult(ScriptWorkItemQueryResult.Success(items, query));
     }
 
+    private sealed class FakeTemplateDiscoveryApi : ITemplateScriptApi
+    {
+        public IReadOnlyList<ScriptTemplateInfo> List() =>
+            [new("template-id", "日报", "日报标题", 1.5, [1, 2])];
+    }
+
     private sealed class FakeTemplateLogItemApi : ITemplateLogItemScriptApi
     {
         public ValueTask<ScriptLogItemResult> CreateAsync(ScriptTemplateLogItemRequest request, CancellationToken cancellationToken = default) =>
@@ -180,6 +205,9 @@ public sealed class WorkerQueryDispatcherTests
     {
         public TrackerScriptResult Get(string pluginId, string instanceId) =>
             TrackerScriptResult.Success(new(pluginId, instanceId, "Company", "memory", true));
+
+        public IReadOnlyList<ScriptTrackerInstance> List() =>
+            [new("tracker", "default", "Company", "memory", true)];
     }
 
     private sealed class FakeClipboardApi : IClipboardScriptApi

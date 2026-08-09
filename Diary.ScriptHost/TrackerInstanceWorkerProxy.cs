@@ -20,4 +20,15 @@ public sealed class TrackerInstanceWorkerProxy(
                 : TrackerScriptErrorCode.InstanceUnavailable,
             response.Error?.Message ?? "Worker 宿主查询失败。");
     }
+
+    public IReadOnlyList<ScriptTrackerInstance> List()
+    {
+        var response = callHost(new(
+            "trackerInstances.list",
+            JsonSerializer.SerializeToElement(new { }, WorkerProtocol.JsonOptions)),
+            CancellationToken.None).GetAwaiter().GetResult();
+        if (!response.Success || response.Result is not { } result)
+            return [];
+        return result.Deserialize<ScriptTrackerInstance[]>(WorkerProtocol.JsonOptions) ?? [];
+    }
 }

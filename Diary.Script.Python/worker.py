@@ -140,7 +140,11 @@ class DiaryApi:
         self.workItems = WorkItemsApi(state)
         self.logItems = type("LogItemsApi", (), {"create": HostApi(state, "logItems.create")})()
         self.templateLogItems = type("TemplateLogItemsApi", (), {"create": HostApi(state, "templateLogItems.create")})()
-        self.trackerInstances = type("TrackerInstancesApi", (), {"get": HostApi(state, "trackerInstances.get")})()
+        self.trackerInstances = type("TrackerInstancesApi", (), {
+            "get": HostApi(state, "trackerInstances.get"),
+            "list": HostApi(state, "trackerInstances.list"),
+        })()
+        self.templates = type("TemplatesApi", (), {"list": HostApi(state, "templates.list")})()
         self.clipboard = ClipboardApi(state)
         self.ui = UiApi(state)
         self.log = LogApi(state)
@@ -590,7 +594,7 @@ def run():
         "language": "python",
         "workerVersion": "0.2",
         "supportedApiVersions": ["V1"],
-        "supportedHostApis": ["workItems.query", "logItems.create", "templateLogItems.create", "trackerInstances.get", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress"],
+        "supportedHostApis": ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress"],
         "processId": os.getpid(),
     })
     accepted = read_message()

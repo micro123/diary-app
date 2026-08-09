@@ -3,6 +3,7 @@ namespace Diary.ScriptHost;
 public sealed class WorkerTrackerApiProxy(ITrackerInstanceScriptApi instances) : ITrackerApi
 {
     public TrackerScriptResult GetInstance(string pluginId, string instanceId) => instances.Get(pluginId, instanceId);
+    public IReadOnlyList<ScriptTrackerInstance> ListInstances() => instances.List();
 }
 
 public sealed class WorkerSystemInteractionApiProxy(

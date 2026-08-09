@@ -43,7 +43,7 @@
 - `ScriptEngineRegistry`：注册引擎并按匹配优先级选择。
 - `ScriptBuildService`：选择引擎、构建并规范化失败诊断。
 - `ScriptCatalog`：按稳定脚本 ID 注册和读取构建后的程序。
-- `ScriptExecutionContext`：按入口类型暴露目标、参数、日期范围、自动化事件、取消和进度 API。
+- `ScriptExecutionContext`：按入口类型暴露目标、参数、日期范围、自动化事件、取消和进度 API；`Diary.ScriptHost` 提供 C# `context.Api()` 强类型门面。
 - `ScriptExecutor`：目标校验、独立执行 ID、取消、超时和异常隔离。
 - `ScriptManager`：组合构建、注册和执行的最小入口。
 - `ScriptDirectoryLoader`：扫描 application/editor 目录和脚本包，读取入口类型元数据，校验 descriptor/manifest 与作用域、目标的一致性，并隔离单个脚本失败。
@@ -126,7 +126,7 @@ IScriptApi
 
 编辑器脚本使用 `IEditorScriptV1` 或 `EditorScript`，对应 `ScriptEntryKind.Editor`。它必须收到 `Year`、`Quarter`、`Month`、`Day` 或 `WorkItem` 目标，并可通过 `GetDateRange()`、`StreamItemsAsync()` 或不可变的 `ScriptWorkItem` 快照读取上下文。
 
-编辑器脚本可以在 metadata 中声明 `supportedEditorTargets`；未声明时视为支持全部五类目标。`ScriptExecutionRequest.Target` 对应用程序扩展必须为 `null`，对编辑器扩展必须是上述五类目标之一。
+编辑器脚本可以在 metadata 中声明 `supportedEditorTargets`；未声明时视为支持全部五类目标。`ScriptExecutionRequest.Target` 对应用程序扩展必须为 `null`，对编辑器扩展必须是上述五类目标之一。查询和 Tracker/模板发现均为只读 API。
 
 ### 5.3 自动化脚本
 
@@ -134,7 +134,7 @@ IScriptApi
 
 ### 5.4 查询入口和模板边界
 
-Query 入口已在契约中预留，当前创建向导和 SDK 尚未提供独立的 `QueryScript` 基类。模板的选择、读取、应用和持久化均由编辑器或宿主完成；脚本不能创建、修改、删除或直接应用模板。
+Query 入口已在契约中预留，当前创建向导和 SDK 尚未提供独立的 `QueryScript` 基类。模板和已启用 Tracker 实例提供只读发现 API；模板的选择、读取、应用和持久化仍由编辑器或宿主完成，脚本不能创建、修改、删除或直接应用模板。
 
 脚本生命周期为：
 

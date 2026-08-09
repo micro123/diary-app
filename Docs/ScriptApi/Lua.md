@@ -135,8 +135,6 @@ print("created work item: " .. result.item.id)
 
 成功返回 `succeeded = true` 和新建的 `item`；失败返回 `succeeded = false` 及 `error.code`：`InvalidInput`、`DatabaseUnavailable`、`ProviderFailure` 或 `Cancelled`。Lua 没有工作项更新和删除 API。
 
-## 4. Tracker 实例目录
-
 ## 3.1 按模板创建日志项
 
 ```lua
@@ -152,6 +150,18 @@ if not result.succeeded then error(result.error.message) end
 
 标题为空时使用模板默认标题，模板默认标签应用到新建项。日期必须为 `yyyy-MM-dd`，模板 ID 必须为 UUID。
 
+模板只读发现：
+
+```lua
+for _, template in ipairs(diary.templates.list()) do
+    print(template.id .. ": " .. template.name)
+end
+```
+
+`template.defaultTitle`、`template.defaultHours` 和 `template.defaultWorkTagIds` 只描述模板默认值，不提供模板写入能力。
+
+## 4. Tracker 实例目录
+
 调用 `diary.trackerInstances.get({ pluginId = "tracker.memory", instanceId = "company" })`。
 
 ```lua
@@ -164,7 +174,7 @@ if result.succeeded then
 end
 ```
 
-返回的 `instance` 字段包括 `pluginId`、`instanceId`、`displayName`、`icon`、`isConfigured`。错误代码为 `InvalidInput` 或 `InstanceUnavailable`。不暴露 Tracker 客户端、配置和数据库。
+返回的 `instance` 字段包括 `pluginId`、`instanceId`、`displayName`、`icon`、`isConfigured`。`diary.trackerInstances.list()` 返回当前已启用实例的同一 DTO 列表，并按显示名称稳定排序。错误代码为 `InvalidInput` 或 `InstanceUnavailable`。不暴露 Tracker 客户端、配置和数据库。
 
 ## 5. 剪贴板
 
