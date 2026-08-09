@@ -536,7 +536,7 @@ supervisor 应支持以下限制，并在 worker 启动或执行前配置：
 
 - 使用独立 Python 3 解释器进程和受控 `worker.py`，不嵌入 CPython；Worker 源码作为 `Diary.Script.Python.dll` 嵌入资源，通过 `python -I -c` 启动。
 - `PythonRuntimeResolver` 位于 `Diary.Script.Python`，负责绝对解释器路径、版本探测、worker 路径和环境诊断。
-- Windows 正式包使用应用内的 embeddable distribution；Linux 使用系统 `python3`/`python3.X` 包；macOS 使用显式配置或系统/用户 `python3`。
+- Windows 正式包使用应用内的 embeddable distribution；Linux 使用系统 `python3`/`python3.X` 包；macOS 使用显式配置或系统/用户 `python3`。Resolver 会报告候选路径、平台和版本探测原因，Windows 额外支持 `py.exe` 启动器候选。
 - embeddable distribution 只作为应用发布资源解压使用，不执行 pip，不修改 PATH/注册表；Linux 不调用发行版包管理器。
 - 禁止脚本直接把协议 JSON 写入 stdout；`print` 和 traceback 写入受限 stderr。
 - worker 通过 `compile(source, sourcePath, "exec")` 做语法检查，执行时创建新的 globals/context；第一版每个 worker 最多执行一个请求。

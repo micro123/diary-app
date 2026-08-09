@@ -1,4 +1,5 @@
 using Diary.Script.Runtime;
+using Diary.ScriptBase;
 
 namespace Diary.Script.Py;
 
@@ -10,8 +11,12 @@ public sealed class PythonWorkerTransportFactory(
         var runtime = await runtimeResolver.ResolveAsync(cancellationToken: cancellationToken);
         if (!runtime.Succeeded || runtime.ExecutablePath is null)
         {
-            var diagnostic = runtime.Diagnostics.FirstOrDefault();
-            throw new InvalidOperationException(diagnostic?.Message ?? "Python runtime is unavailable.");
+            var diagnostic = runtime.Diagnostics.FirstOrDefault() ?? new ScriptDiagnostic(
+                "PYTHON_RUNTIME_NOT_FOUND",
+                "Python runtime is unavailable.",
+                ScriptDiagnosticSeverity.Error,
+                ScriptDiagnosticCategory.Runtime);
+            throw new WorkerRuntimeUnavailableException(diagnostic);
         }
 
         return await new ProcessWorkerTransportFactory(new WorkerProcessOptions(

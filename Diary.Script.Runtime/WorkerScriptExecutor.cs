@@ -61,6 +61,10 @@ public sealed class WorkerScriptExecutor(
                 WorkerId: runtime.Supervisor.WorkerId, WorkerRequestId: result.RequestId,
                 Duration: TimeSpan.FromMilliseconds(result.Payload.DurationMilliseconds));
         }
+        catch (WorkerRuntimeUnavailableException exception)
+        {
+            return Failed(scriptId, request.Source, exception.Diagnostic.Code, exception.Diagnostic.Message);
+        }
         catch (Exception exception)
         {
             return Failed(scriptId, request.Source, "WORKER_EXECUTION_FAILED", exception.Message);
@@ -70,6 +74,11 @@ public sealed class WorkerScriptExecutor(
     private static ScriptExecutionOutcome Failed(string scriptId, ScriptExecutionSource source, string code, string message) =>
         new(Guid.NewGuid(), new ScriptExecutionResult(ScriptExecutionStatus.Failed, [new ScriptDiagnostic(
             code, message, ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Runtime)]), Source: source);
+}
+
+public sealed class WorkerRuntimeUnavailableException(ScriptDiagnostic diagnostic) : Exception(diagnostic.Message)
+{
+    public ScriptDiagnostic Diagnostic { get; } = diagnostic;
 }
 
 public sealed record WorkerExecutePayload(

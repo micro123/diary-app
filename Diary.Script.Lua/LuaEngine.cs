@@ -31,7 +31,8 @@ public sealed class LuaEngine : IScriptEngineV1
         }
         catch (Exception exception)
         {
-            return ValueTask.FromResult(ScriptBuildResult.Failure(new ScriptDiagnostic(
+            var runtimeDiagnostic = LuaRuntimeDiagnostics.Create(exception, request.SourcePath);
+            return ValueTask.FromResult(ScriptBuildResult.Failure(runtimeDiagnostic ?? new ScriptDiagnostic(
                 "LUA_SYNTAX_ERROR",
                 exception.Message,
                 ScriptDiagnosticSeverity.Error,
@@ -106,6 +107,33 @@ public sealed class LuaEngine : IScriptEngineV1
                 ? int.Parse(match.Groups["column"].Value)
                 : null)
             : (null, null);
+    }
+}
+
+internal static class LuaRuntimeDiagnostics
+{
+    public static ScriptDiagnostic? Create(Exception exception, string sourcePath)
+    {
+        if (!IsNativeFailure(exception))
+            return null;
+        return new ScriptDiagnostic(
+            "LUA_RUNTIME_UNAVAILABLE",
+            $"Lua native runtime could not be loaded for '{sourcePath}': {exception.Message}",
+            ScriptDiagnosticSeverity.Error,
+            ScriptDiagnosticCategory.Engine,
+            sourcePath);
+    }
+
+    private static bool IsNativeFailure(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is DllNotFoundException or BadImageFormatException)
+                return true;
+        }
+        return exception is TypeInitializationException
+            && exception.InnerException is not null
+            && IsNativeFailure(exception.InnerException);
     }
 }
 

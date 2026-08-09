@@ -76,6 +76,18 @@ public sealed class PythonEngineTests
     }
 
     [TestMethod]
+    public async Task ResolveAsync_ReportsMissingConfiguredPath()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"missing-python-{Guid.NewGuid():N}");
+
+        var result = await new PythonRuntimeResolver(_ => null).ResolveAsync(path);
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual("PYTHON_RUNTIME_NOT_FOUND", result.Diagnostics.Single().Code);
+        StringAssert.Contains(result.Diagnostics.Single().Message, path);
+    }
+
+    [TestMethod]
     public async Task ResolveAsync_RejectsRelativeExplicitPath()
     {
         var result = await new PythonRuntimeResolver(_ => null).ResolveAsync("python3");

@@ -71,7 +71,7 @@ public sealed class PythonRuntimeResolver
             {
                 firstDiagnostic ??= new ScriptDiagnostic(
                     "PYTHON_RUNTIME_NOT_FOUND",
-                    "The configured Python executable does not exist.",
+                    $"The configured Python executable does not exist: {pathResult.Path}.",
                     ScriptDiagnosticSeverity.Error,
                     ScriptDiagnosticCategory.Runtime);
                 continue;
@@ -91,7 +91,7 @@ public sealed class PythonRuntimeResolver
             {
                 firstDiagnostic ??= new ScriptDiagnostic(
                     "PYTHON_RUNTIME_PROBE_FAILED",
-                    "The Python executable did not respond before the probe timeout.",
+                    $"The Python executable did not respond before the probe timeout: {pathResult.Path}.",
                     ScriptDiagnosticSeverity.Error,
                     ScriptDiagnosticCategory.Runtime);
                 continue;
@@ -100,7 +100,7 @@ public sealed class PythonRuntimeResolver
             {
                 firstDiagnostic ??= new ScriptDiagnostic(
                     "PYTHON_RUNTIME_PROBE_FAILED",
-                    $"The Python executable could not be started: {exception.Message}",
+                    $"The Python executable could not be started ({pathResult.Path}): {exception.Message}",
                     ScriptDiagnosticSeverity.Error,
                     ScriptDiagnosticCategory.Runtime);
                 continue;
@@ -111,7 +111,7 @@ public sealed class PythonRuntimeResolver
             {
                 firstDiagnostic ??= new ScriptDiagnostic(
                     "PYTHON_RUNTIME_PROBE_FAILED",
-                    "The Python executable did not return a recognizable version.",
+                    $"The Python executable did not return a recognizable version: {pathResult.Path}.",
                     ScriptDiagnosticSeverity.Error,
                     ScriptDiagnosticCategory.Runtime);
                 continue;
@@ -121,7 +121,7 @@ public sealed class PythonRuntimeResolver
             {
                 firstDiagnostic ??= new ScriptDiagnostic(
                     "PYTHON_VERSION_UNSUPPORTED",
-                    $"Python {MinimumVersion} or newer is required; found {version}.",
+                    $"Python {MinimumVersion} or newer is required; found {version} at {pathResult.Path}.",
                     ScriptDiagnosticSeverity.Error,
                     ScriptDiagnosticCategory.Runtime);
                 continue;
@@ -167,7 +167,7 @@ public sealed class PythonRuntimeResolver
     private static IReadOnlyList<string> GetPlatformCandidates()
     {
         var names = OperatingSystem.IsWindows()
-            ? new[] { "python3.exe", "python.exe" }
+            ? new[] { "python3.exe", "python.exe", "py.exe" }
             : new[] { "python3", "python3.14", "python3.13", "python3.12", "python3.11", "python3.10" };
         var directories = new List<string>();
         if (OperatingSystem.IsWindows())
@@ -217,7 +217,11 @@ public sealed class PythonRuntimeResolver
 
     private static ScriptDiagnostic NotFoundDiagnostic() => new(
         "PYTHON_RUNTIME_NOT_FOUND",
-        "No usable Python 3 executable was found.",
+        $"No usable Python {MinimumVersion} or newer executable was found for {GetPlatformName()}.",
         ScriptDiagnosticSeverity.Error,
         ScriptDiagnosticCategory.Runtime);
+
+    private static string GetPlatformName() => OperatingSystem.IsWindows()
+        ? "Windows"
+        : OperatingSystem.IsMacOS() ? "macOS" : OperatingSystem.IsLinux() ? "Linux" : "the current platform";
 }
