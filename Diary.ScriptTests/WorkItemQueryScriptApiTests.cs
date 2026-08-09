@@ -1,3 +1,4 @@
+using Diary.ScriptBase;
 using Diary.Core.Data.Base;
 using Diary.Database;
 using Diary.Db.SQLite;
@@ -81,6 +82,19 @@ public sealed class WorkItemQueryScriptApiTests
         foreach (var query in invalid)
             AssertError(await api.QueryAsync(query), ScriptQueryErrorCode.InvalidInput);
         Assert.IsFalse(providerCalled);
+    }
+
+    [TestMethod]
+    public async Task QueryAsync_ExposesCanonicalApiErrorCode()
+    {
+        var result = await CreateApi(() => null).QueryAsync(new ScriptWorkItemQuery
+        {
+            Limit = WorkItemQueryScriptApi.MaxLimit + 1,
+        });
+
+        AssertError(result, ScriptQueryErrorCode.InvalidInput);
+        Assert.AreEqual(ScriptApiErrorCodes.InvalidArgument, result.ApiError!.Code);
+        Assert.AreEqual(ScriptErrorCategory.Validation, result.ApiError.Category);
     }
 
     [TestMethod]

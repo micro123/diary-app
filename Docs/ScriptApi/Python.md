@@ -216,3 +216,30 @@ except HostCallError as error:
 | `context.log.*` | `log.write` |
 
 Python Worker 禁止导入模块、文件访问、动态代码执行、运行时自省、输入和双下划线属性。仅允许安全内置函数；`print` 重定向到 Worker 日志流并受大小限制。脚本不能直接访问网络、进程、数据库、DI 或 UI 控件。
+
+## 8. 错误、取消、超时和 Worker 终止
+
+查询、创建等返回结果的 API 使用 `apiError["code"]` 提供稳定的大写错误码；`error["code"]` 是 Python 可读的领域错误名。
+
+```python
+result = context.diary.workItems.query({"limit": 0})
+if not result["succeeded"]:
+    code = (result.get("apiError") or {}).get("code", "PROVIDER_FAILURE")
+    if code == "INVALID_ARGUMENT":
+        print("请修正查询参数")
+    elif code == "CANCELLED":
+        return
+```
+
+会抛出异常的 HostCall 可以捕获 `HostCallError`，其 `code` 使用同一套大写错误码：
+
+```python
+try:
+    context.diary.ui.confirm("继续", "是否继续？")
+except HostCallError as error:
+    if error.code == "CANCELLED":
+        return
+    print(error.code, str(error))
+```
+
+调用方取消、执行超时或 Worker 被终止时，脚本执行结果分别表现为 `Cancelled`、`TimedOut` 或 `WORKER_TERMINATED` 诊断；它们不是普通的 `PROVIDER_FAILURE`，带副作用的操作不能自动重试。

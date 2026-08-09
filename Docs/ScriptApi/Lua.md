@@ -43,7 +43,7 @@ end
 | `target` | 编辑器目标；包含 `kind` 以及目标对应的字段。 |
 | `dateRange` | 年、季度、月、日目标的 `{ startDate, endDate }`；事项目标为 `nil`。 |
 | `workItem` | 事项目标的不可变事项快照；其他目标为 `nil`。 |
-| `isCancelled()` | 查询当前执行是否已请求取消。 |
+| 取消 | Lua 当前没有可轮询的取消函数；同步 HostCall 被取消或 Worker 被终止时，当前执行会结束。 |
 | `progress.report(fraction, message)` | 报告 0 到 1 之间的执行进度。 |
 | `getDateRange()` | 获取当前目标日期范围；无范围时返回 `nil`。 |
 | `items.stream()` | 按当前日期范围分页迭代事项。 |
@@ -232,3 +232,33 @@ end
 | `diary.log.*` | `log.write` |
 
 Worker 禁用 `io`、`os`、`debug`、`package`、`require`、动态加载和 CLR 访问。脚本不能直接访问文件、网络、进程、数据库、DI 或 UI 控件。`print` 只能写入隔离的脚本输出流，并受到大小限制。
+
+## 8. 错误、取消、超时和 Worker 终止
+
+查询、创建等返回结果的 API 使用 `apiError.code` 提供稳定的大写错误码，例如 `INVALID_ARGUMENT`、`CANCELLED` 和 `PROVIDER_FAILURE`。领域结果中的 `error.code` 保留 Lua 可读的领域错误名。
+
+```lua
+local result = diary.workItems.query({ limit = 0 })
+if not result.succeeded then
+    local code = result.apiError and result.apiError.code or "PROVIDER_FAILURE"
+    if code == "INVALID_ARGUMENT" then
+        print("请修正查询参数")
+    elseif code == "CANCELLED" then
+        return
+    end
+end
+```
+
+对会抛出错误的同步 HostCall，错误文本使用 `[ERROR_CODE] message` 格式，可以在 `pcall` 中提取代码：
+
+```lua
+local ok, value = pcall(function()
+    return diary.ui.confirm("继续", "是否继续？")
+end)
+if not ok then
+    local code = tostring(value):match("^%[([^%]]+)%]") or "PROVIDER_FAILURE"
+    if code == "CANCELLED" then return end
+end
+```
+
+调用方取消、执行超时或 Worker 被终止时，Lua 脚本不应把异常当作普通业务失败重试；最终执行结果由宿主报告 `Cancelled`、`TimedOut` 或 `WORKER_TERMINATED`。

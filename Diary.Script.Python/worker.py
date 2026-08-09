@@ -20,10 +20,21 @@ class CancelledExecution(Exception):
     pass
 
 
+def normalize_host_error_code(code):
+    return {
+        "InvalidInput": "INVALID_ARGUMENT",
+        "PermissionDenied": "PERMISSION_DENIED",
+        "DatabaseUnavailable": "SCRIPT_API_HOST_NOT_CONFIGURED",
+        "ProviderFailure": "PROVIDER_FAILURE",
+        "Cancelled": "CANCELLED",
+        "InstanceUnavailable": "INSTANCE_UNAVAILABLE",
+    }.get(code, code if isinstance(code, str) and code.isupper() else "PROVIDER_FAILURE")
+
+
 class HostCallError(Exception):
     def __init__(self, code, message):
         super().__init__(message)
-        self.code = code
+        self.code = normalize_host_error_code(code)
 
 
 class ExecutionState:
@@ -293,6 +304,7 @@ SAFE_BUILTINS = {
     "dict": dict,
     "enumerate": enumerate,
     "Exception": Exception,
+    "HostCallError": HostCallError,
     "float": float,
     "int": int,
     "isinstance": isinstance,

@@ -461,7 +461,8 @@ capability 字段已移除并兼容忽略；Worker 通过 `supportedHostApis` �
 不能由脚本源码静默改变脚本身份或执行范围；历史 capability 字段不参与权限判断。
 
 `ScriptCatalog` 和执行路由必须保存稳定的 `EngineName`，不能在执行时再次根据文件扩展名猜测
-worker。C#、Lua、Python 使用相互独立的 supervisor；某一种语言 worker 故障、重启或运行时缺失
+worker。Host API 返回结果携带 `ApiError` 时使用稳定的大写错误码；Python HostCall 异常使用 `HostCallError.code`，Lua 同步 HostCall 使用 `[ERROR_CODE] message` 格式。
+C#、Lua、Python 使用相互独立的 supervisor；某一种语言 worker 故障、重启或运行时缺失
 不得影响其他语言。
 
 #### 14.4.2 Lua

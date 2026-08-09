@@ -283,6 +283,18 @@ internal sealed class LuaWorker(Stream input, Stream output)
         public object? Log(object? level, object? message) => Call("log.write", new { level = level?.ToString() ?? "Info", message = message?.ToString() ?? string.Empty });
         public object? Progress(object? fraction, object? message) => Call("script.progress", new { fraction = Convert.ToDouble(fraction ?? 0), message = message?.ToString() ?? string.Empty });
 
+        private static string NormalizeHostErrorCode(string? code) => code switch
+        {
+            "InvalidInput" => "INVALID_ARGUMENT",
+            "PermissionDenied" => "PERMISSION_DENIED",
+            "DatabaseUnavailable" => "SCRIPT_API_HOST_NOT_CONFIGURED",
+            "ProviderFailure" => "PROVIDER_FAILURE",
+            "Cancelled" => "CANCELLED",
+            "InstanceUnavailable" => "INSTANCE_UNAVAILABLE",
+            _ when !string.IsNullOrWhiteSpace(code) && code!.ToUpperInvariant() == code => code,
+            _ => "PROVIDER_FAILURE",
+        };
+
         private object? Call(string method, object parameters)
         {
             var json = JsonSerializer.SerializeToElement(parameters, WorkerProtocol.JsonOptions);
@@ -291,7 +303,11 @@ internal sealed class LuaWorker(Stream input, Stream output)
                 executionId.ToString("N"),
                 CancellationToken.None).GetAwaiter().GetResult();
             if (!response.Success)
-                throw new InvalidOperationException(response.Error?.Message ?? "Worker 宿主查询失败。");
+            {
+                var code = NormalizeHostErrorCode(response.Error?.Code);
+                var message = response.Error?.Message ?? "Worker 宿主调用失败。";
+                throw new InvalidOperationException($"[{code}] {message}");
+            }
             return response.Result is { } result ? JsonToLua(result) : null;
         }
     }

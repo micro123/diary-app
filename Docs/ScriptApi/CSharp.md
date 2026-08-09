@@ -294,3 +294,29 @@ var confirmed = await system.ConfirmAsync("继续操作", "是否继续？", can
 | `ReportProgressAsync` | `script.progress` |
 
 Worker 调用由主进程执行并返回结构化结果。普通日志项和模板日志项支持 `IdempotencyKey` 与 `Preview`，结果会带 `ScriptEffectSummary`。幂等结果当前只在宿主进程内存中保留。脚本不能直接访问文件、网络、进程、反射、数据库、DI 或任意 UI 控件。超时、取消、Worker 退出和宿主失败都会转换为执行诊断。
+
+## 11. 错误、取消、超时和 Worker 终止
+
+返回结果类 API 失败时，优先读取 `ApiError.Code`，它使用稳定的大写错误码；`Error.Code` 是 C# 领域枚举，适合在领域内分支。
+
+```csharp
+var result = await api.QueryAsync(new ScriptWorkItemQuery { Limit = 0 }, cancellationToken);
+if (!result.Succeeded)
+{
+    switch (result.ApiError?.Code)
+    {
+        case ScriptApiErrorCodes.InvalidArgument:
+            // 修正参数后再执行。
+            break;
+        case ScriptApiErrorCodes.Cancelled:
+            // 取消不是普通业务失败，不要重试副作用操作。
+            break;
+        case ScriptApiErrorCodes.ProviderFailure:
+        case ScriptApiErrorCodes.HostNotConfigured:
+            // 宿主或数据库不可用；是否重试由业务决定。
+            break;
+    }
+}
+```
+
+脚本整体执行结果还要区分执行状态：`Cancelled` 表示调用方取消，`TimedOut` 表示超过执行时限；Worker 进程异常退出或通道断开时，诊断代码为 `WORKER_TERMINATED`。这些状态不能当作普通的 `ProviderFailure`，尤其是带有追加副作用的操作不能因为超时就自动重试。

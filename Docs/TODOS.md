@@ -202,11 +202,11 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 
 依赖：9.10.1 入口上下文、9.10.2 API 外观。
 
-- [~] 已定义 `ScriptApiError`、错误分类和基础错误码；所有 Host API 的错误映射与语言侧示例仍待统一。
-- [~] C#、Lua、Python 已具备结构化失败结果或 HostCall 异常，但三种语言的错误对象表达仍需对照测试。
-- [~] 上下文已传播取消令牌并提供动态语言的显式取消状态查询；Lua 同步 HostCall 的终止行为仍需补充测试。
+- [~] 已定义 `ScriptApiError`、错误分类和基础错误码；结果类 API 和动态语言 HostCall 的稳定错误码示例已统一，跨语言错误对象契约测试仍待补齐。
+- [~] C#、Lua、Python 已具备结构化失败结果或 HostCall 异常；C# `ApiError`、Python `HostCallError.code` 和 Lua `[ERROR_CODE] message` 已补充示例，对照测试仍待补齐。
+- [~] 上下文已传播取消令牌并提供 Python 的显式取消状态查询；Worker 取消、超时和终止状态已有 supervisor 测试，Lua 同步 HostCall 仍由 Worker 终止回收且没有可轮询取消函数。
 - [x] 增加 `ReportProgressAsync`、`context.progress.report(...)` 和 `script.progress` Worker HostCall，区分日志、用户通知和执行进度。
-- [ ] 为 Worker 终止、宿主调用失败、取消和超时补充脚本作者可读的处理示例。
+- [x] 已为 Worker 终止、宿主调用失败、取消和超时补充 C#、Lua、Python 脚本作者可读的处理示例。
 
 验收：同一个失败场景在三种语言中可以通过稳定错误代码识别；取消、超时和 Worker 终止不会被误报为普通业务失败；进度信息不会混入脚本日志或普通应用日志。
 
@@ -233,7 +233,7 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [x] 更新 C# 创建模板，默认生成对应入口类型和强类型上下文示例。
 - [x] 更新 Lua/Python 创建模板，按入口类型生成明确的函数名和上下文字段。
 - [ ] 为每种语言提供“5 分钟入门”和“查询并追加日志项”完整示例。
-- [~] API Reference 已补充入口类型、适用作用域、取消、幂等、预览和追加式记录说明；领域 API 发现、统一错误处理示例仍待补齐。
+- [~] API Reference 已补充入口类型、适用作用域、取消、幂等、预览、领域 API 发现和错误处理说明；完整跨语言错误契约测试仍待补齐。
 - [x] 已移除旧入口兼容作为验收条件；未发布版本可以直接采用新入口契约。
 
 验收：新用户通过创建向导和 API Reference 可以生成一个符合入口约定的最小脚本；入口类型错误在加载阶段给出诊断。

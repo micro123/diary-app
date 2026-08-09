@@ -1,3 +1,4 @@
+using Diary.ScriptBase;
 using Diary.PluginBase;
 
 namespace Diary.ScriptHost;
@@ -21,6 +22,13 @@ public sealed record TrackerScriptResult(
     TrackerScriptErrorCode? ErrorCode = null,
     string? ErrorMessage = null)
 {
+    public ScriptApiError? ApiError => ErrorCode switch
+    {
+        TrackerScriptErrorCode.InvalidInput => new(ScriptApiErrorCodes.InvalidArgument, ErrorMessage ?? "Tracker 参数无效。", ScriptErrorCategory.Validation),
+        TrackerScriptErrorCode.InstanceUnavailable => new(ScriptApiErrorCodes.InstanceUnavailable, ErrorMessage ?? "Tracker 实例不可用。", ScriptErrorCategory.Host),
+        _ => null,
+    };
+
     public static TrackerScriptResult Success(ScriptTrackerInstance instance) => new(true, instance);
     public static TrackerScriptResult Failure(TrackerScriptErrorCode code, string message) =>
         new(false, null, code, message);

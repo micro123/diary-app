@@ -120,6 +120,9 @@ public sealed record ScriptApiError(
 public static class ScriptApiErrorCodes
 {
     public const string InvalidArgument = "INVALID_ARGUMENT";
+    public const string PermissionDenied = "PERMISSION_DENIED";
+    public const string ProviderFailure = "PROVIDER_FAILURE";
+    public const string InstanceUnavailable = "INSTANCE_UNAVAILABLE";
     public const string ApiUnavailable = "SCRIPT_API_UNAVAILABLE";
     public const string ApiScopeNotSupported = "SCRIPT_API_SCOPE_NOT_SUPPORTED";
     public const string HostNotConfigured = "SCRIPT_API_HOST_NOT_CONFIGURED";
