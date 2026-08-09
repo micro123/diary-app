@@ -10,6 +10,10 @@ using LuaState = NLua.Lua;
 internal sealed class LuaWorker(Stream input, Stream output)
 {
     private readonly LuaEngine _engine = new();
+    private readonly WorkerHostCallRouter _hostCalls = new(output);
+    private Task? _activeExecution;
+    private CancellationTokenSource? _activeCancellation;
+    private string? _activeExecutionId;
 
     public async Task RunAsync()
     {
@@ -19,9 +23,9 @@ internal sealed class LuaWorker(Stream input, Stream output)
             WorkerMessageType.Hello,
             Guid.NewGuid().ToString("N"),
             null,
-             new("lua", "0.3", [ScriptApiVersion.V1], ScriptHostApiCatalog.All, Environment.ProcessId));
+            new("lua", "0.3", [ScriptApiVersion.V1], ScriptHostApiCatalog.All, Environment.ProcessId));
         Console.SetOut(new BoundedTextWriter(1 * 1024 * 1024));
-        await WorkerMessageCodec.WriteAsync(output, hello);
+        await _hostCalls.WriteAsync(hello);
         var accepted = await WorkerMessageCodec.ReadAsync<WorkerHelloAcceptedPayload>(input);
         if (accepted.Type != WorkerMessageType.HelloAccepted)
             return;
@@ -35,27 +39,44 @@ internal sealed class LuaWorker(Stream input, Stream output)
             }
             catch (EndOfStreamException)
             {
+                _activeCancellation?.Cancel();
                 return;
             }
 
             switch (message.Type)
             {
                 case WorkerMessageType.Ping:
-                    await WorkerMessageCodec.WriteAsync(output, new WorkerMessage<object>(
+                    await _hostCalls.WriteAsync(new WorkerMessage<object>(
                         WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.Pong,
                         message.RequestId, null, new { }));
                     break;
+                case WorkerMessageType.HostResult:
+                    _hostCalls.TryComplete(message);
+                    break;
                 case WorkerMessageType.Cancel:
-                    await WorkerMessageCodec.WriteAsync(output, new WorkerMessage<WorkerExecutionResultPayload>(
-                        WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.ExecuteResult,
-                        message.RequestId, message.ExecutionId,
-                        new(ScriptExecutionStatus.Cancelled, [])));
+                    if (_activeExecutionId == message.ExecutionId)
+                    {
+                        _activeCancellation?.Cancel();
+                        _hostCalls.CancelExecution(message.ExecutionId ?? string.Empty);
+                    }
                     break;
                 case WorkerMessageType.Execute:
-                    await ExecuteAsync(message);
+                    if (_activeExecution is { IsCompleted: false })
+                    {
+                        await _hostCalls.WriteAsync(new WorkerMessage<WorkerErrorPayload>(
+                            WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.Error,
+                            message.RequestId, message.ExecutionId,
+                            new("WORKER_BUSY", "Worker 当前已有执行中的脚本。")));
+                        break;
+                    }
+                    _activeExecutionId = message.ExecutionId;
+                    _activeCancellation?.Dispose();
+                    _activeCancellation = new CancellationTokenSource();
+                    var cancellation = _activeCancellation;
+                    _activeExecution = RunExecutionAsync(message, cancellation);
                     break;
                 default:
-                    await WorkerMessageCodec.WriteAsync(output, new WorkerMessage<WorkerErrorPayload>(
+                    await _hostCalls.WriteAsync(new WorkerMessage<WorkerErrorPayload>(
                         WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.Error,
                         message.RequestId, message.ExecutionId,
                         new("WORKER_PROTOCOL_UNSUPPORTED", "Worker 不支持此消息类型。")));
@@ -64,7 +85,25 @@ internal sealed class LuaWorker(Stream input, Stream output)
         }
     }
 
-    private async Task ExecuteAsync(WorkerMessage<JsonElement> message)
+    private async Task RunExecutionAsync(WorkerMessage<JsonElement> message, CancellationTokenSource cancellation)
+    {
+        try
+        {
+            await ExecuteAsync(message, cancellation.Token);
+        }
+        finally
+        {
+            if (ReferenceEquals(_activeCancellation, cancellation))
+            {
+                _activeCancellation = null;
+                _activeExecution = null;
+                _activeExecutionId = null;
+            }
+            cancellation.Dispose();
+        }
+    }
+
+    private async Task ExecuteAsync(WorkerMessage<JsonElement> message, CancellationToken cancellationToken)
     {
         try
         {
@@ -116,7 +155,7 @@ internal sealed class LuaWorker(Stream input, Stream output)
             }
 
             var executionId = Guid.TryParse(message.ExecutionId, out var parsedId) ? parsedId : Guid.NewGuid();
-            var status = await ExecuteLuaAsync(payload, executionId, entryKind);
+            var status = await ExecuteLuaAsync(payload, executionId, entryKind, cancellationToken);
             await WriteResultAsync(message, status);
         }
         catch (Exception exception)
@@ -129,9 +168,10 @@ internal sealed class LuaWorker(Stream input, Stream output)
     private async ValueTask<WorkerExecutionResultPayload> ExecuteLuaAsync(
         WorkerExecutePayload payload,
         Guid executionId,
-        ScriptEntryKind entryKind)
+        ScriptEntryKind entryKind,
+        CancellationToken cancellationToken)
     {
-        using var lua = CreateLua(executionId, payload.Request);
+        using var lua = CreateLua(executionId, payload.Request, cancellationToken);
         try
         {
             lua.LoadString(payload.Source, payload.SourcePath);
@@ -154,6 +194,10 @@ internal sealed class LuaWorker(Stream input, Stream output)
             entry.Call(context);
             return new(ScriptExecutionStatus.Succeeded, []);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return new(ScriptExecutionStatus.Cancelled, []);
+        }
         catch (Exception exception)
         {
             var location = ParseLocation(exception.Message);
@@ -168,11 +212,11 @@ internal sealed class LuaWorker(Stream input, Stream output)
         }
     }
 
-    private LuaState CreateLua(Guid executionId, ScriptExecutionRequest request)
+    private LuaState CreateLua(Guid executionId, ScriptExecutionRequest request, CancellationToken cancellationToken)
     {
         var lua = new LuaState();
         lua.DoString("io = nil; os = nil; debug = nil; package = nil; require = nil; dofile = nil; loadfile = nil; load = nil; loadstring = nil; import = nil; luanet = nil; clr = nil");
-        var bridge = new LuaHostBridge(CallHostAsync, executionId);
+        var bridge = new LuaHostBridge(CallHostAsync, executionId, cancellationToken);
         var target = request.Target is null
             ? null
             : JsonToLua(JsonSerializer.SerializeToElement(request.Target, WorkerProtocol.JsonOptions));
@@ -209,27 +253,16 @@ internal sealed class LuaWorker(Stream input, Stream output)
         return lua;
     }
 
-    private Task WriteResultAsync(WorkerMessage<JsonElement> request, WorkerExecutionResultPayload payload) =>
-        WorkerMessageCodec.WriteAsync(output, new WorkerMessage<WorkerExecutionResultPayload>(
+    private ValueTask WriteResultAsync(WorkerMessage<JsonElement> request, WorkerExecutionResultPayload payload) =>
+        _hostCalls.WriteAsync(new WorkerMessage<WorkerExecutionResultPayload>(
             WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.ExecuteResult,
-            request.RequestId, request.ExecutionId, payload)).AsTask();
+            request.RequestId, request.ExecutionId, payload));
 
-    private async ValueTask<WorkerHostResultPayload> CallHostAsync(
+    private ValueTask<WorkerHostResultPayload> CallHostAsync(
         WorkerHostCallPayload call,
         string executionId,
-        CancellationToken cancellationToken = default)
-    {
-        var requestId = Guid.NewGuid().ToString("N");
-        await WorkerMessageCodec.WriteAsync(output, new WorkerMessage<WorkerHostCallPayload>(
-            WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.HostCall,
-            requestId, executionId, call), cancellationToken: cancellationToken);
-        while (true)
-        {
-            var response = await WorkerMessageCodec.ReadAsync<WorkerHostResultPayload>(input, cancellationToken: cancellationToken);
-            if (response.Type == WorkerMessageType.HostResult && response.RequestId == requestId)
-                return response.Payload;
-        }
-    }
+        CancellationToken cancellationToken = default) =>
+        _hostCalls.CallAsync(call, executionId, cancellationToken);
 
     private static object? JsonToLua(JsonElement value) => value.ValueKind switch
     {
@@ -265,7 +298,8 @@ internal sealed class LuaWorker(Stream input, Stream output)
 
     private sealed class LuaHostBridge(
         Func<WorkerHostCallPayload, string, CancellationToken, ValueTask<WorkerHostResultPayload>> callHost,
-        Guid executionId)
+        Guid executionId,
+        CancellationToken cancellationToken)
     {
         public object? Query(object? parameters)
             => Call("workItems.query", parameters is null ? new { } : parameters);
@@ -301,7 +335,7 @@ internal sealed class LuaWorker(Stream input, Stream output)
             var response = callHost(
                 new WorkerHostCallPayload(method, json),
                 executionId.ToString("N"),
-                CancellationToken.None).GetAwaiter().GetResult();
+                cancellationToken).GetAwaiter().GetResult();
             if (!response.Success)
             {
                 var code = NormalizeHostErrorCode(response.Error?.Code);
