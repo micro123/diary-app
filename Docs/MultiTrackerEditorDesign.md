@@ -37,7 +37,8 @@
 - `Clone()` 已按 `TrackerKey` 对齐扩展，不依赖集合顺序。
 - `Save()` 已通过 `IWorkItemPersistenceCoordinator` 统一处理核心数据和扩展保存事务。
 - 绑定预取已使用 `TrackerKey` 作为 key。
-- 上传结果已按扩展返回结构化的 `TrackerUploadResult`。
+- 上传结果已按扩展返回结构化的 `TrackerUploadResult`，并区分成功、失败和结果不确定。
+- Jira/Redmine 本地绑定已保存最近一次上传状态、错误文本和尝试时间；远程 ID 仍是成功锁定的依据。
 - UI 贡献已通过工厂按实例注册；仍需继续完善更广泛的多实例端到端验收。
 
 ## 3. 核心对象模型
@@ -75,6 +76,9 @@ public interface ITrackerEditorExtension
 
     bool IsLocked { get; }
     bool CanDelete { get; }
+    TrackerUploadState UploadState { get; }
+    string? UploadError { get; }
+    DateTimeOffset? UploadAttemptedAt { get; }
     Task<TrackerOperationResult> UploadAsync(WorkItem item);
 }
 ```

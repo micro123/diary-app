@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Globalization;
 using Diary.Core.Data.Base;
 using Diary.Database;
 using Diary.Jira;
@@ -55,10 +56,10 @@ public sealed class SQLiteJiraDb(IDbExtensionHost host, string instanceId) : IJi
         => _host.Query("SELECT project_key,project_name,project_desc,is_archived FROM jira_projects WHERE instance_id=$instanceId ORDER BY project_key;", MapProject, ("$instanceId", InstanceId));
 
     public JiraWorkTimeEntry? WorkItemGetTimeEntry(WorkItem item)
-        => _host.QueryFirst("SELECT work_id,issue_key,remote_worklog_id FROM jira_work_entries WHERE instance_id=$instanceId AND work_id=$workId;", MapEntry, ("$instanceId", InstanceId), ("$workId", item.Id));
+        => _host.QueryFirst("SELECT work_id,issue_key,remote_worklog_id,upload_state,upload_error,upload_attempted_at FROM jira_work_entries WHERE instance_id=$instanceId AND work_id=$workId;", MapEntry, ("$instanceId", InstanceId), ("$workId", item.Id));
 
     public IDictionary<int, JiraWorkTimeEntry> GetWorkTimeEntriesByDate(string date)
-        => _host.Query("SELECT jira_work_entries.work_id,issue_key,remote_worklog_id FROM jira_work_entries INNER JOIN work_items ON jira_work_entries.work_id=work_items.id WHERE jira_work_entries.instance_id=$instanceId AND work_items.create_date=$date;", MapEntry, ("$instanceId", InstanceId), ("$date", date)).ToDictionary(item => item.WorkId);
+        => _host.Query("SELECT jira_work_entries.work_id,issue_key,remote_worklog_id,upload_state,upload_error,upload_attempted_at FROM jira_work_entries INNER JOIN work_items ON jira_work_entries.work_id=work_items.id WHERE jira_work_entries.instance_id=$instanceId AND work_items.create_date=$date;", MapEntry, ("$instanceId", InstanceId), ("$date", date)).ToDictionary(item => item.WorkId);
 
     public JiraWorkTimeEntry? CreateWorkTimeEntry(int workId, string issueKey)
     {
@@ -67,7 +68,7 @@ public sealed class SQLiteJiraDb(IDbExtensionHost host, string instanceId) : IJi
     }
 
     public bool UpdateWorkTimeEntry(JiraWorkTimeEntry entry)
-        => _host.Execute("UPDATE jira_work_entries SET issue_key=$issueKey,remote_worklog_id=$remoteId WHERE instance_id=$instanceId AND work_id=$workId;", ("$instanceId", InstanceId), ("$workId", entry.WorkId), ("$issueKey", entry.IssueKey), ("$remoteId", (object?)entry.RemoteWorklogId ?? DBNull.Value)) > 0;
+        => _host.Execute("UPDATE jira_work_entries SET issue_key=$issueKey,remote_worklog_id=$remoteId,upload_state=$state,upload_error=$error,upload_attempted_at=$attemptedAt WHERE instance_id=$instanceId AND work_id=$workId;", ("$instanceId", InstanceId), ("$workId", entry.WorkId), ("$issueKey", entry.IssueKey), ("$remoteId", (object?)entry.RemoteWorklogId ?? DBNull.Value), ("$state", entry.UploadState.ToString()), ("$error", (object?)entry.UploadError ?? DBNull.Value), ("$attemptedAt", (object?)entry.UploadAttemptedAt?.ToString("O", CultureInfo.InvariantCulture) ?? DBNull.Value)) > 0;
 
     public bool WorkItemWasUploaded(WorkItem item)
         => _host.Exists("SELECT 1 FROM jira_work_entries WHERE instance_id=$instanceId AND work_id=$workId AND remote_worklog_id IS NOT NULL AND remote_worklog_id<>'';", ("$instanceId", InstanceId), ("$workId", item.Id));
@@ -91,5 +92,16 @@ public sealed class SQLiteJiraDb(IDbExtensionHost host, string instanceId) : IJi
         WorkId = reader.GetInt32(0),
         IssueKey = _host.ReadString(reader, 1),
         RemoteWorklogId = reader.IsDBNull(2) ? null : _host.ReadString(reader, 2),
+        UploadState = ParseState(_host.ReadString(reader, 3)),
+        UploadError = reader.IsDBNull(4) ? null : _host.ReadString(reader, 4),
+        UploadAttemptedAt = ParseAttemptedAt(reader.IsDBNull(5) ? null : _host.ReadString(reader, 5)),
     };
+
+    private static TrackerUploadState ParseState(string value)
+        => Enum.TryParse<TrackerUploadState>(value, out var state) ? state : TrackerUploadState.NotAttempted;
+
+    private static DateTimeOffset? ParseAttemptedAt(string? value)
+        => DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var result)
+            ? result
+            : null;
 }

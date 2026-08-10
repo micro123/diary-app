@@ -36,6 +36,9 @@ public partial class JiraEditorRegionViewModel : ViewModelBase, ITrackerEditorEx
     public TrackerKey Key => new(JiraPluginConstants.PluginId, InstanceId);
     public string InstanceId => _settings.InstanceId;
     public bool IsLocked => Uploaded;
+    public TrackerUploadState UploadState => _timeEntry?.UploadState ?? TrackerUploadState.NotAttempted;
+    public string? UploadError => _timeEntry?.UploadError;
+    public DateTimeOffset? UploadAttemptedAt => _timeEntry?.UploadAttemptedAt;
     public bool CanDelete => !Uploaded;
     ViewModelBase ITrackerEditorExtension.View => this;
 
@@ -67,11 +70,35 @@ public partial class JiraEditorRegionViewModel : ViewModelBase, ITrackerEditorEx
         if (Uploaded) return new TrackerOperationResult(false);
         if (_timeEntry is null || string.IsNullOrWhiteSpace(_timeEntry.IssueKey)) return new(false, "请先选择 Jira Issue。");
         if (item.Time <= 0) return new(false, "耗时必须大于 0。");
+
+        if (!SaveUploadState(TrackerUploadState.Pending))
+            return new(false, "无法保存 Jira 同步状态。", state: TrackerUploadState.Uncertain);
+
         var result = await _api.AddWorklogAsync(_timeEntry.IssueKey, DateOnly.Parse(item.CreateDate), item.Time, item.Comment);
-        if (!result.Success || result.Value is null) return new(false, result.Error ?? "Jira 工时提交失败。");
+        if (!result.Success || result.Value is null)
+        {
+            var error = result.Error ?? "Jira 工时提交失败。";
+            SaveUploadState(TrackerUploadState.Failed, error);
+            return new(false, error);
+        }
+
         _timeEntry.RemoteWorklogId = result.Value.Id;
-        Uploaded = _database.UpdateWorkTimeEntry(_timeEntry);
-        return Uploaded ? new(true, RemoteId: result.Value.Id) : new(false, "Jira 工时已提交，但本地状态保存失败。");
+        Uploaded = SaveUploadState(TrackerUploadState.Succeeded, remoteId: result.Value.Id);
+        return Uploaded
+            ? new(true, remoteId: result.Value.Id)
+            : new(false, "Jira 工时已提交，但本地状态保存失败。", result.Value.Id, TrackerUploadState.Uncertain);
+    }
+
+    private bool SaveUploadState(TrackerUploadState state, string? error = null, string? remoteId = null)
+    {
+        if (_timeEntry is null)
+            return false;
+        _timeEntry.UploadState = state;
+        _timeEntry.UploadError = error;
+        _timeEntry.UploadAttemptedAt ??= DateTimeOffset.UtcNow;
+        if (remoteId is not null)
+            _timeEntry.RemoteWorklogId = remoteId;
+        return _database.UpdateWorkTimeEntry(_timeEntry);
     }
 
     [RelayCommand]

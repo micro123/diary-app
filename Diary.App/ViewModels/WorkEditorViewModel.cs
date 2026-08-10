@@ -66,11 +66,22 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     public string LocalSaveStatusText => IsNewItem ? "未保存" : "本地已保存";
 
-    public WorkItemUploadStatus UploadStatus => WorkItemUploadStatusResolver.Resolve(
-        !IsNewItem,
-        Extensions.Count,
-        Extensions.Count(extension => extension.IsLocked),
-        UploadResults.Any(result => !result.Success && !result.Skipped));
+    public WorkItemUploadStatus UploadStatus
+    {
+        get
+        {
+            var states = UploadResults.Count > 0
+                ? UploadResults.Select(result => result.State).ToArray()
+                : Extensions.Select(extension => extension.UploadState).ToArray();
+            return WorkItemUploadStatusResolver.Resolve(
+                !IsNewItem,
+                Extensions.Count,
+                Extensions.Count(extension => extension.IsLocked),
+                UploadResults.Any(result => !result.Success && !result.Skipped)
+                    || states.Contains(TrackerUploadState.Failed),
+                states.Contains(TrackerUploadState.Uncertain));
+        }
+    }
 
     public string UploadStatusText => WorkItemUploadStatusResolver.GetDisplayText(UploadStatus);
 

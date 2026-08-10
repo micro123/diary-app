@@ -10,7 +10,8 @@ public sealed record TrackerUploadResult(
     bool Success,
     bool Skipped,
     string? Error = null,
-    string? RemoteId = null);
+    string? RemoteId = null,
+    TrackerUploadState State = TrackerUploadState.NotAttempted);
 
 public sealed record WorkUploadResult(IReadOnlyList<TrackerUploadResult> Results)
 {
@@ -41,7 +42,11 @@ public sealed class TrackerUploadCoordinator : ITrackerUploadCoordinator
         {
             if (extension.IsLocked)
             {
-                results.Add(new TrackerUploadResult(extension.Key, true, true));
+                results.Add(new TrackerUploadResult(
+                    extension.Key,
+                    true,
+                    true,
+                    State: TrackerUploadState.Succeeded));
                 continue;
             }
 
@@ -53,7 +58,8 @@ public sealed class TrackerUploadCoordinator : ITrackerUploadCoordinator
                     result.Success,
                     false,
                     result.Error,
-                    result.RemoteId));
+                    result.RemoteId,
+                    result.State));
             }
             catch (Exception ex)
             {
@@ -61,7 +67,8 @@ public sealed class TrackerUploadCoordinator : ITrackerUploadCoordinator
                     extension.Key,
                     false,
                     false,
-                    ex.Message));
+                    ex.Message,
+                    State: TrackerUploadState.Uncertain));
             }
         }
 

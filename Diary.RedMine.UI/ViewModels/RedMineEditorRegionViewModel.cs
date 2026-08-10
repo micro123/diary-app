@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Diary.Core.Data.Base;
 using Diary.GUIBase.ViewModels;
@@ -27,6 +26,9 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
     [ObservableProperty] private string _issueText = string.Empty;
 
     public bool IsLocked => Uploaded;
+    public TrackerUploadState UploadState => TimeEntry?.UploadState ?? TrackerUploadState.NotAttempted;
+    public string? UploadError => TimeEntry?.UploadError;
+    public DateTimeOffset? UploadAttemptedAt => TimeEntry?.UploadAttemptedAt;
     public bool CanDelete => !Uploaded;
     public TrackerKey Key => new(RedMinePluginConstants.PluginId, InstanceId);
     public string InstanceId => _settings.InstanceId;
@@ -83,24 +85,51 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
         if (RedMineIssues[IssueIndex].Disabled || RedMineIssues[IssueIndex].Invalid
             || RedMineActivities[ActivityIndex].Invalid)
             return new TrackerOperationResult(false, "问题或活动已失效");
-        Debug.Assert(TimeEntry is not null);
+        if (TimeEntry is null)
+            return new TrackerOperationResult(false, "请先保存 Tracker 绑定。", state: TrackerUploadState.Failed);
 
-        var entryId = 0;
-        await Task.Run(() =>
+        if (!SaveUploadState(TrackerUploadState.Pending))
+            return new(false, "无法保存 RedMine 同步状态。", state: TrackerUploadState.Uncertain);
+
+        try
         {
-            if (_api.CreateTimeEntry(out var entry, TimeEntry!.IssueId,
-                    TimeEntry.ActivityId, item.CreateDate, item.Time, item.Comment))
+            var success = await Task.Run(() =>
+                _api.CreateTimeEntry(out var entry, TimeEntry.IssueId,
+                    TimeEntry.ActivityId, item.CreateDate, item.Time, item.Comment)
+                    ? entry
+                    : null);
+            if (success is null)
             {
-                entryId = entry!.Id;
+                const string error = "可能是网络问题";
+                SaveUploadState(TrackerUploadState.Failed, error);
+                return new TrackerOperationResult(false, error);
             }
-            TimeEntry.EntryId = entryId;
-            _database.UpdateWorkTimeEntry(TimeEntry);
-        });
 
-        Uploaded = entryId > 0;
-        return Uploaded
-            ? new TrackerOperationResult(true, RemoteId: entryId.ToString())
-            : new TrackerOperationResult(false, "可能是网络问题");
+            TimeEntry.EntryId = success.Id;
+            Uploaded = SaveUploadState(TrackerUploadState.Succeeded, remoteId: success.Id.ToString());
+            return Uploaded
+                ? new TrackerOperationResult(true, remoteId: success.Id.ToString())
+                : new TrackerOperationResult(false, "RedMine 工时已提交，但本地状态保存失败。",
+                    success.Id.ToString(), TrackerUploadState.Uncertain);
+        }
+        catch (Exception exception)
+        {
+            SaveUploadState(TrackerUploadState.Uncertain, exception.Message);
+            return new TrackerOperationResult(false, "RedMine 请求结果不确定，请先查询或重试。",
+                state: TrackerUploadState.Uncertain);
+        }
+    }
+
+    private bool SaveUploadState(TrackerUploadState state, string? error = null, string? remoteId = null)
+    {
+        if (TimeEntry is null)
+            return false;
+        TimeEntry.UploadState = state;
+        TimeEntry.UploadError = error;
+        TimeEntry.UploadAttemptedAt ??= DateTimeOffset.UtcNow;
+        if (remoteId is not null && int.TryParse(remoteId, out var entryId))
+            TimeEntry.EntryId = entryId;
+        return _database.UpdateWorkTimeEntry(TimeEntry);
     }
 
     public TrackerTagDefaultsResult ApplyTagDefaults(WorkTag tag)

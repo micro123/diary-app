@@ -15,7 +15,7 @@ public sealed class TrackerUploadCoordinatorTests
         var first = new FakeExtension(new TrackerKey("tracker.one", "default"),
             new TrackerOperationResult(false, "network"));
         var second = new FakeExtension(new TrackerKey("tracker.two", "default"),
-            new TrackerOperationResult(true, RemoteId: "42"));
+            new TrackerOperationResult(true, remoteId: "42"));
 
         var result = await new TrackerUploadCoordinator().UploadAsync(
             new WorkItem { Id = 1 }, new[] { first, second });
@@ -49,6 +49,18 @@ public sealed class TrackerUploadCoordinatorTests
         Assert.AreEqual(1, open.UploadCount);
     }
 
+    [TestMethod]
+    public async Task UploadMarksThrownTrackerFailureAsUncertain()
+    {
+        var extension = new ThrowingExtension(new TrackerKey("tracker.one", "default"));
+
+        var result = await new TrackerUploadCoordinator().UploadAsync(
+            new WorkItem { Id = 1 }, new[] { extension });
+
+        Assert.IsFalse(result.Success);
+        Assert.AreEqual(TrackerUploadState.Uncertain, result.Results[0].State);
+    }
+
     private sealed class FakeExtension(
         TrackerKey key,
         TrackerOperationResult uploadResult,
@@ -69,5 +81,20 @@ public sealed class TrackerUploadCoordinatorTests
             UploadCount++;
             return Task.FromResult(uploadResult);
         }
+    }
+
+    private sealed class ThrowingExtension(TrackerKey key) : ITrackerEditorExtension
+    {
+        public TrackerKey Key => key;
+        public string InstanceId => key.InstanceId;
+        public ViewModelBase View => new();
+        public bool IsLocked => false;
+        public bool CanDelete => true;
+
+        public void Load(WorkItem? item, object? binding = null) { }
+        public bool Save(WorkItem item) => true;
+        public void CloneTo(ITrackerEditorExtension? target) { }
+        public Task<TrackerOperationResult> UploadAsync(WorkItem item)
+            => throw new InvalidOperationException("模拟远程异常");
     }
 }

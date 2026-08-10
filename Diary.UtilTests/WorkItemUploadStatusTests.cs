@@ -29,12 +29,26 @@ public sealed class WorkItemUploadStatusTests
     }
 
     [TestMethod]
+    public void Resolve_ReturnsUncertainWhenRemoteResultNeedsConfirmation()
+    {
+        var actual = WorkItemUploadStatusResolver.Resolve(
+            isSaved: true,
+            trackerCount: 1,
+            lockedTrackerCount: 0,
+            hasUploadFailure: false,
+            hasUploadUncertain: true);
+
+        Assert.AreEqual(WorkItemUploadStatus.Uncertain, actual);
+    }
+
+    [TestMethod]
     [DataRow(WorkItemUploadStatus.Unsaved, "待保存")]
     [DataRow(WorkItemUploadStatus.NotConfigured, "未配置 Tracker")]
     [DataRow(WorkItemUploadStatus.Pending, "待同步")]
     [DataRow(WorkItemUploadStatus.Synchronized, "已同步")]
     [DataRow(WorkItemUploadStatus.PartialFailure, "部分同步，存在失败")]
     [DataRow(WorkItemUploadStatus.Failed, "同步失败")]
+    [DataRow(WorkItemUploadStatus.Uncertain, "同步结果待确认")]
     public void GetDisplayText_ReturnsUserFacingText(WorkItemUploadStatus status, string expected)
     {
         Assert.AreEqual(expected, WorkItemUploadStatusResolver.GetDisplayText(status));

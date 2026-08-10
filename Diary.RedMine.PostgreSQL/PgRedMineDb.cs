@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Globalization;
 using Diary.Core.Data.Base;
 using Diary.Database;
 using Diary.PluginBase;
@@ -164,7 +165,7 @@ public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRed
         if (item.Id == 0)
             throw new ArgumentNullException(nameof(item.Id));
         var sql = """
-                  SELECT work_id,id,act_id,issue_id FROM redmine_time_entries WHERE instance_id=$1 AND work_id=$2;
+                  SELECT work_id,id,act_id,issue_id,upload_state,upload_error,upload_attempted_at FROM redmine_time_entries WHERE instance_id=$1 AND work_id=$2;
                   """;
         return _host.QueryFirst(sql, MapWorkTimeEntry, ("$1", InstanceId), ("$2", item.Id));
     }
@@ -172,7 +173,7 @@ public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRed
     public IDictionary<int, WorkTimeEntry> GetWorkTimeEntriesByDate(string date)
     {
         const string sql = """
-                           SELECT redmine_time_entries.work_id,redmine_time_entries.id,redmine_time_entries.act_id,redmine_time_entries.issue_id
+                           SELECT redmine_time_entries.work_id,redmine_time_entries.id,redmine_time_entries.act_id,redmine_time_entries.issue_id,redmine_time_entries.upload_state,redmine_time_entries.upload_error,redmine_time_entries.upload_attempted_at
                            FROM redmine_time_entries INNER JOIN work_items ON redmine_time_entries.work_id = work_items.id
                            WHERE redmine_time_entries.instance_id=$1 AND work_items.create_date = $2;
                            """;
@@ -250,7 +251,7 @@ public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRed
         {
             var sql = """
                       INSERT INTO redmine_time_entries(instance_id,work_id, act_id, issue_id) VALUES ($1, $2, $3, $4)
-                      ON CONFLICT (instance_id,work_id) DO UPDATE SET act_id=$3, issue_id=$4 RETURNING work_id,id,act_id,issue_id;
+                      ON CONFLICT (instance_id,work_id) DO UPDATE SET act_id=$3, issue_id=$4 RETURNING work_id,id,act_id,issue_id,upload_state,upload_error,upload_attempted_at;
                       """;
             return _host.QueryFirst(sql, MapWorkTimeEntry, ("$1", InstanceId), ("$2", work), ("$3", activity), ("$4", issus));
         }
@@ -266,11 +267,14 @@ public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRed
         if (timeEntry.WorkId == 0)
             throw new ArgumentException("Work time entry must have a valid id");
         var sql = """
-                  UPDATE redmine_time_entries SET id=$1,act_id=$2,issue_id=$3 WHERE instance_id=$5 AND work_id=$4;
+                  UPDATE redmine_time_entries SET id=$1,act_id=$2,issue_id=$3,upload_state=$6,upload_error=$7,upload_attempted_at=$8 WHERE instance_id=$5 AND work_id=$4;
                   """;
         return _host.Execute(sql,
             ("$1", timeEntry.EntryId), ("$2", timeEntry.ActivityId),
-            ("$3", timeEntry.IssueId), ("$4", timeEntry.WorkId), ("$5", InstanceId)) > 0;
+            ("$3", timeEntry.IssueId), ("$4", timeEntry.WorkId), ("$5", InstanceId),
+            ("$6", timeEntry.UploadState.ToString()),
+            ("$7", (object?)timeEntry.UploadError ?? DBNull.Value),
+            ("$8", (object?)timeEntry.UploadAttemptedAt?.ToString("O", CultureInfo.InvariantCulture) ?? DBNull.Value)) > 0;
     }
 
     // ---- mappers（与迁出前一致；用 _host.ReadString 封装 CHAR padding，Pg 端 TrimEnd）----
@@ -304,5 +308,16 @@ public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRed
         EntryId = r.GetInt32(1),
         ActivityId = r.GetInt32(2),
         IssueId = r.GetInt32(3),
+        UploadState = ParseState(_host.ReadString(r, 4)),
+        UploadError = r.IsDBNull(5) ? null : _host.ReadString(r, 5),
+        UploadAttemptedAt = ParseAttemptedAt(r.IsDBNull(6) ? null : _host.ReadString(r, 6)),
     };
+
+    private static TrackerUploadState ParseState(string value)
+        => Enum.TryParse<TrackerUploadState>(value, out var state) ? state : TrackerUploadState.NotAttempted;
+
+    private static DateTimeOffset? ParseAttemptedAt(string? value)
+        => DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var result)
+            ? result
+            : null;
 }

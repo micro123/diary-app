@@ -65,11 +65,36 @@ public enum TrackerInstanceState
     Blocked,
 }
 
+/// <summary>远程上传的最近一次状态。</summary>
+public enum TrackerUploadState
+{
+    NotAttempted,
+    Pending,
+    Succeeded,
+    Failed,
+    Uncertain,
+}
+
 /// <summary>远程上传统一结果（文档 §10.2）。</summary>
-public sealed record TrackerOperationResult(
-    bool Success,
-    string? Error = null,
-    string? RemoteId = null);
+public sealed record TrackerOperationResult
+{
+    public TrackerOperationResult(
+        bool success,
+        string? error = null,
+        string? remoteId = null,
+        TrackerUploadState? state = null)
+    {
+        Success = success;
+        Error = error;
+        RemoteId = remoteId;
+        State = state ?? (success ? TrackerUploadState.Succeeded : TrackerUploadState.Failed);
+    }
+
+    public bool Success { get; }
+    public string? Error { get; }
+    public string? RemoteId { get; }
+    public TrackerUploadState State { get; }
+}
 
 /// <summary>数据库能力常量（文档 §15），插件 manifest 在 RequiredCapabilities 中声明。</summary>
 public static class PluginCapabilities

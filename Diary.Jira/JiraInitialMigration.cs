@@ -36,6 +36,9 @@ public sealed class JiraInitialMigration : IPluginMigration
                                work_id INTEGER NOT NULL,
                                issue_key TEXT NOT NULL,
                                remote_worklog_id TEXT,
+                               upload_state TEXT NOT NULL DEFAULT 'NotAttempted',
+                               upload_error TEXT,
+                               upload_attempted_at TEXT,
                                PRIMARY KEY (instance_id, work_id),
                                FOREIGN KEY (work_id) REFERENCES work_items(id) ON DELETE CASCADE,
                                FOREIGN KEY (instance_id, issue_key)

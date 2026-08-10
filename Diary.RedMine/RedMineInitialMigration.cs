@@ -42,6 +42,9 @@ public sealed class RedMineInitialMigration : IPluginMigration
                                id INTEGER NOT NULL DEFAULT 0,
                                act_id INTEGER,
                                issue_id INTEGER,
+                               upload_state TEXT NOT NULL DEFAULT 'NotAttempted',
+                               upload_error TEXT,
+                               upload_attempted_at TEXT,
                                PRIMARY KEY (instance_id, work_id),
                                FOREIGN KEY (work_id) REFERENCES work_items(id) ON DELETE CASCADE,
                                FOREIGN KEY (instance_id, act_id)

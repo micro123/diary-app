@@ -1,3 +1,5 @@
+using Diary.PluginBase;
+
 namespace Diary.Jira;
 
 public sealed record JiraProject(
@@ -46,5 +48,8 @@ public sealed record JiraWorkTimeEntry
     public int WorkId { get; set; }
     public required string IssueKey { get; set; }
     public string? RemoteWorklogId { get; set; }
+    public TrackerUploadState UploadState { get; set; } = TrackerUploadState.NotAttempted;
+    public string? UploadError { get; set; }
+    public DateTimeOffset? UploadAttemptedAt { get; set; }
     public bool Uploaded => !string.IsNullOrWhiteSpace(RemoteWorklogId);
 }

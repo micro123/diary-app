@@ -28,6 +28,15 @@ public interface ITrackerEditorExtension
     /// <summary>是否锁住核心编辑字段（如已上传到远程）。</summary>
     bool IsLocked { get; }
 
+    /// <summary>最近一次远程上传状态，随本地 Tracker 绑定持久化。</summary>
+    TrackerUploadState UploadState => TrackerUploadState.NotAttempted;
+
+    /// <summary>最近一次上传错误；不包含敏感凭据。</summary>
+    string? UploadError => null;
+
+    /// <summary>最近一次上传尝试时间。</summary>
+    DateTimeOffset? UploadAttemptedAt => null;
+
     /// <summary>Tracker 扩展是否允许无确认删除；核心编辑器删除时仍需根据上传状态提示用户。</summary>
     bool CanDelete { get; }
 

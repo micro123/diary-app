@@ -1,5 +1,6 @@
 using System.Data.Common;
 using System.Data.SQLite;
+using System.Globalization;
 using Diary.Core.Data.Base;
 using Diary.Database;
 using Diary.PluginBase;
@@ -147,7 +148,7 @@ public sealed class SQLiteRedMineDb(IDbExtensionHost host, string instanceId) : 
         if (item.Id == 0)
             throw new ArgumentException("work id is required");
         var sql = """
-                  SELECT work_id,id,act_id,issue_id FROM redmine_time_entries WHERE instance_id=$instanceId AND work_id=$id;
+                  SELECT work_id,id,act_id,issue_id,upload_state,upload_error,upload_attempted_at FROM redmine_time_entries WHERE instance_id=$instanceId AND work_id=$id;
                   """;
         return _host.QueryFirst(sql, MapWorkTimeEntry, ("$instanceId", InstanceId), ("$id", item.Id));
     }
@@ -155,7 +156,7 @@ public sealed class SQLiteRedMineDb(IDbExtensionHost host, string instanceId) : 
     public IDictionary<int, WorkTimeEntry> GetWorkTimeEntriesByDate(string date)
     {
         const string sql = """
-                           SELECT redmine_time_entries.work_id,redmine_time_entries.id,redmine_time_entries.act_id,redmine_time_entries.issue_id
+                           SELECT redmine_time_entries.work_id,redmine_time_entries.id,redmine_time_entries.act_id,redmine_time_entries.issue_id,redmine_time_entries.upload_state,redmine_time_entries.upload_error,redmine_time_entries.upload_attempted_at
                            FROM redmine_time_entries INNER JOIN work_items ON redmine_time_entries.work_id = work_items.id
                            WHERE redmine_time_entries.instance_id=$instanceId AND work_items.create_date = $date;
                            """;
@@ -223,7 +224,7 @@ public sealed class SQLiteRedMineDb(IDbExtensionHost host, string instanceId) : 
         if (work == 0)
             throw new ArgumentException($"Work ID {work} is invalid");
         const string sql =
-            "INSERT INTO redmine_time_entries(instance_id,work_id, act_id, issue_id) VALUES ($instanceId,$workId, $actId, $issueId) ON CONFLICT(instance_id,work_id) DO UPDATE SET act_id=$actId, issue_id=$issueId RETURNING work_id,id,act_id,issue_id;";
+            "INSERT INTO redmine_time_entries(instance_id,work_id, act_id, issue_id) VALUES ($instanceId,$workId, $actId, $issueId) ON CONFLICT(instance_id,work_id) DO UPDATE SET act_id=$actId, issue_id=$issueId RETURNING work_id,id,act_id,issue_id,upload_state,upload_error,upload_attempted_at;";
         try
         {
             return _host.QueryFirst(sql, MapWorkTimeEntry, ("$instanceId", InstanceId), ("$workId", work), ("$actId", activity), ("$issueId", issue));
@@ -239,10 +240,13 @@ public sealed class SQLiteRedMineDb(IDbExtensionHost host, string instanceId) : 
         if (timeEntry.WorkId == 0)
             throw new ArgumentException($"Work ID {timeEntry.WorkId} is invalid");
         const string sql =
-            "UPDATE redmine_time_entries SET act_id=$actId, issue_id=$issueId, id=$entryId WHERE instance_id=$instanceId AND work_id=$workId;";
+            "UPDATE redmine_time_entries SET act_id=$actId, issue_id=$issueId, id=$entryId, upload_state=$uploadState, upload_error=$uploadError, upload_attempted_at=$uploadAttemptedAt WHERE instance_id=$instanceId AND work_id=$workId;";
         return _host.Execute(sql,
             ("$actId", timeEntry.ActivityId), ("$issueId", timeEntry.IssueId),
-            ("$entryId", timeEntry.EntryId), ("$instanceId", InstanceId), ("$workId", timeEntry.WorkId)) > 0;
+            ("$entryId", timeEntry.EntryId), ("$uploadState", timeEntry.UploadState.ToString()),
+            ("$uploadError", (object?)timeEntry.UploadError ?? DBNull.Value),
+            ("$uploadAttemptedAt", (object?)timeEntry.UploadAttemptedAt?.ToString("O", CultureInfo.InvariantCulture) ?? DBNull.Value),
+            ("$instanceId", InstanceId), ("$workId", timeEntry.WorkId)) > 0;
     }
 
     // ---- mappers（与迁出前一致；用 _host.ReadString 封装 CHAR padding）----
@@ -276,5 +280,16 @@ public sealed class SQLiteRedMineDb(IDbExtensionHost host, string instanceId) : 
         EntryId = r.GetInt32(1),
         ActivityId = r.GetInt32(2),
         IssueId = r.GetInt32(3),
+        UploadState = ParseState(_host.ReadString(r, 4)),
+        UploadError = r.IsDBNull(5) ? null : _host.ReadString(r, 5),
+        UploadAttemptedAt = ParseAttemptedAt(r.IsDBNull(6) ? null : _host.ReadString(r, 6)),
     };
+
+    private static TrackerUploadState ParseState(string value)
+        => Enum.TryParse<TrackerUploadState>(value, out var state) ? state : TrackerUploadState.NotAttempted;
+
+    private static DateTimeOffset? ParseAttemptedAt(string? value)
+        => DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var result)
+            ? result
+            : null;
 }
