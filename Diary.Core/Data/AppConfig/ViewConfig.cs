@@ -1,4 +1,5 @@
 using Diary.Core.Configure;
+using Diary.Core.Constants;
 
 namespace Diary.Core.Data.AppConfig;
 
@@ -15,6 +16,9 @@ public class ViewConfig
 
     [ConfigureSwitch("显示开发者功能", "显示脚本管理页和脚本诊断入口；普通记录用户通常不需要开启。")]
     public bool ShowDeveloperFeatures { get; set; } = false;
+
+    [ConfigureButton("首次使用引导", "重新打开", CommandNames.ShowOnboarding, "手动重新查看本地保存、远程同步和日常效率说明。")]
+    private object? ShowOnboardingGuide { get; }
 
     public bool HasCompletedOnboarding { get; set; } = false;
 }

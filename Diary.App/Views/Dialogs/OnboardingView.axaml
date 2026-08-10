@@ -32,10 +32,13 @@
                 </StackPanel>
             </Border>
         </StackPanel>
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+        <StackPanel Grid.Row="2" Spacing="8">
+            <CheckBox Content="以后不再显示此引导" IsChecked="{Binding DoNotShowAgain}" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
             <Button Content="稍后再看" Command="{Binding LaterCommand}" />
             <Button Content="打开数据库设置" Command="{Binding OpenDatabaseSettingsCommand}" />
             <Button Content="开始记录" Classes="Primary" Command="{Binding StartCommand}" />
+            </StackPanel>
         </StackPanel>
     </Grid>
 </UserControl>

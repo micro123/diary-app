@@ -1,3 +1,4 @@
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.GUIBase.ViewModels;
 using Diary.Utils;
@@ -15,6 +16,9 @@ public enum OnboardingAction
 [DiAutoRegister]
 public partial class OnboardingViewModel : ViewModelBase, IDialogContext
 {
+    [ObservableProperty]
+    private bool _doNotShowAgain;
+
     [RelayCommand]
     private void Start() => RequestClose?.Invoke(this, OnboardingAction.Start);
 

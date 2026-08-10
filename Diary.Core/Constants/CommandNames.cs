@@ -9,4 +9,5 @@ public static class CommandNames
     public const string RaiseMainWindow = "SHOW_MAIN_WINDOW";
     public const string QuitApp = "EXIT_APPLICATION";
     public const string ShowAboutDialog = "SHOW_ABOUT_DIALOG";
+    public const string ShowOnboarding = "SHOW_ONBOARDING";
 }

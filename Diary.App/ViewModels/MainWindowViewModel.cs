@@ -149,11 +149,11 @@ public partial class MainWindowViewModel : ViewModelBase
         });
 
         if (App.Instance.DatabaseOk && !App.Instance.AppConfig.ViewSettings.HasCompletedOnboarding)
-            ShowOnboarding();
+            ShowOnboarding(automatic: true);
 
     }
 
-    private void ShowOnboarding()
+    private void ShowOnboarding(bool automatic = false)
     {
         PostUiAsync(async () =>
         {
@@ -165,11 +165,14 @@ public partial class MainWindowViewModel : ViewModelBase
                 CanLightDismiss = false,
                 IsCloseButtonVisible = false,
             });
-            if (result == OnboardingAction.Later)
+            if (result == OnboardingAction.Later && !viewModel.DoNotShowAgain)
                 return;
 
-            App.Instance.AppConfig.ViewSettings.HasCompletedOnboarding = true;
-            EasySaveLoad.Save(App.Instance.AppConfig);
+            if (viewModel.DoNotShowAgain || (automatic && result != OnboardingAction.Later))
+            {
+                App.Instance.AppConfig.ViewSettings.HasCompletedOnboarding = true;
+                EasySaveLoad.Save(App.Instance.AppConfig);
+            }
             if (result == OnboardingAction.OpenDatabaseSettings)
                 ExecuteSettingCommand(CommandNames.ShowDbSettings);
         }, "首次使用引导");
@@ -224,6 +227,9 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         switch (cmd)
         {
+            case CommandNames.ShowOnboarding:
+                ShowOnboarding();
+                return;
             case CommandNames.ShowDbSettings:
                 PostUiAsync(async () =>
                 {
