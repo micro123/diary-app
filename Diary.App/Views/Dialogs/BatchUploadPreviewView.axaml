@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
+             xmlns:models="clr-namespace:Diary.App.ViewModels.Dialogs"
+             x:Class="Diary.App.Views.Dialogs.BatchUploadPreviewView"
+             x:DataType="dialogs:BatchUploadPreviewViewModel"
+             Width="900" Height="560" Padding="16">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
+        <StackPanel Spacing="4">
+            <TextBlock Text="同步工时" Classes="Header" />
+            <TextBlock Text="确认后才会执行远程操作；已同步和结果不确定的记录不会自动选中。"
+                       Opacity="0.75" />
+            <TextBlock Text="{Binding Summary}" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1">
+            <ItemsControl ItemsSource="{Binding Items}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="models:BatchUploadPreviewItem">
+                        <Border Padding="8" Margin="0 0 0 6"
+                                BorderBrush="{DynamicResource GridSplitterBackground}"
+                                BorderThickness="1" CornerRadius="4">
+                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+                                <CheckBox IsChecked="{Binding Selected}"
+                                          IsEnabled="{Binding CanSelect}"
+                                          VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding Date}" Opacity="0.7" />
+                                    <TextBlock Text="{Binding TrackerText}" Opacity="0.7" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="2" Text="{Binding Hours, StringFormat='{}{0:0.##} 小时'}"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="{Binding StatusText}"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12">
+            <Button Content="取消" Command="{Binding CancelCommand}" />
+            <Button Classes="Primary" Content="确认同步" Command="{Binding ConfirmCommand}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

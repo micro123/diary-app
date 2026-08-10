@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.Models;
+using Diary.App.ViewModels.Dialogs;
 using Diary.Core.Constants;
 using Diary.Core.Data.App;
 using Diary.Core.Data.Base;
@@ -20,6 +21,7 @@ using Diary.ScriptBase;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Ursa.Controls;
 
 namespace Diary.App.ViewModels;
 
@@ -187,40 +189,70 @@ public partial class DiaryEditorViewModel : ViewModelBase
             SaveWorkItem();
         }
 
-        var sb = new StringBuilder();
-        var skip = 0;
-        var success = 0;
-        var failed = 0;
+        var preview = new BatchUploadPreviewViewModel(DailyWorks);
+        var selection = await OverlayDialog.ShowCustomModal<BatchUploadSelection>(
+            preview,
+            options: new OverlayDialogOptions
+            {
+                CanDragMove = false,
+                CanResize = true,
+                CanLightDismiss = false,
+                IsCloseButtonVisible = false,
+            });
+        if (selection is null || selection.Items.Count == 0)
+            return;
 
-        foreach (var work in DailyWorks)
+        var failed = await UploadWorksAsync(selection.Items);
+        if (failed.Count > 0 && await EventDispatcher.Confirm(
+                "部分同步失败",
+                $"有 {failed.Count} 条记录同步失败。是否仅重试失败项？结果待确认的记录不会自动重试。"))
         {
-            if (work.CanUpload())
-            {
-                var (result, message) = await work.Upload();
-                if (result)
-                {
-                    ++success;
-                    sb.AppendLine($"#{work.WorkId} 提交成功");
-                }
-                else
-                {
-                    ++failed;
-                    sb.AppendLine($"#{work.WorkId} 提交失败: {message}");
-                }
-            }
-            else
-            {
-                ++skip;
-                sb.AppendLine($"#{work.WorkId} 已跳过");
-            }
+            await UploadWorksAsync(failed);
         }
-
-        var title = $"提交结果: 成功 {success}，失败 {failed}，跳过 {skip}";
-        EventDispatcher.Notify(title, sb.ToString());
 
         UpdateTimeInfos();
         UploadAllCommand.NotifyCanExecuteChanged();
         DeleteWorkItemCommand.NotifyCanExecuteChanged();
+    }
+
+    private async Task<IReadOnlyList<WorkEditorViewModel>> UploadWorksAsync(
+        IReadOnlyCollection<WorkEditorViewModel> works)
+    {
+        var sb = new StringBuilder();
+        var success = 0;
+        var failed = 0;
+        var uncertain = 0;
+        var failedWorks = new List<WorkEditorViewModel>();
+
+        foreach (var work in works)
+        {
+            var (result, message) = await work.Upload();
+            if (result)
+            {
+                ++success;
+                sb.AppendLine($"#{work.WorkId} 同步成功");
+            }
+            else
+            {
+                if (work.UploadStatus == WorkItemUploadStatus.Uncertain)
+                {
+                    ++uncertain;
+                    sb.AppendLine($"#{work.WorkId} 结果待确认: {message}");
+                }
+                else
+                {
+                    ++failed;
+                    failedWorks.Add(work);
+                    sb.AppendLine($"#{work.WorkId} 同步失败: {message}");
+                }
+            }
+        }
+
+        var summary = uncertain == 0
+            ? $"同步结果: 成功 {success}，失败 {failed}"
+            : $"同步结果: 成功 {success}，失败 {failed}，结果待确认 {uncertain}";
+        EventDispatcher.Notify(summary, sb.ToString());
+        return failedWorks;
     }
 
     private bool CanUploadAll => TotalTime != 0 && UploadedTime < TotalTime;
