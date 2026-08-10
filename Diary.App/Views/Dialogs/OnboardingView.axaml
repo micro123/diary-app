@@ -1,0 +1,41 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
+             x:Class="Diary.App.Views.Dialogs.OnboardingView"
+             x:DataType="dialogs:OnboardingViewModel"
+             MinWidth="560" MinHeight="360" Padding="28">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="18">
+        <StackPanel Spacing="4">
+            <TextBlock Text="欢迎使用 DiaryApp" FontSize="26" FontWeight="SemiBold" />
+            <TextBlock Text="先完成基础配置，再开始记录每天的工作。" Opacity="0.7" />
+        </StackPanel>
+        <StackPanel Grid.Row="1" Spacing="14">
+            <Border Padding="14" CornerRadius="8" Background="{DynamicResource SemiColorFill2}">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="1. 本地记录" FontWeight="SemiBold" />
+                    <TextBlock Text="工作事项会先保存到本地数据库，远程 Tracker 不可用时也不要求重新录入。"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+            <Border Padding="14" CornerRadius="8" Background="{DynamicResource SemiColorFill2}">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="2. 远程同步" FontWeight="SemiBold" />
+                    <TextBlock Text="同步前会展示预览；Jira、Redmine 等 Tracker 需要在设置中单独配置。"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+            <Border Padding="14" CornerRadius="8" Background="{DynamicResource SemiColorFill2}">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="3. 日常效率" FontWeight="SemiBold" />
+                    <TextBlock Text="可以复制昨天、使用快捷工时，并在查询页按日期汇总和导出。"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="稍后再看" Command="{Binding LaterCommand}" />
+            <Button Content="打开数据库设置" Command="{Binding OpenDatabaseSettingsCommand}" />
+            <Button Content="开始记录" Classes="Primary" Command="{Binding StartCommand}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

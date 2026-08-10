@@ -12,4 +12,9 @@ public class ViewConfig
 
     [ConfigureSwitch("隐藏到托盘", "开启时关闭主界面将隐藏到托盘而不是退出程序。")]
     public bool HideToTray { get; set; } = false;
+
+    [ConfigureSwitch("显示开发者功能", "显示脚本管理页和脚本诊断入口；普通记录用户通常不需要开启。")]
+    public bool ShowDeveloperFeatures { get; set; } = false;
+
+    public bool HasCompletedOnboarding { get; set; } = false;
 }

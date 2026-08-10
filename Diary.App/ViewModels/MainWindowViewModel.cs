@@ -21,6 +21,8 @@ using Ursa.Controls;
 using AboutViewModel = Diary.App.ViewModels.Dialogs.AboutViewModel;
 using DbMigrationViewModel = Diary.App.ViewModels.Dialogs.DbMigrationViewModel;
 using GenericConfigViewModel = Diary.GUIBase.ViewModels.Dialogs.GenericConfigViewModel;
+using OnboardingAction = Diary.App.ViewModels.Dialogs.OnboardingAction;
+using OnboardingViewModel = Diary.App.ViewModels.Dialogs.OnboardingViewModel;
 using StandardMessageView = Diary.App.Views.Dialogs.StandardMessageView;
 using StandardMessageViewModel = Diary.App.ViewModels.Dialogs.StandardMessageViewModel;
 using TagEditorViewModel = Diary.App.ViewModels.Dialogs.TagEditorViewModel;
@@ -36,7 +38,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly IServiceProvider _serviceProvider;
     private readonly TrackerPluginLifecycleCoordinator _lifecycle;
     private readonly ILogger _logger;
-    private readonly IReadOnlyList<NavigateInfo> _fixedPages;
+    private IReadOnlyList<NavigateInfo> _fixedPages;
     public string VersionString => AppInfo.AppVersionString;
 
     public string VersionDetails => AppInfo.AppVersionDetails;
@@ -96,6 +98,10 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 diaryEditor.RefreshTrackerTabHeaders();
             }
+            _fixedPages = BuildFixedPages();
+            Pages.Clear();
+            foreach (var page in _fixedPages)
+                Pages.Add(page);
             RefreshTrackerPages();
             SelectedPage = Pages.FirstOrDefault(x => x.Name == selectedName) ?? _fixedPages[0];
             _logger.LogDebug("config updated, tracker navigation rebuilt: {Count} pages", Pages.Count);
@@ -142,6 +148,31 @@ public partial class MainWindowViewModel : ViewModelBase
             m.Reply(result);
         });
 
+        if (App.Instance.DatabaseOk && !App.Instance.AppConfig.ViewSettings.HasCompletedOnboarding)
+            ShowOnboarding();
+
+    }
+
+    private void ShowOnboarding()
+    {
+        PostUiAsync(async () =>
+        {
+            var viewModel = _serviceProvider.GetRequiredService<OnboardingViewModel>();
+            var result = await OverlayDialog.ShowCustomModal<OnboardingAction>(viewModel, options: new OverlayDialogOptions
+            {
+                CanDragMove = false,
+                CanResize = false,
+                CanLightDismiss = false,
+                IsCloseButtonVisible = false,
+            });
+            if (result == OnboardingAction.Later)
+                return;
+
+            App.Instance.AppConfig.ViewSettings.HasCompletedOnboarding = true;
+            EasySaveLoad.Save(App.Instance.AppConfig);
+            if (result == OnboardingAction.OpenDatabaseSettings)
+                ExecuteSettingCommand(CommandNames.ShowDbSettings);
+        }, "首次使用引导");
     }
 
     private IReadOnlyList<NavigateInfo> BuildFixedPages()
@@ -156,8 +187,11 @@ public partial class MainWindowViewModel : ViewModelBase
             _serviceProvider.GetRequiredService<StatisticsViewModel>(), $"Alt+{idx++}"));
         built.Add(new NavigateInfo(PageNames.SurveyTool, "mdi-chat-processing-outline",
             _serviceProvider.GetRequiredService<SurveyViewModel>(), $"Alt+{idx++}"));
-        built.Add(new NavigateInfo(PageNames.Scripts, "mdi-script-text-outline",
-            _serviceProvider.GetRequiredService<ScriptManagementViewModel>(), $"Alt+{idx++}"));
+        if (App.Instance.AppConfig.ViewSettings.ShowDeveloperFeatures)
+        {
+            built.Add(new NavigateInfo(PageNames.Scripts, "mdi-script-text-outline",
+                _serviceProvider.GetRequiredService<ScriptManagementViewModel>(), $"Alt+{idx++}"));
+        }
         return built;
     }
 
