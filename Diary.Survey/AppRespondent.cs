@@ -13,6 +13,7 @@ public class AppRespondent
     private ISurveyorAsyncContext<INngMsg>? _respondentCtx;
     private CancellationTokenSource? _cts;
     private Task? _receiveTask;
+    private Task? _shutdownTask;
     private bool _isStopping;
     private readonly Queue<string> _msgToSend = new();
     private readonly SemaphoreSlim _sendAvailable = new(0);
@@ -47,6 +48,11 @@ public class AppRespondent
 
     public void Shutdown()
     {
+        ObserveBackgroundTask(ShutdownAsync(), "Respondent shutdown");
+    }
+
+    public Task ShutdownAsync()
+    {
         Task? receiveTask;
         CancellationTokenSource? cts;
         ISurveyorAsyncContext<INngMsg>? context;
@@ -54,7 +60,7 @@ public class AppRespondent
         lock (_lifecycleLock)
         {
             if (_isStopping)
-                return;
+                return _shutdownTask ?? Task.CompletedTask;
 
             _isStopping = true;
             receiveTask = _receiveTask;
@@ -62,32 +68,58 @@ public class AppRespondent
             context = _respondentCtx;
             cts?.Cancel();
             context?.Aio.Cancel();
+            _shutdownTask = ShutdownCoreAsync(receiveTask, cts, context);
+            return _shutdownTask;
         }
+    }
 
-        receiveTask?.GetAwaiter().GetResult();
-
-        lock (_lifecycleLock)
+    private async Task ShutdownCoreAsync(
+        Task? receiveTask,
+        CancellationTokenSource? cts,
+        ISurveyorAsyncContext<INngMsg>? context)
+    {
+        try
         {
-            lock (_messageLock)
-            {
-                _msgToSend.Clear();
-                while (_sendAvailable.Wait(0))
-                {
-                }
-            }
+            if (receiveTask is not null)
+                await receiveTask.ConfigureAwait(false);
 
-            context?.Aio.Wait();
-            context?.Dispose();
-            _respondentCtx = null;
-            _dialer?.Dispose();
-            _dialer = null;
-            _respondent?.Dispose();
-            _respondent = null;
-            _receiveTask = null;
-            _cts = null;
-            cts?.Dispose();
-            _isStopping = false;
+            lock (_lifecycleLock)
+            {
+                lock (_messageLock)
+                {
+                    _msgToSend.Clear();
+                    while (_sendAvailable.Wait(0))
+                    {
+                    }
+                }
+
+                context?.Aio.Wait();
+                context?.Dispose();
+                _respondentCtx = null;
+                _dialer?.Dispose();
+                _dialer = null;
+                _respondent?.Dispose();
+                _respondent = null;
+                _receiveTask = null;
+                _cts = null;
+                _isStopping = false;
+            }
         }
+        finally
+        {
+            cts?.Dispose();
+            lock (_lifecycleLock)
+                _shutdownTask = null;
+        }
+    }
+
+    private void ObserveBackgroundTask(Task task, string operation)
+    {
+        _ = task.ContinueWith(
+            completedTask => Logger.LogError(completedTask.Exception, "{Operation} failed", operation),
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
     }
 
     private void StartReceive(ISurveyorAsyncContext<INngMsg> context)
@@ -107,7 +139,25 @@ public class AppRespondent
         {
             while (!token.IsCancellationRequested)
             {
-                var msg = await context.Receive(CancellationToken.None);
+                var pendingReceive = context.Receive(CancellationToken.None);
+                NngResult<INngMsg> msg;
+                try
+                {
+                    msg = await pendingReceive.WaitAsync(token);
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                    context.Aio.Cancel();
+                    try
+                    {
+                        await pendingReceive.ConfigureAwait(false);
+                    }
+                    catch (Exception)
+                    {
+                    }
+                    break;
+                }
+
                 if (!msg.TryOk(out var data))
                 {
                     if (token.IsCancellationRequested)
@@ -117,7 +167,7 @@ public class AppRespondent
                     continue;
                 }
 
-                DispatchReceiveMessage(Encoding.UTF8.GetString(data.AsSpan()));
+                await DispatchReceiveMessageAsync(Encoding.UTF8.GetString(data.AsSpan()));
                 var response = await DequeueResponse(token);
                 var nngMsg = NngManager.Factory.CreateMessage();
                 nngMsg.Append(Encoding.UTF8.GetBytes(response));
@@ -144,27 +194,27 @@ public class AppRespondent
         }
     }
 
-    private void DispatchReceiveMessage(string message)
+    private async Task DispatchReceiveMessageAsync(string message)
     {
         var handlers = ReceiveMessage;
         if (handlers == null)
             return;
 
-        _ = Task.Run(() =>
+        foreach (EventHandler<string> handler in handlers.GetInvocationList())
+            await Task.Run(() => InvokeReceiveHandler(handler, message));
+    }
+
+    private void InvokeReceiveHandler(EventHandler<string> handler, string message)
+    {
+        try
         {
-            foreach (EventHandler<string> handler in handlers.GetInvocationList())
-            {
-                try
-                {
-                    handler(this, message);
-                }
-                catch (Exception ex)
-                {
-                    Logger.LogError(ex, "Respondent ReceiveMessage subscriber failed");
-                    DispatchHandlerError(ex);
-                }
-            }
-        });
+            handler(this, message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Respondent ReceiveMessage subscriber failed");
+            DispatchHandlerError(ex);
+        }
     }
 
     private void DispatchHandlerError(Exception exception)

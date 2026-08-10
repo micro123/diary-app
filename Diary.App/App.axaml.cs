@@ -77,7 +77,7 @@ namespace Diary.App
 
             // 同步主题设置
             SyncTheme();
-            UpdateSurveyObjects();
+            ObserveBackgroundTask(UpdateSurveyObjectsAsync(), "调查对象初始化");
         }
 
         private async Task LoadScriptsAsync()
@@ -629,34 +629,16 @@ namespace Diary.App
                 var vm = Services.GetRequiredService<MainWindowViewModel>();
                 vm.SetView(desktop.MainWindow);
                 desktop.MainWindow.DataContext = vm;
-                desktop.ShutdownRequested += (_, _) => PreShutdown();
+                desktop.ShutdownRequested += OnShutdownRequested;
             }
 
             base.OnFrameworkInitializationCompleted();
 
             WeakReferenceMessenger.Default.Register<ConfigUpdateEvent>(this, (r, m) =>
             {
-                Dispatcher.UIThread.Post(() =>
-                {
-                    if (UseDb is not null && DatabaseOk
-                        && !string.Equals(_connectedDriver, AppConfig.DbSettings.DatabaseDriver, StringComparison.Ordinal))
-                    {
-                        SurveyEnabled = AppConfig.SurveySettings.Enabled;
-                        return;
-                    }
-                    if (!ConfigureCheck(out var msg))
-                    {
-                        DatabaseStatusMessage = msg;
-                        EventDispatcher.RouteToPage(PageNames.Settings);
-                        EventDispatcher.Notify("错误", msg);
-                        return;
-                    }
-                    DatabaseStatusMessage = string.Empty;
-                    RegisterTrackerInstances();
-                    SurveyEnabled = AppConfig.SurveySettings.Enabled;
-                });
-
-                UpdateSurveyObjects();
+                Dispatcher.UIThread.Post(() => ObserveBackgroundTask(
+                    HandleConfigUpdateAsync(),
+                    "配置更新后的调查对象重载"));
             });
             WeakReferenceMessenger.Default.Register<SurveyResultEvent>(this, (r, m) =>
             {
@@ -664,7 +646,7 @@ namespace Diary.App
             });
             WeakReferenceMessenger.Default.Register<SurveyQueryEvent>(this, (r, m) =>
             {
-                _surveyor.Survey(m.Value);
+                ObserveBackgroundTask(_surveyor.SurveyAsync(m.Value), "发送调查问题");
             });
 
             // check if configure is valid
@@ -678,13 +660,36 @@ namespace Diary.App
             StartKeepAliveTimer();
         }
 
-        private void UpdateSurveyObjects()
+        private async Task HandleConfigUpdateAsync()
+        {
+            if (UseDb is not null && DatabaseOk
+                && !string.Equals(_connectedDriver, AppConfig.DbSettings.DatabaseDriver, StringComparison.Ordinal))
+            {
+                SurveyEnabled = AppConfig.SurveySettings.Enabled;
+                return;
+            }
+
+            if (!ConfigureCheck(out var msg))
+            {
+                DatabaseStatusMessage = msg;
+                EventDispatcher.RouteToPage(PageNames.Settings);
+                EventDispatcher.Notify("错误", msg);
+                return;
+            }
+
+            DatabaseStatusMessage = string.Empty;
+            RegisterTrackerInstances();
+            SurveyEnabled = AppConfig.SurveySettings.Enabled;
+            await UpdateSurveyObjectsAsync();
+        }
+
+        private async Task UpdateSurveyObjectsAsync()
         {
             if (Design.IsDesignMode)
                 return;
 
-            _surveyor.StopServer();
-            _respondent.Shutdown();
+            await _surveyor.StopServerAsync();
+            await _respondent.ShutdownAsync();
 
             if (!AppConfig.SurveySettings.Enabled)
                 return;
@@ -702,15 +707,49 @@ namespace Diary.App
                 Logger.LogWarning("调查功能已启用但未配置调查者 IP 地址，受访者不会连接调查者");
         }
 
-        private void PreShutdown()
+        private async Task PreShutdownAsync()
         {
-            _surveyor.StopServer();
-            _respondent.Shutdown();
+            await _surveyor.StopServerAsync();
+            await _respondent.ShutdownAsync();
             _timer.Stop();
             SaveConfigurations();
             SavePluginConfigurations();
             (Services as IDisposable)?.Dispose();
             Logging.Shutdown();
+        }
+
+        private Task? _preShutdownTask;
+        private bool _shutdownCompleted;
+
+        private async void OnShutdownRequested(object? sender, ShutdownRequestedEventArgs e)
+        {
+            if (_shutdownCompleted)
+                return;
+
+            e.Cancel = true;
+            _preShutdownTask ??= PreShutdownAsync();
+            try
+            {
+                await _preShutdownTask;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "应用退出清理失败");
+                return;
+            }
+
+            _shutdownCompleted = true;
+            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+                desktop.Shutdown();
+        }
+
+        private void ObserveBackgroundTask(Task task, string operation)
+        {
+            _ = task.ContinueWith(
+                completedTask => Logger.LogError(completedTask.Exception, "{Operation}失败", operation),
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
         }
 
         private readonly DispatcherTimer _timer = new();

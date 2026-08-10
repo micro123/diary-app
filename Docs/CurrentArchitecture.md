@@ -146,6 +146,9 @@ stop
 核心模式可通过 `Diary.App --core-only` 启动，不加载任何 tracker 插件或插件 UI，适合验证无 Redmine 程序集时的核心日记、编辑器和模板功能。该选项只影响当前进程，不修改插件配置和数据库数据。
 
 应用初始化阶段会立即启动脚本目录的后台异步加载。目录发现、元数据读取和脚本构建在后台任务中执行；脚本管理页首次显示时复用正在进行的加载任务或已完成结果，只有手动重新加载、脚本编辑保存或编译检查才会强制重新扫描。
+调查功能的接收循环使用各自的 `CancellationToken`，消息处理器在接收任务中以可等待任务执行；处理器异常会记录并通过 `ReceiveMessageHandlerError` 诊断，不再由未观察的 fire-and-forget 任务承载。`AppSurveyor.StopServerAsync()` 和 `AppRespondent.ShutdownAsync()` 先取消接收，再等待接收循环和消息处理完成后释放 NNG 资源；应用配置重载和退出流程都等待这些异步生命周期任务。保留的无返回值 `StopServer()`/`Shutdown()` 仅用于兼容调用并主动观察后台任务，UI 路径不使用同步等待。
+
+工作项上传的远程协调可以从后台线程执行，但 `WorkEditorViewModel.Upload()` 完成后统一通过 Avalonia UI Dispatcher 更新 `UploadResults`、锁定状态和状态绑定，避免后台线程直接修改绑定集合。
 
 ## 5. 数据库分层和扩展
 

@@ -15,9 +15,9 @@
 
 ### 7.1 线程安全与异步生命周期
 
-- [ ] 梳理 `Diary.Survey` 中接收循环、消息分发和停止流程；后台任务必须可取消、可等待并观察异常，`Shutdown`/`StopServer` 不得在 UI 线程同步阻塞。
-- [ ] 确保 `WorkEditorViewModel.Upload()` 无论从哪个调用线程进入，都在 UI 线程更新 `UploadResults`、锁定状态和绑定属性，并补充对应测试。
-- [ ] 审计 `Diary.App`、`Diary.Survey` 和 UI 基础设施中的 fire-and-forget 任务与 UI 调度回调，明确任务所有权、取消、异常处理和关闭时的等待策略。
+- [x] 梳理 `Diary.Survey` 中接收循环、消息分发和停止流程；接收循环使用取消令牌，消息处理任务可等待且异常可诊断，应用通过异步 `ShutdownAsync`/`StopServerAsync` 完成停止，不在 UI 线程同步阻塞。
+- [~] `WorkEditorViewModel.Upload()` 已通过 UI Dispatcher 统一回写 `UploadResults`、锁定状态和绑定属性；仍需补充从后台线程调用的 Headless 回归测试。
+- [~] 已收敛 `Diary.App` 的调查配置重载、问题发送和退出清理，以及 `Diary.Survey` 的接收任务；脚本加载、脚本管理刷新等其他 UI fire-and-forget 任务仍需继续审计。
 
 验收：后台任务异常可以进入日志或结构化诊断，应用关闭不会遗留接收任务；工作项上传从后台线程调用时不会跨线程修改 UI 绑定对象。
 

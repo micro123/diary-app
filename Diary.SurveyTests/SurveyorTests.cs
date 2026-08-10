@@ -7,29 +7,29 @@ namespace Diary.SurveyTests;
 public sealed class SurveyorTests
 {
     [TestMethod]
-    public void StartAndStopAreIdempotent()
+    public async Task StartAndStopAreIdempotent()
     {
         var surveyor = new AppSurveyor();
 
         Assert.IsTrue(surveyor.StartServer());
         Assert.IsFalse(surveyor.StartServer());
-        surveyor.StopServer();
-        surveyor.StopServer();
+        await surveyor.StopServerAsync();
+        await surveyor.StopServerAsync();
 
         Assert.IsTrue(surveyor.StartServer());
-        surveyor.StopServer();
+        await surveyor.StopServerAsync();
     }
 
     [TestMethod]
-    public void RapidStartAndStopDoesNotRaceReceiveLoop()
+    public async Task RapidStartAndStopDoesNotRaceReceiveLoop()
     {
         var surveyor = new AppSurveyor();
 
         for (var i = 0; i < 20; i++)
         {
             Assert.IsTrue(surveyor.StartServer());
-            surveyor.Survey("question");
-            surveyor.StopServer();
+            await surveyor.SurveyAsync("question");
+            await surveyor.StopServerAsync();
         }
     }
 
@@ -56,7 +56,6 @@ public sealed class SurveyorTests
             else
             {
                 secondReply.TrySetResult();
-                surveyor.StopServer();
                 callbackStop.TrySetResult();
             }
         };
@@ -76,8 +75,8 @@ public sealed class SurveyorTests
         }
         finally
         {
-            respondent.Shutdown();
-            surveyor.StopServer();
+            await respondent.ShutdownAsync();
+            await surveyor.StopServerAsync();
         }
     }
 
@@ -88,7 +87,7 @@ public sealed class SurveyorTests
 
         while (!reply.IsCompleted)
         {
-            surveyor.Survey(question);
+            await surveyor.SurveyAsync(question);
             var completed = await Task.WhenAny(reply, retryTimer.WaitForNextTickAsync(timeout.Token).AsTask());
             if (completed == reply)
                 await reply;

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
@@ -484,11 +485,14 @@ public partial class WorkEditorViewModel : ViewModelBase
         if (WorkItem is null)
             return (false, "工作项尚未保存");
         var result = await _uploadCoordinator.UploadAsync(WorkItem, Extensions);
-        UploadResults.Clear();
-        foreach (var uploadResult in result.Results)
-            UploadResults.Add(uploadResult);
-        RecomputeIsLocked();
-        NotifyStatusChanged();
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            UploadResults.Clear();
+            foreach (var uploadResult in result.Results)
+                UploadResults.Add(uploadResult);
+            RecomputeIsLocked();
+            NotifyStatusChanged();
+        });
         return (result.Success, result.Error);
     }
 
