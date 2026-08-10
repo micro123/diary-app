@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
@@ -44,11 +45,15 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
     [ObservableProperty] private int _tagFilterIndex;
     [ObservableProperty] private int _priorityIndex;
     [ObservableProperty] private string _resultSummary = "尚未查询";
+    [ObservableProperty] private double _resultTotalHours;
     [ObservableProperty] private bool _hasQueryError;
     [ObservableProperty] private string _savedQueryName = string.Empty;
     [ObservableProperty] private string _savedQueryStatus = string.Empty;
     [ObservableProperty] private SavedWorkItemQuery? _selectedSavedQuery;
-    [ObservableProperty] private ObservableCollection<WorkItemQueryResult> _results = new();
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ExportCsvCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ExportMarkdownCommand))]
+    private ObservableCollection<WorkItemQueryResult> _results = new();
 
     public ObservableCollection<WorkItemQueryTag> Tags { get; } = new();
     public ObservableCollection<SavedWorkItemQuery> SavedQueries { get; } = new();
@@ -63,6 +68,33 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
         var start = StartDate;
         var end = EndDate;
         TimeTools.AdjustDate(ref start, ref end, part, direction);
+        StartDate = start;
+        EndDate = end;
+    }
+
+    [RelayCommand]
+    private void SelectToday() => SetSingleDay(DateTime.Today);
+
+    [RelayCommand]
+    private void SelectYesterday() => SetSingleDay(DateTime.Today.AddDays(-1));
+
+    [RelayCommand]
+    private void SelectCurrentWeek() => SetQuickRange(AdjustPart.Week);
+
+    [RelayCommand]
+    private void SelectCurrentMonth() => SetQuickRange(AdjustPart.Month);
+
+    private void SetSingleDay(DateTime date)
+    {
+        StartDate = date.Date;
+        EndDate = date.Date;
+    }
+
+    private void SetQuickRange(AdjustPart part)
+    {
+        var start = DateTime.Today;
+        var end = start;
+        TimeTools.AdjustDate(ref start, ref end, part, AdjustDirection.Current);
         StartDate = start;
         EndDate = end;
     }
@@ -125,9 +157,10 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
                     : string.Empty));
             Results = new ObservableCollection<WorkItemQueryResult>(nextResults);
             HasQueryError = false;
+            ResultTotalHours = Results.Sum(result => result.Time);
             ResultSummary = Results.Count == DefaultResultLimit
-                ? $"已显示前 {DefaultResultLimit} 项，结果可能已截断"
-                : $"共找到 {Results.Count} 项";
+                ? $"已显示前 {DefaultResultLimit} 项，结果可能已截断；合计 {ResultTotalHours:0.##} 小时"
+                : $"共找到 {Results.Count} 项，合计 {ResultTotalHours:0.##} 小时";
         }
         catch (Exception ex)
         {
@@ -142,6 +175,57 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
         EventDispatcher.RouteToPage(PageNames.DiaryEditor);
         EventDispatcher.Msg(new OpenWorkItemEvent(result.Date, result.Item.Id));
     }
+
+    [RelayCommand(CanExecute = nameof(CanExport))]
+    private async Task ExportCsv()
+    {
+        var path = await SaveTextFileAsync("导出查询结果", "diary-query.csv", "csv", BuildCsv());
+        if (path is not null)
+            NotificationManager?.Show($"查询结果已导出：{path}", Avalonia.Controls.Notifications.NotificationType.Success);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanExport))]
+    private async Task ExportMarkdown()
+    {
+        var path = await SaveTextFileAsync("导出查询结果", "diary-query.md", "md", BuildMarkdown());
+        if (path is not null)
+            NotificationManager?.Show($"查询结果已导出：{path}", Avalonia.Controls.Notifications.NotificationType.Success);
+    }
+
+    private string BuildCsv()
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("日期,事项,耗时(小时),优先级,标签");
+        foreach (var result in Results)
+        {
+            builder.AppendLine(string.Join(",", EscapeCsv(result.Date), EscapeCsv(result.Comment),
+                result.Time.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture),
+                EscapeCsv(result.Priority.ToString()), EscapeCsv(result.Tags)));
+        }
+        return builder.ToString();
+    }
+
+    private string BuildMarkdown()
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("| 日期 | 事项 | 耗时（小时） | 优先级 | 标签 |");
+        builder.AppendLine("| --- | --- | ---: | --- | --- |");
+        foreach (var result in Results)
+        {
+            builder.AppendLine($"| {EscapeMarkdown(result.Date)} | {EscapeMarkdown(result.Comment)} | {result.Time:0.##} | {result.Priority} | {EscapeMarkdown(result.Tags)} |");
+        }
+        builder.AppendLine();
+        builder.AppendLine($"合计：{Results.Count} 条，{ResultTotalHours:0.##} 小时");
+        return builder.ToString();
+    }
+
+    private static string EscapeCsv(string value)
+        => $"\"{value.Replace("\"", "\"\"")}\"";
+
+    private static string EscapeMarkdown(string value)
+        => value.Replace("|", "\\|").Replace("\r", " ").Replace("\n", " ");
+
+    private bool CanExport => Results.Count > 0;
 
     [RelayCommand]
     private void AddSavedQuery()

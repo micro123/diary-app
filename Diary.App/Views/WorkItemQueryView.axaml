@@ -34,7 +34,13 @@
                 <CalendarDatePicker Grid.Row="1" Grid.Column="1" SelectedDate="{Binding StartDate}" />
                 <TextBlock Grid.Row="1" Grid.Column="2" Text="至" VerticalAlignment="Center" />
                 <CalendarDatePicker Grid.Row="1" Grid.Column="3" SelectedDate="{Binding EndDate}" />
-                <views:QuickDateSelectButton Grid.Row="1" Grid.Column="4" />
+                <StackPanel Grid.Row="1" Grid.Column="4" Orientation="Horizontal" Spacing="4">
+                    <Button Content="今天" Command="{Binding SelectTodayCommand}" />
+                    <Button Content="昨天" Command="{Binding SelectYesterdayCommand}" />
+                    <Button Content="本周" Command="{Binding SelectCurrentWeekCommand}" />
+                    <Button Content="本月" Command="{Binding SelectCurrentMonthCommand}" />
+                    <views:QuickDateSelectButton />
+                </StackPanel>
                 <TextBox Grid.Row="1" Grid.Column="5" Text="{Binding Text}" Watermark="搜索事项标题或备注" />
                 <Button Grid.Row="1" Grid.Column="6" Classes="Primary" Command="{Binding QueryCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
@@ -61,6 +67,10 @@
                 </ScrollViewer>
                 <TextBlock Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="6" Text="{Binding SavedQueryStatus}" Opacity="0.7" />
                 <TextBlock Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="6" Text="{Binding ResultSummary}" Opacity="0.7" />
+                <StackPanel Grid.Row="4" Grid.Column="6" Orientation="Horizontal" Spacing="4">
+                    <Button Content="导出 CSV" Command="{Binding ExportCsvCommand}" />
+                    <Button Content="导出 Markdown" Command="{Binding ExportMarkdownCommand}" />
+                </StackPanel>
             </Grid>
         </Border>
 

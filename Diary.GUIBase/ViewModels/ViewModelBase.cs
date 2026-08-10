@@ -1,4 +1,6 @@
+using System.Text;
 using Avalonia.Controls;
+using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Messaging;
 using Ursa.Controls;
@@ -37,6 +39,38 @@ public class ViewModelBase : ObservableObject, IDisposable
 
         await TopLevel.Clipboard.SetTextAsync(text);
         return true;
+    }
+
+    protected async Task<string?> SaveTextFileAsync(
+        string title,
+        string suggestedFileName,
+        string extension,
+        string content)
+    {
+        var storageProvider = TopLevel?.StorageProvider;
+        if (storageProvider is null)
+            return null;
+
+        var file = await storageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = title,
+            SuggestedFileName = suggestedFileName,
+            DefaultExtension = extension,
+            FileTypeChoices =
+            [
+                new FilePickerFileType(extension.ToUpperInvariant())
+                {
+                    Patterns = [$"*.{extension}"],
+                },
+            ],
+        });
+        if (file is null)
+            return null;
+
+        await using var stream = await file.OpenWriteAsync();
+        await using var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+        await writer.WriteAsync(content);
+        return file.Path.LocalPath;
     }
 
     protected WeakReferenceMessenger Messenger => WeakReferenceMessenger.Default;
