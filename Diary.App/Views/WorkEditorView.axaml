@@ -26,28 +26,36 @@
 
     <DockPanel Name="EditPanel" VerticalSpacing="4">
         <u:Divider DockPanel.Dock="Top" Content="一般信息" HorizontalContentAlignment="Left" />
-        <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,Auto,*" RowDefinitions="Auto,Auto,Auto"
-              ColumnSpacing="8" RowSpacing="8" IsEnabled="{Binding !IsLocked}">
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="64,*"
+              RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="10"
+              IsEnabled="{Binding !IsLocked}">
             <TextBlock Grid.Row="0" Grid.Column="0" Text="日期：" VerticalAlignment="Center" />
-            <CalendarDatePicker Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2" HorizontalAlignment="Stretch"
-                                SelectedDate="{Binding Date, Converter={StaticResource DateConvert}}" />
-            <SplitButton Grid.Row="0" Grid.Column="3" Content="使用今天"
-                         Command="{Binding QuickDateCommand}" CommandParameter="0">
-                <SplitButton.Flyout>
-                    <MenuFlyout>
-                        <MenuItem Header="使用昨天" Command="{Binding QuickDateCommand}" CommandParameter="-1" />
-                        <MenuItem Header="使用明天" Command="{Binding QuickDateCommand}" CommandParameter="+1" />
-                    </MenuFlyout>
-                </SplitButton.Flyout>
-            </SplitButton>
+            <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="240,Auto" ColumnSpacing="12">
+                <CalendarDatePicker Grid.Column="0" Width="240" HorizontalAlignment="Left"
+                                    SelectedDate="{Binding Date, Converter={StaticResource DateConvert}}" />
+                <SplitButton Grid.Column="1" Content="使用今天"
+                             Command="{Binding QuickDateCommand}" CommandParameter="0">
+                    <SplitButton.Flyout>
+                        <MenuFlyout>
+                            <MenuItem Header="使用昨天" Command="{Binding QuickDateCommand}" CommandParameter="-1" />
+                            <MenuItem Header="使用明天" Command="{Binding QuickDateCommand}" CommandParameter="+1" />
+                        </MenuFlyout>
+                    </SplitButton.Flyout>
+                </SplitButton>
+            </Grid>
+
             <TextBlock Grid.Row="1" Grid.Column="0" Text="标题：" VerticalAlignment="Center" />
-            <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="4" Text="{Binding Comment}" Classes="ClearButton" />
+            <TextBox Grid.Row="1" Grid.Column="1" MinHeight="40"
+                     Text="{Binding Comment}" Classes="ClearButton" />
+
             <TextBlock Grid.Row="2" Grid.Column="0" Text="耗时：" VerticalAlignment="Center" />
-            <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="4">
-                <u:NumericDoubleUpDown Width="88"
+            <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="156,Auto,Auto,96,*" ColumnSpacing="12">
+                <u:NumericDoubleUpDown Grid.Column="0" Width="156" HorizontalAlignment="Left"
                                        Value="{Binding Time}" InnerRightContent="小时"
-                                       ShowButtonSpinner="False" Maximum="24" Minimum="0"/>
-                <SplitButton Content="快捷" Command="{Binding QuickTimeCommand}" CommandParameter="1h">
+                                       HorizontalContentAlignment="Right"
+                                       ShowButtonSpinner="False" Maximum="24" Minimum="0" />
+                <SplitButton Grid.Column="1" Content="快捷"
+                             Command="{Binding QuickTimeCommand}" CommandParameter="1h">
                     <SplitButton.Flyout>
                         <MenuFlyout>
                             <MenuItem Header="15 分钟" Command="{Binding QuickTimeCommand}" CommandParameter="15m" />
@@ -59,10 +67,10 @@
                         </MenuFlyout>
                     </SplitButton.Flyout>
                 </SplitButton>
-            </StackPanel>
-            <TextBlock Grid.Row="2" Grid.Column="2" Text="优先级：" VerticalAlignment="Center" HorizontalAlignment="Right"/>
-            <u:EnumSelector Grid.Row="2" Grid.Column="3" Value="{Binding Priority}"
-                            EnumType="{x:Type base:WorkPriorities}" />
+                <TextBlock Grid.Column="2" Text="优先级：" VerticalAlignment="Center" />
+                <u:EnumSelector Grid.Column="3" Width="96" Value="{Binding Priority}"
+                                EnumType="{x:Type base:WorkPriorities}" />
+            </Grid>
         </Grid>
         <u:Divider DockPanel.Dock="Top" Content="标签列表" HorizontalContentAlignment="Left" />
         <!-- 标签列表 -->
