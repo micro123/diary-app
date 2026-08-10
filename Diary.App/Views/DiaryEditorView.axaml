@@ -53,9 +53,13 @@
                 <Grid ColumnSpacing="8" ColumnDefinitions="Auto,*,Auto" HorizontalAlignment="Stretch"
                       DockPanel.Dock="Top">
                     <TextBlock Text="日期选择" VerticalAlignment="Center" />
-                    <Button Grid.Column="2" Content="回到今天"
-                            HotKey="Ctrl+T" Classes="ActionButton"
-                            Command="{Binding SelectTodayCommand}" />
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
+                        <Button Content="回到今天"
+                                HotKey="Ctrl+T" Classes="ActionButton"
+                                Command="{Binding SelectTodayCommand}" />
+                        <Button Content="复制昨天" Classes="ActionButton"
+                                Command="{Binding CopyPreviousDayCommand}" />
+                    </StackPanel>
                 </Grid>
                 <Separator DockPanel.Dock="Top" />
                 <Calendar FirstDayOfWeek="Monday" DockPanel.Dock="Top"

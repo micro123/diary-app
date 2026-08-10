@@ -67,6 +67,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         {
             Date = CurrentDateString,
         };
+        SelectedWork.SetRecentTagIds(GetRecentTagIds());
         ConfigureEditorScriptActions(SelectedWork);
         _creating = false;
         SelectedWork.SyncAll();
@@ -127,6 +128,49 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     private bool CanSave => SelectedWork != null;
 
+    [RelayCommand]
+    private async Task CopyPreviousDay()
+    {
+        if (App.Instance.UseDb is not { } db)
+            return;
+
+        var previousDate = TimeTools.FormatDateTime(CurrentDate.AddDays(-1));
+        var sourceItems = db.GetWorkItemByDate(previousDate).ToArray();
+        if (sourceItems.Length == 0)
+        {
+            EventDispatcher.Notify("没有可复制的记录", $"{previousDate} 没有已保存的工作记录。");
+            return;
+        }
+
+        var total = sourceItems.Sum(item => item.Time);
+        if (!await EventDispatcher.Confirm(
+                "复制昨天的记录",
+                $"将复制 {sourceItems.Length} 条记录，共 {total:0.##} 小时到 {CurrentDateString}。只复制本地字段和标签，不复制远程 Tracker 绑定。继续吗？"))
+            return;
+
+        var notesById = db.GetWorkNotesByDate(previousDate);
+        var tagsById = db.GetWorkTagsByDate(previousDate);
+        var copied = 0;
+        foreach (var sourceItem in sourceItems)
+        {
+            var source = WorkEditorViewModel.FromWorkItem(sourceItem);
+            source.SyncFromBatch(notesById, tagsById, null);
+            var copy = source.Clone();
+            copy.Date = CurrentDateString;
+            copy.Save(out var created);
+            if (!created)
+                continue;
+
+            ConfigureEditorScriptActions(copy);
+            DailyWorks.Add(copy);
+            ++copied;
+        }
+
+        SelectedWork = DailyWorks.LastOrDefault();
+        UpdateTimeInfos();
+        EventDispatcher.Notify("复制完成", $"已复制 {copied}/{sourceItems.Length} 条记录。");
+    }
+
     [RelayCommand(CanExecute = nameof(CanDuplicate))]
     private void DuplicateWorkItem()
     {
@@ -180,6 +224,13 @@ public partial class DiaryEditorViewModel : ViewModelBase
     }
 
     private bool CanUpload => SelectedWork?.CanUpload() == true;
+
+    private IEnumerable<int> GetRecentTagIds()
+        => DailyWorks
+            .SelectMany(work => work.WorkTags)
+            .Select(tag => tag.Id)
+            .Distinct()
+            .Take(8);
 
     [RelayCommand]
     private void RetryDatabaseConnection()

@@ -59,6 +59,36 @@ public sealed class TagAutomationCoordinatorTests
     }
 
     [TestMethod]
+    public void WorkEditor_QuickTimeUsesMinuteFriendlyPresets()
+    {
+        var editor = CreateEditor(new RecordingAutomation());
+
+        editor.QuickTimeCommand.Execute("30m");
+        Assert.AreEqual(0.5, editor.Time);
+        editor.QuickTimeCommand.Execute("clear");
+        Assert.AreEqual(0.0, editor.Time);
+    }
+
+    [TestMethod]
+    public void WorkEditor_RecentTagsAreListedFirst()
+    {
+        var shareData = new DbShareData(NullLogger.Instance);
+        shareData.WorkTags.Add(new WorkTag { Id = 1, Name = "普通", Level = TagLevels.Primary });
+        shareData.WorkTags.Add(new WorkTag { Id = 2, Name = "常用", Level = TagLevels.Primary });
+        var editor = new WorkEditorViewModel(
+            shareData,
+            new NoopPersistence(),
+            new NoopUpload(),
+            new TrackerUiContributionRegistry(),
+            "test",
+            new RecordingAutomation());
+
+        editor.SetRecentTagIds([2]);
+
+        CollectionAssert.AreEqual(new[] { 2, 1 }, editor.AvailableTags.Select(tag => tag.Id).ToArray());
+    }
+
+    [TestMethod]
     public void WorkEditor_RefreshesTrackerTabHeaderAfterRegistryUpdate()
     {
         var registry = new TrackerUiContributionRegistry();

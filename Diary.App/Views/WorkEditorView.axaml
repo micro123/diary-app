@@ -43,9 +43,23 @@
             <TextBlock Grid.Row="1" Grid.Column="0" Text="标题：" VerticalAlignment="Center" />
             <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="4" Text="{Binding Comment}" Classes="ClearButton" />
             <TextBlock Grid.Row="2" Grid.Column="0" Text="耗时：" VerticalAlignment="Center" />
-            <u:NumericDoubleUpDown Grid.Row="2" Grid.Column="1" Width="100"
-                                   Value="{Binding Time}" InnerRightContent="小时"
-                                   ShowButtonSpinner="False" Maximum="24" Minimum="0"/>
+            <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                <u:NumericDoubleUpDown Width="88"
+                                       Value="{Binding Time}" InnerRightContent="小时"
+                                       ShowButtonSpinner="False" Maximum="24" Minimum="0"/>
+                <SplitButton Content="快捷" Command="{Binding QuickTimeCommand}" CommandParameter="1h">
+                    <SplitButton.Flyout>
+                        <MenuFlyout>
+                            <MenuItem Header="15 分钟" Command="{Binding QuickTimeCommand}" CommandParameter="15m" />
+                            <MenuItem Header="30 分钟" Command="{Binding QuickTimeCommand}" CommandParameter="30m" />
+                            <MenuItem Header="1 小时" Command="{Binding QuickTimeCommand}" CommandParameter="1h" />
+                            <MenuItem Header="2 小时" Command="{Binding QuickTimeCommand}" CommandParameter="2h" />
+                            <MenuItem Header="4 小时" Command="{Binding QuickTimeCommand}" CommandParameter="4h" />
+                            <MenuItem Header="清零" Command="{Binding QuickTimeCommand}" CommandParameter="clear" />
+                        </MenuFlyout>
+                    </SplitButton.Flyout>
+                </SplitButton>
+            </StackPanel>
             <TextBlock Grid.Row="2" Grid.Column="2" Text="优先级：" VerticalAlignment="Center" HorizontalAlignment="Right"/>
             <u:EnumSelector Grid.Row="2" Grid.Column="3" Value="{Binding Priority}"
                             EnumType="{x:Type base:WorkPriorities}" />
@@ -89,7 +103,7 @@
                 IsEnabled="{Binding HasAvailableTags}">
             <StackPanel Orientation="Horizontal" Spacing="4">
                 <i:Icon Value="mdi-tag-plus-outline" />
-                <TextBlock Text="添加标签" />
+                <TextBlock Text="添加标签（常用优先）" />
             </StackPanel>
             <Button.Flyout>
                 <MenuFlyout ItemsSource="{Binding AvailableTags}"

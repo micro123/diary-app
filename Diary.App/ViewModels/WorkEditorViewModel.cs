@@ -39,6 +39,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     private readonly ITrackerUploadCoordinator _uploadCoordinator;
     private readonly ITagAutomationCoordinator _tagAutomation;
     private readonly TrackerUiContributionRegistry _trackerRegistry;
+    private IReadOnlyList<int> _recentTagIds = Array.Empty<int>();
 
     // db data fields
     private WorkItem? WorkItem { get; set; } // ref to existed db item, may null
@@ -357,6 +358,27 @@ public partial class WorkEditorViewModel : ViewModelBase
     public bool CanUpload()
         => Extensions.Any(extension => !extension.IsLocked);
 
+    public void SetRecentTagIds(IEnumerable<int> tagIds)
+    {
+        _recentTagIds = tagIds.Distinct().ToArray();
+        UpdateAvailableTags();
+    }
+
+    [RelayCommand]
+    private void QuickTime(string value)
+    {
+        Time = value switch
+        {
+            "15m" => 0.25,
+            "30m" => 0.5,
+            "1h" => 1.0,
+            "2h" => 2.0,
+            "4h" => 4.0,
+            "clear" => 0.0,
+            _ => Time,
+        };
+    }
+
     [RelayCommand]
     private void AddTag(WorkTag tag)
         => AddTags([tag], TagAddSource.User);
@@ -431,7 +453,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         if (WorkTags.Count > 0)
         {
             // show only secondary tags
-            foreach (var tag in AllTags.Where(x => x is { Level: TagLevels.Secondary, Disabled: false }))
+            foreach (var tag in OrderByRecent(AllTags.Where(x => x is { Level: TagLevels.Secondary, Disabled: false })))
             {
                 if (!WorkTags.Contains(tag))
                     AvailableTags.Add(tag);
@@ -440,12 +462,20 @@ public partial class WorkEditorViewModel : ViewModelBase
         else
         {
             // show only primary tags
-            foreach (var tag in AllTags.Where(x => x is { Level: TagLevels.Primary, Disabled: false }))
+            foreach (var tag in OrderByRecent(AllTags.Where(x => x is { Level: TagLevels.Primary, Disabled: false })))
             {
                 AvailableTags.Add(tag);
             }
         }
         OnPropertyChanged(nameof(HasAvailableTags));
+    }
+
+    private IEnumerable<WorkTag> OrderByRecent(IEnumerable<WorkTag> tags)
+    {
+        var order = _recentTagIds
+            .Select((id, index) => (id, index))
+            .ToDictionary(item => item.id, item => item.index);
+        return tags.OrderBy(tag => order.TryGetValue(tag.Id, out var index) ? index : int.MaxValue);
     }
 
     /// <summary>上传所有 tracker 扩展，聚合结果。任一失败即整体失败。</summary>
