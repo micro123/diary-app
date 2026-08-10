@@ -17,7 +17,7 @@
         </Style>
     </UserControl.Styles>
     <Panel>
-        <TextBlock Text="没有启用统计功能，此页面不可用" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="48"
+        <TextBlock Text="没有启用调查功能，此页面不可用" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="48"
                    IsVisible="{Binding !SurveyEnabled, Source={x:Static app:App.Instance}}"
                    Foreground="{DynamicResource ButtonDefaultDisabledForeground}" />
         <DockPanel IsVisible="{Binding SurveyEnabled, Source={x:Static app:App.Instance}}"

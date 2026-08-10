@@ -689,15 +689,17 @@ namespace Diary.App
             if (!AppConfig.SurveySettings.Enabled)
                 return;
 
-            if (AppConfig.SurveySettings.IsServerEnabled)
+            var surveyConfig = AppConfig.SurveySettings;
+            if (surveyConfig.IsServerEnabled)
             {
                 _surveyor.StartServer();
+                return;
             }
 
-            if (!string.IsNullOrWhiteSpace(AppConfig.SurveySettings.ServerAddress))
-            {
-                _respondent.Connect(AppConfig.SurveySettings.ServerAddress);
-            }
+            if (surveyConfig.TryGetRespondentAddress(out var address))
+                _respondent.Connect(address);
+            else
+                Logger.LogWarning("调查功能已启用但未配置调查者 IP 地址，受访者不会连接调查者");
         }
 
         private void PreShutdown()
