@@ -92,9 +92,12 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
                   	id SERIAL PRIMARY KEY,
                   	create_date CHAR(16) NOT NULL,
                   	comment CHAR(256) NOT NULL,
-                  	hours REAL DEFAULT 0.0,
-                  	priority INTEGER DEFAULT 0
+                  hours REAL DEFAULT 0.0,
+                  priority INTEGER DEFAULT 0,
+                  is_read_only BOOLEAN NOT NULL DEFAULT FALSE
                   );
+
+                  ALTER TABLE work_items ADD COLUMN IF NOT EXISTS is_read_only BOOLEAN NOT NULL DEFAULT FALSE;
 
                   CREATE TABLE IF NOT EXISTS work_notes (
                   	id INTEGER PRIMARY KEY REFERENCES work_items (id) ON DELETE CASCADE,
@@ -216,7 +219,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
         if (item.Id == 0)
             return false;
         var sql = """
-                  UPDATE work_items SET create_date=$1, comment=$2, hours=$3, priority=$4  WHERE id=$5;
+                  UPDATE work_items SET create_date=$1, comment=$2, hours=$3, priority=$4  WHERE id=$5 AND is_read_only=FALSE;
                   """;
         return Execute(sql,
             ("$1", item.CreateDate), ("$2", item.Comment),
@@ -256,8 +259,19 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
     // $1=new $2=old
     public override bool UpdateWorkItemId(int oldId, int newId)
     {
-        const string sql = "UPDATE work_items SET id=$1 WHERE id=$2;";
+        const string sql = "UPDATE work_items SET id=$1 WHERE id=$2 AND is_read_only=FALSE;";
         return Execute(sql, ("$1", newId), ("$2", oldId)) > 0;
+    }
+
+    public override bool MarkWorkItemReadOnly(WorkItem item)
+    {
+        if (item.Id == 0)
+            return false;
+        const string sql = "UPDATE work_items SET is_read_only=TRUE WHERE id=$1;";
+        var updated = Execute(sql, ("$1", item.Id)) > 0;
+        if (updated)
+            item.IsReadOnly = true;
+        return updated;
     }
 
     // $1=id $2=note
@@ -265,6 +279,8 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
     {
         if (work.Id == 0)
             throw new ArgumentNullException(nameof(work.Id));
+        if (!IsWorkItemWritable(work.Id))
+            throw new InvalidOperationException("只读工作项不可修改备注");
         var sql = """
                   INSERT INTO work_notes(id, note) VALUES ($1, $2) ON CONFLICT(id) DO UPDATE SET note=$2;
                   """;
@@ -276,6 +292,8 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
     {
         if (work.Id == 0)
             throw new ArgumentNullException(nameof(work.Id));
+        if (!IsWorkItemWritable(work.Id))
+            throw new InvalidOperationException("只读工作项不可删除备注");
         var sql = """
                   DELETE FROM work_notes WHERE id=$1;
                   """;
@@ -407,6 +425,8 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
     {
         if (item.Id == 0 || tag.Id == 0)
             throw new ArgumentException($"{nameof(item.Id)} or {nameof(tag.Id)} is required");
+        if (!IsWorkItemWritable(item.Id))
+            return false;
         try
         {
             var sql = """
@@ -425,6 +445,8 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
     {
         if (item.Id == 0 || tag.Id == 0)
             throw new ArgumentException($"{nameof(item.Id)} or {nameof(tag.Id)} is required");
+        if (!IsWorkItemWritable(item.Id))
+            return false;
         var sql = """
                   DELETE FROM work_item_tags WHERE work_id=$1 AND tag_id=$2;
                   """;
@@ -436,11 +458,16 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
     {
         if (item.Id == 0)
             throw new ArgumentNullException(nameof(item.Id));
+        if (!IsWorkItemWritable(item.Id))
+            return false;
         var sql = """
                   DELETE FROM work_item_tags WHERE work_id=$1;
                   """;
         return Execute(sql, ("$1", item.Id)) > 0;
     }
+
+    private bool IsWorkItemWritable(int id)
+        => Exists("SELECT 1 FROM work_items WHERE id=$1 AND is_read_only=FALSE;", ("$1", id));
 
     // $1=work_id
     public override ICollection<WorkTag> GetWorkItemTags(WorkItem item)
@@ -638,12 +665,14 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
     {
         try
         {
-            using var batch = _dataSource!.CreateBatch();
-            batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM work_item_tags;"));
-            batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM work_tags;"));
-            batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM work_notes;"));
-            batch.BatchCommands.Add(new NpgsqlBatchCommand("DELETE FROM work_items;"));
-            batch.ExecuteNonQuery();
+            const string sql = """
+                               DELETE FROM work_item_tags;
+                               DELETE FROM work_tags;
+                               DELETE FROM work_notes;
+                               DELETE FROM work_items;
+                               """;
+            using var cmd = Command(sql);
+            cmd.ExecuteNonQuery();
         }
         catch (Exception)
         {

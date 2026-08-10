@@ -74,7 +74,7 @@
         </Grid>
         <u:Divider DockPanel.Dock="Top" Content="标签列表" HorizontalContentAlignment="Left" />
         <!-- 标签列表 -->
-        <ItemsControl ItemsSource="{Binding WorkTags}" DockPanel.Dock="Top">
+        <ItemsControl ItemsSource="{Binding WorkTags}" DockPanel.Dock="Top" IsEnabled="{Binding !IsLocked}">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                     <WrapPanel ItemSpacing="8" Orientation="Horizontal" />
@@ -145,6 +145,6 @@
         <!-- plm预留 -->
         <u:Divider DockPanel.Dock="Top" Content="备注（仅本地存储）" HorizontalContentAlignment="Left" />
         <TextBox Text="{Binding Note}" AcceptsReturn="True" VerticalAlignment="Stretch"
-                 VerticalContentAlignment="Top" Padding="4" Classes="Bordered"/>
+                 VerticalContentAlignment="Top" Padding="4" Classes="Bordered" IsEnabled="{Binding !IsLocked}"/>
     </DockPanel>
 </UserControl>

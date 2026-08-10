@@ -126,7 +126,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
             SelectedWork = item;
     }
 
-    private bool CanSave => SelectedWork != null;
+    private bool CanSave => SelectedWork is { IsLocked: false };
 
     [RelayCommand]
     private async Task CopyPreviousDay()
@@ -190,8 +190,10 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private async Task DeleteWorkItem()
     {
         var selected = SelectedWork!;
-        var message = selected.IsLocked
-            ? "该记录已经上传到外部系统。删除只会移除本地记录，远程工时不会被删除。确认继续吗？"
+        var message = selected.IsImportedReadOnly
+            ? "该记录是迁移导入的只读统计记录。删除只会移除本地记录，确认继续吗？"
+            : selected.IsLocked
+                ? "该记录已经上传到外部系统。删除只会移除本地记录，远程工时不会被删除。确认继续吗？"
             : "该记录尚未产生远程上传。确认删除这条工作记录吗？此操作不可恢复。";
         if (!await EventDispatcher.Confirm("删除工作记录", message))
             return;
@@ -477,7 +479,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         foreach (var work in DailyWorks)
         {
             sum += work.Time;
-            if (work.IsLocked)
+            if (work.HasUploadedTracker)
                 uploaded += work.Time;
         }
 

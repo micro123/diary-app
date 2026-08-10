@@ -115,6 +115,7 @@ public abstract class DbContractTests
         Assert.AreEqual("干活", item.Comment);
         Assert.AreEqual(0.0, item.Time);
         Assert.AreEqual(WorkPriorities.P0, item.Priority);
+        Assert.IsFalse(item.IsReadOnly);
     }
 
     [TestMethod]
@@ -183,6 +184,33 @@ public abstract class DbContractTests
         var item = db.CreateWorkItem("2026-08-01", "x");
         Assert.IsTrue(db.UpdateWorkItemId(item.Id, 9000));
         Assert.IsTrue(db.GetWorkItemByDate("2026-08-01").Any(i => i.Id == 9000));
+    }
+
+    [TestMethod]
+    public void ReadOnlyWorkItem_RejectsMutationsButAllowsDelete()
+    {
+        using var db = CreateDb();
+        var item = db.CreateWorkItem("2026-08-01", "导入记录");
+        var tag = db.CreateWorkTag("导入标签", true, 0);
+        Assert.IsTrue(db.WorkItemAddTag(item, tag));
+        db.WorkUpdateNote(item, "导入备注");
+
+        Assert.IsTrue(db.MarkWorkItemReadOnly(item));
+        Assert.IsTrue(item.IsReadOnly);
+        var changed = item with { Comment = "不应保存", Time = 4.0 };
+        Assert.IsFalse(db.UpdateWorkItem(changed));
+        Assert.IsFalse(db.UpdateWorkItemId(item.Id, 9001));
+        Assert.ThrowsExactly<InvalidOperationException>(() => db.WorkUpdateNote(item, "不应保存"));
+        Assert.ThrowsExactly<InvalidOperationException>(() => db.WorkDeleteNote(item));
+        Assert.IsFalse(db.WorkItemRemoveTag(item, tag));
+        Assert.IsFalse(db.WorkItemCleanTags(item));
+
+        var reloaded = db.GetWorkItemByDate("2026-08-01").Single();
+        Assert.IsTrue(reloaded.IsReadOnly);
+        Assert.AreEqual("导入记录", reloaded.Comment);
+        Assert.AreEqual("导入备注", db.WorkGetNote(reloaded));
+        Assert.AreEqual(1, db.GetWorkItemTags(reloaded).Count);
+        Assert.IsTrue(db.DeleteWorkItem(reloaded));
     }
 
     [TestMethod]

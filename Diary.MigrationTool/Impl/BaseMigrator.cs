@@ -1,9 +1,6 @@
 using System.Data;
 using Diary.Core.Data.Base;
 using Diary.Database;
-using Diary.PluginBase;
-using Diary.RedMine;
-using Diary.RedMine.Response;
 
 namespace Diary.MigrationTool.Impl;
 
@@ -12,12 +9,7 @@ internal abstract class BaseMigrator : IDisposable, IAsyncDisposable
     protected readonly DbInterfaceBase Db;
     private readonly Action<bool, double, string> _processCallback;
     private readonly IDbConnection _connection;
-    // RedMineApi 无状态，直接实例化（MigrationTool 不走 DI）。
-    protected static readonly IRedMineApi Api = new RedMineApi();
-    private static readonly IReadOnlyList<IPluginMigration> RedMineMigrations =
-        new RedMinePlugin().GetMigrations().ToArray();
-    private IRedMineDb? RedMineDb => Db.GetExtension<IRedMineDb>(
-        RedMinePluginConstants.DefaultInstanceId, RedMineMigrations);
+    private readonly HashSet<int> _importedWorkIds = new();
 
     protected BaseMigrator(DbInterfaceBase db, IDbConnection connection, Action<bool, double, string> processCallback)
     {
@@ -34,7 +26,20 @@ internal abstract class BaseMigrator : IDisposable, IAsyncDisposable
     }
 
     protected abstract string ReadDate(IDataReader reader, int ordinal);
-    protected abstract int ReadColor(IDataReader reader, int ordinal);
+    protected abstract long ReadColorValue(IDataReader reader, int ordinal);
+
+    /// <summary>
+    /// DiaryToolpp 使用 ImGui 的 IM_COL32，将颜色以 AABBGGRR 形式存入数据库；
+    /// Diary Tools NG 的核心模型使用 0xRRGGBB，因此需要在迁移时转换通道顺序。
+    /// </summary>
+    protected static int ConvertLegacyColor(long value)
+    {
+        var packed = unchecked((uint)value);
+        var red = packed & 0xFF;
+        var green = packed & 0xFF00;
+        var blue = (packed >> 16) & 0xFF;
+        return (int)((red << 16) | green | blue);
+    }
 
     protected void Ok(double progress, string message)
     {
@@ -50,60 +55,14 @@ internal abstract class BaseMigrator : IDisposable, IAsyncDisposable
     {
         using var command = CreateCommand("SELECT version_code FROM _version_ ORDER BY version_code DESC LIMIT 1;");
         var result = command.ExecuteScalar();
-        return result != null && (int)result == 0x50000;
-    }
-
-    private bool SyncActivities(double p)
-    {
-        using var command = CreateCommand("SELECT * FROM redmine_activities;");
-        using var reader = command.ExecuteReader();
-        var cnt = 1;
-        while (reader.Read())
-        {
-            Ok(p, $"处理第{cnt++}条活动信息");
-            RedMineDb!.AddRedMineActivity(reader.GetInt32(0), reader.GetString(1));
-        }
-
-        return true;
-    }
-
-    private bool SyncIssues(double p)
-    {
-        using var command = CreateCommand("SELECT issue_id, is_closed FROM redmine_issues;");
-        using var reader = command.ExecuteReader();
-        var cnt = 1;
-        while (reader.Read())
-        {
-            Ok(p, $"处理第{cnt++}条问题记录");
-            var issueId = reader.GetInt32(0);
-            var isClosed = reader.GetInt32(1) != 0;
-            if (Api.GetIssue(out IssueInfo? info, issueId))
-            {
-                var project = info.Project;
-                if (Api.GetProject(out ProjectInfo? projectInfo, project.Id))
-                {
-                    RedMineDb!.AddRedMineProject(projectInfo.Id, projectInfo.Name, projectInfo.Description);
-                    RedMineDb!.AddRedMineIssue(issueId, info.Subject, info.AssignedTo.Name, projectInfo.Id, isClosed);
-                }
-                else
-                {
-                    return false;
-                }
-            }
-            else
-            {
-                return false;
-            }
-        }
-
-        return true;
+        return result != null && Convert.ToInt32(result) == 0x50000;
     }
 
     private bool SyncWorks(double p)
     {
-        using var command = CreateCommand("SELECT * FROM work_items;");
+        using var command = CreateCommand(
+            "SELECT work_id, hour, comment, note, create_date, priority FROM work_items;");
         using var reader = command.ExecuteReader();
-        var dummyId = 1;
         var cnt = 1;
         while (reader.Read())
         {
@@ -111,37 +70,27 @@ internal abstract class BaseMigrator : IDisposable, IAsyncDisposable
             var workId = reader.GetInt32(0);
             var time = reader.GetDouble(1);
             var comment = reader.GetString(2);
-            var note = reader.GetString(3);
+            var note = reader.IsDBNull(3) ? null : reader.GetString(3);
             var date = ReadDate(reader, 4);
-            var actId = reader.IsDBNull(5) ? 0 : reader.GetInt32(5);
-            var issueId = reader.IsDBNull(6) ? 0 : reader.GetInt32(6);
-            var uploaded = reader.GetInt32(7) != 0;
-            var priority = reader.GetInt32(8);
+            var priority = reader.GetInt32(5);
 
             var item = Db.CreateWorkItem(date, comment);
+            item.Time = time;
+            item.Priority = (WorkPriorities)priority;
+            if (!Db.UpdateWorkItem(item))
+                return false;
+
             if (item.Id != workId)
             {
-                item.Priority = (WorkPriorities)priority;
-                item.Time = time;
-                Db.UpdateWorkItem(item);
-                Db.UpdateWorkItemId(item.Id, workId);
+                if (!Db.UpdateWorkItemId(item.Id, workId))
+                    return false;
                 item.Id = workId;
             }
 
             if (!string.IsNullOrWhiteSpace(note))
-            {
                 Db.WorkUpdateNote(item, note);
-            }
 
-            if (actId != 0 && issueId != 0)
-            {
-                var entry = RedMineDb!.CreateWorkTimeEntry(item.Id, actId, issueId);
-                if (entry != null && uploaded)
-                {
-                    entry.EntryId = dummyId++;
-                    RedMineDb!.UpdateWorkTimeEntry(entry);
-                }
-            }
+            _importedWorkIds.Add(item.Id);
         }
 
         return true;
@@ -149,7 +98,8 @@ internal abstract class BaseMigrator : IDisposable, IAsyncDisposable
 
     private bool SyncTags(double p)
     {
-        using var command = CreateCommand("SELECT * FROM tags;");
+        using var command = CreateCommand(
+            "SELECT tag_id, tag_name, tag_color, tag_level, tag_disabled FROM tags;");
         using var reader = command.ExecuteReader();
         var cnt = 1;
         while (reader.Read())
@@ -157,17 +107,20 @@ internal abstract class BaseMigrator : IDisposable, IAsyncDisposable
             Ok(p, $"处理第{cnt++}个标签");
             var tagId = reader.GetInt32(0);
             var disabled = reader.GetInt32(4) != 0;
-            var tag = Db.CreateWorkTag(reader.GetString(1), reader.GetInt32(3) == 0, ReadColor(reader, 2));
+            var tag = Db.CreateWorkTag(reader.GetString(1), reader.GetInt32(3) == 0,
+                ConvertLegacyColor(ReadColorValue(reader, 2)));
+            if (tag.Id == 0)
+                return false;
+
             if (disabled)
             {
                 tag.Disabled = true;
-                Db.UpdateWorkTag(tag);
+                if (!Db.UpdateWorkTag(tag))
+                    return false;
             }
 
-            if (tag.Id != tagId)
-            {
-                Db.UpdateWorkTagId(tag.Id, tagId);
-            }
+            if (tag.Id != tagId && !Db.UpdateWorkTagId(tag.Id, tagId))
+                return false;
         }
 
         return true;
@@ -175,13 +128,26 @@ internal abstract class BaseMigrator : IDisposable, IAsyncDisposable
 
     private bool SyncWorkTags(double p)
     {
-        using var command = CreateCommand("SELECT * FROM work_item_tags;");
+        using var command = CreateCommand("SELECT work_id, tag_id FROM work_item_tags;");
         using var reader = command.ExecuteReader();
         var cnt = 1;
         while (reader.Read())
         {
             Ok(p, $"处理第{cnt++}条标签组");
-            Db.WorkItemAddTag(new WorkItem() { Id = reader.GetInt32(0) }, new WorkTag() { Id = reader.GetInt32(1) });
+            if (!Db.WorkItemAddTag(new WorkItem { Id = reader.GetInt32(0) },
+                    new WorkTag { Id = reader.GetInt32(1) }))
+                return false;
+        }
+
+        return true;
+    }
+
+    private bool MarkImportedWorksReadOnly()
+    {
+        foreach (var workId in _importedWorkIds)
+        {
+            if (!Db.MarkWorkItemReadOnly(new WorkItem { Id = workId }))
+                return false;
         }
 
         return true;
@@ -196,8 +162,7 @@ internal abstract class BaseMigrator : IDisposable, IAsyncDisposable
             return false;
         }
 
-        Ok(0.05, "数据版本校验通过，准备导入数据。");
-
+        Ok(0.05, "数据版本校验通过，准备导入统计数据。");
         if (!Db.DropData())
         {
             Fail("清空当前数据失败");
@@ -205,43 +170,35 @@ internal abstract class BaseMigrator : IDisposable, IAsyncDisposable
         }
 
         Ok(0.1, "数据已清空");
-
-        Ok(0.15, "正在导入活动列表");
-        if (!SyncActivities(0.15))
-        {
-            Fail("活动导入失败");
-            return false;
-        }
-
-        Ok(0.3, "正在导入问题列表");
-        if (!SyncIssues(0.3))
-        {
-            Fail("导入问题失败");
-            return false;
-        }
-
-        Ok(0.5, "正在导入标签");
-        if (!SyncTags(0.5))
+        Ok(0.2, "正在导入标签");
+        if (!SyncTags(0.2))
         {
             Fail("导入标签失败");
             return false;
         }
 
-        Ok(0.7, "正在导入事件");
-        if (!SyncWorks(0.7))
+        Ok(0.5, "正在导入工作记录");
+        if (!SyncWorks(0.5))
         {
-            Fail("导入事件失败");
+            Fail("导入工作记录失败");
             return false;
         }
 
-        Ok(0.9, "正在导入事件标签");
-        if (!SyncWorkTags(0.9))
+        Ok(0.75, "正在导入工作记录标签");
+        if (!SyncWorkTags(0.75))
         {
-            Fail("导入事件标签失败");
+            Fail("导入工作记录标签失败");
             return false;
         }
 
-        Ok(1.0, "迁移完成");
+        Ok(0.9, "正在标记迁移记录为只读");
+        if (!MarkImportedWorksReadOnly())
+        {
+            Fail("标记迁移记录为只读失败");
+            return false;
+        }
+
+        Ok(1.0, "迁移完成，记录可用于统计且不可编辑");
         return true;
     }
 
@@ -253,12 +210,8 @@ internal abstract class BaseMigrator : IDisposable, IAsyncDisposable
     public virtual async ValueTask DisposeAsync()
     {
         if (_connection is IAsyncDisposable asyncDisposable)
-        {
             await asyncDisposable.DisposeAsync();
-        }
         else
-        {
             _connection.Dispose();
-        }
     }
 }

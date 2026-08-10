@@ -12,6 +12,7 @@
     <PackageReference Include="MSTest" Version="4.3.3" />
     <PackageReference Include="Avalonia.Headless" Version="11.3.18" />
     <PackageReference Include="Testcontainers.PostgreSql" Version="4.13.0" />
+    <PackageReference Include="System.Data.SQLite" Version="2.0.3" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
@@ -24,6 +25,7 @@
     <ProjectReference Include="..\Diary.RedMine\Diary.RedMine.csproj" />
     <ProjectReference Include="..\Diary.Jira\Diary.Jira.csproj" />
     <ProjectReference Include="..\Diary.Jira.SQLite\Diary.Jira.SQLite.csproj" />
+    <ProjectReference Include="..\Diary.MigrationTool\Diary.MigrationTool.csproj" />
     <ProjectReference Include="..\Diary.App\Diary.App.csproj" />
   </ItemGroup>
 </Project>

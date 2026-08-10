@@ -26,6 +26,6 @@ internal sealed class SqliteMigrator : BaseMigrator
     protected override string ReadDate(IDataReader reader, int ordinal) =>
         reader.GetString(ordinal);
 
-    protected override int ReadColor(IDataReader reader, int ordinal) =>
-        reader.GetInt32(ordinal);
+    protected override long ReadColorValue(IDataReader reader, int ordinal) =>
+        Convert.ToInt64(reader.GetValue(ordinal));
 }

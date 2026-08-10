@@ -33,8 +33,8 @@ internal sealed class PgMigrator : BaseMigrator
     protected override string ReadDate(IDataReader reader, int ordinal) =>
         TimeTools.FormatDateTime(reader.GetDateTime(ordinal));
 
-    protected override int ReadColor(IDataReader reader, int ordinal) =>
-        (int)(reader.GetInt64(ordinal) & 0x00FFFFFF);
+    protected override long ReadColorValue(IDataReader reader, int ordinal) =>
+        Convert.ToInt64(reader.GetValue(ordinal));
 
     public override void Dispose()
     {

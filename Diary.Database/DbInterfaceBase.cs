@@ -107,6 +107,7 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
     public abstract ICollection<WorkItem> GetWorkItemByDate(string data);
     public abstract ICollection<WorkItem> QueryWorkItems(WorkItemQuery query);
     public abstract bool UpdateWorkItemId(int oldId, int newId);
+    public abstract bool MarkWorkItemReadOnly(WorkItem item);
 
     // work note
     public abstract void WorkUpdateNote(WorkItem work, string content);
@@ -369,6 +370,7 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
         Comment = ReadString(r, 2),
         Time = r.GetFloat(3),
         Priority = (WorkPriorities)r.GetInt32(4),
+        IsReadOnly = Convert.ToBoolean(r.GetValue(5)),
     };
 
     #endregion

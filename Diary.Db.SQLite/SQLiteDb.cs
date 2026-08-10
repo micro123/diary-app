@@ -20,6 +20,8 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
     {
         var cmd = _connection!.CreateCommand();
         cmd.CommandText = sql;
+        if (_transaction != null)
+            cmd.Transaction = _transaction;
         return cmd;
     }
 
@@ -71,8 +73,9 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
                                     		id INTEGER PRIMARY KEY AUTOINCREMENT,
                                     		create_date CHAR(16) NOT NULL,
                                     		comment CHAR(256) NOT NULL,
-                                    		hours REAL DEFAULT 0.0,
-                                    		priority INTEGER DEFAULT 0
+                                    hours REAL DEFAULT 0.0,
+                                    priority INTEGER DEFAULT 0,
+                                    is_read_only INTEGER NOT NULL DEFAULT 0
                                     	);
 
                                     CREATE TABLE IF NOT EXISTS
@@ -110,6 +113,19 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = tableInitCmd;
             cmd.ExecuteNonQuery();
+
+            using var columnCheck = _connection.CreateCommand();
+            columnCheck.Transaction = transaction;
+            columnCheck.CommandText = "SELECT COUNT(*) FROM pragma_table_info('work_items') WHERE name='is_read_only';";
+            var hasReadOnlyColumn = Convert.ToInt32(columnCheck.ExecuteScalar()) > 0;
+            if (!hasReadOnlyColumn)
+            {
+                using var addColumn = _connection.CreateCommand();
+                addColumn.Transaction = transaction;
+                addColumn.CommandText = "ALTER TABLE work_items ADD COLUMN is_read_only INTEGER NOT NULL DEFAULT 0;";
+                addColumn.ExecuteNonQuery();
+            }
+
             transaction.Commit();
         }
         catch (SQLiteException)
@@ -191,7 +207,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
         if (item.Id == 0)
             return false;
         const string sql =
-            @"UPDATE work_items SET create_date=$create_date, comment=$comment, hours=$time, priority=$priority WHERE id=$id;";
+            @"UPDATE work_items SET create_date=$create_date, comment=$comment, hours=$time, priority=$priority WHERE id=$id AND is_read_only=0;";
         return Execute(sql,
             ("$create_date", item.CreateDate), ("$comment", item.Comment),
             ("$time", item.Time), ("$priority", (int)item.Priority), ("$id", item.Id)) > 0;
@@ -223,14 +239,27 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
 
     public override bool UpdateWorkItemId(int oldId, int newId)
     {
-        const string sql = "UPDATE work_items SET id=$new WHERE id=$old;";
+        const string sql = "UPDATE work_items SET id=$new WHERE id=$old AND is_read_only=0;";
         return Execute(sql, ("$old", oldId), ("$new", newId)) > 0;
+    }
+
+    public override bool MarkWorkItemReadOnly(WorkItem item)
+    {
+        if (item.Id == 0)
+            return false;
+        const string sql = "UPDATE work_items SET is_read_only=1 WHERE id=$id;";
+        var updated = Execute(sql, ("$id", item.Id)) > 0;
+        if (updated)
+            item.IsReadOnly = true;
+        return updated;
     }
 
     public override void WorkUpdateNote(WorkItem work, string content)
     {
         if (work.Id == 0)
             throw new ArgumentException("work id is required");
+        if (!IsWorkItemWritable(work.Id))
+            throw new InvalidOperationException("只读工作项不可修改备注");
         const string sql =
             @"INSERT INTO work_notes(id, note) VALUES ($id, $note) ON CONFLICT (id) DO UPDATE SET note=$note RETURNING *;";
         Execute(sql, ("$id", work.Id), ("$note", content));
@@ -238,6 +267,10 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
 
     public override void WorkDeleteNote(WorkItem work)
     {
+        if (work.Id == 0)
+            throw new ArgumentException("work id is required");
+        if (!IsWorkItemWritable(work.Id))
+            throw new InvalidOperationException("只读工作项不可删除备注");
         const string sql = @"DELETE FROM work_notes WHERE id=$id;";
         Execute(sql, ("$id", work.Id));
     }
@@ -359,6 +392,8 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
 
     public override bool WorkItemAddTag(WorkItem item, WorkTag tag)
     {
+        if (!IsWorkItemWritable(item.Id))
+            return false;
         const string sql = @"INSERT INTO work_item_tags VALUES($work_id, $tag_id) RETURNING *;";
         try
         {
@@ -372,15 +407,22 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
 
     public override bool WorkItemRemoveTag(WorkItem item, WorkTag tag)
     {
+        if (!IsWorkItemWritable(item.Id))
+            return false;
         const string sql = @"DELETE from work_item_tags WHERE work_id=$work_id and tag_id=$tag_id;";
         return Execute(sql, ("$work_id", item.Id), ("$tag_id", tag.Id)) > 0;
     }
 
     public override bool WorkItemCleanTags(WorkItem item)
     {
+        if (!IsWorkItemWritable(item.Id))
+            return false;
         const string sql = @"DELETE from work_item_tags WHERE work_id=$work_id;";
         return Execute(sql, ("$work_id", item.Id)) > 0;
     }
+
+    private bool IsWorkItemWritable(int id)
+        => Exists("SELECT 1 FROM work_items WHERE id=$id AND is_read_only=0;", ("$id", id));
 
     public override ICollection<WorkTag> GetWorkItemTags(WorkItem item)
     {
@@ -582,7 +624,8 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
 
     public override bool DropData()
     {
-        using var transaction = _connection!.BeginTransaction();
+        var ownTransaction = _transaction is null;
+        using var transaction = ownTransaction ? _connection!.BeginTransaction() : null;
         try
         {
             var sql = """
@@ -591,14 +634,17 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
                       DELETE FROM work_notes;
                       DELETE FROM work_items;
                       """;
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText = sql;
+            using var cmd = CreateCommand(sql);
+            if (transaction != null)
+                cmd.Transaction = transaction;
             cmd.ExecuteNonQuery();
-            transaction.Commit();
+            if (ownTransaction)
+                transaction!.Commit();
         }
         catch (Exception)
         {
-            transaction.Rollback();
+            if (ownTransaction)
+                transaction?.Rollback();
             return false;
         }
 

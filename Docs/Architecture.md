@@ -7,7 +7,7 @@
 
 - App：主程序和程序工具放这下面
   - Diary.App：主程序，程序主要逻辑都在这，可能需要优化/重构
-  - Diary.MigrationTool：数据库迁移工具，从老的`Diary Tool C++`迁移
+  - Diary.MigrationTool：从老的 Diary Tool C++ 导入统计数据；不迁移 Tracker 信息，导入工作项持久化为只读
 - Diary.Survey：调查功能的基础实现；每个用户可配置为调查者或受访者，调查者监听固定端口 9721 并展示调查页，受访者填写调查者 IP 后仅响应调查
 - Core：核心数据结构定义
   - Diary.Core：定义主要数据结构和程序配置，也带有一些数据工具

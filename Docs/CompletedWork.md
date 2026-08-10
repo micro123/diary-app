@@ -18,6 +18,8 @@
 
 ## 本轮已完成
 
+- [x] 审阅 `DiaryToolpp` SQLite/PostgreSQL 5.0.0 数据结构；迁移仅导入统计所需核心数据，不创建 Tracker 信息，并将导入工作项持久化为只读，同时补充事务、字段、颜色和只读约束回归测试
+
 - [x] 旧 SQLite schema 缺少 `instance_id` 但版本号为 2 的恢复测试
 - [x] Redmine 初始化幂等测试
 - [x] Redmine 插件 ID 和默认实例 ID 常量化

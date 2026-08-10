@@ -7,4 +7,5 @@ public record WorkItem
     public string Comment { get; set; } = string.Empty;
     public double Time { get; set; } = 0.0;
     public WorkPriorities Priority { get; set; } = WorkPriorities.P0;
+    public bool IsReadOnly { get; set; }
 }

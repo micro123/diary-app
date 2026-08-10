@@ -31,6 +31,9 @@ public sealed class WorkItemPersistenceCoordinator : IWorkItemPersistenceCoordin
 {
     public WorkItemSaveResult Save(DbInterfaceBase db, WorkItemSaveRequest request)
     {
+        if (request.Existing?.IsReadOnly == true)
+            return new WorkItemSaveResult(false, false, Error: "迁移导入的工作项是只读统计记录，不可编辑");
+
         if (!db.BeginTransaction())
             return new WorkItemSaveResult(false, false, Error: "无法开启数据库事务");
 

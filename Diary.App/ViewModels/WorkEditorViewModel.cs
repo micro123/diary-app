@@ -61,7 +61,11 @@ public partial class WorkEditorViewModel : ViewModelBase
     [ObservableProperty] private ObservableCollection<WorkTag> _workTags = new();
     [ObservableProperty] private ObservableCollection<WorkTag> _availableTags = new();
 
-    public bool HasAvailableTags => AvailableTags.Count > 0;
+    public bool HasAvailableTags => !IsLocked && AvailableTags.Count > 0;
+
+    public bool IsImportedReadOnly => WorkItem?.IsReadOnly == true;
+
+    public bool HasUploadedTracker => Extensions.Any(extension => extension.IsLocked);
 
     /// <summary>是否锁住 generic 编辑字段（任一 tracker 区已上传到远程即锁定）。</summary>
     [ObservableProperty] private bool _isLocked;
@@ -85,7 +89,9 @@ public partial class WorkEditorViewModel : ViewModelBase
         }
     }
 
-    public string UploadStatusText => WorkItemUploadStatusResolver.GetDisplayText(UploadStatus);
+    public string UploadStatusText => IsImportedReadOnly
+        ? "迁移记录（只读）"
+        : WorkItemUploadStatusResolver.GetDisplayText(UploadStatus);
 
     public string StatusSummary => $"{LocalSaveStatusText} · {UploadStatusText}";
 
@@ -357,7 +363,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     }
 
     public bool CanUpload()
-        => Extensions.Any(extension => !extension.IsLocked);
+        => !IsImportedReadOnly && Extensions.Any(extension => !extension.IsLocked);
 
     public void SetRecentTagIds(IEnumerable<int> tagIds)
     {
@@ -386,6 +392,8 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     public void AddTags(IEnumerable<WorkTag> tags, TagAddSource source)
     {
+        if (IsLocked)
+            return;
         var sequence = 0;
         foreach (var tag in tags)
         {
@@ -423,6 +431,8 @@ public partial class WorkEditorViewModel : ViewModelBase
     [RelayCommand]
     private void DelTag(WorkTag tag)
     {
+        if (IsLocked)
+            return;
         _syncing_tags = true;
         if (WorkItem is { Id: > 0 })
         {
@@ -469,6 +479,8 @@ public partial class WorkEditorViewModel : ViewModelBase
             }
         }
         OnPropertyChanged(nameof(HasAvailableTags));
+        OnPropertyChanged(nameof(IsImportedReadOnly));
+        OnPropertyChanged(nameof(HasUploadedTracker));
     }
 
     private IEnumerable<WorkTag> OrderByRecent(IEnumerable<WorkTag> tags)
@@ -498,7 +510,7 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     private void RecomputeIsLocked()
     {
-        IsLocked = Extensions.Any(e => e.IsLocked);
+        IsLocked = IsImportedReadOnly || Extensions.Any(e => e.IsLocked);
         NotifyStatusChanged();
     }
 
@@ -508,5 +520,6 @@ public partial class WorkEditorViewModel : ViewModelBase
         OnPropertyChanged(nameof(UploadStatus));
         OnPropertyChanged(nameof(UploadStatusText));
         OnPropertyChanged(nameof(StatusSummary));
+        OnPropertyChanged(nameof(HasAvailableTags));
     }
 }
