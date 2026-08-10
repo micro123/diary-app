@@ -9,11 +9,15 @@
              x:DataType="dialogs:TrackerPluginDiagnosticsViewModel"
              MinWidth="620" MinHeight="420" Padding="24">
     <Grid RowDefinitions="Auto,*" RowSpacing="16">
-        <StackPanel Spacing="4">
-            <TextBlock Text="Tracker 插件状态" FontSize="22" FontWeight="SemiBold" />
-            <TextBlock Text="查看实例运行状态，管理启用、重试和卸载操作。"
-                       Opacity="0.65" />
-        </StackPanel>
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+            <StackPanel Spacing="4">
+                <TextBlock Text="Tracker 插件状态" FontSize="22" FontWeight="SemiBold" />
+                <TextBlock Text="查看实例运行状态，管理启用、重试和卸载操作。"
+                           Opacity="0.65" />
+            </StackPanel>
+            <Button Grid.Column="1" Content="导出诊断日志" Command="{Binding ExportDiagnosticsCommand}"
+                    VerticalAlignment="Center" />
+        </Grid>
         <Grid Grid.Row="1">
             <TextBlock Text="当前没有已注册的 Tracker 实例。"
                        HorizontalAlignment="Center" VerticalAlignment="Center"

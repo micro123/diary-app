@@ -32,9 +32,20 @@
     </UserControl.Styles>
 
     <Panel>
-        <TextBlock Text="数据库连接出错，需要检查设置" HorizontalAlignment="Center" VerticalAlignment="Center"
-                   FontSize="64"
-                   IsVisible="{Binding !DatabaseOk, Source={x:Static app:App.Instance}}" />
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14"
+                    MaxWidth="560"
+                    IsVisible="{Binding !DatabaseOk, Source={x:Static app:App.Instance}}">
+            <TextBlock Text="数据库连接不可用" HorizontalAlignment="Center" FontSize="28" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding DatabaseStatusMessage, Source={x:Static app:App.Instance}}"
+                       HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" />
+            <TextBlock Text="本地记录不会因为连接失败被删除。恢复连接后即可继续查看和编辑。"
+                       HorizontalAlignment="Center" Opacity="0.7" TextWrapping="Wrap" TextAlignment="Center" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+                <Button Content="重试连接" Command="{Binding RetryDatabaseConnectionCommand}" Classes="Primary" />
+                <Button Content="打开数据库设置" Command="{Binding OpenDatabaseSettingsCommand}" />
+                <Button Content="导出诊断日志" Command="{Binding ExportDiagnosticsCommand}" />
+            </StackPanel>
+        </StackPanel>
         <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="4"
               IsVisible="{Binding DatabaseOk, Source={x:Static app:App.Instance}}">
             <!-- 左侧是日期和项目列表展示 -->

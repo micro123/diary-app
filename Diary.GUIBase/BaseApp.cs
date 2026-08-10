@@ -39,6 +39,11 @@ public abstract class BaseApp : Application
     public abstract bool DatabaseOk { get; protected set; }
 
     /// <summary>
+    /// 当前数据库连接失败时供界面展示的可操作状态说明。
+    /// </summary>
+    public abstract string DatabaseStatusMessage { get; protected set; }
+
+    /// <summary>
     /// 获取 DI 容器
     /// </summary>
     public abstract IServiceProvider Services { get; protected set; }

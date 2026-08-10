@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
 using Diary.PluginBase;
@@ -12,17 +13,30 @@ namespace Diary.App.ViewModels.Dialogs;
 public partial class TrackerPluginDiagnosticsViewModel : ViewModelBase
 {
     private readonly TrackerPluginDiagnosticsService _diagnostics;
+    private readonly DiagnosticLogExportService _logExport;
 
     [ObservableProperty]
     private ObservableCollection<TrackerPluginDiagnosticViewModel> _entries = new();
 
-    public TrackerPluginDiagnosticsViewModel(TrackerPluginDiagnosticsService diagnostics)
+    public TrackerPluginDiagnosticsViewModel(
+        TrackerPluginDiagnosticsService diagnostics,
+        DiagnosticLogExportService logExport)
     {
         _diagnostics = diagnostics;
+        _logExport = logExport;
         Refresh();
     }
 
     public bool IsEmpty => Entries.Count == 0;
+
+    [RelayCommand]
+    private void ExportDiagnostics()
+    {
+        var path = _logExport.Export();
+        NotificationManager?.Show(
+            path is null ? "暂无可导出的诊断日志" : $"诊断日志已导出：{Path.GetFileName(path)}",
+            path is null ? NotificationType.Warning : NotificationType.Success);
+    }
 
     private void Refresh()
     {

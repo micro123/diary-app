@@ -154,6 +154,28 @@ namespace Diary.App
             return true;
         }
 
+        /// <summary>
+        /// 重新尝试连接当前数据库配置，并在成功后恢复 Tracker 实例注册。
+        /// </summary>
+        public bool TryReconnectDatabase(out string message)
+        {
+            try
+            {
+                var success = ConfigureCheck(out message);
+                DatabaseStatusMessage = success ? string.Empty : message;
+                if (success)
+                    RegisterTrackerInstances();
+                return success;
+            }
+            catch (Exception ex)
+            {
+                message = "数据库打开异常，请检查配置或导出诊断日志。";
+                DatabaseStatusMessage = message;
+                Logger.LogError(ex, "重新连接数据库失败");
+                return false;
+            }
+        }
+
         private bool TryConnectDatabase(out string message, out DbInterfaceBase? database)
         {
             database = null;
@@ -596,6 +618,7 @@ namespace Diary.App
                 message = "数据库打开异常";
                 Logger.LogError(ex, "ConfigureCheck 抛出未处理异常");
             }
+            DatabaseStatusMessage = success ? string.Empty : message;
 
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
@@ -623,10 +646,12 @@ namespace Diary.App
                     }
                     if (!ConfigureCheck(out var msg))
                     {
+                        DatabaseStatusMessage = msg;
                         EventDispatcher.RouteToPage(PageNames.Settings);
                         EventDispatcher.Notify("错误", msg);
                         return;
                     }
+                    DatabaseStatusMessage = string.Empty;
                     RegisterTrackerInstances();
                     SurveyEnabled = AppConfig.SurveySettings.Enabled;
                 });
@@ -795,6 +820,15 @@ namespace Diary.App
         {
             get => GetValue(DatabaseOkProperty);
             protected set => SetValue(DatabaseOkProperty, value);
+        }
+
+        private static readonly DirectProperty<App, string> DatabaseStatusMessageProperty =
+            AvaloniaProperty.RegisterDirect<App, string>(nameof(DatabaseStatusMessage), app => app.DatabaseStatusMessage);
+        private string _databaseStatusMessage = "数据库尚未连接，请检查数据库设置。";
+        public override string DatabaseStatusMessage
+        {
+            get => _databaseStatusMessage;
+            protected set => SetAndRaise(DatabaseStatusMessageProperty, ref _databaseStatusMessage, value);
         }
 
         private static readonly StyledProperty<bool> SurveyEnabledProperty = AvaloniaProperty.Register<App, bool>(nameof(SurveyEnabled), false);

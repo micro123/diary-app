@@ -181,6 +181,36 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     private bool CanUpload => SelectedWork?.CanUpload() == true;
 
+    [RelayCommand]
+    private void RetryDatabaseConnection()
+    {
+        var app = (App)App.Instance;
+        if (app.TryReconnectDatabase(out var message))
+        {
+            FetchWorks();
+            UpdateTimeInfos();
+            EventDispatcher.ShowToast("数据库已恢复连接");
+            return;
+        }
+
+        EventDispatcher.Notify(
+            "数据库仍不可用",
+            $"{message}\n\n本地记录不会因连接失败被删除。请检查数据库设置，或导出诊断日志后再联系维护者。\n\n可恢复操作：重试连接、打开数据库设置、导出诊断日志。");
+    }
+
+    [RelayCommand]
+    private void OpenDatabaseSettings()
+        => EventDispatcher.RunCommand(CommandNames.ShowDbSettings);
+
+    [RelayCommand]
+    private void ExportDiagnostics()
+    {
+        var path = _serviceProvider.GetRequiredService<DiagnosticLogExportService>().Export();
+        EventDispatcher.Notify(
+            path is null ? "暂无诊断日志" : "诊断日志已导出",
+            path is null ? "当前没有可导出的应用日志。" : path);
+    }
+
     [RelayCommand(CanExecute = nameof(CanUploadAll))]
     private async Task UploadAll()
     {
