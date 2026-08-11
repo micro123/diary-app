@@ -6,6 +6,7 @@ namespace Diary.Survey;
 public static class ExtendedSurveyProtocol
 {
     public const int Version = 2;
+    public const string CapabilitiesKind = "capabilities";
     public const string CustomStatisticsKind = "custom_statistics";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -19,7 +20,8 @@ public static class ExtendedSurveyProtocol
         try
         {
             request = JsonSerializer.Deserialize<ExtendedSurveyRequest>(content, JsonOptions);
-            return request is { Version: Version, Kind: CustomStatisticsKind }
+            return request is { Version: Version }
+                && request.Kind is CapabilitiesKind or CustomStatisticsKind
                 && !string.IsNullOrWhiteSpace(request.RequestId);
         }
         catch (JsonException)
@@ -48,6 +50,26 @@ public static class ExtendedSurveyProtocol
             Ok = false,
             Error = error,
         }, JsonOptions);
+
+    public static string SerializeCapabilitiesRequest(string requestId)
+        => SerializeRequest(new ExtendedSurveyRequest
+        {
+            RequestId = requestId,
+            Kind = CapabilitiesKind,
+        });
+
+    public static string SerializeCapabilitiesSuccess(
+        string requestId,
+        string hostname,
+        string username)
+        => SerializeSuccess(requestId, JsonSerializer.Serialize(new ExtendedSurveyCapabilities
+        {
+            Hostname = hostname,
+            Username = username,
+            Kinds = [CapabilitiesKind, CustomStatisticsKind],
+            GroupDimensions = ["tag"],
+            SupportsDetails = false,
+        }, JsonOptions));
 }
 
 public sealed class ExtendedSurveyRequest
@@ -78,6 +100,27 @@ public sealed class ExtendedSurveyRequest
 
     [JsonPropertyName("priority")]
     public int? Priority { get; set; }
+}
+
+public sealed class ExtendedSurveyCapabilities
+{
+    [JsonPropertyName("kind")]
+    public string Kind { get; set; } = ExtendedSurveyProtocol.CapabilitiesKind;
+
+    [JsonPropertyName("hostname")]
+    public string Hostname { get; set; } = string.Empty;
+
+    [JsonPropertyName("username")]
+    public string Username { get; set; } = string.Empty;
+
+    [JsonPropertyName("kinds")]
+    public string[] Kinds { get; set; } = Array.Empty<string>();
+
+    [JsonPropertyName("group_dimensions")]
+    public string[] GroupDimensions { get; set; } = Array.Empty<string>();
+
+    [JsonPropertyName("supports_details")]
+    public bool SupportsDetails { get; set; }
 }
 
 public sealed class ExtendedSurveyResponse

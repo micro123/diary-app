@@ -111,6 +111,28 @@ public sealed partial class SurveyResult
     }
 }
 
+public sealed class SurveyCapabilityResult
+{
+    public SurveyCapabilityResult(ExtendedSurveyCapabilities capabilities)
+    {
+        Hostname = capabilities.Hostname;
+        Username = capabilities.Username;
+        Kinds = capabilities.Kinds;
+        GroupDimensions = capabilities.GroupDimensions;
+        SupportsDetails = capabilities.SupportsDetails;
+    }
+
+    public string Hostname { get; }
+    public string Username { get; }
+    public string NodeName => $"{Username}@{Hostname}";
+    public IReadOnlyList<string> Kinds { get; }
+    public IReadOnlyList<string> GroupDimensions { get; }
+    public bool SupportsDetails { get; }
+    public string KindsText => string.Join("、", Kinds);
+    public string GroupDimensionsText => string.Join("、", GroupDimensions);
+    public string DetailsText => SupportsDetails ? "支持明细" : "仅支持汇总";
+}
+
 [DiAutoRegister(singleton: true)]
 public partial class SurveyViewModel : ViewModelBase
 {
@@ -127,6 +149,8 @@ public partial class SurveyViewModel : ViewModelBase
     [ObservableProperty] private int _extendedTagFilterIndex;
     [ObservableProperty] private int _extendedPriorityIndex;
     [ObservableProperty] private string _queryMode = "兼容查询：支持旧版和新版调查节点";
+    [ObservableProperty] private ObservableCollection<SurveyCapabilityResult> _peerCapabilities = new();
+    [ObservableProperty] private string _capabilityStatus = "尚未探测新版节点能力";
     private object _lock = new();
 
     public IReadOnlyList<string> ExtendedTagFilters { get; } = ["忽略标签", "任意标签", "全部标签", "无标签", "精确匹配"];
@@ -178,6 +202,26 @@ public partial class SurveyViewModel : ViewModelBase
                 _logger.LogWarning("扩展调查失败：{Error}", response?.Error ?? "响应无效");
                 return;
             }
+
+            if (response.Data.Value.TryGetProperty("kind", out var kind)
+                && kind.GetString() == ExtendedSurveyProtocol.CapabilitiesKind)
+            {
+                var capabilities = response.Data.Value.Deserialize<ExtendedSurveyCapabilities>();
+                if (capabilities is null || string.IsNullOrWhiteSpace(capabilities.Hostname))
+                    return;
+
+                var result = new SurveyCapabilityResult(capabilities);
+                var existing = PeerCapabilities
+                    .Select((value, index) => (value, index))
+                    .FirstOrDefault(item => item.value.NodeName == result.NodeName);
+                if (existing.value is not null)
+                    PeerCapabilities[existing.index] = result;
+                else
+                    PeerCapabilities.Add(result);
+                CapabilityStatus = $"已发现 {PeerCapabilities.Count} 个新版节点";
+                return;
+            }
+
             StoreData(response.Data.Value.Deserialize<RespondData>());
         }
         catch (JsonException exception)
@@ -292,6 +336,16 @@ public partial class SurveyViewModel : ViewModelBase
             return;
         }
 
+        if (request.Kind == ExtendedSurveyProtocol.CapabilitiesKind)
+        {
+            EventDispatcher.Msg(new ExtendedSurveyResultEvent(
+                ExtendedSurveyProtocol.SerializeCapabilitiesSuccess(
+                    request.RequestId,
+                    SysInfo.GetHostname(),
+                    SysInfo.GetUsername())));
+            return;
+        }
+
         Task.Run(() =>
         {
             try
@@ -364,6 +418,19 @@ public partial class SurveyViewModel : ViewModelBase
         || !string.IsNullOrWhiteSpace(ExtendedTagNames)
         || ExtendedTagFilterIndex != 0
         || ExtendedPriorityIndex != 0;
+
+    [RelayCommand]
+    private async Task DiscoverCapabilities()
+    {
+        PeerCapabilities.Clear();
+        CapabilityStatus = "正在探测新版节点能力...";
+        EventDispatcher.Msg(new ExtendedSurveyQueryEvent(
+            ExtendedSurveyProtocol.SerializeCapabilitiesRequest(Guid.NewGuid().ToString("N"))));
+
+        await Task.Delay(1500);
+        if (PeerCapabilities.Count == 0 && CapabilityStatus == "正在探测新版节点能力...")
+            CapabilityStatus = "未发现支持 v2 的节点";
+    }
 
     [RelayCommand]
     private void ReCalc()
