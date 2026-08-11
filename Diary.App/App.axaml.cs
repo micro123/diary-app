@@ -79,7 +79,7 @@ namespace Diary.App
             Services.GetRequiredService<TrackerPluginDiagnosticsService>().SetPluginStates(
                 _pluginLoadDiagnostics.Values);
 
-            _ = LoadScriptsAsync();
+            ObserveBackgroundTask(LoadScriptsAsync(), "脚本目录加载");
             AvaloniaXamlLoader.Load(this);
             DataContext = Services.GetRequiredService<AppModel>();
 

@@ -196,7 +196,7 @@ public partial class ScriptManagementViewModel(
             scriptLogStore.Changed += OnScriptLogsChanged;
         }
         RefreshScriptLogs();
-        _ = LoadAsync();
+        ObserveBackgroundTask(LoadAsync(), "脚本管理加载");
     }
 
     private void OnScriptLogsChanged(object? sender, EventArgs e) => RefreshScriptLogs();
@@ -461,13 +461,23 @@ public partial class ScriptManagementViewModel(
         window.Closed += (_, _) => viewModel.Saved -= OnScriptEditorSaved;
         var owner = TopLevel.GetTopLevel(View) as Window;
         if (owner is not null)
-            _ = window.ShowDialog(owner);
+            ObserveBackgroundTask(window.ShowDialog(owner), "打开脚本编辑器");
         else
             window.Show();
         Status = $"已打开脚本编辑器：{Path.GetFileName(sourcePath)}";
     }
 
-    private void OnScriptEditorSaved(object? sender, EventArgs e) => _ = ReloadAsync(forceReload: true);
+    private void OnScriptEditorSaved(object? sender, EventArgs e) =>
+        ObserveBackgroundTask(ReloadAsync(forceReload: true), "脚本目录刷新");
+
+    private void ObserveBackgroundTask(Task task, string operation)
+    {
+        _ = task.ContinueWith(
+            completedTask => logger.LogError(completedTask.Exception, "{Operation}失败", operation),
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+    }
 
     [RelayCommand]
     private void OpenScript(ScriptListItem? script)
