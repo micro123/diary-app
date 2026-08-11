@@ -65,115 +65,141 @@
             </TabControl.ItemTemplate>
             <TabControl.ContentTemplate>
                 <DataTemplate DataType="models:StatisticsTabData">
-                    <DockPanel VerticalSpacing="4" HorizontalSpacing="4">
-                        <!-- 日期显示 -->
-                        <StackPanel Orientation="Horizontal" Spacing="4" DockPanel.Dock="Top">
-                            <TextBlock Text="从" VerticalAlignment="Center" />
-                            <CalendarDatePicker SelectedDate="{Binding DateBegin}"
-                                                VerticalAlignment="Center" IsEnabled="{Binding IsCustom}" />
-                            <TextBlock Text="至" VerticalAlignment="Center" />
-                            <CalendarDatePicker SelectedDate="{Binding DateEnd}"
-                                                VerticalAlignment="Center" IsEnabled="{Binding IsCustom}" />
-                            <views:QuickDateSelectButton IsVisible="{Binding IsCustom}" />
-                            <Button Classes="Primary" Theme="{DynamicResource BorderlessButton}"
-                                    Command="{Binding RefreshCommand}">
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <i:Icon Value="fa-rotate" FontSize="16" />
-                                    <TextBlock Text="重新统计" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                        </StackPanel>
-                        <!-- 自定义工时 -->
-                        <StackPanel Orientation="Horizontal" Spacing="4" DockPanel.Dock="Top">
-                            <CheckBox Content="使用自定义总时间" IsChecked="{Binding UseCustomTime}"
-                                      VerticalAlignment="Center" />
-                            <u:NumericDoubleUpDown ShowButtonSpinner="False" Value="{Binding CustomTotal}"
-                                                   IsEnabled="{Binding UseCustomTime}" Width="100"
-                                                   InnerRightContent="小时" />
-                            <TextBlock Text="{Binding StatisticsTotal, StringFormat='统计总工时：{0:0.##} 小时'}"
-                                       VerticalAlignment="Center" />
-                        </StackPanel>
-                        <u:Divider DockPanel.Dock="Top" />
-                        <!-- 图表 -->
-                        <ContentControl Content="{Binding Chart}" MinWidth="600"
-                                        DockPanel.Dock="Left" />
-                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Spacing="4">
-                            <Button Content="全部展开" Command="{Binding ExpandTreeCommand}"
-                                    CommandParameter="1" Theme="{DynamicResource BorderlessButton}" />
-                            <Button Content="全部折叠" Command="{Binding ExpandTreeCommand}"
-                                    CommandParameter="0" Theme="{DynamicResource BorderlessButton}" />
-                        </StackPanel>
-                        <!-- 表格 -->
-                        <TreeDataGrid Source="{Binding TimeDetails}" CanUserResizeColumns="False"
-                                      CanUserSortColumns="False">
-                            <Interaction.Behaviors>
-                                <EventTriggerBehavior EventName="Tapped">
-                                    <InvokeCommandAction Command="{Binding ToggleExpandCommand}"
-                                                         PassEventArgsToCommand="True" />
-                                </EventTriggerBehavior>
-                            </Interaction.Behaviors>
-                            <TreeDataGrid.Styles>
-                                <Style Selector="TreeDataGridRow">
-                                    <Style Selector="^ /template/ Border#RowBorder">
-                                        <Setter Property="Background" Value="Transparent" />
-                                        <Setter Property="Focusable" Value="False" />
-                                    </Style>
-                                    <Style Selector="^:pointerover /template/ Border#RowBorder">
-                                        <Setter Property="Background" Value="{DynamicResource SemiColorFill1}" />
-                                    </Style>
-                                    <Style Selector="^:selected">
-                                        <Style Selector="^ /template/ TreeDataGridCellsPresenter#PART_CellsPresenter">
-                                            <Setter Property="Background" Value="Transparent" />
-                                        </Style>
-                                        <Style Selector="^ /template/ Border#RowBorder">
-                                            <Setter Property="Background"
-                                                    Value="{DynamicResource SemiColorPrimaryLight}" />
-                                        </Style>
-                                        <Style Selector="^:pointerover /template/ Border#RowBorder">
-                                            <Setter Property="Background"
-                                                    Value="{DynamicResource SemiColorPrimaryLightPointerover}" />
-                                        </Style>
-                                        <Style Selector="^:focus /template/ Border#RowBorder">
-                                            <Setter Property="Background"
-                                                    Value="{DynamicResource SemiColorPrimaryLight}" />
-                                        </Style>
-                                        <Style Selector="^:pointerover:focus /template/ Border#RowBorder">
-                                            <Setter Property="Background"
-                                                    Value="{DynamicResource SemiColorPrimaryLightPointerover}" />
-                                        </Style>
-                                    </Style>
-                                </Style>
-                            </TreeDataGrid.Styles>
-                            <TreeDataGrid.Resources>
-                                <DataTemplate DataType="models:StatisticsTimeNode" x:Key="OperationsCell">
-                                    <Button Content="详细"
-                                            Command="{Binding $parent[TreeDataGrid].((models:StatisticsTabData)DataContext).ShowTagDetailsCommand}"
-                                            CommandParameter="{Binding}"
-                                            IsVisible="{Binding CanShowDetails}" />
-                                </DataTemplate>
-                                <DataTemplate DataType="models:StatisticsTimeNode" x:Key="IdCell">
-                                    <TextBlock Text="{Binding Id, StringFormat='#{0}'}"
-                                               IsVisible="{Binding !IsUncategorized}"
-                                               Classes="GridText"/>
-                                </DataTemplate>
-                                <DataTemplate DataType="models:StatisticsTimeNode" x:Key="NameCell">
-                                    <TextBlock Text="{Binding Name}"
-                                               Classes.Warning="{Binding IsUncategorized}"
-                                               Classes="GridText"/>
-                                </DataTemplate>
-                                <DataTemplate DataType="models:StatisticsTimeNode" x:Key="TimeCell">
-                                    <TextBlock Text="{Binding Time, StringFormat='{}{0:0.##} 小时'}"
-                                               Classes.Warning="{Binding IsUncategorized}"
-                                               Classes="GridText"/>
-                                </DataTemplate>
-                                <DataTemplate DataType="models:StatisticsTimeNode" x:Key="PercentCell">
-                                    <TextBlock Text="{Binding Percent, StringFormat='{}{0:0.##} %'}"
-                                               Classes.Warning="{Binding IsUncategorized}"
-                                               Classes="GridText"/>
-                                </DataTemplate>
-                            </TreeDataGrid.Resources>
-                        </TreeDataGrid>
-                    </DockPanel>
+                    <Grid RowDefinitions="Auto,Auto,*" RowSpacing="10">
+                        <Border Grid.Row="0" Padding="12" CornerRadius="8"
+                                Background="{DynamicResource SemiColorFill2}">
+                            <Grid ColumnDefinitions="Auto,160,Auto,160,*,Auto" ColumnSpacing="8">
+                                <TextBlock Text="统计范围" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <CalendarDatePicker Grid.Column="1" SelectedDate="{Binding DateBegin}"
+                                                    VerticalAlignment="Center" IsEnabled="{Binding IsCustom}" />
+                                <TextBlock Grid.Column="2" Text="至" VerticalAlignment="Center" />
+                                <CalendarDatePicker Grid.Column="3" SelectedDate="{Binding DateEnd}"
+                                                    VerticalAlignment="Center" IsEnabled="{Binding IsCustom}" />
+                                <views:QuickDateSelectButton Grid.Column="4" IsVisible="{Binding IsCustom}" />
+                                <Button Grid.Column="5" Classes="Primary" Theme="{DynamicResource BorderlessButton}"
+                                        Command="{Binding RefreshCommand}">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <i:Icon Value="fa-rotate" FontSize="16" />
+                                        <TextBlock Text="重新统计" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="1" Padding="12,8" CornerRadius="8"
+                                Background="{DynamicResource SemiColorFill1}">
+                            <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8">
+                                <CheckBox Content="使用自定义总时间" IsChecked="{Binding UseCustomTime}"
+                                          VerticalAlignment="Center" />
+                                <u:NumericDoubleUpDown Grid.Column="1" ShowButtonSpinner="False"
+                                                       Value="{Binding CustomTotal}"
+                                                       IsEnabled="{Binding UseCustomTime}" Width="100"
+                                                       InnerRightContent="小时" />
+                                <TextBlock Grid.Column="2"
+                                           Text="{Binding StatisticsTotal, StringFormat='统计总工时：{0:0.##} 小时'}"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <Grid Grid.Row="2" ColumnDefinitions="1.15*,1*" ColumnSpacing="10">
+                            <Border Grid.Column="0" Padding="12" CornerRadius="8"
+                                    Background="{DynamicResource SemiColorFill1}">
+                                <Grid RowDefinitions="Auto,*" RowSpacing="8">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Text="工时分布" FontSize="16" FontWeight="SemiBold" />
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding StatisticsTotal, StringFormat='合计 {0:0.##} 小时'}"
+                                                   Opacity="0.7" />
+                                    </Grid>
+                                    <ContentControl Grid.Row="1" Content="{Binding Chart}" MinHeight="260" />
+                                </Grid>
+                            </Border>
+
+                            <Border Grid.Column="1" Padding="12" CornerRadius="8"
+                                    Background="{DynamicResource SemiColorFill1}">
+                                <Grid RowDefinitions="Auto,*" RowSpacing="8">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                        <TextBlock Text="标签明细" FontSize="16" FontWeight="SemiBold" />
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                                            <Button Content="全部展开" Command="{Binding ExpandTreeCommand}"
+                                                    CommandParameter="1" Theme="{DynamicResource BorderlessButton}" />
+                                            <Button Content="全部折叠" Command="{Binding ExpandTreeCommand}"
+                                                    CommandParameter="0" Theme="{DynamicResource BorderlessButton}" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <TreeDataGrid Grid.Row="1" Source="{Binding TimeDetails}"
+                                                  CanUserResizeColumns="False" CanUserSortColumns="False">
+                                        <Interaction.Behaviors>
+                                            <EventTriggerBehavior EventName="Tapped">
+                                                <InvokeCommandAction Command="{Binding ToggleExpandCommand}"
+                                                                     PassEventArgsToCommand="True" />
+                                            </EventTriggerBehavior>
+                                        </Interaction.Behaviors>
+                                        <TreeDataGrid.Styles>
+                                            <Style Selector="TreeDataGridRow">
+                                                <Style Selector="^ /template/ Border#RowBorder">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                    <Setter Property="Focusable" Value="False" />
+                                                </Style>
+                                                <Style Selector="^:pointerover /template/ Border#RowBorder">
+                                                    <Setter Property="Background" Value="{DynamicResource SemiColorFill1}" />
+                                                </Style>
+                                                <Style Selector="^:selected">
+                                                    <Style Selector="^ /template/ TreeDataGridCellsPresenter#PART_CellsPresenter">
+                                                        <Setter Property="Background" Value="Transparent" />
+                                                    </Style>
+                                                    <Style Selector="^ /template/ Border#RowBorder">
+                                                        <Setter Property="Background"
+                                                                Value="{DynamicResource SemiColorPrimaryLight}" />
+                                                    </Style>
+                                                    <Style Selector="^:pointerover /template/ Border#RowBorder">
+                                                        <Setter Property="Background"
+                                                                Value="{DynamicResource SemiColorPrimaryLightPointerover}" />
+                                                    </Style>
+                                                    <Style Selector="^:focus /template/ Border#RowBorder">
+                                                        <Setter Property="Background"
+                                                                Value="{DynamicResource SemiColorPrimaryLight}" />
+                                                    </Style>
+                                                    <Style Selector="^:pointerover:focus /template/ Border#RowBorder">
+                                                        <Setter Property="Background"
+                                                                Value="{DynamicResource SemiColorPrimaryLightPointerover}" />
+                                                    </Style>
+                                                </Style>
+                                            </Style>
+                                        </TreeDataGrid.Styles>
+                                        <TreeDataGrid.Resources>
+                                            <DataTemplate DataType="models:StatisticsTimeNode" x:Key="OperationsCell">
+                                                <Button Content="详细"
+                                                        Command="{Binding $parent[TreeDataGrid].((models:StatisticsTabData)DataContext).ShowTagDetailsCommand}"
+                                                        CommandParameter="{Binding}"
+                                                        IsVisible="{Binding CanShowDetails}" />
+                                            </DataTemplate>
+                                            <DataTemplate DataType="models:StatisticsTimeNode" x:Key="IdCell">
+                                                <TextBlock Text="{Binding Id, StringFormat='#{0}'}"
+                                                           IsVisible="{Binding !IsUncategorized}"
+                                                           Classes="GridText"/>
+                                            </DataTemplate>
+                                            <DataTemplate DataType="models:StatisticsTimeNode" x:Key="NameCell">
+                                                <TextBlock Text="{Binding Name}"
+                                                           Classes.Warning="{Binding IsUncategorized}"
+                                                           Classes="GridText"/>
+                                            </DataTemplate>
+                                            <DataTemplate DataType="models:StatisticsTimeNode" x:Key="TimeCell">
+                                                <TextBlock Text="{Binding Time, StringFormat='{}{0:0.##} 小时'}"
+                                                           Classes.Warning="{Binding IsUncategorized}"
+                                                           Classes="GridText"/>
+                                            </DataTemplate>
+                                            <DataTemplate DataType="models:StatisticsTimeNode" x:Key="PercentCell">
+                                                <TextBlock Text="{Binding Percent, StringFormat='{}{0:0.##} %'}"
+                                                           Classes.Warning="{Binding IsUncategorized}"
+                                                           Classes="GridText"/>
+                                            </DataTemplate>
+                                        </TreeDataGrid.Resources>
+                                    </TreeDataGrid>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Grid>
                 </DataTemplate>
             </TabControl.ContentTemplate>
         </TabControl>
