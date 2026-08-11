@@ -142,6 +142,27 @@
                 </DataTemplate>
             </TabControl.ContentTemplate>
         </TabControl>
+        <Border DockPanel.Dock="Top" IsVisible="{Binding HasUploadResults}"
+                Background="{DynamicResource SemiColorFill2}" CornerRadius="4" Padding="10 8">
+            <StackPanel Spacing="6">
+                <TextBlock Text="最近一次同步结果" FontWeight="SemiBold" />
+                <ItemsControl ItemsSource="{Binding UploadResults}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="{Binding TrackerLabel}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding ResultSummary}" Opacity="0.75"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" Text="{Binding StateText}"
+                                           VerticalAlignment="Center" Opacity="0.85" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
         <!-- plm预留 -->
         <u:Divider DockPanel.Dock="Top" Content="备注（仅本地存储）" HorizontalContentAlignment="Left" />
         <TextBox Text="{Binding Note}" AcceptsReturn="True" VerticalAlignment="Stretch"

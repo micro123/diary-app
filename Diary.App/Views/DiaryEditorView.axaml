@@ -198,7 +198,7 @@
                             Command="{Binding DuplicateWorkItemCommand}" />
                     <Button Classes="ActionButton" Content="删除当前项" HotKey="Ctrl+Shift+D"
                             Command="{Binding DeleteWorkItemCommand}" />
-                    <Button Classes="ActionButton" Content="提交工时" HotKey="Ctrl+U"
+                    <Button Classes="ActionButton" Content="同步工时" HotKey="Ctrl+U"
                             Command="{Binding UploadTimeCommand}" />
                 </StackPanel>
                 <Separator DockPanel.Dock="Top" />

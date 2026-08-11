@@ -49,6 +49,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     public ObservableCollection<ITrackerEditorExtension> Extensions { get; } = new();
     public ObservableCollection<TrackerEditorTabItem> TrackerTabs { get; } = new();
     public ObservableCollection<TrackerUploadResult> UploadResults { get; } = new();
+    public bool HasUploadResults => UploadResults.Count > 0;
     public ObservableCollection<WorkEditorScriptMenuItem> EditorScriptActions { get; } = new();
     [ObservableProperty] private TagAutomationResult? _lastTagAutomationResult;
 
@@ -502,6 +503,7 @@ public partial class WorkEditorViewModel : ViewModelBase
             UploadResults.Clear();
             foreach (var uploadResult in result.Results)
                 UploadResults.Add(uploadResult);
+            OnPropertyChanged(nameof(HasUploadResults));
             RecomputeIsLocked();
             NotifyStatusChanged();
         });

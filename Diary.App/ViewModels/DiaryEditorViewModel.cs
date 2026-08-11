@@ -217,7 +217,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
     {
         SaveWorkItem();
         var (result, msg) = await SelectedWork!.Upload();
-        ToastManager?.Show(result ? "提交成功" : $"提交失败: {msg}");
+        ToastManager?.Show(result ? "同步成功" : $"同步失败：{msg}");
 
         // hack: update button state
         Dispatcher.UIThread.Post(() => UploadTimeCommand.NotifyCanExecuteChanged());
@@ -634,9 +634,9 @@ public partial class DiaryEditorViewModel : ViewModelBase
         QuickMenuItems.Clear();
         var weekOfYear = CultureInfo.InvariantCulture.Calendar.GetWeekOfYear(date, CalendarWeekRule.FirstDay, DayOfWeek.Monday);
         AddMenuHeader($"{date:yyyy年MM月dd日} 第{weekOfYear}周");
-        AddMenuHeader($"今日总工时{TotalTime:0.##}小时，有{TotalTime - UploadedTime:0.##}小时未提交");
+        AddMenuHeader($"今日总工时{TotalTime:0.##}小时，有{TotalTime - UploadedTime:0.##}小时未同步");
         AddMenuSeparator();
-        AddMenuAction("提交本日工时", UploadAllCommand);
+        AddMenuAction("同步本日工时", UploadAllCommand);
         AddMenuAction("统计本周工时", CreateStatisticsCommand(date, AdjustPart.Week));
         if (IsSurveyorEnabled)
         {

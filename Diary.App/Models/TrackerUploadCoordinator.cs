@@ -11,7 +11,31 @@ public sealed record TrackerUploadResult(
     bool Skipped,
     string? Error = null,
     string? RemoteId = null,
-    TrackerUploadState State = TrackerUploadState.NotAttempted);
+    TrackerUploadState State = TrackerUploadState.NotAttempted)
+{
+    public string TrackerLabel => $"{Key.PluginId} / {Key.InstanceId}";
+
+    public string StateText => State switch
+    {
+        TrackerUploadState.NotAttempted => "未尝试",
+        TrackerUploadState.Pending => "同步中",
+        TrackerUploadState.Succeeded => Skipped ? "已同步" : "同步成功",
+        TrackerUploadState.Failed => "同步失败",
+        TrackerUploadState.Uncertain => "结果待确认",
+        _ => State.ToString(),
+    };
+
+    public string ResultSummary => State switch
+    {
+        TrackerUploadState.Succeeded when !string.IsNullOrWhiteSpace(RemoteId)
+            => $"{StateText} · 远程 ID：{RemoteId}",
+        TrackerUploadState.Failed when !string.IsNullOrWhiteSpace(Error)
+            => $"{StateText} · {Error}",
+        TrackerUploadState.Uncertain when !string.IsNullOrWhiteSpace(Error)
+            => $"{StateText} · {Error}",
+        _ => StateText,
+    };
+}
 
 public sealed record WorkUploadResult(IReadOnlyList<TrackerUploadResult> Results)
 {
