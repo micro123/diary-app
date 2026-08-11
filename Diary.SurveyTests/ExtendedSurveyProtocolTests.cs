@@ -27,8 +27,8 @@ public sealed class ExtendedSurveyProtocolTests
             ExtendedSurveyProtocol.CustomStatisticsKind);
         CollectionAssert.Contains(
             data.GetProperty("group_dimensions").EnumerateArray().Select(value => value.GetString()).ToArray(),
-            "tag");
-        Assert.IsFalse(data.GetProperty("supports_details").GetBoolean());
+            ExtendedSurveyProtocol.GroupByPriority);
+        Assert.IsTrue(data.GetProperty("supports_details").GetBoolean());
     }
 
     [TestMethod]
@@ -43,6 +43,8 @@ public sealed class ExtendedSurveyProtocolTests
             TagNames = ["项目A", "项目B"],
             TagFilter = "Any",
             Priority = 2,
+            GroupBy = ExtendedSurveyProtocol.GroupByDate,
+            IncludeDetails = true,
         };
 
         var content = ExtendedSurveyProtocol.SerializeRequest(request);
@@ -52,6 +54,8 @@ public sealed class ExtendedSurveyProtocolTests
         Assert.AreEqual("request-1", parsed.RequestId);
         Assert.AreEqual("custom_statistics", parsed.Kind);
         CollectionAssert.AreEqual(new[] { "项目A", "项目B" }, parsed.TagNames);
+        Assert.AreEqual(ExtendedSurveyProtocol.GroupByDate, parsed.GroupBy);
+        Assert.IsTrue(parsed.IncludeDetails);
 
         var responseContent = ExtendedSurveyProtocol.SerializeSuccess("request-1", "{\"hours\":1.5}");
         Assert.IsTrue(responseContent.Contains("\"ok\":true", StringComparison.Ordinal));

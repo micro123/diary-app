@@ -24,6 +24,42 @@ public class RespondTag
     public static RespondTag Null { get; } = new() { TagName = "没有数据！", TagTime = 0 };
 }
 
+public class RespondGroup
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = RespondTag.AnonymousName;
+
+    [JsonPropertyName("hours")]
+    public double TotalTime { get; set; }
+
+    [JsonPropertyName("record_count")]
+    public int RecordCount { get; set; }
+
+    [JsonIgnore]
+    public double Percent { get; set; }
+}
+
+public class RespondDetail
+{
+    [JsonPropertyName("date")]
+    public string Date { get; set; } = string.Empty;
+
+    [JsonPropertyName("comment")]
+    public string Comment { get; set; } = string.Empty;
+
+    [JsonPropertyName("hours")]
+    public double Time { get; set; }
+
+    [JsonPropertyName("priority")]
+    public string Priority { get; set; } = string.Empty;
+
+    [JsonPropertyName("tags")]
+    public string[] Tags { get; set; } = Array.Empty<string>();
+
+    [JsonIgnore]
+    public string TagsText => string.Join("、", Tags);
+}
+
 public class RespondData
 {
     [JsonPropertyName("hostname")]
@@ -38,8 +74,21 @@ public class RespondData
     public double TotalTime { get; set; }
     [JsonPropertyName("record_count")]
     public int RecordCount { get; set; }
+
+    [JsonPropertyName("group_by")]
+    public string GroupBy { get; set; } = "tag";
+
     [JsonPropertyName("tags")]
     public List<RespondTag> Tags { get; set; } = new();
+
+    [JsonPropertyName("groups")]
+    public List<RespondGroup> Groups { get; set; } = new();
+
+    [JsonPropertyName("details")]
+    public List<RespondDetail> Details { get; set; } = new();
+
+    [JsonPropertyName("details_truncated")]
+    public bool DetailsTruncated { get; set; }
 
     [JsonIgnore] public string Key => $"{Username}@{Hostname}";
 }

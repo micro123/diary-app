@@ -40,7 +40,9 @@ v2 固定使用 TCP `9722`，仅新版节点连接，不改变 `9721` 的请求�
   "text": "关键词",
   "tag_names": ["项目A"],
   "tag_filter": "Any",
-  "priority": 2
+  "priority": 2,
+  "group_by": "date",
+  "include_details": true
 }
 ```
 
@@ -58,6 +60,20 @@ v2 固定使用 TCP `9722`，仅新版节点连接，不改变 `9721` 的请求�
     "username": "user",
     "hours": 2.5,
     "record_count": 3,
+    "group_by": "date",
+    "groups": [
+      { "name": "2026-08-11", "hours": 2.5, "record_count": 3 }
+    ],
+    "details": [
+      {
+        "date": "2026-08-11",
+        "comment": "整理调查协议",
+        "hours": 1.5,
+        "priority": "P1",
+        "tags": ["项目A"]
+      }
+    ],
+    "details_truncated": false,
     "tags": []
   },
   "error": null
@@ -74,12 +90,12 @@ v2 固定使用 TCP `9722`，仅新版节点连接，不改变 `9721` 的请求�
   "hostname": "host",
   "username": "user",
   "kinds": ["capabilities", "custom_statistics"],
-  "group_dimensions": ["tag"],
-  "supports_details": false
+  "group_dimensions": ["tag", "date", "priority"],
+  "supports_details": true
 }
 ```
 
-能力发现不访问数据库，也不会改变旧版 `9721` 协议。当前新版节点声明支持自定义统计和标签分组；日期、优先级等更多分组维度以及结果明细会在后续协议扩展中增加。
+能力发现不访问数据库，也不会改变旧版 `9721` 协议。当前新版节点声明支持自定义统计、标签/日期/优先级分组和受限结果明细。结果明细最多返回 500 条，超过上限时通过 `details_truncated` 标记。
 
 ## 兼容边界
 
@@ -93,4 +109,4 @@ v2 固定使用 TCP `9722`，仅新版节点连接，不改变 `9721` 的请求�
 - 新版受访者：连接调查者的 `9721` 和 `9722`。
 - 旧版受访者：只连接 `9721`，因此不会收到 v2 请求。
 - 配置界面不暴露新端口，两个端口均为协议常量。
-- 调查页可以主动探测新版节点能力，并显示节点支持的查询类型、分组维度和明细能力。
+- 调查页可以主动探测新版节点能力，并显示节点支持的查询类型、分组维度和明细能力；扩展查询可以选择分组维度并请求结果明细。

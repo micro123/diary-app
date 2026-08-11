@@ -7,12 +7,34 @@ namespace Diary.App.Models;
 
 public static class SurveyStatisticsBuilder
 {
+    public const int MaxDetails = 500;
+
+    public static IReadOnlyList<string> SupportedGroupDimensions { get; } =
+    [
+        ExtendedSurveyProtocol.GroupByTag,
+        ExtendedSurveyProtocol.GroupByDate,
+        ExtendedSurveyProtocol.GroupByPriority,
+    ];
+
+    public static string NormalizeGroupBy(string? groupBy)
+        => string.IsNullOrWhiteSpace(groupBy)
+            ? ExtendedSurveyProtocol.GroupByTag
+            : groupBy.Trim().ToLowerInvariant();
+
     public static bool TryBuildQuery(
         DbInterfaceBase db,
         ExtendedSurveyRequest request,
         out WorkItemQuery query,
         out string error)
     {
+        var groupBy = NormalizeGroupBy(request.GroupBy);
+        if (!SupportedGroupDimensions.Contains(groupBy, StringComparer.Ordinal))
+        {
+            query = new WorkItemQuery();
+            error = "分组维度无效";
+            return false;
+        }
+
         if (!Enum.TryParse<WorkItemTagFilter>(request.TagFilter, true, out var tagFilter))
         {
             query = new WorkItemQuery();
@@ -54,8 +76,13 @@ public static class SurveyStatisticsBuilder
         return WorkItemQueryNormalizer.TryNormalize(candidate, out query, out error);
     }
 
-    public static RespondData Build(DbInterfaceBase db, WorkItemQuery query)
+    public static RespondData Build(
+        DbInterfaceBase db,
+        WorkItemQuery query,
+        string groupBy,
+        bool includeDetails)
     {
+        groupBy = NormalizeGroupBy(groupBy);
         var items = db.QueryWorkItems(query).ToArray();
         var tagsByItem = db.GetWorkTagsByWorkItemIds(items.Select(item => item.Id).ToArray());
         var data = new RespondData
@@ -66,6 +93,7 @@ public static class SurveyStatisticsBuilder
             DateEnd = query.EndDate ?? string.Empty,
             TotalTime = items.Sum(item => item.Time),
             RecordCount = items.Length,
+            GroupBy = groupBy,
         };
 
         var primaryMap = new Dictionary<int, RespondTag>();
@@ -103,6 +131,76 @@ public static class SurveyStatisticsBuilder
         var taggedTotal = data.Tags.Sum(tag => tag.TagTime);
         if (taggedTotal < data.TotalTime)
             data.Tags.Add(new RespondTag { TagTime = data.TotalTime - taggedTotal });
+
+        data.Groups = BuildGroups(items, tagsByItem, groupBy);
+        if (includeDetails)
+        {
+            data.Details = items
+                .Take(MaxDetails)
+                .Select(item => new RespondDetail
+                {
+                    Date = item.CreateDate,
+                    Comment = item.Comment,
+                    Time = item.Time,
+                    Priority = item.Priority.ToString(),
+                    Tags = tagsByItem.TryGetValue(item.Id, out var tags)
+                        ? tags.Select(tag => tag.Name).Distinct(StringComparer.Ordinal).ToArray()
+                        : Array.Empty<string>(),
+                })
+                .ToList();
+            data.DetailsTruncated = items.Length > MaxDetails;
+        }
+
         return data;
+    }
+
+    private static List<RespondGroup> BuildGroups(
+        IReadOnlyCollection<WorkItem> items,
+        IReadOnlyDictionary<int, ICollection<WorkTag>> tagsByItem,
+        string groupBy)
+    {
+        var groups = new Dictionary<string, RespondGroup>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in items)
+        {
+            var names = GetGroupNames(item, tagsByItem, groupBy);
+            foreach (var name in names)
+            {
+                if (!groups.TryGetValue(name, out var group))
+                {
+                    group = new RespondGroup { Name = name };
+                    groups.Add(name, group);
+                }
+
+                group.TotalTime += item.Time;
+                group.RecordCount++;
+            }
+        }
+
+        return groups.Values
+            .OrderByDescending(group => group.TotalTime)
+            .ThenBy(group => group.Name, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    private static IEnumerable<string> GetGroupNames(
+        WorkItem item,
+        IReadOnlyDictionary<int, ICollection<WorkTag>> tagsByItem,
+        string groupBy)
+    {
+        if (groupBy == ExtendedSurveyProtocol.GroupByDate)
+            return [item.CreateDate.Split('T', 2)[0]];
+
+        if (groupBy == ExtendedSurveyProtocol.GroupByPriority)
+            return [item.Priority.ToString()];
+
+        if (!tagsByItem.TryGetValue(item.Id, out var tags))
+            return [RespondTag.AnonymousName];
+
+        var names = tags
+            .Where(tag => tag.Level == TagLevels.Primary)
+            .Select(tag => tag.Name)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        return names.Length == 0 ? [RespondTag.AnonymousName] : names;
     }
 }

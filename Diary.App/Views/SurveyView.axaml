@@ -73,7 +73,7 @@
                 </ItemsControl>
             </Expander>
             <Expander Header="扩展查询（仅新版节点）" DockPanel.Dock="Top">
-                <Grid ColumnDefinitions="Auto,*,Auto,*,Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+                <Grid ColumnDefinitions="Auto,*,Auto,*,Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
                     <TextBlock Grid.Row="0" Grid.Column="0" Text="关键词" />
                     <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding ExtendedText}"
                              Watermark="事项标题或备注，可留空" />
@@ -89,6 +89,13 @@
                     <TextBlock Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="4"
                                Text="填写任一扩展条件后，将只发送到支持 v2 的调查节点。"
                                Opacity="0.7" />
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="分组维度" />
+                    <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding ExtendedGroupDimensions}"
+                              SelectedIndex="{Binding ExtendedGroupByIndex}" />
+                    <CheckBox Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="2"
+                              Content="返回结果明细" IsChecked="{Binding ExtendedIncludeDetails}" />
+                    <TextBlock Grid.Row="2" Grid.Column="4" Grid.ColumnSpan="2"
+                               Text="明细最多返回 500 条。" Opacity="0.7" />
                 </Grid>
             </Expander>
             <TextBlock DockPanel.Dock="Top" Text="{Binding QueryMode}" Opacity="0.7" />
@@ -96,12 +103,33 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="viewModels:SurveyResult">
                         <Expander Header="{Binding Title}" IsExpanded="True">
-                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,*">
+                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,*" RowSpacing="4">
                                 <TextBlock Grid.Column="0" Grid.Row="0" Text="日期：" />
                                 <TextBlock Grid.Column="1" Grid.Row="0" Text="{Binding Range}" />
                                 <TextBlock Grid.Column="0" Grid.Row="1" Text="总耗时：" />
                                 <TextBlock Grid.Column="1" Grid.Row="1" Text="{Binding Total}" />
-                                <TreeDataGrid Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="2"
+                                <TextBlock Grid.Column="0" Grid.Row="2" Text="汇总方式：" />
+                                <TextBlock Grid.Column="1" Grid.Row="2" Text="{Binding GroupLabel}" />
+                                <Expander Grid.Column="0" Grid.Row="3" Grid.ColumnSpan="2"
+                                          Header="{Binding DetailsHeader}" IsVisible="{Binding HasDetails}">
+                                    <ItemsControl ItemsSource="{Binding Details}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="models:RespondDetail">
+                                                <Grid ColumnDefinitions="110,*,90,120,*" ColumnSpacing="8" Margin="0,2">
+                                                    <TextBlock Text="{Binding Date}" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Comment}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Grid.Column="2"
+                                                               Text="{Binding Time, StringFormat='{}{0:0.##} 小时'}" />
+                                                    <TextBlock Grid.Column="3" Text="{Binding Priority}" />
+                                                    <TextBlock Grid.Column="4" Text="{Binding TagsText, StringFormat='标签：{0}'}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Expander>
+                                <TreeDataGrid Grid.Column="0" Grid.Row="4" Grid.ColumnSpan="2"
                                               CanUserResizeColumns="False" CanUserSortColumns="False"
                                               Source="{Binding GridSource}" >
                                     <Interaction.Behaviors>

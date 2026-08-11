@@ -8,6 +8,9 @@ public static class ExtendedSurveyProtocol
     public const int Version = 2;
     public const string CapabilitiesKind = "capabilities";
     public const string CustomStatisticsKind = "custom_statistics";
+    public const string GroupByTag = "tag";
+    public const string GroupByDate = "date";
+    public const string GroupByPriority = "priority";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -67,8 +70,8 @@ public static class ExtendedSurveyProtocol
             Hostname = hostname,
             Username = username,
             Kinds = [CapabilitiesKind, CustomStatisticsKind],
-            GroupDimensions = ["tag"],
-            SupportsDetails = false,
+            GroupDimensions = [GroupByTag, GroupByDate, GroupByPriority],
+            SupportsDetails = true,
         }, JsonOptions));
 }
 
@@ -100,6 +103,12 @@ public sealed class ExtendedSurveyRequest
 
     [JsonPropertyName("priority")]
     public int? Priority { get; set; }
+
+    [JsonPropertyName("group_by")]
+    public string GroupBy { get; set; } = ExtendedSurveyProtocol.GroupByTag;
+
+    [JsonPropertyName("include_details")]
+    public bool IncludeDetails { get; set; }
 }
 
 public sealed class ExtendedSurveyCapabilities

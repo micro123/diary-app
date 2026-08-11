@@ -28,7 +28,15 @@ public sealed partial class SurveyResult
     public SurveyResult(RespondData data, double total)
     {
         _data = data;
-        GridSource = new HierarchicalTreeDataGridSource<RespondTag>(data.Tags)
+        var summaryTags = data.Groups.Count > 0
+            && data.GroupBy != ExtendedSurveyProtocol.GroupByTag
+            ? data.Groups.Select(group => new RespondTag
+            {
+                TagName = group.Name,
+                TagTime = group.TotalTime,
+            }).ToList()
+            : data.Tags;
+        GridSource = new HierarchicalTreeDataGridSource<RespondTag>(summaryTags)
         {
             Columns =
             {
@@ -68,7 +76,7 @@ public sealed partial class SurveyResult
             },
         };
 
-        UpdatePercent(total > 0 ? total : _data.TotalTime);
+        UpdatePercent(summaryTags, total > 0 ? total : _data.TotalTime);
         GridSource.ExpandAll();
     }
 
@@ -76,13 +84,24 @@ public sealed partial class SurveyResult
     public string Range => $"{_data.DateStart} ~ {_data.DateEnd}";
     public double Total => _data.TotalTime;
     public int RecordCount => _data.RecordCount;
+    public string GroupLabel => _data.GroupBy switch
+    {
+        ExtendedSurveyProtocol.GroupByDate => "按日期分组",
+        ExtendedSurveyProtocol.GroupByPriority => "按优先级分组",
+        _ => "按标签分组",
+    };
+    public IReadOnlyList<RespondDetail> Details => _data.Details;
+    public bool HasDetails => _data.Details.Count > 0;
+    public string DetailsHeader => _data.DetailsTruncated
+        ? $"结果明细（前 {Details.Count} 条，已截断）"
+        : $"结果明细（{Details.Count} 条）";
     public HierarchicalTreeDataGridSource<RespondTag> GridSource { get; init; }
 
-    private void UpdatePercent(double total)
+    private static void UpdatePercent(IReadOnlyCollection<RespondTag> tags, double total)
     {
         if (total <= 0)
         {
-            foreach (var tag in _data.Tags)
+            foreach (var tag in tags)
             {
                 tag.Percent = 0;
                 foreach (var subTag in tag.SubTags)
@@ -91,7 +110,7 @@ public sealed partial class SurveyResult
             return;
         }
 
-        foreach (var tag in _data.Tags)
+        foreach (var tag in tags)
         {
             tag.Percent = tag.TagTime / total * 100.0;
             foreach (var subTag in tag.SubTags)
@@ -148,6 +167,8 @@ public partial class SurveyViewModel : ViewModelBase
     [ObservableProperty] private string _extendedTagNames = string.Empty;
     [ObservableProperty] private int _extendedTagFilterIndex;
     [ObservableProperty] private int _extendedPriorityIndex;
+    [ObservableProperty] private int _extendedGroupByIndex;
+    [ObservableProperty] private bool _extendedIncludeDetails;
     [ObservableProperty] private string _queryMode = "兼容查询：支持旧版和新版调查节点";
     [ObservableProperty] private ObservableCollection<SurveyCapabilityResult> _peerCapabilities = new();
     [ObservableProperty] private string _capabilityStatus = "尚未探测新版节点能力";
@@ -155,6 +176,7 @@ public partial class SurveyViewModel : ViewModelBase
 
     public IReadOnlyList<string> ExtendedTagFilters { get; } = ["忽略标签", "任意标签", "全部标签", "无标签", "精确匹配"];
     public IReadOnlyList<string> ExtendedPriorities { get; } = ["全部优先级", .. Enum.GetNames<WorkPriorities>()];
+    public IReadOnlyList<string> ExtendedGroupDimensions { get; } = ["标签", "日期", "优先级"];
 
     private IDictionary<string, RespondData> _respondDatas = new Dictionary<string, RespondData>();
 
@@ -365,7 +387,11 @@ public partial class SurveyViewModel : ViewModelBase
                     return;
                 }
 
-                var data = SurveyStatisticsBuilder.Build(db, query);
+                var data = SurveyStatisticsBuilder.Build(
+                    db,
+                    query,
+                    request.GroupBy,
+                    request.IncludeDetails);
                 var dataJson = JsonSerializer.Serialize(data);
                 EventDispatcher.Msg(new ExtendedSurveyResultEvent(
                     ExtendedSurveyProtocol.SerializeSuccess(request.RequestId, dataJson)));
@@ -401,6 +427,13 @@ public partial class SurveyViewModel : ViewModelBase
                     .Split([',', '，', ';', '；'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
                 TagFilter = ((WorkItemTagFilter)ExtendedTagFilterIndex).ToString(),
                 Priority = ExtendedPriorityIndex == 0 ? null : ExtendedPriorityIndex - 1,
+                GroupBy = ExtendedGroupByIndex switch
+                {
+                    1 => ExtendedSurveyProtocol.GroupByDate,
+                    2 => ExtendedSurveyProtocol.GroupByPriority,
+                    _ => ExtendedSurveyProtocol.GroupByTag,
+                },
+                IncludeDetails = ExtendedIncludeDetails,
             };
             EventDispatcher.Msg(new ExtendedSurveyQueryEvent(ExtendedSurveyProtocol.SerializeRequest(request)));
         }
@@ -417,7 +450,9 @@ public partial class SurveyViewModel : ViewModelBase
     private bool HasExtendedQuery => !string.IsNullOrWhiteSpace(ExtendedText)
         || !string.IsNullOrWhiteSpace(ExtendedTagNames)
         || ExtendedTagFilterIndex != 0
-        || ExtendedPriorityIndex != 0;
+        || ExtendedPriorityIndex != 0
+        || ExtendedGroupByIndex != 0
+        || ExtendedIncludeDetails;
 
     [RelayCommand]
     private async Task DiscoverCapabilities()
