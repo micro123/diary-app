@@ -5,72 +5,118 @@
               xmlns:i="https://github.com/projektanker/icons.avalonia"
               xmlns:models="clr-namespace:Diary.App.Models"
               xmlns:viewModels="clr-namespace:Diary.App.ViewModels"
-              xmlns:views="clr-namespace:Diary.App.Views"
+             xmlns:views="clr-namespace:Diary.App.Views"
              x:Class="Diary.App.Views.WorkItemQueryView"
              x:DataType="viewModels:WorkItemQueryViewModel"
              mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700">
     <Grid RowDefinitions="Auto,*" Margin="16" RowSpacing="12">
-        <Border Grid.Row="0" Padding="16" CornerRadius="8" Background="{DynamicResource SemiColorFill2}">
-            <Grid ColumnDefinitions="Auto,180,Auto,180,Auto,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="10">
-                <TextBlock Grid.Row="0" Grid.Column="0" Text="保存查询" VerticalAlignment="Center" />
-                <ComboBox Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
-                          ItemsSource="{Binding SavedQueries}" SelectedItem="{Binding SelectedSavedQuery}">
-                    <ComboBox.ItemTemplate>
-                        <DataTemplate x:DataType="models:SavedWorkItemQuery">
-                            <TextBlock Text="{Binding Name}" />
-                        </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                </ComboBox>
-                <TextBox Grid.Row="0" Grid.Column="3" Grid.ColumnSpan="2" Text="{Binding SavedQueryName}" Watermark="查询名称" />
-                <StackPanel Grid.Row="0" Grid.Column="6" Orientation="Horizontal" Spacing="4">
-                    <Button Content="新增" Command="{Binding AddSavedQueryCommand}" />
-                    <Button Content="应用" Command="{Binding ApplySavedQueryCommand}" />
-                    <Button Content="更新" Command="{Binding UpdateSavedQueryCommand}" />
-                    <Button Content="重命名" Command="{Binding RenameSavedQueryCommand}" />
-                    <Button Content="删除" Command="{Binding DeleteSavedQueryCommand}" />
-                </StackPanel>
-
-                <TextBlock Grid.Row="1" Grid.Column="0" Text="日期" VerticalAlignment="Center" />
-                <CalendarDatePicker Grid.Row="1" Grid.Column="1" SelectedDate="{Binding StartDate}" />
-                <TextBlock Grid.Row="1" Grid.Column="2" Text="至" VerticalAlignment="Center" />
-                <CalendarDatePicker Grid.Row="1" Grid.Column="3" SelectedDate="{Binding EndDate}" />
-                <StackPanel Grid.Row="1" Grid.Column="4" Orientation="Horizontal" Spacing="4">
-                    <Button Content="今天" Command="{Binding SelectTodayCommand}" />
-                    <Button Content="昨天" Command="{Binding SelectYesterdayCommand}" />
-                    <Button Content="本周" Command="{Binding SelectCurrentWeekCommand}" />
-                    <Button Content="本月" Command="{Binding SelectCurrentMonthCommand}" />
-                    <views:QuickDateSelectButton />
-                </StackPanel>
-                <TextBox Grid.Row="1" Grid.Column="5" Text="{Binding Text}" Watermark="搜索事项标题或备注" />
-                <Button Grid.Row="1" Grid.Column="6" Classes="Primary" Command="{Binding QueryCommand}">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <i:Icon Value="fa-magnifying-glass" />
-                        <TextBlock Text="查询" />
+        <Border Grid.Row="0" Padding="18" CornerRadius="10" Background="{DynamicResource SemiColorFill2}">
+            <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="14">
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Border Width="40" Height="40" CornerRadius="10" Background="{DynamicResource SemiColorPrimaryBrush}">
+                            <i:Icon Value="fa-magnifying-glass" FontSize="20" HorizontalAlignment="Center"
+                                    VerticalAlignment="Center" Foreground="White" />
+                        </Border>
+                        <StackPanel VerticalAlignment="Center" Spacing="2">
+                            <TextBlock Text="工作项查询" FontSize="22" FontWeight="SemiBold" />
+                            <TextBlock Text="按日期、关键词、标签和优先级定位历史记录" Opacity="0.7" />
+                        </StackPanel>
                     </StackPanel>
-                </Button>
+                    <Button Grid.Column="1" Classes="Primary" Command="{Binding QueryCommand}" MinWidth="104">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <i:Icon Value="fa-magnifying-glass" />
+                            <TextBlock Text="查询" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
 
-                <TextBlock Grid.Row="2" Grid.Column="0" Text="标签" VerticalAlignment="Center" />
-                <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding TagFilters}" SelectedIndex="{Binding TagFilterIndex}" />
-                <TextBlock Grid.Row="2" Grid.Column="2" Text="优先级" VerticalAlignment="Center" />
-                <ComboBox Grid.Row="2" Grid.Column="3" ItemsSource="{Binding Priorities}" SelectedIndex="{Binding PriorityIndex}" />
-                <ScrollViewer Grid.Row="2" Grid.Column="4" Grid.ColumnSpan="2" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                    <ItemsControl ItemsSource="{Binding Tags}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="viewModels:WorkItemQueryTag">
-                                <CheckBox Content="{Binding Tag.Name}" IsChecked="{Binding Selected}" Margin="0,0,12,0" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-                <TextBlock Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="6" Text="{Binding SavedQueryStatus}" Opacity="0.7" />
-                <TextBlock Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="6" Text="{Binding ResultSummary}" Opacity="0.7" />
-                <StackPanel Grid.Row="4" Grid.Column="6" Orientation="Horizontal" Spacing="4">
-                    <Button Content="导出 CSV" Command="{Binding ExportCsvCommand}" />
-                    <Button Content="导出 Markdown" Command="{Binding ExportMarkdownCommand}" />
+                <Border Grid.Row="1" Padding="12" CornerRadius="7" Background="{DynamicResource SemiColorFill1}">
+                    <Grid ColumnDefinitions="Auto,220,Auto,*,Auto,Auto" ColumnSpacing="8">
+                        <TextBlock Text="已保存查询" VerticalAlignment="Center" FontWeight="SemiBold" />
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding SavedQueries}"
+                                  SelectedItem="{Binding SelectedSavedQuery}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="models:SavedWorkItemQuery">
+                                    <TextBlock Text="{Binding Name}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <TextBox Grid.Column="2" Grid.ColumnSpan="2" Text="{Binding SavedQueryName}"
+                                 Watermark="输入名称以保存当前条件" />
+                        <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="4">
+                            <Button Content="新增" Command="{Binding AddSavedQueryCommand}" />
+                            <Button Content="应用" Command="{Binding ApplySavedQueryCommand}" />
+                            <Button Content="更新" Command="{Binding UpdateSavedQueryCommand}" />
+                            <Button Content="重命名" Command="{Binding RenameSavedQueryCommand}" />
+                            <Button Content="删除" Command="{Binding DeleteSavedQueryCommand}" />
+                        </StackPanel>
+                        <CheckBox Grid.Column="5" Name="FilterToggle" IsChecked="True"
+                                  HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="显示条件" IsVisible="{Binding !#FilterToggle.IsChecked}" />
+                                <TextBlock Text="隐藏条件" IsVisible="{Binding #FilterToggle.IsChecked}" />
+                            </StackPanel>
+                        </CheckBox>
+                    </Grid>
+                </Border>
+
+                <StackPanel Grid.Row="2" Spacing="0">
+                    <Border Height="1" Background="{DynamicResource SemiColorBorder}" />
+                    <Grid IsVisible="{Binding #FilterToggle.IsChecked}" RowDefinitions="Auto,Auto"
+                          RowSpacing="8" Margin="0,12,0,0">
+                        <Grid Grid.Row="0" ColumnDefinitions="Auto,155,Auto,155,*,Auto" ColumnSpacing="8">
+                            <TextBlock Text="日期范围" VerticalAlignment="Center" />
+                            <CalendarDatePicker Grid.Column="1" SelectedDate="{Binding StartDate}" />
+                            <TextBlock Grid.Column="2" Text="至" VerticalAlignment="Center" />
+                            <CalendarDatePicker Grid.Column="3" SelectedDate="{Binding EndDate}" />
+                            <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="4">
+                                <Button Content="今天" Command="{Binding SelectTodayCommand}" />
+                                <Button Content="昨天" Command="{Binding SelectYesterdayCommand}" />
+                                <Button Content="本周" Command="{Binding SelectCurrentWeekCommand}" />
+                                <Button Content="本月" Command="{Binding SelectCurrentMonthCommand}" />
+                                <views:QuickDateSelectButton />
+                            </StackPanel>
+                            <TextBox Grid.Column="5" Text="{Binding Text}" Watermark="搜索事项标题或备注"
+                                     MinWidth="190" />
+                        </Grid>
+                        <Grid Grid.Row="1" ColumnDefinitions="Auto,180,Auto,180,*" ColumnSpacing="8">
+                            <TextBlock Text="标签模式" VerticalAlignment="Center" />
+                            <ComboBox Grid.Column="1" ItemsSource="{Binding TagFilters}"
+                                      SelectedIndex="{Binding TagFilterIndex}" />
+                            <TextBlock Grid.Column="2" Text="优先级" VerticalAlignment="Center" />
+                            <ComboBox Grid.Column="3" ItemsSource="{Binding Priorities}"
+                                      SelectedIndex="{Binding PriorityIndex}" />
+                            <ScrollViewer Grid.Column="4" HorizontalScrollBarVisibility="Auto"
+                                          VerticalScrollBarVisibility="Disabled">
+                                <ItemsControl ItemsSource="{Binding Tags}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="viewModels:WorkItemQueryTag">
+                                            <CheckBox Content="{Binding Tag.Name}" IsChecked="{Binding Selected}"
+                                                      Margin="0,0,12,0" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
+                    </Grid>
                 </StackPanel>
+
+                <Grid Grid.Row="3" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="{Binding SavedQueryStatus}" Opacity="0.7" />
+                        <TextBlock Text="{Binding ResultSummary}" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <Button Content="导出 CSV" Command="{Binding ExportCsvCommand}" />
+                        <Button Content="导出 Markdown" Command="{Binding ExportMarkdownCommand}" />
+                    </StackPanel>
+                </Grid>
             </Grid>
         </Border>
 

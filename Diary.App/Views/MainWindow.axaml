@@ -175,6 +175,7 @@
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Width="240"
                                             VerticalAlignment="Center" Spacing="8" Margin="8 4"
                                             ToolTip.Tip="{Binding Name}"
+                                            ToolTip.HorizontalOffset="48"
                                             ToolTip.ShowDelay="150" Background="Transparent">
                                     <i:Icon Value="{Binding Icon}" FontSize="48" />
                                     <TextBlock FontSize="26" Text="{Binding Name}" Classes="ViewName"
