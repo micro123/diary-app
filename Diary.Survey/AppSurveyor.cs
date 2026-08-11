@@ -8,6 +8,7 @@ namespace Diary.Survey;
 
 public class AppSurveyor
 {
+    private readonly ushort _listenPort;
     private ISurveyorSocket? _surveyor;
     private INngListener? _listener;
     private ISurveyorAsyncContext<INngMsg>? _surveyorCtx;
@@ -18,6 +19,11 @@ public class AppSurveyor
     private readonly Lock _lifecycleLock = new();
     private readonly SemaphoreSlim _surveyGate = new(1, 1);
     private ILogger Logger => Logging.Logger;
+
+    public AppSurveyor(ushort listenPort = SurveyPorts.Legacy)
+    {
+        _listenPort = listenPort;
+    }
 
     public event EventHandler<string>? ReceiveMessage;
     public event EventHandler<Exception>? ReceiveMessageHandlerError;
@@ -32,7 +38,7 @@ public class AppSurveyor
             _surveyor = NngManager.Factory.SurveyorOpen().Unwrap();
             _surveyor.SetOpt(Defines.NNG_OPT_RECVTIMEO, new nng_duration() { TimeMs = 3000 });
             _surveyor.SetOpt(Defines.NNG_OPT_SENDTIMEO, new nng_duration() { TimeMs = 3000 });
-            _listener = _surveyor.ListenWithListener(NngManager.ListenAddress, Defines.NngFlag.NNG_FLAG_NONBLOCK).Unwrap();
+            _listener = _surveyor.ListenWithListener(NngManager.GetListenAddress(_listenPort), Defines.NngFlag.NNG_FLAG_NONBLOCK).Unwrap();
             _surveyorCtx = _surveyor.CreateAsyncContext(NngManager.Factory).Unwrap();
             _surveyorCtx.Ctx.SetOpt(Defines.NNG_OPT_SURVEYOR_SURVEYTIME, new nng_duration() { TimeMs = 2500 });
 

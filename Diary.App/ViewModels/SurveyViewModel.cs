@@ -10,10 +10,12 @@ using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.Models;
 using Diary.App.Utils;
+using Diary.Core.Data.Base;
 using Diary.Database;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
+using Diary.Survey;
 using Diary.Utils;
 using Microsoft.Extensions.Logging;
 
@@ -73,6 +75,7 @@ public sealed partial class SurveyResult
     public string Title => $"{_data.Username}@{_data.Hostname}";
     public string Range => $"{_data.DateStart} ~ {_data.DateEnd}";
     public double Total => _data.TotalTime;
+    public int RecordCount => _data.RecordCount;
     public HierarchicalTreeDataGridSource<RespondTag> GridSource { get; init; }
 
     private void UpdatePercent(double total)
@@ -119,7 +122,15 @@ public partial class SurveyViewModel : ViewModelBase
     [ObservableProperty] private double _customTotal = 0;
     [ObservableProperty] private ObservableCollection<SurveyResult> _surveyResults = new();
     [ObservableProperty] private bool _surveying = false;
+    [ObservableProperty] private string _extendedText = string.Empty;
+    [ObservableProperty] private string _extendedTagNames = string.Empty;
+    [ObservableProperty] private int _extendedTagFilterIndex;
+    [ObservableProperty] private int _extendedPriorityIndex;
+    [ObservableProperty] private string _queryMode = "兼容查询：支持旧版和新版调查节点";
     private object _lock = new();
+
+    public IReadOnlyList<string> ExtendedTagFilters { get; } = ["忽略标签", "任意标签", "全部标签", "无标签", "精确匹配"];
+    public IReadOnlyList<string> ExtendedPriorities { get; } = ["全部优先级", .. Enum.GetNames<WorkPriorities>()];
 
     private IDictionary<string, RespondData> _respondDatas = new Dictionary<string, RespondData>();
 
@@ -132,6 +143,8 @@ public partial class SurveyViewModel : ViewModelBase
 
         Messenger.Register<SurveyRequestEvent>(this, (r, m) => CollectData(m.Value));
         Messenger.Register<RespondEvent>(this, (r, m) => StoreData(m.Value));
+        Messenger.Register<ExtendedSurveyRequestEvent>(this, (r, m) => CollectExtendedData(m.Value));
+        Messenger.Register<ExtendedRespondEvent>(this, (r, m) => StoreExtendedData(m.Value));
         Messenger.Register<QuickSurveyEvent>(this, (r, m) => BuildRange(m.Value.Item1, m.Value.Item2));
     }
 
@@ -147,27 +160,43 @@ public partial class SurveyViewModel : ViewModelBase
         try
         {
             var data = JsonSerializer.Deserialize<RespondData>(content);
-            if (data != null)
-            {
-                if (data.Tags.Count == 0)
-                {
-                    data.Tags.Add(RespondTag.Null);
-                }
-                lock (_lock)
-                {
-                    if (!_respondDatas.TryAdd(data.Key, data))
-                    {
-                        _respondDatas[data.Key] = data;
-                    }
-                }
-
-                Dispatcher.UIThread.InvokeAsync(UpdateTree);
-            }
+            StoreData(data);
         }
         catch (JsonException exception)
         {
             _logger.LogError(exception, exception.Message);
         }
+    }
+
+    private void StoreExtendedData(string content)
+    {
+        try
+        {
+            var response = JsonSerializer.Deserialize<ExtendedSurveyResponse>(content);
+            if (response is null || !response.Ok || response.Data is null)
+            {
+                _logger.LogWarning("扩展调查失败：{Error}", response?.Error ?? "响应无效");
+                return;
+            }
+            StoreData(response.Data.Value.Deserialize<RespondData>());
+        }
+        catch (JsonException exception)
+        {
+            _logger.LogError(exception, "扩展调查响应解析失败");
+        }
+    }
+
+    private void StoreData(RespondData? data)
+    {
+        if (data is null)
+            return;
+        if (data.Tags.Count == 0)
+            data.Tags.Add(RespondTag.Null);
+        lock (_lock)
+        {
+            _respondDatas[data.Key] = data;
+        }
+        Dispatcher.UIThread.InvokeAsync(UpdateTree);
     }
 
     private void UpdateTree()
@@ -255,6 +284,47 @@ public partial class SurveyViewModel : ViewModelBase
         }
     }
 
+    private void CollectExtendedData(string content)
+    {
+        if (!ExtendedSurveyProtocol.TryDeserializeRequest(content, out var request) || request is null)
+        {
+            _logger.LogWarning("忽略无效扩展调查请求：{Content}", content);
+            return;
+        }
+
+        Task.Run(() =>
+        {
+            try
+            {
+                var db = Db;
+                if (db is null)
+                {
+                    EventDispatcher.Msg(new ExtendedSurveyResultEvent(
+                        ExtendedSurveyProtocol.SerializeError(request.RequestId, "数据库不可用")));
+                    return;
+                }
+
+                if (!SurveyStatisticsBuilder.TryBuildQuery(db, request, out var query, out var error))
+                {
+                    EventDispatcher.Msg(new ExtendedSurveyResultEvent(
+                        ExtendedSurveyProtocol.SerializeError(request.RequestId, error)));
+                    return;
+                }
+
+                var data = SurveyStatisticsBuilder.Build(db, query);
+                var dataJson = JsonSerializer.Serialize(data);
+                EventDispatcher.Msg(new ExtendedSurveyResultEvent(
+                    ExtendedSurveyProtocol.SerializeSuccess(request.RequestId, dataJson)));
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, "扩展调查查询失败");
+                EventDispatcher.Msg(new ExtendedSurveyResultEvent(
+                    ExtendedSurveyProtocol.SerializeError(request.RequestId, "扩展调查查询失败")));
+            }
+        });
+    }
+
     [RelayCommand]
     private async Task SendQuery()
     {
@@ -264,11 +334,36 @@ public partial class SurveyViewModel : ViewModelBase
             _respondDatas.Clear();
         }
         ReCalc();
-        EventDispatcher.Msg(new SurveyQueryEvent($"{TimeTools.FormatDateTime(StartDate)}:{TimeTools.FormatDateTime(EndDate)}"));
+        if (HasExtendedQuery)
+        {
+            QueryMode = "扩展查询：仅新版调查节点";
+            var request = new ExtendedSurveyRequest
+            {
+                RequestId = Guid.NewGuid().ToString("N"),
+                StartDate = TimeTools.FormatDateTime(StartDate),
+                EndDate = TimeTools.FormatDateTime(EndDate),
+                Text = string.IsNullOrWhiteSpace(ExtendedText) ? null : ExtendedText.Trim(),
+                TagNames = ExtendedTagNames
+                    .Split([',', '，', ';', '；'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                TagFilter = ((WorkItemTagFilter)ExtendedTagFilterIndex).ToString(),
+                Priority = ExtendedPriorityIndex == 0 ? null : ExtendedPriorityIndex - 1,
+            };
+            EventDispatcher.Msg(new ExtendedSurveyQueryEvent(ExtendedSurveyProtocol.SerializeRequest(request)));
+        }
+        else
+        {
+            QueryMode = "兼容查询：支持旧版和新版调查节点";
+            EventDispatcher.Msg(new SurveyQueryEvent($"{TimeTools.FormatDateTime(StartDate)}:{TimeTools.FormatDateTime(EndDate)}"));
+        }
         await Task.Delay(3000);
         ReCalc();
         Surveying = false;
     }
+
+    private bool HasExtendedQuery => !string.IsNullOrWhiteSpace(ExtendedText)
+        || !string.IsNullOrWhiteSpace(ExtendedTagNames)
+        || ExtendedTagFilterIndex != 0
+        || ExtendedPriorityIndex != 0;
 
     [RelayCommand]
     private void ReCalc()

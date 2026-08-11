@@ -8,6 +8,7 @@ namespace Diary.Survey;
 
 public class AppRespondent
 {
+    private readonly ushort _port;
     private IRespondentSocket? _respondent;
     private INngDialer? _dialer;
     private ISurveyorAsyncContext<INngMsg>? _respondentCtx;
@@ -20,6 +21,11 @@ public class AppRespondent
     private readonly Lock _messageLock = new();
     private readonly Lock _lifecycleLock = new();
     private ILogger Logger => Logging.Logger;
+
+    public AppRespondent(ushort port = SurveyPorts.Legacy)
+    {
+        _port = port;
+    }
 
     public event EventHandler<string>? ReceiveMessage;
     public event EventHandler<Exception>? ReceiveMessageHandlerError;
@@ -35,7 +41,7 @@ public class AppRespondent
             _respondent.SetOpt(Defines.NNG_OPT_RECVTIMEO, new nng_duration() { TimeMs = 250 });
             _respondent.SetOpt(Defines.NNG_OPT_RECONNMAXT, new nng_duration() { TimeMs = 0 });
             _respondent.SetOpt(Defines.NNG_OPT_RECONNMINT, new nng_duration() { TimeMs = 1500 });
-            _dialer = _respondent.DialWithDialer($"tcp://{hostIpAddress}:{NngManager.ListenPort}", Defines.NngFlag.NNG_FLAG_NONBLOCK).Unwrap();
+            _dialer = _respondent.DialWithDialer($"tcp://{hostIpAddress}:{_port}", Defines.NngFlag.NNG_FLAG_NONBLOCK).Unwrap();
             _dialer.SetOpt(Defines.NNG_OPT_RECONNMINT, new nng_duration() { TimeMs = 1500 });
             _dialer.SetOpt(Defines.NNG_OPT_RECONNMAXT, new nng_duration() { TimeMs = 0 });
             _respondentCtx = _respondent.CreateAsyncContext(NngManager.Factory).Unwrap();

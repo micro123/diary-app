@@ -36,6 +36,8 @@ public class RespondData
     public string DateEnd { get; set; } = string.Empty;
     [JsonPropertyName("hours")]
     public double TotalTime { get; set; }
+    [JsonPropertyName("record_count")]
+    public int RecordCount { get; set; }
     [JsonPropertyName("tags")]
     public List<RespondTag> Tags { get; set; } = new();
 

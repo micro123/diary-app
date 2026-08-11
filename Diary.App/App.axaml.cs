@@ -62,6 +62,14 @@ namespace Diary.App
             {
                 Dispatcher.UIThread.Post(() => EventDispatcher.Msg(new SurveyRequestEvent(s)));
             };
+            _extendedSurveyor.ReceiveMessage += (_, s) =>
+            {
+                Dispatcher.UIThread.Post(() => EventDispatcher.Msg(new ExtendedRespondEvent(s)));
+            };
+            _extendedRespondent.ReceiveMessage += (_, s) =>
+            {
+                Dispatcher.UIThread.Post(() => EventDispatcher.Msg(new ExtendedSurveyRequestEvent(s)));
+            };
         }
 
         public override void Initialize()
@@ -648,6 +656,14 @@ namespace Diary.App
             {
                 ObserveBackgroundTask(_surveyor.SurveyAsync(m.Value), "发送调查问题");
             });
+            WeakReferenceMessenger.Default.Register<ExtendedSurveyResultEvent>(this, (r, m) =>
+            {
+                _extendedRespondent.Send(m.Value);
+            });
+            WeakReferenceMessenger.Default.Register<ExtendedSurveyQueryEvent>(this, (r, m) =>
+            {
+                ObserveBackgroundTask(_extendedSurveyor.SurveyAsync(m.Value), "发送扩展调查问题");
+            });
 
             // check if configure is valid
             if (!success)
@@ -690,16 +706,24 @@ namespace Diary.App
 
             await _surveyor.StopServerAsync();
             await _respondent.ShutdownAsync();
+            await _extendedSurveyor.StopServerAsync();
+            await _extendedRespondent.ShutdownAsync();
 
             if (!AppConfig.SurveySettings.Enabled)
                 return;
 
             var surveyConfig = AppConfig.SurveySettings;
             if (surveyConfig.IsServerEnabled)
+            {
                 _surveyor.StartServer();
+                _extendedSurveyor.StartServer();
+            }
 
             if (surveyConfig.TryGetRespondentAddress(out var address))
+            {
                 _respondent.Connect(address);
+                _extendedRespondent.Connect(address);
+            }
             else if (surveyConfig.IsRespondentEnabled)
                 Logger.LogWarning("调查功能已启用但未配置调查者 IP 地址，受访者不会连接调查者");
         }
@@ -708,6 +732,8 @@ namespace Diary.App
         {
             await _surveyor.StopServerAsync();
             await _respondent.ShutdownAsync();
+            await _extendedSurveyor.StopServerAsync();
+            await _extendedRespondent.ShutdownAsync();
             _timer.Stop();
             SaveConfigurations();
             SavePluginConfigurations();
@@ -878,6 +904,8 @@ namespace Diary.App
 
         private AppSurveyor _surveyor = new();
         private AppRespondent _respondent = new();
+        private AppSurveyor _extendedSurveyor = new(SurveyPorts.Extended);
+        private AppRespondent _extendedRespondent = new(SurveyPorts.Extended);
 
         private ScriptLogApi CreateScriptLogApi(
             ScriptExecutionMetadata? metadata,
