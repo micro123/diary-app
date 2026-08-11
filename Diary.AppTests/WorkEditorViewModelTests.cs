@@ -57,6 +57,22 @@ public sealed class WorkEditorViewModelTests
         }, CancellationToken.None);
     }
 
+    [TestMethod]
+    public void TrackerUploadResultIncludesRecoveryDetails()
+    {
+        var attemptedAt = new DateTimeOffset(2026, 8, 11, 14, 0, 0, TimeSpan.FromHours(8));
+        var result = new TrackerUploadResult(
+            new TrackerKey("test", "local"),
+            false,
+            false,
+            "网络连接中断",
+            State: TrackerUploadState.Uncertain,
+            AttemptedAt: attemptedAt);
+
+        StringAssert.Contains(result.ResultSummary, "请先核对远程记录后再决定是否重试");
+        StringAssert.Contains(result.ResultSummary, "尝试时间：2026-08-11 14:00:00");
+    }
+
     private static void SetWorkItem(WorkEditorViewModel viewModel, WorkItem item)
     {
         var property = typeof(WorkEditorViewModel).GetProperty(

@@ -217,7 +217,12 @@ public partial class DiaryEditorViewModel : ViewModelBase
     {
         SaveWorkItem();
         var (result, msg) = await SelectedWork!.Upload();
-        ToastManager?.Show(result ? "同步成功" : $"同步失败：{msg}");
+        var toast = SelectedWork.UploadStatus == WorkItemUploadStatus.Uncertain
+            ? "同步结果待确认：请先在远程系统核对，避免重复同步。"
+            : result
+                ? "同步成功"
+                : $"同步失败：{msg}";
+        ToastManager?.Show(toast);
 
         // hack: update button state
         Dispatcher.UIThread.Post(() => UploadTimeCommand.NotifyCanExecuteChanged());

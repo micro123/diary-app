@@ -11,9 +11,14 @@ public sealed record TrackerUploadResult(
     bool Skipped,
     string? Error = null,
     string? RemoteId = null,
-    TrackerUploadState State = TrackerUploadState.NotAttempted)
+    TrackerUploadState State = TrackerUploadState.NotAttempted,
+    DateTimeOffset? AttemptedAt = null)
 {
     public string TrackerLabel => $"{Key.PluginId} / {Key.InstanceId}";
+
+    public string AttemptedAtText => AttemptedAt is null
+        ? string.Empty
+        : $"尝试时间：{AttemptedAt.Value.ToLocalTime():yyyy-MM-dd HH:mm:ss}";
 
     public string StateText => State switch
     {
@@ -30,11 +35,13 @@ public sealed record TrackerUploadResult(
         TrackerUploadState.Succeeded when !string.IsNullOrWhiteSpace(RemoteId)
             => $"{StateText} · 远程 ID：{RemoteId}",
         TrackerUploadState.Failed when !string.IsNullOrWhiteSpace(Error)
-            => $"{StateText} · {Error}",
+            => $"{StateText} · {Error} · 可直接重试",
         TrackerUploadState.Uncertain when !string.IsNullOrWhiteSpace(Error)
-            => $"{StateText} · {Error}",
+            => $"{StateText} · {Error} · 请先核对远程记录后再决定是否重试",
+        TrackerUploadState.Uncertain
+            => $"{StateText} · 请先核对远程记录后再决定是否重试",
         _ => StateText,
-    };
+    } + (string.IsNullOrWhiteSpace(AttemptedAtText) ? string.Empty : $" · {AttemptedAtText}");
 }
 
 public sealed record WorkUploadResult(IReadOnlyList<TrackerUploadResult> Results)
@@ -70,10 +77,12 @@ public sealed class TrackerUploadCoordinator : ITrackerUploadCoordinator
                     extension.Key,
                     true,
                     true,
-                    State: TrackerUploadState.Succeeded));
+                    State: TrackerUploadState.Succeeded,
+                    AttemptedAt: extension.UploadAttemptedAt));
                 continue;
             }
 
+            var attemptedAt = DateTimeOffset.UtcNow;
             try
             {
                 var result = await extension.UploadAsync(item);
@@ -83,7 +92,8 @@ public sealed class TrackerUploadCoordinator : ITrackerUploadCoordinator
                     false,
                     result.Error,
                     result.RemoteId,
-                    result.State));
+                    result.State,
+                    extension.UploadAttemptedAt ?? attemptedAt));
             }
             catch (Exception ex)
             {
@@ -92,7 +102,8 @@ public sealed class TrackerUploadCoordinator : ITrackerUploadCoordinator
                     false,
                     false,
                     ex.Message,
-                    State: TrackerUploadState.Uncertain));
+                    State: TrackerUploadState.Uncertain,
+                    AttemptedAt: extension.UploadAttemptedAt ?? attemptedAt));
             }
         }
 
