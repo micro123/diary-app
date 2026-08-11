@@ -696,14 +696,11 @@ namespace Diary.App
 
             var surveyConfig = AppConfig.SurveySettings;
             if (surveyConfig.IsServerEnabled)
-            {
                 _surveyor.StartServer();
-                return;
-            }
 
             if (surveyConfig.TryGetRespondentAddress(out var address))
                 _respondent.Connect(address);
-            else
+            else if (surveyConfig.IsRespondentEnabled)
                 Logger.LogWarning("调查功能已启用但未配置调查者 IP 地址，受访者不会连接调查者");
         }
 

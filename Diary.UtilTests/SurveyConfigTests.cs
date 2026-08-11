@@ -6,7 +6,7 @@ namespace Diary.UtilTests;
 public sealed class SurveyConfigTests
 {
     [TestMethod]
-    public void SurveyorDoesNotRequireOrUseRespondentAddress()
+    public void SurveyorUsesLocalhostAsItsRespondentAddress()
     {
         var config = new SurveyConfig
         {
@@ -17,7 +17,8 @@ public sealed class SurveyConfigTests
 
         Assert.IsTrue(config.IsServerEnabled);
         Assert.IsFalse(config.IsRespondentEnabled);
-        Assert.IsFalse(config.TryGetRespondentAddress(out _));
+        Assert.IsTrue(config.TryGetRespondentAddress(out var address));
+        Assert.AreEqual("127.0.0.1", address);
     }
 
     [TestMethod]
