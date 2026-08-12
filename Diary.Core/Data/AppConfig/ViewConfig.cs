@@ -21,4 +21,7 @@ public class ViewConfig
     private object? ShowOnboardingGuide { get; }
 
     public bool HasCompletedOnboarding { get; set; } = false;
+
+    /// <summary>最近使用的主标签 ID，供新建工作项排序使用。</summary>
+    public List<int> RecentPrimaryTagIds { get; set; } = new();
 }

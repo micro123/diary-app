@@ -12,6 +12,7 @@ using Diary.App.ViewModels.Dialogs;
 using Diary.Core.Constants;
 using Diary.Core.Data.App;
 using Diary.Core.Data.Base;
+using Diary.Core.Utils;
 using Diary.Database;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
@@ -98,6 +99,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         var newDate = SelectedWork!.IsDateChanged;
         SelectedWork.Save(out var created);
         ConfigureEditorScriptActions(SelectedWork);
+        RememberRecentPrimaryTags(SelectedWork.WorkTags);
         if (created)
         {
             if (CurrentDateString == SelectedWork.Date)
@@ -216,6 +218,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
         ConfigureEditorScriptActions(copy);
         DailyWorks.Add(copy);
+        RememberRecentPrimaryTags(copy.WorkTags);
         return true;
     }
 
@@ -281,11 +284,24 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private bool CanUpload => SelectedWork?.CanUpload() == true;
 
     private IEnumerable<int> GetRecentTagIds()
-        => DailyWorks
-            .SelectMany(work => work.WorkTags)
-            .Select(tag => tag.Id)
-            .Distinct()
-            .Take(8);
+        => RecentPrimaryTagHistory.Merge(
+            DailyWorks
+                .SelectMany(work => work.WorkTags)
+                .Select(tag => tag.Id),
+            App.Instance.AppConfig.ViewSettings.RecentPrimaryTagIds);
+
+    private void RememberRecentPrimaryTags(IEnumerable<WorkTag> tags)
+    {
+        var merged = RecentPrimaryTagHistory.Merge(
+            tags.Where(tag => tag.Level == TagLevels.Primary).Select(tag => tag.Id),
+            App.Instance.AppConfig.ViewSettings.RecentPrimaryTagIds);
+        var current = App.Instance.AppConfig.ViewSettings.RecentPrimaryTagIds;
+        if (current.SequenceEqual(merged))
+            return;
+
+        App.Instance.AppConfig.ViewSettings.RecentPrimaryTagIds = merged.ToList();
+        EasySaveLoad.Save(App.Instance.AppConfig);
+    }
 
     [RelayCommand]
     private void RetryDatabaseConnection()
