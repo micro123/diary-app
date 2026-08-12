@@ -27,7 +27,7 @@
     <DockPanel Name="EditPanel" VerticalSpacing="4">
         <u:Divider DockPanel.Dock="Top" Content="一般信息" HorizontalContentAlignment="Left" />
         <Grid DockPanel.Dock="Top" ColumnDefinitions="64,*"
-              RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="10"
+              RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="10"
               IsEnabled="{Binding !IsLocked}">
             <TextBlock Grid.Row="0" Grid.Column="0" Text="日期：" VerticalAlignment="Center" />
             <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="240,Auto" ColumnSpacing="12">
@@ -70,6 +70,16 @@
                 <TextBlock Grid.Column="2" Text="优先级：" VerticalAlignment="Center" />
                 <u:EnumSelector Grid.Column="3" Width="96" Value="{Binding Priority}"
                                 EnumType="{x:Type base:WorkPriorities}" />
+            </Grid>
+
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="时间输入：" VerticalAlignment="Center" />
+            <Grid Grid.Row="3" Grid.Column="1" ColumnDefinitions="220,Auto,*" ColumnSpacing="8">
+                <TextBox Grid.Column="0" Text="{Binding TimeExpression}"
+                         Watermark="例如 30m、1h30m、1小时30分钟" Classes="ClearButton" />
+                <Button Grid.Column="1" Content="应用"
+                        Command="{Binding ApplyTimeExpressionCommand}" />
+                <TextBlock Grid.Column="2" Text="支持分钟和小时写法，最多 24 小时"
+                           VerticalAlignment="Center" Opacity="0.65" />
             </Grid>
         </Grid>
         <u:Divider DockPanel.Dock="Top" Content="标签列表" HorizontalContentAlignment="Left" />

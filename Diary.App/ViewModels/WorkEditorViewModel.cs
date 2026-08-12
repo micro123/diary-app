@@ -57,6 +57,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     [ObservableProperty] private string _date;
     [ObservableProperty] private string _comment;
     [ObservableProperty] private string _note;
+    [ObservableProperty] private string _timeExpression = string.Empty;
     [ObservableProperty] private double _time;
     [ObservableProperty] private WorkPriorities _priority;
     [ObservableProperty] private ObservableCollection<WorkTag> _workTags = new();
@@ -385,6 +386,19 @@ public partial class WorkEditorViewModel : ViewModelBase
             "clear" => 0.0,
             _ => Time,
         };
+    }
+
+    [RelayCommand]
+    private void ApplyTimeExpression()
+    {
+        if (!TimeExpressionParser.TryParse(TimeExpression, out var hours, out var error))
+        {
+            EventDispatcher.ShowToast(error);
+            return;
+        }
+
+        Time = hours;
+        TimeExpression = string.Empty;
     }
 
     [RelayCommand]
