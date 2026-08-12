@@ -165,6 +165,7 @@ foreach (var item in result.Items)
 | `Priority` | `int?` | 优先级，当前范围为 0 到 9。 |
 | `Limit` | `int?` | 默认 100，最大 1000。 |
 | `Offset` | `int` | 默认 0，最大 1,000,000。 |
+| `Range` | `string?` | 日期范围快捷值：`today`、`yesterday`、`thisWeek`、`thisMonth`；提供时覆盖 `StartDate`/`EndDate`，由宿主解析为实际日期范围。 |
 
 返回的 `ScriptWorkItemQueryResult` 包含 `Succeeded`、`Items`、`NormalizedQuery` 和 `Error`。`ScriptWorkItem` 仅是安全 DTO：`Id`、`Date`、`Comment`、`Hours`、`Priority`、`Note`、`Tags`。该 API 没有更新或删除方法。
 
@@ -212,6 +213,8 @@ var created = result.Item!;
 | `Hours` | `double` | 大于 0 且不超过 24。 |
 | `Title` | `string` | 非空，最多 500 字符。 |
 | `Note` | `string?` | 可选，最多 10000 字符。 |
+| `IdempotencyKey` | `string?` | 可选，业务幂等键；重复提交同一业务动作返回已提交结果，应用重启后仍可识别。 |
+| `Preview` | `bool` | 可选，为 `true` 时只返回投影记录与副作用摘要，不写入数据库。 |
 
 失败时 `Error.Code` 可能是 `InvalidInput`、`DatabaseUnavailable`、`ProviderFailure` 或 `Cancelled`。成功时 `Item` 返回新建工作项 DTO。脚本不能从该 API 获得可变 `WorkItem` 对象。
 

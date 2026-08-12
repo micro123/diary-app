@@ -168,6 +168,7 @@ Jira 失败时核心工作记录仍可保存。
 
 - [ ] 明确脚本查询与追加工作项的事务边界、失败行为和权限要求。
 - [~] 已统一 Tracker 实例目录的只读 DTO、能力声明和错误结果；后端 Issue 查询模型随首个新 Tracker 实现补充。
+- [x] 已为查询 API 增加 `today`/`yesterday`/`thisWeek`/`thisMonth` 日期范围快捷值，并统一三语言 create API 的 `preview`/`idempotencyKey` 文档与幂等持久化说明。
 
 ### 9.6 Lua 和 Python 引擎
 

@@ -304,7 +304,7 @@ public sealed class DemoScript : ApplicationScript
 ### P1：改善脚本日常开发体验
 
 - 已增加入口类型、强类型上下文、`GetRequiredApi<T>()` 和统一进度报告。
-- 增加日期范围快捷方法。
+- 已增加日期范围快捷方法（query 支持 `today`、`yesterday`、`thisWeek`、`thisMonth`）。
 - 已增加模板和 Tracker 实例发现 API。
 - 增加按 Application/Editor/Automation 入口划分的 C# SDK 基类和最小示例。
 - 为三种语言各提供一个完整的“查询并创建日志项”示例。
@@ -321,7 +321,7 @@ public sealed class DemoScript : ApplicationScript
 2. 抽象跨语言共享的宿主 API 语义、错误码、取消和进度模型。
 3. 增加追加写入的持久化幂等、预览和副作用摘要；Tracker 远程写入和历史修正保持在当前脚本 API 范围之外。
 4. 已增加 C# SDK、三种语言模板以及模板/Tracker 发现 API。
-5. 最后完成三语言示例、跨语言契约回归和文档闭环；日期范围快捷 API 另列后续优化。
+5. 最后完成三语言示例、跨语言契约回归和文档闭环；日期范围快捷 API 已实现并完成三语言文档。
 
 ## 8. 评审结论
 

@@ -66,7 +66,7 @@ end
 
 `target.kind` 为 `Year`、`Quarter`、`Month`、`Day` 或 `WorkItem`。季度使用自然季度：1-3、4-6、7-9、10-12 月。`context.request.source` 是 `Manual`、`Editor`、`Startup` 或 `Automation`。
 
-脚本自动化只能追加工作记录，不提供删除或直接改写历史记录；创建 API 的 `idempotencyKey` 和 `preview` 用于控制重复提交和预览副作用。`idempotencyKey` 当前只在宿主进程生命周期内有效。
+脚本自动化只能追加工作记录，不提供删除或直接改写历史记录；创建 API 的 `idempotencyKey` 和 `preview` 用于控制重复提交和预览副作用。已提交的幂等结果由宿主共享存储持久化，应用重启后仍能识别重复请求。
 ## 2. 查询工作项
 
 调用：`diary.workItems.query(params)`。
@@ -80,6 +80,7 @@ end
 | `priority` | number | 0 到 9。 |
 | `limit` | number | 默认 100，最大 1000。 |
 | `offset` | number | 默认 0，最大 10000。 |
+| `range` | string | 日期范围快捷值：`today`、`yesterday`、`thisWeek`、`thisMonth`；提供时覆盖 `startDate`/`endDate`。 |
 
 返回：
 
@@ -147,6 +148,8 @@ print("created work item: " .. result.item.id)
 | `hours` | number | 大于 0 且不超过 24。 |
 | `title` | string | 非空，最多 500 字符。 |
 | `note` | string | 可选，最多 10000 字符。 |
+| `preview` | boolean | 可选，为 `true` 时只返回投影记录和副作用摘要，不写入数据库。 |
+| `idempotencyKey` | string | 可选，重复提交同一业务动作时返回已提交结果，不重复追加。 |
 
 成功返回 `succeeded = true` 和新建的 `item`；失败返回 `succeeded = false` 及 `error.code`：`InvalidInput`、`DatabaseUnavailable`、`ProviderFailure` 或 `Cancelled`。Lua 没有工作项更新和删除 API。
 

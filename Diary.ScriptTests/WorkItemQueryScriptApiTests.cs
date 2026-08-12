@@ -159,6 +159,58 @@ public sealed class WorkItemQueryScriptApiTests
         Assert.AreEqual(0, result.Items.Single(item => item.Id == second.Id).Tags.Length);
     }
 
+    [TestMethod]
+    public async Task QueryAsync_ResolvesRangeShortcutsToDateRanges()
+    {
+        using var db = TestDatabase.Create();
+        var api = CreateApi(() => db);
+
+        var today = await api.QueryAsync(new ScriptWorkItemQuery { Range = "today" });
+        Assert.IsTrue(today.Succeeded, today.Error?.Message);
+        Assert.AreEqual(DateTime.Today.ToString("yyyy-MM-dd"), today.NormalizedQuery!.StartDate);
+        Assert.AreEqual(today.NormalizedQuery.StartDate, today.NormalizedQuery.EndDate);
+
+        var yesterday = await api.QueryAsync(new ScriptWorkItemQuery { Range = "yesterday" });
+        Assert.IsTrue(yesterday.Succeeded, yesterday.Error?.Message);
+        Assert.AreEqual(DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd"), yesterday.NormalizedQuery!.StartDate);
+        Assert.AreEqual(yesterday.NormalizedQuery.StartDate, yesterday.NormalizedQuery.EndDate);
+
+        var weekStart = DateTime.Today.Date;
+        var dayOfWeek = (int)weekStart.DayOfWeek;
+        if (dayOfWeek == 0)
+            dayOfWeek = 7;
+        weekStart = weekStart.AddDays(-dayOfWeek + 1);
+        var week = await api.QueryAsync(new ScriptWorkItemQuery { Range = "thisWeek" });
+        Assert.IsTrue(week.Succeeded, week.Error?.Message);
+        Assert.AreEqual(weekStart.ToString("yyyy-MM-dd"), week.NormalizedQuery!.StartDate);
+        Assert.AreEqual(weekStart.AddDays(6).ToString("yyyy-MM-dd"), week.NormalizedQuery.EndDate);
+
+        var monthStart = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        var month = await api.QueryAsync(new ScriptWorkItemQuery { Range = "thisMonth" });
+        Assert.IsTrue(month.Succeeded, month.Error?.Message);
+        Assert.AreEqual(monthStart.ToString("yyyy-MM-dd"), month.NormalizedQuery!.StartDate);
+        Assert.AreEqual(monthStart.AddMonths(1).AddDays(-1).ToString("yyyy-MM-dd"), month.NormalizedQuery.EndDate);
+    }
+
+    [TestMethod]
+    public async Task QueryAsync_RangeOverridesExplicitDatesAndRejectsUnknownValues()
+    {
+        using var db = TestDatabase.Create();
+        var api = CreateApi(() => db);
+
+        var overridden = await api.QueryAsync(new ScriptWorkItemQuery
+        {
+            StartDate = "2020-01-01",
+            EndDate = "2020-01-31",
+            Range = "today",
+        });
+        Assert.IsTrue(overridden.Succeeded, overridden.Error?.Message);
+        Assert.AreEqual(DateTime.Today.ToString("yyyy-MM-dd"), overridden.NormalizedQuery!.StartDate);
+
+        var invalid = await api.QueryAsync(new ScriptWorkItemQuery { Range = "tomorrow" });
+        AssertError(invalid, ScriptQueryErrorCode.InvalidInput);
+    }
+
     private static WorkItemQueryScriptApi CreateApi(Func<DbInterfaceBase?> provider) =>
         new(provider);
 

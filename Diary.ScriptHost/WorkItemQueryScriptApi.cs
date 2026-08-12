@@ -85,6 +85,14 @@ public sealed class WorkItemQueryScriptApi(
         databaseQuery = new WorkItemQuery();
         if (query is null)
             return Fail("查询条件不能为空。", out error);
+
+        if (query.Range is not null)
+        {
+            if (!TryResolveRange(query.Range, out var rangeStart, out var rangeEnd, out error))
+                return false;
+            query = query with { StartDate = rangeStart, EndDate = rangeEnd };
+        }
+
         var tagIds = query.TagIds.IsDefault ? ImmutableArray<int>.Empty : query.TagIds;
         if (tagIds.Length > MaxTagCount)
             return Fail($"标签数量不能超过 {MaxTagCount} 个。", out error);
@@ -123,6 +131,51 @@ public sealed class WorkItemQueryScriptApi(
             Offset = databaseQuery.Offset,
         };
         return true;
+    }
+
+    private static bool TryResolveRange(string range, out string startDate, out string endDate, out string error)
+    {
+        startDate = endDate = string.Empty;
+        error = string.Empty;
+        var today = DateTime.Today;
+        switch (range.Trim().ToLowerInvariant())
+        {
+            case "today":
+                startDate = FormatDate(today);
+                endDate = startDate;
+                return true;
+            case "yesterday":
+                startDate = FormatDate(today.AddDays(-1));
+                endDate = startDate;
+                return true;
+            case "thisweek":
+                {
+                    var start = StartOfWeek(today);
+                    startDate = FormatDate(start);
+                    endDate = FormatDate(start.AddDays(6));
+                    return true;
+                }
+            case "thismonth":
+                {
+                    var start = new DateTime(today.Year, today.Month, 1);
+                    startDate = FormatDate(start);
+                    endDate = FormatDate(start.AddMonths(1).AddDays(-1));
+                    return true;
+                }
+            default:
+                return Fail("日期范围快捷值无效，支持 today、yesterday、thisWeek、thisMonth。", out error);
+        }
+    }
+
+    private static string FormatDate(DateTime date) =>
+        date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static DateTime StartOfWeek(DateTime date)
+    {
+        var day = (int)date.DayOfWeek;
+        if (day == 0)
+            day = 7;
+        return date.Date.AddDays(-day + 1);
     }
 
     private static ScriptWorkItemQueryResult Failure(ScriptQueryErrorCode code, string message) =>

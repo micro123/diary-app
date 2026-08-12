@@ -62,6 +62,7 @@ result = context.diary.workItems.query({"limit": 100}, text="Worker")
 | `priority` | int | 0 到 9。 |
 | `limit` | int | 默认 100，最大 1000。 |
 | `offset` | int | 默认 0，最大 1,000,000。 |
+| `range` | str | 日期范围快捷值：`today`、`yesterday`、`thisWeek`、`thisMonth`；提供时覆盖 `startDate`/`endDate`。 |
 
 成功返回：
 
@@ -121,6 +122,8 @@ print(created["id"])
 | `hours` | float | 大于 0 且不超过 24。 |
 | `title` | str | 非空，最多 500 字符。 |
 | `note` | str | 可选，最多 10000 字符。 |
+| `preview` | bool | 可选，为 `true` 时只返回投影记录和副作用摘要，不写入数据库。 |
+| `idempotencyKey` | str | 可选，重复提交同一业务动作时返回已提交结果，不重复追加。 |
 
 失败时返回 `succeeded = False` 和 `error`。错误代码包括 `InvalidInput`、`DatabaseUnavailable`、`ProviderFailure`、`Cancelled`。该 API 只返回新建项的安全 DTO。
 
