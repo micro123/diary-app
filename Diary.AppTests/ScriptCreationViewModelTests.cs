@@ -98,6 +98,7 @@ public sealed class ScriptCreationViewModelTests
         foreach (var (template, target) in new[]
                  {
                      ("日目标脚本", ScriptEditorTargetKind.Day),
+                     ("周目标脚本", ScriptEditorTargetKind.Week),
                      ("月目标脚本", ScriptEditorTargetKind.Month),
                      ("季度目标脚本", ScriptEditorTargetKind.Quarter),
                      ("年目标脚本", ScriptEditorTargetKind.Year),
@@ -146,6 +147,7 @@ public sealed class ScriptCreationViewModelTests
 
         viewModel.SelectedScope = "编辑器脚本";
         Assert.IsTrue(viewModel.Templates.Contains("日目标脚本"));
+        Assert.IsTrue(viewModel.Templates.Contains("周目标脚本"));
 
         viewModel.SelectedTemplate = "日目标脚本";
         viewModel.SelectedScope = "应用脚本";

@@ -15,6 +15,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
     private const string BlankTemplate = "空白脚本";
     private const string WorkItemQueryTemplate = "查询工作项";
     private const string DayTargetTemplate = "日目标脚本";
+    private const string WeekTargetTemplate = "周目标脚本";
     private const string MonthTargetTemplate = "月目标脚本";
     private const string QuarterTargetTemplate = "季度目标脚本";
     private const string YearTargetTemplate = "年目标脚本";
@@ -28,6 +29,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
             BlankTemplate,
             WorkItemQueryTemplate,
             DayTargetTemplate,
+            WeekTargetTemplate,
             MonthTargetTemplate,
             QuarterTargetTemplate,
             YearTargetTemplate,
@@ -369,6 +371,7 @@ $"def {entryName}(context):",
             : SelectedTemplate switch
             {
                 DayTargetTemplate => [ScriptEditorTargetKind.Day],
+                WeekTargetTemplate => [ScriptEditorTargetKind.Week],
                 MonthTargetTemplate => [ScriptEditorTargetKind.Month],
                 QuarterTargetTemplate => [ScriptEditorTargetKind.Quarter],
                 YearTargetTemplate => [ScriptEditorTargetKind.Year],
