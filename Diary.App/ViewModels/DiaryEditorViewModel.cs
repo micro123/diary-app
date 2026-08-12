@@ -13,7 +13,6 @@ using Diary.Core.Constants;
 using Diary.Core.Data.App;
 using Diary.Core.Data.Base;
 using Diary.Core.Utils;
-using Diary.Database;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
