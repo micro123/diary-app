@@ -48,6 +48,12 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
     [ObservableProperty] private string _resultSummary = "尚未查询";
     [ObservableProperty] private string _resultBreakdown = string.Empty;
     public bool HasResultBreakdown => !string.IsNullOrWhiteSpace(ResultBreakdown);
+    public string QuerySummaryText => string.Join(
+        Environment.NewLine,
+        "查询汇总",
+        $"记录数：{Results.Count}",
+        $"总工时：{ResultTotalHours:0.##} 小时",
+        ResultBreakdown);
     [ObservableProperty] private double _resultTotalHours;
     [ObservableProperty] private bool _hasQueryError;
     [ObservableProperty] private string _savedQueryName = string.Empty;
@@ -56,6 +62,7 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ExportCsvCommand))]
     [NotifyCanExecuteChangedFor(nameof(ExportMarkdownCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CopyBreakdownCommand))]
     private ObservableCollection<WorkItemQueryResult> _results = new();
 
     public ObservableCollection<WorkItemQueryTag> Tags { get; } = new();
@@ -168,6 +175,7 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
             ResultTotalHours = Results.Sum(result => result.Time);
             ResultBreakdown = BuildBreakdown(Results);
             OnPropertyChanged(nameof(HasResultBreakdown));
+            OnPropertyChanged(nameof(QuerySummaryText));
             ResultSummary = Results.Count == DefaultResultLimit
                 ? $"已显示前 {DefaultResultLimit} 项，结果可能已截断；合计 {ResultTotalHours:0.##} 小时"
                 : $"共找到 {Results.Count} 项，合计 {ResultTotalHours:0.##} 小时";
@@ -200,6 +208,17 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
         var path = await SaveTextFileAsync("导出查询结果", "diary-query.md", "md", BuildMarkdown());
         if (path is not null)
             NotificationManager?.Show($"查询结果已导出：{path}", Avalonia.Controls.Notifications.NotificationType.Success);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCopyBreakdown))]
+    private async Task CopyBreakdown()
+    {
+        if (await CopyStringToClipboardAsync(QuerySummaryText))
+        {
+            NotificationManager?.Show(
+                "查询汇总已复制",
+                Avalonia.Controls.Notifications.NotificationType.Success);
+        }
     }
 
     private string BuildCsv()
@@ -252,6 +271,8 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
         => value.Replace("|", "\\|").Replace("\r", " ").Replace("\n", " ");
 
     private bool CanExport => Results.Count > 0;
+
+    private bool CanCopyBreakdown => Results.Count > 0;
 
     [RelayCommand]
     private void AddSavedQuery()

@@ -115,6 +115,7 @@
                                    TextWrapping="Wrap" IsVisible="{Binding HasResultBreakdown}" />
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <Button Content="复制汇总" Command="{Binding CopyBreakdownCommand}" />
                         <Button Content="导出 CSV" Command="{Binding ExportCsvCommand}" />
                         <Button Content="导出 Markdown" Command="{Binding ExportMarkdownCommand}" />
                     </StackPanel>

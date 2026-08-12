@@ -70,6 +70,8 @@ public sealed class WorkItemQueryViewModelTests
 
         StringAssert.Contains(viewModel.ResultBreakdown, "2026-08-07 2 小时");
         StringAssert.Contains(viewModel.ResultBreakdown, "项目 A 3.5 小时");
+        StringAssert.Contains(viewModel.QuerySummaryText, "记录数：2");
+        StringAssert.Contains(viewModel.QuerySummaryText, "总工时：3.5 小时");
     }
 
     [TestMethod]
