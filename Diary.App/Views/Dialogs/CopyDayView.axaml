@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
+             x:Class="Diary.App.Views.Dialogs.CopyDayView"
+             x:DataType="dialogs:CopyDayViewModel"
+             Width="460" Padding="20">
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="16">
+        <StackPanel Spacing="4">
+            <TextBlock Text="复制整天记录" Classes="Header" />
+            <TextBlock Text="选择源日期，记录会复制到当前日期；不会复制远程 Tracker 绑定。"
+                       Opacity="0.75" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*" ColumnSpacing="12">
+            <TextBlock Text="源日期" VerticalAlignment="Center" />
+            <CalendarDatePicker Grid.Column="1" SelectedDate="{Binding SourceDate}"
+                                IsTodayHighlighted="True" />
+        </Grid>
+
+        <TextBlock Grid.Row="2" Text="{Binding ValidationMessage}" Foreground="OrangeRed"
+                   TextWrapping="Wrap" />
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="10"
+                    HorizontalAlignment="Right">
+            <TextBlock Text="目标日期：" VerticalAlignment="Center" Opacity="0.7" />
+            <TextBlock Text="{Binding TargetDateText}" VerticalAlignment="Center" />
+            <Button Content="取消" Command="{Binding CancelCommand}" />
+            <Button Classes="Primary" Content="继续" Command="{Binding ConfirmCommand}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

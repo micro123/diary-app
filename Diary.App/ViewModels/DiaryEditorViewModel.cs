@@ -203,6 +203,52 @@ public partial class DiaryEditorViewModel : ViewModelBase
         EventDispatcher.Notify("复制完成", $"已将 {sourceItem.CreateDate} 的最近记录复制到 {CurrentDateString}。");
     }
 
+    [RelayCommand]
+    private async Task CopyWholeDay()
+    {
+        if (App.Instance.UseDb is not { } db)
+            return;
+
+        var selection = await OverlayDialog.ShowCustomModal<CopyDaySelection>(
+            new CopyDayViewModel(CurrentDate),
+            options: new OverlayDialogOptions
+            {
+                CanDragMove = false,
+                CanResize = false,
+                CanLightDismiss = false,
+                IsCloseButtonVisible = false,
+            });
+        if (selection is null)
+            return;
+
+        var sourceDate = TimeTools.FormatDateTime(selection.SourceDate);
+        var sourceItems = db.GetWorkItemByDate(sourceDate).ToArray();
+        if (sourceItems.Length == 0)
+        {
+            EventDispatcher.Notify("没有可复制的记录", $"{sourceDate} 没有已保存的工作记录。");
+            return;
+        }
+
+        var total = sourceItems.Sum(item => item.Time);
+        if (!await EventDispatcher.Confirm(
+                "确认复制整天记录",
+                $"将复制 {sourceItems.Length} 条记录，共 {total:0.##} 小时，从 {sourceDate} 到 {CurrentDateString}。只复制本地字段和标签，不复制远程 Tracker 绑定。继续吗？"))
+            return;
+
+        var notesById = db.GetWorkNotesByDate(sourceDate);
+        var tagsById = db.GetWorkTagsByDate(sourceDate);
+        var copied = 0;
+        foreach (var sourceItem in sourceItems)
+        {
+            if (CopyWorkItemToCurrentDate(sourceItem, notesById, tagsById))
+                ++copied;
+        }
+
+        SelectedWork = DailyWorks.LastOrDefault();
+        UpdateTimeInfos();
+        EventDispatcher.Notify("复制完成", $"已从 {sourceDate} 复制 {copied}/{sourceItems.Length} 条记录到 {CurrentDateString}。");
+    }
+
     private bool CopyWorkItemToCurrentDate(
         WorkItem sourceItem,
         Dictionary<int, string> notesById,
