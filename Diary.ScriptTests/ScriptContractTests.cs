@@ -105,6 +105,12 @@ public sealed class ScriptContractTests
             ScriptEditorTargetResolver.GetDateRange(ScriptEditorTarget.ForMonth(2026, 2)));
         Assert.AreEqual(new ScriptDateRange("2026-02-08", "2026-02-08"),
             ScriptEditorTargetResolver.GetDateRange(ScriptEditorTarget.ForDay("2026-02-08")));
+        Assert.AreEqual(new ScriptDateRange("2026-08-10", "2026-08-16"),
+            ScriptEditorTargetResolver.GetDateRange(ScriptEditorTarget.ForWeek("2026-08-10")));
+        Assert.ThrowsExactly<ArgumentException>(() =>
+            ScriptEditorTargetResolver.GetDateRange(ScriptEditorTarget.ForWeek("2026-08-11")));
+        Assert.ThrowsExactly<ArgumentException>(() =>
+            ScriptEditorTargetResolver.GetDateRange(ScriptEditorTarget.ForWeek("2026-8-10")));
 
         var item = new ScriptWorkItem(7, "2026-02-08", "事项", 1, 0, null, []);
         Assert.IsNull(ScriptEditorTargetResolver.GetDateRange(ScriptEditorTarget.ForWorkItem(item)));

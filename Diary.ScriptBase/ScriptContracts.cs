@@ -44,6 +44,7 @@ public enum ScriptEditorTargetKind
     Month = 3,
     Day = 4,
     WorkItem = 5,
+    Week = 6,
 }
 
 public enum ScriptExecutionSource
@@ -192,7 +193,8 @@ public sealed record ScriptEditorTarget(
     int? Quarter = null,
     int? Month = null,
     string? Date = null,
-    ScriptWorkItem? WorkItem = null)
+    ScriptWorkItem? WorkItem = null,
+    string? WeekStart = null)
 {
     public static ScriptEditorTarget ForYear(int year) => new(ScriptEditorTargetKind.Year, Year: year);
 
@@ -206,6 +208,9 @@ public sealed record ScriptEditorTarget(
 
     public static ScriptEditorTarget ForWorkItem(ScriptWorkItem workItem) =>
         new(ScriptEditorTargetKind.WorkItem, WorkItem: workItem);
+
+    public static ScriptEditorTarget ForWeek(string weekStartDate) =>
+        new(ScriptEditorTargetKind.Week, WeekStart: weekStartDate);
 }
 
 public static class ScriptEditorTargetResolver
@@ -259,6 +264,17 @@ public static class ScriptEditorTargetResolver
                     return Fail("日期目标参数无效。", out error);
                 range = new ScriptDateRange(date, date);
                 return true;
+            case ScriptEditorTargetKind.Week when target.WeekStart is { } weekStart:
+                if (!DateOnly.TryParseExact(weekStart, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var weekDay))
+                    return Fail("周目标参数无效。", out error);
+                if (weekDay.DayOfWeek != DayOfWeek.Monday)
+                    return Fail("周目标起始日期必须是周一。", out error);
+                if (HasUnexpectedFields(target, weekStart: true))
+                    return Fail("周目标参数无效。", out error);
+                range = new ScriptDateRange(
+                    weekStart,
+                    weekDay.AddDays(6).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+                return true;
             case ScriptEditorTargetKind.WorkItem when target.WorkItem is { Id: > 0 }:
                 if (HasUnexpectedFields(target, workItem: true))
                     return Fail("事项目标参数无效。", out error);
@@ -281,12 +297,14 @@ public static class ScriptEditorTargetResolver
         bool quarter = false,
         bool month = false,
         bool date = false,
-        bool workItem = false) =>
+        bool workItem = false,
+        bool weekStart = false) =>
         (!year && target.Year is not null)
         || (!quarter && target.Quarter is not null)
         || (!month && target.Month is not null)
         || (!date && target.Date is not null)
-        || (!workItem && target.WorkItem is not null);
+        || (!workItem && target.WorkItem is not null)
+        || (!weekStart && target.WeekStart is not null);
 
     private static bool Fail(string message, out string error)
     {

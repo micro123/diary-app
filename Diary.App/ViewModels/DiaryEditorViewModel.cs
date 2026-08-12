@@ -709,6 +709,14 @@ public partial class DiaryEditorViewModel : ViewModelBase
         QuickMenuItems.Add(scriptMenu);
     }
 
+    private static DateTime StartOfWeek(DateTime date)
+    {
+        var day = (int)date.DayOfWeek;
+        if (day == 0)
+            day = 7;
+        return date.Date.AddDays(-day + 1);
+    }
+
     private static ScriptEditorTarget? GetEditorTarget(DateTime startDate, DateTime endDate)
     {
         if (startDate.Date == endDate.Date)
@@ -722,6 +730,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
         if (startDate.Month == 1 && startDate.Day == 1 && endDate.Month == 12 && endDate.Day == 31
             && startDate.Year == endDate.Year)
             return ScriptEditorTarget.ForYear(startDate.Year);
+        if (startDate.DayOfWeek == DayOfWeek.Monday && endDate == startDate.AddDays(6))
+            return ScriptEditorTarget.ForWeek(TimeTools.FormatDateTime(startDate));
         return null;
     }
 
@@ -758,6 +768,13 @@ public partial class DiaryEditorViewModel : ViewModelBase
             AddMenuAction("调查本周工时情况", CreateSurveyCommand(date, AdjustPart.Week));
         }
         AddEditorScriptActions(date.Date, date.Date);
+        var weekStart = StartOfWeek(date);
+        AddEditorScriptActions(
+            ScriptEditorTarget.ForWeek(TimeTools.FormatDateTime(weekStart)),
+            "脚本（本周）");
+        AddEditorScriptActions(
+            ScriptEditorTarget.ForWeek(TimeTools.FormatDateTime(weekStart.AddDays(-7))),
+            "脚本（上周）");
     }
 
     private void FillMonthMenus(DateTime date)

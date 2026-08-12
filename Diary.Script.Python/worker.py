@@ -1,5 +1,6 @@
 import ast
 import calendar
+from datetime import datetime, timedelta
 import inspect
 import json
 import os
@@ -293,6 +294,15 @@ def resolve_date_range(target):
         }
     if kind == "Day" and isinstance(target.get("date"), str):
         return {"startDate": target["date"], "endDate": target["date"]}
+    if kind == "Week" and isinstance(target.get("weekStart"), str):
+        try:
+            week_start = datetime.strptime(target["weekStart"], "%Y-%m-%d").date()
+        except ValueError:
+            return None
+        if week_start.weekday() != 0:  # 周目标起始日期必须是周一
+            return None
+        week_end = week_start + timedelta(days=6)
+        return {"startDate": target["weekStart"], "endDate": week_end.strftime("%Y-%m-%d")}
     return None
 
 

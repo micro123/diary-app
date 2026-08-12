@@ -53,6 +53,7 @@ public sealed class EditorScriptMenuPolicyTests
         var request = EditorScriptMenuPolicy.CreateRequest(ScriptEditorTarget.ForDay("2026-08-06"));
 
         Assert.AreEqual(ScriptEditorTargetKind.Day, request.Target!.Kind);
+        Assert.AreEqual("当前周", EditorScriptMenuPolicy.GetRangeLabel(ScriptEditorTargetKind.Week));
         Assert.AreEqual("当天", EditorScriptMenuPolicy.GetRangeLabel(ScriptEditorTargetKind.Day));
         Assert.AreEqual("当前月份", EditorScriptMenuPolicy.GetRangeLabel(ScriptEditorTargetKind.Month));
         Assert.AreEqual("当前季度", EditorScriptMenuPolicy.GetRangeLabel(ScriptEditorTargetKind.Quarter));

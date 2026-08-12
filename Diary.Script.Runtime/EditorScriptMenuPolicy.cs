@@ -28,6 +28,7 @@ public static class EditorScriptMenuPolicy
 
     public static string GetRangeLabel(ScriptEditorTargetKind kind) => kind switch
     {
+        ScriptEditorTargetKind.Week => "当前周",
         ScriptEditorTargetKind.Day => "当天",
         ScriptEditorTargetKind.Month => "当前月份",
         ScriptEditorTargetKind.Quarter => "当前季度",

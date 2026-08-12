@@ -36,7 +36,7 @@ def application_main(context):
 | `isCancelled()` | 查询当前执行是否已请求取消。 |
 | `progress.report(fraction, message)` | 报告 0 到 1 之间的执行进度。 |
 | `diary` | 宿主 API 根对象。 |
-| `dateRange` | 年、季度、月、日目标的日期范围；事项目标为 `None`。 |
+| `dateRange` | 年、季度、月、周、日目标的日期范围；事项目标为 `None`。 |
 | `workItem` | 事项目标的不可变事项快照；其他目标为 `None`。 |
 | `getDateRange()` | 获取当前目标日期范围；无范围时返回 `None`。 |
 | `items.stream()` | 按当前日期范围分页迭代事项。 |

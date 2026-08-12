@@ -74,7 +74,7 @@ var trackers = api.Tracker.ListInstances();
 | `IdempotencyKey` | `string?` | 追加式写入的业务幂等键；结果由宿主共享幂等存储持久化，应用重启后仍可识别已提交的重复请求。 |
 | `Preview` | `bool` | 只返回待追加记录和副作用摘要，不写入数据库。 |
 
-编辑器脚本的目标有 `Year`、`Quarter`、`Month`、`Day` 和 `WorkItem` 五种。目标字段由宿主校验，脚本不需要自行计算季度或月份边界。
+编辑器脚本的目标有 `Year`、`Quarter`、`Month`、`Week`、`Day` 和 `WorkItem` 六种。目标字段由宿主校验，脚本不需要自行计算季度、月份或周边界。
 
 `IScriptExecutionContext`：
 
@@ -100,7 +100,7 @@ if (range is not null)
 {
     await foreach (var item in editor.StreamItemsAsync(cancellationToken))
     {
-        // 处理当前年、季度、月或日范围内的事项。
+        // 处理当前年、季度、月、周或日范围内的事项。
     }
 }
 else if (editor.WorkItem is not null)
@@ -109,7 +109,7 @@ else if (editor.WorkItem is not null)
 }
 ```
 
-日期目标的 `GetDateRange()` 返回包含边界的 `ScriptDateRange`；事项目标返回 `null`。`StreamItemsAsync()` 使用当前日期范围按页迭代事项，不能用于事项目标。
+日期目标的 `GetDateRange()` 返回包含边界的 `ScriptDateRange`；事项目标返回 `null`。`StreamItemsAsync()` 使用当前日期范围按页迭代事项，不能用于事项目标。`Week` 目标用 `ScriptEditorTarget.ForWeek("2026-08-10")` 构造，起始日期必须是周一，范围为该周周一至周日。
 
 ## 4.1 调试日志
 

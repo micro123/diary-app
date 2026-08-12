@@ -64,7 +64,7 @@ function application_main(context)
 end
 ~~~
 
-`target.kind` 为 `Year`、`Quarter`、`Month`、`Day` 或 `WorkItem`。季度使用自然季度：1-3、4-6、7-9、10-12 月。`context.request.source` 是 `Manual`、`Editor`、`Startup` 或 `Automation`。
+`target.kind` 为 `Year`、`Quarter`、`Month`、`Week`、`Day` 或 `WorkItem`。季度使用自然季度：1-3、4-6、7-9、10-12 月。`Week` 目标使用 `weekStart` 字段（周一的 `yyyy-MM-dd`），范围为该周周一至周日。`context.request.source` 是 `Manual`、`Editor`、`Startup` 或 `Automation`。
 
 脚本自动化只能追加工作记录，不提供删除或直接改写历史记录；创建 API 的 `idempotencyKey` 和 `preview` 用于控制重复提交和预览副作用。已提交的幂等结果由宿主共享存储持久化，应用重启后仍能识别重复请求。
 ## 2. 查询工作项
