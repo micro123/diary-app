@@ -111,6 +111,8 @@
                     <StackPanel Spacing="2">
                         <TextBlock Text="{Binding SavedQueryStatus}" Opacity="0.7" />
                         <TextBlock Text="{Binding ResultSummary}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding ResultBreakdown}" Opacity="0.75"
+                                   TextWrapping="Wrap" IsVisible="{Binding HasResultBreakdown}" />
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                         <Button Content="导出 CSV" Command="{Binding ExportCsvCommand}" />

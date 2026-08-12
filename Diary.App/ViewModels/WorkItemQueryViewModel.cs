@@ -20,12 +20,13 @@ public sealed partial class WorkItemQueryTag(WorkTag tag) : ObservableObject
     [ObservableProperty] private bool _selected;
 }
 
-public sealed record WorkItemQueryResult(WorkItem Item, string Tags)
+public sealed record WorkItemQueryResult(WorkItem Item, string Tags, string PrimaryTag = "")
 {
     public string Date => Item.CreateDate;
     public string Comment => Item.Comment;
     public double Time => Item.Time;
     public WorkPriorities Priority => Item.Priority;
+    public string GroupLabel => string.IsNullOrWhiteSpace(PrimaryTag) ? "未分类" : PrimaryTag;
 }
 
 [DiAutoRegister(singleton: true)]
@@ -45,6 +46,8 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
     [ObservableProperty] private int _tagFilterIndex;
     [ObservableProperty] private int _priorityIndex;
     [ObservableProperty] private string _resultSummary = "尚未查询";
+    [ObservableProperty] private string _resultBreakdown = string.Empty;
+    public bool HasResultBreakdown => !string.IsNullOrWhiteSpace(ResultBreakdown);
     [ObservableProperty] private double _resultTotalHours;
     [ObservableProperty] private bool _hasQueryError;
     [ObservableProperty] private string _savedQueryName = string.Empty;
@@ -150,14 +153,21 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
         {
             var items = db.QueryWorkItems(query);
             var tagsByWorkId = db.GetWorkTagsByWorkItemIds(items.Select(item => item.Id).ToArray());
-            var nextResults = items.Select(item => new WorkItemQueryResult(
-                item,
-                tagsByWorkId.TryGetValue(item.Id, out var tags)
-                    ? string.Join("、", tags.Select(tag => tag.Name))
-                    : string.Empty));
+            var nextResults = items.Select(item =>
+            {
+                var tags = tagsByWorkId.TryGetValue(item.Id, out var itemTags)
+                    ? itemTags
+                    : Array.Empty<WorkTag>();
+                return new WorkItemQueryResult(
+                    item,
+                    string.Join("、", tags.Select(tag => tag.Name)),
+                    tags.FirstOrDefault(tag => tag.Level == TagLevels.Primary)?.Name ?? string.Empty);
+            });
             Results = new ObservableCollection<WorkItemQueryResult>(nextResults);
             HasQueryError = false;
             ResultTotalHours = Results.Sum(result => result.Time);
+            ResultBreakdown = BuildBreakdown(Results);
+            OnPropertyChanged(nameof(HasResultBreakdown));
             ResultSummary = Results.Count == DefaultResultLimit
                 ? $"已显示前 {DefaultResultLimit} 项，结果可能已截断；合计 {ResultTotalHours:0.##} 小时"
                 : $"共找到 {Results.Count} 项，合计 {ResultTotalHours:0.##} 小时";
@@ -195,12 +205,12 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
     private string BuildCsv()
     {
         var builder = new StringBuilder();
-        builder.AppendLine("日期,事项,耗时(小时),优先级,标签");
+        builder.AppendLine("日期,事项,耗时(小时),优先级,主标签,标签");
         foreach (var result in Results)
         {
             builder.AppendLine(string.Join(",", EscapeCsv(result.Date), EscapeCsv(result.Comment),
                 result.Time.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture),
-                EscapeCsv(result.Priority.ToString()), EscapeCsv(result.Tags)));
+                EscapeCsv(result.Priority.ToString()), EscapeCsv(result.GroupLabel), EscapeCsv(result.Tags)));
         }
         return builder.ToString();
     }
@@ -208,15 +218,31 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
     private string BuildMarkdown()
     {
         var builder = new StringBuilder();
-        builder.AppendLine("| 日期 | 事项 | 耗时（小时） | 优先级 | 标签 |");
-        builder.AppendLine("| --- | --- | ---: | --- | --- |");
+        builder.AppendLine("| 日期 | 事项 | 耗时（小时） | 优先级 | 主标签 | 标签 |");
+        builder.AppendLine("| --- | --- | ---: | --- | --- | --- |");
         foreach (var result in Results)
         {
-            builder.AppendLine($"| {EscapeMarkdown(result.Date)} | {EscapeMarkdown(result.Comment)} | {result.Time:0.##} | {result.Priority} | {EscapeMarkdown(result.Tags)} |");
+            builder.AppendLine($"| {EscapeMarkdown(result.Date)} | {EscapeMarkdown(result.Comment)} | {result.Time:0.##} | {result.Priority} | {EscapeMarkdown(result.GroupLabel)} | {EscapeMarkdown(result.Tags)} |");
         }
         builder.AppendLine();
         builder.AppendLine($"合计：{Results.Count} 条，{ResultTotalHours:0.##} 小时");
         return builder.ToString();
+    }
+
+    private static string BuildBreakdown(IEnumerable<WorkItemQueryResult> results)
+    {
+        var materialized = results.ToArray();
+        if (materialized.Length == 0)
+            return string.Empty;
+
+        static string FormatGroups(IEnumerable<IGrouping<string, WorkItemQueryResult>> groups)
+            => string.Join("；", groups
+                .OrderByDescending(group => group.Sum(result => result.Time))
+                .ThenBy(group => group.Key)
+                .Take(4)
+                .Select(group => $"{group.Key} {group.Sum(result => result.Time):0.##} 小时"));
+
+        return $"按日期：{FormatGroups(materialized.GroupBy(result => result.Date))}；按主标签：{FormatGroups(materialized.GroupBy(result => result.GroupLabel))}";
     }
 
     private static string EscapeCsv(string value)

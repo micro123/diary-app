@@ -52,6 +52,27 @@ public sealed class WorkItemQueryViewModelTests
     }
 
     [TestMethod]
+    public void QueryBuildsDateAndPrimaryTagBreakdown()
+    {
+        using var db = TestDb.Create();
+        var project = db.CreateWorkTag("项目 A", true, 0);
+        var first = db.CreateWorkItem("2026-08-06", "first");
+        first.Time = 1.5;
+        Assert.IsTrue(db.UpdateWorkItem(first));
+        Assert.IsTrue(db.WorkItemAddTag(first, project));
+        var second = db.CreateWorkItem("2026-08-07", "second");
+        second.Time = 2.0;
+        Assert.IsTrue(db.UpdateWorkItem(second));
+        Assert.IsTrue(db.WorkItemAddTag(second, project));
+
+        var viewModel = CreateViewModel(db);
+        viewModel.QueryCommand.Execute(null);
+
+        StringAssert.Contains(viewModel.ResultBreakdown, "2026-08-07 2 小时");
+        StringAssert.Contains(viewModel.ResultBreakdown, "项目 A 3.5 小时");
+    }
+
+    [TestMethod]
     public void ApplySavedQuery_DoesNotSelectSameIdWithDifferentSnapshotIdentity()
     {
         using var db = TestDb.Create();
