@@ -57,13 +57,20 @@
                         <Button Content="回到今天"
                                 HotKey="Ctrl+T" Classes="ActionButton"
                                 Command="{Binding SelectTodayCommand}" />
-                        <Button Content="复制昨天" Classes="ActionButton"
-                                Command="{Binding CopyPreviousDayCommand}" />
-                        <Button Content="复制最近" Classes="ActionButton"
-                                ToolTip.Tip="复制当前日期之前近一年内的最近一条记录"
-                                Command="{Binding CopyRecentWorkItemCommand}" />
-                        <Button Content="复制整天" Classes="ActionButton"
-                                Command="{Binding CopyWholeDayCommand}" />
+                        <Button Content="复制记录" Classes="ActionButton"
+                                ToolTip.Tip="选择复制昨天、最近记录或整天记录">
+                            <Button.Flyout>
+                                <MenuFlyout ShowMode="Transient">
+                                    <MenuItem Header="复制昨天"
+                                              Command="{Binding CopyPreviousDayCommand}" />
+                                    <MenuItem Header="复制最近"
+                                              ToolTip.Tip="复制当前日期之前近一年内的最近一条记录"
+                                              Command="{Binding CopyRecentWorkItemCommand}" />
+                                    <MenuItem Header="复制整天"
+                                              Command="{Binding CopyWholeDayCommand}" />
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
                     </StackPanel>
                 </Grid>
                 <Separator DockPanel.Dock="Top" />
