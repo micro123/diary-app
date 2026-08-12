@@ -12,6 +12,7 @@ using Diary.App.ViewModels.Dialogs;
 using Diary.Core.Constants;
 using Diary.Core.Data.App;
 using Diary.Core.Data.Base;
+using Diary.Database;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
@@ -153,22 +154,69 @@ public partial class DiaryEditorViewModel : ViewModelBase
         var copied = 0;
         foreach (var sourceItem in sourceItems)
         {
-            var source = WorkEditorViewModel.FromWorkItem(sourceItem);
-            source.SyncFromBatch(notesById, tagsById, null);
-            var copy = source.Clone();
-            copy.Date = CurrentDateString;
-            copy.Save(out var created);
-            if (!created)
-                continue;
-
-            ConfigureEditorScriptActions(copy);
-            DailyWorks.Add(copy);
-            ++copied;
+            if (CopyWorkItemToCurrentDate(sourceItem, notesById, tagsById))
+                ++copied;
         }
 
         SelectedWork = DailyWorks.LastOrDefault();
         UpdateTimeInfos();
         EventDispatcher.Notify("复制完成", $"已复制 {copied}/{sourceItems.Length} 条记录。");
+    }
+
+    [RelayCommand]
+    private async Task CopyRecentWorkItem()
+    {
+        if (App.Instance.UseDb is not { } db)
+            return;
+
+        var endDate = CurrentDate.Date.AddDays(-1);
+        var startDate = endDate.AddDays(-365);
+        var sourceItem = db.GetWorkItemByDateRange(
+                TimeTools.FormatDateTime(startDate),
+                TimeTools.FormatDateTime(endDate))
+            .OrderByDescending(item => item.CreateDate)
+            .ThenByDescending(item => item.Id)
+            .FirstOrDefault();
+        if (sourceItem is null)
+        {
+            EventDispatcher.Notify("没有可复制的记录", "当前日期之前近一年内没有已保存的工作记录。");
+            return;
+        }
+
+        if (!await EventDispatcher.Confirm(
+                "复制最近记录",
+                $"将复制 {sourceItem.CreateDate} 的“{sourceItem.Comment}”（{sourceItem.Time:0.##} 小时）到 {CurrentDateString}。只复制本地字段和标签，不复制远程 Tracker 绑定。继续吗？"))
+            return;
+
+        var notesById = db.GetWorkNotesByWorkItemIds([sourceItem.Id]);
+        var tagsById = db.GetWorkTagsByWorkItemIds([sourceItem.Id]);
+        if (!CopyWorkItemToCurrentDate(sourceItem, notesById, tagsById))
+        {
+            EventDispatcher.Notify("复制失败", "最近记录未能保存到当前日期。");
+            return;
+        }
+
+        SelectedWork = DailyWorks.LastOrDefault();
+        UpdateTimeInfos();
+        EventDispatcher.Notify("复制完成", $"已将 {sourceItem.CreateDate} 的最近记录复制到 {CurrentDateString}。");
+    }
+
+    private bool CopyWorkItemToCurrentDate(
+        WorkItem sourceItem,
+        Dictionary<int, string> notesById,
+        Dictionary<int, ICollection<WorkTag>> tagsById)
+    {
+        var source = WorkEditorViewModel.FromWorkItem(sourceItem);
+        source.SyncFromBatch(notesById, tagsById, null);
+        var copy = source.Clone();
+        copy.Date = CurrentDateString;
+        copy.Save(out var created);
+        if (!created)
+            return false;
+
+        ConfigureEditorScriptActions(copy);
+        DailyWorks.Add(copy);
+        return true;
     }
 
     [RelayCommand(CanExecute = nameof(CanDuplicate))]

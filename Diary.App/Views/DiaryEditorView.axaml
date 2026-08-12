@@ -59,6 +59,9 @@
                                 Command="{Binding SelectTodayCommand}" />
                         <Button Content="复制昨天" Classes="ActionButton"
                                 Command="{Binding CopyPreviousDayCommand}" />
+                        <Button Content="复制最近" Classes="ActionButton"
+                                ToolTip.Tip="复制当前日期之前近一年内的最近一条记录"
+                                Command="{Binding CopyRecentWorkItemCommand}" />
                     </StackPanel>
                 </Grid>
                 <Separator DockPanel.Dock="Top" />
