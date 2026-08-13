@@ -45,54 +45,67 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.DataTemplates>
                     <DataTemplate DataType="{x:Type models:EditableWorkTag}">
-                        <Border Theme="{DynamicResource CardBorder}" Padding="6">
-                            <Border.Styles>
-                                <Style Selector="TextBlock, ToggleSwitch">
-                                    <Setter Property="VerticalAlignment" Value="Center" />
-                                </Style>
-                                <Style Selector="TextBlock">
-                                    <Setter Property="HorizontalAlignment" Value="Right"/>
-                                </Style>
-                            </Border.Styles>
-                            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,Auto,Auto,Auto"
-                                  ColumnSpacing="4" RowSpacing="4">
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Id, StringFormat='#{0}'}"/>
-                                <TextBlock Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Name}"
-                                           Width="180" ToolTip.Tip="{Binding Name}"/>
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="颜色"/>
-                                <ColorPicker Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3"
-                                             HsvColor="{Binding Color, Converter={StaticResource Hsv2Int}}"
-                                             ColorSpectrumShape="Box" HorizontalAlignment="Left">
-                                    <ColorPicker.Palette>
-                                        <colorPicker:SemiColorLightPalette />
-                                    </ColorPicker.Palette>
-                                </ColorPicker>
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="主标签"/>
-                                <ToggleSwitch Grid.Row="2" Grid.Column="1" IsChecked="{Binding Primary}"/>
-                                <TextBlock Grid.Row="2" Grid.Column="2" Text="禁用"/>
-                                <ToggleSwitch Grid.Row="2" Grid.Column="3" IsChecked="{Binding Disabled}"/>
-                                <TextBlock Grid.Row="3" Grid.Column="0" Text="元数据" VerticalAlignment="Top"/>
-                                <StackPanel Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="3" Spacing="4">
-                                    <ItemsControl ItemsSource="{Binding Metadata}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate DataType="{x:Type models:EditableWorkTagMetadata}">
-                                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                                    <TextBox Text="{Binding Key}" Width="90" Watermark="键"/>
-                                                    <TextBox Text="{Binding Value}" Width="130" Watermark="值"/>
-                                                    <Button Content="删除" Command="{Binding RemoveCommand}"
-                                                            Theme="{DynamicResource BorderlessButton}" Classes="Danger"/>
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                    <Button Content="添加元数据" Command="{Binding AddMetadataCommand}"
-                                            HorizontalAlignment="Left"/>
-                                </StackPanel>
-                                <Button Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="4" ToolTip.Tip="删除此标签"
-                                        HorizontalAlignment="Stretch" i:Attached.Icon="fa-trash-can"
-                                        Command="{Binding #TagContainer.((dialogs1:TagEditorViewModel)DataContext).DelTagCommand}"
-                                        CommandParameter="{Binding}"
-                                        Theme="{DynamicResource BorderlessButton}" Classes="Danger"/>
+                        <Border Theme="{DynamicResource CardBorder}" Width="310" Padding="10"
+                                Margin="0 0 8 8">
+                            <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8">
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                                    <TextBlock Text="{Binding Id, StringFormat='#{0}'}"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Name}"
+                                               FontWeight="SemiBold" VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis"
+                                               ToolTip.Tip="{Binding Name}" />
+                                    <Button Grid.Column="2" ToolTip.Tip="删除此标签"
+                                            i:Attached.Icon="fa-trash-can"
+                                            Command="{Binding #TagContainer.((dialogs1:TagEditorViewModel)DataContext).DelTagCommand}"
+                                            CommandParameter="{Binding}"
+                                            Theme="{DynamicResource BorderlessButton}"
+                                            Classes="Danger" />
+                                </Grid>
+                                <Grid Grid.Row="1" ColumnDefinitions="48,*" ColumnSpacing="8">
+                                    <TextBlock Text="颜色" VerticalAlignment="Center" />
+                                    <ColorPicker Grid.Column="1"
+                                                 HsvColor="{Binding Color, Converter={StaticResource Hsv2Int}}"
+                                                 ColorSpectrumShape="Box" HorizontalAlignment="Left">
+                                        <ColorPicker.Palette>
+                                            <colorPicker:SemiColorLightPalette />
+                                        </ColorPicker.Palette>
+                                    </ColorPicker>
+                                </Grid>
+                                <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8">
+                                    <TextBlock Text="主标签" VerticalAlignment="Center" />
+                                    <ToggleSwitch Grid.Column="1" IsChecked="{Binding Primary}" />
+                                    <TextBlock Grid.Column="2" Text="禁用" VerticalAlignment="Center" />
+                                    <ToggleSwitch Grid.Column="3" IsChecked="{Binding Disabled}" />
+                                </Grid>
+                                <Border Grid.Row="3" Padding="8"
+                                        Background="{DynamicResource SemiColorFill1}">
+                                    <Grid RowDefinitions="Auto,Auto" RowSpacing="6">
+                                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+                                            <TextBlock Text="元数据" FontWeight="SemiBold"
+                                                       VerticalAlignment="Center" />
+                                            <Button Grid.Column="2" Content="添加"
+                                                    Command="{Binding AddMetadataCommand}"
+                                                    Theme="{DynamicResource BorderlessButton}" />
+                                        </Grid>
+                                        <ItemsControl Grid.Row="1" ItemsSource="{Binding Metadata}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type models:EditableWorkTagMetadata}">
+                                                    <Grid ColumnDefinitions="90,*,Auto" ColumnSpacing="4">
+                                                        <TextBox Text="{Binding Key}" Watermark="键" />
+                                                        <TextBox Grid.Column="1" Text="{Binding Value}"
+                                                                 Watermark="值" />
+                                                        <Button Grid.Column="2" ToolTip.Tip="删除元数据"
+                                                                i:Attached.Icon="fa-trash-can"
+                                                                Command="{Binding RemoveCommand}"
+                                                                Theme="{DynamicResource BorderlessButton}"
+                                                                Classes="Danger" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Grid>
+                                </Border>
                             </Grid>
                         </Border>
                     </DataTemplate>

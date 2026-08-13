@@ -465,6 +465,14 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void ShowTemplateSettings()
+        => ExecuteSettingCommand(CommandNames.EditWorkTemplates);
+
+    [RelayCommand]
+    private void ShowTagSettings()
+        => ExecuteSettingCommand(CommandNames.EditWorkTags);
+
+    [RelayCommand]
     private void ShowSettings()
     {
         PostUiAsync(async () =>
