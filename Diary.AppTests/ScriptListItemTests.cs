@@ -23,7 +23,6 @@ public sealed class ScriptListItemTests
         "sample",
         "示例脚本",
         scope,
-        true,
         buildSucceeded,
         buildSucceeded ? "已加载" : "加载失败",
         [],

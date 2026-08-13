@@ -5,7 +5,6 @@ using Diary.ScriptBase;
 namespace Diary.Script.Runtime;
 
 public sealed record ScriptFileMetadata(
-    bool Enabled = true,
     ScriptApiVersion ApiVersion = ScriptApiVersion.V1,
     string? Id = null,
     string? Name = null,
@@ -17,7 +16,6 @@ public sealed record ScriptFileMetadata(
 
 public sealed record ScriptPackageManifest(
     string Entry,
-    bool Enabled = true,
     ScriptApiVersion ApiVersion = ScriptApiVersion.V1,
     string? Id = null,
     string? Name = null,
@@ -30,7 +28,6 @@ public sealed record ScriptPackageManifest(
 public sealed record ScriptDirectoryEntry(
     string SourcePath,
     ScriptScope Scope,
-    bool Enabled,
     ScriptBuildResult? BuildResult = null);
 
 public sealed record ScriptDirectoryLoadResult(
@@ -92,7 +89,7 @@ public sealed class ScriptDirectoryLoader(
                         ?? await ReadMetadataAsync(sourcePath, diagnostics, cancellationToken);
                     if (metadata is null)
                     {
-                        entries.Add(new ScriptDirectoryEntry(sourcePath, scope, false));
+                        entries.Add(new ScriptDirectoryEntry(sourcePath, scope));
                         continue;
                     }
 
@@ -103,7 +100,7 @@ public sealed class ScriptDirectoryLoader(
                             "SCRIPT_ENGINE_MISMATCH",
                             "The script metadata engine does not match the source extension.",
                             sourcePath);
-                        entries.Add(new ScriptDirectoryEntry(sourcePath, scope, false, engineMismatch));
+                        entries.Add(new ScriptDirectoryEntry(sourcePath, scope, engineMismatch));
                         diagnostics.AddRange(engineMismatch.Diagnostics);
                         continue;
                     }
@@ -197,8 +194,7 @@ public sealed class ScriptDirectoryLoader(
                         }
                     }
 
-                    var loaded = result.Succeeded && result.Program is not null;
-                    entries.Add(new ScriptDirectoryEntry(sourcePath, scope, loaded, result));
+                    entries.Add(new ScriptDirectoryEntry(sourcePath, scope, result));
                     diagnostics.AddRange(result.Diagnostics);
                 }
             }
@@ -284,15 +280,14 @@ public sealed class ScriptDirectoryLoader(
                 candidates.Add(new ScriptSourceCandidate(
                     entryPath,
                     new ScriptFileMetadata(
-                        manifest.Enabled,
-                        manifest.ApiVersion,
-                        manifest.Id,
-                        manifest.Name,
-                        manifest.Description,
-                        manifest.Engine,
-                        manifest.Scope,
-                        manifest.SupportedEditorTargets,
-                         manifest.EntryKind)));
+                        ApiVersion: manifest.ApiVersion,
+                        Id: manifest.Id,
+                        Name: manifest.Name,
+                        Description: manifest.Description,
+                        Engine: manifest.Engine,
+                        Scope: manifest.Scope,
+                        SupportedEditorTargets: manifest.SupportedEditorTargets,
+                        EntryKind: manifest.EntryKind)));
             }
             catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException or InvalidDataException)
             {

@@ -22,16 +22,16 @@ public sealed class ScriptDirectoryLoaderTests
     }
 
     [TestMethod]
-    public async Task LoadAsync_RegistersEnabledScriptAndCreatesDirectories()
+    public async Task LoadAsync_RegistersScriptAndCreatesDirectories()
     {
         var loader = CreateLoader(out var catalog);
-        var sourcePath = await WriteScriptAsync("application", "enabled.fake", "enabled");
+        var sourcePath = await WriteScriptAsync("application", "sample.fake", "sample");
 
         var result = await loader.LoadAsync(_root);
 
         Assert.AreEqual(1, result.Entries.Length);
         Assert.IsTrue(result.Entries[0].BuildResult!.Succeeded);
-        Assert.IsTrue(catalog.TryGet("enabled", out _));
+        Assert.IsTrue(catalog.TryGet("sample", out _));
         Assert.IsTrue(Directory.Exists(Path.Combine(_root, "editor")));
         Assert.AreEqual(sourcePath, result.Entries[0].SourcePath);
     }
@@ -46,7 +46,6 @@ public sealed class ScriptDirectoryLoaderTests
         var result = await loader.LoadAsync(_root);
 
         Assert.AreEqual(1, result.Entries.Length);
-        Assert.IsTrue(result.Entries[0].Enabled);
         Assert.IsTrue(result.Entries[0].BuildResult!.Succeeded);
         Assert.IsTrue(catalog.TryGet("disabled", out _));
     }
@@ -65,7 +64,6 @@ public sealed class ScriptDirectoryLoaderTests
         var result = await loader.LoadAsync(_root);
 
         var entry = result.Entries.Single(item => item.SourcePath.EndsWith("main.fake", StringComparison.Ordinal));
-        Assert.IsTrue(entry.Enabled);
         Assert.IsTrue(entry.BuildResult!.Succeeded);
         Assert.IsTrue(catalog.TryGet("disabled-package", out _));
     }
@@ -95,7 +93,7 @@ public sealed class ScriptDirectoryLoaderTests
         var result = await loader.LoadAsync(_root);
 
         Assert.IsTrue(result.Diagnostics.Any(item => item.Code == "SCRIPT_METADATA_MISMATCH"));
-        Assert.IsFalse(result.Entries.Single().Enabled);
+        Assert.IsFalse(result.Entries.Single().BuildResult!.Succeeded);
         Assert.IsFalse(catalog.TryGet("actual", out _));
     }
 
@@ -108,7 +106,7 @@ public sealed class ScriptDirectoryLoaderTests
         var result = await loader.LoadAsync(_root);
 
         Assert.AreEqual("SCRIPT_ENTRY_KIND_MISMATCH", result.Diagnostics.Single().Code);
-        Assert.IsFalse(result.Entries.Single().Enabled);
+        Assert.IsFalse(result.Entries.Single().BuildResult!.Succeeded);
         Assert.IsFalse(catalog.TryGet("wrong", out _));
     }
 
@@ -147,7 +145,7 @@ public sealed class ScriptDirectoryLoaderTests
 
         Assert.IsTrue(catalog.TryGet("packaged", out _));
         Assert.IsTrue(result.Diagnostics.Any(item => item.Code == "SCRIPT_PACKAGE_INVALID"));
-        Assert.IsTrue(result.Entries.Any(entry => entry.Enabled));
+        Assert.IsTrue(result.Entries.Any(entry => entry.BuildResult?.Succeeded == true));
         Assert.IsTrue(catalog.TryGet("packaged", out _));
     }
 
@@ -164,7 +162,7 @@ public sealed class ScriptDirectoryLoaderTests
 
         var result = await loader.LoadAsync(_root);
 
-        Assert.IsTrue(result.Entries.All(entry => entry.Enabled));
+        Assert.IsTrue(result.Entries.All(entry => entry.BuildResult?.Succeeded == true));
         Assert.AreEqual("lua", CatalogSource(catalog, "lua-app").EngineName);
         Assert.AreEqual("python", CatalogSource(catalog, "python-app").EngineName);
     }

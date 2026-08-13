@@ -119,7 +119,6 @@ public sealed class ScriptEditorWindowTests
                 [new ScriptDirectoryEntry(
                     sourcePath,
                     ScriptScope.Editor,
-                    false,
                     ScriptBuildResult.Failure(diagnostic))],
                 []));
             await _session.Dispatch(async () =>
