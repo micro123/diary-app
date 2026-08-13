@@ -49,6 +49,7 @@ def application_main(context):
 `context.progress.report(fraction, message)` 报告执行进度：`fraction` 必须为 0 到 1 之间的数字，`message` 必须为非空字符串，否则抛 `ValueError`。进度只用于界面展示，不写入脚本日志，也不写入数据库。
 
 完整示例：[Python 5 分钟入门：查询并追加日志项](Examples/PythonQuickStart.md)。
+查询指定时间范围内“加班”工作项的示例：[OvertimeWorkItems](Examples/OvertimeWorkItems.md)。
 
 ## 2. 查询工作项
 
@@ -272,7 +273,7 @@ except HostCallError as error:
 | `context.log.*` | `log.write` |
 | `context.progress.report` | `script.progress` |
 
-Python Worker 禁止导入模块、文件访问、动态代码执行、运行时自省、输入和双下划线属性。允许的内置函数（SAFE_BUILTINS）：`abs`、`all`、`any`、`bool`、`dict`、`enumerate`、`Exception`、`HostCallError`、`float`、`int`、`isinstance`、`len`、`list`、`max`、`min`、`print`、`range`、`set`、`sorted`、`str`、`sum`、`tuple`、`type`、`ValueError`、`RuntimeError`、`zip`。除此之外没有其他内置函数；`__builtins__`、`__import__`、`eval`、`exec`、`open`、`getattr`、`globals`、`setattr`、`vars`、`compile`、`breakpoint`、`input`、`help`、`quit` 等名称在执行前由 AST 静态扫描拒绝。取消通过逐行 trace 注入，运行中的脚本会收到 `CancelledExecution`。`print` 重定向到 Worker 日志流并受大小限制。脚本不能直接访问网络、进程、数据库、DI 或 UI 控件。
+Python Worker 禁止导入模块、文件访问、动态代码执行、运行时自省、输入和双下划线属性。允许的内置函数（SAFE_BUILTINS）：`abs`、`all`、`any`、`bool`、`dict`、`enumerate`、`Exception`、`HostCallError`、`float`、`int`、`isinstance`、`len`、`list`、`max`、`min`、`next`、`print`、`range`、`set`、`sorted`、`str`、`sum`、`tuple`、`type`、`ValueError`、`RuntimeError`、`zip`。除此之外没有其他内置函数；`__builtins__`、`__import__`、`eval`、`exec`、`open`、`getattr`、`globals`、`setattr`、`vars`、`compile`、`breakpoint`、`input`、`help`、`quit` 等名称在执行前由 AST 静态扫描拒绝。取消通过逐行 trace 注入，运行中的脚本会收到 `CancelledExecution`。`print` 重定向到 Worker 日志流并受大小限制。脚本不能直接访问网络、进程、数据库、DI 或 UI 控件。
 
 ## 8. 错误、取消、超时和 Worker 终止
 
@@ -375,6 +376,6 @@ Python 只提供 `automation_main` 入口名，上下文与普通脚本相同，
 ## 附录 C. DTO 字段总表
 
 - `item`（工作项）：`id`(int)、`date`、`comment`、`hours`(float)、`priority`(int，0-9)、`note`(str 或 None)、`tags`(list)。
-- `tag`：`id`(int)、`name`、`color`(int)、`level`(int)、`disabled`(bool)。
+- `tag`：`id`(int)、`name`、`color`(int)、`level`(int)、`isPrimary`(bool)、`disabled`(bool)。推荐使用 `isPrimary` 判断主标签；`level` 保留用于兼容。
 - `instance`（Tracker 实例）：`pluginId`、`instanceId`、`displayName`、`icon`、`isConfigured`(bool)。
 - `template`：`id`、`name`、`defaultTitle`、`defaultHours`(float)、`defaultWorkTagIds`(list[int])。

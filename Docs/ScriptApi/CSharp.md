@@ -45,6 +45,7 @@ var trackers = api.Tracker.ListInstances();
 `context.Api()` 只做已注册 API 的强类型聚合，不扩大脚本权限；缺少 API 时仍由 `GetRequiredApi<T>()` 报告不可用。
 
 完整示例：[C# 5 分钟入门：查询并追加日志项](Examples/CSharpQuickStart.md)。
+右键查询“加班”工作项示例：[OvertimeWorkItems.cs](Examples/OvertimeWorkItems.cs)。
 
 ## 2. Descriptor
 
@@ -535,6 +536,6 @@ Lua 与 Python 的入口返回值约定不同，见各自语言文档的类型�
 ## 附录 C. DTO 字段总表
 
 - `ScriptWorkItem`：`Id`(int)、`Date`、`Comment`、`Hours`(double)、`Priority`(int，0-9)、`Note`(string?)、`Tags`(ImmutableArray&lt;ScriptWorkTag&gt;)。
-- `ScriptWorkTag`：`Id`(int)、`Name`、`Color`(int)、`Level`(int)、`Disabled`(bool)。
+- `ScriptWorkTag`：`Id`(int)、`Name`、`Color`(int)、`Level`(int)、`IsPrimary`(bool)、`Disabled`(bool)。推荐使用 `IsPrimary` 判断主标签；`Level` 保留用于兼容。
 - `ScriptTrackerInstance`：`PluginId`、`InstanceId`、`DisplayName`、`Icon`、`IsConfigured`(bool)。
 - `ScriptTemplateInfo`：`Id`、`Name`、`DefaultTitle`、`DefaultHours`(double)、`DefaultWorkTagIds`(IReadOnlyCollection&lt;int&gt;)。

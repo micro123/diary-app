@@ -171,6 +171,7 @@ Jira 失败时核心工作记录仍可保存。
 - [~] 已统一 Tracker 实例目录的只读 DTO、能力声明和错误结果；后端 Issue 查询模型随首个新 Tracker 实现补充。
 - [x] 已为查询 API 增加 `today`/`yesterday`/`thisWeek`/`thisMonth` 日期范围快捷值，并统一三语言 create API 的 `preview`/`idempotencyKey` 文档与幂等持久化说明。
 - [x] 已增加 Week 编辑器目标（用周一的 `yyyy-MM-dd` 标识），日历右键可对本周/上周运行脚本，C#/Lua/Python 的 `dateRange` 同步解析周范围。
+- [x] 查询工作项标签 DTO 已增加语义化的 `IsPrimary`/`isPrimary` 字段；`Level` 保留用于兼容，C#、Lua、Python 示例均使用语义化字段判断主标签。
 新建脚本向导已提供周目标脚本模板，生成的 metadata 自动声明 Week 目标。
 
 ### 9.6 Lua 和 Python 引擎
@@ -178,6 +179,7 @@ Jira 失败时核心工作记录仍可保存。
 Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 
 - [~] 已增加强制终止、忽略取消脚本的超时回收、跨平台进程终止测试、资源超限回收以及 Python/Lua runtime 缺失诊断；Windows/Linux/macOS 启动与 native/runtime 打包矩阵仍待持续验证。
+- [x] Python Worker 的安全内置函数白名单已加入 `next`，并补充真实 Worker 执行回归测试与 API 文档说明。
 
 ### 9.9 Worker 落地
 

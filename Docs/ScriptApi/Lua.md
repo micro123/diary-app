@@ -34,6 +34,7 @@ end
 ~~~
 
 完整示例：[Lua 5 分钟入门：查询并追加日志项](Examples/LuaQuickStart.md)。
+右键查询“加班”工作项示例：[OvertimeWorkItems.lua](Examples/OvertimeWorkItems.lua)。
 
 `context` 字段：
 
@@ -435,6 +436,6 @@ Lua 只提供 `automation_main` 入口名，上下文与普通脚本相同，**�
 ## 附录 C. DTO 字段总表
 
 - `item`（工作项）：`id`(number)、`date`、`comment`、`hours`(number)、`priority`(number，0-9)、`note`(string 或 nil)、`tags`(数组)。
-- `tag`：`id`(number)、`name`、`color`(number)、`level`(number)、`disabled`(boolean)。
+- `tag`：`id`(number)、`name`、`color`(number)、`level`(number)、`isPrimary`(boolean)、`disabled`(boolean)。推荐使用 `isPrimary` 判断主标签；`level` 保留用于兼容。
 - `instance`（Tracker 实例）：`pluginId`、`instanceId`、`displayName`、`icon`、`isConfigured`(boolean)。
 - `template`：`id`、`name`、`defaultTitle`、`defaultHours`(number)、`defaultWorkTagIds`(number[])。

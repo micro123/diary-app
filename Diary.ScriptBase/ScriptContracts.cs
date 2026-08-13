@@ -176,7 +176,10 @@ public sealed record ScriptWorkTag(
     string Name,
     int Color,
     int Level,
-    bool Disabled);
+    bool Disabled)
+{
+    public bool IsPrimary => Level == 0;
+}
 
 public sealed record ScriptWorkItem(
     int Id,

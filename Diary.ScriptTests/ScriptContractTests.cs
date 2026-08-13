@@ -78,6 +78,8 @@ public sealed class ScriptContractTests
         sourceTags = sourceTags.Add(new ScriptWorkTag(2, "other", 3, 1, false));
 
         Assert.AreEqual(1, item.Tags.Length);
+        Assert.IsTrue(item.Tags[0].IsPrimary);
+        Assert.IsFalse(sourceTags[1].IsPrimary);
         foreach (var type in new[] { typeof(ScriptWorkItem), typeof(ScriptWorkTag), typeof(ScriptWorkItemQuery) })
         {
             Assert.IsTrue(type.IsSealed);

@@ -103,7 +103,7 @@ public sealed class ProcessWorkerTransportTests
             var result = await supervisor.ExecuteAsync("python-demo", "python-exec-1", new WorkerExecutePayload(
                 "python-demo",
                 "demo.py",
-                "def application_main(context):\n    print(\"not protocol\")\n    return None\n",
+                "def application_main(context):\n    print(\"not protocol\")\n    value = next(value for value in [1])\n    print(value)\n    return None\n",
                  new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual),
                  new ScriptDescriptorHint("python-demo", "Python Demo", ScriptScope.Application, EngineName: "python")));
 
