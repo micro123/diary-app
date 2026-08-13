@@ -66,7 +66,23 @@ end
 
 `target.kind` 为 `Year`、`Quarter`、`Month`、`Week`、`Day` 或 `WorkItem`。季度使用自然季度：1-3、4-6、7-9、10-12 月。`Week` 目标使用 `weekStart` 字段（周一的 `yyyy-MM-dd`），范围为该周周一至周日。`context.request.source` 是 `Manual`、`Editor`、`Startup` 或 `Automation`。
 
+`target` 按 `kind` 提供不同字段：
+
+| `kind` | 字段 | 校验 |
+| --- | --- | --- |
+| `Year` | `year` | 1-9999。 |
+| `Quarter` | `year` + `quarter` | 自然季度 1-4。 |
+| `Month` | `year` + `month` | 1-12。 |
+| `Week` | `weekStart` | 周一的 `yyyy-MM-dd`；范围为该周周一至周日。 |
+| `Day` | `date` | `yyyy-MM-dd`。 |
+| `WorkItem` | `workItem` | 不可变事项快照；`dateRange`、`getDateRange()` 和 `items.stream()` 不可用。 |
+
+目标字段由宿主校验，不合法的目标在执行前以 `Rejected` 状态拒绝，脚本不会运行到一半才发现错误。
+
+`context.progress.report(fraction, message)` 报告执行进度：`fraction` 必须是 0 到 1 之间的数字，`message` 必须为非空字符串；Lua 侧不校验，由宿主校验并拒绝非法进度。进度只用于界面展示，不写入脚本日志，也不写入数据库。
+
 脚本自动化只能追加工作记录，不提供删除或直接改写历史记录；创建 API 的 `idempotencyKey` 和 `preview` 用于控制重复提交和预览副作用。已提交的幂等结果由宿主共享存储持久化，应用重启后仍能识别重复请求。
+
 ## 2. 查询工作项
 
 调用：`diary.workItems.query(params)`。
@@ -107,7 +123,7 @@ end
 
 查询是只读的。结果中的工作项和标签都是普通 Lua 表，不能通过 API 修改或删除。
 
-## 3. 创建日志项
+`normalizedQuery` 是宿主规范化后的查询参数回显，字段与查询参数一致：`limit` 补全默认值 100，`offset` 补全 0，`tagFilter` 补全 `Ignore`；`range` 快捷值已被解析为 `startDate`/`endDate`，不再回显 `range`。可以用它确认宿主实际生效的过滤条件。
 
 ### 流式查询大量明细
 
@@ -121,7 +137,11 @@ for item in diary.workItems.stream({
 end
 ```
 
-迭代器按需调用 `workItems.query`，一页消费完后才拉取下一页。`pageSize` 必须在 1 到 500 之间。不要在循环中把所有项重新保存到一个大表，否则会失去流式处理的内存优势。
+迭代器按需调用 `workItems.query`，一页消费完后才拉取下一页。`pageSize` 必须在 1 到 500 之间，默认 500；除 `pageSize` 外还支持查询参数中的 `offset` 和全部过滤字段。查询期间数据变化可能影响 offset 分页边界。某一页查询领域失败（`succeeded = false`）时迭代器抛出 Lua 错误结束迭代，不会静默截断结果。不要在循环中把所有项重新保存到一个大表，否则会失去流式处理的内存优势。
+
+`context.items.stream()` 按当前目标日期范围分页迭代，仅日期目标可用——事项目标没有日期范围，调用会报错。需要按自定义范围迭代时使用 `diary.workItems.stream(params)` 手动传日期。
+
+## 3. 创建日志项
 
 调用 `diary.logItems.create(params)` 会新建一个工作项，不会修改已有工作项。
 
@@ -153,6 +173,46 @@ print("created work item: " .. result.item.id)
 
 成功返回 `succeeded = true` 和新建的 `item`；失败返回 `succeeded = false` 及 `error.code`：`InvalidInput`、`DatabaseUnavailable`、`ProviderFailure` 或 `Cancelled`。Lua 没有工作项更新和删除 API。
 
+### 返回结构
+
+成功：
+
+```lua
+{
+    succeeded = true,
+    item = {
+        id = 42, date = "2026-08-08", comment = "标题", hours = 2.5,
+        priority = 0, note = nil,
+        tags = { { id = 1, name = "开发", color = 0, level = 0, disabled = false } }
+    },
+    effects = {
+        appendedCount = 1,       -- 实际追加条数；预览或幂等重放时为 0
+        preview = false,         -- 是否预览执行
+        idempotencyKey = "daily-summary:2026-08-09",  -- 未提供时为 nil
+        createdWorkItemIds = { 42 },                  -- 本次新建的工作项 ID
+        remoteEffects = nil,     -- 预留，当前恒为 nil
+    },
+    duplicate = false            -- true 表示结果来自幂等重放
+}
+```
+
+失败（值返回，不抛异常）：
+
+```lua
+{
+    succeeded = false,
+    error = { code = "InvalidInput", message = "日期必须是 yyyy-MM-dd 格式。" },
+    apiError = {
+        code = "INVALID_ARGUMENT", message = "日期必须是 yyyy-MM-dd 格式。",
+        category = "Validation", retryable = false
+    },
+}
+```
+
+- `preview = true` 时 `item` 是 `id = 0` 的投影项：`effects.preview = true`、`appendedCount = 0`、`createdWorkItemIds` 为空数组，数据库未写入。
+- `duplicate = true` 表示同一 `idempotencyKey` 已提交过：不重复追加，`effects.appendedCount = 0`，`item` 与 `effects.createdWorkItemIds` 保留首次创建的结果。
+- 失败时 `item`、`effects` 为 `nil`，序列化时省略。
+
 ## 3.1 按模板创建日志项
 
 ```lua
@@ -176,7 +236,15 @@ for _, template in ipairs(diary.templates.list()) do
 end
 ```
 
-`template.defaultTitle`、`template.defaultHours` 和 `template.defaultWorkTagIds` 只描述模板默认值，不提供模板写入能力。
+`template.defaultTitle`、`template.defaultHours` 和 `template.defaultWorkTagIds` 只描述模板默认值，不提供模板写入能力。每个模板包含：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | 模板 UUID。 |
+| `name` | string | 模板名称。 |
+| `defaultTitle` | string | 默认标题；调用时 `title` 为 nil 时使用。 |
+| `defaultHours` | number | 默认工时；调用 `templateLogItems.create` 时仍需显式传 `hours`。 |
+| `defaultWorkTagIds` | number[] | 默认标签 ID，创建时自动应用到新建项。 |
 
 宿主能力发现：
 
@@ -202,7 +270,7 @@ if result.succeeded then
 end
 ```
 
-返回的 `instance` 字段包括 `pluginId`、`instanceId`、`displayName`、`icon`、`isConfigured`。`diary.trackerInstances.list()` 返回当前已启用实例的同一 DTO 列表，并按显示名称稳定排序。错误代码为 `InvalidInput` 或 `InstanceUnavailable`。不暴露 Tracker 客户端、配置和数据库。
+返回的 `instance` 字段包括 `pluginId`、`instanceId`、`displayName`、`icon`、`isConfigured`。`diary.trackerInstances.list()` 返回当前已启用实例的同一 DTO 列表，并按显示名称稳定排序。错误代码为 `InvalidInput` 或 `InstanceUnavailable`；失败时值返回 `{ succeeded = false, error = { code, message }, apiError = { ... } }`，不抛异常。不暴露 Tracker 客户端、配置和数据库。
 
 ## 5. 剪贴板
 
@@ -239,15 +307,19 @@ end
 | Lua API | Worker HostCall |
 | --- | --- |
 | `diary.workItems.query` | `workItems.query` |
+| `diary.workItems.stream` | `workItems.query`（分页） |
 | `diary.templates.list` | `templates.list` |
 | `diary.host.list` | `host.capabilities.list` |
 | `diary.logItems.create` | `logItems.create` |
+| `diary.templateLogItems.create` | `templateLogItems.create` |
 | `diary.trackerInstances.get` | `trackerInstances.get` |
+| `diary.trackerInstances.list` | `trackerInstances.list` |
 | `diary.clipboard.get` | `clipboard.get` |
 | `diary.clipboard.set` | `clipboard.set` |
 | `diary.ui.notify` | `ui.notify` |
 | `diary.ui.confirm` | `ui.confirm` |
 | `diary.log.*` | `log.write` |
+| `context.progress.report` | `script.progress` |
 
 Worker 禁用 `io`、`os`、`debug`、`package`、`require`、动态加载和 CLR 访问。脚本不能直接访问文件、网络、进程、数据库、DI 或 UI 控件。`print` 只能写入隔离的脚本输出流，并受到大小限制。
 
@@ -280,3 +352,89 @@ end
 ```
 
 调用方取消、执行超时或 Worker 被终止时，Lua 脚本不应把异常当作普通业务失败重试；最终执行结果由宿主报告 `Cancelled`、`TimedOut` 或 `WORKER_TERMINATED`。
+
+非结果类 HostCall 抛出的 `[ERROR_CODE]` 与领域错误名的对应关系：
+
+| `[ERROR_CODE]` | 来源领域码 | 说明 |
+| --- | --- | --- |
+| `INVALID_ARGUMENT` | `InvalidInput` | 参数不合法。 |
+| `PERMISSION_DENIED` | `PermissionDenied` | 无权限执行该调用。 |
+| `SCRIPT_API_HOST_NOT_CONFIGURED` | `DatabaseUnavailable` | 数据库/宿主未就绪。 |
+| `INSTANCE_UNAVAILABLE` | `InstanceUnavailable` | Tracker 实例不可用。 |
+| `PROVIDER_FAILURE` | `ProviderFailure` | 底层提供程序失败。 |
+| `CANCELLED` | `Cancelled` | 调用已取消。 |
+
+其他全大写代码原样直通；无法识别时兜底 `PROVIDER_FAILURE`。
+
+## 9. 类型参考
+
+### request 表结构
+
+`context.request` 是完整执行请求（`ScriptExecutionRequest`）的 JSON 表：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `target` | table 或 nil | 编辑器目标；应用/自动化入口为 nil。 |
+| `arguments` | table | 执行参数表。 |
+| `source` | string | `Manual`、`Editor`、`Startup` 或 `Automation`。 |
+| `entryKind` | string | `Application`、`Editor`、`Automation` 或 `Query`。 |
+| `idempotencyKey` | string 或 nil | 业务幂等键。 |
+| `preview` | boolean | 是否预览。 |
+
+枚举字段以字符串形式出现（例如 `source = "Manual"`）。`context.workItem` 是事项目标的不可变快照，字段与查询结果中的 `item` 相同（见附录 C）。
+
+### 入口返回值约定
+
+入口函数的返回值被忽略：正常返回（或返回任何值）即执行成功（`Succeeded`）；失败通过 `error()` 抛出异常表达：
+
+- 抛异常 → `Failed` + `LUA_EXECUTION_FAILED` 诊断（附源码行/列）。
+- 执行已取消 → `Cancelled`。
+- 超时、Worker 终止由宿主报告，脚本无需处理。
+
+### 自动化触发器上下文（C# 专属）
+
+Lua 只提供 `automation_main` 入口名，上下文与普通脚本相同，**没有** `trigger`/`eventData` 字段。触发器上下文（`ScriptAutomationContext`）目前只有 C# 脚本可用。
+
+## 附录 A. `apiError` 错误码总表
+
+`apiError` 结构：`code`（string，稳定大写码）、`message`（string）、`category`（`Validation`、`Permission`、`Host`、`Provider` 或 `Cancellation`）、`retryable`（boolean）、`details`（可选字典，当前未使用）。
+
+当前 API 实际产生的错误码：
+
+| `apiError.code` | 来源（`error.code`） | category | retryable | 说明 |
+| --- | --- | --- | --- | --- |
+| `INVALID_ARGUMENT` | `InvalidInput` | Validation | 否 | 参数不合法；修正参数后重试。 |
+| `PERMISSION_DENIED` | `PermissionDenied`（仅查询） | Permission | 否 | 无权限执行该查询。 |
+| `SCRIPT_API_HOST_NOT_CONFIGURED` | `DatabaseUnavailable` | Host | 是 | 数据库/宿主未就绪，可稍后重试。 |
+| `INSTANCE_UNAVAILABLE` | `InstanceUnavailable`（仅 Tracker） | Host | 否 | Tracker 实例不存在或未启用。 |
+| `PROVIDER_FAILURE` | `ProviderFailure` | Provider | 是 | 底层提供程序失败。 |
+| `CANCELLED` | `Cancelled` | Cancellation | 否 | 调用已取消；不要重试带副作用的操作。 |
+
+保留但当前 API 未产生的常量：`SCRIPT_API_UNAVAILABLE`、`SCRIPT_API_SCOPE_NOT_SUPPORTED`、`TIMEOUT`、`WORKER_TERMINATED`、`DUPLICATE_REQUEST`。
+
+## 附录 B. 执行状态与常见诊断
+
+执行状态：`Succeeded`、`Failed`、`Cancelled`、`Rejected`（入口、目标或 descriptor 校验不通过）、`TimedOut`。
+
+常见诊断码：
+
+| 诊断码 | 含义 |
+| --- | --- |
+| `LUA_EXECUTION_FAILED` | Lua 脚本运行时异常。 |
+| `LUA_ENTRYPOINT_MISSING` | 入口函数缺失。 |
+| `LUA_SYNTAX_ERROR` | Lua 语法错误。 |
+| `LUA_RUNTIME_UNAVAILABLE` | Lua 运行时不可用。 |
+| `SCRIPT_DESCRIPTOR_INVALID` | descriptor 与入口不一致。 |
+| `SCRIPT_ENTRY_KIND_MISMATCH` | 入口类型与作用域/目标不匹配。 |
+| `SCRIPT_TARGET_INVALID` | 编辑器目标校验失败。 |
+| `WORKER_TERMINATED` | Worker 进程异常退出或通道断开。 |
+| `SCRIPT_EXECUTION_TIMED_OUT` | 执行超过时限。 |
+| `WORKER_HOST_CALL_LIMIT` | 宿主调用次数超限。 |
+| `WORKER_MESSAGE_TOO_LARGE` | Worker 消息超过大小限制。 |
+
+## 附录 C. DTO 字段总表
+
+- `item`（工作项）：`id`(number)、`date`、`comment`、`hours`(number)、`priority`(number，0-9)、`note`(string 或 nil)、`tags`(数组)。
+- `tag`：`id`(number)、`name`、`color`(number)、`level`(number)、`disabled`(boolean)。
+- `instance`（Tracker 实例）：`pluginId`、`instanceId`、`displayName`、`icon`、`isConfigured`(boolean)。
+- `template`：`id`、`name`、`defaultTitle`、`defaultHours`(number)、`defaultWorkTagIds`(number[])。

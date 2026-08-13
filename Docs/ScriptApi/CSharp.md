@@ -74,7 +74,18 @@ var trackers = api.Tracker.ListInstances();
 | `IdempotencyKey` | `string?` | 追加式写入的业务幂等键；结果由宿主共享幂等存储持久化，应用重启后仍可识别已提交的重复请求。 |
 | `Preview` | `bool` | 只返回待追加记录和副作用摘要，不写入数据库。 |
 
-编辑器脚本的目标有 `Year`、`Quarter`、`Month`、`Week`、`Day` 和 `WorkItem` 六种。目标字段由宿主校验，脚本不需要自行计算季度、月份或周边界。
+编辑器脚本的目标有 `Year`、`Quarter`、`Month`、`Week`、`Day` 和 `WorkItem` 六种。目标字段由宿主校验，脚本不需要自行计算季度、月份或周边界。各目标的构造方法与字段：
+
+| `Kind` | 构造方法 | 目标字段 | 校验 |
+| --- | --- | --- | --- |
+| `Year` | `ScriptEditorTarget.ForYear(year)` | `Year` | 1-9999。 |
+| `Quarter` | `ForQuarter(year, quarter)` | `Year` + `Quarter` | 自然季度 1-4。 |
+| `Month` | `ForMonth(year, month)` | `Year` + `Month` | 1-12。 |
+| `Week` | `ForWeek(weekStartDate)` | `WeekStart` | 周一的 `yyyy-MM-dd`，范围为该周周一至周日。 |
+| `Day` | `ForDay(date)` | `Date` | `yyyy-MM-dd`。 |
+| `WorkItem` | `ForWorkItem(workItem)` | `WorkItem` | 快照 `Id` 必须大于 0，且不允许多余目标字段。 |
+
+执行状态 `ScriptExecutionStatus`：`Succeeded`、`Failed`、`Cancelled`、`Rejected`（入口、目标或 descriptor 校验不通过）、`TimedOut`。
 
 `IScriptExecutionContext`：
 
@@ -84,7 +95,7 @@ var trackers = api.Tracker.ListInstances();
 | `EntryKind` | 当前入口类型。 |
 | `Arguments` | 用户传入的字符串参数。 |
 | `CancellationToken` / `IsCancellationRequested` | 当前执行的取消信号。 |
-| `ReportProgressAsync(...)` | 报告 0 到 1 之间的执行进度，不写入脚本日志。 |
+| `ReportProgressAsync(...)` | 报告 0 到 1 之间的执行进度，不写入脚本日志。`Fraction` 越界（含 NaN）或 `Message` 为空时抛参数异常，由宿主拒绝。 |
 | `GetApi<TApi>()` | 获取已注册 API。API 未实现或不可用时返回 `null`。 |
 | `GetRequiredApi<TApi>()` | 获取必需 API；不可用时抛出宿主可转换为稳定错误码的异常。 |
 
@@ -110,21 +121,6 @@ else if (editor.WorkItem is not null)
 ```
 
 日期目标的 `GetDateRange()` 返回包含边界的 `ScriptDateRange`；事项目标返回 `null`。`StreamItemsAsync()` 使用当前日期范围按页迭代事项，不能用于事项目标。`Week` 目标用 `ScriptEditorTarget.ForWeek("2026-08-10")` 构造，起始日期必须是周一，范围为该周周一至周日。
-
-## 4.1 调试日志
-
-```csharp
-var log = context.GetApi<ILogApi>();
-if (log is not null)
-{
-    await log.DebugAsync("开始处理脚本参数", cancellationToken);
-    await log.InfoAsync("脚本已读取当前目标");
-    await log.WarningAsync("发现一个可忽略的事项");
-    await log.ErrorAsync("处理事项失败");
-}
-```
-
-日志带有脚本 ID 和执行 ID，并写入宿主日志。单条消息由宿主限制大小；不要输出密码、Token 或其他敏感配置。
 
 ## 4. 查询工作项
 
@@ -167,9 +163,7 @@ foreach (var item in result.Items)
 | `Offset` | `int` | 默认 0，最大 1,000,000。 |
 | `Range` | `string?` | 日期范围快捷值：`today`、`yesterday`、`thisWeek`、`thisMonth`；提供时覆盖 `StartDate`/`EndDate`，由宿主解析为实际日期范围。 |
 
-返回的 `ScriptWorkItemQueryResult` 包含 `Succeeded`、`Items`、`NormalizedQuery` 和 `Error`。`ScriptWorkItem` 仅是安全 DTO：`Id`、`Date`、`Comment`、`Hours`、`Priority`、`Note`、`Tags`。该 API 没有更新或删除方法。
-
-## 5. 创建日志项
+返回的 `ScriptWorkItemQueryResult` 包含 `Succeeded`、`Items`、`NormalizedQuery` 和 `Error`，另有计算属性 `ApiError`（`ScriptApiError?`，由 `Error.ToApiError()` 计算，提供稳定大写错误码）。`NormalizedQuery` 是宿主规范化后的参数回显：`Limit` 补全默认值 100、`Offset` 补全 0、`TagFilter` 补全 `Ignore`，`Range` 快捷值已被解析为 `StartDate`/`EndDate` 不再回显。`ScriptWorkItem` 仅是安全 DTO：`Id`、`Date`、`Comment`、`Hours`、`Priority`、`Note`、`Tags`。该 API 没有更新或删除方法。
 
 ### 流式查询大量明细
 
@@ -186,7 +180,9 @@ await foreach (var item in api.StreamAsync(new ScriptWorkItemQuery
 }
 ```
 
-`workItems.query` 单次最多返回 1000 条；`StreamAsync` 页大小必须在 1 到 500 之间。第一版是 Worker 通信层的分页式流，不是数据库 reader 流；查询期间数据变化可能影响 offset 分页边界。
+`workItems.query` 单次最多返回 1000 条；`StreamAsync` 页大小必须在 1 到 500 之间，默认 500。第一版是 Worker 通信层的分页式流，不是数据库 reader 流；查询期间数据变化可能影响 offset 分页边界。任一页查询领域失败时抛 `InvalidOperationException`。`IScriptEditorContext.StreamItemsAsync()` 按当前目标日期范围迭代，事项目标没有日期范围，调用会抛 `InvalidOperationException`；需要自定义范围时使用 `IDiaryApi.StreamAsync(query, pageSize)`。
+
+## 5. 创建日志项
 
 创建日志项只会新建工作项，不会查找、修改或删除已有工作项。
 
@@ -218,6 +214,22 @@ var created = result.Item!;
 
 失败时 `Error.Code` 可能是 `InvalidInput`、`DatabaseUnavailable`、`ProviderFailure` 或 `Cancelled`。成功时 `Item` 返回新建工作项 DTO。脚本不能从该 API 获得可变 `WorkItem` 对象。
 
+`ScriptLogItemResult` 字段：
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `Succeeded` | `bool` | 是否成功。 |
+| `Item` | `ScriptWorkItem?` | 新建项 DTO；失败时为 `null`。 |
+| `Error` | `ScriptLogItemError?` | `Code`（领域枚举）+ `Message`。 |
+| `Effects` | `ScriptEffectSummary?` | 副作用摘要。 |
+| `Duplicate` | `bool` | `true` 表示结果来自幂等重放。 |
+| `ApiError` | `ScriptApiError?` | 稳定大写错误码视图，由 `Error.ToApiError()` 计算。 |
+
+`ScriptEffectSummary` 字段：`AppendedCount`（实际追加条数；预览或幂等重放时为 0）、`Preview`、`IdempotencyKey`、`CreatedWorkItemIds`、`RemoteEffects`（预留）。
+
+- `Preview = true` 时返回 `Id = 0` 的投影项：`Effects.Preview = true`、`AppendedCount = 0`、`CreatedWorkItemIds` 为空集合，数据库未写入。
+- `Duplicate = true` 表示同一 `IdempotencyKey` 已提交过：不重复追加，`AppendedCount = 0`，`Item` 与 `CreatedWorkItemIds` 保留首次创建的结果。
+
 ## 6. 按模板创建日志项
 
 ```csharp
@@ -239,7 +251,7 @@ foreach (var template in diary!.Templates.List())
     Console.WriteLine($"{template.Id}: {template.Name} ({template.DefaultHours}h)");
 ```
 
-`ScriptTemplateInfo` 的 `DefaultTitle`、`DefaultHours` 和 `DefaultWorkTagIds` 只描述模板默认值，不授予脚本修改模板的权限。
+`ScriptTemplateInfo` 字段：`Id`（UUID）、`Name`、`DefaultTitle`、`DefaultHours`、`DefaultWorkTagIds`。`DefaultTitle`、`DefaultHours` 和 `DefaultWorkTagIds` 只描述模板默认值，不授予脚本修改模板的权限；调用 `CreateFromTemplateAsync` 时仍需显式传 `Hours`。
 
 宿主能力发现：
 
@@ -259,7 +271,7 @@ if (result is { Succeeded: true })
     Console.WriteLine(result.Instance!.DisplayName);
 ```
 
-`GetInstance(pluginId, instanceId)` 返回 `TrackerScriptResult`，实例位于 `Instance` 属性（`PluginId`、`InstanceId`、`DisplayName`、`Icon`、`IsConfigured`）。`ListInstances()` 返回当前已启用实例的同一 DTO 列表，结果按显示名称稳定排序。错误代码为 `InvalidInput` 或 `InstanceUnavailable`。该 API 不暴露 Tracker 客户端、配置、数据库或 DI。
+`GetInstance(pluginId, instanceId)` 返回 `TrackerScriptResult`，字段：`Succeeded`、`Instance`（`ScriptTrackerInstance?`，含 `PluginId`、`InstanceId`、`DisplayName`、`Icon`、`IsConfigured`）、`ErrorCode`（`TrackerScriptErrorCode?`）、`ErrorMessage`、`ApiError`（`INVALID_ARGUMENT` 或 `INSTANCE_UNAVAILABLE`）。`ListInstances()` 返回当前已启用实例的同一 DTO 列表，结果按显示名称稳定排序。该 API 不暴露 Tracker 客户端、配置、数据库或 DI。
 
 ## 8. 剪贴板
 
@@ -281,7 +293,22 @@ var confirmed = await system.ConfirmAsync("继续操作", "是否继续？", can
 
 `NotifyAsync` 显示通知；`ConfirmAsync` 返回用户是否确认。自动化或后台执行时 UI 可能不可用，应捕获异常并将失败作为脚本诊断处理。
 
-## 10. Worker API 映射和限制
+## 10. 调试日志
+
+```csharp
+var log = context.GetApi<ILogApi>();
+if (log is not null)
+{
+    await log.DebugAsync("开始处理脚本参数", cancellationToken);
+    await log.InfoAsync("脚本已读取当前目标");
+    await log.WarningAsync("发现一个可忽略的事项");
+    await log.ErrorAsync("处理事项失败");
+}
+```
+
+日志带有脚本 ID 和执行 ID，并写入宿主日志。单条消息由宿主限制大小；不要输出密码、Token 或其他敏感配置。
+
+## 11. Worker API 映射和限制
 
 | C# API | Worker HostCall |
 | --- | --- |
@@ -301,7 +328,15 @@ var confirmed = await system.ConfirmAsync("继续操作", "是否继续？", can
 
 Worker 调用由主进程执行并返回结构化结果。普通日志项和模板日志项支持 `IdempotencyKey` 与 `Preview`，结果会带 `ScriptEffectSummary`。已提交的幂等结果由宿主共享存储持久化，应用重启后仍能识别重复请求；脚本不能直接访问文件、网络、进程、反射、数据库、DI 或任意 UI 控件。超时、取消、Worker 退出和宿主失败都会转换为执行诊断。
 
-## 11. 错误、取消、超时和 Worker 终止
+C# 脚本沙箱（构建期检查，违反时构建失败并产生 `CSHARP_API_FORBIDDEN` 诊断）：
+
+- 禁止命名空间：`System.IO`、`System.Net`、`System.Reflection`、`System.Runtime.InteropServices`、`Diary.Database`、`Microsoft.Extensions.DependencyInjection`。
+- 禁止类型：`System.AppDomain`、`System.Environment`、`System.Diagnostics.Process`、`System.Diagnostics.ProcessStartInfo`、`System.Threading.Thread`、`System.Threading.ThreadPool`、`System.Threading.Timer`、`System.Threading.PeriodicTimer`、`System.Threading.Tasks.TaskFactory`、`System.Threading.Tasks.TaskScheduler`、`System.Type`、`System.Activator`、`System.Runtime.CompilerServices.RuntimeHelpers`。
+- 禁止成员：`Object.GetType`、`Type.GetType`、`Activator.CreateInstance`、`Delegate.DynamicInvoke`、`Task.Run`、`TaskFactory.StartNew`、`TaskFactory.ContinueWhenAll`、`TaskFactory.ContinueWhenAny`。
+
+脚本程序集加载失败时诊断码为 `CSHARP_LOAD_FAILED`。
+
+## 12. 错误、取消、超时和 Worker 终止
 
 返回结果类 API 失败时，优先读取 `ApiError.Code`，它使用稳定的大写错误码；`Error.Code` 是 C# 领域枚举，适合在领域内分支。
 
@@ -326,3 +361,180 @@ if (!result.Succeeded)
 ```
 
 脚本整体执行结果还要区分执行状态：`Cancelled` 表示调用方取消，`TimedOut` 表示超过执行时限；Worker 进程异常退出或通道断开时，诊断代码为 `WORKER_TERMINATED`。这些状态不能当作普通的 `ProviderFailure`，尤其是带有追加副作用的操作不能因为超时就自动重试。
+
+领域枚举到 `ApiError.Code` 的映射：
+
+| 领域枚举 | `ApiError.Code` | category | retryable |
+| --- | --- | --- | --- |
+| `InvalidInput` | `INVALID_ARGUMENT` | Validation | 否 |
+| `PermissionDenied`（仅查询） | `PERMISSION_DENIED` | Permission | 否 |
+| `DatabaseUnavailable` | `SCRIPT_API_HOST_NOT_CONFIGURED` | Host | 是 |
+| `InstanceUnavailable`（仅 Tracker） | `INSTANCE_UNAVAILABLE` | Host | 否 |
+| `ProviderFailure` | `PROVIDER_FAILURE` | Provider | 是 |
+| `Cancelled` | `CANCELLED` | Cancellation | 否 |
+
+## 13. 类型参考
+
+### 13.1 上下文接口
+
+| 接口 | 额外成员 | 说明 |
+| --- | --- | --- |
+| `IScriptApplicationContext` | 无 | 继承 `IScriptExecutionContext` 的全部成员，不新增成员。 |
+| `IScriptEditorContext` | `Target`（`ScriptEditorTarget`）、`WorkItem`（`ScriptWorkItem?`）、`GetDateRange()`（返回 `ScriptDateRange?`）、`StreamItemsAsync(CancellationToken)` | 编辑器脚本专用。 |
+| `IScriptAutomationContext` | `Automation`（`ScriptAutomationContext`） | 自动化脚本专用。 |
+
+`IScriptExecutionContext` 公共成员：`Metadata`（`ScriptExecutionMetadata?`）、`EntryKind`、`Arguments`、`CancellationToken`、`IsCancellationRequested`、`ReportProgressAsync(ScriptProgressUpdate)`、`GetApi<TApi>()`、`GetRequiredApi<TApi>()`。
+
+`ScriptAutomationContext`：`Trigger`（`ScriptAutomationTriggerKind`）、`EventData`（`IReadOnlyDictionary<string, string>`）、`IdempotencyKey`（`string?`，默认 null）。
+
+`ScriptAutomationTriggerKind` 枚举：
+
+| 值 | 说明 |
+| --- | --- |
+| `Unknown` | 未知来源。 |
+| `Startup` | 应用启动触发。 |
+| `Scheduled` | 定时触发。 |
+| `WorkItemCreated` | 工作项创建触发。 |
+| `WorkItemSaved` | 工作项保存触发。 |
+| `TagAdded` | 标签添加触发。 |
+
+当前实现只在 Worker 路径且执行来源为 `Automation` 时注入 `Scheduled`，其余场景为 `Unknown`；`Startup`、`WorkItemCreated`、`WorkItemSaved`、`TagAdded` 四种触发器的接线尚未实现。
+
+### 13.2 ScriptEditorTarget
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `Kind` | `ScriptEditorTargetKind` | 必填，六种之一。 |
+| `Year` | `int?` | `Year`、`Quarter`、`Month` 目标。 |
+| `Quarter` | `int?` | `Quarter` 目标，1-4。 |
+| `Month` | `int?` | `Month` 目标，1-12。 |
+| `Date` | `string?` | `Day` 目标，`yyyy-MM-dd`。 |
+| `WeekStart` | `string?` | `Week` 目标，周一的 `yyyy-MM-dd`。 |
+| `WorkItem` | `ScriptWorkItem?` | `WorkItem` 目标快照。 |
+
+静态工厂：`ForYear(year)`、`ForQuarter(year, quarter)`、`ForMonth(year, month)`、`ForDay(date)`、`ForWeek(weekStartDate)`、`ForWorkItem(workItem)`。类型没有实例方法，读取目标时直接访问属性；`Date` 只属于 `Day` 目标，`Week` 目标使用 `WeekStart`。
+
+### 13.3 执行结果与诊断
+
+`ScriptExecutionResult`：
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `Status` | `ScriptExecutionStatus` | 执行状态。 |
+| `Diagnostics` | `ImmutableArray<ScriptDiagnostic>` | 诊断列表。 |
+| `Effects` | `ScriptEffectSummary?` | 副作用摘要。 |
+
+静态工厂只有 `Succeeded()` 与 `Cancelled()`；失败结果需要直接构造：`new(ScriptExecutionStatus.Failed, diagnostics)`。
+
+`ScriptDiagnostic`：`Code`（string）、`Message`（string）、`Severity`（`ScriptDiagnosticSeverity`）、`Category`（`ScriptDiagnosticCategory`）、`SourcePath`（string?）、`Line`（int?）、`Column`（int?）。
+
+`ScriptExecutionMetadata`：`ExecutionId`（Guid）、`StartedAt`（DateTimeOffset）、`Source`、`ScriptId`（string）、`EntryKind`、`IdempotencyKey`（string?）、`Preview`（bool）。
+
+`ScriptProgressUpdate`：`Fraction`（double，0 到 1）、`Message`（string，非空）。`ScriptDateRange`：`StartDate`、`EndDate`（均为 `yyyy-MM-dd`）。
+
+### 13.4 SDK 基类
+
+`ApplicationScript`、`EditorScript`、`AutomationScript` 定义在 `Diary.ScriptBase`：
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `Id` | `abstract string` | 稳定的脚本 ID。 |
+| `Name` | `abstract string` | UI 展示名称。 |
+| `Description` | `virtual string?` | 默认 null。 |
+| `SupportedTargets` | `virtual IReadOnlyList<ScriptEditorTargetKind>?`（仅 `EditorScript`） | 返回 null 表示支持全部六种目标。 |
+| `ExecuteAsync` | 抽象方法 | 按基类签名：`ExecuteAsync(IScriptApplicationContext context, CancellationToken ct = default)` / `ExecuteAsync(IScriptEditorContext context, ...)` / `ExecuteAsync(IScriptAutomationContext context, ...)`，返回 `ValueTask<ScriptExecutionResult>`。 |
+
+`Descriptor` 由基类自动生成（`ApiVersion = V1`、对应 Scope 与 EntryKind），脚本不需要手写。没有 `QueryScript` 基类（`ScriptEntryKind.Query` 目前仅预留）。
+
+### 13.5 宿主 API 接口签名
+
+```csharp
+public interface IDiaryApi
+{
+    ITemplateScriptApi Templates { get; }
+    IHostCapabilitiesScriptApi Host { get; }
+    ValueTask<ScriptWorkItemQueryResult> QueryAsync(ScriptWorkItemQuery query, CancellationToken cancellationToken = default);
+    IAsyncEnumerable<ScriptWorkItem> StreamAsync(ScriptWorkItemQuery query, int pageSize = 500, CancellationToken cancellationToken = default);
+    ValueTask<ScriptLogItemResult> CreateLogItemAsync(ScriptLogItemRequest request, CancellationToken cancellationToken = default);
+    ValueTask<ScriptLogItemResult> CreateFromTemplateAsync(ScriptTemplateLogItemRequest request, CancellationToken cancellationToken = default);
+}
+
+public interface ITrackerApi
+{
+    TrackerScriptResult GetInstance(string pluginId, string instanceId);
+    IReadOnlyList<ScriptTrackerInstance> ListInstances();
+}
+
+public interface SysApi
+{
+    ValueTask<string?> GetClipboardTextAsync(CancellationToken cancellationToken = default);
+    ValueTask<bool> SetClipboardTextAsync(string text, CancellationToken cancellationToken = default);
+    ValueTask NotifyAsync(string title, string body, CancellationToken cancellationToken = default);
+    ValueTask<bool> ConfirmAsync(string title, string body, CancellationToken cancellationToken = default);
+}
+
+public interface ILogApi
+{
+    ValueTask DebugAsync(string message, CancellationToken cancellationToken = default);
+    ValueTask InfoAsync(string message, CancellationToken cancellationToken = default);
+    ValueTask WarningAsync(string message, CancellationToken cancellationToken = default);
+    ValueTask ErrorAsync(string message, CancellationToken cancellationToken = default);
+}
+```
+
+`Templates` 与 `Host` 各只有一个只读方法 `List()`，返回 `IReadOnlyList<ScriptTemplateInfo>` 与 `IReadOnlyList<string>`。
+
+`ScriptApiFacade`（`context.Api()` 返回）提供 `Diary`（`IDiaryApi`）、`Tracker`（`ITrackerApi`）、`System`（`SysApi`）、`Log`（`ILogApi`）四个属性，均通过 `GetRequiredApi<T>()` 获取——门面不扩大权限，缺少 API 时同样报错。
+
+### 13.6 入口返回值与异常映射
+
+| 情况 | 执行状态 | 说明 |
+| --- | --- | --- |
+| 返回 `ScriptExecutionResult` | 由返回值的 `Status` 决定 | C# 是唯一返回值参与结果构造的语言。 |
+| 返回 null 或抛出异常 | `Failed` + `SCRIPT_EXECUTION_EXCEPTION` | 脚本编写错误或未处理异常。 |
+| `OperationCanceledException` | `Cancelled` | 调用方取消。 |
+| 超过执行时限 | `TimedOut` + `SCRIPT_EXECUTION_TIMED_OUT` | 宿主终止执行。 |
+| Worker 进程异常退出 | `WORKER_TERMINATED` | 通道断开。 |
+
+Lua 与 Python 的入口返回值约定不同，见各自语言文档的类型参考章节。
+
+### 13.7 枚举速查
+
+| 枚举 | 值 |
+| --- | --- |
+| `ScriptApiVersion` | `V1`。 |
+| `ScriptScope` | `Application`、`Editor`。 |
+| `ScriptDiagnosticSeverity` | `Info`、`Warning`、`Error`。 |
+| `ScriptDiagnosticCategory` | `Syntax`、`Validation`、`Security`、`Engine`、`Runtime`、`Host`。 |
+| `ScriptErrorCategory` | `Validation`、`Permission`、`Host`、`Provider`、`Cancellation`、`Conflict`、`Runtime`。 |
+
+## 附录 A. `ScriptApiErrorCodes` 总表
+
+`ScriptApiError` 字段：`Code`（string，稳定大写码）、`Message`、`Category`（`Validation`、`Permission`、`Host`、`Provider` 或 `Cancellation`）、`Retryable`（bool）、`Details`（可选字典，当前未使用）。
+
+| `Code` | 是否由当前 API 产生 | 说明 |
+| --- | --- | --- |
+| `INVALID_ARGUMENT` | 是 | 参数不合法。 |
+| `PERMISSION_DENIED` | 是（仅查询） | 无权限执行该查询。 |
+| `SCRIPT_API_HOST_NOT_CONFIGURED` | 是 | 数据库/宿主未就绪，可稍后重试。 |
+| `INSTANCE_UNAVAILABLE` | 是（仅 Tracker） | Tracker 实例不存在或未启用。 |
+| `PROVIDER_FAILURE` | 是 | 底层提供程序失败。 |
+| `CANCELLED` | 是 | 调用已取消；不要重试带副作用的操作。 |
+| `SCRIPT_API_UNAVAILABLE` | 保留 | 宿主 API 不可用。 |
+| `SCRIPT_API_SCOPE_NOT_SUPPORTED` | 保留 | 当前作用域不支持该 API。 |
+| `TIMEOUT` | 保留 | 调用超时。 |
+| `WORKER_TERMINATED` | 保留 | Worker 进程异常退出。 |
+| `DUPLICATE_REQUEST` | 保留 | 重复请求。 |
+
+## 附录 B. 执行状态与常见诊断
+
+执行状态：`Succeeded`、`Failed`、`Cancelled`、`Rejected`（入口、目标或 descriptor 校验不通过）、`TimedOut`。
+
+常见诊断码：`CSHARP_API_FORBIDDEN`（使用被禁止的 API）、`CSHARP_LOAD_FAILED`（程序集加载失败）、`SCRIPT_DESCRIPTOR_INVALID`（descriptor 与入口不一致）、`SCRIPT_ENTRY_KIND_MISMATCH`（入口类型与作用域/目标不匹配）、`SCRIPT_TARGET_INVALID`（编辑器目标校验失败）、`WORKER_TERMINATED`（Worker 进程异常退出或通道断开）、`SCRIPT_EXECUTION_TIMED_OUT`（执行超过时限）、`WORKER_HOST_CALL_LIMIT`（宿主调用次数超限）、`WORKER_MESSAGE_TOO_LARGE`（Worker 消息超过大小限制）。
+
+## 附录 C. DTO 字段总表
+
+- `ScriptWorkItem`：`Id`(int)、`Date`、`Comment`、`Hours`(double)、`Priority`(int，0-9)、`Note`(string?)、`Tags`(ImmutableArray&lt;ScriptWorkTag&gt;)。
+- `ScriptWorkTag`：`Id`(int)、`Name`、`Color`(int)、`Level`(int)、`Disabled`(bool)。
+- `ScriptTrackerInstance`：`PluginId`、`InstanceId`、`DisplayName`、`Icon`、`IsConfigured`(bool)。
+- `ScriptTemplateInfo`：`Id`、`Name`、`DefaultTitle`、`DefaultHours`(double)、`DefaultWorkTagIds`(IReadOnlyCollection&lt;int&gt;)。

@@ -44,7 +44,12 @@ def application_main(context):
 
 请求、参数和结果字段使用 camelCase，例如 `startDate`、`endDate`、`normalizedQuery`。脚本自动化只能追加工作记录，不提供删除或直接改写历史记录；`idempotencyKey` 对已提交结果持久有效。
 
+`target` 按 `kind` 提供不同字段（字典访问）：`Year` → `year`（1-9999）；`Quarter` → `year` + `quarter`（1-4）；`Month` → `year` + `month`（1-12）；`Week` → `weekStart`（周一的 `yyyy-MM-dd`，范围周一至周日）；`Day` → `date`；`WorkItem` → `workItem`（不可变事项快照，`dateRange`、`getDateRange()` 和 `items.stream()` 不可用）。`context.source` 是 `Manual`、`Editor`、`Startup` 或 `Automation`。目标字段由宿主校验，不合法的目标在执行前以 `Rejected` 状态拒绝。
+
+`context.progress.report(fraction, message)` 报告执行进度：`fraction` 必须为 0 到 1 之间的数字，`message` 必须为非空字符串，否则抛 `ValueError`。进度只用于界面展示，不写入脚本日志，也不写入数据库。
+
 完整示例：[Python 5 分钟入门：查询并追加日志项](Examples/PythonQuickStart.md)。
+
 ## 2. 查询工作项
 
 调用：`context.diary.workItems.query(params=None, **kwargs)`。可以传字典、关键字参数或同时传入两者：
@@ -85,7 +90,7 @@ result = context.diary.workItems.query({"limit": 100}, text="Worker")
 
 查询是只读的。返回的字典是 JSON 数据，不是可写入宿主数据库的对象。
 
-## 3. 创建日志项
+`normalizedQuery` 是宿主规范化后的查询参数回显，字段与查询参数一致：`limit` 补全默认值 100，`offset` 补全 0，`tagFilter` 补全 `Ignore`；`range` 快捷值已被解析为 `startDate`/`endDate`，不再回显 `range`。可以用它确认宿主实际生效的过滤条件。
 
 ### 流式查询大量明细
 
@@ -98,7 +103,11 @@ for item in context.diary.workItems.stream(
     print(item["date"], item["comment"])
 ```
 
-Python 生成器按需调用 `workItems.query`，一页消费完后才拉取下一页。`pageSize` 必须在 1 到 500 之间。非流式查询单次最多返回 1000 条。
+Python 生成器按需调用 `workItems.query`，一页消费完后才拉取下一页。`pageSize` 必须在 1 到 500 之间，默认 500；除 `pageSize` 外还支持查询参数中的 `offset` 和全部过滤字段。查询期间数据变化可能影响 offset 分页边界。某一页查询领域失败（`succeeded=False`）时生成器抛出 `HostCallError` 结束迭代，不会静默截断结果。非流式查询单次最多返回 1000 条。
+
+`context.diary.items.stream()` 按当前目标日期范围分页迭代，仅日期目标可用——事项目标没有日期范围，调用会抛 `HostCallError`。需要按自定义范围迭代时使用 `context.diary.workItems.stream(...)` 手动传日期。
+
+## 3. 创建日志项
 
 调用 `context.diary.logItems.create(params)` 会创建一个新工作项，不能修改或删除已有工作项：
 
@@ -127,6 +136,43 @@ print(created["id"])
 
 失败时返回 `succeeded = False` 和 `error`。错误代码包括 `InvalidInput`、`DatabaseUnavailable`、`ProviderFailure`、`Cancelled`。该 API 只返回新建项的安全 DTO。
 
+### 返回结构
+
+成功：
+
+```python
+{
+    "succeeded": True,
+    "item": {"id": 42, "date": "2026-08-08", "comment": "标题", "hours": 2.5,
+             "priority": 0, "note": None, "tags": [...]},
+    "effects": {
+        "appendedCount": 1,        # 实际追加条数；预览或幂等重放时为 0
+        "preview": False,          # 是否预览执行
+        "idempotencyKey": "daily-summary:2026-08-09",  # 未提供时为 None
+        "createdWorkItemIds": [42],                    # 本次新建的工作项 ID
+        "remoteEffects": None,     # 预留，当前恒为 None
+    },
+    "duplicate": False,            # True 表示结果来自幂等重放
+}
+```
+
+失败（值返回，不抛异常）：
+
+```python
+{
+    "succeeded": False,
+    "error": {"code": "InvalidInput", "message": "日期必须是 yyyy-MM-dd 格式。"},
+    "apiError": {
+        "code": "INVALID_ARGUMENT", "message": "日期必须是 yyyy-MM-dd 格式。",
+        "category": "Validation", "retryable": False,
+    },
+}
+```
+
+- `preview=True` 时 `item` 是 `id=0` 的投影项：`effects["preview"]=True`、`appendedCount=0`、`createdWorkItemIds` 为空列表，数据库未写入。
+- `duplicate=True` 表示同一 `idempotencyKey` 已提交过：不重复追加，`appendedCount=0`，`item` 与 `createdWorkItemIds` 保留首次创建的结果。
+- 失败时 `item`、`effects` 为 `None`，序列化时省略。
+
 ## 3.1 按模板创建日志项
 
 ```python
@@ -150,7 +196,7 @@ for template in context.diary.templates.list():
     print(template["id"], template["name"])
 ```
 
-`defaultTitle`、`defaultHours` 和 `defaultWorkTagIds` 只描述模板默认值，不提供模板写入能力。
+`defaultTitle`、`defaultHours` 和 `defaultWorkTagIds` 只描述模板默认值，不提供模板写入能力。每个模板包含：`id`(UUID)、`name`、`defaultTitle`、`defaultHours`(float)、`defaultWorkTagIds`(list[int])；`defaultHours` 只描述默认值，调用 `templateLogItems.create` 时仍需显式传 `hours`。
 
 宿主能力发现：
 
@@ -172,7 +218,7 @@ if result["succeeded"]:
     print(result["instance"]["displayName"])
 ```
 
-返回的 `instance` 包含 `pluginId`、`instanceId`、`displayName`、`icon`、`isConfigured`。`context.diary.trackerInstances.list()` 返回当前已启用实例的同一 DTO 列表，并按显示名称稳定排序。错误代码为 `InvalidInput` 或 `InstanceUnavailable`。不暴露 Tracker 客户端、配置、数据库或 DI。
+返回的 `instance` 包含 `pluginId`、`instanceId`、`displayName`、`icon`、`isConfigured`。`context.diary.trackerInstances.list()` 返回当前已启用实例的同一 DTO 列表，并按显示名称稳定排序。错误代码为 `InvalidInput` 或 `InstanceUnavailable`；失败时值返回 `{"succeeded": False, "error": {"code": ..., "message": ...}, "apiError": {...}}`，不抛异常。不暴露 Tracker 客户端、配置、数据库或 DI。
 
 ## 5. 剪贴板
 
@@ -205,22 +251,28 @@ except HostCallError as error:
     print(error.code)
 ```
 
+`HostCallError.code` 与领域错误名的对应关系：`InvalidInput → INVALID_ARGUMENT`、`PermissionDenied → PERMISSION_DENIED`、`DatabaseUnavailable → SCRIPT_API_HOST_NOT_CONFIGURED`、`InstanceUnavailable → INSTANCE_UNAVAILABLE`、`ProviderFailure → PROVIDER_FAILURE`、`Cancelled → CANCELLED`；其他全大写码原样直通，无法识别时兜底 `PROVIDER_FAILURE`。
+
 ## 7. Worker API 和沙箱
 
 | Python API | Worker HostCall |
 | --- | --- |
 | `context.diary.workItems.query` | `workItems.query` |
+| `context.diary.workItems.stream` | `workItems.query`（分页） |
 | `context.diary.templates.list` | `templates.list` |
 | `context.diary.host.list` | `host.capabilities.list` |
 | `context.diary.logItems.create` | `logItems.create` |
+| `context.diary.templateLogItems.create` | `templateLogItems.create` |
 | `context.diary.trackerInstances.get` | `trackerInstances.get` |
+| `context.diary.trackerInstances.list` | `trackerInstances.list` |
 | `context.diary.clipboard.get` | `clipboard.get` |
 | `context.diary.clipboard.set` | `clipboard.set` |
 | `context.diary.ui.notify` | `ui.notify` |
 | `context.diary.ui.confirm` | `ui.confirm` |
 | `context.log.*` | `log.write` |
+| `context.progress.report` | `script.progress` |
 
-Python Worker 禁止导入模块、文件访问、动态代码执行、运行时自省、输入和双下划线属性。仅允许安全内置函数；`print` 重定向到 Worker 日志流并受大小限制。脚本不能直接访问网络、进程、数据库、DI 或 UI 控件。
+Python Worker 禁止导入模块、文件访问、动态代码执行、运行时自省、输入和双下划线属性。允许的内置函数（SAFE_BUILTINS）：`abs`、`all`、`any`、`bool`、`dict`、`enumerate`、`Exception`、`HostCallError`、`float`、`int`、`isinstance`、`len`、`list`、`max`、`min`、`print`、`range`、`set`、`sorted`、`str`、`sum`、`tuple`、`type`、`ValueError`、`RuntimeError`、`zip`。除此之外没有其他内置函数；`__builtins__`、`__import__`、`eval`、`exec`、`open`、`getattr`、`globals`、`setattr`、`vars`、`compile`、`breakpoint`、`input`、`help`、`quit` 等名称在执行前由 AST 静态扫描拒绝。取消通过逐行 trace 注入，运行中的脚本会收到 `CancelledExecution`。`print` 重定向到 Worker 日志流并受大小限制。脚本不能直接访问网络、进程、数据库、DI 或 UI 控件。
 
 ## 8. 错误、取消、超时和 Worker 终止
 
@@ -248,3 +300,81 @@ except HostCallError as error:
 ```
 
 调用方取消、执行超时或 Worker 被终止时，脚本执行结果分别表现为 `Cancelled`、`TimedOut` 或 `WORKER_TERMINATED` 诊断；它们不是普通的 `PROVIDER_FAILURE`，带副作用的操作不能自动重试。
+
+## 9. 类型参考
+
+### request 字典结构
+
+`context.request` 是完整执行请求（`ScriptExecutionRequest`）的 JSON 字典：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `target` | dict 或 None | 编辑器目标；应用/自动化入口为 None。 |
+| `arguments` | dict | 执行参数字典。 |
+| `source` | str | `Manual`、`Editor`、`Startup` 或 `Automation`。 |
+| `entryKind` | str | `Application`、`Editor`、`Automation` 或 `Query`。 |
+| `idempotencyKey` | str 或 None | 业务幂等键。 |
+| `preview` | bool | 是否预览。 |
+
+枚举字段以字符串形式出现。`context.workItem` 是事项目标的不可变快照，字段与查询结果中的 `item` 相同（见附录 C）。
+
+### 入口返回值约定
+
+入口必须是同步函数（不支持 `async def`）：
+
+- 返回 awaitable → 抛 `RuntimeError`，执行失败。
+- 正常返回（或返回可 JSON 序列化的值）→ 执行成功（`Succeeded`）；返回值会放进 worker 执行结果的 `value` 字段，但宿主侧当前不消费，**返回值不参与执行状态**。
+- 抛异常 → `Failed` + `PYTHON_EXECUTION_FAILED` 诊断（附行号）。
+- `HostCallError` 未被捕获 → `Failed` + `PYTHON_HOST_CALL_FAILED`。
+- 执行已取消 → `Cancelled`。
+- 超时、Worker 终止由宿主报告，脚本无需处理。
+
+### 自动化触发器上下文（C# 专属）
+
+Python 只提供 `automation_main` 入口名，上下文与普通脚本相同，**没有** `trigger`/`eventData` 字段。触发器上下文（`ScriptAutomationContext`）目前只有 C# 脚本可用。
+
+## 附录 A. `apiError` 错误码总表
+
+`apiError` 结构：`code`（str，稳定大写码）、`message`（str）、`category`（`Validation`、`Permission`、`Host`、`Provider` 或 `Cancellation`）、`retryable`（bool）、`details`（可选字典，当前未使用）。
+
+当前 API 实际产生的错误码：
+
+| `apiError["code"]` | 来源（`error["code"]`） | category | retryable | 说明 |
+| --- | --- | --- | --- | --- |
+| `INVALID_ARGUMENT` | `InvalidInput` | Validation | 否 | 参数不合法；修正参数后重试。 |
+| `PERMISSION_DENIED` | `PermissionDenied`（仅查询） | Permission | 否 | 无权限执行该查询。 |
+| `SCRIPT_API_HOST_NOT_CONFIGURED` | `DatabaseUnavailable` | Host | 是 | 数据库/宿主未就绪，可稍后重试。 |
+| `INSTANCE_UNAVAILABLE` | `InstanceUnavailable`（仅 Tracker） | Host | 否 | Tracker 实例不存在或未启用。 |
+| `PROVIDER_FAILURE` | `ProviderFailure` | Provider | 是 | 底层提供程序失败。 |
+| `CANCELLED` | `Cancelled` | Cancellation | 否 | 调用已取消；不要重试带副作用的操作。 |
+
+保留但当前 API 未产生的常量：`SCRIPT_API_UNAVAILABLE`、`SCRIPT_API_SCOPE_NOT_SUPPORTED`、`TIMEOUT`、`WORKER_TERMINATED`、`DUPLICATE_REQUEST`。
+
+## 附录 B. 执行状态与常见诊断
+
+执行状态：`Succeeded`、`Failed`、`Cancelled`、`Rejected`（入口、目标或 descriptor 校验不通过）、`TimedOut`。
+
+常见诊断码：
+
+| 诊断码 | 含义 |
+| --- | --- |
+| `PYTHON_EXECUTION_FAILED` | Python 脚本运行时异常。 |
+| `PYTHON_ENTRYPOINT_MISSING` | 入口函数缺失。 |
+| `PYTHON_SYNTAX_ERROR` | Python 语法错误。 |
+| `PYTHON_API_FORBIDDEN` | 使用被禁止的导入、名称或属性。 |
+| `PYTHON_HOST_CALL_FAILED` | HostCall 抛出 `HostCallError`。 |
+| `PYTHON_WORKER_BUSY` | Python Worker 已有执行在进行。 |
+| `SCRIPT_DESCRIPTOR_INVALID` | descriptor 与入口不一致。 |
+| `SCRIPT_ENTRY_KIND_MISMATCH` | 入口类型与作用域/目标不匹配。 |
+| `SCRIPT_TARGET_INVALID` | 编辑器目标校验失败。 |
+| `WORKER_TERMINATED` | Worker 进程异常退出或通道断开。 |
+| `SCRIPT_EXECUTION_TIMED_OUT` | 执行超过时限。 |
+| `WORKER_HOST_CALL_LIMIT` | 宿主调用次数超限。 |
+| `WORKER_MESSAGE_TOO_LARGE` | Worker 消息超过大小限制。 |
+
+## 附录 C. DTO 字段总表
+
+- `item`（工作项）：`id`(int)、`date`、`comment`、`hours`(float)、`priority`(int，0-9)、`note`(str 或 None)、`tags`(list)。
+- `tag`：`id`(int)、`name`、`color`(int)、`level`(int)、`disabled`(bool)。
+- `instance`（Tracker 实例）：`pluginId`、`instanceId`、`displayName`、`icon`、`isConfigured`(bool)。
+- `template`：`id`、`name`、`defaultTitle`、`defaultHours`(float)、`defaultWorkTagIds`(list[int])。
