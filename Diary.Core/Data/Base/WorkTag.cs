@@ -7,4 +7,5 @@ public record WorkTag
     public int Color { get; set; } = 0;
     public TagLevels Level { get; set; } = TagLevels.Primary;
     public bool Disabled { get; set; } = false;
+    public Dictionary<string, string> Metadata { get; set; } = new(StringComparer.Ordinal);
 }

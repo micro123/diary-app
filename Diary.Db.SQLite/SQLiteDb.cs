@@ -65,7 +65,8 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
                                     		tag_name CHAR(64) NOT NULL UNIQUE,
                                     		tag_color INTEGER NOT NULL DEFAULT 0,
                                     		tag_level INTEGER NOT NULL DEFAULT 0,
-                                    		is_disabled INTEGER NOT NULL DEFAULT 0
+                                    is_disabled INTEGER NOT NULL DEFAULT 0,
+                                    tag_metadata TEXT NOT NULL DEFAULT '{}'
                                     	);
                                     	
                                     CREATE TABLE IF NOT EXISTS
@@ -158,12 +159,20 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
         return 0;
     }
 
-    public override WorkTag CreateWorkTag(string name, bool primary, int color)
+    public override WorkTag CreateWorkTag(
+        string name,
+        bool primary,
+        int color,
+        IReadOnlyDictionary<string, string>? metadata = null)
     {
         const string sql =
-            @"INSERT OR IGNORE INTO work_tags(tag_name,tag_level,tag_color) VALUES ($value,$level,$color) RETURNING *;";
+            @"INSERT OR IGNORE INTO work_tags(tag_name,tag_level,tag_color,tag_metadata) VALUES ($value,$level,$color,$metadata) RETURNING *;";
         return QueryFirst(sql, MapWorkTag,
-            ("$value", name), ("$level", primary ? 0 : 1), ("$color", color)) ?? new WorkTag();
+            ("$value", name),
+            ("$level", primary ? 0 : 1),
+            ("$color", color),
+            ("$metadata", SerializeWorkTagMetadata(metadata ?? new Dictionary<string, string>())))
+            ?? new WorkTag();
     }
 
     public override bool UpdateWorkTag(WorkTag tag)
@@ -171,10 +180,15 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
         if (tag.Id == 0)
             return false;
         const string sql =
-            @"UPDATE OR FAIL work_tags SET tag_color=$color, tag_level=$level, is_disabled=$disabled WHERE id=$id;";
+            @"UPDATE OR FAIL work_tags
+              SET tag_color=$color, tag_level=$level, is_disabled=$disabled, tag_metadata=$metadata
+              WHERE id=$id;";
         return Execute(sql,
-            ("$color", tag.Color), ("$level", tag.Level),
-            ("$disabled", tag.Disabled ? 1 : 0), ("$id", tag.Id)) > 0;
+            ("$color", tag.Color),
+            ("$level", tag.Level),
+            ("$disabled", tag.Disabled ? 1 : 0),
+            ("$metadata", SerializeWorkTagMetadata(tag.Metadata)),
+            ("$id", tag.Id)) > 0;
     }
 
     public override bool DeleteWorkTag(WorkTag tag)
@@ -330,7 +344,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
                   ORDER BY work_tags.tag_level;
                   """;
         var rows = Query<(WorkTag Tag, int WorkId)>(
-            sql, r => (MapWorkTag(r), r.GetInt32(5)), ("$date", date));
+            sql, r => (MapWorkTag(r), r.GetInt32(6)), ("$date", date));
         var result = new Dictionary<int, ICollection<WorkTag>>();
         foreach (var (tag, workId) in rows)
         {
@@ -369,7 +383,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
                        ORDER BY work_item_tags.work_id, work_tags.tag_level, work_tags.id;
                        """;
             var rows = Query<(WorkTag Tag, int WorkId)>(
-                sql, r => (MapWorkTag(r), r.GetInt32(5)), args);
+                sql, r => (MapWorkTag(r), r.GetInt32(6)), args);
             AddGroupedWorkTags(result, rows);
         }
         return result;

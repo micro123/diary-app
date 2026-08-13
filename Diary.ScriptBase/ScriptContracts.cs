@@ -179,6 +179,8 @@ public sealed record ScriptWorkTag(
     bool Disabled)
 {
     public bool IsPrimary => Level == 0;
+    public IReadOnlyDictionary<string, string> Metadata { get; init; } =
+        new Dictionary<string, string>(StringComparer.Ordinal);
 }
 
 public sealed record ScriptWorkItem(

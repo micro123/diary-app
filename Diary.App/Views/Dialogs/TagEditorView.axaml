@@ -54,7 +54,7 @@
                                     <Setter Property="HorizontalAlignment" Value="Right"/>
                                 </Style>
                             </Border.Styles>
-                            <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,Auto,Auto,Auto"
+                            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,Auto,Auto,Auto"
                                   ColumnSpacing="4" RowSpacing="4">
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Id, StringFormat='#{0}'}"/>
                                 <TextBlock Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding Name}"
@@ -71,7 +71,24 @@
                                 <ToggleSwitch Grid.Row="2" Grid.Column="1" IsChecked="{Binding Primary}"/>
                                 <TextBlock Grid.Row="2" Grid.Column="2" Text="禁用"/>
                                 <ToggleSwitch Grid.Row="2" Grid.Column="3" IsChecked="{Binding Disabled}"/>
-                                <Button Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="4" ToolTip.Tip="删除此标签"
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="元数据" VerticalAlignment="Top"/>
+                                <StackPanel Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="3" Spacing="4">
+                                    <ItemsControl ItemsSource="{Binding Metadata}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type models:EditableWorkTagMetadata}">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <TextBox Text="{Binding Key}" Width="90" Watermark="键"/>
+                                                    <TextBox Text="{Binding Value}" Width="130" Watermark="值"/>
+                                                    <Button Content="删除" Command="{Binding RemoveCommand}"
+                                                            Theme="{DynamicResource BorderlessButton}" Classes="Danger"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <Button Content="添加元数据" Command="{Binding AddMetadataCommand}"
+                                            HorizontalAlignment="Left"/>
+                                </StackPanel>
+                                <Button Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="4" ToolTip.Tip="删除此标签"
                                         HorizontalAlignment="Stretch" i:Attached.Icon="fa-trash-can"
                                         Command="{Binding #TagContainer.((dialogs1:TagEditorViewModel)DataContext).DelTagCommand}"
                                         CommandParameter="{Binding}"

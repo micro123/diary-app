@@ -85,7 +85,8 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
                   	tag_name CHAR(64) NOT NULL UNIQUE,
                   	tag_color INTEGER NOT NULL DEFAULT 0,
                   	tag_level INTEGER NOT NULL DEFAULT 0,
-                  	is_disabled INTEGER NOT NULL DEFAULT 0
+                  is_disabled INTEGER NOT NULL DEFAULT 0,
+                  tag_metadata TEXT NOT NULL DEFAULT '{}'
                   );
 
                   CREATE TABLE IF NOT EXISTS work_items (
@@ -157,27 +158,45 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
         return result != null ? Convert.ToUInt32(result) : 0;
     }
 
-    // $1=name $2=level $3=color
-    public override WorkTag CreateWorkTag(string name, bool primary, int color)
+    // $1=name $2=level $3=color $4=metadata
+    public override WorkTag CreateWorkTag(
+        string name,
+        bool primary,
+        int color,
+        IReadOnlyDictionary<string, string>? metadata = null)
     {
         var sql = """
-                  INSERT INTO work_tags(tag_name, tag_level, tag_color) values ($1, $2, $3) ON CONFLICT (tag_name) DO NOTHING returning *;
+                  INSERT INTO work_tags(tag_name, tag_level, tag_color, tag_metadata)
+                  VALUES ($1, $2, $3, $4)
+                  ON CONFLICT (tag_name) DO NOTHING
+                  RETURNING *;
                   """;
-        return QueryFirst(sql, MapWorkTag, ("$1", name), ("$2", primary ? 0 : 1), ("$3", color)) ?? new WorkTag();
+        return QueryFirst(
+            sql,
+            MapWorkTag,
+            ("$1", name),
+            ("$2", primary ? 0 : 1),
+            ("$3", color),
+            ("$4", SerializeWorkTagMetadata(metadata ?? new Dictionary<string, string>())))
+            ?? new WorkTag();
     }
 
-    // $1=level $2=color $3=disabled $4=id
+    // $1=level $2=color $3=disabled $4=metadata $5=id
     public override bool UpdateWorkTag(WorkTag tag)
     {
         if (tag.Id == 0)
             return false;
         var sql = """
-                  UPDATE work_tags SET tag_level=$1, tag_color=$2, is_disabled=$3
-                  WHERE id=$4;
+                  UPDATE work_tags
+                  SET tag_level=$1, tag_color=$2, is_disabled=$3, tag_metadata=$4
+                  WHERE id=$5;
                   """;
         return Execute(sql,
-            ("$1", (int)tag.Level), ("$2", tag.Color),
-            ("$3", tag.Disabled ? 1 : 0), ("$4", tag.Id)) > 0;
+            ("$1", (int)tag.Level),
+            ("$2", tag.Color),
+            ("$3", tag.Disabled ? 1 : 0),
+            ("$4", SerializeWorkTagMetadata(tag.Metadata)),
+            ("$5", tag.Id)) > 0;
     }
 
     // $1=id
@@ -360,7 +379,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
                   ORDER BY work_tags.tag_level;
                   """;
         var rows = Query<(WorkTag Tag, int WorkId)>(
-            sql, r => (MapWorkTag(r), r.GetInt32(5)), ("$1", date));
+            sql, r => (MapWorkTag(r), r.GetInt32(6)), ("$1", date));
         var result = new Dictionary<int, ICollection<WorkTag>>();
         foreach (var (tag, workId) in rows)
         {
@@ -399,7 +418,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
                        ORDER BY work_item_tags.work_id, work_tags.tag_level, work_tags.id;
                        """;
             var rows = Query<(WorkTag Tag, int WorkId)>(
-                sql, r => (MapWorkTag(r), r.GetInt32(5)), args);
+                sql, r => (MapWorkTag(r), r.GetInt32(6)), args);
             AddGroupedWorkTags(result, rows);
         }
         return result;

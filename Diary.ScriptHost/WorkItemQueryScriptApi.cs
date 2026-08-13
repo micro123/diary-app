@@ -61,7 +61,8 @@ public sealed class WorkItemQueryScriptApi(
                         tag.Name,
                         tag.Color,
                         (int)tag.Level,
-                        tag.Disabled))]
+                        tag.Disabled)
+                    { Metadata = new Dictionary<string, string>(tag.Metadata, StringComparer.Ordinal) })]
                     : ImmutableArray<ScriptWorkTag>.Empty)).ToImmutableArray();
             return ValueTask.FromResult(ScriptWorkItemQueryResult.Success(result, normalized));
         }

@@ -536,6 +536,6 @@ Lua 与 Python 的入口返回值约定不同，见各自语言文档的类型�
 ## 附录 C. DTO 字段总表
 
 - `ScriptWorkItem`：`Id`(int)、`Date`、`Comment`、`Hours`(double)、`Priority`(int，0-9)、`Note`(string?)、`Tags`(ImmutableArray&lt;ScriptWorkTag&gt;)。
-- `ScriptWorkTag`：`Id`(int)、`Name`、`Color`(int)、`Level`(int)、`IsPrimary`(bool)、`Disabled`(bool)。推荐使用 `IsPrimary` 判断主标签；`Level` 保留用于兼容。
+- `ScriptWorkTag`：`Id`(int)、`Name`、`Color`(int)、`Level`(int)、`IsPrimary`(bool)、`Disabled`(bool)、`Metadata`(IReadOnlyDictionary&lt;string, string&gt;)。`Metadata` 是标签的只读字符串键值元数据，推荐使用 `projectNumber` 保存项目编号；推荐使用 `IsPrimary` 判断主标签，`Level` 保留用于兼容。
 - `ScriptTrackerInstance`：`PluginId`、`InstanceId`、`DisplayName`、`Icon`、`IsConfigured`(bool)。
 - `ScriptTemplateInfo`：`Id`、`Name`、`DefaultTitle`、`DefaultHours`(double)、`DefaultWorkTagIds`(IReadOnlyCollection&lt;int&gt;)。

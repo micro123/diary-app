@@ -125,7 +125,8 @@ public sealed class WorkItemQueryScriptApiTests
         Assert.IsTrue(db.UpdateWorkItem(first));
         var second = db.CreateWorkItem("2026-08-02", "planning beta");
         db.CreateWorkItem("2026-08-03", "outside");
-        var primary = db.CreateWorkTag("primary", true, 10);
+        var primary = db.CreateWorkTag("primary", true, 10,
+            new Dictionary<string, string> { ["projectNumber"] = "PRJ-001" });
         var secondary = db.CreateWorkTag("secondary", false, 20);
         Assert.IsTrue(db.WorkItemAddTag(first, primary));
         Assert.IsTrue(db.WorkItemAddTag(first, secondary));
@@ -156,6 +157,7 @@ public sealed class WorkItemQueryScriptApiTests
         Assert.AreEqual((int)first.Priority, mapped.Priority);
         Assert.AreEqual("private diary note", mapped.Note);
         CollectionAssert.AreEqual(new[] { "primary", "secondary" }, mapped.Tags.Select(tag => tag.Name).ToArray());
+        Assert.AreEqual("PRJ-001", mapped.Tags[0].Metadata["projectNumber"]);
         Assert.AreEqual(0, result.Items.Single(item => item.Id == second.Id).Tags.Length);
     }
 

@@ -113,7 +113,8 @@ end
             priority = 0,
             note = "备注",
             tags = {
-                { id = 1, name = "开发", color = 0, level = 0, disabled = false }
+                { id = 1, name = "开发", color = 0, level = 0, isPrimary = true,
+                  disabled = false, metadata = { projectNumber = "PRJ-2026-001" } }
             }
         }
     },
@@ -436,6 +437,6 @@ Lua 只提供 `automation_main` 入口名，上下文与普通脚本相同，**�
 ## 附录 C. DTO 字段总表
 
 - `item`（工作项）：`id`(number)、`date`、`comment`、`hours`(number)、`priority`(number，0-9)、`note`(string 或 nil)、`tags`(数组)。
-- `tag`：`id`(number)、`name`、`color`(number)、`level`(number)、`isPrimary`(boolean)、`disabled`(boolean)。推荐使用 `isPrimary` 判断主标签；`level` 保留用于兼容。
+- `tag`：`id`(number)、`name`、`color`(number)、`level`(number)、`isPrimary`(boolean)、`disabled`(boolean)、`metadata`(table&lt;string, string&gt;)。`metadata` 是只读字符串键值表，推荐使用 `projectNumber` 保存项目编号；推荐使用 `isPrimary` 判断主标签，`level` 保留用于兼容。
 - `instance`（Tracker 实例）：`pluginId`、`instanceId`、`displayName`、`icon`、`isConfigured`(boolean)。
 - `template`：`id`、`name`、`defaultTitle`、`defaultHours`(number)、`defaultWorkTagIds`(number[])。

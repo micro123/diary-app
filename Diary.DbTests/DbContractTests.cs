@@ -23,12 +23,14 @@ public abstract class DbContractTests
     public void CreateWorkTag_Primary_MapsFields()
     {
         using var db = CreateDb();
-        var tag = db.CreateWorkTag("工作", true, 0x112233);
+        var tag = db.CreateWorkTag("工作", true, 0x112233,
+            new Dictionary<string, string> { ["projectNumber"] = "PRJ-2026-001" });
         Assert.IsTrue(tag.Id > 0);
         Assert.AreEqual("工作", tag.Name);
         Assert.AreEqual(0x112233, tag.Color);
         Assert.AreEqual(TagLevels.Primary, tag.Level);
         Assert.IsFalse(tag.Disabled);
+        Assert.AreEqual("PRJ-2026-001", tag.Metadata["projectNumber"]);
     }
 
     [TestMethod]
@@ -58,12 +60,14 @@ public abstract class DbContractTests
         tag.Color = 99;
         tag.Level = TagLevels.Secondary;
         tag.Disabled = true;
+        tag.Metadata["customer"] = "客户 A";
         Assert.IsTrue(db.UpdateWorkTag(tag));
         var all = db.AllWorkTags();
         var got = all.Single(x => x.Id == tag.Id);
         Assert.AreEqual(99, got.Color);
         Assert.AreEqual(TagLevels.Secondary, got.Level);
         Assert.IsTrue(got.Disabled);
+        Assert.AreEqual("客户 A", got.Metadata["customer"]);
     }
 
     [TestMethod]

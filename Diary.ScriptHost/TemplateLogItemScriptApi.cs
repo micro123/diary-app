@@ -74,7 +74,8 @@ public sealed class TemplateLogItemScriptApi(
                 new ScriptWorkItem(
                     item.Id, item.CreateDate, item.Comment, item.Time, (int)item.Priority,
                     string.IsNullOrWhiteSpace(request.Note) ? null : request.Note,
-                    [.. tags.Select(tag => new ScriptWorkTag(tag.Id, tag.Name, tag.Color, (int)tag.Level, tag.Disabled))]),
+                    [.. tags.Select(tag => new ScriptWorkTag(tag.Id, tag.Name, tag.Color, (int)tag.Level, tag.Disabled)
+                    { Metadata = new Dictionary<string, string>(tag.Metadata, StringComparer.Ordinal) })]),
                 new ScriptEffectSummary(1, false, request.IdempotencyKey, [item.Id]));
             if (!string.IsNullOrWhiteSpace(request.IdempotencyKey))
                 _idempotencyStore.Save("templateLogItems.create", request.IdempotencyKey, result);

@@ -172,6 +172,7 @@ Jira 失败时核心工作记录仍可保存。
 - [x] 已为查询 API 增加 `today`/`yesterday`/`thisWeek`/`thisMonth` 日期范围快捷值，并统一三语言 create API 的 `preview`/`idempotencyKey` 文档与幂等持久化说明。
 - [x] 已增加 Week 编辑器目标（用周一的 `yyyy-MM-dd` 标识），日历右键可对本周/上周运行脚本，C#/Lua/Python 的 `dateRange` 同步解析周范围。
 - [x] 查询工作项标签 DTO 已增加语义化的 `IsPrimary`/`isPrimary` 字段；`Level` 保留用于兼容，C#、Lua、Python 示例均使用语义化字段判断主标签。
+- [x] 标签支持只读字符串键值元数据，编辑器可维护 `projectNumber` 等项目属性，并同步暴露给 C#、Lua、Python 脚本；当前数据库通过初始表结构和本地 SQLite 手工补列保持兼容。
 新建脚本向导已提供周目标脚本模板，生成的 metadata 自动声明 Week 目标。
 
 ### 9.6 Lua 和 Python 引擎

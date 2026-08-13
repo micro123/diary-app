@@ -48,8 +48,9 @@
 - `ScriptManager`：组合构建、注册和执行的最小入口。
 - `ScriptDirectoryLoader`：扫描 application/editor 目录和脚本包，读取入口类型元数据，校验 descriptor/manifest 与作用域、目标的一致性，并隔离单个脚本失败。
 
-`Diary.ScriptHost` 当前提供 `IDiaryApi`，只返回不可变事项、备注和标签 DTO，
-标签 DTO 同时保留兼容用的数值 `Level`，并提供语义化的 `IsPrimary`/`isPrimary` 字段供三种脚本判断主标签。
+`Diary.ScriptHost` 当前提供 `IDiaryApi`，只返回不可变事项、备注和标签 DTO。
+标签 DTO 同时保留兼容用的数值 `Level`，提供语义化的 `IsPrimary`/`isPrimary` 字段供三种脚本判断主标签，
+并提供只读的字符串键值 `Metadata`/`metadata` 元数据；推荐使用 `projectNumber` 保存项目编号。
 复用核心 `WorkItemQuery` 的校验和查询语义，并返回权限、输入、数据库和取消错误。
 
 当前引擎项目为：

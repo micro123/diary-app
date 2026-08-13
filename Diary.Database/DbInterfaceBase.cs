@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Text.Json;
 using Diary.Core.Data.Base;
 using Diary.Core.Data.Statistics;
 using Diary.PluginBase;
@@ -93,7 +94,11 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
     }
 
     // work tag
-    public abstract WorkTag CreateWorkTag(string name, bool primary, int color);
+    public abstract WorkTag CreateWorkTag(
+        string name,
+        bool primary,
+        int color,
+        IReadOnlyDictionary<string, string>? metadata = null);
     public abstract bool UpdateWorkTag(WorkTag tag);
     public abstract bool DeleteWorkTag(WorkTag tag);
     public abstract ICollection<WorkTag> AllWorkTags();
@@ -361,7 +366,24 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
         Color = r.GetInt32(2),
         Level = (TagLevels)r.GetInt32(3),
         Disabled = r.GetInt32(4) != 0,
+        Metadata = ParseWorkTagMetadata(ReadString(r, 5)),
     };
+
+    protected static string SerializeWorkTagMetadata(IReadOnlyDictionary<string, string> metadata) =>
+        JsonSerializer.Serialize(metadata);
+
+    private static Dictionary<string, string> ParseWorkTagMetadata(string json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(json)
+                ?? new Dictionary<string, string>(StringComparer.Ordinal);
+        }
+        catch (JsonException)
+        {
+            return new Dictionary<string, string>(StringComparer.Ordinal);
+        }
+    }
 
     protected WorkItem MapWorkItem(DbDataReader r) => new()
     {

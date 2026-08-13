@@ -71,7 +71,14 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
         bool changed = _changed;
         foreach (var tag in AllTags)
         {
-            changed |= tag.ApplyChanges();
+            var tagChanged = tag.ApplyChanges(out var error);
+            if (error is not null)
+            {
+                EventDispatcher.Notify("错误", error);
+                return;
+            }
+
+            changed |= tagChanged;
         }
         if (changed)
             EventDispatcher.DbChanged(DbChangedEvent.WorkTags);

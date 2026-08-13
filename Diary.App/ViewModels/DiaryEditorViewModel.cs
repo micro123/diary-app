@@ -748,7 +748,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
                 tag.Name,
                 tag.Color,
                 (int)tag.Level,
-                tag.Disabled))]);
+                tag.Disabled)
+            { Metadata = new Dictionary<string, string>(tag.Metadata, StringComparer.Ordinal) })]);
 
     private void FillDayMenus(DateTime date)
     {

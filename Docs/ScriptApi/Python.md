@@ -82,7 +82,9 @@ result = context.diary.workItems.query({"limit": 100}, text="Worker")
         "hours": 2.5,
         "priority": 0,
         "note": "备注",
-        "tags": [{"id": 1, "name": "开发", "color": 0, "level": 0, "disabled": False}],
+        "tags": [{"id": 1, "name": "开发", "color": 0, "level": 0,
+                  "isPrimary": True, "disabled": False,
+                  "metadata": {"projectNumber": "PRJ-2026-001"}}],
     }],
     "normalizedQuery": {...},
     "error": None,
@@ -376,6 +378,6 @@ Python 只提供 `automation_main` 入口名，上下文与普通脚本相同，
 ## 附录 C. DTO 字段总表
 
 - `item`（工作项）：`id`(int)、`date`、`comment`、`hours`(float)、`priority`(int，0-9)、`note`(str 或 None)、`tags`(list)。
-- `tag`：`id`(int)、`name`、`color`(int)、`level`(int)、`isPrimary`(bool)、`disabled`(bool)。推荐使用 `isPrimary` 判断主标签；`level` 保留用于兼容。
+- `tag`：`id`(int)、`name`、`color`(int)、`level`(int)、`isPrimary`(bool)、`disabled`(bool)、`metadata`(dict[str, str])。`metadata` 是只读字符串键值对，推荐使用 `projectNumber` 保存项目编号；推荐使用 `isPrimary` 判断主标签，`level` 保留用于兼容。
 - `instance`（Tracker 实例）：`pluginId`、`instanceId`、`displayName`、`icon`、`isConfigured`(bool)。
 - `template`：`id`、`name`、`defaultTitle`、`defaultHours`(float)、`defaultWorkTagIds`(list[int])。
