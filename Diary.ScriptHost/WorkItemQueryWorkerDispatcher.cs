@@ -49,21 +49,25 @@ public sealed class WorkItemQueryWorkerDispatcher(
             var query = call.Params.Deserialize<ScriptWorkItemQuery>(WorkerProtocol.JsonOptions)
                 ?? throw new JsonException();
             var result = await apiFactory().QueryAsync(query, cancellationToken);
-            return result.Succeeded
-                ? new(true, JsonSerializer.SerializeToElement(result, WorkerProtocol.JsonOptions))
-                : new(false, Error: new(result.Error!.Code.ToString(), result.Error.Message));
+            return new(true, JsonSerializer.SerializeToElement(result, WorkerProtocol.JsonOptions));
         }
         catch (OperationCanceledException)
         {
-            return new(false, Error: new("Cancelled", "查询已取消。"));
+            return new(true, JsonSerializer.SerializeToElement(
+                ScriptWorkItemQueryResult.Failure(ScriptQueryErrorCode.Cancelled, "查询已取消。"),
+                WorkerProtocol.JsonOptions));
         }
         catch (JsonException)
         {
-            return new(false, Error: new("InvalidInput", "查询参数格式无效。"));
+            return new(true, JsonSerializer.SerializeToElement(
+                ScriptWorkItemQueryResult.Failure(ScriptQueryErrorCode.InvalidInput, "查询参数格式无效。"),
+                WorkerProtocol.JsonOptions));
         }
         catch (Exception)
         {
-            return new(false, Error: new("ProviderFailure", "数据库查询失败。"));
+            return new(true, JsonSerializer.SerializeToElement(
+                ScriptWorkItemQueryResult.Failure(ScriptQueryErrorCode.ProviderFailure, "数据库查询失败。"),
+                WorkerProtocol.JsonOptions));
         }
     }
 
@@ -95,36 +99,68 @@ public sealed class WorkItemQueryWorkerDispatcher(
     private static async ValueTask<WorkerHostResultPayload> DispatchTemplateLogItemAsync(
         Func<ITemplateLogItemScriptApi>? factory, WorkerHostCallPayload call, CancellationToken cancellationToken)
     {
-        if (factory is null) return new(false, Error: new("ProviderFailure", "模板日志宿主 API 未配置。"));
+        if (factory is null)
+            return new(true, JsonSerializer.SerializeToElement(
+                ScriptLogItemResult.Failure(ScriptLogItemErrorCode.ProviderFailure, "模板日志宿主 API 未配置。"),
+                WorkerProtocol.JsonOptions));
         try
         {
             var request = call.Params.Deserialize<ScriptTemplateLogItemRequest>(WorkerProtocol.JsonOptions) ?? throw new JsonException();
             var result = await factory().CreateAsync(request, cancellationToken);
-            return result.Succeeded
-                ? new(true, JsonSerializer.SerializeToElement(result.Item, WorkerProtocol.JsonOptions))
-                : new(false, Error: new(result.Error!.Code.ToString(), result.Error.Message));
+            return new(true, JsonSerializer.SerializeToElement(result, WorkerProtocol.JsonOptions));
         }
-        catch (JsonException) { return new(false, Error: new("InvalidInput", "模板日志参数格式无效。")); }
-        catch (OperationCanceledException) { return new(false, Error: new("Cancelled", "记录已取消。")); }
-        catch { return new(false, Error: new("ProviderFailure", "按模板创建记录失败。")); }
+        catch (JsonException)
+        {
+            return new(true, JsonSerializer.SerializeToElement(
+                ScriptLogItemResult.Failure(ScriptLogItemErrorCode.InvalidInput, "模板日志参数格式无效。"),
+                WorkerProtocol.JsonOptions));
+        }
+        catch (OperationCanceledException)
+        {
+            return new(true, JsonSerializer.SerializeToElement(
+                ScriptLogItemResult.Failure(ScriptLogItemErrorCode.Cancelled, "记录已取消。"),
+                WorkerProtocol.JsonOptions));
+        }
+        catch
+        {
+            return new(true, JsonSerializer.SerializeToElement(
+                ScriptLogItemResult.Failure(ScriptLogItemErrorCode.ProviderFailure, "按模板创建记录失败。"),
+                WorkerProtocol.JsonOptions));
+        }
     }
 
     private static async ValueTask<WorkerHostResultPayload> DispatchLogItemAsync(
         Func<ILogItemScriptApi>? factory, WorkerHostCallPayload call,
         CancellationToken cancellationToken)
     {
-        if (factory is null) return new(false, Error: new("ProviderFailure", "日志记录宿主 API 未配置。"));
+        if (factory is null)
+            return new(true, JsonSerializer.SerializeToElement(
+                ScriptLogItemResult.Failure(ScriptLogItemErrorCode.ProviderFailure, "日志记录宿主 API 未配置。"),
+                WorkerProtocol.JsonOptions));
         try
         {
             var request = call.Params.Deserialize<ScriptLogItemRequest>(WorkerProtocol.JsonOptions) ?? throw new JsonException();
             var result = await factory().CreateAsync(request, cancellationToken);
-            return result.Succeeded
-                ? new(true, JsonSerializer.SerializeToElement(result.Item, WorkerProtocol.JsonOptions))
-                : new(false, Error: new(result.Error!.Code.ToString(), result.Error.Message));
+            return new(true, JsonSerializer.SerializeToElement(result, WorkerProtocol.JsonOptions));
         }
-        catch (JsonException) { return new(false, Error: new("InvalidInput", "日志记录参数格式无效。")); }
-        catch (OperationCanceledException) { return new(false, Error: new("Cancelled", "记录已取消。")); }
-        catch (Exception) { return new(false, Error: new("ProviderFailure", "创建日志记录失败。")); }
+        catch (JsonException)
+        {
+            return new(true, JsonSerializer.SerializeToElement(
+                ScriptLogItemResult.Failure(ScriptLogItemErrorCode.InvalidInput, "日志记录参数格式无效。"),
+                WorkerProtocol.JsonOptions));
+        }
+        catch (OperationCanceledException)
+        {
+            return new(true, JsonSerializer.SerializeToElement(
+                ScriptLogItemResult.Failure(ScriptLogItemErrorCode.Cancelled, "记录已取消。"),
+                WorkerProtocol.JsonOptions));
+        }
+        catch (Exception)
+        {
+            return new(true, JsonSerializer.SerializeToElement(
+                ScriptLogItemResult.Failure(ScriptLogItemErrorCode.ProviderFailure, "创建日志记录失败。"),
+                WorkerProtocol.JsonOptions));
+        }
     }
 
     private static async ValueTask<WorkerHostResultPayload> DispatchClipboardAsync(
@@ -193,7 +229,14 @@ public sealed class WorkItemQueryWorkerDispatcher(
         WorkerHostCallPayload call)
     {
         if (factory is null)
-            return ValueTask.FromResult(new WorkerHostResultPayload(false, Error: new("ProviderFailure", "Tracker 宿主 API 未配置。")));
+        {
+            if (call.Method == "trackerInstances.list")
+                return ValueTask.FromResult(new WorkerHostResultPayload(false, Error: new("ProviderFailure", "Tracker 宿主 API 未配置。")));
+            return ValueTask.FromResult(new WorkerHostResultPayload(true,
+                JsonSerializer.SerializeToElement(
+                    TrackerScriptResult.Failure(TrackerScriptErrorCode.InstanceUnavailable, "Tracker 宿主 API 未配置。"),
+                    WorkerProtocol.JsonOptions)));
+        }
         try
         {
             if (call.Method == "trackerInstances.list")
@@ -203,13 +246,16 @@ public sealed class WorkItemQueryWorkerDispatcher(
             var request = call.Params.Deserialize<TrackerInstanceRequest>(WorkerProtocol.JsonOptions)
                 ?? throw new JsonException();
             var result = factory().Get(request.PluginId, request.InstanceId);
-            return ValueTask.FromResult(result.Succeeded
-                ? new WorkerHostResultPayload(true, JsonSerializer.SerializeToElement(result.Instance, WorkerProtocol.JsonOptions))
-                : new WorkerHostResultPayload(false, Error: new(result.ErrorCode?.ToString() ?? "ProviderFailure", result.ErrorMessage ?? "Tracker 查询失败。")));
+            return ValueTask.FromResult(new WorkerHostResultPayload(
+                true,
+                JsonSerializer.SerializeToElement(result, WorkerProtocol.JsonOptions)));
         }
         catch (JsonException)
         {
-            return ValueTask.FromResult(new WorkerHostResultPayload(false, Error: new("InvalidInput", "Tracker 实例参数格式无效。")));
+            return ValueTask.FromResult(new WorkerHostResultPayload(true,
+                JsonSerializer.SerializeToElement(
+                    TrackerScriptResult.Failure(TrackerScriptErrorCode.InvalidInput, "Tracker 实例参数格式无效。"),
+                    WorkerProtocol.JsonOptions)));
         }
     }
 

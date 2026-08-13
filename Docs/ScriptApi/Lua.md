@@ -43,7 +43,7 @@ end
 | `entryKind` | 当前入口类型。 |
 | `arguments` | 执行参数表；未传参数时为空表。 |
 | `target` | 编辑器目标；包含 `kind` 以及目标对应的字段。 |
-| `dateRange` | 年、季度、月、日目标的 `{ startDate, endDate }`；事项目标为 `nil`。 |
+| `dateRange` | 年、季度、月、周、日目标的 `{ startDate, endDate }`；事项目标为 `nil`。 |
 | `workItem` | 事项目标的不可变事项快照；其他目标为 `nil`。 |
 | `isCancelled()` | 查询当前执行是否已请求取消；长循环应在批次之间主动轮询。 |
 | `progress.report(fraction, message)` | 报告 0 到 1 之间的执行进度。 |
@@ -79,7 +79,7 @@ end
 | `text` | string | 文本过滤条件。 |
 | `priority` | number | 0 到 9。 |
 | `limit` | number | 默认 100，最大 1000。 |
-| `offset` | number | 默认 0，最大 10000。 |
+| `offset` | number | 默认 0，最大 1,000,000。 |
 | `range` | string | 日期范围快捷值：`today`、`yesterday`、`thisWeek`、`thisMonth`；提供时覆盖 `startDate`/`endDate`。 |
 
 返回：
@@ -223,11 +223,11 @@ if confirmed then
 end
 ```
 
-`notify(title, body)` 无返回值；`confirm(title, body)` 返回布尔值。宿主调用失败会抛出 Lua 错误，可使用 `pcall` 捕获：
+`notify(title, body)` 无返回值；`confirm(title, body)` 返回布尔值。非结果类宿主调用（剪贴板、用户交互、日志和列表类）失败会抛出 Lua 错误，可使用 `pcall` 捕获：
 
 ```lua
 local ok, result = pcall(function()
-    return diary.logItems.create({ date = "2026-08-08", hours = 1, title = "测试" })
+    return diary.clipboard.get()
 end)
 if not ok then
     print("host call failed: " .. tostring(result))
@@ -267,7 +267,7 @@ if not result.succeeded then
 end
 ```
 
-对会抛出错误的同步 HostCall，错误文本使用 `[ERROR_CODE] message` 格式，可以在 `pcall` 中提取代码：
+返回结果的 API（`workItems.query`、`logItems.create`、`templateLogItems.create`、`trackerInstances.get`）即使失败也返回 `{ succeeded = false, error = { code, message }, apiError = { ... } }`，不抛异常。非结果类 HostCall（剪贴板、用户交互、日志和列表类）以及未知方法、宿主未配置等意外场景失败时会抛出错误，错误文本使用 `[ERROR_CODE] message` 格式，可以在 `pcall` 中提取代码：
 
 ```lua
 local ok, value = pcall(function()

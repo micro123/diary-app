@@ -259,7 +259,7 @@ if (result is { Succeeded: true })
     Console.WriteLine(result.Instance!.DisplayName);
 ```
 
-`GetInstance(pluginId, instanceId)` 返回 `ScriptTrackerInstance`：`PluginId`、`InstanceId`、`DisplayName`、`Icon`、`IsConfigured`。`ListInstances()` 返回当前已启用实例的同一 DTO 列表，结果按显示名称稳定排序。错误代码为 `InvalidInput` 或 `InstanceUnavailable`。该 API 不暴露 Tracker 客户端、配置、数据库或 DI。
+`GetInstance(pluginId, instanceId)` 返回 `TrackerScriptResult`，实例位于 `Instance` 属性（`PluginId`、`InstanceId`、`DisplayName`、`Icon`、`IsConfigured`）。`ListInstances()` 返回当前已启用实例的同一 DTO 列表，结果按显示名称稳定排序。错误代码为 `InvalidInput` 或 `InstanceUnavailable`。该 API 不暴露 Tracker 客户端、配置、数据库或 DI。
 
 ## 8. 剪贴板
 
@@ -269,7 +269,7 @@ var oldText = await system!.GetClipboardTextAsync(cancellationToken);
 var succeeded = await system.SetClipboardTextAsync("复制内容", cancellationToken);
 ```
 
-`GetTextAsync` 返回文本或 `null`；`SetTextAsync` 返回是否成功。只支持文本，不支持图片、文件列表等剪贴板格式。
+`GetClipboardTextAsync` 返回文本或 `null`；`SetClipboardTextAsync` 返回是否成功。只支持文本，不支持图片、文件列表等剪贴板格式。
 
 ## 9. 用户交互
 

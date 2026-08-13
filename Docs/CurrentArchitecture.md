@@ -23,6 +23,7 @@ package "Diary.App" {
 package "稳定契约" {
   [Diary.Core] as Core
   [Diary.Database] as Database
+  [Diary.GUIBase] as GuiBase
   [Diary.PluginBase] as PluginBase
   [Diary.PluginUI] as PluginUI
   [Diary.ScriptBase] as ScriptBase
@@ -41,18 +42,29 @@ package "Redmine 可选组件" {
   [Diary.RedMine.PostgreSQL] as RedMinePg
 }
 
+package "Jira 可选组件" {
+  [Diary.Jira] as Jira
+  [Diary.Jira.UI] as JiraUI
+  [Diary.Jira.SQLite] as JiraSqlite
+  [Diary.Jira.PostgreSQL] as JiraPg
+}
+
 database "SQLite / PostgreSQL" as Db
-cloud "Redmine HTTP API" as Api
+cloud "Redmine HTTP API" as RedmineApi
+cloud "Jira HTTP API" as JiraApi
 
 App --> Host : 发现并注册插件
 App --> CoreUI : 创建主窗口
 Host --> PluginBase : manifest / 生命周期
 Host --> PluginUI : 注册 UI 贡献
 App --> ScriptBase : 兼容脚本契约
-  ScriptRuntime --> ScriptBase : 契约与执行模型
-  ScriptHost --> ScriptBase : 只读宿主 API
-  ScriptRuntime --> ScriptWorker : 按 EngineName 启动 Worker
-  ScriptWorker --> ScriptHost : HostCall
+CoreUI --> GuiBase : 通用 UI / MVVM
+ScriptRuntime --> ScriptBase : 契约与执行模型
+ScriptRuntime --> ScriptWorker : 按 EngineName 启动 Worker
+ScriptWorker --> ScriptHost : HostCall
+ScriptHost --> ScriptBase : 只读宿主 API
+ScriptHost --> ScriptRuntime : Worker 协议
+ScriptHost --> PluginBase : 实例目录
 ScriptHost --> Core
 ScriptHost --> Database
 CoreUI --> Core : 工作项、模板、统计
@@ -62,10 +74,21 @@ RedMine --> Core
 RedMine --> Database
 RedMineUI --> PluginUI
 RedMineUI --> RedMine
+RedMineUI --> GuiBase
+RedMineUI --> Core
 RedMineSqlite --> Database : IDbExtensionFactory
 RedMinePg --> Database : IDbExtensionFactory
+Jira --> PluginBase
+Jira --> Core
+Jira --> Database
+JiraUI --> PluginUI
+JiraUI --> Jira
+JiraUI --> GuiBase
+JiraSqlite --> Database : IDbExtensionFactory
+JiraPg --> Database : IDbExtensionFactory
 Database --> Db : 核心表与扩展表
-RedMine --> Api
+RedMine --> RedmineApi
+Jira --> JiraApi
 @enduml
 ```
 
@@ -80,18 +103,25 @@ RedMine --> Api
 | `Diary.App` | 启动、服务容器、插件发现、数据库选择、主窗口和 Tracker 配置对话框 | 程序设置以及 Tracker 配置/插件状态均通过右上角独立模态对话框打开；固定导航页只创建一次，Tracker 动态页追加在其后并按配置刷新 |
 | `Diary.Core` | 工作项、标签、模板、配置和统计模型 | 不应依赖具体 tracker 类型 |
 | `Diary.Database` | 核心数据库抽象、provider 原语、扩展工厂加载 | 通过 `GetExtension<T>(instanceId)` 延迟取得可选扩展 |
+| `Diary.GUIBase` | 跨页面共享的通用 UI、ViewModel、转换器、资源和事件消息 | 不依赖具体 tracker 类型和插件实现 |
 | `Diary.PluginBase` | manifest、兼容性检查、插件入口、实例注册、迁移调度 | 不依赖 Avalonia 和具体 UI |
 | `Diary.PluginUI` | tracker 配置页、管理页和编辑器扩展契约 | 由宿主把插件 UI 挂载到核心 UI；多个配置提供者在配置对话框中按 Tab 分开展示 |
-| `Diary.Db.SQLite` | SQLite 核心数据库 provider | 提供核心 schema、查询和事务实现，并加载 SQLite Redmine 扩展 |
-| `Diary.Db.PostgreSQL` | PostgreSQL 核心数据库 provider | 提供核心 schema、查询和事务实现，并加载 PostgreSQL Redmine 扩展 |
+| `Diary.Db.SQLite` | SQLite 核心数据库 provider | 提供核心 schema、查询和事务实现；tracker 扩展由 `Diary.Database` 的扩展工厂加载器按 `Diary.*.dll` 发现 |
+| `Diary.Db.PostgreSQL` | PostgreSQL 核心数据库 provider | 提供核心 schema、查询和事务实现；tracker 扩展由 `Diary.Database` 的扩展工厂加载器按 `Diary.*.dll` 发现 |
 | `Diary.ScriptBase` | 脚本版本化契约、描述符、诊断和执行请求 | 不依赖核心数据库、DI 或 UI |
 | `Diary.ScriptHost` | 工作项查询、日志项/模板日志项、Tracker 只读目录及系统交互的宿主契约 | 数据访问和副作用均由宿主 API 控制，返回 DTO 或结构化错误 |
 | `Diary.Script.Runtime` | 引擎注册、构建服务、目录加载、执行器和脚本管理器 | 已接入 App DI；应用启动时通过共享加载状态在后台预加载 application/editor 脚本，脚本管理页复用结果 |
 | `Diary.Script.Worker` | C#、Lua Worker 进程入口、协议适配和受限执行上下文 | 只通过 stdin/stdout 协议与宿主通信；不直接访问 App、DI、数据库或 UI |
+| `Diary.Survey` | 调查协议（v1/v2）、调查者和受访者收发实现 | 不依赖 UI；App 层负责端口与页面装配 |
+| `Diary.MigrationTool` | 从旧 DiaryToolpp 数据库导入核心数据 | 导入的工作项持久化为只读，不迁移 Tracker 信息 |
 | `Diary.RedMine` | Redmine API、模型、配置、插件迁移和插件入口 | 当前仍是 Redmine 专用插件实现 |
 | `Diary.RedMine.UI` | Redmine 设置、管理页、编辑器区域和缓存数据 | 通过工厂按实例注册 UI 贡献 |
 | `Diary.RedMine.SQLite` | SQLite Redmine 数据访问实现 | 通过 `IDbExtensionFactory` 按 provider 加载 |
 | `Diary.RedMine.PostgreSQL` | PostgreSQL Redmine 数据访问实现 | 与 SQLite 共享数据库契约 |
+| `Diary.Jira` | Jira API、模型、配置、插件迁移和插件入口 | 与 Redmine 平行的独立插件实现 |
+| `Diary.Jira.UI` | Jira 设置、管理页和编辑器区域 | 通过工厂按实例注册 UI 贡献 |
+| `Diary.Jira.SQLite` | SQLite Jira 数据访问实现 | 通过 `IDbExtensionFactory` 按 provider 加载 |
+| `Diary.Jira.PostgreSQL` | PostgreSQL Jira 数据访问实现 | 与 SQLite 共享数据库契约 |
 
 依赖方向应保持为：
 
@@ -128,8 +158,8 @@ endif
 :创建核心 ServiceProvider;
 :选择并连接数据库;
 :执行核心数据库迁移;
-:按插件创建数据库扩展并执行插件迁移;
 :加载核心共享数据;
+:按插件创建数据库扩展并执行插件迁移;
 :插件生成实例注册项;
 :创建实例、UI 贡献和模板贡献;
 :创建主窗口和导航/UI 扩展;
@@ -170,9 +200,9 @@ database "数据库" as Store
 UI -> Db : GetExtension<IRedMineDb>(instanceId)
 Db -> Db : 查找 (类型, instanceId) 缓存
 alt 未创建
-  Db -> Loader : 枚举 Diary.RedMine.*.dll
+  Db -> Loader : 枚举 Diary.*.dll
   Loader --> Db : IDbExtensionFactory
-  Db -> Ext : Create(host, instanceId)
+  Db -> Ext : Create(host, instanceId, migrations)
   Ext -> Store : Initialize()
   Ext -> Store : 检查实际表结构
   Ext -> Store : 执行插件迁移
@@ -191,7 +221,11 @@ Db --> UI : IRedMineDb 或 null
 核心：work_items、work_notes、work_tags、work_item_tags、data_versions
 Redmine：plugin_data_versions、redmine_projects、redmine_activities、
          redmine_issues、redmine_time_entries
+Jira：plugin_data_versions（与 Redmine 共用同一张表）、jira_projects、
+      jira_issues、jira_work_entries
 ```
+
+当前表结构的 ERD 图见 [`diagrams/database-schema.puml`](diagrams/database-schema.puml)。
 
 ## 6. Redmine schema 迁移
 
@@ -220,11 +254,11 @@ Redmine：plugin_data_versions、redmine_projects、redmine_activities、
 
 Redmine 数据库扩展已经使用实例 ID 过滤所有项目、问题、活动和工时记录，默认实例 ID 为 `redmine.default`。配置层已经支持实例列表、启用状态、显示名称和单独配置。
 
-当前限制：插件宿主和数据库扩展已经支持多实例，所有扩展创建调用都显式传入插件迁移链。Redmine 插件程序集仍由 `Diary.App.csproj` 的构建目标生成并复制到输出目录，运行时再通过目录扫描发现；尚未实现独立插件包目录或安装器。
+当前限制：插件宿主和数据库扩展已经支持多实例，所有扩展创建调用都显式传入插件迁移链。Redmine 和 Jira 共 8 个插件程序集仍由 `Diary.App.csproj` 的构建目标生成并复制到输出目录，运行时再通过目录扫描发现；尚未实现独立插件包目录或安装器。
 
 ## 8. UI 和编辑器扩展
 
-Redmine UI 通过 `Diary.PluginUI` 的契约接入：
+Redmine 和 Jira UI 通过 `Diary.PluginUI` 的契约接入：
 
 - `ITrackerConfigurationProvider`：提供默认配置、校验和设置页。
 - `ITrackerUiContribution`：提供导航页、管理页、编辑器区域和模板贡献。
@@ -241,7 +275,7 @@ Redmine UI 通过 `Diary.PluginUI` 的契约接入：
 核心工作项 + 本地 tracker 绑定
         -> 本地数据库事务
         -> 成功提交
-        -> 远程 Redmine API 上传
+        -> 远程 Tracker API 上传（Redmine / Jira）
         -> 成功或失败状态单独反馈
 ```
 
@@ -274,12 +308,12 @@ Redmine UI 通过 `Diary.PluginUI` 的契约接入：
 
 ## 11. 当前已知缺口
 
-- `SupportsMultipleInstances` 已接入 Redmine manifest、实例配置、导航和编辑器上下文；其他插件仍需按自身能力声明该标志。
+- `SupportsMultipleInstances` 已接入 Redmine 和 Jira manifest、实例配置、导航和编辑器上下文；后续新插件仍需按自身能力声明该标志。
 - 插件实例注册、数据库扩展迁移和 UI/模板注册已收敛到统一生命周期；数据库扩展的具体创建和迁移仍由插件实现。
-- 主程序已经通过构建目标复制 Redmine 插件程序集，后续可将复制源替换为独立插件包目录。
+- 主程序已经通过构建目标复制 Redmine 和 Jira 插件程序集，后续可将复制源替换为独立插件包目录。
 - 配置 schema 迁移、诊断状态、错误详情、迁移重试、实例启用/禁用和诊断日志 ZIP 导出已接入通用链路。
-- 已覆盖无 tracker 时插件生命周期、核心编辑器和模板测试，并通过 Headless 桌面生命周期验收 core-only 主窗口构建。
-- 批量同步已具备执行前预览、确认、逐条结果和仅重试已确认失败项；数据库不可用时由核心页面提供重试连接、打开设置和导出诊断日志入口，Tracker 诊断页提供实例级重试和诊断导出。远程同步队列、结果不确定项查询、远程 ID/同步时间展示以及每实例状态的可视化仍需完善。最近一次上传状态已经随 Jira/Redmine 本地绑定保存。
+- 已覆盖无 tracker 时插件生命周期、核心编辑器和模板测试；Headless 测试覆盖脚本编辑器和工作项编辑器窗口构建，`--core-only` 启动参数由 AppStartupOptions 解析并有单元测试。
+- 批量同步已具备执行前预览、确认、逐条结果和仅重试已确认失败项；数据库不可用时由核心页面提供重试连接、打开设置和导出诊断日志入口，Tracker 诊断页提供实例级重试和诊断导出。远程同步队列、结果不确定项查询、批量预览的 Tracker 实例筛选以及每实例状态的可视化仍需完善；最近一次上传状态（含远程 ID、失败原因和尝试时间）已经随 Jira/Redmine 本地绑定保存并在编辑器展示。
 - 日常录入支持复制前一天的本地记录和常用工时快捷项；复制流程不复制远程 Tracker 绑定，新建事项的标签建议按当前日期已有记录排序。
 - 工作项查询结果由 ViewModel 统一生成耗时合计，并通过通用文件保存入口导出 CSV/Markdown；导出不改变本地数据。
 - 首次启动引导和开发者功能开关保存在应用视图配置中；固定导航页按开关重建，Tracker 管理页仍按插件实例动态注册。

@@ -32,10 +32,10 @@
 
 当前实现仍然存在以下缺口：
 
-- Redmine manifest 已开启 `SupportsMultipleInstances`；其他插件仍需按自身能力声明该标志。
+- Redmine 与 Jira manifest 均已开启 `SupportsMultipleInstances`（`RedMinePlugin.cs`、`JiraPlugin.cs`）；后续新插件仍需按自身能力声明该标志。
 - 实例生命周期、数据库迁移和 UI/模板注册已经由宿主统一编排；数据库扩展的具体创建和迁移仍由插件实现。
-- `Diary.Database` 仍保留 `IRedMineDb` 扩展路径。
-- 数据库扩展发现仍使用 `Diary.RedMine.*.dll` 文件模式。
+- `Diary.Database` 已无任何 `IRedMineDb` 引用，`GetExtension<T>` 为泛型；唯一残留是 `GetExtension<T>` 的默认参数 `instanceId = "redmine.default"`（`DbInterfaceBase.cs`）。
+- dll 文件名扫描已通用化为 `Diary.*.dll`（数据库扩展发现与插件发现同样如此，见 `DbExtensionFactoryLoader.cs`），尚未达到独立插件包目录。
 - 编辑器、模板和上传状态已经具备多 tracker 聚合能力，完整多实例端到端验收仍需继续补充。
 - 无 tracker 时插件生命周期、核心编辑器和模板路径已有单元测试；主窗口完整启动和移除插件程序集的集成验收仍待补充。
 - 已提供 `--core-only` 启动模式，可在不加载 tracker 程序集和 UI 的情况下运行核心应用并进行手工验收。
@@ -159,6 +159,7 @@ public sealed record PluginManifest
     public required string Version { get; init; }
 
     public int ApiVersion { get; init; }
+    public bool SupportsMultipleInstances { get; init; }
     public uint MinCoreDataVersion { get; init; }
     public uint? MaxCoreDataVersion { get; init; }
 
@@ -170,14 +171,17 @@ public sealed record PluginManifest
 }
 ```
 
+`SupportsMultipleInstances` 声明是否支持同一插件类型创建多个实例；`PluginInstanceRegistry.Create` 创建实例时强制检查该标志，未声明时拒绝创建第二个实例。
+
 Redmine 插件的 manifest 示例：
 
 ```text
 Id: tracker.redmine
-Version: 1.2.0
-ApiVersion: 2
-MinCoreDataVersion: 0x00010000
-RequiredCapabilities: SqlTransactions, ForeignKeys
+Version: 1.0.0
+ApiVersion: 1
+SupportsMultipleInstances: true
+MinCoreDataVersion: 0
+RequiredCapabilities: SqlTransactions, ForeignKeys, MultipleStatementExecution
 ```
 
 ### 5.1 版本兼容规则
@@ -277,8 +281,10 @@ Jira 插件创建：
 ```text
 jira_projects
 jira_issues
-jira_worklogs
+jira_work_entries
 ```
+
+（实际表名为 `jira_work_entries`，含 `remote_worklog_id`、`upload_state` 等列，见 `Diary.Jira/JiraInitialMigration.cs`。）
 
 不得继续在 `SQLiteDb.Initialized()` 或 `PgDb.Initialized()` 中创建 tracker 表。
 
@@ -288,7 +294,7 @@ jira_worklogs
 
 ```text
 redmine_time_entries.work_id -> work_items.id
-jira_worklogs.work_id       -> work_items.id
+jira_work_entries.work_id    -> work_items.id
 ```
 
 一个核心工作项可以同时绑定多个 tracker：
@@ -296,7 +302,7 @@ jira_worklogs.work_id       -> work_items.id
 ```text
 work_items
   -> redmine_time_entries
-  -> jira_worklogs
+  -> jira_work_entries
   -> another_tracker_entries
 ```
 
@@ -423,6 +429,8 @@ public interface ITrackerUiContribution
 }
 ```
 
+（实际接口另有 `Instance` 属性与 `CreateTagRuleEditorContribution` 方法，`CreateEditorExtension` 返回可空 `ITrackerEditorExtension?`，见 `Diary.PluginUI/ITrackerEditorExtension.cs`。）
+
 插件实例接口：
 
 ```csharp
@@ -466,6 +474,8 @@ public interface ITrackerEditorExtension
     Task<TrackerOperationResult> UploadAsync(WorkItem item);
 }
 ```
+
+（实际接口另有 `UploadState`、`UploadError`、`UploadAttemptedAt` 三个上传状态成员，见 `Diary.PluginUI/ITrackerEditorExtension.cs`。）
 
 核心编辑器负责：
 
@@ -514,6 +524,8 @@ public sealed record TrackerOperationResult(
     string? RemoteId = null);
 ```
 
+（实际实现为带构造函数的 `record`，且另有 `TrackerUploadState State` 字段——构造时未显式给出 `state` 则按 `success` 推导 `Succeeded`/`Failed`，见 `Diary.PluginBase/PluginCommon.cs`。）
+
 ## 11. 模板系统
 
 ### 11.1 当前问题
@@ -548,7 +560,7 @@ SelectedWork.AddTags(tags, TagAddSource.Template);
 ```csharp
 public sealed record Template
 {
-    public string Id { get; set; } = string.Empty;
+    public string Id { get; set; } = Guid.NewGuid().ToString("D");
     public string Name { get; set; } = string.Empty;
     public string DefaultTitle { get; set; } = string.Empty;
     public double DefaultTime { get; set; }
@@ -636,8 +648,8 @@ public interface ITrackerConfigurationProvider
 配置版本和数据库版本分开管理。例如：
 
 ```text
-Redmine configuration version: 3
-Redmine database schema version: 7
+Redmine configuration version: 2
+Redmine database schema version: 1
 ```
 
 ## 13. 管理页面
@@ -675,6 +687,8 @@ public interface IWorkItemPersistenceCoordinator
 }
 ```
 
+（实际落地签名为 `WorkItemSaveResult Save(DbInterfaceBase db, WorkItemSaveRequest request)`，见 `Diary.App/Models/WorkItemPersistenceCoordinator.cs`；`WorkItemDraft` 与 `SaveWorkItemResult` 类型不存在。事务语义与本节描述一致。）
+
 保存流程：
 
 ```text
@@ -706,6 +720,8 @@ MultipleStatementExecution
 ```text
 SupportedProviders: PostgreSQL
 ```
+
+（`SupportedProviders` 能力当前未实现：`PluginManifest` 无此字段，数据库能力声明目前只有 `PluginCapabilities` 中的四种常量，见 `Diary.PluginBase/PluginCommon.cs`。）
 
 不要让插件在运行时执行不兼容 SQL 后才失败。
 

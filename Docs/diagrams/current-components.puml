@@ -1,45 +1,80 @@
 @startuml
 skinparam componentStyle rectangle
 skinparam shadowing false
+
 package "Diary.App" {
-  [App] as App
-  [Core UI] as UI
+  [应用启动与配置] as App
+  [核心 UI / MVVM] as CoreUI
   [PluginHost] as Host
 }
-package "Contracts" {
+
+package "稳定契约" {
   [Diary.Core] as Core
-  [Diary.Database] as DB
-  [Diary.PluginBase] as PB
-  [Diary.PluginUI] as PUI
-  [Diary.ScriptBase] as SB
-  [Diary.ScriptHost] as SH
-  [Diary.Script.Runtime] as SR
+  [Diary.Database] as Database
+  [Diary.GUIBase] as GuiBase
+  [Diary.PluginBase] as PluginBase
+  [Diary.PluginUI] as PluginUI
+  [Diary.ScriptBase] as ScriptBase
+  [Diary.ScriptHost] as ScriptHost
+  [Diary.Script.Runtime] as ScriptRuntime
 }
-package "Redmine" {
-  [Diary.RedMine] as RM
-  [Diary.RedMine.UI] as RMUI
-  [SQLite extension] as SQL
-  [PostgreSQL extension] as PG
+
+package "脚本 Worker" {
+  [Diary.Script.Worker] as ScriptWorker
 }
-database "SQLite / PostgreSQL" as Store
-cloud "Redmine API" as API
-App --> Host
-App --> UI
-Host --> PB
-Host --> PUI
-App --> SB
-SR --> SB
-SH --> SB
-SH --> Core
-SH --> DB
-UI --> Core
-UI --> DB
-RM --> PB
-RM --> DB
-RMUI --> PUI
-RMUI --> RM
-SQL --> DB
-PG --> DB
-DB --> Store
-RM --> API
+
+package "Redmine 可选组件" {
+  [Diary.RedMine] as RedMine
+  [Diary.RedMine.UI] as RedMineUI
+  [Diary.RedMine.SQLite] as RedMineSqlite
+  [Diary.RedMine.PostgreSQL] as RedMinePg
+}
+
+package "Jira 可选组件" {
+  [Diary.Jira] as Jira
+  [Diary.Jira.UI] as JiraUI
+  [Diary.Jira.SQLite] as JiraSqlite
+  [Diary.Jira.PostgreSQL] as JiraPg
+}
+
+database "SQLite / PostgreSQL" as Db
+cloud "Redmine HTTP API" as RedmineApi
+cloud "Jira HTTP API" as JiraApi
+
+App --> Host : 发现并注册插件
+App --> CoreUI : 创建主窗口
+Host --> PluginBase : manifest / 生命周期
+Host --> PluginUI : 注册 UI 贡献
+App --> ScriptBase : 兼容脚本契约
+CoreUI --> GuiBase : 通用 UI / MVVM
+ScriptRuntime --> ScriptBase : 契约与执行模型
+ScriptRuntime --> ScriptWorker : 按 EngineName 启动 Worker
+ScriptWorker --> ScriptHost : HostCall
+ScriptHost --> ScriptBase : 只读宿主 API
+ScriptHost --> ScriptRuntime : Worker 协议
+ScriptHost --> PluginBase : 实例目录
+ScriptHost --> Core
+ScriptHost --> Database
+CoreUI --> Core : 工作项、模板、统计
+CoreUI --> Database : 核心数据访问
+RedMine --> PluginBase
+RedMine --> Core
+RedMine --> Database
+RedMineUI --> PluginUI
+RedMineUI --> RedMine
+RedMineUI --> GuiBase
+RedMineUI --> Core
+RedMineSqlite --> Database : IDbExtensionFactory
+RedMinePg --> Database : IDbExtensionFactory
+Jira --> PluginBase
+Jira --> Core
+Jira --> Database
+JiraUI --> PluginUI
+JiraUI --> Jira
+JiraUI --> GuiBase
+JiraSqlite --> Database : IDbExtensionFactory
+JiraPg --> Database : IDbExtensionFactory
+Database --> Db : 核心表与扩展表
+RedMine --> RedmineApi
+Jira --> JiraApi
 @enduml

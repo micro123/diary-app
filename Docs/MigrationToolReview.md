@@ -35,7 +35,7 @@
 - SQLite/PostgreSQL 的工作项、备注、标签关联和工作项 ID 更新 SQL 都带有只读保护；
 - 删除仍允许执行，但会明确提示这只是删除本地统计记录，不涉及任何远程 Tracker 数据。
 
-只读记录仍然参与日期、标签和耗时统计。统计中的“已提交工时”只计算真实 Tracker 已锁定的工作项，不把迁移记录伪装成已上传数据。
+只读记录仍然参与日期、标签和耗时统计。迁移记录没有 Tracker 绑定，且 `CanUpload()` 对 `IsImportedReadOnly` 返回 false，因此不计入日记页的“提交工时”，不把迁移记录伪装成已上传数据。
 
 ## 已发现并修正的问题
 
@@ -84,4 +84,4 @@ Diary.DbTests/MigrationToolTests.cs 使用与 DiaryToolpp 5.0.0 一致的临时 
 - 导入中途失败时核心数据回滚，迁移器没有主动写入目标 Tracker 数据；
 - 迁移失败后事务可以重新开始。
 
-PostgreSQL 源驱动的字段类型差异已根据旧项目源码完成对照。当前环境没有可用 Docker，因此 PostgreSQL 集成迁移测试仍按项目既有规则跳过；SQLite provider 与迁移回归测试已执行通过。
+PostgreSQL 源驱动的字段类型差异已根据旧项目源码完成对照。Diary.DbTests/MigrationToolTests.cs 只有 3 个 SQLite 迁移测试，没有 PostgreSQL 迁移测试；当前环境没有可用 Docker，因此 PgContractTests 按项目既有规则（Assert.Inconclusive）跳过；SQLite provider 与迁移回归测试已执行通过。

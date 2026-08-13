@@ -1,0 +1,128 @@
+@startuml
+skinparam shadowing false
+' 当前 PostgreSQL schema（SQLite 列结构一致，类型为 SQLite 对应类型）。
+' 核心表来源：Diary.Db.PostgreSQL/PgDb.cs；
+' Redmine 表来源：Diary.RedMine/RedMineInitialMigration.cs（0 -> 1）；
+' Jira 表来源：Diary.Jira/JiraInitialMigration.cs（0 -> 1）；
+' plugin_data_versions 由各 provider 扩展创建（PgRedMineDb.cs / PgJiraDb.cs）。
+' 历史旧 schema 参考见 Docs/SQLiteInit.sql（自声明历史文件，不可用于初始化）。
+
+package "核心" {
+  entity "work_tags" as work_tags {
+    * id : SERIAL
+    --
+    tag_name : CHAR(64) UNIQUE
+    tag_color : INTEGER
+    tag_level : INTEGER
+    is_disabled : INTEGER
+  }
+  entity "work_items" as work_items {
+    * id : SERIAL
+    --
+    create_date : CHAR(16)
+    comment : CHAR(256)
+    hours : REAL
+    priority : INTEGER
+    is_read_only : BOOLEAN
+  }
+  entity "work_notes" as work_notes {
+    * id : INTEGER
+    --
+    note : TEXT
+  }
+  entity "work_item_tags" as work_item_tags {
+    * work_id : INTEGER
+    * tag_id : INTEGER
+  }
+  entity "data_versions" as data_versions {
+    * version_code : INTEGER
+  }
+}
+
+package "Redmine（tracker.redmine）" {
+  entity "redmine_projects" as redmine_projects {
+    * instance_id : TEXT
+    * id : INTEGER
+    --
+    project_name : TEXT
+    project_desc : TEXT
+    is_closed : INTEGER
+  }
+  entity "redmine_activities" as redmine_activities {
+    * instance_id : TEXT
+    * id : INTEGER
+    --
+    act_name : TEXT
+  }
+  entity "redmine_issues" as redmine_issues {
+    * instance_id : TEXT
+    * id : INTEGER
+    --
+    issue_title : TEXT
+    assigned_to : TEXT
+    project_id : INTEGER
+    is_closed : INTEGER
+  }
+  entity "redmine_time_entries" as redmine_time_entries {
+    * instance_id : TEXT
+    * work_id : INTEGER
+    --
+    id : INTEGER
+    act_id : INTEGER
+    issue_id : INTEGER
+    upload_state : TEXT
+    upload_error : TEXT
+    upload_attempted_at : TEXT
+  }
+}
+
+package "Jira（tracker.jira）" {
+  entity "jira_projects" as jira_projects {
+    * instance_id : TEXT
+    * project_key : TEXT
+    --
+    project_name : TEXT
+    project_desc : TEXT
+    is_archived : INTEGER
+  }
+  entity "jira_issues" as jira_issues {
+    * instance_id : TEXT
+    * issue_key : TEXT
+    --
+    issue_title : TEXT
+    project_key : TEXT
+    project_name : TEXT
+    status_name : TEXT
+    is_closed : INTEGER
+  }
+  entity "jira_work_entries" as jira_work_entries {
+    * instance_id : TEXT
+    * work_id : INTEGER
+    --
+    issue_key : TEXT
+    remote_worklog_id : TEXT
+    upload_state : TEXT
+    upload_error : TEXT
+    upload_attempted_at : TEXT
+  }
+}
+
+package "插件版本" {
+  entity "plugin_data_versions" as plugin_data_versions {
+    * plugin_id : CHAR(128)
+    --
+    schema_version : INTEGER
+  }
+}
+
+work_items ||--o{ work_notes : "id (ON DELETE CASCADE)"
+work_items ||--o{ work_item_tags : "work_id (ON DELETE CASCADE)"
+work_tags ||--o{ work_item_tags : "tag_id (ON DELETE CASCADE)"
+redmine_projects ||--o{ redmine_issues : "(instance_id, project_id)"
+redmine_activities ||--o{ redmine_time_entries : "(instance_id, act_id)"
+redmine_issues ||--o{ redmine_time_entries : "(instance_id, issue_id)"
+work_items ||--o{ redmine_time_entries : "work_id (ON DELETE CASCADE)"
+jira_projects ||--o{ jira_issues : "(instance_id, project_key)"
+jira_issues ||--o{ jira_work_entries : "(instance_id, issue_key)"
+work_items ||--o{ jira_work_entries : "work_id (ON DELETE CASCADE)"
+@enduml

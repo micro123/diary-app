@@ -38,6 +38,6 @@ end
 - `diary.workItems.query` 是只读查询，`diary.logItems.create` 只追加新记录。
 - 使用同一业务动作的 `idempotencyKey`，重复执行不会再次追加。
 - `context.preview` 会让宿主只返回预览结果，不写入数据库。
-- Lua 的 HostCall 失败会抛出异常；需要区分错误时，读取错误文本中的稳定错误代码并按 API Reference 处理。
+- Lua 的返回结果类 HostCall（查询、创建、Tracker 实例）通过 `succeeded`/`error` 字段判断成败，失败不抛异常；非结果类调用（剪贴板、用户交互、日志和列表类）失败才抛出异常，错误文本含稳定错误代码，按 API Reference 处理。
 
 相关章节：[Lua API Reference](../Lua.md)。

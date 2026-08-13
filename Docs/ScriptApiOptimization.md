@@ -18,7 +18,7 @@
 - 上下文已提供入口类型、参数、取消状态、`GetRequiredApi` 和进度报告；自动化上下文携带触发器、事件数据和幂等键。
 - 普通日志项和模板日志项支持幂等键、预览和副作用摘要；已由宿主共享幂等存储持久化已提交结果，并在应用重启后继续识别重复请求。
 - C# 提供 `context.Api()` 强类型门面；C#、Lua、Python 均可只读发现模板、已启用 Tracker 实例和当前 Worker HostCall 能力。模板默认标题、默认工时、默认标签和工作项返回字段已明确映射。
-- 结果类 API 使用 `ApiError.Code`/`apiError.code` 返回稳定大写错误码；Python HostCall 异常和 Lua 同步 HostCall 也已提供可识别的错误码格式。
+- 结果类 API 使用 `ApiError.Code`/`apiError.code` 返回稳定大写错误码：`workItems.query`、`logItems.create`、`templateLogItems.create`、`trackerInstances.get` 在三种语言中失败均返回 `succeeded=false` 的结果对象，不抛异常；非结果类 HostCall（剪贴板、用户交互、日志和列表类）失败时 Python 抛 `HostCallError`、Lua 抛 `[ERROR_CODE] message` 格式错误。
 - 查询契约已统一默认 `limit=100`、`offset=0`，单次最多 1,000 条，流式页大小为 1 到 500，偏移最多 1,000,000，标签最多 100 个；非法输入返回稳定的 `InvalidInput` 错误。
 
 仍可继续优化日期范围快捷 API 和 UI 稳定 ID 复制入口；Tracker 远程写入、历史修正/冲正以及更高阶的持久化审计不属于当前脚本 API 范围。宿主能力列表只用于发现，不替代权限判断。
@@ -239,6 +239,8 @@ C# 上下文直接暴露 `CancellationToken`、`IsCancellationRequested` 和 `Re
 - 宿主 API 默认使用当前执行的取消令牌。
 - 动态语言提供 `context.isCancelled()` 或等价方法。
 - 统一进度 API，不再要求用户用日志模拟进度。
+
+进度上报 API 已在三种语言中提供并校验 0 到 1 的取值；当前生产装配尚未连接消费方（不上报执行历史或 UI），后续接入展示时无需再改脚本契约。
 
 示例：
 

@@ -96,6 +96,9 @@ class WorkItemsApi:
             query["limit"] = pageSize
             query["offset"] = offset
             result = self.query(query)
+            if not result.get("succeeded"):
+                error = result.get("error") or {}
+                raise HostCallError(error.get("code", "ProviderFailure"), error.get("message", "Host call failed."))
             items = result.get("items") or []
             for item in items:
                 yield item

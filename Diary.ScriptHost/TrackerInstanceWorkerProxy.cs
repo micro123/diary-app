@@ -13,7 +13,8 @@ public sealed class TrackerInstanceWorkerProxy(
             JsonSerializer.SerializeToElement(new { pluginId, instanceId }, WorkerProtocol.JsonOptions)),
             CancellationToken.None).GetAwaiter().GetResult();
         if (response.Success && response.Result is { } result)
-            return TrackerScriptResult.Success(result.Deserialize<ScriptTrackerInstance>(WorkerProtocol.JsonOptions)!);
+            return result.Deserialize<TrackerScriptResult>(WorkerProtocol.JsonOptions)
+                ?? TrackerScriptResult.Failure(TrackerScriptErrorCode.InstanceUnavailable, "宿主返回的结果为空。");
         return TrackerScriptResult.Failure(
             Enum.TryParse<TrackerScriptErrorCode>(response.Error?.Code, out var code)
                 ? code

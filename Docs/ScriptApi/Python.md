@@ -196,11 +196,11 @@ if confirmed:
 
 `context.log.debug(message)`、`context.log.info(message)`、`context.log.warning(message)` 和 `context.log.error(message)` 将调试信息写入宿主日志。单条日志受大小限制，不能输出敏感配置。
 
-所有 HostCall 失败都会抛出 `HostCallError`，其 `code` 属性可用于分类处理：
+非结果类 HostCall（剪贴板、用户交互、日志和列表类）失败会抛出 `HostCallError`，其 `code` 属性可用于分类处理；返回结果的 API（`workItems.query`、`logItems.create`、`templateLogItems.create`、`trackerInstances.get`）失败时返回 `succeeded=False` 结果对象，不抛异常：
 
 ```python
 try:
-    context.diary.logItems.create({"date": "bad", "hours": 1, "title": "测试"})
+    context.diary.clipboard.set("复制到系统剪贴板的文本")
 except HostCallError as error:
     print(error.code)
 ```
@@ -236,7 +236,7 @@ if not result["succeeded"]:
         return
 ```
 
-会抛出异常的 HostCall 可以捕获 `HostCallError`，其 `code` 使用同一套大写错误码：
+非结果类 HostCall（剪贴板、用户交互、日志和列表类）以及未知方法、宿主未配置等意外场景失败时抛出 `HostCallError`，其 `code` 使用同一套大写错误码。分页流 `items.stream()` 在分页查询领域失败时同样抛出 `HostCallError`：
 
 ```python
 try:

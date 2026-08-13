@@ -16,7 +16,7 @@ v1 固定使用 TCP `9721`，请求和响应均为 UTF-8 文本。
 yyyy-MM-dd:yyyy-MM-dd
 ```
 
-响应保持旧版 `RespondData` JSON 字段：`hostname`、`username`、`date_start`、`date_end`、`hours` 和 `tags`。
+响应保持旧版 `RespondData` JSON 字段：`hostname`、`username`、`date_start`、`date_end`、`hours` 和 `tags`。（当前 v1 响应序列化整个 `RespondData`，新增字段 `record_count`、`group_by`、`groups`、`details`、`details_truncated`——默认值分别为 `0`、`"tag"`、空集合、空集合、`false`——也会一并输出；因此实际是旧字段的超集，旧客户端会按未知字段忽略，见 `Diary.App/Models/RespondData.cs` 与 `SurveyViewModel.cs`。）
 
 因此旧版和新版节点可以继续互通：
 
@@ -94,6 +94,8 @@ v2 固定使用 TCP `9722`，仅新版节点连接，不改变 `9721` 的请求�
   "supports_details": true
 }
 ```
+
+（示例为 `data` 字段的内容，实际响应经 `SerializeSuccess` 输出，带 `{version, request_id, ok, data: {...}}` 外层包装，见 `Diary.Survey/ExtendedSurveyProtocol.cs`。）
 
 能力发现不访问数据库，也不会改变旧版 `9721` 协议。当前新版节点声明支持自定义统计、标签/日期/优先级分组和受限结果明细。结果明细最多返回 500 条，超过上限时通过 `details_truncated` 标记。
 

@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Diary.Script.Runtime;
-using Diary.ScriptBase;
 
 namespace Diary.ScriptHost;
 
@@ -13,10 +12,8 @@ public sealed class WorkerLogItemProxy(
         var response = await callHost(new("logItems.create", JsonSerializer.SerializeToElement(request, WorkerProtocol.JsonOptions)), cancellationToken);
         if (!response.Success)
             return ScriptLogItemResult.Failure(ParseCode(response.Error?.Code), response.Error?.Message ?? "创建记录失败。");
-        var item = response.Result?.Deserialize<ScriptWorkItem>(WorkerProtocol.JsonOptions);
-        return item is null
-            ? ScriptLogItemResult.Failure(ScriptLogItemErrorCode.ProviderFailure, "宿主返回的记录为空。")
-            : ScriptLogItemResult.Success(item);
+        return response.Result?.Deserialize<ScriptLogItemResult>(WorkerProtocol.JsonOptions)
+            ?? ScriptLogItemResult.Failure(ScriptLogItemErrorCode.ProviderFailure, "宿主返回的结果为空。");
     }
 
     private static ScriptLogItemErrorCode ParseCode(string? code) =>

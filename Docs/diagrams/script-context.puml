@@ -3,43 +3,38 @@ skinparam componentStyle rectangle
 skinparam shadowing false
 
 actor User
-component "Script UI / Command" as UI
-component ScriptManager as Manager
-component "ScriptExecutor" as Executor
-component "IContextScript" as Script
-component "IScriptApi" as Api
-component "Diary API" as Diary
-component "Tracker API" as Tracker
-database "Core diary data" as DB
-cloud "Tracker services" as Remote
+component "脚本 UI\n（管理页 / 编辑器 / 向导 / 日历菜单）" as UI
+component "IScriptManager" as Manager
+component "WorkerScriptExecutor\n（按 EngineName 路由 supervisor）" as Executor
+component "Worker 进程\nC# / Lua / Python" as Worker
+component "ScriptExecutionContext\n（context.Api() 门面）" as Context
+component "Worker 代理\n（Query / LogItem / Tracker / Sys / Log）" as Proxy
+component "WorkItemQueryWorkerDispatcher\n（宿主 HostCall 分派）" as Dispatcher
+component "IDiaryApi / ITrackerApi\nSysApi / ILogApi" as HostApi
+component "DbInterfaceBase" as Db
+database "SQLite / PostgreSQL" as Store
 
-rectangle "EditorScriptContext\n- Scope: ScriptScope\n- Target: ScriptTarget\n- Parameters" as Context
-rectangle "ScriptScope\n- Granularity\n- StartDate\n- EndDate" as Scope
-rectangle "ScriptTarget\n- Kind\n- PluginId\n- InstanceId\n- TargetId" as Target
+rectangle "ScriptEditorTarget\nKind: Year / Quarter / Month / Week / Day / WorkItem" as Target
 
-User --> UI : choose script and scope
-UI --> Manager : ExecuteContext
-Manager --> Manager : validate scope and target
-Manager --> Executor : create execution context
-Executor --> Script : Execute(context, api)
-Executor --> Api : create restricted host API
-Api --> Diary
-Api --> Tracker
-Diary --> DB
-Tracker --> Remote
+User --> UI : 执行 / 编辑 / 触发
+UI --> Manager : ExecuteAsync(request)
+Manager --> Executor : 校验目标与超时
+Executor --> Worker : stdin/stdout JSON 行协议\nHello / Execute / HostCall / Cancel
+Worker --> Context : 注入契约与目标
+Context --> Proxy : HostCall
+Proxy --> Dispatcher : worker 协议消息
+Dispatcher --> HostApi : 只读查询 / 创建 / 目录 / 交互
+HostApi --> Db
+Db --> Store : 核心表与扩展表
 
-UI ..> Context : constructs
-Context *-- Scope
-Context *-- Target
+UI ..> Target : 编辑器目标（含日期范围）
+Target ..> Manager : 目标校验与解析
 
-note right of Context
-Template is intentionally absent.
-Templates are selected and applied
-by the host/editor, not scripts.
-end note
-
-note right of Target
-Tracker targets use the composite identity:
-PluginId + InstanceId + optional TargetId
+note bottom of Dispatcher
+  结果类方法（query / logItems.create /
+  templateLogItems.create / trackerInstances.get）
+  返回 { succeeded, error, apiError } 结果对象；
+  非结果类 HostCall 失败走错误信封。
+  脚本 API 不暴露远程 Tracker 写入。
 end note
 @enduml

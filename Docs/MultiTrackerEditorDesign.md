@@ -33,7 +33,7 @@
 - 复制昨天只复制核心字段、备注和标签；目标工作项重新创建 Tracker 扩展，不复用源记录的远程 ID、上传状态或锁定状态。
 - Tracker 管理导航不写入核心页面枚举，而是继续按已启用实例动态创建；普通用户可隐藏开发者脚本管理页，不影响编辑器脚本动作。
 - `IsLocked` 使用任意扩展锁定即锁定核心字段。
-- `CanDelete` 使用所有扩展允许删除才允许删除。
+- `CanDelete` 由核心编辑器自行判断（当前实现仅检查数据库连接是否可用），不聚合扩展的 `CanDelete`。
 
 以下是早期设计中记录的问题，其中大部分已经在当前实现中解决；剩余改造项见后文路线图：
 
@@ -101,6 +101,8 @@ public sealed class WorkEditorSession
 }
 ```
 
+> 注：`WorkEditorSession` 为前瞻设计，当前未实现；会话职责实际由 `WorkItemPersistenceCoordinator`（本地事务）与 `TrackerUploadCoordinator`（远程上传结果）承担。
+
 `WorkEditorViewModel` 负责绑定和交互；`WorkItemPersistenceCoordinator` 负责本地事务；`TrackerUploadCoordinator` 负责远程上传结果。
 
 ## 4. 组件关系
@@ -143,7 +145,7 @@ Extension --> Api
 1. `DiaryEditorViewModel` 获取当前已启用的 tracker 实例。
 2. 每个实例贡献一个 `ITrackerUiContribution` 或由贡献者创建扩展。
 3. `WorkEditorViewModel` 按 `TrackerKey` 放入扩展字典。
-4. 重复 key 记录错误并跳过，不覆盖已有扩展。
+4. 重复 key 跳过，不覆盖已有扩展。（当前实现为静默跳过，不记录错误日志，见 `WorkEditorViewModel.cs` 与 `TrackerUiContributionRegistry.cs`。）
 5. 插件未配置时可以不创建扩展，不影响核心编辑器。
 
 ### 5.2 已有工作项加载
@@ -195,8 +197,9 @@ User -> VM : 保存
 VM -> C : Save(core draft, extensions)
 C -> DB : BeginTransaction()
 C -> DB : 创建/更新 work_item
-C -> DB : 保存备注和标签
-C -> Ext : Save(workItem)
+C -> DB : 保存备注
+C -> Ext : Save(workItem)（按 Extensions 集合顺序）
+C -> DB : 保存标签（仅新建时）
 alt 任一步失败
   C -> DB : RollbackTransaction()
   C --> VM : 失败，不更新本地状态
@@ -214,8 +217,8 @@ end
   -> BeginTransaction
   -> 创建或更新 work_items
   -> 保存备注
-  -> 保存标签
-  -> 按 TrackerKey 顺序保存本地绑定
+  -> 按 Extensions 集合顺序保存本地绑定
+  -> 保存标签（仅新建时）
   -> CommitTransaction
 ```
 
@@ -226,7 +229,7 @@ end
 
 - 核心工作项保存失败：回滚，不调用扩展保存。
 - 任一扩展本地保存失败：回滚核心数据和之前扩展的本地保存。
-- 回滚失败：记录严重日志，禁止继续覆盖当前编辑器状态。
+- 回滚失败：记录严重日志，禁止继续覆盖当前编辑器状态。（当前实现未落实：`finally` 中 `db.RollbackTransaction()` 的返回值被忽略，失败时无日志、无后续防护，见 `Diary.App/Models/WorkItemPersistenceCoordinator.cs`。）
 - 保存失败时保留用户输入，允许重新保存。
 - 不在本地事务中调用远程 API。
 
@@ -246,7 +249,7 @@ end
 
 - 源和目标都有相同 key 才复制 tracker 状态。
 - 目标没有该 key 时跳过，不阻止核心克隆。
-- 源有而目标没有时记录 debug 日志。
+- 源有而目标没有时静默跳过，不记录 debug 日志（见 `WorkEditorViewModel.cs`）。
 - 克隆不复制远程 ID、上传状态和锁定状态。
 - 克隆后 tracker 本地绑定只有在新工作项保存时创建。
 
@@ -267,7 +270,7 @@ IsLocked = 任意扩展 IsLocked == true
 
 ### 8.2 删除
 
-未上传或确认误写的工作项允许直接删除。已上传工作项删除时，核心编辑器必须明确提示本地删除不会删除远程工时；上传结果不确定时，应先提示查询或重试。
+未上传或确认误写的工作项允许直接删除。已上传工作项删除时，核心编辑器必须明确提示本地删除不会删除远程工时；上传结果不确定时，应先提示查询或重试。（当前实现：删除确认文案仅三档——迁移只读记录、`IsLocked` 提示远程工时不会被删除、默认「尚未产生远程上传」；上传结果不确定且未锁定的工作项落入默认档，由上传完成后的「同步结果待确认」toast 提示兜底，见 `DiaryEditorViewModel.cs`。）
 
 删除核心工作项后依赖外键清理本地绑定；如果某 tracker 使用非级联表，必须由协调器显式调用清理方法。`ITrackerEditorExtension.CanDelete` 只表示扩展是否允许无确认删除，不能作为核心本地删除的全局否决条件。
 
@@ -295,7 +298,9 @@ public sealed record TrackerUploadResult(
     bool Success,
     bool Skipped,
     string? Error,
-    string? RemoteId);
+    string? RemoteId,
+    TrackerUploadState State,
+    DateTimeOffset? AttemptedAt);
 ```
 
 聚合结果：

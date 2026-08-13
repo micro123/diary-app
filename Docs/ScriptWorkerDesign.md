@@ -81,6 +81,7 @@ worker 不应持有 `DbInterfaceBase`、`IServiceProvider`、`App` 或具体 Tra
 ### 5.1 状态
 
 ```text
+（目标设计）
 Stopped -> Starting -> Handshaking -> Ready
                          |              |
                          v              v
@@ -91,11 +92,11 @@ Stopped -> Starting -> Handshaking -> Ready
 ```
 
 - `Stopped`：没有子进程。
-- `Starting`：已创建进程，等待启动完成。
+- `Starting`：已创建进程，等待启动完成。（当前未实现：实际 `WorkerState`（`Diary.Script.Runtime/WorkerSupervisor.cs`）只有 `Stopped`、`Handshaking`、`Ready`、`Busy`、`Failed` 五种，没有 `Starting`；进程创建或握手失败直接置为 `Failed`。）
 - `Handshaking`：等待 `hello`，检查协议、语言和能力。
 - `Ready`：可以接受执行请求。
 - `Busy`：至少有一个执行请求；第一版默认同一 worker 串行执行。
-- `Draining`：拒绝新请求，等待当前请求结束或终止进程。
+- `Draining`：拒绝新请求，等待当前请求结束或终止进程。（当前未实现：没有独立的 `Draining` 状态，其语义以「worker 达到请求上限后置为 `Failed`」近似，见 `WorkerSupervisor.ExecuteAsync` 中 `_requestCount >= MaxRequestsPerWorker` 的处理。）
 - `Failed`：启动、握手或协议失败，等待 supervisor 重启。
 
 ### 5.2 启动
@@ -106,7 +107,7 @@ supervisor 启动 worker 时必须：
 2. 单独配置 stdin、stdout、stderr，并禁止继承不必要的句柄。
 3. 不通过命令行传递 Token、密码或完整配置内容。
 4. 使用环境变量白名单；不把主进程全部环境变量复制给 worker。
-5. 设置启动超时，默认建议为 10 秒。
+5. 设置启动超时，默认建议为 10 秒。（当前未实现：`WorkerSupervisor.StartAsync` 没有独立的启动/握手超时，等待 `hello` 只受调用方 cancellationToken 约束。）
 6. 读取第一条 `hello` 消息并完成协议协商后，才把状态设置为 `Ready`。
 
 ### 5.3 常驻和回收
@@ -162,9 +163,9 @@ supervisor 应支持：
 | 单次脚本结果最大大小 | 16 MiB |
 | 单次宿主调用最大数量 | 100 |
 | 同一 worker 最大并发请求 | 1 |
-| 启动/握手超时 | 10 秒 |
-| 宿主调用响应超时 | 30 秒 |
-| 取消宽限期 | 2 秒 |
+| 启动/握手超时 | 10 秒（当前未实现：见 §5.2 注） |
+| 宿主调用响应超时 | 30 秒（当前未实现：`host.call` 只受整体执行超时约束，没有单独的宿主调用超时） |
+| 取消宽限期 | 2 秒（目标值；实际 `WorkerSupervisor.CancellationGracePeriod` 默认 500ms，`ProcessWorkerTransport.ShutdownGracePeriod` 默认 2s） |
 
 超过限制时，supervisor 必须拒绝或终止当前请求，并返回结构化诊断。
 
@@ -207,12 +208,14 @@ worker 启动后必须先发送 `hello`：
   "payload": {
     "language": "python",
     "workerVersion": "1.0.0",
-    "supportedApiVersions": [1],
+    "supportedApiVersions": ["V1"],
     "supportedHostApis": ["workItems.query"],
-    "pid": 12345
+    "processId": 12345
   }
 }
 ```
+
+（注：wire 字段名对应 `WorkerHelloPayload`（`Diary.Script.Runtime/WorkerProtocol.cs`）按 camelCase 序列化，进程 ID 字段为 `processId`；`ScriptApiVersion` 枚举经 `JsonStringEnumConverter` 序列化为字符串，如 `"V1"`。）
 
 主程序返回 `hello.accepted`：
 
@@ -235,8 +238,8 @@ worker 启动后必须先发送 `hello`：
 - 协议名称和主版本。
 - worker 声明的语言是否与启动配置一致。
 - 至少一个双方支持的 Script API 版本。
-- worker 版本和入口信息是否满足宿主策略。
-- worker 是否在本次 supervisor 创建的进程中。
+- worker 版本和入口信息是否满足宿主策略。（当前未实现：`WorkerHandshake.Negotiate`（`Diary.Script.Runtime/WorkerProtocol.cs`）不校验 `WorkerVersion` 字段，只把它作为诊断信息保留。）
+- worker 是否在本次 supervisor 创建的进程中。（当前未实现：hello 中的 `processId` 当前不与 supervisor 实际创建的子进程 PID 比对。）
 
 握手失败时，主程序不得发送脚本源码或宿主数据，应终止 worker 并返回
 `WORKER_HANDSHAKE_FAILED`。
@@ -277,7 +280,7 @@ worker 启动后必须先发送 `hello`：
 ```
 
 worker 应先返回 `execute.accepted` 或 `execute.rejected`，再返回最终的 `execute.result`。
-这样 supervisor 可以区分“请求未被接收”和“脚本已经开始执行”。
+这样 supervisor 可以区分“请求未被接收”和“脚本已经开始执行”。（当前未实现：`WorkerMessageType.ExecuteAccepted`/`ExecuteRejected` 只在协议枚举中定义（`Diary.Script.Runtime/WorkerProtocol.cs`），C#、Lua、Python 三个 worker 均不发送这两种消息；supervisor 在执行期间收到除 `host.call` 和 `execute.result` 外的消息会报 `WORKER_MESSAGE_UNEXPECTED`。）
 
 ### 8.2 执行结果
 
@@ -345,9 +348,9 @@ worker 执行脚本时可以发送 `host.call`：
 
 主程序处理每个 `host.call` 时必须重新检查：
 
-- `executionId` 是否仍然有效。
+- `executionId` 是否仍然有效。（当前未实现：`WorkItemQueryWorkerDispatcher.DispatchAsync` 不重新校验 `executionId` 的有效性，只把它透传给 `log.write`/`script.progress` 用于日志和进度关联。）
 - 脚本是否仍在运行。
-- `method` 是否在协商后的 API 白名单中。
+- `method` 是否在协商后的 API 白名单中。（当前未实现：dispatcher 按硬编码方法名分派，不做白名单查询；白名单约束只在握手阶段求交集，当前生产环境允许全部 13 个已实现方法。）
 - `method` 是否仍由当前宿主 dispatcher 实现并在握手结果中可用。
 - 参数大小、数量、日期范围和分页上限。
 - 结果是否需要脱敏。
@@ -356,7 +359,7 @@ worker 执行脚本时可以发送 `host.call`：
 用户交互和 `log.write`。工作项更新、删除和 Tracker 远程写入不进入第一版协议。
 
 应用程序扩展的 `target` 必须为 `null`。编辑器扩展的 `target` 是结构化对象，`kind` 为
-`Year`、`Quarter`、`Month`、`Day` 或 `WorkItem`。年、季度、月、日目标由宿主解析为包含
+`Year`、`Quarter`、`Month`、`Week`、`Day` 或 `WorkItem`。年、季度、月、周、日目标由宿主解析为包含
 边界的日期范围；事项目标携带不可变的 `ScriptWorkItem` 快照。宿主在每次执行和每个
 HostCall 前校验目标，不把核心数据库实体传入 Worker。
 
@@ -450,7 +453,7 @@ RemoteFailure
 2. 记录 workerId、进程退出码、stderr 摘要和受影响的 executionId。
 3. 将未完成请求转换为结构化失败结果。
 4. 关闭并释放管道和进程句柄。
-5. 按指数退避重启，建议间隔为 1、2、5、10、30 秒，达到上限后暂停自动重启。
+5. 按指数退避重启，建议间隔为 1、2、5、10、30 秒，达到上限后暂停自动重启。（当前实现与建议不同：`WorkerSupervisor.GetRestartDelay` 以 250ms 为基数按重试次数翻倍、上限 30 秒；没有自动重启循环——重启由调用方再次调用 `StartAsync` 触发，也没有达到上限后暂停自动重启的逻辑。）
 6. 新 worker 必须重新握手，不能复用旧 worker 的上下文或 capability。
 
 worker 重启不应自动重试有副作用的操作。当前工作记录追加结果由宿主幂等存储持久化，重复请求返回已提交结果；只读查询可以由策略决定是否重试；未来远程写入必须要求幂等键或用户重新确认。
@@ -458,7 +461,7 @@ worker 重启不应自动重试有副作用的操作。当前工作记录追加�
 ## 12. 心跳和健康检查
 
 主程序每 30 秒发送 `ping`，worker 返回 `pong`。消息只表示进程和协议通道存活，不能
-表示当前脚本一定可取消或宿主 API 一定可用。
+表示当前脚本一定可取消或宿主 API 一定可用。（当前状态：ping/pong 协议两侧均已实现——`WorkerSupervisor.CheckHealthAsync` 发送 `Ping` 并等待 `Pong`，worker 主循环可响应——但生产尚未接线，`CheckHealthAsync` 目前只被测试调用，`Diary.App/App.axaml.cs` 没有 30 秒定时调度。）
 
 worker 在执行脚本期间仍必须响应协议层的 `cancel` 和宿主响应。若语言运行时阻塞了
 整个事件循环，supervisor 应将其视为不可控 worker，并在宽限期后终止进程。
@@ -508,7 +511,10 @@ worker 可拥有独立的临时目录，但该目录不等于宿主文件系统�
 ## 16. 日志和诊断
 
 协议消息不得混入普通日志。worker 的 stdout 只允许输出协议消息；脚本的 `print`、
-Lua 输出和 Python traceback 应重定向到 stderr 或转换成受限的 `log` 消息。
+Lua 输出和 Python traceback 应重定向到 stderr 或转换成受限的 `log` 消息。（当前实际行为：
+Python worker 已把脚本输出和 traceback 重定向到受限 stderr，符合设计；C#/Lua worker 用
+`Console.SetOut(new BoundedTextWriter(1 MiB))` 接管标准输出，但该 writer 只计数不写入任何内容、
+超出上限时抛异常——脚本 `print` 输出实际被丢弃，而不是进入 stderr 或日志。）
 
 诊断至少包含：
 
@@ -563,7 +569,7 @@ supervisor 应支持以下限制，并在 worker 启动或执行前配置：
 - Windows 正式包使用应用内的 embeddable distribution；Linux 使用系统 `python3`/`python3.X` 包；macOS 使用显式配置或系统/用户 `python3`。Resolver 会报告候选路径、平台和版本探测原因，Windows 额外支持 `py.exe` 启动器候选。
 - embeddable distribution 只作为应用发布资源解压使用，不执行 pip，不修改 PATH/注册表；Linux 不调用发行版包管理器。
 - 禁止脚本直接把协议 JSON 写入 stdout；`print` 和 traceback 写入受限 stderr。
-- worker 通过 `compile(source, sourcePath, "exec")` 做语法检查，执行时创建新的 globals/context；第一版每个 worker 最多执行一个请求。
+- worker 通过 `ast.parse(source, filename=source_path)` 做语法检查（`worker.py` 的 `source_diagnostics`），`compile` 只在执行阶段调用；执行时创建新的 globals/context；第一版每个 worker 最多执行一个请求。
 - worker 退出码、traceback、超时和取消必须转换成统一结果；运行时缺失不能静默跳过 `.py` 脚本。
 - 依赖声明必须经过宿主策略检查，第一版不自动执行任意安装命令，也不执行 `pip install`。
 - 嵌入资源不构成程序集级信任边界，正式发布仍需要代码签名或等效的程序集完整性校验。
@@ -607,7 +613,7 @@ supervisor 应支持以下限制，并在 worker 启动或执行前配置：
 ### 19.4 宿主 API 测试
 
 - `workItems.query` 的参数、权限、取消和结果与进程内 API 一致。
-- 五种编辑器目标的范围解析、事项快照和 `items.stream()` 行为一致。
+- 六种编辑器目标的范围解析、事项快照和 `items.stream()` 行为一致。
 - `log.write` 的级别映射、消息大小限制和敏感信息过滤正确。
 - 未授权的 API 调用被拒绝。
 - `PluginId + InstanceId` 可以准确定位 Tracker 实例。
@@ -618,7 +624,7 @@ supervisor 应支持以下限制，并在 worker 启动或执行前配置：
 worker 崩溃、超时和取消不会使主程序退出；只读工作项查询可以通过统一协议完成；
 worker 重启后不会自动重复未确认的副作用操作。
 
-脚本作者可从脚本管理页和内置编辑器的 `API Reference` 入口查看或打开随应用发布的中文语言文档。管理页使用 Avalonia 原生控件渲染标题、正文和代码块，避免引入额外 Markdown 主题和 SVG 扩展依赖；文档按 C#、Lua、Python 分开维护，并以各 Worker 当前实际暴露的上下文、宿主调用和沙箱限制为准。新建脚本流程提供按语言生成的“空白脚本”和“查询工作项”样板；编辑器脚本额外提供日、月、季度、年和当前事项目标样板，并将适用目标同步写入 metadata。
+脚本作者可从脚本管理页和内置编辑器的 `API Reference` 入口查看或打开随应用发布的中文语言文档。管理页使用 Avalonia 原生控件渲染标题、正文和代码块，避免引入额外 Markdown 主题和 SVG 扩展依赖；文档按 C#、Lua、Python 分开维护，并以各 Worker 当前实际暴露的上下文、宿主调用和沙箱限制为准。新建脚本流程提供按语言生成的“空白脚本”和“查询工作项”样板；编辑器脚本额外提供日、周、月、季度、年和当前事项目标样板（`ScriptCreationViewModel.EditorTemplates` 含 `WeekTargetTemplate`，见 `Diary.App/ViewModels/Dialogs/ScriptCreationViewModel.cs`），并将适用目标同步写入 metadata。
 
 脚本管理页采用左侧简要列表、右侧概览与诊断的布局；执行历史仅在内存保留最近 30 条，单条记录可以复制包含 Worker 标识和脱敏诊断的完整日志，应用退出后不恢复历史。
 
@@ -661,4 +667,4 @@ worker 重启后不会自动重复未确认的副作用操作。
 
 ### C# Worker 当前宿主 API
 
-C# Worker 通过 HostCall 使用以下已实现能力：`workItems.query`、`trackerInstances.get`、`clipboard.get`、`clipboard.set`、`ui.notify` 和 `ui.confirm`。剪贴板和用户交互由主进程提供实现；工作项查询结果包含备注、标签等只读日记数据。写入日记、Tracker 写入及任意数据库/DI 访问不属于当前协议。
+C# Worker 通过 HostCall 使用以下已实现能力（`ScriptHostApiCatalog.All` 共 13 个方法，见 `Diary.ScriptHost/ScriptDiscoveryApis.cs`）：`workItems.query`、`logItems.create`、`templateLogItems.create`、`templates.list`、`trackerInstances.get`、`trackerInstances.list`、`clipboard.get`、`clipboard.set`、`ui.notify`、`ui.confirm`、`log.write`、`script.progress` 和 `host.capabilities.list`。剪贴板和用户交互由主进程提供实现；工作项查询结果包含备注、标签等只读日记数据。写入日记、Tracker 写入及任意数据库/DI 访问不属于当前协议。

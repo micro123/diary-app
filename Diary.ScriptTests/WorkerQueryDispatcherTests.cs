@@ -54,8 +54,9 @@ public sealed class WorkerQueryDispatcherTests
             JsonSerializer.SerializeToElement(new { pluginId = "tracker.memory", instanceId = "company" })));
 
         Assert.IsTrue(result.Success);
-        var instance = result.Result!.Value.Deserialize<ScriptTrackerInstance>(WorkerProtocol.JsonOptions);
-        Assert.AreEqual("company", instance!.InstanceId);
+        var trackerResult = result.Result!.Value.Deserialize<TrackerScriptResult>(WorkerProtocol.JsonOptions);
+        Assert.IsTrue(trackerResult!.Succeeded);
+        Assert.AreEqual("company", trackerResult.Instance!.InstanceId);
     }
 
     [TestMethod]
@@ -169,9 +170,80 @@ public sealed class WorkerQueryDispatcherTests
                 "2026-08-08", "00000000-0000-0000-0000-000000000001", 2.5, "Title", "Note"))));
 
         Assert.IsTrue(result.Success);
-        var item = result.Result!.Value.Deserialize<ScriptWorkItem>(WorkerProtocol.JsonOptions);
-        Assert.AreEqual("Title", item!.Comment);
-        Assert.AreEqual(2.5, item.Hours);
+        var logItemResult = result.Result!.Value.Deserialize<ScriptLogItemResult>(WorkerProtocol.JsonOptions);
+        Assert.IsTrue(logItemResult!.Succeeded);
+        Assert.AreEqual("Title", logItemResult.Item!.Comment);
+        Assert.AreEqual(2.5, logItemResult.Item.Hours);
+    }
+
+    [TestMethod]
+    public async Task DispatchAsync_ReturnsLogItemWrapperWithEffectsAndDuplicate()
+    {
+        var dispatcher = new WorkItemQueryWorkerDispatcher(
+            () => new FakeQueryApi(),
+            logItemApiFactory: () => new EffectsLogItemApi());
+        var result = await dispatcher.DispatchAsync("exec", new(
+            "logItems.create",
+            JsonSerializer.SerializeToElement(new ScriptLogItemRequest("2026-08-08", 1, "Title", IdempotencyKey: "key-1"))));
+
+        Assert.IsTrue(result.Success);
+        var roundTrip = result.Result!.Value.Deserialize<ScriptLogItemResult>(WorkerProtocol.JsonOptions);
+        Assert.IsTrue(roundTrip!.Succeeded);
+        Assert.IsTrue(roundTrip.Duplicate);
+        Assert.IsNotNull(roundTrip.Effects);
+        Assert.AreEqual(1, roundTrip.Effects!.AppendedCount);
+        Assert.AreEqual(0, roundTrip.Item!.Id);
+        Assert.AreEqual(7, roundTrip.Effects.CreatedWorkItemIds!.Single());
+    }
+
+    [TestMethod]
+    public async Task DispatchAsync_ReturnsValueResultOnLogItemFailure()
+    {
+        var dispatcher = new WorkItemQueryWorkerDispatcher(
+            () => new FakeQueryApi(),
+            logItemApiFactory: () => new FailingLogItemApi());
+        var result = await dispatcher.DispatchAsync("exec", new(
+            "logItems.create",
+            JsonSerializer.SerializeToElement(new ScriptLogItemRequest("2026-08-08", 1, "Title"))));
+
+        Assert.IsTrue(result.Success);
+        var roundTrip = result.Result!.Value.Deserialize<ScriptLogItemResult>(WorkerProtocol.JsonOptions);
+        Assert.IsFalse(roundTrip!.Succeeded);
+        Assert.IsNull(roundTrip.Item);
+        Assert.AreEqual("InvalidInput", roundTrip.Error!.Code.ToString());
+        Assert.AreEqual("INVALID_ARGUMENT", roundTrip.ApiError!.Code);
+    }
+
+    [TestMethod]
+    public async Task DispatchAsync_ReturnsValueResultOnTrackerFailure()
+    {
+        var dispatcher = new WorkItemQueryWorkerDispatcher(
+            () => new FakeQueryApi(),
+            trackerApiFactory: () => new FailingTrackerApi());
+        var result = await dispatcher.DispatchAsync("exec", new(
+            "trackerInstances.get",
+            JsonSerializer.SerializeToElement(new { pluginId = "tracker.memory", instanceId = "missing" })));
+
+        Assert.IsTrue(result.Success);
+        var roundTrip = result.Result!.Value.Deserialize<TrackerScriptResult>(WorkerProtocol.JsonOptions);
+        Assert.IsFalse(roundTrip!.Succeeded);
+        Assert.IsNull(roundTrip.Instance);
+        Assert.AreEqual("InstanceUnavailable", roundTrip.ErrorCode!.Value.ToString());
+        Assert.AreEqual("INSTANCE_UNAVAILABLE", roundTrip.ApiError!.Code);
+    }
+
+    [TestMethod]
+    public async Task DispatchAsync_ReturnsValueResultOnQueryFailure()
+    {
+        var dispatcher = new WorkItemQueryWorkerDispatcher(() => new FailingQueryApi());
+        var result = await dispatcher.DispatchAsync("exec", new(
+            "workItems.query", JsonSerializer.SerializeToElement(new ScriptWorkItemQuery { Limit = 0 })));
+
+        Assert.IsTrue(result.Success);
+        var roundTrip = result.Result!.Value.Deserialize<ScriptWorkItemQueryResult>(WorkerProtocol.JsonOptions);
+        Assert.IsFalse(roundTrip!.Succeeded);
+        Assert.AreEqual("InvalidInput", roundTrip.Error!.Code.ToString());
+        Assert.AreEqual("INVALID_ARGUMENT", roundTrip.ApiError!.Code);
     }
 
     [TestMethod]
@@ -222,6 +294,35 @@ public sealed class WorkerQueryDispatcherTests
     {
         public ValueTask<ScriptLogItemResult> CreateAsync(ScriptTemplateLogItemRequest request, CancellationToken cancellationToken = default) =>
             ValueTask.FromResult(ScriptLogItemResult.Success(new(1, request.Date, request.Title ?? "Template", request.Hours, 0, request.Note, [])));
+    }
+
+    private sealed class EffectsLogItemApi : ILogItemScriptApi
+    {
+        public ValueTask<ScriptLogItemResult> CreateAsync(ScriptLogItemRequest request, CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(ScriptLogItemResult.Success(
+                new(0, request.Date, request.Title, request.Hours, 0, request.Note, []),
+                new ScriptEffectSummary(1, false, request.IdempotencyKey, [7]),
+                duplicate: true));
+    }
+
+    private sealed class FailingLogItemApi : ILogItemScriptApi
+    {
+        public ValueTask<ScriptLogItemResult> CreateAsync(ScriptLogItemRequest request, CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(ScriptLogItemResult.Failure(ScriptLogItemErrorCode.InvalidInput, "参数无效。"));
+    }
+
+    private sealed class FailingTrackerApi : ITrackerInstanceScriptApi
+    {
+        public TrackerScriptResult Get(string pluginId, string instanceId) =>
+            TrackerScriptResult.Failure(TrackerScriptErrorCode.InstanceUnavailable, "实例不存在。");
+
+        public IReadOnlyList<ScriptTrackerInstance> List() => [];
+    }
+
+    private sealed class FailingQueryApi : IWorkItemQueryScriptApi
+    {
+        public ValueTask<ScriptWorkItemQueryResult> QueryAsync(ScriptWorkItemQuery query, CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(ScriptWorkItemQueryResult.Failure(ScriptQueryErrorCode.InvalidInput, "Limit 无效。"));
     }
 
     private sealed class FakeTrackerApi : ITrackerInstanceScriptApi

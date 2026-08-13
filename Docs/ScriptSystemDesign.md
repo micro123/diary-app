@@ -124,9 +124,9 @@ IScriptApi
 
 ### 5.2 编辑器脚本
 
-编辑器脚本使用 `IEditorScriptV1` 或 `EditorScript`，对应 `ScriptEntryKind.Editor`。它必须收到 `Year`、`Quarter`、`Month`、`Day` 或 `WorkItem` 目标，并可通过 `GetDateRange()`、`StreamItemsAsync()` 或不可变的 `ScriptWorkItem` 快照读取上下文。
+编辑器脚本使用 `IEditorScriptV1` 或 `EditorScript`，对应 `ScriptEntryKind.Editor`。它必须收到 `Year`、`Quarter`、`Month`、`Week`、`Day` 或 `WorkItem` 目标，并可通过 `GetDateRange()`、`StreamItemsAsync()` 或不可变的 `ScriptWorkItem` 快照读取上下文。
 
-编辑器脚本可以在 metadata 中声明 `supportedEditorTargets`；未声明时视为支持全部五类目标。`ScriptExecutionRequest.Target` 对应用程序扩展必须为 `null`，对编辑器扩展必须是上述五类目标之一。查询和 Tracker/模板发现均为只读 API。
+编辑器脚本可以在 metadata 中声明 `supportedEditorTargets`；未声明时视为支持全部六类目标。`ScriptExecutionRequest.Target` 对应用程序扩展必须为 `null`，对编辑器扩展必须是上述六类目标之一。查询和 Tracker/模板发现均为只读 API。
 
 ### 5.3 自动化脚本
 
@@ -162,14 +162,16 @@ public sealed record ScriptBuildRequest(
     ScriptDescriptorHint? DescriptorHint = null);
 
 public sealed record ScriptDiagnostic(
-    string Severity,
+    string Code,
     string Message,
-    string? FilePath = null,
+    ScriptDiagnosticSeverity Severity,
+    ScriptDiagnosticCategory Category,
+    string? SourcePath = null,
     int? Line = null,
     int? Column = null);
 
 public sealed record ScriptBuildResult(
-    bool Success,
+    bool Succeeded,
     IScriptProgramV1? Program,
     ImmutableArray<ScriptDiagnostic> Diagnostics);
 ```
@@ -180,7 +182,7 @@ public sealed record ScriptBuildResult(
 - `Version`：用于缓存失效和诊断。
 - `Match`：根据扩展名或脚本包声明判断是否支持。
 - `Build`：编译或加载脚本并返回结构化诊断。
-- `Cacheable`：说明是否支持编译结果缓存。
+- `Cacheable`：说明是否支持编译结果缓存。（注：该成员仅存在于遗留的 `IScriptEngine`（`Diary.ScriptBase/IScriptEngine.cs`），当前契约 `IScriptEngineV1` 没有此成员；V1 引擎的缓存行为由各引擎实现内部决定，例如 C# 引擎按引擎名/版本、API 版本、安全策略版本和源码哈希做编译缓存。）
 
 引擎不负责扫描目录、显示 UI 或保存用户权限。上述职责由宿主运行时承担。
 
@@ -201,7 +203,16 @@ public interface IScriptManager
         IScriptExecutionContext context,
         TimeSpan? timeout = null,
         CancellationToken cancellationToken = default);
+
+    ValueTask<ScriptExecutionOutcome> ExecuteAsync(
+        string scriptId,
+        ScriptExecutionRequest request,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default);
 }
+```
+
+注：实际接口（`Diary.Script.Runtime/ScriptManager.cs`）除带 `context` 的 `ExecuteAsync` 外，还有第三个无 `context` 参数的 `ExecuteAsync` 重载，由管理器内部创建执行上下文。
 ```
 
 当前管理器已经负责构建、注册、按 ID 查找和统一执行；目录加载器负责发现、重载和按加载结果管理可执行状态。目标职责还包括：
@@ -220,7 +231,7 @@ public interface IScriptManager
 脚本管理器当前校验上下文：
 
 - 应用程序扩展的 `Target` 必须为 `null`。
-- 编辑器扩展的 `Target` 必须是 `Year`、`Quarter`、`Month`、`Day` 或 `WorkItem`。
+- 编辑器扩展的 `Target` 必须是 `Year`、`Quarter`、`Month`、`Week`、`Day` 或 `WorkItem`。
 - 日期目标的日期格式、月份长度、季度边界和日期范围由 `ScriptEditorTargetResolver` 校验。
 - 事项目标必须包含有效 ID，并只能携带 `ScriptWorkItem` 安全快照。
 - `ScriptExecutionContext.Metadata` 提供执行 ID、来源、脚本 ID 和开始时间，供宿主日志关联。
@@ -338,6 +349,8 @@ IScriptExecutionContext
 ITrackerScriptApi? GetTracker(string pluginId, string instanceId);
 ```
 
+（注：上述建议已以不同形状落地。遗留的 `IScriptApi.GetTracker(string pluginId)`（`Diary.ScriptBase/IScriptApi.cs`）仍存在，但当前 V1 脚本 API 使用多实例的 `ITrackerApi.GetInstance(pluginId, instanceId)`（`Diary.ScriptHost/ScriptApis.cs`），配合 `trackerInstances.get`/`trackerInstances.list` HostCall 定位实例；上面的扩展签名仅作为历史设计记录保留。）
+
 Tracker 脚本 API 至少应包含：
 
 ```csharp
@@ -372,7 +385,7 @@ ScriptBase API 版本
 - 引擎版本发生变化。
 - 脚本契约版本发生变化。
 - 安全策略版本发生变化。
-- 脚本元数据发生变化。
+- 脚本元数据发生变化。（注：C# 编译缓存键（`CSharpEngine.GetCachePath`，`Diary.Script.CSharp/CSharpEngine.cs`）实际不含 metadata，只含引擎名、引擎版本、API 版本、安全策略版本和源码哈希；metadata 变化由目录加载阶段的 `ScriptDirectoryLoader.MatchesMetadata` 拦截，导致脚本被判定为不匹配，而不是直接触发缓存失效。）
 
 缓存文件应通过临时文件写入后原子替换，避免程序异常留下损坏缓存。
 
@@ -474,21 +487,21 @@ C#、Lua、Python 使用相互独立的 supervisor；某一种语言 worker 故�
 - 每次执行创建新的 Lua script/context；worker 可复用进程，但不能复用脚本全局变量、模块状态或宿主 API 代理。
 - 创建 Lua 状态后只开放白名单标准库，默认关闭 `io`、`os`、`debug`、`package`、`require`、`dofile`、`loadfile` 和动态加载入口。
 - 禁止调用 NLua 的 `LoadCLRPackage`，不注册 `LuaUserData`、反射对象或任意 .NET 类型；Lua 只能看到基础值、受控表和宿主 API 回调。
-- Lua 脚本通过约定的 `main`/`execute` 入口接收只读上下文和 `diary.workItems.query` 代理，宿主只传递不可变 DTO。
+- Lua 脚本通过按入口类型约定的入口函数（`ScriptEntryKind` 依次对应 `application_main`、`editor_main`、`automation_main`、`query_main`，见 `Diary.Script.Worker/LuaWorker.cs` 的 `GetEntryFunctionName`）接收只读上下文和 `diary.workItems.query` 代理，宿主只传递不可变 DTO。
 - 语法错误、运行时错误和入口错误必须转换为 `ScriptDiagnostic`，尽可能保留 sourcePath、行号和列号。
-- Lua 的缓存第一版只缓存语法检查结果或源码 hash，不缓存可跨进程恢复的运行时对象。
+- Lua 的缓存第一版只缓存语法检查结果或源码 hash，不缓存可跨进程恢复的运行时对象。（当前未实现：`LuaEngine.BuildAsync`（`Diary.Script.Lua/LuaEngine.cs`）每次构建都新建受控 Lua 状态做语法检查，没有任何缓存；上述缓存策略仍为设计意图。）
 
 #### 14.4.3 Python
 
 - 使用独立的 Python 3 解释器进程和项目内受控 worker 脚本，不嵌入 CPython，也不自动创建或修改虚拟环境。
 - `worker.py` 作为 `Diary.Script.Python.dll` 的嵌入资源，通过 `python -I -c` 启动，不以可替换的松散文件形式进入应用输出目录。
-- Windows 正式发行包优先随应用携带官方 embeddable distribution；该 ZIP 只解压到应用运行时目录，不写入系统 Python 注册表或 PATH。
+- Windows 正式发行包优先随应用携带官方 embeddable distribution；该 ZIP 只解压到应用运行时目录，不写入系统 Python 注册表或 PATH。（发行前瞻，当前未实现：尚无随包分发或解压 embeddable distribution 的打包代码；`PythonRuntimeResolver` 目前在 Windows 上只在应用目录（`AppContext.BaseDirectory` 及其 `python` 子目录）和 PATH 中查找 `python3.exe`/`python.exe`/`py.exe` 候选，见 `Diary.Script.Python/PythonRuntimeResolver.cs`。）
 - Linux 正式发行包不携带 Python，优先使用发行版提供的 `python3`/`python3.X` 系统包；应用不负责调用 apt、dnf、apk 或其他包管理器安装运行时。
 - macOS 暂不携带官方 Python runtime，沿用显式配置路径或系统/用户提供的 `python3`，后续再单独评估发行策略。
 - `PythonRuntimeResolver` 位于 `Diary.Script.Python`，负责按平台选择 runtime、探测 `--version`、确认 worker 路径和生成环境诊断。
 - 运行时缺失或版本不支持时仍注册 Python 引擎；`.py` 脚本保留在目录列表中并显示结构化诊断，不静默当作未知扩展名。
 - Python worker 的 stdout 只输出协议 JSON 行；脚本 `print` 和 traceback 写入受限 stderr，不能污染协议。
-- 执行前使用 `compile(source, sourcePath, "exec")` 做语法检查，执行时使用受控入口和新的 globals/context；第一版默认每个 worker 最多处理一个请求后回收，避免模块和全局状态泄露。
+- 执行前使用 `ast.parse(source, filename=sourcePath)` 做语法检查（`Diary.Script.Python/PythonEngine.cs` 的语法探测脚本和 `worker.py` 的 `source_diagnostics`），`compile` 只在执行阶段调用；执行时使用受控入口和新的 globals/context；第一版默认每个 worker 最多处理一个请求后回收，避免模块和全局状态泄露。
 - Python worker 只通过 `diary.workItems.query` 发起 HostCall，不直接读取宿主文件、数据库、环境中的凭据或网络服务。
 - Windows embeddable distribution 不包含 pip；第一版只使用 Python 标准库，后续第三方依赖必须由应用发布包固定携带并经过兼容性验证，禁止运行时自动安装。
 - 运行时缺失、版本不支持、语法错误、worker 启动失败、握手失败、非零退出、超时和取消必须映射为稳定诊断码。
@@ -496,11 +509,14 @@ C#、Lua、Python 使用相互独立的 supervisor；某一种语言 worker 故�
 
 #### 14.4.4 运行时发现、路由和降级
 
-Python 运行时发现只属于 `Diary.Script.Python`，不下沉到通用 transport 或 supervisor。解析结果必须包含：
+Python 运行时发现只属于 `Diary.Script.Python`，不下沉到通用 transport 或 supervisor。解析结果当前为
+`PythonRuntimeResolution(Succeeded, ExecutablePath, Version, Diagnostics)`（`Diary.Script.Python/PythonRuntimeResolver.cs`），
+只携带解析是否成功、解释器绝对路径、Python 版本和诊断。以下字段为设计预期，当前未实现（全仓库尚无
+`RuntimeKind` 枚举）：
 
 - `RuntimeKind`：`WindowsEmbedded`、`SystemPackage` 或 `Explicit`。
-- 解释器绝对路径、runtime 根目录、Python 版本和 worker 资源路径。
-- 是否使用隔离模式、是否存在可用标准库，以及缺失/版本不兼容诊断。
+- runtime 根目录和 worker 资源路径。
+- 是否使用隔离模式、是否存在可用标准库。
 
 平台策略如下：
 
@@ -513,16 +529,19 @@ Python 运行时发现只属于 `Diary.Script.Python`，不下沉到通用 trans
 用户显式配置用于测试、便携部署和管理员指定版本；正式 Windows 包中应优先使用随包 runtime，
 避免因为 PATH 上的 Python 版本变化导致脚本行为改变。每个候选必须通过绝对路径启动探测命令，
 记录解释器路径和版本；不通过 shell 拼接命令，不执行 `pip install`。Lua worker 的 `NLua` 托管程序集
-和 `KeraLua` native 资产随对应 RID 部署，不依赖系统 Lua 命令。至少验证以下 native 资产：
+和 `KeraLua` native 资产随对应 RID 部署，不依赖系统 Lua 命令。设计上要求至少验证以下 native 资产
+（当前未实现：代码中没有 native 资产存在性验证，Lua 5.4 运行时由 `NLua 1.7.9`/`KeraLua 1.4.9`
+NuGet 包按 RID 提供）：
 
 - Windows：`win-x64` 的 `lua54.dll`。
 - Linux：`linux-x64` 的 `liblua54.so`。
 - macOS：对应架构的 `liblua54.dylib`。
 
-引擎、目录加载器和脚本页应保留以下诊断码：
+引擎、目录加载器和脚本页应保留以下诊断码（当前实际实现与下方设计清单有差异，以实际码为准）：
 
-- `LUA_RUNTIME_NOT_FOUND`、`LUA_SYNTAX_ERROR`、`LUA_WORKER_START_FAILED`、`LUA_WORKER_TERMINATED`。
-- `PYTHON_RUNTIME_NOT_FOUND`、`PYTHON_VERSION_UNSUPPORTED`、`PYTHON_SYNTAX_ERROR`、`PYTHON_WORKER_START_FAILED`、`PYTHON_WORKER_TERMINATED`。
+- Lua：`LUA_RUNTIME_UNAVAILABLE`、`LUA_SYNTAX_ERROR`；worker 启动/终止失败落到通用 `WORKER_EXECUTION_FAILED`。
+- Python：`PYTHON_RUNTIME_NOT_FOUND`、`PYTHON_VERSION_UNSUPPORTED`、`PYTHON_SYNTAX_ERROR`；worker 启动/终止失败落到通用 `WORKER_EXECUTION_FAILED`。
+- 设计稿中的 `LUA_RUNTIME_NOT_FOUND`、`LUA_WORKER_START_FAILED`、`LUA_WORKER_TERMINATED`、`PYTHON_WORKER_START_FAILED`、`PYTHON_WORKER_TERMINATED` 当前未实现，保留为未来细化的诊断方向。
 
 超时流程为：发送 `cancel` -> 等待有限宽限期 -> 终止对应 worker 进程树 -> 将当前执行标记为
 `TimedOut` 或 `WORKER_TERMINATED`。不能把只停止等待当作已终止脚本。worker 终止后不自动重放
@@ -545,7 +564,7 @@ Python 运行时发现只属于 `Diary.Script.Python`，不下沉到通用 trans
 - 权限不足时 API 调用被拒绝。
 - 日记读写 API 的成功和失败路径。
 - 新建脚本向导为 C#、Lua 和 Python 生成正确扩展名、入口和 metadata。
-- 新建编辑器脚本向导按日、月、季度、年和当前事项提供目标样板，并将目标兼容性写入 metadata。
+- 新建编辑器脚本向导按日、周、月、季度、年和当前事项提供目标样板，并将目标兼容性写入 metadata。
 - Tracker 使用 `PluginId + InstanceId` 定位正确实例。
 - 日志和诊断不会泄露敏感配置。
 - Python worker 崩溃和退出码错误可以被宿主识别。
