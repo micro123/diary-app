@@ -45,6 +45,8 @@ var trackers = api.Tracker.ListInstances();
 `context.Api()` 只做已注册 API 的强类型聚合，不扩大脚本权限；缺少 API 时仍由 `GetRequiredApi<T>()` 报告不可用。
 
 完整示例：[C# 5 分钟入门：查询并追加日志项](Examples/CSharpQuickStart.md)。
+
+自动化脚本示例：[每日自查补录](Examples/AutomationDailyCheck.md)；查询脚本示例：[本月工时汇总](Examples/QueryMonthlySummary.md)。
 右键查询“加班”工作项示例：[OvertimeWorkItems.cs](Examples/OvertimeWorkItems.cs)。
 
 ## 2. Descriptor
@@ -331,6 +333,7 @@ Worker 调用由主进程执行并返回结构化结果。普通日志项和模�
 
 C# 脚本沙箱（构建期检查，违反时构建失败并产生 `CSHARP_API_FORBIDDEN` 诊断）：
 
+- **可用基础库**（引用白名单，其余程序集不引用）：集合（含并发/非泛型）、`System.Linq`、`System.Memory`（Span）、`System.Text.Json`、`System.Text.RegularExpressions`、`System.Numerics`/`System.Runtime.Numerics`、`System.Security.Cryptography`（哈希等纯计算算法）
 - 禁止命名空间：`System.IO`、`System.Net`、`System.Reflection`、`System.Runtime.InteropServices`、`Diary.Database`、`Microsoft.Extensions.DependencyInjection`。
 - 禁止类型：`System.AppDomain`、`System.Environment`、`System.Diagnostics.Process`、`System.Diagnostics.ProcessStartInfo`、`System.Threading.Thread`、`System.Threading.ThreadPool`、`System.Threading.Timer`、`System.Threading.PeriodicTimer`、`System.Threading.Tasks.TaskFactory`、`System.Threading.Tasks.TaskScheduler`、`System.Type`、`System.Activator`、`System.Runtime.CompilerServices.RuntimeHelpers`。
 - 禁止成员：`Object.GetType`、`Type.GetType`、`Activator.CreateInstance`、`Delegate.DynamicInvoke`、`Task.Run`、`TaskFactory.StartNew`、`TaskFactory.ContinueWhenAll`、`TaskFactory.ContinueWhenAny`。

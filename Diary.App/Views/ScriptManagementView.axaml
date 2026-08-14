@@ -132,11 +132,13 @@
 
             <TabControl Grid.Column="1">
                 <TabItem Header="概览">
+                    <ScrollViewer>
                     <StackPanel Margin="8" Spacing="8">
                         <TextBlock Text="{Binding SelectedScript.Name}" FontSize="22" FontWeight="SemiBold" />
                         <TextBlock Text="{Binding SelectedScript.Id}" Opacity="0.58" />
                         <TextBlock Text="{Binding SelectedScript.Language}" Opacity="0.68" />
                         <TextBlock Text="{Binding SelectedScript.ScopeLabel}" Opacity="0.68" />
+                        <TextBlock Text="{Binding SelectedScript.EntryKindLabel}" Opacity="0.68" />
                         <TextBlock Text="{Binding SelectedScript.Status}" />
                          <TextBlock Text="{Binding SelectedScript.SourcePath}" TextWrapping="Wrap" Opacity="0.68" />
                          <TextBlock Text="{Binding SelectedScript.Description}" TextWrapping="Wrap" />
@@ -148,7 +150,31 @@
                             <Button Content="重新检查" Command="{Binding ReloadCommand}"
                                     IsEnabled="{Binding CanReload}" />
                         </StackPanel>
+                        <Border Classes="Card" Padding="12" IsVisible="{Binding CanOpenSelectedScript}">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="metadata 设置" FontWeight="SemiBold" />
+                                <TextBlock Text="名称" />
+                                <TextBox Text="{Binding MetadataName, Mode=TwoWay}" />
+                                <TextBlock Text="描述" />
+                                <TextBox Text="{Binding MetadataDescription, Mode=TwoWay}" AcceptsReturn="True"
+                                         TextWrapping="Wrap" Height="56" />
+                                <StackPanel Spacing="4" IsVisible="{Binding SelectedScript.IsAutomation}">
+                                    <TextBlock Text="调度时间" />
+                                    <TextBox Text="{Binding AutomationScheduleText, Mode=TwoWay}"
+                                             Watermark="daily 09:00" />
+                                    <TextBlock Text="格式 daily HH:mm；留空表示不定时。" FontSize="12" Opacity="0.6" />
+                                    <CheckBox Content="应用启动后补跑一轮" IsChecked="{Binding AutomationRunOnStartup, Mode=TwoWay}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="保存" Classes="Primary" Command="{Binding SaveMetadataSettingsCommand}"
+                                            IsEnabled="{Binding CanSaveMetadataSettings}" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding MetadataSettingsError}" Foreground="IndianRed"
+                                           TextWrapping="Wrap" IsVisible="{Binding HasMetadataSettingsError}" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
+                    </ScrollViewer>
                 </TabItem>
                 <TabItem Header="诊断详情">
                     <Grid RowDefinitions="Auto,*">

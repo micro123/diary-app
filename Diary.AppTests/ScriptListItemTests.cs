@@ -18,7 +18,25 @@ public sealed class ScriptListItemTests
         Assert.IsTrue(application.IsRunnable);
     }
 
-    private static ScriptListItem Create(ScriptScope scope, bool buildSucceeded) => new(
+    [TestMethod]
+    public void IsAutomationAndEntryKindLabel_DeriveFromEntryKind()
+    {
+        var automation = Create(ScriptScope.Application, buildSucceeded: true, ScriptEntryKind.Automation);
+        var query = Create(ScriptScope.Application, buildSucceeded: true, ScriptEntryKind.Query);
+        var application = Create(ScriptScope.Application, buildSucceeded: true, ScriptEntryKind.Application);
+
+        Assert.IsTrue(automation.IsAutomation);
+        Assert.IsFalse(query.IsAutomation);
+        Assert.IsFalse(application.IsAutomation);
+        Assert.AreEqual("自动化入口", automation.EntryKindLabel);
+        Assert.AreEqual("查询入口", query.EntryKindLabel);
+        Assert.AreEqual("应用入口", application.EntryKindLabel);
+    }
+
+    private static ScriptListItem Create(
+        ScriptScope scope,
+        bool buildSucceeded,
+        ScriptEntryKind entryKind = ScriptEntryKind.Application) => new(
         "sample.cs",
         "sample",
         "示例脚本",
@@ -26,5 +44,6 @@ public sealed class ScriptListItemTests
         buildSucceeded,
         buildSucceeded ? "已加载" : "加载失败",
         [],
-        []);
+        [],
+        EntryKind: entryKind);
 }

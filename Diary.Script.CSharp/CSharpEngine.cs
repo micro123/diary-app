@@ -60,6 +60,16 @@ public sealed class CSharpEngine : IScriptEngineV1
         "System.Collections.Immutable.dll",
         "System.Threading.dll",
         "System.Threading.Tasks.Extensions.dll",
+        "System.Collections.Concurrent.dll",
+        "System.Collections.NonGeneric.dll",
+        "System.Collections.Specialized.dll",
+        "System.Linq.dll",
+        "System.Memory.dll",
+        "System.Numerics.dll",
+        "System.Runtime.Numerics.dll",
+        "System.Security.Cryptography.dll",
+        "System.Text.Json.dll",
+        "System.Text.RegularExpressions.dll",
     ];
 
     private readonly ImmutableArray<MetadataReference> _references;

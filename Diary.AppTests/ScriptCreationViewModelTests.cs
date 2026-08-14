@@ -118,12 +118,20 @@ public sealed class ScriptCreationViewModelTests
                 await Assert.IsInstanceOfType<IAsyncRelayCommand>(viewModel.CreateCommand).ExecuteAsync(null);
 
                 var sourcePath = Assert.IsInstanceOfType<string>(createdPath);
-                StringAssert.Contains(await File.ReadAllTextAsync(sourcePath), marker);
+                var source = await File.ReadAllTextAsync(sourcePath);
+                StringAssert.Contains(source, marker);
                 var metadata = JsonSerializer.Deserialize<ScriptFileMetadata>(
                     await File.ReadAllTextAsync(sourcePath + ".json"));
                 Assert.IsNotNull(metadata);
                 Assert.AreEqual(ScriptEntryKind.Query, metadata.EntryKind);
                 Assert.AreEqual(ScriptScope.Application, metadata.Scope);
+                if (language == "C#")
+                {
+                    var build = await new CSharpEngine().BuildAsync(new ScriptBuildRequest(sourcePath, source));
+                    Assert.IsTrue(
+                        build.Succeeded,
+                        string.Join(Environment.NewLine, build.Diagnostics.Select(diagnostic => diagnostic.Message)));
+                }
             }
             finally
             {
@@ -152,6 +160,8 @@ public sealed class ScriptCreationViewModelTests
                     Id = $"auto-entry-{engine}",
                     SelectedLanguage = language,
                     SelectedTemplate = "自动化脚本",
+                    ScheduleText = "daily 22:15",
+                    RunOnStartup = true,
                 };
                 object? createdPath = null;
                 viewModel.RequestClose += (_, value) => createdPath = value;
@@ -159,13 +169,22 @@ public sealed class ScriptCreationViewModelTests
                 await Assert.IsInstanceOfType<IAsyncRelayCommand>(viewModel.CreateCommand).ExecuteAsync(null);
 
                 var sourcePath = Assert.IsInstanceOfType<string>(createdPath);
-                StringAssert.Contains(await File.ReadAllTextAsync(sourcePath), marker);
+                var source = await File.ReadAllTextAsync(sourcePath);
+                StringAssert.Contains(source, marker);
                 var metadata = JsonSerializer.Deserialize<ScriptFileMetadata>(
                     await File.ReadAllTextAsync(sourcePath + ".json"));
                 Assert.IsNotNull(metadata);
                 Assert.AreEqual(ScriptEntryKind.Automation, metadata.EntryKind);
-                Assert.AreEqual("daily 09:00", metadata.Schedule);
+                Assert.AreEqual("daily 22:15", metadata.Schedule);
+                Assert.IsTrue(metadata.RunOnStartup);
                 Assert.AreEqual(ScriptScope.Application, metadata.Scope);
+                if (language == "C#")
+                {
+                    var build = await new CSharpEngine().BuildAsync(new ScriptBuildRequest(sourcePath, source));
+                    Assert.IsTrue(
+                        build.Succeeded,
+                        string.Join(Environment.NewLine, build.Diagnostics.Select(diagnostic => diagnostic.Message)));
+                }
             }
             finally
             {
@@ -174,6 +193,37 @@ public sealed class ScriptCreationViewModelTests
             }
         }
     }
+
+    [TestMethod]
+    public async Task CreateCommand_ValidatesAutomationScheduleAndAllowsEmpty()
+    {
+        var invalid = new ScriptCreationViewModel(CreateRoot())
+        {
+            Name = "自动化脚本",
+            Id = "auto-invalid",
+            SelectedTemplate = "自动化脚本",
+            ScheduleText = "hourly",
+        };
+        var command = Assert.IsInstanceOfType<IAsyncRelayCommand>(invalid.CreateCommand);
+        Assert.IsFalse(command.CanExecute(null));
+
+        var emptySchedule = new ScriptCreationViewModel(CreateRoot())
+        {
+            Name = "自动化脚本",
+            Id = "auto-empty",
+            SelectedTemplate = "自动化脚本",
+            ScheduleText = "",
+        };
+        object? createdPath = null;
+        emptySchedule.RequestClose += (_, value) => createdPath = value;
+        await Assert.IsInstanceOfType<IAsyncRelayCommand>(emptySchedule.CreateCommand).ExecuteAsync(null);
+        var metadata = JsonSerializer.Deserialize<ScriptFileMetadata>(
+            await File.ReadAllTextAsync(Assert.IsInstanceOfType<string>(createdPath) + ".json"));
+        Assert.IsNull(metadata!.Schedule);
+    }
+
+    private static string CreateRoot() =>
+        Path.Combine(Path.GetTempPath(), $"diary-app-script-create-{Guid.NewGuid():N}");
 
     [TestMethod]
     public async Task CreateCommand_GeneratesEditorTargetTemplateMetadata()

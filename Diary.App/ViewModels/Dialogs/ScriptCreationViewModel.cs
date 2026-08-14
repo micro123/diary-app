@@ -57,11 +57,18 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
     [ObservableProperty] private string _selectedScope = "应用脚本";
     [ObservableProperty] private string _selectedLanguage = "C#";
     [ObservableProperty] private string _selectedTemplate = BlankTemplate;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CreateCommand))]
+    private string _scheduleText = "daily 09:00";
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CreateCommand))]
+    private bool _runOnStartup;
     [ObservableProperty] private string _error = string.Empty;
     [ObservableProperty] private bool _creating;
 
     public bool HasError => !string.IsNullOrWhiteSpace(Error);
     public bool IsEditorScope => SelectedScope == "编辑器脚本";
+    public bool IsAutomationTemplate => SelectedTemplate == AutomationScriptTemplate;
 
     partial void OnErrorChanged(string value) => OnPropertyChanged(nameof(HasError));
 
@@ -73,6 +80,8 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
             SelectedTemplate = BlankTemplate;
     }
 
+    partial void OnSelectedTemplateChanged(string value) => OnPropertyChanged(nameof(IsAutomationTemplate));
+
     [RelayCommand]
     public void Close() => RequestClose?.Invoke(this, null);
 
@@ -80,7 +89,10 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
 
     private bool CanCreate() => !Creating
         && !string.IsNullOrWhiteSpace(Name)
-        && ScriptCreationPolicy.IsValidId(Id);
+        && ScriptCreationPolicy.IsValidId(Id)
+        && (!IsAutomationTemplate
+            || string.IsNullOrWhiteSpace(ScheduleText)
+            || ScriptAutomationSchedule.TryParse(ScheduleText, out _));
 
     [RelayCommand(CanExecute = nameof(CanCreate))]
     private async Task Create()
@@ -124,7 +136,10 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
                 Scope: scope,
                 SupportedEditorTargets: GetSupportedEditorTargets(),
                 EntryKind: GetEntryKind(scope),
-                Schedule: SelectedTemplate == AutomationScriptTemplate ? "daily 09:00" : null), new JsonSerializerOptions { WriteIndented = true });
+                Schedule: SelectedTemplate == AutomationScriptTemplate
+                    ? (string.IsNullOrWhiteSpace(ScheduleText) ? null : ScheduleText.Trim())
+                    : null,
+                RunOnStartup: SelectedTemplate == AutomationScriptTemplate && RunOnStartup), new JsonSerializerOptions { WriteIndented = true });
             await WriteFilesAtomicallyAsync(sourcePath, source, metadataPath, metadata);
             RequestClose?.Invoke(this, sourcePath);
         }
@@ -282,7 +297,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
             lines.Add($"    public override IReadOnlyList<ScriptEditorTargetKind>? SupportedTargets => [ScriptEditorTargetKind.{GetSupportedEditorTargets()!.Single()}];");
         lines.AddRange([
             "",
-            $"    public override {(SelectedTemplate == WorkItemQueryTemplate || IsEditorTargetTemplate ? "async " : string.Empty)}ValueTask<ScriptExecutionResult> ExecuteAsync(",
+            $"    public override {(SelectedTemplate is WorkItemQueryTemplate or QueryScriptTemplate || IsEditorTargetTemplate ? "async " : string.Empty)}ValueTask<ScriptExecutionResult> ExecuteAsync(",
             $"        {contextType} context,",
             "        CancellationToken cancellationToken = default)", "    {",
         ]);
@@ -315,7 +330,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
                 "        // context.Automation.Trigger 为 Scheduled 或 Startup。",
                 "        // 调度配置见同目录 metadata 的 schedule 字段（daily HH:mm）。",
                 "        _ = context.Automation;",
-                "        return ScriptExecutionResult.Succeeded();",
+                "        return ValueTask.FromResult(ScriptExecutionResult.Succeeded());",
             ]);
         }
         else if (SelectedTemplate == WorkItemQueryTemplate || SelectedTemplate == QueryScriptTemplate)

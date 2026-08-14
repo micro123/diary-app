@@ -50,6 +50,7 @@ def application_main(context):
 
 完整示例：[Python 5 分钟入门：查询并追加日志项](Examples/PythonQuickStart.md)。
 查询指定时间范围内“加班”工作项的示例：[OvertimeWorkItems](Examples/OvertimeWorkItems.md)。
+自动化脚本示例：[每日自查补录](Examples/AutomationDailyCheck.md)；查询脚本示例：[本月工时汇总](Examples/QueryMonthlySummary.md)。
 
 ## 2. 查询工作项
 

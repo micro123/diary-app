@@ -35,6 +35,7 @@ end
 
 完整示例：[Lua 5 分钟入门：查询并追加日志项](Examples/LuaQuickStart.md)。
 右键查询“加班”工作项示例：[OvertimeWorkItems.lua](Examples/OvertimeWorkItems.lua)。
+自动化脚本示例：[每日自查补录](Examples/AutomationDailyCheck.md)；查询脚本示例：[本月工时汇总](Examples/QueryMonthlySummary.md)。
 
 `context` 字段：
 

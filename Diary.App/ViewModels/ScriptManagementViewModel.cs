@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
 using Avalonia.Threading;
@@ -7,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Diary.App.ViewModels.Dialogs;
 using Diary.App.Views;
 using Diary.App.Models;
+using Diary.App.Services;
 using Diary.GUIBase.ViewModels;
 using Diary.GUIBase.Utils;
 using Diary.Script.Runtime;
@@ -27,7 +29,9 @@ public sealed record ScriptListItem(
     string Status,
     IReadOnlyList<string> Diagnostics,
     IReadOnlyList<ScriptDiagnosticListItem> DiagnosticDetails,
-    string Description = "")
+    string Description = "",
+    ScriptEntryKind EntryKind = ScriptEntryKind.Application,
+    ScriptFileMetadata? Metadata = null)
 {
     public string Language => Path.GetExtension(SourcePath).ToLowerInvariant() switch
     {
@@ -60,9 +64,19 @@ public sealed record ScriptListItem(
         _ => "未知类型",
     };
 
+    public string EntryKindLabel => EntryKind switch
+    {
+        ScriptEntryKind.Editor => "编辑器入口",
+        ScriptEntryKind.Automation => "自动化入口",
+        ScriptEntryKind.Query => "查询入口",
+        _ => "应用入口",
+    };
+
     public bool IsLoadFailed => !BuildSucceeded;
 
     public bool IsRunnable => BuildSucceeded && Scope == ScriptScope.Application;
+
+    public bool IsAutomation => EntryKind == ScriptEntryKind.Automation;
 
     public string CapabilityLabel => "宿主 API 默认可用";
 
@@ -117,6 +131,7 @@ public partial class ScriptManagementViewModel(
     ScriptStartupDiagnosticsStore startupDiagnostics,
     ScriptLogStore scriptLogStore,
     ScriptProgressTracker progressTracker,
+    ScriptAutomationScheduler scheduler,
     ILogger logger,
     IServiceProvider services) : ViewModelBase
 {
@@ -156,7 +171,25 @@ public partial class ScriptManagementViewModel(
     [ObservableProperty] private double _progressFraction;
     [ObservableProperty] private string _progressMessage = string.Empty;
 
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveMetadataSettingsCommand))]
+    private string _metadataName = string.Empty;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveMetadataSettingsCommand))]
+    private string _metadataDescription = string.Empty;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveMetadataSettingsCommand))]
+    private string _automationScheduleText = string.Empty;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveMetadataSettingsCommand))]
+    private bool _automationRunOnStartup;
+    [ObservableProperty] private string _metadataSettingsError = string.Empty;
+
     public bool HasProgress => IsExecuting && !string.IsNullOrWhiteSpace(ProgressMessage);
+    public bool HasMetadataSettingsError => !string.IsNullOrWhiteSpace(MetadataSettingsError);
+
+    public bool CanSaveMetadataSettings =>
+        SelectedScript is { BuildSucceeded: true } && !IsExecuting;
 
     public bool CanReload => !Loading && !IsExecuting;
     public bool CanOpenSelectedScript => SelectedScript is not null;
@@ -176,6 +209,7 @@ public partial class ScriptManagementViewModel(
     {
         OnPropertyChanged(nameof(CanReload));
         OnPropertyChanged(nameof(HasProgress));
+        SaveMetadataSettingsCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSearchTextChanged(string value) => RefreshVisibleScripts();
@@ -192,9 +226,16 @@ public partial class ScriptManagementViewModel(
     {
         if (value is not null && ApiReference.Languages.Contains(value.Language))
             ApiReference.SelectedLanguage = value.Language;
+        MetadataSettingsError = string.Empty;
+        MetadataName = value?.Metadata?.Name ?? value?.Name ?? string.Empty;
+        MetadataDescription = value?.Metadata?.Description ?? value?.Description ?? string.Empty;
+        AutomationScheduleText = value?.Metadata?.Schedule ?? string.Empty;
+        AutomationRunOnStartup = value?.Metadata?.RunOnStartup ?? false;
+        OnPropertyChanged(nameof(HasMetadataSettingsError));
         OnPropertyChanged(nameof(HasSelectedDiagnostics));
         RunCommand.NotifyCanExecuteChanged();
         OpenSelectedScriptCommand.NotifyCanExecuteChanged();
+        SaveMetadataSettingsCommand.NotifyCanExecuteChanged();
     }
 
     public override void OnShow()
@@ -270,6 +311,9 @@ public partial class ScriptManagementViewModel(
             foreach (var entry in result.Entries)
             {
                 var descriptor = entry.BuildResult?.Program?.Descriptor;
+                var entryKind = descriptor is null
+                    ? ScriptEntryKind.Application
+                    : ScriptEntryKindResolver.Resolve(descriptor);
                 loadedScripts.Add(new ScriptListItem(
                     entry.SourcePath,
                     descriptor?.Id ?? Path.GetFileNameWithoutExtension(entry.SourcePath),
@@ -279,7 +323,9 @@ public partial class ScriptManagementViewModel(
                     FormatStatus(entry),
                     FormatDiagnostics(entry.BuildResult?.Diagnostics),
                      FormatDiagnosticDetails(entry.BuildResult?.Diagnostics),
-                     descriptor?.Description ?? string.Empty));
+                     descriptor?.Description ?? string.Empty,
+                     entryKind,
+                     entry.Metadata));
             }
             Scripts.Clear();
             foreach (var script in loadedScripts)
@@ -290,6 +336,7 @@ public partial class ScriptManagementViewModel(
             OnPropertyChanged(nameof(HasScripts));
             OnPropertyChanged(nameof(ShowEmptyState));
             RefreshHistory();
+            scheduler.ApplyLoadResult(result);
             Status = result.Diagnostics.Count(item => item.Severity == ScriptDiagnosticSeverity.Error) is var errors && errors > 0
                 ? $"发现 {Scripts.Count} 个脚本，{errors} 个错误"
                 : Scripts.Count == 0 ? "尚未发现脚本" : $"已加载 {Scripts.Count} 个脚本";
@@ -371,6 +418,31 @@ public partial class ScriptManagementViewModel(
             return;
         Status = "正在取消脚本...";
         _executionCancellation.Cancel();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSaveMetadataSettings))]
+    private async Task SaveMetadataSettings()
+    {
+        var script = SelectedScript;
+        if (script is null)
+            return;
+        try
+        {
+            await ScriptMetadataEditor.WriteAsync(
+                script.SourcePath,
+                MetadataName,
+                MetadataDescription,
+                script.IsAutomation ? AutomationScheduleText : null,
+                script.IsAutomation && AutomationRunOnStartup);
+            MetadataSettingsError = string.Empty;
+            OnPropertyChanged(nameof(HasMetadataSettingsError));
+            await ReloadAsync(forceReload: true);
+        }
+        catch (Exception exception) when (exception is ArgumentException or JsonException or IOException or UnauthorizedAccessException)
+        {
+            MetadataSettingsError = $"保存失败：{exception.Message}";
+            OnPropertyChanged(nameof(HasMetadataSettingsError));
+        }
     }
 
     private static string FormatStatus(ScriptDirectoryEntry entry)
