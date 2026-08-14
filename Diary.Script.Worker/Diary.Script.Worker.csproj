@@ -12,4 +12,9 @@
     <ProjectReference Include="..\Diary.ScriptHost\Diary.ScriptHost.csproj" />
     <ProjectReference Include="..\Diary.ScriptBase\Diary.ScriptBase.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="lua-bootstrap.lua">
+      <LogicalName>Diary.Script.Worker.lua-bootstrap.lua</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
 </Project>

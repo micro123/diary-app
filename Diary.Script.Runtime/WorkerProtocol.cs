@@ -7,9 +7,14 @@ namespace Diary.Script.Runtime;
 
 public static class WorkerProtocol
 {
+    // 消息大小层级：
+    // - 协议消息默认上限 4MB（DefaultMaxMessageBytes）：握手、HostCall、HostResult、控制消息共用；
+    // - 执行结果上限 16MB（DefaultMaxResultMessageBytes）：结果可能携带大批量 JSON 明细；
+    // - Worker 进程 stderr 与脚本原生控制台输出上限 1MB（ProcessWorkerTransport.MaxStderrBytes / Worker 侧 BoundedTextWriter）：仅作安全兜底。
     public const string Name = "diary.script.worker";
     public const int Version = 1;
     public const int DefaultMaxMessageBytes = 4 * 1024 * 1024;
+    public const int DefaultMaxResultMessageBytes = 16 * 1024 * 1024;
     public const int DefaultHeartbeatSeconds = 30;
     public const int DefaultHandshakeTimeoutSeconds = 10;
     public const int DefaultHeartbeatTimeoutSeconds = 15;
@@ -24,6 +29,16 @@ public static class WorkerProtocol
     public static int GetMessageSize<TPayload>(WorkerMessage<TPayload> message) =>
         Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(message, JsonOptions)) + 1;
 }
+
+/// <summary>Worker 通道数据错误基类（JSON 无效、缺少换行、超限等）。</summary>
+public class WorkerProtocolDataException(string message, Exception? innerException = null) : Exception(message, innerException);
+
+/// <summary>Worker 消息超过大小上限（读端、写端均可能抛出）。</summary>
+public sealed class WorkerMessageTooLargeException(string message) : WorkerProtocolDataException(message);
+
+/// <summary>Worker 消息不是有效 JSON、缺少换行结束符或载荷为空。</summary>
+public sealed class WorkerInvalidMessageException(string message, Exception? innerException = null)
+    : WorkerProtocolDataException(message, innerException);
 
 public enum WorkerMessageType
 {
@@ -59,6 +74,7 @@ public sealed record WorkerHelloPayload(
 public sealed record WorkerHelloAcceptedPayload(
     ScriptApiVersion ApiVersion,
     int MaxMessageBytes = WorkerProtocol.DefaultMaxMessageBytes,
+    int MaxResultMessageBytes = WorkerProtocol.DefaultMaxResultMessageBytes,
     int HeartbeatSeconds = WorkerProtocol.DefaultHeartbeatSeconds,
     IReadOnlyCollection<string>? HostApis = null);
 
@@ -67,6 +83,7 @@ public sealed record WorkerHandshakeOptions(
     IReadOnlyCollection<ScriptApiVersion> SupportedApiVersions,
     IReadOnlyCollection<string> AllowedHostApis,
     int MaxMessageBytes = WorkerProtocol.DefaultMaxMessageBytes,
+    int MaxResultMessageBytes = WorkerProtocol.DefaultMaxResultMessageBytes,
     int HeartbeatSeconds = WorkerProtocol.DefaultHeartbeatSeconds);
 
 public sealed record WorkerHandshakeResult(
@@ -93,7 +110,8 @@ public static class WorkerHandshake
         WorkerHandshakeOptions options)
     {
         if (hello.Protocol != WorkerProtocol.Name || hello.Version != WorkerProtocol.Version)
-            return WorkerHandshakeResult.Failure("Worker 协议名称或主版本不匹配。");
+            return WorkerHandshakeResult.Failure(
+                $"Worker 协议名称或主版本不匹配（期望 {WorkerProtocol.Name} v{WorkerProtocol.Version}，实际 {hello.Protocol} v{hello.Version}）。");
         if (hello.Type != WorkerMessageType.Hello || string.IsNullOrWhiteSpace(hello.RequestId))
             return WorkerHandshakeResult.Failure("Worker 握手消息类型或 requestId 无效。");
         if (!string.Equals(hello.Payload.Language, options.Language, StringComparison.OrdinalIgnoreCase))
@@ -116,6 +134,7 @@ public static class WorkerHandshake
         return WorkerHandshakeResult.Success(new WorkerHelloAcceptedPayload(
             apiVersion,
             options.MaxMessageBytes,
+            options.MaxResultMessageBytes,
             options.HeartbeatSeconds,
             hostApis));
     }
@@ -132,7 +151,7 @@ public static class WorkerMessageCodec
         var json = JsonSerializer.Serialize(message, WorkerProtocol.JsonOptions);
         var bytes = Encoding.UTF8.GetBytes(json + "\n");
         if (bytes.Length > maxMessageBytes)
-            throw new InvalidDataException("Worker 消息超过大小限制。");
+            throw new WorkerMessageTooLargeException("Worker 消息超过大小限制。");
         await stream.WriteAsync(bytes, cancellationToken);
         await stream.FlushAsync(cancellationToken);
     }
@@ -151,24 +170,24 @@ public static class WorkerMessageCodec
             {
                 if (buffer.Length == 0)
                     throw new EndOfStreamException("Worker 通道已关闭。");
-                throw new InvalidDataException("Worker 消息缺少换行结束符。");
+                throw new WorkerInvalidMessageException("Worker 消息缺少换行结束符。");
             }
             if (oneByte[0] == (byte)'\n')
                 break;
             buffer.WriteByte(oneByte[0]);
             if (buffer.Length + 1 > maxMessageBytes)
-                throw new InvalidDataException("Worker 消息超过大小限制。");
+                throw new WorkerMessageTooLargeException("Worker 消息超过大小限制。");
         }
 
         var json = Encoding.UTF8.GetString(buffer.ToArray()).TrimEnd('\r');
         try
         {
             return JsonSerializer.Deserialize<WorkerMessage<TPayload>>(json, WorkerProtocol.JsonOptions)
-                ?? throw new InvalidDataException("Worker 消息为空。");
+                ?? throw new WorkerInvalidMessageException("Worker 消息为空。");
         }
-        catch (JsonException exception)
+        catch (Exception exception) when (exception is JsonException or NotSupportedException)
         {
-            throw new InvalidDataException("Worker 消息不是有效 JSON。", exception);
+            throw new WorkerInvalidMessageException("Worker 消息不是有效 JSON。", exception);
         }
     }
 }

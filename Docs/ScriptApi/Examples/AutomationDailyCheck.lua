@@ -25,4 +25,5 @@ function automation_main(context)
     end
 
     diary.ui.notify("自动化脚本", "昨天（" .. yesterday .. "）没有工作记录，已自动补录一条，请核对并修改。")
+    return append
 end

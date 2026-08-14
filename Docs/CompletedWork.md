@@ -18,6 +18,16 @@
 
 ## 本轮已完成
 
+- [x] 维护清单：删除遗留 `IScriptApi`/`IScriptEngine`/`IScript`/`ScriptUsage`/`ITrackerScriptApi` 接口族与 `LegacyScriptAdapters` 适配层，`Docs/ScriptSystemDesign.md` 同步改写为仅 V1 接口现状
+- [x] 维护清单：Worker 协议收紧——三语言 Worker 遵守握手协商（消息上限/结果上限/ApiVersion）；新增 `WORKER_INVALID_MESSAGE`、`WORKER_HOST_CALL_TOO_LARGE` 诊断码与 `WorkerMessageTooLargeException`/`WorkerInvalidMessageException` 异常类型；`WORKER_RESULT_TOO_LARGE` 可达；4MB/16MB/1MB 大小层级注释；协议不匹配诊断附带期望/实际值
+- [x] 维护清单：print 语义统一——C# `Console`/Lua `print`/Python `print` 按行转发到脚本日志 Info 级（运行日志 Tab 可见），1MB 总量兜底，文档同步
+- [x] 维护清单：Effects 三语言透传与 UI 展示——Lua/Python 入口返回 create 结果表即透传 `effects`；管理页执行历史与完成通知显示追加条数/预览/幂等重放/新建 ID；`AutomationDailyCheck` 示例改为返回 create 结果
+- [x] 维护清单：LuaWorker 引导脚本外置为嵌入资源 `lua-bootstrap.lua`（沙箱 + API 门面 + 分页流 + 上下文装配），与 Python `worker.py` 同构
+- [x] 维护清单：发布流程——新增 `Docs/CHANGELOG.md`（`## 版本号` 章节格式，含未发布 1.0.0-r420 与历史 r112 条目）；README 补充版本策略与 CHANGELOG 链接；`release-on-tags.yml` Release body 改为从 CHANGELOG 提取对应版本章节
+- [x] 脚本管理页 metadata 设置区（名称/描述/调度/启动补跑）与创建向导调度配置
+- [x] 自动化/查询脚本示例（AutomationDailyCheck、QueryMonthlySummary 三语言 + 说明文档）与 C# 示例编译锁定测试
+- [x] C# 脚本基础库白名单扩充（LINQ、正则、System.Text.Json 等 10 个纯计算/数据处理程序集）
+
 - [x] 审阅 `DiaryToolpp` SQLite/PostgreSQL 5.0.0 数据结构；迁移仅导入统计所需核心数据，不创建 Tracker 信息，并将导入工作项持久化为只读，同时补充事务、字段、颜色和只读约束回归测试
 
 - [x] 旧 SQLite schema 缺少 `instance_id` 但版本号为 2 的恢复测试（该测试已在 c0c933d（2026-08-05 重写初始数据格式）中删除；当前生产恢复分支 SQLiteRedMineDb.cs:46-53 将旧库直接视为版本 1 处理）

@@ -149,6 +149,63 @@ public sealed class WorkerSupervisorTests
         Assert.IsTrue(transport.Sent.Any(message => message.Type == WorkerMessageType.HostResult));
     }
 
+    [TestMethod]
+    public async Task ExecuteAsync_MapsInvalidWorkerMessageToInvalidMessageDiagnostic()
+    {
+        var transport = new FakeTransport { ReceiveException = new WorkerInvalidMessageException("Worker 消息不是有效 JSON。") };
+        var supervisor = new WorkerSupervisor(new FakeFactory(transport));
+        await supervisor.StartAsync(new("csharp", [ScriptApiVersion.V1], []));
+
+        var result = await supervisor.ExecuteAsync("demo", "exec-invalid", new { });
+
+        Assert.AreEqual(ScriptExecutionStatus.Failed, result.Payload.Status);
+        Assert.AreEqual("WORKER_INVALID_MESSAGE", result.Payload.Diagnostics.Single().Code);
+        Assert.AreEqual(WorkerState.Failed, supervisor.State);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_MapsOversizedReceiveToMessageTooLarge()
+    {
+        var transport = new FakeTransport { ReceiveException = new WorkerMessageTooLargeException("Worker 消息超过大小限制。") };
+        var supervisor = new WorkerSupervisor(new FakeFactory(transport));
+        await supervisor.StartAsync(new("csharp", [ScriptApiVersion.V1], []));
+
+        var result = await supervisor.ExecuteAsync("demo", "exec-oversized", new { });
+
+        Assert.AreEqual(ScriptExecutionStatus.Failed, result.Payload.Status);
+        Assert.AreEqual("WORKER_MESSAGE_TOO_LARGE", result.Payload.Diagnostics.Single().Code);
+        Assert.AreEqual(WorkerState.Failed, supervisor.State);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_RejectsHostCallExceedingProtocolLimit()
+    {
+        var transport = new FakeTransport { EmitLargeHostCall = true };
+        var supervisor = new WorkerSupervisor(new FakeFactory(transport));
+        await supervisor.StartAsync(new("csharp", [ScriptApiVersion.V1], []));
+
+        var result = await supervisor.ExecuteAsync("demo", "exec-large-hostcall", new { });
+
+        Assert.AreEqual(ScriptExecutionStatus.Failed, result.Payload.Status);
+        Assert.AreEqual("WORKER_HOST_CALL_TOO_LARGE", result.Payload.Diagnostics.Single().Code);
+        Assert.AreEqual(WorkerState.Failed, supervisor.State);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_RejectsOversizedResultAndUsesResultLimitForReceive()
+    {
+        var transport = new FakeTransport { LargeResultMessageBytes = 8 * 1024 };
+        var supervisor = new WorkerSupervisor(new FakeFactory(transport), maxResultMessageBytes: 4 * 1024);
+        await supervisor.StartAsync(new("csharp", [ScriptApiVersion.V1], []));
+
+        var result = await supervisor.ExecuteAsync("demo", "exec-large-result", new { });
+
+        Assert.AreEqual(ScriptExecutionStatus.Failed, result.Payload.Status);
+        Assert.AreEqual("WORKER_RESULT_TOO_LARGE", result.Payload.Diagnostics.Single().Code);
+        Assert.AreEqual(WorkerState.Failed, supervisor.State);
+        Assert.AreEqual(4 * 1024, transport.LastReceiveMaxMessageBytes);
+    }
+
     private sealed class BlockingDispatcher : IWorkerHostCallDispatcher
     {
         public async ValueTask<WorkerHostResultPayload> DispatchAsync(
@@ -298,6 +355,10 @@ public sealed class WorkerSupervisorTests
         public bool DelayHello { get; init; }
         public bool SuppressPong { get; init; }
         public bool EmitHostCall { get; init; }
+        public bool EmitLargeHostCall { get; init; }
+        public Exception? ReceiveException { get; init; }
+        public int? LargeResultMessageBytes { get; init; }
+        public int? LastReceiveMaxMessageBytes { get; private set; }
         public TaskCompletionSource<bool> ExecuteSent { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private EventHandler<WorkerTerminatedEventArgs>? _terminated;
         public event EventHandler<WorkerTerminatedEventArgs>? Terminated
@@ -318,7 +379,13 @@ public sealed class WorkerSupervisorTests
 
         public void CompleteExecution() =>
             _responses.Enqueue(new WorkerMessage<WorkerExecutionResultPayload>(WorkerProtocol.Name, 1, WorkerMessageType.ExecuteResult,
-                _executeRequestId, _executionId, new(ScriptExecutionStatus.Succeeded, [])));
+                _executeRequestId, _executionId, CreateSuccessPayload()));
+
+        private WorkerExecutionResultPayload CreateSuccessPayload() =>
+            LargeResultMessageBytes is { } messageBytes
+                ? new(ScriptExecutionStatus.Succeeded, [new ScriptDiagnostic(
+                    "BIG", new string('x', messageBytes), ScriptDiagnosticSeverity.Info, ScriptDiagnosticCategory.Runtime)])
+                : new(ScriptExecutionStatus.Succeeded, []);
 
         public ValueTask SendAsync<TPayload>(WorkerMessage<TPayload> message, CancellationToken cancellationToken = default)
         {
@@ -328,12 +395,16 @@ public sealed class WorkerSupervisorTests
                 _executeRequestId = message.RequestId;
                 _executionId = message.ExecutionId;
                 ExecuteSent.TrySetResult(true);
-                if (!DelayExecute && !TerminateExecute && !EmitHostCall)
+                if (!DelayExecute && !TerminateExecute && !EmitHostCall && !EmitLargeHostCall)
                     _responses.Enqueue(new WorkerMessage<WorkerExecutionResultPayload>(WorkerProtocol.Name, 1, WorkerMessageType.ExecuteResult,
-                        message.RequestId, message.ExecutionId, new(ScriptExecutionStatus.Succeeded, [])));
+                        message.RequestId, message.ExecutionId, CreateSuccessPayload()));
                 else if (EmitHostCall)
                     _responses.Enqueue(new WorkerMessage<WorkerHostCallPayload>(WorkerProtocol.Name, 1, WorkerMessageType.HostCall,
                         "host-call-1", message.ExecutionId, new("workItems.query", JsonSerializer.SerializeToElement(new { }))));
+                else if (EmitLargeHostCall)
+                    _responses.Enqueue(new WorkerMessage<WorkerHostCallPayload>(WorkerProtocol.Name, 1, WorkerMessageType.HostCall,
+                        "host-call-1", message.ExecutionId, new("workItems.query",
+                            JsonSerializer.SerializeToElement(new { value = new string('x', WorkerProtocol.DefaultMaxMessageBytes) }))));
             }
             else if (message.Type == WorkerMessageType.Cancel && CompleteOnCancel)
             {
@@ -343,7 +414,7 @@ public sealed class WorkerSupervisorTests
             else if (message.Type == WorkerMessageType.HostResult)
             {
                 _responses.Enqueue(new WorkerMessage<WorkerExecutionResultPayload>(WorkerProtocol.Name, 1, WorkerMessageType.ExecuteResult,
-                    _executeRequestId, _executionId, new(ScriptExecutionStatus.Succeeded, [])));
+                    _executeRequestId, _executionId, CreateSuccessPayload()));
             }
             else if (message.Type == WorkerMessageType.Ping && !SuppressPong)
                 _responses.Enqueue(new WorkerMessage<object>(WorkerProtocol.Name, 1, WorkerMessageType.Pong,
@@ -351,10 +422,14 @@ public sealed class WorkerSupervisorTests
             return ValueTask.CompletedTask;
         }
 
-        public async ValueTask<WorkerMessage<TPayload>> ReceiveAsync<TPayload>(CancellationToken cancellationToken = default)
+        public async ValueTask<WorkerMessage<TPayload>> ReceiveAsync<TPayload>(CancellationToken cancellationToken = default, int maxMessageBytes = WorkerProtocol.DefaultMaxMessageBytes)
         {
-            if (DelayHello && _receiveCount++ == 0)
+            LastReceiveMaxMessageBytes = maxMessageBytes;
+            var receiveIndex = _receiveCount++;
+            if (DelayHello && receiveIndex == 0)
                 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            if (receiveIndex > 0 && ReceiveException is { } receiveException)
+                throw receiveException;
             while (_responses.Count == 0 && (DelayExecute || SuppressPong))
                 await Task.Delay(TimeSpan.FromMilliseconds(1), cancellationToken);
             if (TerminateExecute && _responses.Count == 0)

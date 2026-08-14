@@ -5,6 +5,7 @@
 - 定时到点或启动补跑时由宿主自动执行，触发类型在 `context.automation.trigger` 中（`Scheduled` / `Startup`）
 - 补录使用 `idempotencyKey`（`auto-daily-check:{昨天日期}`）：同一天即使重复触发（如崩溃后重启补跑）也不会重复追加
 - 查询用 `range = "yesterday"` 快捷值，无需脚本自己计算日期（Lua 沙箱没有 os.date，快捷值是推荐做法）
+- 结尾返回 create 结果（Python/Lua 返回结果表，C# 把 `Effects` 放进执行结果）：宿主会把其中的 `effects`（追加条数、幂等重放、新建 ID）显示在执行历史和完成通知中
 
 ```python
 def automation_main(context):
@@ -33,7 +34,7 @@ def automation_main(context):
         "自动化脚本",
         f"昨天（{yesterday}）没有工作记录，已自动补录一条，请核对并修改。",
     )
-    return None
+    return append
 ```
 
 ## 使用方式

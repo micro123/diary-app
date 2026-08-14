@@ -25,4 +25,5 @@ def automation_main(context):
         "自动化脚本",
         f"昨天（{yesterday}）没有工作记录，已自动补录一条，请核对并修改。",
     )
-    return None
+    # 返回 create 结果表：其中的 effects 字段会被 Worker 透传，显示在执行历史与完成通知中。
+    return append

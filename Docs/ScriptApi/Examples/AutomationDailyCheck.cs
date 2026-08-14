@@ -53,6 +53,6 @@ public sealed class AutomationDailyCheckScript : AutomationScript
             "自动化脚本",
             $"昨天（{dateText}）没有工作记录，已自动补录一条，请核对并修改。",
             cancellationToken);
-        return ScriptExecutionResult.Succeeded();
+        return new(ScriptExecutionStatus.Succeeded, [], result.Effects);
     }
 }

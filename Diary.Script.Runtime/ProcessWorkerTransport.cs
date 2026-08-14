@@ -95,8 +95,10 @@ public sealed class ProcessWorkerTransport : IWorkerTransport, IWorkerTerminatio
         }
     }
 
-    public ValueTask<WorkerMessage<TPayload>> ReceiveAsync<TPayload>(CancellationToken cancellationToken = default) =>
-        WorkerMessageCodec.ReadAsync<TPayload>(_output, MaxMessageBytes, cancellationToken);
+    public ValueTask<WorkerMessage<TPayload>> ReceiveAsync<TPayload>(
+        CancellationToken cancellationToken = default,
+        int maxMessageBytes = WorkerProtocol.DefaultMaxMessageBytes) =>
+        WorkerMessageCodec.ReadAsync<TPayload>(_output, maxMessageBytes, cancellationToken);
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {

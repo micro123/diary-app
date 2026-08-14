@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using Diary.ScriptBase;
 using LuaState = NLua.Lua;
@@ -27,7 +28,8 @@ public sealed class LuaEngine : IScriptEngineV1
         try
         {
             using var lua = LuaSandbox.Create();
-            lua.LoadString(request.Source, request.SourcePath);
+            // NLua 的 string 重载按系统 ANSI 编码转换，中文会被替换成 ?；统一用 UTF-8 byte[] 重载。
+            lua.LoadString(Encoding.UTF8.GetBytes(request.Source), request.SourcePath);
         }
         catch (Exception exception)
         {
@@ -144,7 +146,9 @@ internal static class LuaSandbox
     public static LuaState Create()
     {
         var lua = new LuaState();
-        lua.DoString(RestrictedLibraries);
+        // KeraLua 默认使用 ASCII 做字符串双向转换，中文会被替换成 ?；统一改为 UTF-8。
+        lua.State.Encoding = Encoding.UTF8;
+        lua.DoString(Encoding.UTF8.GetBytes(RestrictedLibraries));
         return lua;
     }
 }

@@ -10,7 +10,7 @@
 - **标签自动化规则**：按 Tracker 实例配置「添加标签 → 补默认字段」规则
 - **统计页**：工时分布、标签明细
 - **Survey**：调查协议 v1/v2（端口 9721/9722），支持能力发现与自定义统计
-- **脚本系统**：C#、Lua、Python 三种语言的脚本，支持应用脚本（手动执行）与编辑器脚本（日历右键按日/周/月/季/年/事项执行）；自动化入口（定时/事件触发）当前仅预留契约。API 参考见 [`Docs/ScriptApi`](Docs/ScriptApi/CSharp.md)
+- **脚本系统**：C#、Lua、Python 三种语言的脚本，支持应用脚本（手动执行）、编辑器脚本（日历右键按日/周/月/季/年/事项执行）、自动化脚本（`daily HH:mm` 定时 + 启动补跑）与查询脚本（只读统计汇总）。API 参考见 [`Docs/ScriptApi`](Docs/ScriptApi/CSharp.md)
 
 ## 运行要求
 
@@ -43,6 +43,12 @@ done
 
 - 脚本 API 参考：[C#](Docs/ScriptApi/CSharp.md)、[Lua](Docs/ScriptApi/Lua.md)、[Python](Docs/ScriptApi/Python.md)
 - 架构：[当前架构](Docs/CurrentArchitecture.md)、[插件目标架构](Docs/TrackerPluginArchitecture.md)、[脚本系统设计](Docs/ScriptSystemDesign.md)
+- 发布说明：[CHANGELOG](Docs/CHANGELOG.md)
+
+## 版本
+
+- 版本号为 `1.0.0-r{CommitCount}`：`1.0.0` 是数据格式版本（`Diary.Core/DataVersion.cs`），`rN` 是发布时的 Git 提交计数，由构建脚本自动生成（`Diary.App/Scripts/gen_version.sh`）
+- 正式发布：推送 `v*` 标签触发 CI（`.github/workflows/release-on-tags.yml`），自动构建 win-x64/linux-x64 自包含包并从 CHANGELOG 提取发布说明
 
 ## 配置文件加密
 

@@ -70,6 +70,7 @@ public sealed class CSharpEngine : IScriptEngineV1
         "System.Security.Cryptography.dll",
         "System.Text.Json.dll",
         "System.Text.RegularExpressions.dll",
+        "System.Console.dll",
     ];
 
     private readonly ImmutableArray<MetadataReference> _references;

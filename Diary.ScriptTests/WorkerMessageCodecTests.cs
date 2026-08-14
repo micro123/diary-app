@@ -50,19 +50,28 @@ public sealed class WorkerMessageCodecTests
         await using var stream = new MemoryStream();
         var message = new WorkerMessage<string>(WorkerProtocol.Name, 1, WorkerMessageType.Error, "1", null, "123456");
 
-        await Assert.ThrowsExactlyAsync<InvalidDataException>(() =>
+        await Assert.ThrowsExactlyAsync<WorkerMessageTooLargeException>(() =>
             WorkerMessageCodec.WriteAsync(stream, message, maxMessageBytes: 10).AsTask());
+    }
+
+    [TestMethod]
+    public async Task ReadAsync_RejectsOversizedMessage()
+    {
+        await using var stream = new MemoryStream("123456\n"u8.ToArray());
+
+        await Assert.ThrowsExactlyAsync<WorkerMessageTooLargeException>(() =>
+            WorkerMessageCodec.ReadAsync<WorkerHelloPayload>(stream, maxMessageBytes: 4).AsTask());
     }
 
     [TestMethod]
     public async Task ReadAsync_RejectsInvalidJsonAndMissingNewline()
     {
         await using var invalid = new MemoryStream("not-json\n"u8.ToArray());
-        await Assert.ThrowsExactlyAsync<InvalidDataException>(() =>
+        await Assert.ThrowsExactlyAsync<WorkerInvalidMessageException>(() =>
             WorkerMessageCodec.ReadAsync<WorkerHelloPayload>(invalid).AsTask());
 
         await using var missingNewline = new MemoryStream("{}"u8.ToArray());
-        await Assert.ThrowsExactlyAsync<InvalidDataException>(() =>
+        await Assert.ThrowsExactlyAsync<WorkerInvalidMessageException>(() =>
             WorkerMessageCodec.ReadAsync<WorkerHelloPayload>(missingNewline).AsTask());
     }
 }

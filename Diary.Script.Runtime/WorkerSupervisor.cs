@@ -15,7 +15,9 @@ public enum WorkerState
 public interface IWorkerTransport : IAsyncDisposable
 {
     ValueTask SendAsync<TPayload>(WorkerMessage<TPayload> message, CancellationToken cancellationToken = default);
-    ValueTask<WorkerMessage<TPayload>> ReceiveAsync<TPayload>(CancellationToken cancellationToken = default);
+    ValueTask<WorkerMessage<TPayload>> ReceiveAsync<TPayload>(
+        CancellationToken cancellationToken = default,
+        int maxMessageBytes = WorkerProtocol.DefaultMaxMessageBytes);
     Task StopAsync(CancellationToken cancellationToken = default);
 }
 
@@ -62,7 +64,7 @@ public sealed class WorkerSupervisor(
     TimeSpan? idleTimeout = null,
     TimeSpan? restartBaseDelay = null,
     int maxRequestsPerWorker = 1000,
-    int maxResultMessageBytes = 16 * 1024 * 1024,
+    int maxResultMessageBytes = WorkerProtocol.DefaultMaxResultMessageBytes,
     long? maxWorkingSetBytes = null,
     TimeSpan? cancellationGracePeriod = null,
     TimeSpan? resourceCheckInterval = null,
@@ -205,7 +207,9 @@ public sealed class WorkerSupervisor(
                 WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.Execute,
                 requestId, executionId, new { scriptId, payload });
             var messageBytes = JsonSerializer.SerializeToUtf8Bytes(executeMessage, WorkerProtocol.JsonOptions);
-            if (messageBytes.Length + 1 > MaxExecuteMessageBytes)
+            // 发送上限同时受执行消息限制与握手协商的消息上限约束，保证宿主不会发送 Worker 读不下的消息。
+            var sendLimit = Math.Min(MaxExecuteMessageBytes, _handshakeOptions?.MaxMessageBytes ?? MaxExecuteMessageBytes);
+            if (messageBytes.Length + 1 > sendLimit)
             {
                 State = WorkerState.Failed;
                 return Result(requestId, executionId, ScriptExecutionStatus.Failed,
@@ -224,7 +228,9 @@ public sealed class WorkerSupervisor(
             {
                 while (true)
                 {
-                    var receiveTask = ReceiveMessageAsync(receiveCancellation.Token).AsTask();
+                    // 执行期间的接收按结果上限（16MB）读取，使 WORKER_RESULT_TOO_LARGE 可达；
+                    // HostCall 在下方按协议默认上限（4MB）单独检查。
+                    var receiveTask = ReceiveMessageAsync(receiveCancellation.Token, MaxResultMessageBytes).AsTask();
                     if (cancellationToken.CanBeCanceled
                         && await Task.WhenAny(receiveTask, cancellationSignal) == cancellationSignal)
                     {
@@ -246,6 +252,13 @@ public sealed class WorkerSupervisor(
                             State = WorkerState.Failed;
                             return Result(requestId, executionId, ScriptExecutionStatus.Failed,
                                 new ScriptDiagnostic("WORKER_HOST_CALL_LIMIT", "Worker 宿主调用次数超过限制。",
+                                    ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Security));
+                        }
+                        if (WorkerProtocol.GetMessageSize(message) > WorkerProtocol.DefaultMaxMessageBytes)
+                        {
+                            State = WorkerState.Failed;
+                            return Result(requestId, executionId, ScriptExecutionStatus.Failed,
+                                new ScriptDiagnostic("WORKER_HOST_CALL_TOO_LARGE", "Worker 宿主调用消息超过大小限制。",
                                     ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Security));
                         }
                         var call = message.Payload.Deserialize<WorkerHostCallPayload>(WorkerProtocol.JsonOptions)
@@ -329,11 +342,18 @@ public sealed class WorkerSupervisor(
                 return Result(requestId, executionId, ScriptExecutionStatus.Failed,
                     TerminationDiagnostic("Worker 通道意外断开。"));
             }
-            catch (InvalidDataException exception)
+            catch (WorkerMessageTooLargeException exception)
             {
                 State = WorkerState.Failed;
                 return Result(requestId, executionId, ScriptExecutionStatus.Failed,
                     new ScriptDiagnostic("WORKER_MESSAGE_TOO_LARGE", exception.Message,
+                        ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Runtime));
+            }
+            catch (WorkerProtocolDataException exception)
+            {
+                State = WorkerState.Failed;
+                return Result(requestId, executionId, ScriptExecutionStatus.Failed,
+                    new ScriptDiagnostic("WORKER_INVALID_MESSAGE", exception.Message,
                         ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Runtime));
             }
             if (result.RequestId != requestId || result.ExecutionId != executionId)
@@ -498,7 +518,7 @@ public sealed class WorkerSupervisor(
             await StopTransportAsync(CancellationToken.None);
             return false;
         }
-        catch (Exception exception) when (exception is EndOfStreamException or IOException or ObjectDisposedException or InvalidDataException)
+        catch (Exception exception) when (exception is EndOfStreamException or IOException or ObjectDisposedException or WorkerProtocolDataException)
         {
             State = WorkerState.Failed;
             _restartAttempts++;
@@ -511,14 +531,16 @@ public sealed class WorkerSupervisor(
         }
     }
 
-    private ValueTask<WorkerMessage<JsonElement>> ReceiveMessageAsync(CancellationToken cancellationToken)
+    private ValueTask<WorkerMessage<JsonElement>> ReceiveMessageAsync(
+        CancellationToken cancellationToken,
+        int maxMessageBytes = WorkerProtocol.DefaultMaxMessageBytes)
     {
         if (_transport is IWorkerTerminationNotification notification && notification.StderrLimitExceeded)
         {
             State = WorkerState.Failed;
             throw new IOException("Worker stderr 输出超过限制。");
         }
-        return _transport!.ReceiveAsync<JsonElement>(cancellationToken);
+        return _transport!.ReceiveAsync<JsonElement>(cancellationToken, maxMessageBytes);
     }
 
     private async ValueTask<WorkerMessage<WorkerExecutionResultPayload>?> TryReceiveCancelledResultAsync(
@@ -532,7 +554,7 @@ public sealed class WorkerSupervisor(
         using var graceCancellation = new CancellationTokenSource(CancellationGracePeriod);
         try
         {
-            var receiveTask = pendingReceive ?? ReceiveMessageAsync(graceCancellation.Token).AsTask();
+            var receiveTask = pendingReceive ?? ReceiveMessageAsync(graceCancellation.Token, MaxResultMessageBytes).AsTask();
             var graceTask = Task.Delay(Timeout.InfiniteTimeSpan, graceCancellation.Token);
             while (true)
             {
@@ -546,7 +568,7 @@ public sealed class WorkerSupervisor(
                         message.RequestId, executionId,
                         new(false, Error: new("Cancelled", "脚本执行已取消。"))),
                         graceCancellation.Token);
-                    receiveTask = ReceiveMessageAsync(graceCancellation.Token).AsTask();
+                    receiveTask = ReceiveMessageAsync(graceCancellation.Token, MaxResultMessageBytes).AsTask();
                     continue;
                 }
 
@@ -563,7 +585,7 @@ public sealed class WorkerSupervisor(
         {
             return null;
         }
-        catch (Exception exception) when (exception is EndOfStreamException or IOException or ObjectDisposedException or InvalidDataException)
+        catch (Exception exception) when (exception is EndOfStreamException or IOException or ObjectDisposedException or WorkerProtocolDataException)
         {
             return null;
         }

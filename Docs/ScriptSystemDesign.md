@@ -96,14 +96,14 @@ ScriptManager
        +-- Execution Context   目标、参数、日期范围和事项快照
        |
        v
-IScriptEngine
+IScriptEngineV1
        |
        +-- C# Engine
        +-- Lua Engine
        +-- Python Engine
        |
        v
-IScriptApi
+Worker 协议（HostCall 分发）
        |
        +-- Diary API
        +-- Tracker API
@@ -190,7 +190,7 @@ public sealed record ScriptBuildResult(
 - `Version`：用于缓存失效和诊断。
 - `Match`：根据扩展名或脚本包声明判断是否支持。
 - `Build`：编译或加载脚本并返回结构化诊断。
-- `Cacheable`：说明是否支持编译结果缓存。（注：该成员仅存在于遗留的 `IScriptEngine`（`Diary.ScriptBase/IScriptEngine.cs`），当前契约 `IScriptEngineV1` 没有此成员；V1 引擎的缓存行为由各引擎实现内部决定，例如 C# 引擎按引擎名/版本、API 版本、安全策略版本和源码哈希做编译缓存。）
+- `Cacheable`：说明是否支持编译结果缓存。（注：早期遗留接口 `IScriptEngine`（含 `Cacheable` 成员）已移除，当前契约只有 `IScriptEngineV1`；V1 引擎的缓存行为由各引擎实现内部决定，例如 C# 引擎按引擎名/版本、API 版本、安全策略版本和源码哈希做编译缓存。）
 
 引擎不负责扫描目录、显示 UI 或保存用户权限。上述职责由宿主运行时承担。
 
@@ -246,7 +246,7 @@ public interface IScriptManager
 
 模板相关校验和应用不属于脚本管理器职责。
 
-ViewModel 不应直接调用 `IScriptEngine` 或具体脚本类型。
+ViewModel 不应直接调用 `IScriptEngineV1` 或具体脚本类型。
 
 ## 8. 脚本元数据和目录
 
@@ -357,7 +357,7 @@ IScriptExecutionContext
 ITrackerScriptApi? GetTracker(string pluginId, string instanceId);
 ```
 
-（注：上述建议已以不同形状落地。遗留的 `IScriptApi.GetTracker(string pluginId)`（`Diary.ScriptBase/IScriptApi.cs`）仍存在，但当前 V1 脚本 API 使用多实例的 `ITrackerApi.GetInstance(pluginId, instanceId)`（`Diary.ScriptHost/ScriptApis.cs`），配合 `trackerInstances.get`/`trackerInstances.list` HostCall 定位实例；上面的扩展签名仅作为历史设计记录保留。）
+（注：上述建议已以不同形状落地。早期遗留的 `IScriptApi.GetTracker(string pluginId)`（`Diary.ScriptBase/IScriptApi.cs`）连同整个遗留接口族已移除，当前 V1 脚本 API 使用多实例的 `ITrackerApi.GetInstance(pluginId, instanceId)`（`Diary.ScriptHost/ScriptApis.cs`），配合 `trackerInstances.get`/`trackerInstances.list` HostCall 定位实例；上面的扩展签名仅作为历史设计记录保留。）
 
 Tracker 脚本 API 至少应包含：
 
@@ -604,7 +604,7 @@ NuGet 包按 RID 提供）：
 - 增加权限能力模型。
 - 增加用户授权和权限拒绝诊断。
 - 限制 C# 引用和宿主对象。
-- 审查所有 `IScriptApi` 写入和 UI 操作。
+- 审查所有 V1 脚本 API（`Diary.ScriptHost` 各 `IScriptApiV1` 实现）的写入和 UI 操作。
 
 ### 第四阶段：多语言
 

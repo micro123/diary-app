@@ -325,7 +325,7 @@ end
 | `diary.log.*` | `log.write` |
 | `context.progress.report` | `script.progress` |
 
-Worker 禁用 `io`、`os`、`debug`、`package`、`require`、动态加载和 CLR 访问。脚本不能直接访问文件、网络、进程、数据库、DI 或 UI 控件。`print` 只能写入隔离的脚本输出流，并受到大小限制。
+Worker 禁用 `io`、`os`、`debug`、`package`、`require`、动态加载和 CLR 访问。脚本不能直接访问文件、网络、进程、数据库、DI 或 UI 控件。`print` 按行转发到脚本日志（Info 级），与 `diary.log.info` 一样显示在管理页「运行日志」Tab 和宿主日志中；每条打印占用一次宿主调用，计入宿主调用次数上限，打印密集型脚本请改用 `diary.log` 或合并输出。
 
 ## 8. 错误、取消、超时和 Worker 终止
 
@@ -389,11 +389,13 @@ end
 
 ### 入口返回值约定
 
-入口函数的返回值被忽略：正常返回（或返回任何值）即执行成功（`Succeeded`）；失败通过 `error()` 抛出异常表达：
+入口函数的返回值本身不参与执行状态：正常返回（或返回任何值）即执行成功（`Succeeded`）；失败通过 `error()` 抛出异常表达：
 
 - 抛异常 → `Failed` + `LUA_EXECUTION_FAILED` 诊断（附源码行/列）。
 - 执行已取消 → `Cancelled`。
 - 超时、Worker 终止由宿主报告，脚本无需处理。
+
+例外：若返回宿主 API 的结果表（如 `diary.logItems.create` 的返回值），其中的 `effects` 字段会被 Worker 提取并随执行结果传回宿主，显示在管理页执行历史与完成通知中（追加条数、预览、幂等重放、新建 ID）。
 
 ### 自动化触发器上下文
 

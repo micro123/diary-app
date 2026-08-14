@@ -311,6 +311,8 @@ if (log is not null)
 
 日志带有脚本 ID 和执行 ID，并写入宿主日志。单条消息由宿主限制大小；不要输出密码、Token 或其他敏感配置。
 
+脚本中的 `Console.WriteLine` / `Console.Write` 输出按行转发到脚本日志（Info 级），与 `log.InfoAsync` 一样显示在管理页「运行日志」Tab 和宿主日志中，方便直接用控制台输出调试查询结果（本文示例即如此使用）。转发按行缓冲，执行结束时冲刷未换行的残余；输出总量超过 1MB 时脚本执行失败。每条打印会占用一次宿主调用，计入宿主调用次数上限，打印密集型脚本请改用 `log` API 或合并输出。
+
 ## 11. Worker API 映射和限制
 
 | C# API | Worker HostCall |
@@ -333,7 +335,7 @@ Worker 调用由主进程执行并返回结构化结果。普通日志项和模�
 
 C# 脚本沙箱（构建期检查，违反时构建失败并产生 `CSHARP_API_FORBIDDEN` 诊断）：
 
-- **可用基础库**（引用白名单，其余程序集不引用）：集合（含并发/非泛型）、`System.Linq`、`System.Memory`（Span）、`System.Text.Json`、`System.Text.RegularExpressions`、`System.Numerics`/`System.Runtime.Numerics`、`System.Security.Cryptography`（哈希等纯计算算法）
+- **可用基础库**（引用白名单，其余程序集不引用）：集合（含并发/非泛型）、`System.Linq`、`System.Memory`（Span）、`System.Text.Json`、`System.Text.RegularExpressions`、`System.Numerics`/`System.Runtime.Numerics`、`System.Security.Cryptography`（哈希等纯计算算法）、`System.Console`（输出按行转发到脚本日志，输入恒为空流，见 §10）
 - 禁止命名空间：`System.IO`、`System.Net`、`System.Reflection`、`System.Runtime.InteropServices`、`Diary.Database`、`Microsoft.Extensions.DependencyInjection`。
 - 禁止类型：`System.AppDomain`、`System.Environment`、`System.Diagnostics.Process`、`System.Diagnostics.ProcessStartInfo`、`System.Threading.Thread`、`System.Threading.ThreadPool`、`System.Threading.Timer`、`System.Threading.PeriodicTimer`、`System.Threading.Tasks.TaskFactory`、`System.Threading.Tasks.TaskScheduler`、`System.Type`、`System.Activator`、`System.Runtime.CompilerServices.RuntimeHelpers`。
 - 禁止成员：`Object.GetType`、`Type.GetType`、`Activator.CreateInstance`、`Delegate.DynamicInvoke`、`Task.Run`、`TaskFactory.StartNew`、`TaskFactory.ContinueWhenAll`、`TaskFactory.ContinueWhenAny`。

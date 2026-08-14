@@ -12,9 +12,14 @@ import uuid
 
 PROTOCOL = "diary.script.worker"
 VERSION = 1
+# 消息大小层级：协议消息默认 4MB，执行结果 16MB（HelloAccepted 协商下发，
+# 见 run() 中的 current_max_message_bytes / current_max_result_message_bytes）。
 MAX_MESSAGE_BYTES = 4 * 1024 * 1024
 PROTOCOL_OUTPUT = sys.stdout
 OUTPUT_LOCK = threading.Lock()
+
+current_max_message_bytes = MAX_MESSAGE_BYTES
+current_max_result_message_bytes = MAX_MESSAGE_BYTES
 
 
 class CancelledExecution(Exception):
@@ -384,7 +389,7 @@ def json_safe(value):
     return value
 
 
-def send_message(message_type, request_id, execution_id, payload):
+def send_message(message_type, request_id, execution_id, payload, max_bytes=None):
     message = {
         "protocol": PROTOCOL,
         "version": VERSION,
@@ -394,7 +399,8 @@ def send_message(message_type, request_id, execution_id, payload):
         "payload": payload,
     }
     encoded = (json.dumps(message, ensure_ascii=True, separators=(",", ":")) + "\n").encode("utf-8")
-    if len(encoded) > MAX_MESSAGE_BYTES:
+    limit = max_bytes if max_bytes is not None else current_max_message_bytes
+    if len(encoded) > limit:
         raise ValueError("Worker message is too large.")
     with OUTPUT_LOCK:
         PROTOCOL_OUTPUT.buffer.write(encoded)
@@ -402,10 +408,10 @@ def send_message(message_type, request_id, execution_id, payload):
 
 
 def read_message():
-    line = sys.stdin.buffer.readline(MAX_MESSAGE_BYTES + 1)
+    line = sys.stdin.buffer.readline(current_max_message_bytes + 1)
     if not line:
         return None
-    if len(line) > MAX_MESSAGE_BYTES or not line.endswith(b"\n"):
+    if len(line) > current_max_message_bytes or not line.endswith(b"\n"):
         raise ValueError("Worker message is too large or missing a newline.")
     try:
         message = json.loads(line.decode("utf-8"))
@@ -535,7 +541,7 @@ def execute_script(state):
         if entry_name is None:
             send_result(message, "Rejected", [diagnostic("SCRIPT_ENTRY_KIND_INVALID", "The script entry kind is invalid.", source_path, "Validation")])
             return
-        with redirect_script_output():
+        with redirect_script_output(state):
             exec(code, namespace, namespace)
             entry = namespace.get(entry_name)
             if not callable(entry):
@@ -555,7 +561,8 @@ def execute_script(state):
             finally:
                 sys.settrace(None)
         json_safe(value)
-        send_result(message, "Succeeded", [], value)
+        effects = value.get("effects") if isinstance(value, dict) else None
+        send_result(message, "Succeeded", [], value, effects)
     except CancelledExecution:
         send_result(message, "Cancelled", [])
     except Exception as error:
@@ -595,23 +602,78 @@ def exception_location(error, source_path):
     return None, None
 
 
+MAX_SCRIPT_OUTPUT_BYTES = 1 * 1024 * 1024
+
+
+class ScriptPrintWriter:
+    """将脚本 print 按行转发到宿主脚本日志（Info 级）；总量 1MB 上限作安全兜底。"""
+
+    def __init__(self, state):
+        self.state = state
+        self._log = LogApi(state)
+        self._buffer = ""
+        self._bytes = 0
+
+    def write(self, text):
+        if not isinstance(text, str):
+            text = str(text)
+        self._bytes += len(text.encode("utf-8"))
+        if self._bytes > MAX_SCRIPT_OUTPUT_BYTES:
+            raise ValueError("Script output exceeded the size limit.")
+        self._buffer += text
+        while "\n" in self._buffer:
+            line, self._buffer = self._buffer.split("\n", 1)
+            self._forward(line)
+
+    def flush(self):
+        if self._buffer:
+            self._forward(self._buffer)
+            self._buffer = ""
+
+    def _forward(self, line):
+        line = line.rstrip("\r")
+        if not line:
+            return
+        # print 转发是尽力而为：log.write 未配置/失败时不因此让脚本失败。
+        try:
+            self._log.info(line)
+        except Exception:
+            pass
+
+
 class redirect_script_output:
+    def __init__(self, state):
+        self.state = state
+
     def __enter__(self):
         self.previous = sys.stdout
-        sys.stdout = sys.stderr
+        sys.stdout = ScriptPrintWriter(self.state)
         return self
 
     def __exit__(self, exception_type, exception, value):
+        try:
+            sys.stdout.flush()
+        except Exception:
+            pass
         sys.stdout = self.previous
         return False
 
 
-def send_result(message, status, diagnostics, value=None):
-    send_message("ExecuteResult", message.get("requestId"), message.get("executionId"), {
-        "status": status,
-        "diagnostics": diagnostics,
-        "value": value,
-    })
+def send_result(message, status, diagnostics, value=None, effects=None):
+    payload = {"status": status, "diagnostics": diagnostics, "value": value}
+    if effects is not None:
+        payload["effects"] = effects
+    try:
+        send_message("ExecuteResult", message.get("requestId"), message.get("executionId"),
+                     payload, current_max_result_message_bytes)
+    except ValueError:
+        send_message("ExecuteResult", message.get("requestId"), message.get("executionId"), {
+            "status": "Failed",
+            "diagnostics": [diagnostic("WORKER_RESULT_TOO_LARGE",
+                                       "Worker execution result is too large.",
+                                       get_source_path(message), "Runtime")],
+            "value": None,
+        })
 
 
 def diagnostic(code, message, source_path, category):
@@ -627,7 +689,7 @@ def diagnostic(code, message, source_path, category):
 def run():
     send_message("Hello", new_id(), None, {
         "language": "python",
-        "workerVersion": "0.2",
+        "workerVersion": "0.3",
         "supportedApiVersions": ["V1"],
         "supportedHostApis": ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress", "host.capabilities.list"],
         "processId": os.getpid(),
@@ -635,6 +697,11 @@ def run():
     accepted = read_message()
     if accepted is None or accepted.get("type") != "HelloAccepted":
         return
+    global current_max_message_bytes, current_max_result_message_bytes
+    if isinstance(accepted.get("maxMessageBytes"), int) and accepted["maxMessageBytes"] > 0:
+        current_max_message_bytes = accepted["maxMessageBytes"]
+    if isinstance(accepted.get("maxResultMessageBytes"), int) and accepted["maxResultMessageBytes"] > 0:
+        current_max_result_message_bytes = accepted["maxResultMessageBytes"]
 
     active = None
     while True:

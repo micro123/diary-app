@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Diary.Script.Runtime;
 using Diary.ScriptBase;
 
@@ -505,6 +506,300 @@ public sealed class ProcessWorkerTransportTests
         var process = new System.Diagnostics.Process { StartInfo = startInfo, EnableRaisingEvents = true };
         Assert.IsTrue(process.Start());
         return process;
+    }
+
+    [TestMethod]
+    public async Task ProcessTransport_ForwardsScriptPrintToLogAcrossLanguages()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            Assert.Inconclusive("当前集成测试使用 Linux 路径。");
+            return;
+        }
+
+        var workerPath = GetWorkerPath();
+        Assert.IsTrue(File.Exists(workerPath), $"Worker 文件不存在：{workerPath}");
+        var dotnetPath = GetDotnetPath();
+        if (dotnetPath is null)
+        {
+            Assert.Inconclusive("当前环境没有可用的绝对 dotnet 路径。");
+            return;
+        }
+
+        var pythonRuntime = await new Diary.Script.Py.PythonRuntimeResolver().ResolveAsync();
+        if (!pythonRuntime.Succeeded || pythonRuntime.ExecutablePath is null)
+        {
+            Assert.Inconclusive("当前环境没有可用的 Python 3.10+ runtime。");
+            return;
+        }
+
+        var cases = new[]
+        {
+            new PrintCase(
+                "csharp",
+                dispatcher => CreateDotnetSupervisor(workerPath, "csharp", dotnetPath, dispatcher),
+                new WorkerExecutePayload(
+                    "print-csharp",
+                    "print.cs",
+                    "public sealed class PrintDemo : Diary.ScriptBase.IScriptProgramV1 { public Diary.ScriptBase.ScriptDescriptor Descriptor { get; } = new(\"print-csharp\", \"Print C#\", Diary.ScriptBase.ScriptApiVersion.V1, Diary.ScriptBase.ScriptScope.Application); public async System.Threading.Tasks.ValueTask<Diary.ScriptBase.ScriptExecutionResult> ExecuteAsync(Diary.ScriptBase.ScriptExecutionRequest request, Diary.ScriptBase.IScriptExecutionContext context, System.Threading.CancellationToken cancellationToken = default) { System.Console.WriteLine(\"第一行\"); System.Console.Write(\"第二行\\n\"); System.Console.Write(\"末尾无换行\"); return Diary.ScriptBase.ScriptExecutionResult.Succeeded(); } }",
+                    new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual),
+                    new ScriptDescriptorHint("print-csharp", "Print C#", ScriptScope.Application, EngineName: "csharp")),
+                ["第一行", "第二行", "末尾无换行"]),
+            new PrintCase(
+                "lua",
+                dispatcher => CreateDotnetSupervisor(workerPath, "lua", dotnetPath, dispatcher),
+                new WorkerExecutePayload(
+                    "print-lua",
+                    "print.lua",
+                    "function application_main(context)\n    print('lua 第一行')\n    print('a', 'b')\n    print('末尾无换行尾')\nend\n",
+                    new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual),
+                    new ScriptDescriptorHint("print-lua", "Print Lua", ScriptScope.Application, EngineName: "lua")),
+                ["lua 第一行", "a\tb", "末尾无换行尾"]),
+            new PrintCase(
+                "python",
+                dispatcher => new WorkerSupervisor(
+                    new ProcessWorkerTransportFactory(new WorkerProcessOptions(
+                        pythonRuntime.ExecutablePath,
+                        Diary.Script.Py.PythonWorkerSource.CreateArguments(),
+                        AppContext.BaseDirectory,
+                        new Dictionary<string, string>
+                        {
+                            ["PYTHONIOENCODING"] = "utf-8",
+                            ["PYTHONUNBUFFERED"] = "1",
+                        })),
+                    dispatcher,
+                    cancellationGracePeriod: TimeSpan.FromSeconds(2)),
+                new WorkerExecutePayload(
+                    "print-python",
+                    "print.py",
+                    "def application_main(context):\n    print('python 第一行')\n    print('a', 'b')\n    print('末尾无换行尾', end='')\n    return None\n",
+                    new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual),
+                    new ScriptDescriptorHint("print-python", "Print Python", ScriptScope.Application, EngineName: "python")),
+                ["python 第一行", "a b", "末尾无换行尾"]),
+        };
+
+        foreach (var testCase in cases)
+        {
+            var dispatcher = new LogRecordingDispatcher();
+            var supervisor = testCase.SupervisorFactory(dispatcher);
+            try
+            {
+                await supervisor.StartAsync(new(testCase.Language, [ScriptApiVersion.V1], ["log.write"]));
+                var result = await supervisor.ExecuteAsync(
+                    testCase.Payload.ScriptId,
+                    $"{testCase.Language}-print",
+                    testCase.Payload,
+                    TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(ScriptExecutionStatus.Succeeded, result.Payload.Status,
+                    $"{testCase.Language}: {string.Join("; ", result.Payload.Diagnostics.Select(item => $"{item.Code}: {item.Message}"))}");
+                Assert.AreEqual(
+                    string.Join("|", testCase.ExpectedMessages),
+                    string.Join("|", dispatcher.InfoMessages),
+                    $"{testCase.Language} 打印消息不匹配：期望 [{string.Join("|", testCase.ExpectedMessages)}] 实际 [{string.Join("|", dispatcher.InfoMessages)}]");
+            }
+            finally
+            {
+                await supervisor.StopAsync();
+            }
+        }
+    }
+
+    private sealed record PrintCase(
+        string Language,
+        Func<IWorkerHostCallDispatcher, WorkerSupervisor> SupervisorFactory,
+        WorkerExecutePayload Payload,
+        string[] ExpectedMessages);
+
+    private sealed class LogRecordingDispatcher : IWorkerHostCallDispatcher
+    {
+        public List<string> InfoMessages { get; } = [];
+
+        public ValueTask<WorkerHostResultPayload> DispatchAsync(
+            string executionId,
+            WorkerHostCallPayload call,
+            CancellationToken cancellationToken = default)
+        {
+            if (call.Method == "log.write"
+                && call.Params.ValueKind == JsonValueKind.Object
+                && call.Params.TryGetProperty("level", out var level)
+                && level.GetString() == "Info"
+                && call.Params.TryGetProperty("message", out var message))
+                InfoMessages.Add(message.GetString() ?? string.Empty);
+            return ValueTask.FromResult(new WorkerHostResultPayload(true));
+        }
+    }
+
+    [TestMethod]
+    public async Task ProcessTransport_PassesEffectsThroughLuaAndPython()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            Assert.Inconclusive("当前集成测试使用 Linux 路径。");
+            return;
+        }
+
+        var workerPath = GetWorkerPath();
+        Assert.IsTrue(File.Exists(workerPath), $"Worker 文件不存在：{workerPath}");
+        var dotnetPath = GetDotnetPath();
+        if (dotnetPath is null)
+        {
+            Assert.Inconclusive("当前环境没有可用的绝对 dotnet 路径。");
+            return;
+        }
+
+        var pythonRuntime = await new Diary.Script.Py.PythonRuntimeResolver().ResolveAsync();
+        if (!pythonRuntime.Succeeded || pythonRuntime.ExecutablePath is null)
+        {
+            Assert.Inconclusive("当前环境没有可用的 Python 3.10+ runtime。");
+            return;
+        }
+
+        var cases = new[]
+        {
+            (
+                Language: "lua",
+                Supervisor: CreateDotnetSupervisor(workerPath, "lua", dotnetPath),
+                Payload: new WorkerExecutePayload(
+                    "effects-lua",
+                    "effects.lua",
+                    "function application_main(context)\n    return { succeeded = true, effects = { appendedCount = 1, idempotencyKey = 'lua-key', createdWorkItemIds = { 42 } } }\nend\n",
+                    new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual),
+                    new ScriptDescriptorHint("effects-lua", "Effects Lua", ScriptScope.Application, EngineName: "lua"))),
+            (
+                Language: "python",
+                Supervisor: new WorkerSupervisor(
+                    new ProcessWorkerTransportFactory(new WorkerProcessOptions(
+                        pythonRuntime.ExecutablePath,
+                        Diary.Script.Py.PythonWorkerSource.CreateArguments(),
+                        AppContext.BaseDirectory,
+                        new Dictionary<string, string>
+                        {
+                            ["PYTHONIOENCODING"] = "utf-8",
+                            ["PYTHONUNBUFFERED"] = "1",
+                        }))),
+                Payload: new WorkerExecutePayload(
+                    "effects-python",
+                    "effects.py",
+                    "def application_main(context):\n    return {\"succeeded\": True, \"effects\": {\"appendedCount\": 2, \"idempotencyKey\": \"py-key\", \"createdWorkItemIds\": [7, 8]}}\n",
+                    new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual),
+                    new ScriptDescriptorHint("effects-python", "Effects Python", ScriptScope.Application, EngineName: "python"))),
+        };
+
+        foreach (var testCase in cases)
+        {
+            try
+            {
+                await testCase.Supervisor.StartAsync(new(testCase.Language, [ScriptApiVersion.V1], []));
+                var result = await testCase.Supervisor.ExecuteAsync(
+                    testCase.Payload.ScriptId,
+                    $"{testCase.Language}-effects",
+                    testCase.Payload);
+
+                Assert.AreEqual(ScriptExecutionStatus.Succeeded, result.Payload.Status,
+                    $"{testCase.Language}: {string.Join("; ", result.Payload.Diagnostics.Select(item => $"{item.Code}: {item.Message}"))}");
+                Assert.IsNotNull(result.Payload.Effects, testCase.Language);
+                Assert.AreEqual(testCase.Language == "lua" ? 1 : 2, result.Payload.Effects!.AppendedCount, testCase.Language);
+                Assert.AreEqual(testCase.Language == "lua" ? "lua-key" : "py-key", result.Payload.Effects.IdempotencyKey, testCase.Language);
+                CollectionAssert.AreEqual(
+                    testCase.Language == "lua" ? new[] { 42 } : new[] { 7, 8 },
+                    result.Payload.Effects.CreatedWorkItemIds!.ToArray(),
+                    testCase.Language);
+            }
+            finally
+            {
+                await testCase.Supervisor.StopAsync();
+            }
+        }
+    }
+
+    [TestMethod]
+    public async Task ProcessTransport_WorkerHonorsNegotiatedLimits()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            Assert.Inconclusive("当前集成测试使用 Linux dotnet 路径。");
+            return;
+        }
+
+        var workerPath = GetWorkerPath();
+        var supervisor = new WorkerSupervisor(
+            new ProcessWorkerTransportFactory(new(
+                GetDotnetPath() ?? throw new InvalidOperationException("dotnet 路径不可用。"),
+                [workerPath, "--language", "csharp"],
+                Path.GetDirectoryName(workerPath)!,
+                new Dictionary<string, string> { ["DOTNET_CLI_UI_LANGUAGE"] = "en-US" })),
+            maxResultMessageBytes: 128 * 1024,
+            cancellationGracePeriod: TimeSpan.FromSeconds(2));
+        try
+        {
+            // 协商较小的消息/结果上限，正常脚本仍能完整往返
+            await supervisor.StartAsync(new(
+                "csharp",
+                [ScriptApiVersion.V1],
+                [],
+                MaxMessageBytes: 64 * 1024,
+                MaxResultMessageBytes: 128 * 1024));
+            var result = await supervisor.ExecuteAsync("demo", "exec-1", new
+            {
+                ScriptId = "demo",
+                SourcePath = "demo.cs",
+                Source = "public sealed class Demo : Diary.ScriptBase.IScriptProgramV1 { public Diary.ScriptBase.ScriptDescriptor Descriptor { get; } = new(\"demo\", \"Demo\", Diary.ScriptBase.ScriptApiVersion.V1, Diary.ScriptBase.ScriptScope.Application); public System.Threading.Tasks.ValueTask<Diary.ScriptBase.ScriptExecutionResult> ExecuteAsync(Diary.ScriptBase.ScriptExecutionRequest request, Diary.ScriptBase.IScriptExecutionContext context, System.Threading.CancellationToken cancellationToken = default) => System.Threading.Tasks.ValueTask.FromResult(Diary.ScriptBase.ScriptExecutionResult.Succeeded()); }",
+                Request = new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual),
+            });
+
+            Assert.AreEqual(ScriptExecutionStatus.Succeeded, result.Payload.Status,
+                string.Join("; ", result.Payload.Diagnostics.Select(item => $"{item.Code}: {item.Message}")));
+            Assert.AreEqual(WorkerState.Ready, supervisor.State);
+        }
+        finally
+        {
+            await supervisor.StopAsync();
+        }
+    }
+
+    [TestMethod]
+    public async Task ProcessTransport_WorkerReportsOversizedResultCleanly()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            Assert.Inconclusive("当前集成测试使用 Linux dotnet 路径。");
+            return;
+        }
+
+        var workerPath = GetWorkerPath();
+        var supervisor = new WorkerSupervisor(
+            new ProcessWorkerTransportFactory(new(
+                GetDotnetPath() ?? throw new InvalidOperationException("dotnet 路径不可用。"),
+                [workerPath, "--language", "csharp"],
+                Path.GetDirectoryName(workerPath)!,
+                new Dictionary<string, string> { ["DOTNET_CLI_UI_LANGUAGE"] = "en-US" })),
+            maxResultMessageBytes: 64 * 1024,
+            cancellationGracePeriod: TimeSpan.FromSeconds(2));
+        try
+        {
+            await supervisor.StartAsync(new(
+                "csharp",
+                [ScriptApiVersion.V1],
+                [],
+                MaxMessageBytes: 4 * 1024 * 1024,
+                MaxResultMessageBytes: 64 * 1024));
+            var oversized = new string('x', 128 * 1024);
+            var result = await supervisor.ExecuteAsync("demo", "exec-big-result", new
+            {
+                ScriptId = "demo",
+                SourcePath = "demo.cs",
+                Source = $"public sealed class Demo : Diary.ScriptBase.IScriptProgramV1 {{ public Diary.ScriptBase.ScriptDescriptor Descriptor {{ get; }} = new(\"demo\", \"Demo\", Diary.ScriptBase.ScriptApiVersion.V1, Diary.ScriptBase.ScriptScope.Application); public System.Threading.Tasks.ValueTask<Diary.ScriptBase.ScriptExecutionResult> ExecuteAsync(Diary.ScriptBase.ScriptExecutionRequest request, Diary.ScriptBase.IScriptExecutionContext context, System.Threading.CancellationToken cancellationToken = default) => System.Threading.Tasks.ValueTask.FromResult(new Diary.ScriptBase.ScriptExecutionResult(Diary.ScriptBase.ScriptExecutionStatus.Succeeded, [new Diary.ScriptBase.ScriptDiagnostic(\"BIG\", \"{oversized}\", Diary.ScriptBase.ScriptDiagnosticSeverity.Info, Diary.ScriptBase.ScriptDiagnosticCategory.Runtime)])); }}",
+                Request = new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual),
+            });
+
+            Assert.AreEqual(ScriptExecutionStatus.Failed, result.Payload.Status);
+            Assert.AreEqual("WORKER_RESULT_TOO_LARGE", result.Payload.Diagnostics.Single().Code);
+        }
+        finally
+        {
+            await supervisor.StopAsync();
+        }
     }
 
     [TestMethod]

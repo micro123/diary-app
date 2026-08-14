@@ -276,7 +276,7 @@ except HostCallError as error:
 | `context.log.*` | `log.write` |
 | `context.progress.report` | `script.progress` |
 
-Python Worker 禁止导入模块、文件访问、动态代码执行、运行时自省、输入和双下划线属性。允许的内置函数（SAFE_BUILTINS）：`abs`、`all`、`any`、`bool`、`dict`、`enumerate`、`Exception`、`HostCallError`、`float`、`int`、`isinstance`、`len`、`list`、`max`、`min`、`next`、`print`、`range`、`set`、`sorted`、`str`、`sum`、`tuple`、`type`、`ValueError`、`RuntimeError`、`zip`。除此之外没有其他内置函数；`__builtins__`、`__import__`、`eval`、`exec`、`open`、`getattr`、`globals`、`setattr`、`vars`、`compile`、`breakpoint`、`input`、`help`、`quit` 等名称在执行前由 AST 静态扫描拒绝。取消通过逐行 trace 注入，运行中的脚本会收到 `CancelledExecution`。`print` 重定向到 Worker 日志流并受大小限制。脚本不能直接访问网络、进程、数据库、DI 或 UI 控件。
+Python Worker 禁止导入模块、文件访问、动态代码执行、运行时自省、输入和双下划线属性。允许的内置函数（SAFE_BUILTINS）：`abs`、`all`、`any`、`bool`、`dict`、`enumerate`、`Exception`、`HostCallError`、`float`、`int`、`isinstance`、`len`、`list`、`max`、`min`、`next`、`print`、`range`、`set`、`sorted`、`str`、`sum`、`tuple`、`type`、`ValueError`、`RuntimeError`、`zip`。除此之外没有其他内置函数；`__builtins__`、`__import__`、`eval`、`exec`、`open`、`getattr`、`globals`、`setattr`、`vars`、`compile`、`breakpoint`、`input`、`help`、`quit` 等名称在执行前由 AST 静态扫描拒绝。取消通过逐行 trace 注入，运行中的脚本会收到 `CancelledExecution`。`print` 按行转发到脚本日志（Info 级），与 `context.log.info` 一样显示在管理页「运行日志」Tab 和宿主日志中；每条打印占用一次宿主调用，计入宿主调用次数上限，打印密集型脚本请改用 `context.log` 或合并输出。输出总量超过 1MB 时脚本执行失败，异常 traceback 仍写入 Worker stderr。脚本不能直接访问网络、进程、数据库、DI 或 UI 控件。
 
 ## 8. 错误、取消、超时和 Worker 终止
 
@@ -327,7 +327,7 @@ except HostCallError as error:
 入口必须是同步函数（不支持 `async def`）：
 
 - 返回 awaitable → 抛 `RuntimeError`，执行失败。
-- 正常返回（或返回可 JSON 序列化的值）→ 执行成功（`Succeeded`）；返回值会放进 worker 执行结果的 `value` 字段，但宿主侧当前不消费，**返回值不参与执行状态**。
+- 正常返回（或返回可 JSON 序列化的值）→ 执行成功（`Succeeded`）；返回值会放进 worker 执行结果的 `value` 字段，但宿主侧当前不消费（**返回值不参与执行状态**）。例外：若返回宿主 API 的结果字典（如 `logItems.create` 的返回值），其中的 `effects` 字段会被 Worker 提取并随执行结果传回宿主，显示在管理页执行历史与完成通知中（追加条数、预览、幂等重放、新建 ID）。
 - 抛异常 → `Failed` + `PYTHON_EXECUTION_FAILED` 诊断（附行号）。
 - `HostCallError` 未被捕获 → `Failed` + `PYTHON_HOST_CALL_FAILED`。
 - 执行已取消 → `Cancelled`。

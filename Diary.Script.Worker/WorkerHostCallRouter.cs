@@ -6,12 +6,15 @@ internal sealed class WorkerMessageWriter(Stream output)
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
 
-    public async ValueTask WriteAsync<TPayload>(WorkerMessage<TPayload> message)
+    /// <summary>常规消息（HostCall、Pong、Error 等）的上限，由 HelloAccepted 协商设置。</summary>
+    public int MaxMessageBytes { get; set; } = WorkerProtocol.DefaultMaxMessageBytes;
+
+    public async ValueTask WriteAsync<TPayload>(WorkerMessage<TPayload> message, int? maxMessageBytes = null)
     {
         await _gate.WaitAsync();
         try
         {
-            await WorkerMessageCodec.WriteAsync(output, message);
+            await WorkerMessageCodec.WriteAsync(output, message, maxMessageBytes ?? MaxMessageBytes);
         }
         finally
         {
@@ -25,7 +28,14 @@ internal sealed class WorkerHostCallRouter(Stream output)
     private readonly WorkerMessageWriter _writer = new(output);
     private readonly ConcurrentDictionary<string, PendingCall> _pending = new(StringComparer.Ordinal);
 
-    public ValueTask WriteAsync<TPayload>(WorkerMessage<TPayload> message) => _writer.WriteAsync(message);
+    public int MaxMessageBytes
+    {
+        get => _writer.MaxMessageBytes;
+        set => _writer.MaxMessageBytes = value;
+    }
+
+    public ValueTask WriteAsync<TPayload>(WorkerMessage<TPayload> message, int? maxMessageBytes = null) =>
+        _writer.WriteAsync(message, maxMessageBytes);
 
     public async ValueTask<WorkerHostResultPayload> CallAsync(
         WorkerHostCallPayload call,

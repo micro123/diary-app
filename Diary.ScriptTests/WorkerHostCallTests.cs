@@ -64,7 +64,7 @@ public sealed class WorkerHostCallTests
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask<WorkerMessage<TPayload>> ReceiveAsync<TPayload>(CancellationToken cancellationToken = default)
+        public ValueTask<WorkerMessage<TPayload>> ReceiveAsync<TPayload>(CancellationToken cancellationToken = default, int maxMessageBytes = WorkerProtocol.DefaultMaxMessageBytes)
         {
             _receiveCount++;
             object message = _receiveCount switch
@@ -127,7 +127,7 @@ public sealed class WorkerHostCallTests
             return ValueTask.CompletedTask;
         }
 
-        public async ValueTask<WorkerMessage<TPayload>> ReceiveAsync<TPayload>(CancellationToken cancellationToken = default)
+        public async ValueTask<WorkerMessage<TPayload>> ReceiveAsync<TPayload>(CancellationToken cancellationToken = default, int maxMessageBytes = WorkerProtocol.DefaultMaxMessageBytes)
         {
             _receiveCount++;
             object message = _receiveCount switch
@@ -159,7 +159,7 @@ public sealed class WorkerHostCallTests
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask<WorkerMessage<TPayload>> ReceiveAsync<TPayload>(CancellationToken cancellationToken = default)
+        public ValueTask<WorkerMessage<TPayload>> ReceiveAsync<TPayload>(CancellationToken cancellationToken = default, int maxMessageBytes = WorkerProtocol.DefaultMaxMessageBytes)
         {
             _receiveCount++;
             object message = _receiveCount == 1

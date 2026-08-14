@@ -33,6 +33,54 @@ public sealed class ScriptListItemTests
         Assert.AreEqual("应用入口", application.EntryKindLabel);
     }
 
+    [TestMethod]
+    public void HistoryItem_FormatsEffectsSummary()
+    {
+        var item = CreateHistory(new ScriptEffectSummary(
+            AppendedCount: 1,
+            IdempotencyKey: "auto-daily-check:2026-08-13",
+            CreatedWorkItemIds: [42]));
+
+        Assert.IsTrue(item.HasEffects);
+        Assert.AreEqual(
+            "新增 1 条工作记录；幂等键：auto-daily-check:2026-08-13；新建 ID：42",
+            item.EffectsSummary);
+    }
+
+    [TestMethod]
+    public void HistoryItem_PreviewAndIdempotentReplayEffects()
+    {
+        var preview = CreateHistory(new ScriptEffectSummary(
+            Preview: true,
+            IdempotencyKey: "preview-key"));
+        Assert.AreEqual("预览执行，未写入；幂等键：preview-key", preview.EffectsSummary);
+
+        var replay = CreateHistory(new ScriptEffectSummary(
+            AppendedCount: 0,
+            IdempotencyKey: "auto-daily-check:2026-08-13"));
+        Assert.AreEqual("幂等重放，未重复追加；幂等键：auto-daily-check:2026-08-13", replay.EffectsSummary);
+    }
+
+    [TestMethod]
+    public void HistoryItem_WithoutEffectsHasNoSummary()
+    {
+        var item = CreateHistory(null);
+
+        Assert.IsFalse(item.HasEffects);
+        Assert.AreEqual(string.Empty, item.EffectsSummary);
+    }
+
+    private static ScriptHistoryListItem CreateHistory(ScriptEffectSummary? effects) => new(
+        "sample",
+        "示例脚本",
+        nameof(ScriptExecutionStatus.Succeeded),
+        nameof(ScriptExecutionSource.Manual),
+        "2026-08-14 09:00:00",
+        "120 ms",
+        [],
+        "log",
+        effects);
+
     private static ScriptListItem Create(
         ScriptScope scope,
         bool buildSucceeded,

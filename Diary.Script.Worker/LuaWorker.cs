@@ -1,4 +1,5 @@
 using Diary.ScriptHost;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Diary.Script.Lua;
@@ -9,11 +10,17 @@ using LuaState = NLua.Lua;
 
 internal sealed class LuaWorker(Stream input, Stream output)
 {
+    private const string BootstrapResourceName = "Diary.Script.Worker.lua-bootstrap.lua";
+    private static readonly Lazy<string> Bootstrap = new(LoadBootstrap);
+
     private readonly LuaEngine _engine = new();
     private readonly WorkerHostCallRouter _hostCalls = new(output);
     private Task? _activeExecution;
     private CancellationTokenSource? _activeCancellation;
     private string? _activeExecutionId;
+    private int _maxMessageBytes = WorkerProtocol.DefaultMaxMessageBytes;
+    private int _maxResultMessageBytes = WorkerProtocol.DefaultMaxResultMessageBytes;
+    private ScriptApiVersion _negotiatedApiVersion = ScriptApiVersion.V1;
 
     public async Task RunAsync()
     {
@@ -23,23 +30,34 @@ internal sealed class LuaWorker(Stream input, Stream output)
             WorkerMessageType.Hello,
             Guid.NewGuid().ToString("N"),
             null,
-            new("lua", "0.3", [ScriptApiVersion.V1], ScriptHostApiCatalog.All, Environment.ProcessId));
+            new("lua", "0.4", [ScriptApiVersion.V1], ScriptHostApiCatalog.All, Environment.ProcessId));
         Console.SetOut(new BoundedTextWriter(1 * 1024 * 1024));
+        // 防止脚本读取 Worker stdin（协议通道）：Console 输入一律视为空流。
+        Console.SetIn(TextReader.Null);
         await _hostCalls.WriteAsync(hello);
         var accepted = await WorkerMessageCodec.ReadAsync<WorkerHelloAcceptedPayload>(input);
         if (accepted.Type != WorkerMessageType.HelloAccepted)
             return;
+        _maxMessageBytes = accepted.Payload.MaxMessageBytes;
+        _maxResultMessageBytes = accepted.Payload.MaxResultMessageBytes;
+        _negotiatedApiVersion = accepted.Payload.ApiVersion;
+        _hostCalls.MaxMessageBytes = _maxMessageBytes;
 
         while (true)
         {
             WorkerMessage<JsonElement> message;
             try
             {
-                message = await WorkerMessageCodec.ReadAsync<JsonElement>(input);
+                message = await WorkerMessageCodec.ReadAsync<JsonElement>(input, _maxMessageBytes);
             }
             catch (EndOfStreamException)
             {
                 _activeCancellation?.Cancel();
+                return;
+            }
+            catch (WorkerProtocolDataException)
+            {
+                // 宿主违反协商上限或消息格式错误：直接退出，由宿主按通道断开处理。
                 return;
             }
 
@@ -149,6 +167,7 @@ internal sealed class LuaWorker(Stream input, Stream output)
             var build = await _engine.BuildAsync(new ScriptBuildRequest(
                 payload.SourcePath,
                 payload.Source,
+                ApiVersion: _negotiatedApiVersion,
                 DescriptorHint: payload.DescriptorHint));
             if (!build.Succeeded || build.Program is null)
             {
@@ -176,8 +195,10 @@ internal sealed class LuaWorker(Stream input, Stream output)
         using var lua = CreateLua(executionId, payload.Request, cancellationToken);
         try
         {
-            lua.LoadString(payload.Source, payload.SourcePath);
-            lua.DoString(payload.Source, payload.SourcePath);
+            // NLua 的 string 重载按系统 ANSI 编码转换，中文会被替换成 ?；统一用 UTF-8 byte[] 重载。
+            var sourceBytes = Encoding.UTF8.GetBytes(payload.Source);
+            lua.LoadString(sourceBytes, payload.SourcePath);
+            lua.DoString(sourceBytes, payload.SourcePath);
             var entry = lua.GetFunction(GetEntryFunctionName(entryKind));
             if (entry is null)
             {
@@ -193,8 +214,8 @@ internal sealed class LuaWorker(Stream input, Stream output)
                 ?? throw new InvalidOperationException("Lua 执行上下文初始化失败。");
             context["request"] = JsonToLua(JsonSerializer.SerializeToElement(payload.Request, WorkerProtocol.JsonOptions));
             context["arguments"] = JsonToLua(JsonSerializer.SerializeToElement(payload.Request.Arguments, WorkerProtocol.JsonOptions));
-            entry.Call(context);
-            return new(ScriptExecutionStatus.Succeeded, []);
+            var returns = entry.Call(context);
+            return new(ScriptExecutionStatus.Succeeded, [], Effects: ExtractEffects(returns));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -217,7 +238,9 @@ internal sealed class LuaWorker(Stream input, Stream output)
     private LuaState CreateLua(Guid executionId, ScriptExecutionRequest request, CancellationToken cancellationToken)
     {
         var lua = new LuaState();
-        lua.DoString("io = nil; os = nil; debug = nil; package = nil; require = nil; dofile = nil; loadfile = nil; load = nil; loadstring = nil; import = nil; luanet = nil; clr = nil");
+        // KeraLua 默认使用 ASCII 做字符串双向转换，中文会被替换成 ?；统一改为 UTF-8。
+        lua.State.Encoding = Encoding.UTF8;
+        // 沙箱限制与 API 门面统一在嵌入资源 lua-bootstrap.lua 中，注册完成后一次性执行。
         var bridge = new LuaHostBridge(CallHostAsync, executionId, cancellationToken);
         var target = request.Target is null
             ? null
@@ -256,15 +279,87 @@ internal sealed class LuaWorker(Stream input, Stream output)
         lua.RegisterFunction("__diary_log_write", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Log))!);
         lua.RegisterFunction("__diary_progress_report", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Progress))!);
         lua.RegisterFunction("__diary_is_cancelled", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.IsCancelled))!);
-        lua.DoString("diary = { workItems = { query = function(params) return __diary_work_items_query(params) end }, logItems = { create = function(params) return __diary_log_items_create(params) end }, templateLogItems = { create = function(params) return __diary_template_log_items_create(params) end }, templates = { list = function() return __diary_templates_list() end }, host = { list = function() return __diary_host_capabilities_list() end }, trackerInstances = { get = function(params) return __diary_tracker_get(params) end, list = function() return __diary_tracker_list() end }, clipboard = { get = function() return __diary_clipboard_get() end, set = function(text) return __diary_clipboard_set(text) end }, ui = { notify = function(title, body) return __diary_ui_notify(title, body) end, confirm = function(title, body) return __diary_ui_confirm(title, body) end }, log = { debug = function(message) return __diary_log_write('Debug', message) end, info = function(message) return __diary_log_write('Info', message) end, warning = function(message) return __diary_log_write('Warning', message) end, error = function(message) return __diary_log_write('Error', message) end } }; diary.workItems.stream = function(params) params = params or {}; local pageSize = params.pageSize or 500; if pageSize < 1 or pageSize > 500 then error('pageSize must be between 1 and 500') end; local offset = params.offset or 0; local page = {}; local index = 1; local finished = false; params.pageSize = nil; return function() while true do if index <= #page then local item = page[index]; index = index + 1; return item end; if finished then return nil end; params.limit = pageSize; params.offset = offset; local result = __diary_work_items_query(params); if not result.succeeded then error(result.error.message) end; page = result.items or {}; index = 1; offset = offset + #page; finished = #page < pageSize; end end end; __diary_context = {}; __diary_context.target = __diary_context_target; __diary_context.dateRange = __diary_context_date_range; __diary_context.workItem = __diary_context_work_item; __diary_context.arguments = __diary_context_arguments or {}; __diary_context.log = diary.log; __diary_context.progress = { report = function(fraction, message) return __diary_progress_report(fraction, message) end }; __diary_context.isCancelled = function() return __diary_is_cancelled() end; __diary_context.getDateRange = function() return __diary_context_date_range end; __diary_context.items = { stream = function(params) local range = __diary_context_date_range; if range == nil then error('当前目标没有日期范围') end; params = params or {}; params.startDate = range.startDate; params.endDate = range.endDate; return diary.workItems.stream(params) end };");
-        lua.DoString("__diary_context.entryKind = __diary_context_entry_kind; __diary_context.idempotencyKey = __diary_context_idempotency_key; __diary_context.preview = __diary_context_preview; __diary_context.automation = { trigger = __diary_context_automation_trigger, eventData = __diary_context_automation_event_data or {}, idempotencyKey = __diary_context_automation_idempotency_key };");
+        // NLua 的 string 重载按系统 ANSI 编码转换，中文会被替换成 ?；统一用 UTF-8 byte[] 重载。
+        lua.DoString(Encoding.UTF8.GetBytes(Bootstrap.Value), BootstrapResourceName);
         return lua;
     }
 
-    private ValueTask WriteResultAsync(WorkerMessage<JsonElement> request, WorkerExecutionResultPayload payload) =>
-        _hostCalls.WriteAsync(new WorkerMessage<WorkerExecutionResultPayload>(
-            WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.ExecuteResult,
-            request.RequestId, request.ExecutionId, payload));
+    private static string LoadBootstrap()
+    {
+        using var stream = typeof(LuaWorker).Assembly.GetManifestResourceStream(BootstrapResourceName)
+            ?? throw new InvalidOperationException("Lua 引导脚本资源缺失。");
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+        return reader.ReadToEnd();
+    }
+
+    /// <summary>入口返回值若为宿主 API 结果表（含 effects 键），提取其中的 effects 供宿主展示。</summary>
+    private static ScriptEffectSummary? ExtractEffects(object[]? returns)
+    {
+        if (returns is not { Length: > 0 })
+            return null;
+        var normalized = NormalizeLuaValue(returns[0]);
+        if (normalized is not Dictionary<string, object?> table
+            || !table.TryGetValue("effects", out var effects)
+            || effects is null)
+            return null;
+        try
+        {
+            return JsonSerializer.Deserialize<ScriptEffectSummary>(
+                JsonSerializer.SerializeToElement(effects, WorkerProtocol.JsonOptions),
+                WorkerProtocol.JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>把 NLua 返回的 LuaTable/数组规范化为 Dictionary 与 object[]，便于 JSON 序列化。</summary>
+    private static object? NormalizeLuaValue(object? value)
+    {
+        switch (value)
+        {
+            case LuaTable table:
+                var keys = table.Keys.Cast<object>().ToArray();
+                var isArray = keys.Length > 0
+                    && keys.All(key => key is double or long or int)
+                    && keys.Select(key => Convert.ToInt32(key)).OrderBy(index => index)
+                        .SequenceEqual(Enumerable.Range(1, keys.Length));
+                if (isArray)
+                    return keys.OrderBy(key => Convert.ToInt32(key))
+                        .Select(key => NormalizeLuaValue(table[key]))
+                        .ToArray();
+                var dictionary = new Dictionary<string, object?>();
+                foreach (var key in keys)
+                    dictionary[key?.ToString() ?? string.Empty] = NormalizeLuaValue(table[key]);
+                return dictionary;
+            case object[] array:
+                return array.Select(NormalizeLuaValue).ToArray();
+            case Dictionary<string, object?> nested:
+                return nested.ToDictionary(pair => pair.Key, pair => NormalizeLuaValue(pair.Value));
+            default:
+                return value;
+        }
+    }
+
+    private async ValueTask WriteResultAsync(WorkerMessage<JsonElement> request, WorkerExecutionResultPayload payload)
+    {
+        try
+        {
+            await _hostCalls.WriteAsync(new WorkerMessage<WorkerExecutionResultPayload>(
+                WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.ExecuteResult,
+                request.RequestId, request.ExecutionId, payload), _maxResultMessageBytes);
+        }
+        catch (WorkerMessageTooLargeException)
+        {
+            await _hostCalls.WriteAsync(new WorkerMessage<WorkerExecutionResultPayload>(
+                WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.ExecuteResult,
+                request.RequestId, request.ExecutionId,
+                new(ScriptExecutionStatus.Failed, [new ScriptDiagnostic(
+                    "WORKER_RESULT_TOO_LARGE", "Worker 执行结果超过大小限制。",
+                    ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Runtime)])));
+        }
+    }
 
     private ValueTask<WorkerHostResultPayload> CallHostAsync(
         WorkerHostCallPayload call,

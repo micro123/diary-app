@@ -262,6 +262,7 @@
                                     <TextBlock Text="{Binding SourceLabel}" Opacity="0.68" />
                                     <TextBlock Text="{Binding StartedAt}" Opacity="0.68" />
                                      <TextBlock Text="{Binding Duration}" Opacity="0.68" />
+                                     <TextBlock Text="{Binding EffectsSummary}" IsVisible="{Binding HasEffects}" />
                                      <Button Content="复制日志" HorizontalAlignment="Right"
                                              Command="{Binding $parent[UserControl].((vm:ScriptManagementViewModel)DataContext).CopyHistoryLogCommand}"
                                              CommandParameter="{Binding}" />

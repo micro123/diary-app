@@ -214,3 +214,14 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [~] 调查协议：已保留 DiaryToolpp 兼容的 v1/9721 日期查询，并增加新版 v2/9722 自定义统计查询（关键词、标签、标签模式和优先级）；扩展查询只发送到新版节点；已增加 v2 能力发现、标签/日期/优先级分组和最多 500 条结果明细展示。能力发现缓存、分页明细和更多分组维度仍待补充。
 
 验收：用户能够明确区分本地已保存、待同步、已同步和同步失败；未上传或误写记录可以直接删除；已上传或状态不确定记录的远程影响对用户透明；批量同步产生的副作用在执行前可预览、执行后可追踪；日常记录和耗时汇总不需要理解插件或 Worker 的内部实现。
+
+## 阶段 11：维护清单与发布流程
+
+目标：清理历史遗留、收紧 Worker 协议、统一三语言输出语义，并建立可持续的发布流程。
+
+- [x] 已删除遗留 `IScriptApi`/`IScriptEngine`/`IScript`/`ScriptUsage`/`ITrackerScriptApi` 接口族与 `LegacyScriptAdapters` 适配层（删除前确认无实现类、无 DI、无测试引用）；`Docs/ScriptSystemDesign.md` 同步改写为仅 V1 接口现状。
+- [x] Worker 协议已收紧：握手协商结果（`maxMessageBytes`/`maxResultMessageBytes`/`apiVersion`）三语言 Worker 全面生效（C#/Lua Worker 读循环与写路由、Python 模块级上限均使用协商值；`apiVersion` 传入 C#/Lua 构建请求）；新增 `WORKER_INVALID_MESSAGE`、`WORKER_HOST_CALL_TOO_LARGE` 诊断码并区分消息超限与格式错误（`WorkerMessageTooLargeException`/`WorkerInvalidMessageException`）；执行结果按 16MB 上限单独读取，`WORKER_RESULT_TOO_LARGE` 由不可达变为可达（Worker 侧结果写超限回退为同码失败结果）；补充 4MB/16MB/1MB 消息大小层级注释；协议不匹配诊断附带期望/实际值。
+- [x] print 输出语义已统一：C# `Console`、Lua `print`、Python `print` 按行转发到脚本日志 Info 级（管理页「运行日志」Tab 可见），执行结束冲刷残余半行，总量 1MB 兜底，非执行期输出丢弃；每条打印计入宿主调用次数上限，文档（CSharp.md §10 / Lua.md §7 / Python.md §7）已同步。
+- [x] Effects 三语言透传与 UI 展示已落地：Lua/Python 入口返回 create 结果表即透传 `effects` 字段；管理页执行历史条目（`EffectsSummary`）与完成通知显示追加条数/预览/幂等重放/新建 ID；`AutomationDailyCheck` 三语言示例改为返回 create 结果并更新说明。
+- [x] LuaWorker 引导脚本（沙箱 + API 门面 + 分页流 + 上下文装配）已外置为嵌入资源 `lua-bootstrap.lua`，与 Python `worker.py` 同构；`LuaEngine` 构建期沙箱保持不变。
+- [x] 发布流程已建立：新增 `Docs/CHANGELOG.md`（`## 版本号` 章节格式），README 补充版本策略（`1.0.0-r{CommitCount}` 含义）与 CHANGELOG 链接；`release-on-tags.yml` 的 Release body 改为从 CHANGELOG 提取对应版本章节（缺失时回退固定文案），并补充 checkout 步骤。

@@ -90,7 +90,8 @@ public sealed record ScriptHistoryListItem(
     string StartedAt,
     string Duration,
     IReadOnlyList<string> Diagnostics,
-    string Log)
+    string Log,
+    ScriptEffectSummary? Effects = null)
 {
     public string StatusLabel => Status switch
     {
@@ -109,6 +110,30 @@ public sealed record ScriptHistoryListItem(
         nameof(ScriptExecutionSource.Automation) => "自动化调用",
         _ => "未知来源",
     };
+
+    public bool HasEffects => Effects is not null;
+
+    public string EffectsSummary => FormatEffects(Effects);
+
+    public static string FormatEffects(ScriptEffectSummary? effects)
+    {
+        if (effects is null)
+            return string.Empty;
+        var parts = new List<string>();
+        if (effects.Preview)
+            parts.Add("预览执行，未写入");
+        else if (effects.AppendedCount > 0)
+            parts.Add($"新增 {effects.AppendedCount} 条工作记录");
+        else if (!string.IsNullOrWhiteSpace(effects.IdempotencyKey))
+            parts.Add("幂等重放，未重复追加");
+        if (!string.IsNullOrWhiteSpace(effects.IdempotencyKey))
+            parts.Add($"幂等键：{effects.IdempotencyKey}");
+        if (effects.CreatedWorkItemIds is { Count: > 0 })
+            parts.Add($"新建 ID：{string.Join(", ", effects.CreatedWorkItemIds)}");
+        if (effects.RemoteEffects is { Count: > 0 })
+            parts.Add($"远程效果：{string.Join("; ", effects.RemoteEffects)}");
+        return string.Join("；", parts);
+    }
 }
 
 public sealed record ScriptDiagnosticListItem(
@@ -385,7 +410,8 @@ public partial class ScriptManagementViewModel(
                 CreateExecutionRequest(script),
                 TimeSpan.FromMinutes(5),
                 cancellation.Token), cancellation.Token);
-            Status = FormatExecutionStatus(script.Name, outcome.Result.Status, outcome.Result.Diagnostics, outcome.Duration);
+            Status = FormatExecutionStatus(
+                script.Name, outcome.Result.Status, outcome.Result.Diagnostics, outcome.Duration, outcome.Result.Effects);
             NotificationManager?.Show(
                 Status,
                 outcome.Result.Status == ScriptExecutionStatus.Succeeded
@@ -725,7 +751,8 @@ public partial class ScriptManagementViewModel(
                 (entry.Outcome.StartedAt ?? entry.RecordedAt).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"),
                 $"{entry.Outcome.Duration.TotalMilliseconds:0} ms",
                 FormatDiagnostics(entry.Outcome.Result.Diagnostics),
-                FormatHistoryLog(entry, scriptName)));
+                FormatHistoryLog(entry, scriptName),
+                entry.Outcome.Result.Effects));
         }
         RefreshVisibleHistory();
     }
@@ -770,6 +797,9 @@ public partial class ScriptManagementViewModel(
             lines.Add("进度：");
             lines.AddRange(progress.Select(snapshot => $"  {snapshot.UpdatedAt:HH:mm:ss} {snapshot.DisplayText}"));
         }
+        var effectsSummary = ScriptHistoryListItem.FormatEffects(outcome.Result.Effects);
+        if (!string.IsNullOrWhiteSpace(effectsSummary))
+            lines.Add($"效果：{effectsSummary}");
         lines.Add("诊断：");
         lines.AddRange(FormatDiagnostics(outcome.Result.Diagnostics));
         return string.Join(Environment.NewLine, lines);
@@ -779,14 +809,23 @@ public partial class ScriptManagementViewModel(
         string scriptName,
         ScriptExecutionStatus status,
         IReadOnlyList<ScriptDiagnostic> diagnostics,
-        TimeSpan duration) => status switch
+        TimeSpan duration,
+        ScriptEffectSummary? effects = null) => status switch
         {
-            ScriptExecutionStatus.Succeeded => $"{scriptName} 执行成功（{duration.TotalSeconds:0.##} 秒）",
+            ScriptExecutionStatus.Succeeded => FormatSuccessStatus(scriptName, duration, effects),
             ScriptExecutionStatus.Cancelled => $"{scriptName} 已取消",
             ScriptExecutionStatus.TimedOut => $"{scriptName} 执行超时，请查看诊断详情",
             ScriptExecutionStatus.Rejected => $"{scriptName} 未执行：{diagnostics.FirstOrDefault()?.Message ?? "请求被拒绝"}",
             _ => $"{scriptName} 执行失败：{diagnostics.FirstOrDefault()?.Message ?? "请查看诊断详情"}",
         };
+
+    private static string FormatSuccessStatus(string scriptName, TimeSpan duration, ScriptEffectSummary? effects)
+    {
+        var summary = ScriptHistoryListItem.FormatEffects(effects);
+        return string.IsNullOrWhiteSpace(summary)
+            ? $"{scriptName} 执行成功（{duration.TotalSeconds:0.##} 秒）"
+            : $"{scriptName} 执行成功（{duration.TotalSeconds:0.##} 秒，{summary}）";
+    }
 
     private static IReadOnlyList<ScriptDiagnosticListItem> FormatDiagnosticDetails(
         IEnumerable<ScriptDiagnostic>? diagnostics) =>
