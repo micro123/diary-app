@@ -20,7 +20,7 @@ public sealed class ScriptEditorWindowTests
     [ClassInitialize]
     public static void Initialize(TestContext context)
     {
-        _session = HeadlessUnitTestSession.StartNew(typeof(TestApplication));
+        _session = HeadlessUnitTestSession.StartNew(typeof(TestApplication), AvaloniaTestIsolationLevel.PerAssembly);
     }
 
     [ClassCleanup]

@@ -14,6 +14,7 @@ package "核心" {
     tag_name : CHAR(64) UNIQUE
     tag_color : INTEGER
     tag_level : INTEGER
+    tag_metadata : TEXT
     is_disabled : INTEGER
   }
   entity "work_items" as work_items {

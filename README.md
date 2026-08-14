@@ -1,6 +1,48 @@
 # DiaryApp
 
-工作日记桌面应用，基于 .NET 10.0 + Avalonia UI 构建。
+工作日记桌面应用，基于 .NET 10.0 + Avalonia UI 构建，支持 Linux 与 Windows。
+
+## 功能概览
+
+- **工作日记**：按天记录工作项（耗时、优先级、备注、标签），支持复制前一天记录、快捷工时与自然时间输入（如 `1h30m`）
+- **Tracker 插件**：RedMine 与 Jira 工时同步，支持多实例、追加式提交、上传状态与结果确认
+- **自定义事项查询**：日期/标签/文本/优先级过滤（五种标签模式）、快捷日期、结果导出 CSV/Markdown
+- **标签自动化规则**：按 Tracker 实例配置「添加标签 → 补默认字段」规则
+- **统计页**：工时分布、标签明细
+- **Survey**：调查协议 v1/v2（端口 9721/9722），支持能力发现与自定义统计
+- **脚本系统**：C#、Lua、Python 三种语言的脚本，支持应用脚本（手动执行）与编辑器脚本（日历右键按日/周/月/季/年/事项执行）；自动化入口（定时/事件触发）当前仅预留契约。API 参考见 [`Docs/ScriptApi`](Docs/ScriptApi/CSharp.md)
+
+## 运行要求
+
+- .NET 10 SDK
+- 可选：Python 3.10+（运行 Python 脚本时需要）、PostgreSQL（不使用 SQLite 时）、RedMine/Jira 服务（使用对应 Tracker 插件时）
+
+## 数据库
+
+- 默认使用 SQLite，本地即可运行；也支持 PostgreSQL
+- 核心表与 Tracker 插件表共享同一物理数据库，插件 schema 独立迁移（当前 schema 见 [`Docs/diagrams/database-schema.puml`](Docs/diagrams/database-schema.puml)）
+
+## 快速开始
+
+```bash
+dotnet build DiaryApp.sln
+dotnet run --project Diary.App
+```
+
+运行测试（各测试项目均为可执行程序）：
+
+```bash
+for t in Diary.AppTests Diary.DbTests Diary.JiraTests Diary.RedMineTests Diary.ScriptTests Diary.SurveyTests Diary.UtilTests; do
+    dotnet run --project $t
+done
+```
+
+> RedMine 外部 API 测试默认跳过，设置 `DIARY_RUN_REDMINE_EXTERNAL_TESTS=1` 后运行。
+
+## 文档
+
+- 脚本 API 参考：[C#](Docs/ScriptApi/CSharp.md)、[Lua](Docs/ScriptApi/Lua.md)、[Python](Docs/ScriptApi/Python.md)
+- 架构：[当前架构](Docs/CurrentArchitecture.md)、[插件目标架构](Docs/TrackerPluginArchitecture.md)、[脚本系统设计](Docs/ScriptSystemDesign.md)
 
 ## 配置文件加密
 
@@ -30,10 +72,3 @@ openssl enc -aes-256-cbc -md sha256 -pbkdf2 -iter 100000 \
 | `-pass pass:<密码>` | 指定密码（也可用 `-pass file:<路径>` 从文件读取） |
 
 > 迭代次数 100,000 遵循 OWASP/NIST 建议。可在程序中调整，但需与 `-iter` 保持一致。
-
-## 快速开始
-
-```bash
-dotnet build DiaryApp.sln
-dotnet run --project Diary.App
-```

@@ -185,7 +185,8 @@ print("created work item: " .. result.item.id)
     item = {
         id = 42, date = "2026-08-08", comment = "标题", hours = 2.5,
         priority = 0, note = nil,
-        tags = { { id = 1, name = "开发", color = 0, level = 0, disabled = false } }
+        tags = { { id = 1, name = "开发", color = 0, level = 0, isPrimary = true,
+                  disabled = false, metadata = {} } }
     },
     effects = {
         appendedCount = 1,       -- 实际追加条数；预览或幂等重放时为 0
