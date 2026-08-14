@@ -152,7 +152,8 @@ public sealed class CSharpEngine : IScriptEngineV1
                     && (typeof(IScriptProgramV1).IsAssignableFrom(type)
                         || typeof(IApplicationScriptV1).IsAssignableFrom(type)
                         || typeof(IEditorScriptV1).IsAssignableFrom(type)
-                        || typeof(IAutomationScriptV1).IsAssignableFrom(type)))
+                        || typeof(IAutomationScriptV1).IsAssignableFrom(type)
+                        || typeof(IQueryScriptV1).IsAssignableFrom(type)))
                 .ToArray();
             if (programs.Length != 1)
             {

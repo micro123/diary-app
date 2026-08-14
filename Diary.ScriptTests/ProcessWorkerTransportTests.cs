@@ -43,6 +43,41 @@ public sealed class ProcessWorkerTransportTests
     }
 
     [TestMethod]
+    public async Task ProcessTransport_HeartbeatKeepsWorkerAlive()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            Assert.Inconclusive("当前集成测试使用 Linux dotnet 路径。");
+            return;
+        }
+
+        var workerPath = GetWorkerPath();
+        var factory = new ProcessWorkerTransportFactory(new(
+            GetDotnetPath() ?? throw new InvalidOperationException("dotnet 路径不可用。"),
+            [workerPath, "--language", "csharp"],
+            Path.GetDirectoryName(workerPath)!,
+            new Dictionary<string, string> { ["DOTNET_CLI_UI_LANGUAGE"] = "en-US" }));
+        var supervisor = new WorkerSupervisor(
+            factory,
+            cancellationGracePeriod: TimeSpan.FromSeconds(2),
+            heartbeatInterval: TimeSpan.FromMilliseconds(300),
+            heartbeatTimeout: TimeSpan.FromSeconds(5),
+            resourceCheckInterval: TimeSpan.FromMilliseconds(100));
+        try
+        {
+            await supervisor.StartAsync(new("csharp", [ScriptApiVersion.V1], []));
+
+            await Task.Delay(800);
+
+            Assert.AreEqual(WorkerState.Ready, supervisor.State);
+        }
+        finally
+        {
+            await supervisor.StopAsync();
+        }
+    }
+
+    [TestMethod]
     public async Task ProcessTransport_LuaWorkerExecutesScript()
     {
         if (!OperatingSystem.IsLinux())

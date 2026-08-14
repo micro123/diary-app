@@ -438,6 +438,15 @@ public interface IAutomationScriptV1
         CancellationToken cancellationToken = default);
 }
 
+public interface IQueryScriptV1
+{
+    ScriptDescriptor Descriptor { get; }
+
+    ValueTask<ScriptExecutionResult> ExecuteAsync(
+        IScriptApplicationContext context,
+        CancellationToken cancellationToken = default);
+}
+
 public static class ScriptProgramAdapter
 {
     public static bool TryAdapt(object program, out IScriptProgramV1? adapted)
@@ -449,6 +458,7 @@ public static class ScriptProgramAdapter
             IApplicationScriptV1 application => new TypedScriptProgramAdapter(application),
             IEditorScriptV1 editor => new TypedScriptProgramAdapter(editor),
             IAutomationScriptV1 automation => new TypedScriptProgramAdapter(automation),
+            IQueryScriptV1 query => new TypedScriptProgramAdapter(query),
             _ => null,
         };
         return adapted is not null;
@@ -466,6 +476,7 @@ public static class ScriptProgramAdapter
                 IApplicationScriptV1 application => application.Descriptor,
                 IEditorScriptV1 editor => editor.Descriptor,
                 IAutomationScriptV1 automation => automation.Descriptor,
+                IQueryScriptV1 query => query.Descriptor,
                 _ => throw new ArgumentException("Unsupported typed script program.", nameof(program)),
             };
         }
@@ -489,6 +500,9 @@ public static class ScriptProgramAdapter
                 ScriptEntryKind.Automation when _program is IAutomationScriptV1 automation
                     && context is IScriptAutomationContext automationContext =>
                     automation.ExecuteAsync(automationContext, cancellationToken),
+                ScriptEntryKind.Query when _program is IQueryScriptV1 query
+                    && context is IScriptApplicationContext queryContext =>
+                    query.ExecuteAsync(queryContext, cancellationToken),
                 _ => ValueTask.FromResult(new ScriptExecutionResult(
                     ScriptExecutionStatus.Rejected,
                     [new ScriptDiagnostic(

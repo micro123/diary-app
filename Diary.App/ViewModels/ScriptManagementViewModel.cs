@@ -116,6 +116,7 @@ public partial class ScriptManagementViewModel(
     IScriptExecutionHistory executionHistory,
     ScriptStartupDiagnosticsStore startupDiagnostics,
     ScriptLogStore scriptLogStore,
+    ScriptProgressTracker progressTracker,
     ILogger logger,
     IServiceProvider services) : ViewModelBase
 {
@@ -152,6 +153,10 @@ public partial class ScriptManagementViewModel(
     [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
     private bool _isExecuting;
     private CancellationTokenSource? _executionCancellation;
+    [ObservableProperty] private double _progressFraction;
+    [ObservableProperty] private string _progressMessage = string.Empty;
+
+    public bool HasProgress => IsExecuting && !string.IsNullOrWhiteSpace(ProgressMessage);
 
     public bool CanReload => !Loading && !IsExecuting;
     public bool CanOpenSelectedScript => SelectedScript is not null;
@@ -164,9 +169,14 @@ public partial class ScriptManagementViewModel(
     public bool HasDirectoryDiagnostics => DirectoryDiagnostics.Count > 0;
     public bool HasStartupDiagnostics => StartupDiagnostics.Count > 0;
     private bool _scriptLogSubscribed;
+    private bool _progressSubscribed;
     partial void OnLoadingChanged(bool value) => OnPropertyChanged(nameof(CanReload));
 
-    partial void OnIsExecutingChanged(bool value) => OnPropertyChanged(nameof(CanReload));
+    partial void OnIsExecutingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanReload));
+        OnPropertyChanged(nameof(HasProgress));
+    }
 
     partial void OnSearchTextChanged(string value) => RefreshVisibleScripts();
 
@@ -194,11 +204,32 @@ public partial class ScriptManagementViewModel(
             _scriptLogSubscribed = true;
             scriptLogStore.Changed += OnScriptLogsChanged;
         }
+        if (!_progressSubscribed)
+        {
+            _progressSubscribed = true;
+            progressTracker.Changed += OnProgressChanged;
+        }
         RefreshScriptLogs();
         ObserveBackgroundTask(LoadAsync(), "脚本管理加载");
     }
 
     private void OnScriptLogsChanged(object? sender, EventArgs e) => RefreshScriptLogs();
+
+    private void OnProgressChanged(object? sender, EventArgs e) => RefreshProgress();
+
+    private void RefreshProgress()
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(RefreshProgress);
+            return;
+        }
+        if (!IsExecuting || progressTracker.LastReported is not { } latest)
+            return;
+        ProgressFraction = latest.Fraction;
+        ProgressMessage = latest.Message;
+        OnPropertyChanged(nameof(HasProgress));
+    }
 
     private void RefreshScriptLogs()
     {
@@ -326,6 +357,9 @@ public partial class ScriptManagementViewModel(
         finally
         {
             _executionCancellation = null;
+            ProgressFraction = 0;
+            ProgressMessage = string.Empty;
+            OnPropertyChanged(nameof(HasProgress));
             IsExecuting = false;
         }
     }
@@ -642,7 +676,7 @@ public partial class ScriptManagementViewModel(
             .ToArray()
             ?? Array.Empty<string>();
 
-    private static string FormatHistoryLog(ScriptExecutionHistoryEntry entry, string scriptName)
+    private string FormatHistoryLog(ScriptExecutionHistoryEntry entry, string scriptName)
     {
         var outcome = entry.Outcome;
         var lines = new List<string>
@@ -658,6 +692,12 @@ public partial class ScriptManagementViewModel(
             lines.Add($"Worker ID：{outcome.WorkerId}");
         if (!string.IsNullOrWhiteSpace(outcome.WorkerRequestId))
             lines.Add($"Worker 请求 ID：{outcome.WorkerRequestId}");
+        var progress = progressTracker.GetTranscript(outcome.ExecutionId.ToString());
+        if (progress.Count > 0)
+        {
+            lines.Add("进度：");
+            lines.AddRange(progress.Select(snapshot => $"  {snapshot.UpdatedAt:HH:mm:ss} {snapshot.DisplayText}"));
+        }
         lines.Add("诊断：");
         lines.AddRange(FormatDiagnostics(outcome.Result.Diagnostics));
         return string.Join(Environment.NewLine, lines);

@@ -12,7 +12,9 @@ public sealed record ScriptFileMetadata(
     string? Engine = null,
     ScriptScope? Scope = null,
     IReadOnlyList<ScriptEditorTargetKind>? SupportedEditorTargets = null,
-    ScriptEntryKind? EntryKind = null);
+    ScriptEntryKind? EntryKind = null,
+    string? Schedule = null,
+    bool RunOnStartup = false);
 
 public sealed record ScriptPackageManifest(
     string Entry,
@@ -23,12 +25,15 @@ public sealed record ScriptPackageManifest(
     string? Engine = null,
     ScriptScope? Scope = null,
     IReadOnlyList<ScriptEditorTargetKind>? SupportedEditorTargets = null,
-    ScriptEntryKind? EntryKind = null);
+    ScriptEntryKind? EntryKind = null,
+    string? Schedule = null,
+    bool RunOnStartup = false);
 
 public sealed record ScriptDirectoryEntry(
     string SourcePath,
     ScriptScope Scope,
-    ScriptBuildResult? BuildResult = null);
+    ScriptBuildResult? BuildResult = null,
+    ScriptFileMetadata? Metadata = null);
 
 public sealed record ScriptDirectoryLoadResult(
     ImmutableArray<ScriptDirectoryEntry> Entries,
@@ -100,8 +105,34 @@ public sealed class ScriptDirectoryLoader(
                             "SCRIPT_ENGINE_MISMATCH",
                             "The script metadata engine does not match the source extension.",
                             sourcePath);
-                        entries.Add(new ScriptDirectoryEntry(sourcePath, scope, engineMismatch));
+                        entries.Add(new ScriptDirectoryEntry(sourcePath, scope, engineMismatch, metadata));
                         diagnostics.AddRange(engineMismatch.Diagnostics);
+                        continue;
+                    }
+
+                    var effectiveEntryKind = metadata.EntryKind
+                        ?? (scope == ScriptScope.Editor ? ScriptEntryKind.Editor : ScriptEntryKind.Application);
+                    if (effectiveEntryKind == ScriptEntryKind.Automation)
+                    {
+                        if (!ScriptAutomationSchedule.TryParse(metadata.Schedule, out _))
+                        {
+                            var scheduleInvalid = Failure(
+                                "SCRIPT_SCHEDULE_INVALID",
+                                "The automation script schedule must use the 'daily HH:mm' format.",
+                                sourcePath);
+                            entries.Add(new ScriptDirectoryEntry(sourcePath, scope, scheduleInvalid, metadata));
+                            diagnostics.AddRange(scheduleInvalid.Diagnostics);
+                            continue;
+                        }
+                    }
+                    else if (metadata.Schedule is not null || metadata.RunOnStartup)
+                    {
+                        var scheduleInvalid = Failure(
+                            "SCRIPT_SCHEDULE_INVALID",
+                            "Schedule and runOnStartup are only allowed for automation scripts.",
+                            sourcePath);
+                        entries.Add(new ScriptDirectoryEntry(sourcePath, scope, scheduleInvalid, metadata));
+                        diagnostics.AddRange(scheduleInvalid.Diagnostics);
                         continue;
                     }
 
@@ -194,7 +225,7 @@ public sealed class ScriptDirectoryLoader(
                         }
                     }
 
-                    entries.Add(new ScriptDirectoryEntry(sourcePath, scope, result));
+                    entries.Add(new ScriptDirectoryEntry(sourcePath, scope, result, metadata));
                     diagnostics.AddRange(result.Diagnostics);
                 }
             }
@@ -287,7 +318,9 @@ public sealed class ScriptDirectoryLoader(
                         Engine: manifest.Engine,
                         Scope: manifest.Scope,
                         SupportedEditorTargets: manifest.SupportedEditorTargets,
-                        EntryKind: manifest.EntryKind)));
+                        EntryKind: manifest.EntryKind,
+                        Schedule: manifest.Schedule,
+                        RunOnStartup: manifest.RunOnStartup)));
             }
             catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException or InvalidDataException)
             {

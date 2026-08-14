@@ -230,6 +230,7 @@ internal sealed class LuaWorker(Stream input, Stream output)
             ? null
             : JsonToLua(JsonSerializer.SerializeToElement(request.Target.WorkItem, WorkerProtocol.JsonOptions));
         var arguments = JsonToLua(JsonSerializer.SerializeToElement(request.Arguments, WorkerProtocol.JsonOptions));
+        var automation = ScriptAutomationContextFactory.FromRequest(request);
         lua["__diary_context_target"] = target;
         lua["__diary_context_date_range"] = dateRange;
         lua["__diary_context_work_item"] = workItem;
@@ -237,6 +238,10 @@ internal sealed class LuaWorker(Stream input, Stream output)
         lua["__diary_context_entry_kind"] = request.EntryKind?.ToString() ?? "Application";
         lua["__diary_context_idempotency_key"] = request.IdempotencyKey;
         lua["__diary_context_preview"] = request.Preview;
+        lua["__diary_context_automation_trigger"] = automation.Trigger.ToString();
+        lua["__diary_context_automation_event_data"] = JsonToLua(
+            JsonSerializer.SerializeToElement(automation.EventData, WorkerProtocol.JsonOptions));
+        lua["__diary_context_automation_idempotency_key"] = automation.IdempotencyKey;
         lua.RegisterFunction("__diary_work_items_query", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Query))!);
         lua.RegisterFunction("__diary_log_items_create", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.CreateLogItem))!);
         lua.RegisterFunction("__diary_template_log_items_create", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.CreateTemplateLogItem))!);
@@ -252,7 +257,7 @@ internal sealed class LuaWorker(Stream input, Stream output)
         lua.RegisterFunction("__diary_progress_report", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Progress))!);
         lua.RegisterFunction("__diary_is_cancelled", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.IsCancelled))!);
         lua.DoString("diary = { workItems = { query = function(params) return __diary_work_items_query(params) end }, logItems = { create = function(params) return __diary_log_items_create(params) end }, templateLogItems = { create = function(params) return __diary_template_log_items_create(params) end }, templates = { list = function() return __diary_templates_list() end }, host = { list = function() return __diary_host_capabilities_list() end }, trackerInstances = { get = function(params) return __diary_tracker_get(params) end, list = function() return __diary_tracker_list() end }, clipboard = { get = function() return __diary_clipboard_get() end, set = function(text) return __diary_clipboard_set(text) end }, ui = { notify = function(title, body) return __diary_ui_notify(title, body) end, confirm = function(title, body) return __diary_ui_confirm(title, body) end }, log = { debug = function(message) return __diary_log_write('Debug', message) end, info = function(message) return __diary_log_write('Info', message) end, warning = function(message) return __diary_log_write('Warning', message) end, error = function(message) return __diary_log_write('Error', message) end } }; diary.workItems.stream = function(params) params = params or {}; local pageSize = params.pageSize or 500; if pageSize < 1 or pageSize > 500 then error('pageSize must be between 1 and 500') end; local offset = params.offset or 0; local page = {}; local index = 1; local finished = false; params.pageSize = nil; return function() while true do if index <= #page then local item = page[index]; index = index + 1; return item end; if finished then return nil end; params.limit = pageSize; params.offset = offset; local result = __diary_work_items_query(params); if not result.succeeded then error(result.error.message) end; page = result.items or {}; index = 1; offset = offset + #page; finished = #page < pageSize; end end end; __diary_context = {}; __diary_context.target = __diary_context_target; __diary_context.dateRange = __diary_context_date_range; __diary_context.workItem = __diary_context_work_item; __diary_context.arguments = __diary_context_arguments or {}; __diary_context.log = diary.log; __diary_context.progress = { report = function(fraction, message) return __diary_progress_report(fraction, message) end }; __diary_context.isCancelled = function() return __diary_is_cancelled() end; __diary_context.getDateRange = function() return __diary_context_date_range end; __diary_context.items = { stream = function(params) local range = __diary_context_date_range; if range == nil then error('当前目标没有日期范围') end; params = params or {}; params.startDate = range.startDate; params.endDate = range.endDate; return diary.workItems.stream(params) end };");
-        lua.DoString("__diary_context.entryKind = __diary_context_entry_kind; __diary_context.idempotencyKey = __diary_context_idempotency_key; __diary_context.preview = __diary_context_preview;");
+        lua.DoString("__diary_context.entryKind = __diary_context_entry_kind; __diary_context.idempotencyKey = __diary_context_idempotency_key; __diary_context.preview = __diary_context_preview; __diary_context.automation = { trigger = __diary_context_automation_trigger, eventData = __diary_context_automation_event_data or {}, idempotencyKey = __diary_context_automation_idempotency_key };");
         return lua;
     }
 

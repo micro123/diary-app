@@ -353,7 +353,18 @@ Redmine 实例设置页和核心标签编辑器复用规则编辑 ViewModel，�
 隔离脚本异常，并返回成功、失败、取消、超时或拒绝状态。
 
 Worker 握手通过 `supportedHostApis` 协商实际可用的 HostCall，宿主 dispatcher 还会校验方法、参数、
-执行 ID 和消息大小；脚本 metadata 中的 capability 字段不再作为权限门禁。执行历史目前只保存在内存，
+执行 ID 和消息大小；脚本 metadata 中的 capability 字段不再作为权限门禁。三个 supervisor 已生产接线
+启动/握手超时（10s，超时→`Failed`+`WORKER_HANDSHAKE_TIMED_OUT`）、宿主调用响应超时（30s，超时→
+`Failed`+停止进程+`WORKER_HOST_CALL_TIMED_OUT`，视为 worker 故障不重试）与心跳（30s 间隔/15s 超时，
+仅 `Ready` 且抢到执行门时 ping，超时→`Failed`+停 transport）；应用退出时 `PreShutdownAsync` 调用
+`StopAllAsync` 优雅停止 worker。
+
+进度上报通过 `ScriptProgressTracker`（内存，最近 20 次执行、每次最多 50 条时间线）接入管理页底部
+运行栏（进度条+文本）与执行历史条目日志（「进度：」时间线）。自动化脚本已支持 Scheduled
+（metadata `Schedule`="daily HH:mm"）与 RunOnStartup：`ScriptAutomationScheduler` 以 30 秒 tick 调度、
+内存 last-run 表防重、启动补跑一轮到期脚本，并生成请求级幂等键；Startup/Scheduled 触发器已接线，
+WorkItemCreated/WorkItemSaved/TagAdded 仍未接线。Query 入口已落地（`IQueryScriptV1`/`QueryScript`
+基类与三语言创建模板，管理页可运行）。执行历史与进度均为会话内存态，持久化经决策明确延期；
 脚本包管理、跨平台运行时打包和更强的操作系统级资源限制仍需继续扩展。
 
 ## 15. 维护约定

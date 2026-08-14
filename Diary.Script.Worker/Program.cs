@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using System.Text.Json;
 using System.Text;
 using Diary.Script.CSharp;
@@ -167,12 +166,7 @@ internal sealed class CSharpWorker(Stream input, Stream output)
                     StartDate = range.StartDate,
                     EndDate = range.EndDate,
                 }, cancellationToken: cancellationToken),
-                new ScriptAutomationContext(
-                    payload.Request.Source == ScriptExecutionSource.Automation
-                        ? ScriptAutomationTriggerKind.Scheduled
-                        : ScriptAutomationTriggerKind.Unknown,
-                    payload.Request.Arguments ?? ImmutableDictionary<string, string>.Empty,
-                    payload.Request.IdempotencyKey),
+                ScriptAutomationContextFactory.FromRequest(payload.Request),
                 async update =>
                 {
                     var response = await CallHostAsync(new WorkerHostCallPayload(

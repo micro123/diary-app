@@ -313,3 +313,11 @@
 - [x] 工时编辑提供 15/30 分钟、1/2/4 小时和清零快捷项，并支持 `30m`、`1h30m`、`1小时30分钟` 等自然时间表达式；新建事项标签列表优先展示当天已有记录中最近使用的标签，最近项目已持久化到应用配置。
 - [x] 查询页结果摘要显示记录数和耗时合计，并提供按日期、主标签的紧凑汇总；结果可复制汇总文本，也可导出 CSV 或 Markdown，导出字段包含主标签。
 - [x] 调查协议在保留 DiaryToolpp 兼容的 v1/9721 日期查询基础上增加 v2/9722 自定义统计查询（关键词、标签、标签模式和优先级），扩展查询只发送到新版节点；已支持 v2 能力发现、标签/日期/优先级分组和最多 500 条结果明细展示。
+
+## 阶段 10 续：脚本 Worker 可靠性、进度、自动化与 Query 入口
+
+- [x] Worker 心跳与启动/握手、宿主调用响应超时已生产接线：App 为三个 supervisor 显式开启心跳（30s 间隔/15s 超时，默认关闭；仅在 `Ready` 且抢到执行门时 ping，杜绝 Pong 被 Busy 执行接收循环截走）；握手超时（默认 10s）→`Failed`+`WORKER_HANDSHAKE_TIMED_OUT`+停 transport；宿主调用超时（默认 30s）→`Failed`+停进程+`WORKER_HOST_CALL_TIMED_OUT`（视为 worker 故障不重试；超时前可能已产生的追加副作用不可回滚，靠幂等键防线）；`CheckHealthAsync` 新增 timeout 参数（默认 5s）；应用退出 `PreShutdownAsync` 调用 `IWorkerScriptExecutor.StopAllAsync()` 优雅停 worker，修复孤儿进程。
+- [x] 执行进度上报接入管理页：新增 `ScriptProgressTracker`（内存，最近 20 次执行、每次最多 50 条时间线），worker 路径 dispatcher 的 progressReporter 与进程内路径 `ScriptExecutionContext` 的 progressReporter 均已接线；管理页底部运行栏显示进度条与文本，执行历史条目日志追加「进度：」时间线；`IWorkerScriptExecutor.ExecuteAsync` 新增 `Guid? executionId` 参数并经 ScriptManager 透传 metadata.ExecutionId，使 worker 模式 outcome.ExecutionId 与进度回调 executionId 一致。
+- [x] 自动化脚本 Scheduled+Startup 已实现：`ScriptFileMetadata`/`ScriptPackageManifest` 新增 `Schedule`（"daily HH:mm"，仅 Automation 入口合法）与 `RunOnStartup`，`ScriptDirectoryEntry` 新增 `Metadata`，加载时校验，非法（或非 Automation 入口携带）→`SCRIPT_SCHEDULE_INVALID` 构建失败不注册；新增 `ScriptAutomationSchedule`（TryParse+GetNextDue，lastRun 为空且当天已过→立即到期）；`ScriptAutomationContextFactory.FromRequest` 按 Source 生成 Trigger（Automation→Scheduled、Startup→Startup），替换 worker 内联三元式，Lua/Python worker 的 context 新增 `automation`（trigger/eventData/idempotencyKey）；`ScriptAutomationScheduler` 以 30 秒 tick + `SemaphoreSlim` 串行 + 内存 last-run 表防重调度，启动补跑一轮 RunOnStartup 与今日到期脚本，并生成请求级幂等键（Scheduled=`auto:{scriptId}:{yyyy-MM-dd HH:mm}`、Startup=`startup:{scriptId}:{yyyy-MM-dd}`）；新建向导提供「自动化脚本」模板（EntryKind=Automation、Schedule="daily 09:00"）。WorkItemCreated、WorkItemSaved、TagAdded 三种触发器仍未接线。
+- [x] Query 入口已落地：ScriptBase 新增 `IQueryScriptV1` 接口与 `QueryScript` 抽象基类（Scope=Application、EntryKind=Query、上下文 `IScriptApplicationContext`），`ScriptProgramAdapter` 三处增加 Query 分支，C# 引擎类型识别支持 `IQueryScriptV1`；创建向导提供「查询脚本」模板（Lua/Python 使用 `query_main`、C# 使用 `QueryScript` 子类），管理页可直接运行（CanRun 已放行 Application scope）。
+- [x] 决策记录：执行历史与执行进度保持会话内存态（历史 30 条、进度最近 20 次），持久化经用户决策明确延期。

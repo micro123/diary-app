@@ -93,6 +93,89 @@ public sealed class ScriptCreationViewModelTests
     }
 
     [TestMethod]
+    public async Task CreateCommand_GeneratesQueryScriptTemplateForEachLanguage()
+    {
+        foreach (var (language, engine, marker) in new[]
+                 {
+                     ("C#", "csharp", ": QueryScript"),
+                     ("Lua", "lua", "function query_main(context)"),
+                     ("Python", "python", "def query_main(context):"),
+                 })
+        {
+            var root = Path.Combine(Path.GetTempPath(), $"diary-app-script-query-{Guid.NewGuid():N}");
+            try
+            {
+                var viewModel = new ScriptCreationViewModel(root)
+                {
+                    Name = "查询脚本",
+                    Id = $"query-entry-{engine}",
+                    SelectedLanguage = language,
+                    SelectedTemplate = "查询脚本",
+                };
+                object? createdPath = null;
+                viewModel.RequestClose += (_, value) => createdPath = value;
+
+                await Assert.IsInstanceOfType<IAsyncRelayCommand>(viewModel.CreateCommand).ExecuteAsync(null);
+
+                var sourcePath = Assert.IsInstanceOfType<string>(createdPath);
+                StringAssert.Contains(await File.ReadAllTextAsync(sourcePath), marker);
+                var metadata = JsonSerializer.Deserialize<ScriptFileMetadata>(
+                    await File.ReadAllTextAsync(sourcePath + ".json"));
+                Assert.IsNotNull(metadata);
+                Assert.AreEqual(ScriptEntryKind.Query, metadata.EntryKind);
+                Assert.AreEqual(ScriptScope.Application, metadata.Scope);
+            }
+            finally
+            {
+                if (Directory.Exists(root))
+                    Directory.Delete(root, true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public async Task CreateCommand_GeneratesAutomationScriptTemplateForEachLanguage()
+    {
+        foreach (var (language, engine, marker) in new[]
+                 {
+                     ("C#", "csharp", ": AutomationScript"),
+                     ("Lua", "lua", "function automation_main(context)"),
+                     ("Python", "python", "def automation_main(context):"),
+                 })
+        {
+            var root = Path.Combine(Path.GetTempPath(), $"diary-app-script-auto-{Guid.NewGuid():N}");
+            try
+            {
+                var viewModel = new ScriptCreationViewModel(root)
+                {
+                    Name = "自动化脚本",
+                    Id = $"auto-entry-{engine}",
+                    SelectedLanguage = language,
+                    SelectedTemplate = "自动化脚本",
+                };
+                object? createdPath = null;
+                viewModel.RequestClose += (_, value) => createdPath = value;
+
+                await Assert.IsInstanceOfType<IAsyncRelayCommand>(viewModel.CreateCommand).ExecuteAsync(null);
+
+                var sourcePath = Assert.IsInstanceOfType<string>(createdPath);
+                StringAssert.Contains(await File.ReadAllTextAsync(sourcePath), marker);
+                var metadata = JsonSerializer.Deserialize<ScriptFileMetadata>(
+                    await File.ReadAllTextAsync(sourcePath + ".json"));
+                Assert.IsNotNull(metadata);
+                Assert.AreEqual(ScriptEntryKind.Automation, metadata.EntryKind);
+                Assert.AreEqual("daily 09:00", metadata.Schedule);
+                Assert.AreEqual(ScriptScope.Application, metadata.Scope);
+            }
+            finally
+            {
+                if (Directory.Exists(root))
+                    Directory.Delete(root, true);
+            }
+        }
+    }
+
+    [TestMethod]
     public async Task CreateCommand_GeneratesEditorTargetTemplateMetadata()
     {
         foreach (var (template, target) in new[]

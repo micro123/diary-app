@@ -173,6 +173,51 @@ public sealed class ScriptDirectoryLoaderTests
         return source!;
     }
 
+    [TestMethod]
+    public async Task LoadAsync_PassesAutomationScheduleThroughEntryMetadata()
+    {
+        var loader = CreateLoader(out _);
+        var sourcePath = await WriteScriptAsync("application", "auto.fake", "auto");
+        await File.WriteAllTextAsync(sourcePath + ".json",
+            """{"entryKind":3,"schedule":"daily 09:00"}""");
+
+        var result = await loader.LoadAsync(_root);
+
+        var entry = result.Entries.Single();
+        Assert.IsTrue(entry.BuildResult!.Succeeded);
+        Assert.AreEqual("daily 09:00", entry.Metadata!.Schedule);
+        Assert.IsFalse(entry.Metadata.RunOnStartup);
+    }
+
+    [TestMethod]
+    public async Task LoadAsync_RejectsInvalidAutomationSchedule()
+    {
+        var loader = CreateLoader(out _);
+        var sourcePath = await WriteScriptAsync("application", "auto-bad.fake", "auto-bad");
+        await File.WriteAllTextAsync(sourcePath + ".json",
+            """{"entryKind":3,"schedule":"hourly"}""");
+
+        var result = await loader.LoadAsync(_root);
+
+        var entry = result.Entries.Single();
+        Assert.IsFalse(entry.BuildResult!.Succeeded);
+        Assert.AreEqual("SCRIPT_SCHEDULE_INVALID", entry.BuildResult.Diagnostics.Single().Code);
+    }
+
+    [TestMethod]
+    public async Task LoadAsync_RejectsScheduleOnNonAutomationScript()
+    {
+        var loader = CreateLoader(out _);
+        var sourcePath = await WriteScriptAsync("application", "plain.fake", "plain");
+        await File.WriteAllTextAsync(sourcePath + ".json", """{"schedule":"daily 09:00"}""");
+
+        var result = await loader.LoadAsync(_root);
+
+        var entry = result.Entries.Single();
+        Assert.IsFalse(entry.BuildResult!.Succeeded);
+        Assert.AreEqual("SCRIPT_SCHEDULE_INVALID", entry.BuildResult.Diagnostics.Single().Code);
+    }
+
     private static ScriptDirectoryLoader CreateLoader(out ScriptCatalog catalog)
     {
         var registry = new ScriptEngineRegistry();
@@ -210,7 +255,8 @@ public sealed class ScriptDirectoryLoaderTests
                     id,
                     id,
                     request.ApiVersion,
-                     editor ? ScriptScope.Editor : ScriptScope.Application))));
+                    editor ? ScriptScope.Editor : ScriptScope.Application,
+                    EntryKind: request.DescriptorHint?.EntryKind ?? ScriptEntryKind.Application))));
         }
     }
 

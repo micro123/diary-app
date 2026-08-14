@@ -14,6 +14,8 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
 {
     private const string BlankTemplate = "空白脚本";
     private const string WorkItemQueryTemplate = "查询工作项";
+    private const string QueryScriptTemplate = "查询脚本";
+    private const string AutomationScriptTemplate = "自动化脚本";
     private const string DayTargetTemplate = "日目标脚本";
     private const string WeekTargetTemplate = "周目标脚本";
     private const string MonthTargetTemplate = "月目标脚本";
@@ -23,7 +25,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
     private readonly string _scriptRoot;
 
     private static readonly IReadOnlyList<string> ApplicationTemplates =
-        [BlankTemplate, WorkItemQueryTemplate];
+        [BlankTemplate, WorkItemQueryTemplate, QueryScriptTemplate, AutomationScriptTemplate];
     private static readonly IReadOnlyList<string> EditorTemplates =
         [
             BlankTemplate,
@@ -121,7 +123,8 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
                 Engine: GetEngineName(),
                 Scope: scope,
                 SupportedEditorTargets: GetSupportedEditorTargets(),
-                EntryKind: scope == ScriptScope.Editor ? ScriptEntryKind.Editor : ScriptEntryKind.Application), new JsonSerializerOptions { WriteIndented = true });
+                EntryKind: GetEntryKind(scope),
+                Schedule: SelectedTemplate == AutomationScriptTemplate ? "daily 09:00" : null), new JsonSerializerOptions { WriteIndented = true });
             await WriteFilesAtomicallyAsync(sourcePath, source, metadataPath, metadata);
             RequestClose?.Invoke(this, sourcePath);
         }
@@ -156,12 +159,33 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
         _ => throw new InvalidOperationException($"不支持的脚本语言：{SelectedLanguage}"),
     };
 
+    private ScriptEntryKind GetEntryKind(ScriptScope scope) =>
+        SelectedTemplate == QueryScriptTemplate
+            ? ScriptEntryKind.Query
+            : SelectedTemplate == AutomationScriptTemplate
+                ? ScriptEntryKind.Automation
+                : scope == ScriptScope.Editor ? ScriptEntryKind.Editor : ScriptEntryKind.Application;
+
     private string CreateSource(ScriptScope scope)
     {
         var entryName = scope == ScriptScope.Editor ? "editor_main" : "application_main";
         return SelectedLanguage switch
         {
             "C#" => CreateCSharpSource(scope),
+            "Lua" when SelectedTemplate == AutomationScriptTemplate => string.Join(Environment.NewLine, [
+                "function automation_main(context)",
+                "    -- context.automation.trigger 为 'Scheduled' 或 'Startup'。",
+                "    -- 调度配置见同目录 <脚本ID>.lua.json 的 schedule 字段（daily HH:mm）。",
+                "    diary.log.info('自动化脚本执行：' .. context.automation.trigger)",
+                "end", ""]),
+            "Lua" when SelectedTemplate == QueryScriptTemplate => string.Join(Environment.NewLine, [
+                "function query_main(context)",
+                "    local result = diary.workItems.query({ limit = 100 })",
+                "    if not result.succeeded then",
+                "        error(result.error.message)",
+                "    end",
+                "    -- 查询结果仅供脚本内使用，执行结束后不会被保存。",
+                "end", ""]),
             "Lua" when IsEditorTargetTemplate => CreateLuaTargetSource(scope),
             "Lua" when SelectedTemplate == WorkItemQueryTemplate && scope == ScriptScope.Editor => string.Join(Environment.NewLine, [
                 $"function {entryName}(context)",
@@ -187,6 +211,19 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
             "    -- context.getDateRange() 在事项目标下返回 nil。",
             "    diary.log.debug(\"开始执行脚本\")",
             "end", ""]),
+            "Python" when SelectedTemplate == AutomationScriptTemplate => string.Join(Environment.NewLine, [
+                "def automation_main(context):",
+                "    # context.automation['trigger'] 为 'Scheduled' 或 'Startup'。",
+                "    # 调度配置见同目录 <脚本ID>.py.json 的 schedule 字段（daily HH:mm）。",
+                "    context.log.info(f\"自动化脚本执行：{context.automation['trigger']}\")",
+                "    return None", ""]),
+            "Python" when SelectedTemplate == QueryScriptTemplate => string.Join(Environment.NewLine, [
+                "def query_main(context):",
+                "    result = context.diary.workItems.query(limit=100)",
+                "    if not result[\"succeeded\"]:",
+                "        raise RuntimeError(result[\"error\"][\"message\"])",
+                "    # 查询结果仅供脚本内使用，执行结束后不会被保存。",
+                "    return None", ""]),
             "Python" when IsEditorTargetTemplate => CreatePythonTargetSource(scope),
             "Python" when SelectedTemplate == WorkItemQueryTemplate && scope == ScriptScope.Editor => string.Join(Environment.NewLine, [
                 $"def {entryName}(context):",
@@ -220,10 +257,19 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
         {
             "#nullable enable", "using System;", "using System.Collections.Generic;", "using System.Threading;", "using System.Threading.Tasks;", "using Diary.ScriptBase;",
         };
-        if (SelectedTemplate == WorkItemQueryTemplate && scope == ScriptScope.Application)
+        if ((SelectedTemplate == WorkItemQueryTemplate && scope == ScriptScope.Application)
+            || SelectedTemplate == QueryScriptTemplate)
             lines.Add("using Diary.ScriptHost;");
-        var baseType = scope == ScriptScope.Editor ? "EditorScript" : "ApplicationScript";
-        var contextType = scope == ScriptScope.Editor ? "IScriptEditorContext" : "IScriptApplicationContext";
+        var baseType = SelectedTemplate == QueryScriptTemplate
+            ? "QueryScript"
+            : SelectedTemplate == AutomationScriptTemplate
+                ? "AutomationScript"
+                : scope == ScriptScope.Editor ? "EditorScript" : "ApplicationScript";
+        var contextType = SelectedTemplate == QueryScriptTemplate
+            ? "IScriptApplicationContext"
+            : SelectedTemplate == AutomationScriptTemplate
+                ? "IScriptAutomationContext"
+                : scope == ScriptScope.Editor ? "IScriptEditorContext" : "IScriptApplicationContext";
         lines.AddRange([
             "",
             "namespace Diary.UserScripts;", "",
@@ -263,7 +309,16 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
         {
             AddCSharpEditorTargetTemplate(lines);
         }
-        else if (SelectedTemplate == WorkItemQueryTemplate)
+        else if (SelectedTemplate == AutomationScriptTemplate)
+        {
+            lines.AddRange([
+                "        // context.Automation.Trigger 为 Scheduled 或 Startup。",
+                "        // 调度配置见同目录 metadata 的 schedule 字段（daily HH:mm）。",
+                "        _ = context.Automation;",
+                "        return ScriptExecutionResult.Succeeded();",
+            ]);
+        }
+        else if (SelectedTemplate == WorkItemQueryTemplate || SelectedTemplate == QueryScriptTemplate)
         {
             lines.AddRange([
                 "        var api = context.GetApi<IDiaryApi>();",

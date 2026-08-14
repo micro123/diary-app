@@ -107,7 +107,7 @@ supervisor 启动 worker 时必须：
 2. 单独配置 stdin、stdout、stderr，并禁止继承不必要的句柄。
 3. 不通过命令行传递 Token、密码或完整配置内容。
 4. 使用环境变量白名单；不把主进程全部环境变量复制给 worker。
-5. 设置启动超时，默认建议为 10 秒。（当前未实现：`WorkerSupervisor.StartAsync` 没有独立的启动/握手超时，等待 `hello` 只受调用方 cancellationToken 约束。）
+5. 设置启动超时，默认 10 秒。（已实现：`WorkerSupervisor.HandshakeTimeout` 默认 10 秒（`WorkerProtocol.DefaultHandshakeTimeoutSeconds`）；等待 `hello` 超时后 worker 置为 `Failed`、产生 `WORKER_HANDSHAKE_TIMED_OUT` 诊断并停止 transport。App 的三个 supervisor 构造已显式传入 10 秒。）
 6. 读取第一条 `hello` 消息并完成协议协商后，才把状态设置为 `Ready`。
 
 ### 5.3 常驻和回收
@@ -120,11 +120,14 @@ supervisor 应支持：
 - 空闲回收，例如连续空闲 10 分钟后退出；资源监控不能依赖空闲周期，Worker 忙碌时也必须持续检查。
 - 最大请求数回收，防止解释器或运行库长期积累状态。
 - 内存上限和工作集监控。
-- 协议无响应、stderr 持续异常或心跳超时时的强制终止。
+- 协议无响应、stderr 持续异常、握手超时（`WORKER_HANDSHAKE_TIMED_OUT`）、宿主调用响应超时（`WORKER_HOST_CALL_TIMED_OUT`）或心跳超时时的强制终止。
 - worker 退出后的指数退避重启，避免启动失败时忙循环。
 
 第一版同一语言 worker 默认串行执行。后续若需要并发，应启动多个 worker 实例，不能
 在同一解释器上下文中默认并发执行多个脚本。
+
+应用退出时 `App.PreShutdownAsync` 现调用 `IWorkerScriptExecutor.StopAllAsync()` 优雅停止全部
+worker（孤儿进程问题已修复），不依赖超时后的强制杀进程路径。
 
 ### 5.4 共享与独立隔离策略
 
@@ -163,11 +166,13 @@ supervisor 应支持：
 | 单次脚本结果最大大小 | 16 MiB |
 | 单次宿主调用最大数量 | 100 |
 | 同一 worker 最大并发请求 | 1 |
-| 启动/握手超时 | 10 秒（当前未实现：见 §5.2 注） |
-| 宿主调用响应超时 | 30 秒（当前未实现：`host.call` 只受整体执行超时约束，没有单独的宿主调用超时） |
+| 启动/握手超时 | 10 秒（已实现：`WorkerSupervisor.HandshakeTimeout`，超时→`Failed`+`WORKER_HANDSHAKE_TIMED_OUT`+停 transport） |
+| 宿主调用响应超时 | 30 秒（已实现：`WorkerSupervisor.HostCallTimeout`，超时→`Failed`+停止进程+`WORKER_HOST_CALL_TIMED_OUT`，视为 worker 故障不重试） |
 | 取消宽限期 | 2 秒（目标值；实际 `WorkerSupervisor.CancellationGracePeriod` 默认 500ms，`ProcessWorkerTransport.ShutdownGracePeriod` 默认 2s） |
 
 超过限制时，supervisor 必须拒绝或终止当前请求，并返回结构化诊断。
+
+宿主调用响应超时不自动重试当前请求；超时前脚本可能已产生追加副作用且无法回滚，防护依赖宿主幂等键（重复请求返回已提交结果）。
 
 ### 6.2 通用封装
 
@@ -443,7 +448,7 @@ RemoteFailure
 - 非零退出码或未预期退出。
 - stdout 出现无法解析的消息。
 - 消息缺少必要字段、超过大小限制或 requestId 不匹配。
-- 心跳连续两次超时。
+- 心跳超时（当前实现为单次超时即判定，见 §12）。
 - worker 在握手后发送未知协议版本。
 - worker 长时间占满资源并超过 supervisor 限制。
 
@@ -461,7 +466,7 @@ worker 重启不应自动重试有副作用的操作。当前工作记录追加�
 ## 12. 心跳和健康检查
 
 主程序每 30 秒发送 `ping`，worker 返回 `pong`。消息只表示进程和协议通道存活，不能
-表示当前脚本一定可取消或宿主 API 一定可用。（当前状态：ping/pong 协议两侧均已实现——`WorkerSupervisor.CheckHealthAsync` 发送 `Ping` 并等待 `Pong`，worker 主循环可响应——但生产尚未接线，`CheckHealthAsync` 目前只被测试调用，`Diary.App/App.axaml.cs` 没有 30 秒定时调度。）
+表示当前脚本一定可取消或宿主 API 一定可用。（当前状态：已接线——App 为三个 supervisor 显式开启心跳（`heartbeatInterval` 30s / `heartbeatTimeout` 15s，默认关闭）；心跳在 `MonitorIdleAsync` 监视循环内、仅 `Ready` 状态且抢到 `_executionGate` 时发送，`Busy` 期间不 ping，避免 Pong 被正在等待 `execute.result` 的执行接收循环截走；单次心跳超时即置 `Failed` 并停止 transport，下次执行自动带指数退避重启。`CheckHealthAsync` 已新增 timeout 参数，默认 5 秒。）
 
 worker 在执行脚本期间仍必须响应协议层的 `cancel` 和宿主响应。若语言运行时阻塞了
 整个事件循环，supervisor 应将其视为不可控 worker，并在宽限期后终止进程。
@@ -518,7 +523,7 @@ Python worker 已把脚本输出和 traceback 重定向到受限 stderr，符合
 
 诊断至少包含：
 
-- 稳定错误码。
+- 稳定错误码。新增 Worker 级错误码包括 `WORKER_HANDSHAKE_TIMED_OUT`（握手等待 `hello` 超时）与 `WORKER_HOST_CALL_TIMED_OUT`（宿主调用响应超时）；两者均终止 transport 并将 worker 置为 `Failed`。
 - severity 和 category。
 - workerId、requestId、executionId。
 - scriptId、语言和 worker 版本。

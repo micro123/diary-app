@@ -80,7 +80,8 @@ public sealed class ScriptManager(
                 scriptId,
                 request,
                 timeout,
-                cancellationToken);
+                cancellationToken,
+                context.Metadata?.ExecutionId);
         outcome = outcome with { StartedAt = startedAt, Duration = stopwatch.Elapsed, Source = request.Source };
         Record(scriptId, outcome);
         return outcome;

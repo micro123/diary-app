@@ -11,6 +11,9 @@ public static class WorkerProtocol
     public const int Version = 1;
     public const int DefaultMaxMessageBytes = 4 * 1024 * 1024;
     public const int DefaultHeartbeatSeconds = 30;
+    public const int DefaultHandshakeTimeoutSeconds = 10;
+    public const int DefaultHeartbeatTimeoutSeconds = 15;
+    public const int DefaultHostCallTimeoutSeconds = 30;
 
     public static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {

@@ -8,7 +8,20 @@ namespace Diary.RedMineTests;
 [TestCategory("External")]
 public sealed class RedMineTests
 {
-    private static readonly IRedMineApi Api = new RedMineApi();
+    private static IRedMineApi? _api;
+
+    private static IRedMineApi Api
+    {
+        get
+        {
+            EnsureExternalTestsEnabled();
+            return _api ??= new RedMineApi(new RedMineConfig
+            {
+                RedMineServerUrl = Environment.GetEnvironmentVariable("DIARY_REDMINE_TEST_URL") ?? "",
+                RedMineApiKey = Environment.GetEnvironmentVariable("DIARY_REDMINE_TEST_API_KEY") ?? "",
+            });
+        }
+    }
 
     [TestMethod]
     public void GetCurrentUser()
@@ -97,7 +110,9 @@ public sealed class RedMineTests
     public void CreateTimeEntry()
     {
         EnsureExternalTestsEnabled();
-        Assert.IsTrue(Api.CreateTimeEntry(out var info, 3, 1, "2025-11-25", 6.5, "你好"));
+        Assert.IsTrue(Api.GetActivities(out var activities));
+        var activity = activities.First();
+        Assert.IsTrue(Api.CreateTimeEntry(out var info, 3, activity.Id, "2025-11-25", 6.5, "你好"));
         Debug.WriteLine($"time created, id = {info.Id}");
     }
 
@@ -108,5 +123,8 @@ public sealed class RedMineTests
                 "1",
                 StringComparison.Ordinal))
             Assert.Inconclusive("设置 DIARY_RUN_REDMINE_EXTERNAL_TESTS=1 后才运行外部 Redmine API 测试。");
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DIARY_REDMINE_TEST_URL"))
+            || string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DIARY_REDMINE_TEST_API_KEY")))
+            Assert.Inconclusive("设置 DIARY_REDMINE_TEST_URL 和 DIARY_REDMINE_TEST_API_KEY 后指向外部 Redmine 测试服务器。");
     }
 }

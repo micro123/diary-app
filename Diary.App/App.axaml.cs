@@ -13,6 +13,7 @@ using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.Models;
+using Diary.App.Services;
 using Diary.App.ViewModels;
 using Diary.App.Views;
 using Diary.Core;
@@ -109,6 +110,10 @@ namespace Diary.App
                 }
                 Services.GetRequiredService<ScriptStartupDiagnosticsStore>()
                     .Replace(result.Diagnostics.Select(FormatScriptDiagnostic));
+                var scheduler = Services.GetRequiredService<ScriptAutomationScheduler>();
+                scheduler.ApplyLoadResult(result);
+                scheduler.Start();
+                ObserveBackgroundTask(scheduler.RunStartupCatchUpAsync(), "启动自动化补跑");
             }
             catch (Exception ex)
             {
@@ -376,7 +381,12 @@ namespace Diary.App
                       () => new HostCapabilitiesScriptApi(() => ScriptHostApiCatalog.All),
                       () => new AppClipboardScriptApi(this),
                       () => new AppUserInteractionScriptApi(),
-                      executionId => CreateScriptLogApi(null, executionId)));
+                      executionId => CreateScriptLogApi(null, executionId),
+                      (executionId, update, _) =>
+                      {
+                          Services.GetRequiredService<ScriptProgressTracker>().Report(executionId, update);
+                          return ValueTask.CompletedTask;
+                      }));
             services.AddSingleton<IWorkerScriptExecutor>(services =>
             {
                 var workerName = OperatingSystem.IsWindows()
@@ -393,7 +403,11 @@ namespace Diary.App
                     new WorkerSupervisor(
                         new ProcessWorkerTransportFactory(csharpOptions),
                         hostDispatcher,
-                        maxRequestsPerWorker: sharedWorkerPolicy.MaxRequestsPerWorker),
+                        maxRequestsPerWorker: sharedWorkerPolicy.MaxRequestsPerWorker,
+                        handshakeTimeout: TimeSpan.FromSeconds(10),
+                        hostCallTimeout: TimeSpan.FromSeconds(30),
+                        heartbeatInterval: TimeSpan.FromSeconds(30),
+                        heartbeatTimeout: TimeSpan.FromSeconds(15)),
                     new WorkerHandshakeOptions("csharp", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress", "host.capabilities.list"]),
                     sharedWorkerPolicy);
                 var luaRuntime = new WorkerRuntime(
@@ -401,7 +415,11 @@ namespace Diary.App
                     new WorkerSupervisor(
                         new ProcessWorkerTransportFactory(luaOptions),
                         hostDispatcher,
-                        maxRequestsPerWorker: sharedWorkerPolicy.MaxRequestsPerWorker),
+                        maxRequestsPerWorker: sharedWorkerPolicy.MaxRequestsPerWorker,
+                        handshakeTimeout: TimeSpan.FromSeconds(10),
+                        hostCallTimeout: TimeSpan.FromSeconds(30),
+                        heartbeatInterval: TimeSpan.FromSeconds(30),
+                        heartbeatTimeout: TimeSpan.FromSeconds(15)),
                     new WorkerHandshakeOptions("lua", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress", "host.capabilities.list"]),
                     sharedWorkerPolicy);
                 var pythonRuntime = new WorkerRuntime(
@@ -410,7 +428,11 @@ namespace Diary.App
                         new PythonWorkerTransportFactory(
                             services.GetRequiredService<PythonRuntimeResolver>()),
                         hostDispatcher,
-                        maxRequestsPerWorker: dedicatedWorkerPolicy.MaxRequestsPerWorker),
+                        maxRequestsPerWorker: dedicatedWorkerPolicy.MaxRequestsPerWorker,
+                        handshakeTimeout: TimeSpan.FromSeconds(10),
+                        hostCallTimeout: TimeSpan.FromSeconds(30),
+                        heartbeatInterval: TimeSpan.FromSeconds(30),
+                        heartbeatTimeout: TimeSpan.FromSeconds(15)),
                     new WorkerHandshakeOptions("python", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress", "host.capabilities.list"]),
                     dedicatedWorkerPolicy);
                 return new WorkerScriptExecutor(
@@ -426,6 +448,7 @@ namespace Diary.App
             services.AddSingleton<IScriptManager, ScriptManager>();
             services.AddSingleton<IScriptDirectoryLoader, ScriptDirectoryLoader>();
             services.AddSingleton<ScriptLogStore>();
+            services.AddSingleton<ScriptProgressTracker>();
             services.AddSingleton<ScriptStartupDiagnosticsStore>();
             services.AddSingleton<IScriptExecutionContextFactory>(_ =>
                 new ScriptExecutionContextFactory((metadata, request) =>
@@ -439,7 +462,13 @@ namespace Diary.App
                         {
                             StartDate = range.StartDate,
                             EndDate = range.EndDate,
-                        }, cancellationToken: cancellationToken));
+                        }, cancellationToken: cancellationToken),
+                        progressReporter: update =>
+                        {
+                            Services.GetRequiredService<ScriptProgressTracker>().Report(
+                                metadata.ExecutionId.ToString(), update);
+                            return ValueTask.CompletedTask;
+                        });
                     context.RegisterApi<IWorkItemQueryScriptApi>(queryApi);
                     context.RegisterApi<ILogApi>(CreateScriptLogApi(metadata, null));
                     context.RegisterApi<ITrackerInstanceScriptApi>(
@@ -735,6 +764,8 @@ namespace Diary.App
             await _extendedSurveyor.StopServerAsync();
             await _extendedRespondent.ShutdownAsync();
             _timer.Stop();
+            (Services.GetRequiredService<ScriptAutomationScheduler>() as IDisposable)?.Dispose();
+            await Services.GetRequiredService<IWorkerScriptExecutor>().StopAllAsync();
             SaveConfigurations();
             SavePluginConfigurations();
             (Services as IDisposable)?.Dispose();

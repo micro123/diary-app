@@ -116,9 +116,11 @@ IScriptApi
 上下文执行、模板边界和 Tracker 复合身份见 [脚本上下文图](diagrams/script-context.svg)。
 图表源文件为 [`script-context.puml`](diagrams/script-context.puml)。
 
+进度报告已接线：`Diary.App/Models/ScriptProgressTracker`（内存，最近 20 次执行、每次最多 50 条时间线，`Changed` 事件）同时接入两条执行路径（Worker 路径 dispatcher 的 progressReporter 与进程内路径 `ScriptExecutionContext` 的 progressReporter）；`ScriptManagementViewModel` 提供 ProgressFraction/ProgressMessage/HasProgress，管理页底部运行栏显示进度条与文本，执行历史条目日志追加「进度：」时间线。执行历史与进度均为会话内存态，重启即失，持久化明确延期（用户决策）。
+
 ## 5. 脚本类型、执行上下文和生命周期
 
-脚本按功能入口分为 Application、Editor、Automation，Query 作为只读扩展预留。底层 Worker 仍使用统一的 `IScriptProgramV1` 适配协议。
+脚本按功能入口分为 Application、Editor、Automation 和 Query。底层 Worker 仍使用统一的 `IScriptProgramV1` 适配协议。
 
 ### 5.1 应用脚本
 
@@ -132,11 +134,13 @@ IScriptApi
 
 ### 5.3 自动化脚本
 
-自动化脚本使用 `IAutomationScriptV1` 或 `AutomationScript`，对应 `ScriptEntryKind.Automation`。`IScriptAutomationContext.Automation` 携带触发器类型、事件数据和幂等键；当前触发器包括 Startup、Scheduled、WorkItemCreated、WorkItemSaved 和 TagAdded。自动化脚本只允许通过追加式 API 产生工作记录，不提供删除或直接改写历史记录。
+自动化脚本使用 `IAutomationScriptV1` 或 `AutomationScript`，对应 `ScriptEntryKind.Automation`。`IScriptAutomationContext.Automation` 携带触发器类型、事件数据和幂等键；触发器类型包括 Startup、Scheduled、WorkItemCreated、WorkItemSaved 和 TagAdded。自动化脚本只允许通过追加式 API 产生工作记录，不提供删除或直接改写历史记录。
+
+当前已实现 Startup 与 Scheduled 两类触发：metadata/manifest 支持 `Schedule`（格式 `"daily HH:mm"`，仅 Automation 入口合法）与 `RunOnStartup`（bool，默认 false），目录加载时校验，非法（或非 Automation 入口携带）→ `SCRIPT_SCHEDULE_INVALID` 构建失败且不注册。`Diary.App/Services/ScriptAutomationScheduler` 以 30 秒 DispatcherTimer tick + `SemaphoreSlim` 串行 + 内存 last-run 表防重调度，启动时补跑一轮 `RunOnStartup` 与今日到期脚本，并为每个请求生成幂等键（Scheduled=`auto:{scriptId}:{yyyy-MM-dd HH:mm}`、Startup=`startup:{scriptId}:{yyyy-MM-dd}`）；应用 PreShutdown 时停止调度器。三语言 context 均提供 `automation = { trigger, eventData, idempotencyKey }`（`ScriptAutomationContextFactory.FromRequest` 按 Source 生成 Trigger：Automation→Scheduled、Startup→Startup）。WorkItemCreated、WorkItemSaved、TagAdded 三种触发器仍未接线。
 
 ### 5.4 查询入口和模板边界
 
-Query 入口已在契约中预留，当前创建向导和 SDK 尚未提供独立的 `QueryScript` 基类。模板和已启用 Tracker 实例提供只读发现 API；模板的选择、读取、应用和持久化仍由编辑器或宿主完成，脚本不能创建、修改、删除或直接应用模板。
+Query 入口已落地：ScriptBase 提供 `IQueryScriptV1` 接口与 `QueryScript` 抽象基类（Scope=Application、EntryKind=Query、上下文 `IScriptApplicationContext`），`ScriptProgramAdapter` 与 C# 引擎类型识别均已支持；创建向导提供「查询脚本」模板（C# 使用 `QueryScript` 子类，Lua/Python 使用 `query_main` 入口），管理页可直接运行（CanRun 已放行 Application scope）。模板和已启用 Tracker 实例提供只读发现 API；模板的选择、读取、应用和持久化仍由编辑器或宿主完成，脚本不能创建、修改、删除或直接应用模板。
 
 脚本生命周期为：
 
@@ -145,6 +149,8 @@ Query 入口已在契约中预留，当前创建向导和 SDK 尚未提供独立
      -> 注册脚本 -> 用户执行 -> 创建执行上下文 -> Worker 执行
      -> 返回结果/诊断/副作用摘要 -> 释放上下文
 ```
+
+`ScriptAutomationScheduler` 挂在脚本目录加载完成后：`LoadScriptsAsync` 成功后应用加载结果并启动调度器，再在后台执行启动补跑（`RunStartupCatchUpAsync`）；调度器按内存 last-run 表防止同一调度窗口重复执行。
 
 追加式日志项的幂等结果由宿主共享的 `ScriptIdempotencyStore` 保存。普通日志项和模板日志项使用不同的 API 作用域，即使幂等键字符串相同也不会互相覆盖；已提交结果会在应用重启后恢复，Worker 重启不会自动重放带副作用的请求。脚本自动化不提供删除或直接改写历史记录，Tracker 远程写入也不在当前 Worker HostCall 范围内。
 

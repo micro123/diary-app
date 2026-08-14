@@ -9,7 +9,10 @@ public interface IWorkerScriptExecutor
         string scriptId,
         ScriptExecutionRequest request,
         TimeSpan? timeout = null,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        Guid? executionId = null);
+
+    ValueTask StopAllAsync(CancellationToken cancellationToken = default);
 }
 
 public sealed class WorkerScriptExecutor(
@@ -20,7 +23,8 @@ public sealed class WorkerScriptExecutor(
         string scriptId,
         ScriptExecutionRequest request,
         TimeSpan? timeout = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Guid? executionId = null)
     {
         if (!catalog.TryGetSource(scriptId, out var source) || source is null)
             return Failed(scriptId, request.Source, "SCRIPT_SOURCE_NOT_FOUND", "找不到脚本源码。");
@@ -34,11 +38,11 @@ public sealed class WorkerScriptExecutor(
         {
             if (runtime.Supervisor.State == WorkerState.Stopped || runtime.Supervisor.State == WorkerState.Failed)
                 await runtime.Supervisor.StartAsync(runtime.HandshakeOptions, cancellationToken);
-            var executionId = Guid.NewGuid();
+            var resolvedExecutionId = executionId ?? Guid.NewGuid();
             var descriptor = program.Descriptor;
             var result = await runtime.Supervisor.ExecuteAsync(
                 scriptId,
-                executionId.ToString(),
+                resolvedExecutionId.ToString(),
                 new WorkerExecutePayload(
                     scriptId,
                     source.SourcePath,
@@ -54,7 +58,7 @@ public sealed class WorkerScriptExecutor(
                          descriptor.EntryKind)),
                 timeout,
                 cancellationToken);
-            return new(executionId, new ScriptExecutionResult(
+            return new(resolvedExecutionId, new ScriptExecutionResult(
                 result.Payload.Status,
                 result.Payload.Diagnostics.ToImmutableArray(),
                 result.Payload.Effects), Source: request.Source,
@@ -74,6 +78,12 @@ public sealed class WorkerScriptExecutor(
     private static ScriptExecutionOutcome Failed(string scriptId, ScriptExecutionSource source, string code, string message) =>
         new(Guid.NewGuid(), new ScriptExecutionResult(ScriptExecutionStatus.Failed, [new ScriptDiagnostic(
             code, message, ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Runtime)]), Source: source);
+
+    public async ValueTask StopAllAsync(CancellationToken cancellationToken = default)
+    {
+        foreach (var runtime in runtimes.Values)
+            await runtime.Supervisor.StopAsync(cancellationToken);
+    }
 }
 
 public sealed class WorkerRuntimeUnavailableException(ScriptDiagnostic diagnostic) : Exception(diagnostic.Message)

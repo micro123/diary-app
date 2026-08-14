@@ -195,6 +195,38 @@ public sealed class CSharpEngineTests
     }
 
     [TestMethod]
+    public async Task BuildAsync_CompilesQueryScriptBaseClass()
+    {
+        var source = """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Diary.ScriptBase;
+            public sealed class DemoQuery : QueryScript
+            {
+                public override string Id => "demo-query";
+                public override string Name => "DemoQuery";
+                public override ValueTask<ScriptExecutionResult> ExecuteAsync(IScriptApplicationContext context, CancellationToken cancellationToken = default)
+                    => ValueTask.FromResult(ScriptExecutionResult.Succeeded());
+            }
+            """;
+
+        var result = await _engine.BuildAsync(new ScriptBuildRequest("query.cs", source));
+
+        Assert.IsTrue(
+            result.Succeeded,
+            string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.AreEqual(ScriptEntryKind.Query, result.Program!.Descriptor.EntryKind);
+        Assert.IsTrue(ScriptProgramAdapter.TryAdapt(result.Program, out var adapted));
+        Assert.IsNotNull(adapted);
+
+        var context = new Diary.Script.Runtime.ScriptExecutionContext();
+        var outcome = await adapted!.ExecuteAsync(
+            new ScriptExecutionRequest(EntryKind: ScriptEntryKind.Query),
+            context);
+        Assert.AreEqual(ScriptExecutionStatus.Succeeded, outcome.Status);
+    }
+
+    [TestMethod]
     public void Match_IsCaseInsensitiveAndRejectsOtherExtensions()
     {
         Assert.IsTrue(_engine.Match(new ScriptMatchRequest("test.CS")).IsMatch);

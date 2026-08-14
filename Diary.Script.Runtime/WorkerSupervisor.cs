@@ -65,12 +65,17 @@ public sealed class WorkerSupervisor(
     int maxResultMessageBytes = 16 * 1024 * 1024,
     long? maxWorkingSetBytes = null,
     TimeSpan? cancellationGracePeriod = null,
-    TimeSpan? resourceCheckInterval = null)
+    TimeSpan? resourceCheckInterval = null,
+    TimeSpan? heartbeatInterval = null,
+    TimeSpan? heartbeatTimeout = null,
+    TimeSpan? handshakeTimeout = null,
+    TimeSpan? hostCallTimeout = null)
 {
     private readonly SemaphoreSlim _executionGate = new(1, 1);
     private IWorkerTransport? _transport;
     private WorkerHandshakeOptions? _handshakeOptions;
     private DateTimeOffset _lastActivity = DateTimeOffset.UtcNow;
+    private DateTimeOffset _lastPong = DateTimeOffset.UtcNow;
     private int _restartAttempts;
     private int _requestCount;
     private CancellationTokenSource? _lifetimeCancellation;
@@ -105,6 +110,22 @@ public sealed class WorkerSupervisor(
         ? cancellationGracePeriod ?? TimeSpan.FromMilliseconds(500)
         : throw new ArgumentOutOfRangeException(nameof(cancellationGracePeriod));
 
+    public TimeSpan? HeartbeatInterval { get; } = heartbeatInterval is null || heartbeatInterval.Value > TimeSpan.Zero
+        ? heartbeatInterval
+        : throw new ArgumentOutOfRangeException(nameof(heartbeatInterval));
+
+    public TimeSpan HeartbeatTimeout { get; } = heartbeatTimeout is null || heartbeatTimeout.Value > TimeSpan.Zero
+        ? heartbeatTimeout ?? TimeSpan.FromSeconds(WorkerProtocol.DefaultHeartbeatTimeoutSeconds)
+        : throw new ArgumentOutOfRangeException(nameof(heartbeatTimeout));
+
+    public TimeSpan HandshakeTimeout { get; } = handshakeTimeout is null || handshakeTimeout.Value > TimeSpan.Zero
+        ? handshakeTimeout ?? TimeSpan.FromSeconds(WorkerProtocol.DefaultHandshakeTimeoutSeconds)
+        : throw new ArgumentOutOfRangeException(nameof(handshakeTimeout));
+
+    public TimeSpan HostCallTimeout { get; } = hostCallTimeout is null || hostCallTimeout.Value > TimeSpan.Zero
+        ? hostCallTimeout ?? TimeSpan.FromSeconds(WorkerProtocol.DefaultHostCallTimeoutSeconds)
+        : throw new ArgumentOutOfRangeException(nameof(hostCallTimeout));
+
     public async ValueTask StartAsync(WorkerHandshakeOptions options, CancellationToken cancellationToken = default)
     {
         if (State is WorkerState.Ready or WorkerState.Busy)
@@ -121,12 +142,14 @@ public sealed class WorkerSupervisor(
         _handshakeOptions = options;
         _lastActivity = DateTimeOffset.UtcNow;
         State = WorkerState.Handshaking;
+        using var handshakeCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        handshakeCancellation.CancelAfter(HandshakeTimeout);
         try
         {
-            _transport = await transportFactory.CreateAsync(cancellationToken);
+            _transport = await transportFactory.CreateAsync(handshakeCancellation.Token);
             if (_transport is IWorkerTerminationNotification notification)
                 notification.Terminated += OnTransportTerminated;
-            var hello = await _transport.ReceiveAsync<WorkerHelloPayload>(cancellationToken);
+            var hello = await _transport.ReceiveAsync<WorkerHelloPayload>(handshakeCancellation.Token);
             var handshake = WorkerHandshake.Negotiate(hello, options);
             if (!handshake.Accepted)
                 throw new WorkerProtocolException(handshake.Diagnostic!);
@@ -136,12 +159,23 @@ public sealed class WorkerSupervisor(
                 WorkerMessageType.HelloAccepted,
                 hello.RequestId,
                 null,
-                handshake.AcceptedPayload!), cancellationToken);
+                handshake.AcceptedPayload!), handshakeCancellation.Token);
             WorkerId = Guid.NewGuid().ToString("N");
             State = WorkerState.Ready;
             _restartAttempts = 0;
             _requestCount = 0;
+            _lastPong = DateTimeOffset.UtcNow;
             StartIdleMonitor();
+        }
+        catch (OperationCanceledException) when (handshakeCancellation.IsCancellationRequested
+            && !cancellationToken.IsCancellationRequested)
+        {
+            State = WorkerState.Failed;
+            _restartAttempts++;
+            await StopTransportAsync(CancellationToken.None);
+            throw new WorkerProtocolException(new ScriptDiagnostic(
+                "WORKER_HANDSHAKE_TIMED_OUT", $"Worker 握手超时（{HandshakeTimeout}）。",
+                ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Runtime));
         }
         catch
         {
@@ -218,11 +252,25 @@ public sealed class WorkerSupervisor(
                             ?? throw new WorkerProtocolException(new ScriptDiagnostic(
                                 "WORKER_HOST_CALL_INVALID", "Worker 宿主调用载荷无效。", ScriptDiagnosticSeverity.Error,
                                 ScriptDiagnosticCategory.Validation));
+                        using var hostCallTimeoutCancellation = new CancellationTokenSource(HostCallTimeout);
                         using var hostCallCancellation = CancellationTokenSource.CreateLinkedTokenSource(
-                            receiveCancellation.Token, cancellationToken);
-                        var hostResult = hostCallDispatcher is null
-                            ? new WorkerHostResultPayload(false, Error: new("PermissionDenied", "当前 Worker 未配置宿主 API。"))
-                            : await hostCallDispatcher.DispatchAsync(executionId, call, hostCallCancellation.Token);
+                            receiveCancellation.Token, cancellationToken, hostCallTimeoutCancellation.Token);
+                        WorkerHostResultPayload hostResult;
+                        try
+                        {
+                            hostResult = hostCallDispatcher is null
+                                ? new WorkerHostResultPayload(false, Error: new("PermissionDenied", "当前 Worker 未配置宿主 API。"))
+                                : await hostCallDispatcher.DispatchAsync(executionId, call, hostCallCancellation.Token);
+                        }
+                        catch (OperationCanceledException) when (hostCallTimeoutCancellation.IsCancellationRequested)
+                        {
+                            State = WorkerState.Failed;
+                            await StopTransportAsync(CancellationToken.None);
+                            return Result(requestId, executionId, ScriptExecutionStatus.Failed,
+                                new ScriptDiagnostic("WORKER_HOST_CALL_TIMED_OUT",
+                                    $"Worker 宿主调用 {call.Method} 超时（{HostCallTimeout}）。",
+                                    ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Runtime));
+                        }
                         await _transport.SendAsync(new WorkerMessage<WorkerHostResultPayload>(
                             WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.HostResult,
                             message.RequestId, executionId, hostResult), receiveCancellation.Token);
@@ -318,15 +366,24 @@ public sealed class WorkerSupervisor(
         State = WorkerState.Stopped;
     }
 
-    public async ValueTask<bool> CheckHealthAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<bool> CheckHealthAsync(TimeSpan? timeout = null, CancellationToken cancellationToken = default)
     {
         if (State is not (WorkerState.Ready or WorkerState.Busy) || _transport is null)
             return false;
         var requestId = Guid.NewGuid().ToString("N");
-        await _transport.SendAsync(new WorkerMessage<object>(
-            WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.Ping, requestId, null, new { }), cancellationToken);
-        var response = await _transport.ReceiveAsync<object>(cancellationToken);
-        return response.Type == WorkerMessageType.Pong && response.RequestId == requestId;
+        using var healthCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        healthCancellation.CancelAfter(timeout ?? TimeSpan.FromSeconds(5));
+        try
+        {
+            await _transport.SendAsync(new WorkerMessage<object>(
+                WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.Ping, requestId, null, new { }), healthCancellation.Token);
+            var response = await _transport.ReceiveAsync<object>(healthCancellation.Token);
+            return response.Type == WorkerMessageType.Pong && response.RequestId == requestId;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
     }
 
     public async ValueTask RestartAsync(WorkerHandshakeOptions options, CancellationToken cancellationToken = default)
@@ -375,6 +432,12 @@ public sealed class WorkerSupervisor(
             while (!cancellationToken.IsCancellationRequested)
             {
                 await Task.Delay(GetMonitorInterval(), cancellationToken);
+                if (HeartbeatInterval is { } heartbeat
+                    && DateTimeOffset.UtcNow - _lastPong >= heartbeat)
+                {
+                    if (!await TryHeartbeatAsync(cancellationToken))
+                        return;
+                }
                 if (State == WorkerState.Ready && IdleTimeout != Timeout.InfiniteTimeSpan
                     && DateTimeOffset.UtcNow - _lastActivity >= IdleTimeout)
                 {
@@ -400,6 +463,51 @@ public sealed class WorkerSupervisor(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+        }
+    }
+
+    private async ValueTask<bool> TryHeartbeatAsync(CancellationToken cancellationToken)
+    {
+        // 仅 Ready 且能抢到执行门时 ping：门保证不与 ExecuteAsync 的接收循环并发，Pong 不会被截走。
+        if (!await _executionGate.WaitAsync(0, cancellationToken))
+            return true;
+        try
+        {
+            if (State != WorkerState.Ready || _transport is null)
+                return true;
+            var requestId = Guid.NewGuid().ToString("N");
+            await _transport.SendAsync(new WorkerMessage<object>(
+                WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.Ping, requestId, null, new { }), cancellationToken);
+            using var pongCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            pongCancellation.CancelAfter(HeartbeatTimeout);
+            var response = await _transport.ReceiveAsync<object>(pongCancellation.Token);
+            if (response.Type != WorkerMessageType.Pong || response.RequestId != requestId)
+            {
+                State = WorkerState.Failed;
+                _restartAttempts++;
+                await StopTransportAsync(CancellationToken.None);
+                return false;
+            }
+            _lastPong = DateTimeOffset.UtcNow;
+            return true;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            State = WorkerState.Failed;
+            _restartAttempts++;
+            await StopTransportAsync(CancellationToken.None);
+            return false;
+        }
+        catch (Exception exception) when (exception is EndOfStreamException or IOException or ObjectDisposedException or InvalidDataException)
+        {
+            State = WorkerState.Failed;
+            _restartAttempts++;
+            await StopTransportAsync(CancellationToken.None);
+            return false;
+        }
+        finally
+        {
+            _executionGate.Release();
         }
     }
 

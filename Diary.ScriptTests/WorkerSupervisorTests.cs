@@ -47,6 +47,131 @@ public sealed class WorkerSupervisorTests
     }
 
     [TestMethod]
+    public async Task StartAsync_HandshakeTimeoutFailsWorker()
+    {
+        var transport = new FakeTransport { DelayHello = true };
+        var supervisor = new WorkerSupervisor(new FakeFactory(transport), handshakeTimeout: TimeSpan.FromMilliseconds(50));
+
+        var exception = await Assert.ThrowsExactlyAsync<WorkerProtocolException>(() =>
+            supervisor.StartAsync(new("csharp", [ScriptApiVersion.V1], [])).AsTask());
+
+        Assert.AreEqual("WORKER_HANDSHAKE_TIMED_OUT", exception.Diagnostic.Code);
+        Assert.AreEqual(WorkerState.Failed, supervisor.State);
+        Assert.IsTrue(transport.StopCalled);
+    }
+
+    [TestMethod]
+    public async Task Supervisor_SendsHeartbeatWhileReadyAndStaysReady()
+    {
+        var transport = new FakeTransport();
+        var supervisor = new WorkerSupervisor(
+            new FakeFactory(transport),
+            heartbeatInterval: TimeSpan.FromMilliseconds(50),
+            heartbeatTimeout: TimeSpan.FromMilliseconds(500),
+            resourceCheckInterval: TimeSpan.FromMilliseconds(20));
+        await supervisor.StartAsync(new("csharp", [ScriptApiVersion.V1], []));
+
+        await Task.Delay(200);
+
+        Assert.AreEqual(WorkerState.Ready, supervisor.State);
+        Assert.IsTrue(transport.Sent.Count(message => message.Type == WorkerMessageType.Ping) >= 2);
+        await supervisor.StopAsync();
+    }
+
+    [TestMethod]
+    public async Task Supervisor_ReclaimsWorkerOnHeartbeatTimeout()
+    {
+        var transport = new FakeTransport { SuppressPong = true };
+        var supervisor = new WorkerSupervisor(
+            new FakeFactory(transport),
+            heartbeatInterval: TimeSpan.FromMilliseconds(50),
+            heartbeatTimeout: TimeSpan.FromMilliseconds(30),
+            resourceCheckInterval: TimeSpan.FromMilliseconds(20));
+        await supervisor.StartAsync(new("csharp", [ScriptApiVersion.V1], []));
+
+        await WaitForStateAsync(supervisor, WorkerState.Failed);
+
+        Assert.IsTrue(transport.StopCalled);
+    }
+
+    [TestMethod]
+    public async Task Supervisor_SkipsHeartbeatWhileBusy()
+    {
+        var transport = new FakeTransport { DelayExecute = true };
+        var supervisor = new WorkerSupervisor(
+            new FakeFactory(transport),
+            heartbeatInterval: TimeSpan.FromMilliseconds(20),
+            heartbeatTimeout: TimeSpan.FromMilliseconds(100),
+            resourceCheckInterval: TimeSpan.FromMilliseconds(10));
+        await supervisor.StartAsync(new("csharp", [ScriptApiVersion.V1], []));
+
+        var execution = supervisor.ExecuteAsync("demo", "exec-busy", new { }, TimeSpan.FromSeconds(2)).AsTask();
+        await transport.ExecuteSent.Task;
+        await Task.Delay(100);
+        Assert.IsFalse(transport.Sent.Any(message => message.Type == WorkerMessageType.Ping));
+
+        transport.CompleteExecution();
+        var result = await execution;
+        Assert.AreEqual(ScriptExecutionStatus.Succeeded, result.Payload.Status);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_HostCallTimeoutFailsWorker()
+    {
+        var transport = new FakeTransport { EmitHostCall = true };
+        var supervisor = new WorkerSupervisor(
+            new FakeFactory(transport),
+            new BlockingDispatcher(),
+            hostCallTimeout: TimeSpan.FromMilliseconds(50));
+        await supervisor.StartAsync(new("csharp", [ScriptApiVersion.V1], []));
+
+        var result = await supervisor.ExecuteAsync("demo", "exec-hostcall-timeout", new { });
+
+        Assert.AreEqual(ScriptExecutionStatus.Failed, result.Payload.Status);
+        Assert.AreEqual("WORKER_HOST_CALL_TIMED_OUT", result.Payload.Diagnostics.Single().Code);
+        Assert.AreEqual(WorkerState.Failed, supervisor.State);
+        Assert.IsTrue(transport.StopCalled);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_DispatchesHostCallSuccessfully()
+    {
+        var transport = new FakeTransport { EmitHostCall = true };
+        var dispatcher = new RecordingDispatcher();
+        var supervisor = new WorkerSupervisor(new FakeFactory(transport), dispatcher);
+        await supervisor.StartAsync(new("csharp", [ScriptApiVersion.V1], []));
+
+        var result = await supervisor.ExecuteAsync("demo", "exec-hostcall", new { });
+
+        Assert.AreEqual(ScriptExecutionStatus.Succeeded, result.Payload.Status);
+        Assert.AreEqual(WorkerState.Ready, supervisor.State);
+        Assert.AreEqual("workItems.query", dispatcher.LastCall!.Method);
+        Assert.IsTrue(transport.Sent.Any(message => message.Type == WorkerMessageType.HostResult));
+    }
+
+    private sealed class BlockingDispatcher : IWorkerHostCallDispatcher
+    {
+        public async ValueTask<WorkerHostResultPayload> DispatchAsync(
+            string executionId, WorkerHostCallPayload call, CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return new(true);
+        }
+    }
+
+    private sealed class RecordingDispatcher : IWorkerHostCallDispatcher
+    {
+        public WorkerHostCallPayload? LastCall { get; private set; }
+
+        public ValueTask<WorkerHostResultPayload> DispatchAsync(
+            string executionId, WorkerHostCallPayload call, CancellationToken cancellationToken = default)
+        {
+            LastCall = call;
+            return ValueTask.FromResult(new WorkerHostResultPayload(true));
+        }
+    }
+
+    [TestMethod]
     public async Task ExecuteAsync_TimeoutReturnsStructuredResultAndFailsWorker()
     {
         var transport = new FakeTransport { DelayExecute = true };
@@ -170,6 +295,9 @@ public sealed class WorkerSupervisorTests
         public bool DelayExecute { get; init; }
         public bool TerminateExecute { get; init; }
         public bool CompleteOnCancel { get; init; }
+        public bool DelayHello { get; init; }
+        public bool SuppressPong { get; init; }
+        public bool EmitHostCall { get; init; }
         public TaskCompletionSource<bool> ExecuteSent { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private EventHandler<WorkerTerminatedEventArgs>? _terminated;
         public event EventHandler<WorkerTerminatedEventArgs>? Terminated
@@ -183,9 +311,14 @@ public sealed class WorkerSupervisorTests
         public bool StopCalled { get; private set; }
         private string? _executeRequestId;
         private string? _executionId;
+        private int _receiveCount;
         private readonly Queue<object> _responses = new([
             new WorkerMessage<WorkerHelloPayload>(WorkerProtocol.Name, 1, WorkerMessageType.Hello, "hello", null,
                 new WorkerHelloPayload(language, "1", [ScriptApiVersion.V1], [], 1))]);
+
+        public void CompleteExecution() =>
+            _responses.Enqueue(new WorkerMessage<WorkerExecutionResultPayload>(WorkerProtocol.Name, 1, WorkerMessageType.ExecuteResult,
+                _executeRequestId, _executionId, new(ScriptExecutionStatus.Succeeded, [])));
 
         public ValueTask SendAsync<TPayload>(WorkerMessage<TPayload> message, CancellationToken cancellationToken = default)
         {
@@ -195,16 +328,24 @@ public sealed class WorkerSupervisorTests
                 _executeRequestId = message.RequestId;
                 _executionId = message.ExecutionId;
                 ExecuteSent.TrySetResult(true);
-                if (!DelayExecute && !TerminateExecute)
+                if (!DelayExecute && !TerminateExecute && !EmitHostCall)
                     _responses.Enqueue(new WorkerMessage<WorkerExecutionResultPayload>(WorkerProtocol.Name, 1, WorkerMessageType.ExecuteResult,
                         message.RequestId, message.ExecutionId, new(ScriptExecutionStatus.Succeeded, [])));
+                else if (EmitHostCall)
+                    _responses.Enqueue(new WorkerMessage<WorkerHostCallPayload>(WorkerProtocol.Name, 1, WorkerMessageType.HostCall,
+                        "host-call-1", message.ExecutionId, new("workItems.query", JsonSerializer.SerializeToElement(new { }))));
             }
             else if (message.Type == WorkerMessageType.Cancel && CompleteOnCancel)
             {
                 _responses.Enqueue(new WorkerMessage<WorkerExecutionResultPayload>(WorkerProtocol.Name, 1, WorkerMessageType.ExecuteResult,
                     _executeRequestId, _executionId, new(ScriptExecutionStatus.Succeeded, [])));
             }
-            else if (message.Type == WorkerMessageType.Ping)
+            else if (message.Type == WorkerMessageType.HostResult)
+            {
+                _responses.Enqueue(new WorkerMessage<WorkerExecutionResultPayload>(WorkerProtocol.Name, 1, WorkerMessageType.ExecuteResult,
+                    _executeRequestId, _executionId, new(ScriptExecutionStatus.Succeeded, [])));
+            }
+            else if (message.Type == WorkerMessageType.Ping && !SuppressPong)
                 _responses.Enqueue(new WorkerMessage<object>(WorkerProtocol.Name, 1, WorkerMessageType.Pong,
                     message.RequestId, null, new { }));
             return ValueTask.CompletedTask;
@@ -212,7 +353,9 @@ public sealed class WorkerSupervisorTests
 
         public async ValueTask<WorkerMessage<TPayload>> ReceiveAsync<TPayload>(CancellationToken cancellationToken = default)
         {
-            while (DelayExecute && _responses.Count == 0)
+            if (DelayHello && _receiveCount++ == 0)
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            while (_responses.Count == 0 && (DelayExecute || SuppressPong))
                 await Task.Delay(TimeSpan.FromMilliseconds(1), cancellationToken);
             if (TerminateExecute && _responses.Count == 0)
                 throw new EndOfStreamException("worker exited");

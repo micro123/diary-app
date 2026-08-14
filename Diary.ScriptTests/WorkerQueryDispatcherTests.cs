@@ -267,6 +267,54 @@ public sealed class WorkerQueryDispatcherTests
         Assert.AreEqual((ScriptLogLevel.Warning, "诊断"), log.Last);
     }
 
+    [TestMethod]
+    public async Task DispatchAsync_ReportsProgressToConfiguredReporter()
+    {
+        string? reportedExecutionId = null;
+        ScriptProgressUpdate? reportedUpdate = null;
+        var dispatcher = new WorkItemQueryWorkerDispatcher(
+            () => new FakeQueryApi(),
+            progressReporter: (executionId, update, _) =>
+            {
+                reportedExecutionId = executionId;
+                reportedUpdate = update;
+                return ValueTask.CompletedTask;
+            });
+
+        var result = await dispatcher.DispatchAsync("exec-progress", new(
+            "script.progress", JsonSerializer.SerializeToElement(new { fraction = 0.6, message = "处理中" })));
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual("exec-progress", reportedExecutionId);
+        Assert.AreEqual(0.6, reportedUpdate!.Fraction);
+        Assert.AreEqual("处理中", reportedUpdate.Message);
+    }
+
+    [TestMethod]
+    public async Task DispatchAsync_ProgressWithoutReporterIsAccepted()
+    {
+        var dispatcher = new WorkItemQueryWorkerDispatcher(() => new FakeQueryApi());
+
+        var result = await dispatcher.DispatchAsync("exec-progress", new(
+            "script.progress", JsonSerializer.SerializeToElement(new { fraction = 0.6, message = "处理中" })));
+
+        Assert.IsTrue(result.Success);
+    }
+
+    [TestMethod]
+    public async Task DispatchAsync_RejectsInvalidProgressPayload()
+    {
+        var dispatcher = new WorkItemQueryWorkerDispatcher(
+            () => new FakeQueryApi(),
+            progressReporter: (_, _, _) => ValueTask.CompletedTask);
+
+        var result = await dispatcher.DispatchAsync("exec-progress", new(
+            "script.progress", JsonSerializer.SerializeToElement(new { fraction = "not-a-number" })));
+
+        Assert.IsFalse(result.Success);
+        Assert.AreEqual("InvalidInput", result.Error!.Code);
+    }
+
     private sealed class FakeQueryApi : IWorkItemQueryScriptApi
     {
         public ValueTask<ScriptWorkItemQueryResult> QueryAsync(ScriptWorkItemQuery query, CancellationToken cancellationToken = default) =>

@@ -96,7 +96,7 @@ var trackers = api.Tracker.ListInstances();
 | `EntryKind` | 当前入口类型。 |
 | `Arguments` | 用户传入的字符串参数。 |
 | `CancellationToken` / `IsCancellationRequested` | 当前执行的取消信号。 |
-| `ReportProgressAsync(...)` | 报告 0 到 1 之间的执行进度，不写入脚本日志。`Fraction` 越界（含 NaN）或 `Message` 为空时抛参数异常，由宿主拒绝。 |
+| `ReportProgressAsync(...)` | 报告 0 到 1 之间的执行进度，不写入脚本日志。`Fraction` 越界（含 NaN）或 `Message` 为空时抛参数异常，由宿主拒绝。管理页运行脚本时进度实时显示在底部运行区，并写入执行历史条目详情（会话内存态，重启即失）。 |
 | `GetApi<TApi>()` | 获取已注册 API。API 未实现或不可用时返回 `null`。 |
 | `GetRequiredApi<TApi>()` | 获取必需 API；不可用时抛出宿主可转换为稳定错误码的异常。 |
 
@@ -399,7 +399,9 @@ if (!result.Succeeded)
 | `WorkItemSaved` | 工作项保存触发。 |
 | `TagAdded` | 标签添加触发。 |
 
-当前实现只在 Worker 路径且执行来源为 `Automation` 时注入 `Scheduled`，其余场景为 `Unknown`；`Startup`、`WorkItemCreated`、`WorkItemSaved`、`TagAdded` 四种触发器的接线尚未实现。
+当前实现已接线：执行来源为 `Automation` 时注入 `Scheduled`，来源为 `Startup` 时注入 `Startup`，其余场景为 `Unknown`；`WorkItemCreated`、`WorkItemSaved`、`TagAdded` 三种触发器的接线尚未实现。
+
+自动化脚本（`AutomationScript`）放 `application` 目录，metadata 的 `entryKind` 写 `Automation`；`schedule` 字段（`"daily HH:mm"`）配置每日定时，`runOnStartup`（true/false）配置应用启动后是否补跑一轮。到点或补跑时宿主自动执行，执行来源为「自动化调用」或「启动加载」，可在管理页执行历史中按来源筛选。
 
 ### 13.2 ScriptEditorTarget
 
@@ -445,7 +447,7 @@ if (!result.Succeeded)
 | `SupportedTargets` | `virtual IReadOnlyList<ScriptEditorTargetKind>?`（仅 `EditorScript`） | 返回 null 表示支持全部六种目标。 |
 | `ExecuteAsync` | 抽象方法 | 按基类签名：`ExecuteAsync(IScriptApplicationContext context, CancellationToken ct = default)` / `ExecuteAsync(IScriptEditorContext context, ...)` / `ExecuteAsync(IScriptAutomationContext context, ...)`，返回 `ValueTask<ScriptExecutionResult>`。 |
 
-`Descriptor` 由基类自动生成（`ApiVersion = V1`、对应 Scope 与 EntryKind），脚本不需要手写。没有 `QueryScript` 基类（`ScriptEntryKind.Query` 目前仅预留）。
+`Descriptor` 由基类自动生成（`ApiVersion = V1`、对应 Scope 与 EntryKind），脚本不需要手写。`QueryScript` 基类同样可用（`ScriptScope.Application` + `EntryKind = Query`，上下文为 `IScriptApplicationContext`），对应 Lua/Python 的 `query_main` 入口。
 
 ### 13.5 宿主 API 接口签名
 

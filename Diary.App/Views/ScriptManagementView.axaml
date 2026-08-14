@@ -320,6 +320,12 @@
         </Grid>
 
         <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                        IsVisible="{Binding HasProgress}">
+                <ProgressBar Width="180" Minimum="0" Maximum="1" Value="{Binding ProgressFraction}" />
+                <TextBlock Text="{Binding ProgressMessage}" Opacity="0.8" MaxWidth="240"
+                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+            </StackPanel>
             <Button Content="取消" Command="{Binding CancelCommand}" IsVisible="{Binding IsExecuting}" />
             <Button Content="运行" Command="{Binding RunCommand}" Classes="Primary" />
         </StackPanel>

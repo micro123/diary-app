@@ -233,6 +233,12 @@ class ScriptContext:
         self.dateRange = resolve_date_range(self.target)
         self.workItem = self.target.get("workItem") if isinstance(self.target, dict) else None
         self.items = TargetItemsApi(self)
+        trigger = "Scheduled" if self.source == "Automation" else "Startup" if self.source == "Startup" else "Unknown"
+        self.automation = {
+            "trigger": trigger,
+            "eventData": dict(self.arguments or {}),
+            "idempotencyKey": self.idempotencyKey,
+        }
 
     def getDateRange(self):
         return self.dateRange
@@ -267,6 +273,8 @@ class ScriptContext:
             return self.log
         if key == "progress":
             return self.progress
+        if key == "automation":
+            return self.automation
         raise KeyError(key)
 
 

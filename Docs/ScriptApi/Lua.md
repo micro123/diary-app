@@ -11,7 +11,7 @@ Lua 使用 `ScriptApiVersion.V1`。脚本在独立 Lua Worker 中执行，通过
 | Application | `application_main(context)` | 否 |
 | Editor | `editor_main(context)` | 是 |
 | Automation | `automation_main(context)` | 否 |
-| Query | `query_main(context)` | 否；当前仅预留 |
+| Query | `query_main(context)` | 否 |
 
 最小应用脚本示例：
 
@@ -80,7 +80,7 @@ end
 
 目标字段由宿主校验，不合法的目标在执行前以 `Rejected` 状态拒绝，脚本不会运行到一半才发现错误。
 
-`context.progress.report(fraction, message)` 报告执行进度：`fraction` 必须是 0 到 1 之间的数字，`message` 必须为非空字符串；Lua 侧不校验，由宿主校验并拒绝非法进度。进度只用于界面展示，不写入脚本日志，也不写入数据库。
+`context.progress.report(fraction, message)` 报告执行进度：`fraction` 必须是 0 到 1 之间的数字，`message` 必须为非空字符串；Lua 侧不校验，由宿主校验并拒绝非法进度。进度只用于界面展示，不写入脚本日志，也不写入数据库；管理页运行脚本时进度会实时显示在底部运行区，并写入执行历史条目详情（会话内存态，重启即失）。
 
 脚本自动化只能追加工作记录，不提供删除或直接改写历史记录；创建 API 的 `idempotencyKey` 和 `preview` 用于控制重复提交和预览副作用。已提交的幂等结果由宿主共享存储持久化，应用重启后仍能识别重复请求。
 
@@ -394,9 +394,17 @@ end
 - 执行已取消 → `Cancelled`。
 - 超时、Worker 终止由宿主报告，脚本无需处理。
 
-### 自动化触发器上下文（C# 专属）
+### 自动化触发器上下文
 
-Lua 只提供 `automation_main` 入口名，上下文与普通脚本相同，**没有** `trigger`/`eventData` 字段。触发器上下文（`ScriptAutomationContext`）目前只有 C# 脚本可用。
+Lua 自动化脚本的上下文额外提供 `context.automation` 表：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `trigger` | string | `Scheduled`、`Startup` 或 `Unknown`。 |
+| `eventData` | table | 事件数据（当前为执行参数字典）。 |
+| `idempotencyKey` | string 或 nil | 自动化执行幂等键。 |
+
+自动化脚本放 `application` 目录，metadata 的 `entryKind` 写 `Automation`；`schedule` 字段（`"daily HH:mm"`）配置每日定时，`runOnStartup`（true/false）配置应用启动后是否补跑一轮。到点或补跑时宿主自动执行脚本，执行来源为「自动化调用」或「启动加载」，可在管理页执行历史中按来源筛选。
 
 ## 附录 A. `apiError` 错误码总表
 

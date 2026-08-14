@@ -4,7 +4,7 @@ Python 使用 `ScriptApiVersion.V1`。脚本在独立 Python Worker 中执行，
 
 ## 1. 脚本入口和上下文
 
-入口函数由脚本的 `entryKind` 决定：`application_main(context)`、`editor_main(context)`、`automation_main(context)`，以及当前仅预留的 `query_main(context)`。Worker 不再通过通用 `main(context)` 或 `execute(context)` 隐式判断场景。
+入口函数由脚本的 `entryKind` 决定：`application_main(context)`、`editor_main(context)`、`automation_main(context)`、`query_main(context)`。Worker 不再通过通用 `main(context)` 或 `execute(context)` 隐式判断场景。
 
 最小应用脚本示例：
 
@@ -46,7 +46,7 @@ def application_main(context):
 
 `target` 按 `kind` 提供不同字段（字典访问）：`Year` → `year`（1-9999）；`Quarter` → `year` + `quarter`（1-4）；`Month` → `year` + `month`（1-12）；`Week` → `weekStart`（周一的 `yyyy-MM-dd`，范围周一至周日）；`Day` → `date`；`WorkItem` → `workItem`（不可变事项快照，`dateRange`、`getDateRange()` 和 `items.stream()` 不可用）。`context.source` 是 `Manual`、`Editor`、`Startup` 或 `Automation`。目标字段由宿主校验，不合法的目标在执行前以 `Rejected` 状态拒绝。
 
-`context.progress.report(fraction, message)` 报告执行进度：`fraction` 必须为 0 到 1 之间的数字，`message` 必须为非空字符串，否则抛 `ValueError`。进度只用于界面展示，不写入脚本日志，也不写入数据库。
+`context.progress.report(fraction, message)` 报告执行进度：`fraction` 必须为 0 到 1 之间的数字，`message` 必须为非空字符串，否则抛 `ValueError`。进度只用于界面展示，不写入脚本日志，也不写入数据库；管理页运行脚本时进度会实时显示在底部运行区，并写入执行历史条目详情（会话内存态，重启即失）。
 
 完整示例：[Python 5 分钟入门：查询并追加日志项](Examples/PythonQuickStart.md)。
 查询指定时间范围内“加班”工作项的示例：[OvertimeWorkItems](Examples/OvertimeWorkItems.md)。
@@ -332,9 +332,17 @@ except HostCallError as error:
 - 执行已取消 → `Cancelled`。
 - 超时、Worker 终止由宿主报告，脚本无需处理。
 
-### 自动化触发器上下文（C# 专属）
+### 自动化触发器上下文
 
-Python 只提供 `automation_main` 入口名，上下文与普通脚本相同，**没有** `trigger`/`eventData` 字段。触发器上下文（`ScriptAutomationContext`）目前只有 C# 脚本可用。
+Python 自动化脚本的上下文额外提供 `context.automation` 字典：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `trigger` | str | `Scheduled`、`Startup` 或 `Unknown`。 |
+| `eventData` | dict | 事件数据（当前为执行参数字典）。 |
+| `idempotencyKey` | str 或 None | 自动化执行幂等键。 |
+
+自动化脚本放 `application` 目录，metadata 的 `entryKind` 写 `Automation`；`schedule` 字段（`"daily HH:mm"`）配置每日定时，`runOnStartup`（true/false）配置应用启动后是否补跑一轮。到点或补跑时宿主自动执行脚本，执行来源为「自动化调用」或「启动加载」，可在管理页执行历史中按来源筛选。
 
 ## 附录 A. `apiError` 错误码总表
 

@@ -58,3 +58,22 @@ public abstract class AutomationScript : IAutomationScriptV1
         IScriptAutomationContext context,
         CancellationToken cancellationToken = default);
 }
+
+public abstract class QueryScript : IQueryScriptV1
+{
+    public abstract string Id { get; }
+    public abstract string Name { get; }
+    public virtual string? Description => null;
+
+    public ScriptDescriptor Descriptor => new(
+        Id,
+        Name,
+        ScriptApiVersion.V1,
+        ScriptScope.Application,
+        Description,
+        EntryKind: ScriptEntryKind.Query);
+
+    public abstract ValueTask<ScriptExecutionResult> ExecuteAsync(
+        IScriptApplicationContext context,
+        CancellationToken cancellationToken = default);
+}
