@@ -1,63 +1,122 @@
 name: Create releases on tag push
+
 on:
   push:
     tags:
       - 'v*'
-permissions: 
+
+permissions:
   contents: write
+
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  verify:
+    name: Verify (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     strategy:
-      matrix: 
-        rid: [win-x64, linux-x64]
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: '0'
-
+          fetch-depth: 0
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
-
       - name: Restore packages
-        run: dotnet restore Diary.App/Diary.App.csproj
+        run: dotnet restore DiaryApp.sln
+      - name: Release build
+        run: dotnet build DiaryApp.sln --configuration Release --no-restore
+      - name: Run all tests
+        run: dotnet test DiaryApp.sln --configuration Release --no-build --no-restore --verbosity minimal
+        env:
+          DIARY_REQUIRE_POSTGRES_TESTS: ${{ runner.os == 'Linux' && '1' || '0' }}
 
-      - name: Publish for ${{ matrix.rid }}
+  build:
+    name: Publish ${{ matrix.rid }}
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+          - os: ubuntu-latest
+            rid: linux-x64
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore solution for ${{ matrix.rid }}
+        run: dotnet restore DiaryApp.sln --runtime ${{ matrix.rid }}
+      - name: Publish and package ${{ matrix.rid }}
+        shell: pwsh
         run: |
-          RID=${{ matrix.rid }}
-          OUT=publish/${RID}
-          mkdir -p ${OUT}
-          dotnet publish -c Release -r $RID --self-contained true --no-restore -o $OUT Diary.App/Diary.App.csproj
-          ARCHIVE=DiaryAppNG-${{ github.ref_name }}-${RID}.zip
-          cd ${OUT}
-          find runtimes -maxdepth 2 -mindepth 2 \( -not -path '*${RID}*' \) -exec rm -rf {} +
-          zip -r ../../$ARCHIVE .
-          cd ../..
-          ls -lh $ARCHIVE
-
+          $rid = '${{ matrix.rid }}'
+          $out = Join-Path 'publish' $rid
+          $archive = 'DiaryAppNG-${{ github.ref_name }}-' + $rid + '.zip'
+          New-Item -ItemType Directory -Path $out -Force | Out-Null
+          dotnet publish Diary.App/Diary.App.csproj --configuration Release --runtime $rid --self-contained true --no-restore --output $out
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $workerExecutable = if ($rid -eq 'win-x64') { 'Diary.Script.Worker.exe' } else { 'Diary.Script.Worker' }
+          $requiredFiles = @(
+            'Diary.App.dll',
+            'Diary.Script.Worker.dll',
+            $workerExecutable,
+            'Diary.Script.Worker.deps.json',
+            'Diary.Script.Worker.runtimeconfig.json',
+            'Diary.RedMine.dll',
+            'Diary.RedMine.UI.dll',
+            'Diary.RedMine.SQLite.dll',
+            'Diary.RedMine.PostgreSQL.dll',
+            'Diary.Jira.dll',
+            'Diary.Jira.UI.dll',
+            'Diary.Jira.SQLite.dll',
+            'Diary.Jira.PostgreSQL.dll'
+          )
+          foreach ($requiredFile in $requiredFiles) {
+            $requiredPath = Join-Path $out $requiredFile
+            if (-not (Test-Path -LiteralPath $requiredPath)) {
+              throw "Publish output is missing required file: $requiredFile"
+            }
+          }
+          if ($rid -eq 'linux-x64') {
+            Push-Location $out
+            & zip -r (Join-Path $env:GITHUB_WORKSPACE $archive) .
+            $zipExitCode = $LASTEXITCODE
+            Pop-Location
+            if ($zipExitCode -ne 0) { exit $zipExitCode }
+          } else {
+            Compress-Archive -Path (Join-Path $out '*') -DestinationPath $archive -CompressionLevel Optimal
+          }
+          Get-Item $archive | Format-List Name, Length
       - name: Upload artifact for ${{ matrix.rid }}
         uses: actions/upload-artifact@v4
         with:
           name: DiaryAppNG-${{ github.ref_name }}-${{ matrix.rid }}
           path: DiaryAppNG-${{ github.ref_name }}-${{ matrix.rid }}.zip
+          if-no-files-found: error
 
-  create-releases:
+  create-release:
     needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: '0'
-
+          fetch-depth: 0
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-
       - name: Extract release notes from CHANGELOG
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
@@ -69,8 +128,7 @@ jobs:
           if [ ! -s release-body.md ]; then
             echo "Automated release created by CI for ${GITHUB_REF_NAME}." > release-body.md
           fi
-
-      - name: Create github release
+      - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}

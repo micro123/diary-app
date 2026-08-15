@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <OutputType>WinExe</OutputType>
         <TargetFramework>net10.0</TargetFramework>
@@ -87,10 +87,24 @@
               SkipUnchangedFiles="true" />
     </Target>
     
+    <Target Name="IncludeRuntimeExtensionsInPublish" AfterTargets="ComputeFilesToPublish">
+        <ItemGroup>
+            <RuntimeExtensionPublishOutput Include="$(OutputPath)Diary.Script.Worker.dll" />
+            <RuntimeExtensionPublishOutput Include="$(OutputPath)Diary.RedMine.UI.dll" />
+            <RuntimeExtensionPublishOutput Include="$(OutputPath)Diary.Jira*.dll" />
+            <ResolvedFileToPublish Include="@(RuntimeExtensionPublishOutput)">
+                <RelativePath>%(Filename)%(Extension)</RelativePath>
+                <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            </ResolvedFileToPublish>
+        </ItemGroup>
+    </Target>
+
     <Target Name="GenVersionInfo" BeforeTargets="BeforeBuild">
-      <Exec Command="pwsh.exe &quot;$(MSBuildThisFileDirectory)Scripts\gen_version.ps1&quot; $(MSBuildProjectName) &quot;$(IntermediateOutputPath)Generated&quot; VersionInfo.cs" Condition="'$(OS)' == 'Windows_NT'"
-			UseUtf8Encoding="Always"/>
-      <Exec Command="/bin/bash  &quot;$(MSBuildThisFileDirectory)Scripts\gen_version.sh&quot; $(MSBuildProjectName) &quot;$(IntermediateOutputPath)Generated&quot; VersionInfo.cs" Condition="'$(OS)' != 'Windows_NT'" />
+      <Exec Command="pwsh.exe -NoProfile -File &quot;$(MSBuildThisFileDirectory)Scripts\gen_version.ps1&quot; $(MSBuildProjectName) &quot;$(IntermediateOutputPath)Generated&quot; VersionInfo.cs"
+            Condition="$([MSBuild]::IsOSPlatform('Windows'))"
+            UseUtf8Encoding="Always" />
+      <Exec Command="/bin/bash &quot;$(MSBuildThisFileDirectory)Scripts/gen_version.sh&quot; $(MSBuildProjectName) &quot;$(IntermediateOutputPath)Generated&quot; VersionInfo.cs"
+            Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
         <ItemGroup>
             <Compile Include="$(IntermediateOutputPath)\Generated\VersionInfo.cs" />
         </ItemGroup>

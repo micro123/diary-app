@@ -237,8 +237,36 @@ namespace Diary.App
             Logger.LogDebug("数据库结构初始化成功：驱动 {Driver}", factory.Name);
 
             // version check
-            if (database.GetDataVersion() != DataVersion.VersionCode)
+            var currentDataVersion = database.GetDataVersion();
+            if (currentDataVersion != DataVersion.VersionCode)
             {
+                if (!database.TryCreateMigrationBackup(
+                        DataVersion.VersionCode,
+                        out var backupPath,
+                        out var backupError))
+                {
+                    database.Dispose();
+                    database = null;
+                    message = $"数据库升级前备份失败：{backupError}";
+                    Logger.LogWarning(
+                        "数据库迁移备份失败：驱动 {Driver}，当前版本 {CurrentVersion}，目标版本 {TargetVersion}，原因 {Reason}",
+                        factory.Name, currentDataVersion, DataVersion.VersionCode, backupError);
+                    return false;
+                }
+
+                if (string.IsNullOrWhiteSpace(backupPath))
+                {
+                    Logger.LogWarning(
+                        "数据库驱动 {Driver} 未创建本地迁移备份；继续前应确认已有外部备份。当前版本 {CurrentVersion}，目标版本 {TargetVersion}",
+                        factory.Name, currentDataVersion, DataVersion.VersionCode);
+                }
+                else
+                {
+                    Logger.LogInformation(
+                        "数据库迁移备份已创建：驱动 {Driver}，路径 {BackupPath}",
+                        factory.Name, backupPath);
+                }
+
                 if (!database.UpdateTables(DataVersion.VersionCode))
                 {
                     database.Dispose();

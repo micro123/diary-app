@@ -26,6 +26,21 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
 
     // data version
     public abstract uint GetDataVersion();
+
+    /// <summary>
+    /// 在核心数据迁移前创建 provider 可提供的备份。
+    /// 不支持本地备份的 provider 返回成功且 <paramref name="backupPath"/> 为 <see langword="null"/>。
+    /// </summary>
+    public virtual bool TryCreateMigrationBackup(
+        uint targetVersion,
+        out string? backupPath,
+        out string? error)
+    {
+        backupPath = null;
+        error = null;
+        return true;
+    }
+
     // migrate tables
     public virtual bool UpdateTables(uint targetVersion)
     {

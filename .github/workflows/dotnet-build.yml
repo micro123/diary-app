@@ -1,4 +1,5 @@
 name: DotNet Build and Test
+
 on:
   push:
     branches:
@@ -11,8 +12,8 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: Build
+  format:
+    name: Formatting
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -27,14 +28,28 @@ jobs:
         run: dotnet restore DiaryApp.sln
       - name: Check formatting
         run: dotnet format DiaryApp.sln --no-restore --verify-no-changes
+
+  build-test:
+    name: Build and test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore packages
+        run: dotnet restore DiaryApp.sln
       - name: Release build
         run: dotnet build DiaryApp.sln --no-restore --configuration Release
-      - name: Test script host
-        continue-on-error: true
-        run: dotnet test --project Diary.ScriptTests/Diary.ScriptTests.csproj --configuration Release --no-restore
-      - name: Test application
-        continue-on-error: true
-        run: dotnet test --project Diary.AppTests/Diary.AppTests.csproj --configuration Release --no-restore
-      - name: Test utility layer
-        continue-on-error: true
-        run: dotnet test --project Diary.UtilTests/Diary.UtilTests.csproj --configuration Release --no-restore
+      - name: Run all tests
+        run: dotnet test DiaryApp.sln --configuration Release --no-build --no-restore --verbosity minimal
+        env:
+          DIARY_REQUIRE_POSTGRES_TESTS: ${{ runner.os == 'Linux' && '1' || '0' }}

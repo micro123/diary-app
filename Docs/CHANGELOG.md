@@ -24,6 +24,14 @@
 - Effects 透传与展示：Lua/Python 入口返回 create 结果表即透传 `effects`；管理页执行历史条目与完成通知显示追加条数/预览/幂等重放/新建 ID
 - LuaWorker 引导脚本（沙箱 + API 门面 + 上下文装配）外置为嵌入资源 `lua-bootstrap.lua`，与 Python `worker.py` 同构
 
+### 发布与数据库门禁
+
+- CI 改为 Windows/Ubuntu Release 构建矩阵，移除测试容错并执行解决方案内全部测试项目；正式标签和手动候选发布均在验证通过后才构建产物
+- `win-x64` 与 `linux-x64` 改由对应原生 Runner 发布，按 RID 还原整个解决方案；发布包显式包含 Jira/Redmine UI 插件与脚本 Worker，并在压缩前校验关键文件
+- 自动化脚本调度器改用可注入 `TimeProvider`，消除启动补跑测试受本机时间影响的波动
+- 核心迁移契约新增成功迁移保留业务数据、失败回滚后保留原数据、当前 provider 无待执行迁移和提升数据版本必须同步登记 SQLite/PostgreSQL 迁移的测试；SQLite 在实际迁移前创建可恢复快照，备份失败会阻止升级
+- Linux CI 强制运行 PostgreSQL Testcontainers；测试依赖显式覆盖到已修复安全问题的 `SSH.NET 2026.0.0`
+
 ### 发布流程
 
 - 新增本文件（CHANGELOG），README 补充版本策略说明；Release 工作流改为从本文件提取对应版本章节作为 Release body

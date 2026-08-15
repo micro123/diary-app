@@ -8,11 +8,12 @@ namespace Diary.AppTests;
 [TestClass]
 public sealed class ScriptAutomationSchedulerTests
 {
+    private static readonly DateTimeOffset FixedNow = new(2026, 8, 15, 10, 30, 0, TimeSpan.FromHours(8));
     [TestMethod]
     public async Task RunStartupCatchUp_RunsStartupScriptsOnce()
     {
         var manager = new RecordingScriptManager();
-        var scheduler = new ScriptAutomationScheduler(manager, NullLogger<ScriptAutomationScheduler>.Instance);
+        var scheduler = new ScriptAutomationScheduler(manager, NullLogger<ScriptAutomationScheduler>.Instance, new FixedTimeProvider(FixedNow));
         scheduler.ApplyLoadResult(BuildResult(
             ("startup-script", null, RunOnStartup: true),
             ("scheduled-script", new TimeOnly(9, 0), RunOnStartup: false)));
@@ -30,7 +31,7 @@ public sealed class ScriptAutomationSchedulerTests
     public async Task RunStartupCatchUp_UsesStableIdempotencyKeys()
     {
         var manager = new RecordingScriptManager();
-        var scheduler = new ScriptAutomationScheduler(manager, NullLogger<ScriptAutomationScheduler>.Instance);
+        var scheduler = new ScriptAutomationScheduler(manager, NullLogger<ScriptAutomationScheduler>.Instance, new FixedTimeProvider(FixedNow));
         scheduler.ApplyLoadResult(BuildResult(
             ("startup-script", null, RunOnStartup: true),
             ("scheduled-script", new TimeOnly(9, 0), RunOnStartup: false)));
@@ -48,7 +49,7 @@ public sealed class ScriptAutomationSchedulerTests
     public async Task ApplyLoadResult_DropsRemovedScripts()
     {
         var manager = new RecordingScriptManager();
-        var scheduler = new ScriptAutomationScheduler(manager, NullLogger<ScriptAutomationScheduler>.Instance);
+        var scheduler = new ScriptAutomationScheduler(manager, NullLogger<ScriptAutomationScheduler>.Instance, new FixedTimeProvider(FixedNow));
         scheduler.ApplyLoadResult(BuildResult(("script-a", null, RunOnStartup: true)));
         scheduler.ApplyLoadResult(BuildResult(("script-b", null, RunOnStartup: true)));
 
@@ -69,6 +70,17 @@ public sealed class ScriptAutomationSchedulerTests
                     Schedule: plan.Time is { } time ? $"daily {time:HH:mm}" : null,
                     RunOnStartup: plan.RunOnStartup)))],
             []);
+
+    private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now.ToUniversalTime();
+
+        public override TimeZoneInfo LocalTimeZone { get; } = TimeZoneInfo.CreateCustomTimeZone(
+            "UTC+08:00",
+            TimeSpan.FromHours(8),
+            "UTC+08:00",
+            "UTC+08:00");
+    }
 
     private sealed class FakeProgram(string id) : IScriptProgramV1
     {

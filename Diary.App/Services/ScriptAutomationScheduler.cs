@@ -9,9 +9,11 @@ namespace Diary.App.Services;
 [DiAutoRegister(singleton: true)]
 public sealed class ScriptAutomationScheduler(
     IScriptManager scriptManager,
-    ILogger<ScriptAutomationScheduler> logger) : IDisposable
+    ILogger<ScriptAutomationScheduler> logger,
+    TimeProvider? timeProvider = null) : IDisposable
 {
     private static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(30);
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
     private DispatcherTimer? _timer;
     private readonly SemaphoreSlim _executionLock = new(1, 1);
     private readonly object _sync = new();
@@ -59,7 +61,7 @@ public sealed class ScriptAutomationScheduler(
         if (_startupCatchUpDone)
             return;
         _startupCatchUpDone = true;
-        var now = DateTimeOffset.Now;
+        var now = _timeProvider.GetLocalNow();
         List<AutomationPlan> due;
         lock (_sync)
             due = _plans.Values.Where(plan =>
@@ -89,7 +91,7 @@ public sealed class ScriptAutomationScheduler(
 
     private async Task TickAsync()
     {
-        var now = DateTimeOffset.Now;
+        var now = _timeProvider.GetLocalNow();
         List<(AutomationPlan Plan, DateTimeOffset Occurrence)> due;
         lock (_sync)
         {

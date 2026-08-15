@@ -6,8 +6,8 @@
 
 ## 非 tracker TODO
 
-- [~] 已加固 SQLite/PostgreSQL 核心迁移执行、回滚、降级和断链校验；实际业务 schema 升级步骤随版本变更补充
-- [ ] 增量升级和 CrashDump
+- [x] 已加固 SQLite/PostgreSQL 核心迁移执行、逐步提交、失败回滚、降级和断链校验；业务数据保留与失败恢复由共享 provider 契约测试覆盖
+- [~] SQLite 核心数据迁移前已创建可恢复快照，PostgreSQL 会记录外部备份提醒；应用包增量更新和 CrashDump 仍待实现
 
 ## 阶段 7：代码质量与运行稳定性
 
@@ -23,11 +23,11 @@
 
 ### 7.2 Provider 数据升级登记
 
-- [ ] 明确 SQLite/PostgreSQL `DbRecords` 当前无业务数据升级时的契约；新增数据 schema 版本时必须同步登记 provider 迁移并补充契约测试。
+- [x] 已明确 SQLite/PostgreSQL `DbRecords` 当前无业务数据升级时返回 `null`；`ProviderMigrationRegistrationTests` 锁定上一正式数据版本，提升 `DataVersion` 时必须同步登记两个 provider 的迁移。
 
 前置依赖：先确认核心数据库与插件数据库的版本职责边界，避免把插件迁移重复登记到核心 provider。
 
-验收：无数据升级时迁移流程保持幂等；新增版本升级时 SQLite 和 PostgreSQL 都有明确迁移记录和测试覆盖。
+验收：当前数据版本无升级时迁移流程保持幂等；共享契约测试验证成功迁移保留业务数据、失败迁移回滚版本写入并保留原数据；CI Linux 门禁强制运行 PostgreSQL 容器测试。
 
 ## 阶段 8：常见 Tracker 后端扩展
 

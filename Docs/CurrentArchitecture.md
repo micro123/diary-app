@@ -227,6 +227,24 @@ Jira：plugin_data_versions（与 Redmine 共用同一张表）、jira_projects�
 
 当前表结构的 ERD 图见 [`diagrams/database-schema.puml`](diagrams/database-schema.puml)。
 
+### 核心数据迁移与发布门禁
+
+`DbInterfaceBase.UpdateTables()` 按 `VersionFrom -> VersionTo` 连续链逐步迁移。每一步都在 provider
+事务中执行，并要求迁移实现写入准确的目标版本；迁移返回失败、抛异常、未推进版本、迁移链断裂、
+越过目标版本或请求降级时均停止，未提交步骤由 SQLite/PostgreSQL 回滚。
+
+当前核心数据版本仍为 `1.0.0`（`0x10000`），与上一正式版本一致，因此两个 provider 的
+`DbRecords.GetMigration()` 在当前版本返回 `null`。`ProviderMigrationRegistrationTests` 锁定这一契约：
+未来提升 `DataVersion.VersionCode` 时，必须同时登记 SQLite/PostgreSQL 迁移并更新上一正式版本基线。
+共享 `DbContractTests` 还验证成功迁移保留工作项、标签和备注，失败迁移回滚版本写入且不丢失原业务数据。
+迁移开始前，SQLite 使用在线备份 API 在数据库同目录的 `Backups` 下生成带源/目标版本的独立快照，
+备份失败会阻止迁移；PostgreSQL provider 不在客户端生成服务器备份，应用会记录必须确认外部备份的告警。
+
+CI 在 Windows 和 Ubuntu 上执行 Release 构建与全量测试。Ubuntu 门禁通过
+`DIARY_REQUIRE_POSTGRES_TESTS=1` 强制启动 PostgreSQL Testcontainers，容器不可用即失败；Windows
+用于覆盖平台构建和 Windows 专用运行路径。标签发布在对应原生 Runner 上分别生成 `win-x64` 和
+`linux-x64` 自包含包，并在压缩前检查 Tracker 插件程序集和脚本 Worker 是否齐全。
+
 ## 6. Redmine schema 迁移
 
 当前 Redmine 数据库 schema 为版本 1：
@@ -310,7 +328,7 @@ Redmine 和 Jira UI 通过 `Diary.PluginUI` 的契约接入：
 
 - `SupportsMultipleInstances` 已接入 Redmine 和 Jira manifest、实例配置、导航和编辑器上下文；后续新插件仍需按自身能力声明该标志。
 - 插件实例注册、数据库扩展迁移和 UI/模板注册已收敛到统一生命周期；数据库扩展的具体创建和迁移仍由插件实现。
-- 主程序已经通过构建目标复制 Redmine 和 Jira 插件程序集，后续可将复制源替换为独立插件包目录。
+- 主程序通过构建与发布目标复制 Redmine/Jira 插件程序集和脚本 Worker；发布工作流会检查关键运行文件，后续可将复制源替换为独立插件包目录。
 - 配置 schema 迁移、诊断状态、错误详情、迁移重试、实例启用/禁用和诊断日志 ZIP 导出已接入通用链路。
 - 已覆盖无 tracker 时插件生命周期、核心编辑器和模板测试；Headless 测试覆盖脚本编辑器和工作项编辑器窗口构建，`--core-only` 启动参数由 AppStartupOptions 解析并有单元测试。
 - 批量同步已具备执行前预览、确认、逐条结果和仅重试已确认失败项；数据库不可用时由核心页面提供重试连接、打开设置和导出诊断日志入口，Tracker 诊断页提供实例级重试和诊断导出。远程同步队列、结果不确定项查询、批量预览的 Tracker 实例筛选以及每实例状态的可视化仍需完善；最近一次上传状态（含远程 ID、失败原因和尝试时间）已经随 Jira/Redmine 本地绑定保存并在编辑器展示。

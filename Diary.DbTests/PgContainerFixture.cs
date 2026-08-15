@@ -25,10 +25,20 @@ public class PgContainerFixture
                 .Build();
             await _container.StartAsync();
         }
-        catch
+        catch (Exception exception)
         {
-            // Docker 未运行 / 不可用：Pg 用例将 Inconclusive，不影响 SQLite
             _container = null;
+            if (string.Equals(
+                    Environment.GetEnvironmentVariable("DIARY_REQUIRE_POSTGRES_TESTS"),
+                    "1",
+                    StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "PostgreSQL 契约测试被设为必需，但测试容器启动失败。",
+                    exception);
+            }
+
+            // 本地未启用 Docker 时允许 Pg 用例显示为 Inconclusive；CI Linux 门禁会设置必需标记。
         }
     }
 

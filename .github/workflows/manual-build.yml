@@ -12,50 +12,108 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  verify:
+    name: Verify release candidate (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        rid: [win-x64, linux-x64]
+        os: [ubuntu-latest, windows-latest]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
+      - name: Restore packages
+        run: dotnet restore DiaryApp.sln
+      - name: Release build
+        run: dotnet build DiaryApp.sln --configuration Release --no-restore
+      - name: Run all tests
+        run: dotnet test DiaryApp.sln --configuration Release --no-build --no-restore --verbosity minimal
+        env:
+          DIARY_REQUIRE_POSTGRES_TESTS: ${{ runner.os == 'Linux' && '1' || '0' }}
 
+  build:
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+          - os: ubuntu-latest
+            rid: linux-x64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
       - name: Generate version string
         id: version
+        shell: pwsh
         run: |
-          COMMIT_COUNT=$(git rev-list --count HEAD)
-          SHORT_HASH=$(git rev-parse --short HEAD)
-          SUFFIX="${{ inputs.version_suffix }}"
-          VERSION="r${COMMIT_COUNT}-${SHORT_HASH}-${SUFFIX}"
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-
-      - name: Restore packages
-        run: dotnet restore Diary.App/Diary.App.csproj
-
+          $commitCount = git rev-list --count HEAD
+          $shortHash = git rev-parse --short HEAD
+          $suffix = '${{ inputs.version_suffix }}'
+          $version = "r$commitCount-$shortHash-$suffix"
+          "version=$version" >> $env:GITHUB_OUTPUT
+      - name: Restore solution for ${{ matrix.rid }}
+        run: dotnet restore DiaryApp.sln --runtime ${{ matrix.rid }}
       - name: Publish ${{ matrix.rid }}
+        shell: pwsh
         run: |
-          RID=${{ matrix.rid }}
-          OUT=publish/${RID}
-          mkdir -p ${OUT}
-          dotnet publish -c Release -r ${RID} --self-contained true --no-restore -o ${OUT} Diary.App/Diary.App.csproj
-          find ${OUT}/runtimes -maxdepth 2 -mindepth 2 \( -not -path "*${RID}*" \) -exec rm -rf {} + 2>/dev/null || true
-          ARCHIVE=DiaryAppNG-${{ steps.version.outputs.version }}-${RID}.zip
-          (cd ${OUT} && zip -r ${GITHUB_WORKSPACE}/${ARCHIVE} .)
-          echo "archive=${ARCHIVE}" >> $GITHUB_OUTPUT
-
+          $rid = '${{ matrix.rid }}'
+          $out = Join-Path 'publish' $rid
+          $archive = 'DiaryAppNG-${{ steps.version.outputs.version }}-' + $rid + '.zip'
+          New-Item -ItemType Directory -Path $out -Force | Out-Null
+          dotnet publish Diary.App/Diary.App.csproj --configuration Release --runtime $rid --self-contained true --no-restore --output $out
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $workerExecutable = if ($rid -eq 'win-x64') { 'Diary.Script.Worker.exe' } else { 'Diary.Script.Worker' }
+          $requiredFiles = @(
+            'Diary.App.dll',
+            'Diary.Script.Worker.dll',
+            $workerExecutable,
+            'Diary.Script.Worker.deps.json',
+            'Diary.Script.Worker.runtimeconfig.json',
+            'Diary.RedMine.dll',
+            'Diary.RedMine.UI.dll',
+            'Diary.RedMine.SQLite.dll',
+            'Diary.RedMine.PostgreSQL.dll',
+            'Diary.Jira.dll',
+            'Diary.Jira.UI.dll',
+            'Diary.Jira.SQLite.dll',
+            'Diary.Jira.PostgreSQL.dll'
+          )
+          foreach ($requiredFile in $requiredFiles) {
+            $requiredPath = Join-Path $out $requiredFile
+            if (-not (Test-Path -LiteralPath $requiredPath)) {
+              throw "Publish output is missing required file: $requiredFile"
+            }
+          }
+          if ($rid -eq 'linux-x64') {
+            Push-Location $out
+            & zip -r (Join-Path $env:GITHUB_WORKSPACE $archive) .
+            $zipExitCode = $LASTEXITCODE
+            Pop-Location
+            if ($zipExitCode -ne 0) { exit $zipExitCode }
+          } else {
+            Compress-Archive -Path (Join-Path $out '*') -DestinationPath $archive -CompressionLevel Optimal
+          }
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: DiaryAppNG-${{ steps.version.outputs.version }}-${{ matrix.rid }}
-          path: ${{ github.workspace }}/*.zip
+          path: DiaryAppNG-${{ steps.version.outputs.version }}-${{ matrix.rid }}.zip
+          if-no-files-found: error
 
   create-release:
     needs: build
@@ -65,35 +123,32 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Generate version string
         id: version
+        shell: pwsh
         run: |
-          COMMIT_COUNT=$(git rev-list --count HEAD)
-          SHORT_HASH=$(git rev-parse --short HEAD)
-          SUFFIX="${{ inputs.version_suffix }}"
-          VERSION="r${COMMIT_COUNT}-${SHORT_HASH}-${SUFFIX}"
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-
+          $commitCount = git rev-list --count HEAD
+          $shortHash = git rev-parse --short HEAD
+          $suffix = '${{ inputs.version_suffix }}'
+          $version = "r$commitCount-$shortHash-$suffix"
+          "version=$version" >> $env:GITHUB_OUTPUT
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           pattern: DiaryAppNG-*
           merge-multiple: true
           path: artifacts
-
       - name: Delete old manual releases
         run: |
           gh release list --limit 50 --json tagName,name \
-            --jq '.[] | select(.name | startswith("Manual Build")) | .tagName' \
-          | while read tag; do
+            --jq '.[] | select(.name | startswith("Manual Build")) | .tagName' |
+          while read tag; do
             echo "Deleting old manual release: $tag"
             gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
           done
         env:
           GH_TOKEN: ${{ github.token }}
         continue-on-error: true
-
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:

@@ -21,6 +21,7 @@
 
 - 默认使用 SQLite，本地即可运行；也支持 PostgreSQL
 - 核心表与 Tracker 插件表共享同一物理数据库，插件 schema 独立迁移（当前 schema 见 [`Docs/diagrams/database-schema.puml`](Docs/diagrams/database-schema.puml)）
+- 当前核心数据版本仍为 `1.0.0`，SQLite/PostgreSQL 暂无待执行核心迁移；提升数据版本时，契约测试要求两个 provider 同步登记迁移。SQLite 会在迁移前将一致性快照写入数据库同目录的 `Backups`，PostgreSQL 迁移则要求运维侧已有外部备份
 
 ## 快速开始
 
@@ -29,15 +30,13 @@ dotnet build DiaryApp.sln
 dotnet run --project Diary.App
 ```
 
-运行测试（各测试项目均为可执行程序）：
+运行全部测试：
 
 ```bash
-for t in Diary.AppTests Diary.DbTests Diary.JiraTests Diary.RedMineTests Diary.ScriptTests Diary.SurveyTests Diary.UtilTests; do
-    dotnet run --project $t
-done
+dotnet test DiaryApp.sln --configuration Release
 ```
 
-> RedMine 外部 API 测试默认跳过，设置 `DIARY_RUN_REDMINE_EXTERNAL_TESTS=1` 后运行。
+> RedMine 外部 API 测试默认跳过，设置 `DIARY_RUN_REDMINE_EXTERNAL_TESTS=1` 后运行。PostgreSQL 契约测试依赖 Docker；CI 的 Linux 门禁设置 `DIARY_REQUIRE_POSTGRES_TESTS=1`，容器不可用时直接失败，本地未安装 Docker 时显示为 Inconclusive。
 
 ## 文档
 
@@ -47,8 +46,8 @@ done
 
 ## 版本
 
-- 版本号为 `1.0.0-r{CommitCount}`：`1.0.0` 是数据格式版本（`Diary.Core/DataVersion.cs`），`rN` 是发布时的 Git 提交计数，由构建脚本自动生成（`Diary.App/Scripts/gen_version.sh`）
-- 正式发布：推送 `v*` 标签触发 CI（`.github/workflows/release-on-tags.yml`），自动构建 win-x64/linux-x64 自包含包并从 CHANGELOG 提取发布说明
+- 版本号为 `1.0.0-r{CommitCount}`：`1.0.0` 是数据格式版本（`Diary.Core/DataVersion.cs`），`rN` 是发布时的 Git 提交计数，由 Windows/Linux 版本生成脚本自动生成
+- 正式发布：推送 `v*` 标签触发 CI（`.github/workflows/release-on-tags.yml`）；Windows Runner 构建 `win-x64`，Ubuntu Runner 构建 `linux-x64`，全量测试通过且发布包包含 Tracker 插件与脚本 Worker 后才创建 Release
 
 ## 配置文件加密
 

@@ -770,13 +770,36 @@ public abstract class DbContractTests
     }
 
     [TestMethod]
+    public void UpdateTables_Success_PreservesExistingBusinessData()
+    {
+        using var db = CreateDb(_ =>
+            new TestMigration(0x10000, 0x10001, MigrationResult.Success));
+        var tag = db.CreateWorkTag("migration-tag", true, 0x123456);
+        var item = db.CreateWorkItem("2026-08-15", "migration-item");
+        item.Time = 2.5;
+        db.UpdateWorkItem(item);
+        db.WorkItemAddTag(item, tag);
+        db.WorkUpdateNote(item, "migration-note");
+
+        Assert.IsTrue(db.UpdateTables(0x10001));
+
+        var restored = db.GetWorkItemByDate("2026-08-15").Single(x => x.Id == item.Id);
+        Assert.AreEqual("migration-item", restored.Comment);
+        Assert.AreEqual(2.5, restored.Time);
+        Assert.AreEqual("migration-note", db.WorkGetNote(restored));
+        Assert.IsTrue(db.GetWorkItemTags(restored).Any(x => x.Id == tag.Id));
+    }
+
+    [TestMethod]
     public void UpdateTables_UpReturnsFalse_RollsBackVersionWrite()
     {
         using var db = CreateDb(_ =>
             new TestMigration(0x10000, 0x10001, MigrationResult.FalseAfterWrite));
+        var item = db.CreateWorkItem("2026-08-15", "preserved-after-failure");
 
         Assert.IsFalse(db.UpdateTables(0x10001));
         Assert.AreEqual(0x10000u, db.GetDataVersion());
+        Assert.IsTrue(db.GetWorkItemByDate("2026-08-15").Any(x => x.Id == item.Id));
     }
 
     [TestMethod]

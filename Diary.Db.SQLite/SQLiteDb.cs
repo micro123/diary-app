@@ -159,6 +159,67 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
         return 0;
     }
 
+    public override bool TryCreateMigrationBackup(
+        uint targetVersion,
+        out string? backupPath,
+        out string? error)
+    {
+        backupPath = null;
+        error = null;
+        var config = Factory.GetConfig() as Config;
+        if (config is null
+            || string.IsNullOrWhiteSpace(config.FilePath)
+            || string.Equals(config.FilePath, ":memory:", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var sourcePath = Path.GetFullPath(config.FilePath);
+        var sourceDirectory = Path.GetDirectoryName(sourcePath);
+        if (string.IsNullOrWhiteSpace(sourceDirectory))
+        {
+            error = "无法确定 SQLite 数据库所在目录。";
+            return false;
+        }
+
+        var backupDirectory = Path.Combine(sourceDirectory, "Backups");
+        var currentVersion = GetDataVersion();
+        var backupName =
+            $"{Path.GetFileName(sourcePath)}.v{currentVersion:X8}-to-v{targetVersion:X8}." +
+            $"{DateTimeOffset.Now:yyyyMMddHHmmssfff}.{Guid.NewGuid():N}.bak";
+        var finalPath = Path.Combine(backupDirectory, backupName);
+        var temporaryPath = finalPath + ".tmp";
+
+        try
+        {
+            Directory.CreateDirectory(backupDirectory);
+            var connectionString = new SQLiteConnectionStringBuilder { DataSource = temporaryPath }.ToString();
+            using (var destination = new SQLiteConnection(connectionString))
+            {
+                destination.Open();
+                _connection!.BackupDatabase(destination, "main", "main", -1, null, 0);
+            }
+
+            File.Move(temporaryPath, finalPath);
+            backupPath = finalPath;
+            return true;
+        }
+        catch (Exception exception)
+        {
+            try
+            {
+                if (File.Exists(temporaryPath))
+                    File.Delete(temporaryPath);
+            }
+            catch (Exception)
+            {
+            }
+
+            error = $"SQLite 迁移备份创建失败：{exception.Message}";
+            return false;
+        }
+    }
+
     public override WorkTag CreateWorkTag(
         string name,
         bool primary,
