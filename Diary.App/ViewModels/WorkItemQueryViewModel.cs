@@ -58,6 +58,8 @@ public sealed partial class WorkItemQueryViewModel : ViewModelBase
     [ObservableProperty] private bool _hasQueryError;
     [ObservableProperty] private string _savedQueryName = string.Empty;
     [ObservableProperty] private string _savedQueryStatus = string.Empty;
+    public bool HasSavedQueryStatus => !string.IsNullOrWhiteSpace(SavedQueryStatus);
+    partial void OnSavedQueryStatusChanged(string value) => OnPropertyChanged(nameof(HasSavedQueryStatus));
     [ObservableProperty] private SavedWorkItemQuery? _selectedSavedQuery;
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ExportCsvCommand))]
