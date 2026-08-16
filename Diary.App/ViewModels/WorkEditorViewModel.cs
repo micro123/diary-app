@@ -1,15 +1,19 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Windows.Input;
+using Avalonia;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
+using Diary.App.Services;
 using Diary.Core.Data.Base;
 using Diary.Database;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
 using Diary.PluginBase;
 using Diary.PluginUI;
+using Diary.ScriptBase;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -39,7 +43,9 @@ public partial class WorkEditorViewModel : ViewModelBase
     private readonly IWorkItemPersistenceCoordinator _persistence;
     private readonly ITrackerUploadCoordinator _uploadCoordinator;
     private readonly ITagAutomationCoordinator _tagAutomation;
+    private readonly ScriptAutomationScheduler? _scriptAutomationScheduler;
     private readonly TrackerUiContributionRegistry _trackerRegistry;
+    private readonly List<(WorkTag Tag, TagAddSource Source, int Sequence)> _pendingTagAutomation = [];
     private IReadOnlyList<int> _recentTagIds = Array.Empty<int>();
 
     // db data fields
@@ -125,7 +131,8 @@ public partial class WorkEditorViewModel : ViewModelBase
         ITrackerUploadCoordinator? uploadCoordinator = null,
         TrackerUiContributionRegistry? trackerRegistry = null,
         string? defaultTaskTitle = null,
-        ITagAutomationCoordinator? tagAutomation = null)
+        ITagAutomationCoordinator? tagAutomation = null,
+        ScriptAutomationScheduler? scriptAutomationScheduler = null)
     {
         _shareData = shareData;
         _persistence = persistence
@@ -134,6 +141,8 @@ public partial class WorkEditorViewModel : ViewModelBase
             ?? App.Instance.Services.GetRequiredService<ITrackerUploadCoordinator>();
         _tagAutomation = tagAutomation
             ?? App.Instance.Services.GetRequiredService<ITagAutomationCoordinator>();
+        _scriptAutomationScheduler = scriptAutomationScheduler
+            ?? (Application.Current as App)?.Services.GetService<ScriptAutomationScheduler>();
         _trackerRegistry = trackerRegistry ?? App.Instance.Services
             .GetRequiredService<TrackerUiContributionRegistry>();
         Date = TimeTools.Today();
@@ -224,7 +233,44 @@ public partial class WorkEditorViewModel : ViewModelBase
 
         WorkItem = result.WorkItem;
         WorkId = WorkItem.Id;
+        if (created)
+        {
+            TriggerScriptAutomation(ScriptAutomationTriggerKind.WorkItemCreated, WorkItem);
+            foreach (var pending in _pendingTagAutomation)
+                TriggerScriptAutomation(ScriptAutomationTriggerKind.TagAdded, WorkItem, pending.Tag, pending.Source, pending.Sequence);
+            _pendingTagAutomation.Clear();
+        }
+        else
+        {
+            TriggerScriptAutomation(ScriptAutomationTriggerKind.WorkItemSaved, WorkItem);
+        }
         NotifyStatusChanged();
+    }
+
+    private void TriggerScriptAutomation(
+        ScriptAutomationTriggerKind trigger,
+        WorkItem item,
+        WorkTag? tag = null,
+        TagAddSource? tagSource = null,
+        int? sequence = null)
+    {
+        var eventData = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["workItemId"] = item.Id.ToString(CultureInfo.InvariantCulture),
+            ["date"] = item.CreateDate,
+            ["comment"] = item.Comment,
+            ["time"] = item.Time.ToString(CultureInfo.InvariantCulture),
+            ["priority"] = item.Priority.ToString(),
+        };
+        if (tag is not null)
+        {
+            eventData["tagId"] = tag.Id.ToString(CultureInfo.InvariantCulture);
+            eventData["tagName"] = tag.Name;
+            eventData["tagLevel"] = tag.Level.ToString();
+            eventData["tagSource"] = tagSource?.ToString() ?? string.Empty;
+            eventData["sequence"] = (sequence ?? 0).ToString(CultureInfo.InvariantCulture);
+        }
+        _ = _scriptAutomationScheduler?.TriggerAsync(trigger, eventData);
     }
 
     public void Delete()
@@ -232,6 +278,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         // remove from db
         if (WorkItem is { Id: > 0 })
             Db!.DeleteWorkItem(WorkItem!);
+        _pendingTagAutomation.Clear();
         WorkItem = null;
     }
 
@@ -434,11 +481,16 @@ public partial class WorkEditorViewModel : ViewModelBase
             }
             WorkTags.Add(tag);
             _syncing_tags = false;
+            var tagSequence = sequence++;
             LastTagAutomationResult = _tagAutomation.TagAdded(
                 WorkItem,
                 tag,
-                new TagAutomationContext(source, sequence++),
+                new TagAutomationContext(source, tagSequence),
                 Extensions);
+            if (WorkItem is { Id: > 0 } persistedItem)
+                TriggerScriptAutomation(ScriptAutomationTriggerKind.TagAdded, persistedItem, tag, source, tagSequence);
+            else
+                _pendingTagAutomation.Add((tag, source, tagSequence));
         }
         UpdateAvailableTags();
     }

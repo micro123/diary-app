@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Diary.App.Services;
 using Diary.Script.Runtime;
 using Diary.ScriptBase;
@@ -46,6 +47,28 @@ public sealed class ScriptAutomationSchedulerTests
     }
 
     [TestMethod]
+    public async Task TriggerAsync_RunsSubscribedScriptsOnceWithEventData()
+    {
+        var manager = new RecordingScriptManager();
+        var scheduler = new ScriptAutomationScheduler(manager, NullLogger<ScriptAutomationScheduler>.Instance, new FixedTimeProvider(FixedNow));
+        scheduler.ApplyLoadResult(BuildEventResult(
+            ("created-script", new[] { ScriptAutomationTriggerKind.WorkItemCreated }),
+            ("tag-script", new[] { ScriptAutomationTriggerKind.TagAdded }),
+            ("other-script", new[] { ScriptAutomationTriggerKind.WorkItemSaved })));
+
+        var eventData = new Dictionary<string, string>
+        { ["eventId"] = "save-42", ["workItemId"] = "42" };
+        await scheduler.TriggerAsync(ScriptAutomationTriggerKind.WorkItemCreated, eventData);
+        await scheduler.TriggerAsync(ScriptAutomationTriggerKind.WorkItemCreated, eventData);
+
+        var execution = manager.Executions.Single();
+        Assert.AreEqual("created-script", execution.ScriptId);
+        Assert.AreEqual(ScriptExecutionSource.WorkItemCreated, execution.Source);
+        Assert.AreEqual("42", execution.Arguments["workItemId"]);
+        StringAssert.StartsWith(execution.IdempotencyKey, "event:WorkItemCreated:save-42");
+    }
+
+    [TestMethod]
     public async Task ApplyLoadResult_DropsRemovedScripts()
     {
         var manager = new RecordingScriptManager();
@@ -69,6 +92,18 @@ public sealed class ScriptAutomationSchedulerTests
                     EntryKind: ScriptEntryKind.Automation,
                     Schedule: plan.Time is { } time ? $"daily {time:HH:mm}" : null,
                     RunOnStartup: plan.RunOnStartup)))],
+            []);
+
+    private static ScriptDirectoryLoadResult BuildEventResult(
+        params (string ScriptId, ScriptAutomationTriggerKind[] Triggers)[] plans) =>
+        new(
+            [.. plans.Select(plan => new ScriptDirectoryEntry(
+                $"/scripts/{plan.ScriptId}",
+                ScriptScope.Application,
+                ScriptBuildResult.Success(new FakeProgram(plan.ScriptId)),
+                new ScriptFileMetadata(
+                    EntryKind: ScriptEntryKind.Automation,
+                    Triggers: plan.Triggers)))],
             []);
 
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
@@ -96,7 +131,7 @@ public sealed class ScriptAutomationSchedulerTests
 
     private sealed class RecordingScriptManager : IScriptManager
     {
-        public List<(string ScriptId, ScriptExecutionSource Source, string? IdempotencyKey)> Executions { get; } = [];
+        public List<(string ScriptId, ScriptExecutionSource Source, string? IdempotencyKey, IReadOnlyDictionary<string, string> Arguments)> Executions { get; } = [];
 
         public ValueTask<ScriptBuildResult> BuildAndRegisterAsync(
             ScriptBuildRequest request,
@@ -121,7 +156,11 @@ public sealed class ScriptAutomationSchedulerTests
 
         private ValueTask<ScriptExecutionOutcome> Record(string scriptId, ScriptExecutionRequest request)
         {
-            Executions.Add((scriptId, request.Source, request.IdempotencyKey));
+            Executions.Add((
+                scriptId,
+                request.Source,
+                request.IdempotencyKey,
+                request.Arguments ?? ImmutableDictionary<string, string>.Empty));
             return ValueTask.FromResult(new ScriptExecutionOutcome(
                 Guid.NewGuid(),
                 new ScriptExecutionResult(ScriptExecutionStatus.Succeeded, []),

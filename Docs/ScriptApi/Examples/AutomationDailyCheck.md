@@ -2,7 +2,7 @@
 
 这是一个 Python、Lua 和 C# 自动化脚本示例：每天定时检查「昨天是否有工作记录」，没有则自动补录一条并弹通知。
 
-- 定时到点或启动补跑时由宿主自动执行，触发类型在 `context.automation.trigger` 中（`Scheduled` / `Startup`）
+- 定时到点或启动补跑时由宿主自动执行，触发类型在 `context.automation.trigger` 中（`Scheduled` / `Startup`）；同一自动化入口也可配置工作项和标签事件触发
 - 补录使用 `idempotencyKey`（`auto-daily-check:{昨天日期}`）：同一天即使重复触发（如崩溃后重启补跑）也不会重复追加
 - 查询用 `range = "yesterday"` 快捷值，无需脚本自己计算日期（Lua 沙箱没有 os.date，快捷值是推荐做法）
 - 结尾返回 create 结果（Python/Lua 返回结果表，C# 把 `Effects` 放进执行结果）：宿主会把其中的 `effects`（追加条数、幂等重放、新建 ID）显示在执行历史和完成通知中
@@ -55,10 +55,12 @@ def automation_main(context):
 {
   "entryKind": 3,
   "schedule": "daily 09:00",
-  "runOnStartup": true
+  "runOnStartup": true,
+  "triggers": [3, 4, 5]
 }
 ```
 
-- `schedule`：`daily HH:mm`，留空表示不定时、仅手动运行
+- `schedule`：`daily HH:mm`，留空表示不定时；若配置事件 `triggers`，可仅由事件触发
 - `runOnStartup`：应用启动后是否补跑一轮
+- `triggers`：事件触发枚举值，`3/4/5` 分别表示 `WorkItemCreated`、`WorkItemSaved`、`TagAdded`
 - 应用未运行期间错过的时间点会在下次启动时自动补跑；同一天的同一触发点不会重复执行

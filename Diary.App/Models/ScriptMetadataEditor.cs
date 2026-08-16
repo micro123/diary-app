@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Diary.Script.Runtime;
+using Diary.ScriptBase;
 
 namespace Diary.App.Models;
 
@@ -21,7 +22,7 @@ public static class ScriptMetadataEditor
     }
 
     /// <summary>
-    /// 读-改-写 metadata：只覆盖 Name/Description/Schedule/RunOnStartup，
+    /// 读-改-写 metadata：只覆盖 Name/Description/Schedule/RunOnStartup/Triggers，
     /// 其余字段（含未知字段）原样保留；文件不存在时新建。schedule 非空时校验 "daily HH:mm"。
     /// </summary>
     public static async ValueTask WriteAsync(
@@ -30,6 +31,7 @@ public static class ScriptMetadataEditor
         string? description,
         string? schedule,
         bool runOnStartup,
+        IReadOnlyCollection<ScriptAutomationTriggerKind>? triggers = null,
         CancellationToken cancellationToken = default)
     {
         var normalizedSchedule = string.IsNullOrWhiteSpace(schedule) ? null : schedule.Trim();
@@ -41,6 +43,16 @@ public static class ScriptMetadataEditor
         SetProperty(root, "Description", string.IsNullOrWhiteSpace(description) ? null : JsonValue.Create(description.Trim()));
         SetProperty(root, "Schedule", normalizedSchedule is null ? null : JsonValue.Create(normalizedSchedule));
         SetProperty(root, "RunOnStartup", JsonValue.Create(runOnStartup));
+        var normalizedTriggers = triggers?
+            .Where(trigger => trigger is ScriptAutomationTriggerKind.WorkItemCreated
+                or ScriptAutomationTriggerKind.WorkItemSaved
+                or ScriptAutomationTriggerKind.TagAdded)
+            .Distinct()
+            .ToArray() ?? [];
+        SetProperty(
+            root,
+            "Triggers",
+            normalizedTriggers.Length == 0 ? null : JsonSerializer.SerializeToNode(normalizedTriggers));
 
         var metadataPath = GetMetadataPath(sourcePath);
         var tempPath = metadataPath + $".{Guid.NewGuid():N}.tmp";

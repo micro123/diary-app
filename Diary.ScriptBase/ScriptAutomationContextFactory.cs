@@ -9,6 +9,9 @@ public static class ScriptAutomationContextFactory
         {
             ScriptExecutionSource.Automation => ScriptAutomationTriggerKind.Scheduled,
             ScriptExecutionSource.Startup => ScriptAutomationTriggerKind.Startup,
+            ScriptExecutionSource.WorkItemCreated => ScriptAutomationTriggerKind.WorkItemCreated,
+            ScriptExecutionSource.WorkItemSaved => ScriptAutomationTriggerKind.WorkItemSaved,
+            ScriptExecutionSource.TagAdded => ScriptAutomationTriggerKind.TagAdded,
             _ => ScriptAutomationTriggerKind.Unknown,
         },
         request.Arguments ?? ImmutableDictionary<string, string>.Empty,

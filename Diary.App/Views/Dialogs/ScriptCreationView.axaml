@@ -27,8 +27,12 @@
                 <StackPanel Spacing="4" IsVisible="{Binding IsAutomationTemplate}">
                     <TextBlock Text="调度时间" />
                     <TextBox Text="{Binding ScheduleText, Mode=TwoWay}" Watermark="daily 09:00" />
-                    <TextBlock Text="格式 daily HH:mm，例如 daily 09:00；留空表示不定时，仅手动运行。" FontSize="12" Opacity="0.6" />
+                    <TextBlock Text="格式 daily HH:mm，例如 daily 09:00；留空时请勾选启动补跑或至少一个事件触发。" FontSize="12" Opacity="0.6" />
                     <CheckBox Content="应用启动后补跑一轮" IsChecked="{Binding RunOnStartup, Mode=TwoWay}" />
+                    <TextBlock Text="事件触发" />
+                    <CheckBox Content="工作项创建后" IsChecked="{Binding TriggerOnWorkItemCreated, Mode=TwoWay}" />
+                    <CheckBox Content="工作项保存后" IsChecked="{Binding TriggerOnWorkItemSaved, Mode=TwoWay}" />
+                    <CheckBox Content="添加标签后" IsChecked="{Binding TriggerOnTagAdded, Mode=TwoWay}" />
                 </StackPanel>
                 <TextBlock Text="脚本默认拥有全部已实现的宿主 API，无需单独申请权限。" FontSize="12" Opacity="0.68" />
                 <TextBlock Text="{Binding Error}" Foreground="IndianRed" TextWrapping="Wrap" IsVisible="{Binding HasError}" />

@@ -72,7 +72,7 @@ var trackers = api.Tracker.ListInstances();
 | --- | --- | --- |
 | `Target` | `ScriptEditorTarget?` | 应用程序扩展为 `null`；编辑器扩展由上下文菜单提供。 |
 | `Arguments` | `ImmutableDictionary<string, string>?` | 用户传入的字符串参数。 |
-| `Source` | `ScriptExecutionSource` | `Manual`、`Editor`、`Startup` 或 `Automation`。 |
+| `Source` | `ScriptExecutionSource` | `Manual`、`Editor`、`Startup`、`Automation`、`WorkItemCreated`、`WorkItemSaved` 或 `TagAdded`。 |
 | `EntryKind` | `ScriptEntryKind?` | 脚本入口类型；由宿主和 descriptor 共同校验。 |
 | `IdempotencyKey` | `string?` | 追加式写入的业务幂等键；结果由宿主共享幂等存储持久化，应用重启后仍可识别已提交的重复请求。 |
 | `Preview` | `bool` | 只返回待追加记录和副作用摘要，不写入数据库。 |
@@ -404,9 +404,9 @@ if (!result.Succeeded)
 | `WorkItemSaved` | 工作项保存触发。 |
 | `TagAdded` | 标签添加触发。 |
 
-当前实现已接线：执行来源为 `Automation` 时注入 `Scheduled`，来源为 `Startup` 时注入 `Startup`，其余场景为 `Unknown`；`WorkItemCreated`、`WorkItemSaved`、`TagAdded` 三种触发器的接线尚未实现。
+当前实现已接线：执行来源为 `Automation` 时注入 `Scheduled`，来源为 `Startup` 时注入 `Startup`，其余三种事件来源分别注入同名触发器；手动、编辑器等非自动化来源为 `Unknown`。
 
-自动化脚本（`AutomationScript`）放 `application` 目录，metadata 的 `entryKind` 写 `Automation`；`schedule` 字段（`"daily HH:mm"`）配置每日定时，`runOnStartup`（true/false）配置应用启动后是否补跑一轮。到点或补跑时宿主自动执行，执行来源为「自动化调用」或「启动加载」，可在管理页执行历史中按来源筛选。
+自动化脚本（`AutomationScript`）放 `application` 目录，metadata 的 `entryKind` 写 `Automation`；`schedule` 字段（`"daily HH:mm"`）配置每日定时，`runOnStartup`（true/false）配置启动补跑，`triggers` 数组配置 `WorkItemCreated`、`WorkItemSaved`、`TagAdded`。事件型自动化可省略 `schedule`；事件执行的 `eventData` 包含工作项字段，`TagAdded` 额外包含标签字段，详见 `IScriptAutomationContext.EventData`。到点、补跑或事件发生时宿主自动执行，可在管理页执行历史中按来源筛选。
 
 ### 13.2 ScriptEditorTarget
 

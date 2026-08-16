@@ -44,7 +44,7 @@ def application_main(context):
 
 请求、参数和结果字段使用 camelCase，例如 `startDate`、`endDate`、`normalizedQuery`。脚本自动化只能追加工作记录，不提供删除或直接改写历史记录；`idempotencyKey` 对已提交结果持久有效。
 
-`target` 按 `kind` 提供不同字段（字典访问）：`Year` → `year`（1-9999）；`Quarter` → `year` + `quarter`（1-4）；`Month` → `year` + `month`（1-12）；`Week` → `weekStart`（周一的 `yyyy-MM-dd`，范围周一至周日）；`Day` → `date`；`WorkItem` → `workItem`（不可变事项快照，`dateRange`、`getDateRange()` 和 `items.stream()` 不可用）。`context.source` 是 `Manual`、`Editor`、`Startup` 或 `Automation`。目标字段由宿主校验，不合法的目标在执行前以 `Rejected` 状态拒绝。
+`target` 按 `kind` 提供不同字段（字典访问）：`Year` → `year`（1-9999）；`Quarter` → `year` + `quarter`（1-4）；`Month` → `year` + `month`（1-12）；`Week` → `weekStart`（周一的 `yyyy-MM-dd`，范围周一至周日）；`Day` → `date`；`WorkItem` → `workItem`（不可变事项快照，`dateRange`、`getDateRange()` 和 `items.stream()` 不可用）。`context.source` 是 `Manual`、`Editor`、`Startup`、`Automation`、`WorkItemCreated`、`WorkItemSaved` 或 `TagAdded`。目标字段由宿主校验，不合法的目标在执行前以 `Rejected` 状态拒绝。
 
 `context.progress.report(fraction, message)` 报告执行进度：`fraction` 必须为 0 到 1 之间的数字，`message` 必须为非空字符串，否则抛 `ValueError`。进度只用于界面展示，不写入脚本日志，也不写入数据库；管理页运行脚本时进度会实时显示在底部运行区，并写入执行历史条目详情（会话内存态，重启即失）。
 
@@ -315,7 +315,7 @@ except HostCallError as error:
 | --- | --- | --- |
 | `target` | dict 或 None | 编辑器目标；应用/自动化入口为 None。 |
 | `arguments` | dict | 执行参数字典。 |
-| `source` | str | `Manual`、`Editor`、`Startup` 或 `Automation`。 |
+| `source` | str | `Manual`、`Editor`、`Startup`、`Automation`、`WorkItemCreated`、`WorkItemSaved` 或 `TagAdded`。 |
 | `entryKind` | str | `Application`、`Editor`、`Automation` 或 `Query`。 |
 | `idempotencyKey` | str 或 None | 业务幂等键。 |
 | `preview` | bool | 是否预览。 |
@@ -339,11 +339,11 @@ Python 自动化脚本的上下文额外提供 `context.automation` 字典：
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `trigger` | str | `Scheduled`、`Startup` 或 `Unknown`。 |
+| `trigger` | str | `Scheduled`、`Startup`、`WorkItemCreated`、`WorkItemSaved`、`TagAdded` 或 `Unknown`。 |
 | `eventData` | dict | 事件数据（当前为执行参数字典）。 |
 | `idempotencyKey` | str 或 None | 自动化执行幂等键。 |
 
-自动化脚本放 `application` 目录，metadata 的 `entryKind` 写 `Automation`；`schedule` 字段（`"daily HH:mm"`）配置每日定时，`runOnStartup`（true/false）配置应用启动后是否补跑一轮。到点或补跑时宿主自动执行脚本，执行来源为「自动化调用」或「启动加载」，可在管理页执行历史中按来源筛选。
+自动化脚本放 `application` 目录，metadata 的 `entryKind` 写 `Automation`；`schedule` 字段（`"daily HH:mm"`）配置每日定时，`runOnStartup`（true/false）配置启动补跑，`triggers` 数组配置 `WorkItemCreated`、`WorkItemSaved`、`TagAdded`。事件型自动化可省略 `schedule`；事件数据通过 `context.automation["eventData"]` 提供，工作项事件包含 `workItemId`、`date`、`comment`、`time`、`priority`，标签事件额外包含 `tagId`、`tagName`、`tagLevel`、`tagSource`、`sequence`。
 
 ## 附录 A. `apiError` 错误码总表
 

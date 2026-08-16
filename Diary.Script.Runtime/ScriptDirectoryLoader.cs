@@ -14,7 +14,8 @@ public sealed record ScriptFileMetadata(
     IReadOnlyList<ScriptEditorTargetKind>? SupportedEditorTargets = null,
     ScriptEntryKind? EntryKind = null,
     string? Schedule = null,
-    bool RunOnStartup = false);
+    bool RunOnStartup = false,
+    IReadOnlyList<ScriptAutomationTriggerKind>? Triggers = null);
 
 public sealed record ScriptPackageManifest(
     string Entry,
@@ -27,7 +28,8 @@ public sealed record ScriptPackageManifest(
     IReadOnlyList<ScriptEditorTargetKind>? SupportedEditorTargets = null,
     ScriptEntryKind? EntryKind = null,
     string? Schedule = null,
-    bool RunOnStartup = false);
+    bool RunOnStartup = false,
+    IReadOnlyList<ScriptAutomationTriggerKind>? Triggers = null);
 
 public sealed record ScriptDirectoryEntry(
     string SourcePath,
@@ -112,24 +114,29 @@ public sealed class ScriptDirectoryLoader(
 
                     var effectiveEntryKind = metadata.EntryKind
                         ?? (scope == ScriptScope.Editor ? ScriptEntryKind.Editor : ScriptEntryKind.Application);
+                    var triggers = metadata.Triggers?.Distinct().ToArray() ?? [];
+                    var invalidTrigger = triggers.Any(trigger => !IsEventTrigger(trigger));
                     if (effectiveEntryKind == ScriptEntryKind.Automation)
                     {
-                        if (!ScriptAutomationSchedule.TryParse(metadata.Schedule, out _))
+                        if ((metadata.Schedule is not null
+                                && !ScriptAutomationSchedule.TryParse(metadata.Schedule, out _))
+                            || invalidTrigger
+                            || (metadata.Schedule is null && !metadata.RunOnStartup && triggers.Length == 0))
                         {
                             var scheduleInvalid = Failure(
                                 "SCRIPT_SCHEDULE_INVALID",
-                                "The automation script schedule must use the 'daily HH:mm' format.",
+                                "Automation scripts must declare a valid daily schedule, runOnStartup, or an event trigger.",
                                 sourcePath);
                             entries.Add(new ScriptDirectoryEntry(sourcePath, scope, scheduleInvalid, metadata));
                             diagnostics.AddRange(scheduleInvalid.Diagnostics);
                             continue;
                         }
                     }
-                    else if (metadata.Schedule is not null || metadata.RunOnStartup)
+                    else if (metadata.Schedule is not null || metadata.RunOnStartup || triggers.Length > 0)
                     {
                         var scheduleInvalid = Failure(
                             "SCRIPT_SCHEDULE_INVALID",
-                            "Schedule and runOnStartup are only allowed for automation scripts.",
+                            "Schedule, runOnStartup, and triggers are only allowed for automation scripts.",
                             sourcePath);
                         entries.Add(new ScriptDirectoryEntry(sourcePath, scope, scheduleInvalid, metadata));
                         diagnostics.AddRange(scheduleInvalid.Diagnostics);
@@ -320,7 +327,8 @@ public sealed class ScriptDirectoryLoader(
                         SupportedEditorTargets: manifest.SupportedEditorTargets,
                         EntryKind: manifest.EntryKind,
                         Schedule: manifest.Schedule,
-                        RunOnStartup: manifest.RunOnStartup)));
+                        RunOnStartup: manifest.RunOnStartup,
+                        Triggers: manifest.Triggers)));
             }
             catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException or InvalidDataException)
             {
@@ -335,6 +343,11 @@ public sealed class ScriptDirectoryLoader(
 
         return candidates.OrderBy(candidate => candidate.SourcePath, StringComparer.Ordinal).ToArray();
     }
+
+    private static bool IsEventTrigger(ScriptAutomationTriggerKind trigger) => trigger is
+        ScriptAutomationTriggerKind.WorkItemCreated
+        or ScriptAutomationTriggerKind.WorkItemSaved
+        or ScriptAutomationTriggerKind.TagAdded;
 
     private static ScriptBuildResult Failure(string code, string message, string sourcePath) =>
         ScriptBuildResult.Failure(new ScriptDiagnostic(

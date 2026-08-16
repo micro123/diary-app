@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Diary.App.Models;
 using Diary.Script.Runtime;
+using Diary.ScriptBase;
 
 namespace Diary.AppTests;
 
@@ -24,6 +25,43 @@ public sealed class ScriptMetadataEditorTests
             Assert.AreEqual("描述", metadata.Description);
             Assert.AreEqual("daily 09:30", metadata.Schedule);
             Assert.IsTrue(metadata.RunOnStartup);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [TestMethod]
+    public async Task WriteAsync_WritesAutomationTriggers()
+    {
+        var root = CreateRoot();
+        try
+        {
+            var sourcePath = Path.Combine(root, "auto.cs");
+
+            await ScriptMetadataEditor.WriteAsync(
+                sourcePath,
+                null,
+                null,
+                null,
+                false,
+                [
+                    ScriptAutomationTriggerKind.WorkItemCreated,
+                    ScriptAutomationTriggerKind.TagAdded,
+                    ScriptAutomationTriggerKind.WorkItemCreated,
+                ]);
+
+            var metadata = JsonSerializer.Deserialize<ScriptFileMetadata>(
+                await File.ReadAllTextAsync(sourcePath + ".json"));
+            Assert.IsNotNull(metadata);
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    ScriptAutomationTriggerKind.WorkItemCreated,
+                    ScriptAutomationTriggerKind.TagAdded,
+                },
+                metadata!.Triggers!.ToArray());
         }
         finally
         {

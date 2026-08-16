@@ -63,6 +63,15 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CreateCommand))]
     private bool _runOnStartup;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CreateCommand))]
+    private bool _triggerOnWorkItemCreated;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CreateCommand))]
+    private bool _triggerOnWorkItemSaved;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CreateCommand))]
+    private bool _triggerOnTagAdded;
     [ObservableProperty] private string _error = string.Empty;
     [ObservableProperty] private bool _creating;
 
@@ -90,9 +99,15 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
     private bool CanCreate() => !Creating
         && !string.IsNullOrWhiteSpace(Name)
         && ScriptCreationPolicy.IsValidId(Id)
-        && (!IsAutomationTemplate
-            || string.IsNullOrWhiteSpace(ScheduleText)
-            || ScriptAutomationSchedule.TryParse(ScheduleText, out _));
+        && (!IsAutomationTemplate || HasValidAutomationSettings());
+
+    private bool HasValidAutomationSettings()
+    {
+        var hasSchedule = !string.IsNullOrWhiteSpace(ScheduleText);
+        var hasEventTrigger = TriggerOnWorkItemCreated || TriggerOnWorkItemSaved || TriggerOnTagAdded;
+        return (!hasSchedule || ScriptAutomationSchedule.TryParse(ScheduleText, out _))
+            && (hasSchedule || RunOnStartup || hasEventTrigger);
+    }
 
     [RelayCommand(CanExecute = nameof(CanCreate))]
     private async Task Create()
@@ -139,7 +154,8 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
                 Schedule: SelectedTemplate == AutomationScriptTemplate
                     ? (string.IsNullOrWhiteSpace(ScheduleText) ? null : ScheduleText.Trim())
                     : null,
-                RunOnStartup: SelectedTemplate == AutomationScriptTemplate && RunOnStartup), new JsonSerializerOptions { WriteIndented = true });
+                RunOnStartup: SelectedTemplate == AutomationScriptTemplate && RunOnStartup,
+                Triggers: GetAutomationTriggers()), new JsonSerializerOptions { WriteIndented = true });
             await WriteFilesAtomicallyAsync(sourcePath, source, metadataPath, metadata);
             RequestClose?.Invoke(this, sourcePath);
         }
@@ -152,6 +168,20 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
             Creating = false;
             CreateCommand.NotifyCanExecuteChanged();
         }
+    }
+
+    private IReadOnlyList<ScriptAutomationTriggerKind>? GetAutomationTriggers()
+    {
+        if (!IsAutomationTemplate)
+            return null;
+        var triggers = new List<ScriptAutomationTriggerKind>();
+        if (TriggerOnWorkItemCreated)
+            triggers.Add(ScriptAutomationTriggerKind.WorkItemCreated);
+        if (TriggerOnWorkItemSaved)
+            triggers.Add(ScriptAutomationTriggerKind.WorkItemSaved);
+        if (TriggerOnTagAdded)
+            triggers.Add(ScriptAutomationTriggerKind.TagAdded);
+        return triggers;
     }
 
     private static string ToClassName(string value) => string.Concat(value
@@ -228,7 +258,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
             "end", ""]),
             "Python" when SelectedTemplate == AutomationScriptTemplate => string.Join(Environment.NewLine, [
                 "def automation_main(context):",
-                "    # context.automation['trigger'] 为 'Scheduled' 或 'Startup'。",
+                "    # context.automation['trigger'] 为 'Scheduled'、'Startup'、'WorkItemCreated'、'WorkItemSaved' 或 'TagAdded'。",
                 "    # 调度配置见同目录 <脚本ID>.py.json 的 schedule 字段（daily HH:mm）。",
                 "    context.log.info(f\"自动化脚本执行：{context.automation['trigger']}\")",
                 "    return None", ""]),
@@ -327,7 +357,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
         else if (SelectedTemplate == AutomationScriptTemplate)
         {
             lines.AddRange([
-                "        // context.Automation.Trigger 为 Scheduled 或 Startup。",
+                "        // context.Automation.Trigger 为 Scheduled、Startup、WorkItemCreated、WorkItemSaved 或 TagAdded。",
                 "        // 调度配置见同目录 metadata 的 schedule 字段（daily HH:mm）。",
                 "        _ = context.Automation;",
                 "        return ValueTask.FromResult(ScriptExecutionResult.Succeeded());",

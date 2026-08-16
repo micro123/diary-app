@@ -66,7 +66,7 @@ function application_main(context)
 end
 ~~~
 
-`target.kind` 为 `Year`、`Quarter`、`Month`、`Week`、`Day` 或 `WorkItem`。季度使用自然季度：1-3、4-6、7-9、10-12 月。`Week` 目标使用 `weekStart` 字段（周一的 `yyyy-MM-dd`），范围为该周周一至周日。`context.request.source` 是 `Manual`、`Editor`、`Startup` 或 `Automation`。
+`target.kind` 为 `Year`、`Quarter`、`Month`、`Week`、`Day` 或 `WorkItem`。季度使用自然季度：1-3、4-6、7-9、10-12 月。`Week` 目标使用 `weekStart` 字段（周一的 `yyyy-MM-dd`），范围为该周周一至周日。`context.request.source` 是 `Manual`、`Editor`、`Startup`、`Automation`、`WorkItemCreated`、`WorkItemSaved` 或 `TagAdded`。
 
 `target` 按 `kind` 提供不同字段：
 
@@ -380,7 +380,7 @@ end
 | --- | --- | --- |
 | `target` | table 或 nil | 编辑器目标；应用/自动化入口为 nil。 |
 | `arguments` | table | 执行参数表。 |
-| `source` | string | `Manual`、`Editor`、`Startup` 或 `Automation`。 |
+| `source` | string | `Manual`、`Editor`、`Startup`、`Automation`、`WorkItemCreated`、`WorkItemSaved` 或 `TagAdded`。 |
 | `entryKind` | string | `Application`、`Editor`、`Automation` 或 `Query`。 |
 | `idempotencyKey` | string 或 nil | 业务幂等键。 |
 | `preview` | boolean | 是否预览。 |
@@ -403,11 +403,11 @@ Lua 自动化脚本的上下文额外提供 `context.automation` 表：
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `trigger` | string | `Scheduled`、`Startup` 或 `Unknown`。 |
+| `trigger` | string | `Scheduled`、`Startup`、`WorkItemCreated`、`WorkItemSaved`、`TagAdded` 或 `Unknown`。 |
 | `eventData` | table | 事件数据（当前为执行参数字典）。 |
 | `idempotencyKey` | string 或 nil | 自动化执行幂等键。 |
 
-自动化脚本放 `application` 目录，metadata 的 `entryKind` 写 `Automation`；`schedule` 字段（`"daily HH:mm"`）配置每日定时，`runOnStartup`（true/false）配置应用启动后是否补跑一轮。到点或补跑时宿主自动执行脚本，执行来源为「自动化调用」或「启动加载」，可在管理页执行历史中按来源筛选。
+自动化脚本放 `application` 目录，metadata 的 `entryKind` 写 `Automation`；`schedule` 字段（`"daily HH:mm"`）配置每日定时，`runOnStartup`（true/false）配置启动补跑，`triggers` 数组配置 `WorkItemCreated`、`WorkItemSaved`、`TagAdded`。事件型自动化可省略 `schedule`；事件数据通过 `context.automation.eventData` 提供，工作项事件包含 `workItemId`、`date`、`comment`、`time`、`priority`，标签事件额外包含 `tagId`、`tagName`、`tagLevel`、`tagSource`、`sequence`。
 
 ## 附录 A. `apiError` 错误码总表
 

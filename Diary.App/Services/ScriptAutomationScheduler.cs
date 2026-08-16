@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Avalonia.Threading;
 using Diary.Script.Runtime;
 using Diary.ScriptBase;
@@ -19,13 +20,15 @@ public sealed class ScriptAutomationScheduler(
     private readonly object _sync = new();
     private readonly Dictionary<string, AutomationPlan> _plans = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DateTimeOffset> _lastRun = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _eventRuns = new(StringComparer.Ordinal);
     private bool _startupCatchUpDone;
     private bool _timerStarted;
 
     private sealed record AutomationPlan(
         string ScriptId,
         TimeOnly? Time,
-        bool RunOnStartup);
+        bool RunOnStartup,
+        IReadOnlySet<ScriptAutomationTriggerKind> Triggers);
 
     public void ApplyLoadResult(ScriptDirectoryLoadResult result)
     {
@@ -41,7 +44,11 @@ public sealed class ScriptAutomationScheduler(
                     continue;
                 ScriptAutomationSchedule.TryParse(metadata.Schedule, out var time);
                 _plans[entry.BuildResult.Program.Descriptor.Id] =
-                    new AutomationPlan(entry.BuildResult.Program.Descriptor.Id, metadata.Schedule is null ? null : time, metadata.RunOnStartup);
+                    new AutomationPlan(
+                        entry.BuildResult.Program.Descriptor.Id,
+                        metadata.Schedule is null ? null : time,
+                        metadata.RunOnStartup,
+                        metadata.Triggers?.ToHashSet() ?? []);
             }
         }
     }
@@ -75,6 +82,46 @@ public sealed class ScriptAutomationScheduler(
                 : $"startup:{plan.ScriptId}:{now:yyyy-MM-dd}";
             await EnqueueAsync(plan, ScriptExecutionSource.Startup, key, now);
         }
+    }
+
+    public async Task TriggerAsync(
+        ScriptAutomationTriggerKind trigger,
+        IReadOnlyDictionary<string, string>? eventData = null)
+    {
+        if (trigger is not (
+            ScriptAutomationTriggerKind.WorkItemCreated
+            or ScriptAutomationTriggerKind.WorkItemSaved
+            or ScriptAutomationTriggerKind.TagAdded))
+            return;
+
+        var now = _timeProvider.GetLocalNow();
+        var data = eventData is null
+            ? new Dictionary<string, string>(StringComparer.Ordinal)
+            : new Dictionary<string, string>(eventData, StringComparer.Ordinal);
+        if (!data.TryGetValue("eventId", out var eventId) || string.IsNullOrWhiteSpace(eventId))
+        {
+            eventId = Guid.NewGuid().ToString("N");
+            data["eventId"] = eventId;
+        }
+
+        List<AutomationPlan> plans;
+        lock (_sync)
+            plans = _plans.Values.Where(plan => plan.Triggers.Contains(trigger)).ToList();
+
+        var source = trigger switch
+        {
+            ScriptAutomationTriggerKind.WorkItemCreated => ScriptExecutionSource.WorkItemCreated,
+            ScriptAutomationTriggerKind.WorkItemSaved => ScriptExecutionSource.WorkItemSaved,
+            ScriptAutomationTriggerKind.TagAdded => ScriptExecutionSource.TagAdded,
+            _ => ScriptExecutionSource.Unknown,
+        };
+        foreach (var plan in plans)
+            await EnqueueAsync(
+                plan,
+                source,
+                $"event:{trigger}:{eventId}",
+                now,
+                data);
     }
 
     private async void OnTick(object? sender, EventArgs e)
@@ -115,21 +162,31 @@ public sealed class ScriptAutomationScheduler(
         AutomationPlan plan,
         ScriptExecutionSource source,
         string idempotencyKey,
-        DateTimeOffset occurrence)
+        DateTimeOffset occurrence,
+        IReadOnlyDictionary<string, string>? eventData = null)
     {
         await _executionLock.WaitAsync();
         try
         {
             lock (_sync)
             {
-                if (_lastRun.TryGetValue(plan.ScriptId, out var lastRun) && lastRun >= occurrence)
-                    return;
-                _lastRun[plan.ScriptId] = occurrence;
+                if (eventData is not null)
+                {
+                    if (!_eventRuns.Add($"{plan.ScriptId}:{idempotencyKey}"))
+                        return;
+                }
+                else
+                {
+                    if (_lastRun.TryGetValue(plan.ScriptId, out var lastRun) && lastRun >= occurrence)
+                        return;
+                    _lastRun[plan.ScriptId] = occurrence;
+                }
             }
             logger.LogInformation("开始执行自动化脚本 {ScriptId}（来源：{Source}）。", plan.ScriptId, source);
             var outcome = await Task.Run(async () => await scriptManager.ExecuteAsync(
                 plan.ScriptId,
                 new ScriptExecutionRequest(
+                    Arguments: eventData?.ToImmutableDictionary(StringComparer.Ordinal),
                     Source: source,
                     IdempotencyKey: idempotencyKey),
                 TimeSpan.FromMinutes(5),

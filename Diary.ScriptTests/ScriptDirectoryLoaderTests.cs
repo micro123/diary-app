@@ -190,6 +190,37 @@ public sealed class ScriptDirectoryLoaderTests
     }
 
     [TestMethod]
+    public async Task LoadAsync_AllowsEventOnlyAutomationAndPassesTriggers()
+    {
+        var loader = CreateLoader(out _);
+        var sourcePath = await WriteScriptAsync("application", "auto-event.fake", "auto-event");
+        await File.WriteAllTextAsync(sourcePath + ".json",
+            """{"entryKind":3,"triggers":[3,5]}""");
+
+        var result = await loader.LoadAsync(_root);
+
+        var entry = result.Entries.Single();
+        Assert.IsTrue(entry.BuildResult!.Succeeded);
+        CollectionAssert.AreEquivalent(
+            new[] { ScriptAutomationTriggerKind.WorkItemCreated, ScriptAutomationTriggerKind.TagAdded },
+            entry.Metadata!.Triggers!.ToArray());
+    }
+
+    [TestMethod]
+    public async Task LoadAsync_RejectsTriggersOnNonAutomationScript()
+    {
+        var loader = CreateLoader(out _);
+        var sourcePath = await WriteScriptAsync("application", "plain-event.fake", "plain-event");
+        await File.WriteAllTextAsync(sourcePath + ".json", """{"triggers":[3]}""");
+
+        var result = await loader.LoadAsync(_root);
+
+        var entry = result.Entries.Single();
+        Assert.IsFalse(entry.BuildResult!.Succeeded);
+        Assert.AreEqual("SCRIPT_SCHEDULE_INVALID", entry.BuildResult.Diagnostics.Single().Code);
+    }
+
+    [TestMethod]
     public async Task LoadAsync_RejectsInvalidAutomationSchedule()
     {
         var loader = CreateLoader(out _);

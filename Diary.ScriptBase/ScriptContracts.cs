@@ -54,6 +54,9 @@ public enum ScriptExecutionSource
     Editor = 2,
     Startup = 3,
     Automation = 4,
+    WorkItemCreated = 5,
+    WorkItemSaved = 6,
+    TagAdded = 7,
 }
 
 public sealed record ScriptDescriptor(

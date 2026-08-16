@@ -108,6 +108,9 @@ public sealed record ScriptHistoryListItem(
         nameof(ScriptExecutionSource.Editor) => "编辑器调用",
         nameof(ScriptExecutionSource.Startup) => "启动加载",
         nameof(ScriptExecutionSource.Automation) => "自动化调用",
+        nameof(ScriptExecutionSource.WorkItemCreated) => "工作项创建",
+        nameof(ScriptExecutionSource.WorkItemSaved) => "工作项保存",
+        nameof(ScriptExecutionSource.TagAdded) => "标签添加",
         _ => "未知来源",
     };
 
@@ -173,7 +176,9 @@ public partial class ScriptManagementViewModel(
     public IReadOnlyList<string> ScopeFilters { get; } = ["全部类型", "应用脚本", "编辑器脚本"];
     public IReadOnlyList<string> StatusFilters { get; } = ["全部状态", "已加载", "加载失败"];
     public IReadOnlyList<string> HistoryStatusFilters { get; } = ["全部结果", "成功", "失败", "已取消", "已超时", "已拒绝"];
-    public IReadOnlyList<string> HistorySourceFilters { get; } = ["全部来源", "手动执行", "编辑器调用", "启动加载", "自动化调用"];
+    public IReadOnlyList<string> HistorySourceFilters { get; } = [
+        "全部来源", "手动执行", "编辑器调用", "启动加载", "自动化调用",
+        "工作项创建", "工作项保存", "标签添加"];
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RunCommand))]
     [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
@@ -208,6 +213,9 @@ public partial class ScriptManagementViewModel(
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveMetadataSettingsCommand))]
     private bool _automationRunOnStartup;
+    [ObservableProperty] private bool _automationTriggerOnWorkItemCreated;
+    [ObservableProperty] private bool _automationTriggerOnWorkItemSaved;
+    [ObservableProperty] private bool _automationTriggerOnTagAdded;
     [ObservableProperty] private string _metadataSettingsError = string.Empty;
 
     public bool HasProgress => IsExecuting && !string.IsNullOrWhiteSpace(ProgressMessage);
@@ -256,6 +264,10 @@ public partial class ScriptManagementViewModel(
         MetadataDescription = value?.Metadata?.Description ?? value?.Description ?? string.Empty;
         AutomationScheduleText = value?.Metadata?.Schedule ?? string.Empty;
         AutomationRunOnStartup = value?.Metadata?.RunOnStartup ?? false;
+        var triggers = value?.Metadata?.Triggers ?? [];
+        AutomationTriggerOnWorkItemCreated = triggers.Contains(ScriptAutomationTriggerKind.WorkItemCreated);
+        AutomationTriggerOnWorkItemSaved = triggers.Contains(ScriptAutomationTriggerKind.WorkItemSaved);
+        AutomationTriggerOnTagAdded = triggers.Contains(ScriptAutomationTriggerKind.TagAdded);
         OnPropertyChanged(nameof(HasMetadataSettingsError));
         OnPropertyChanged(nameof(HasSelectedDiagnostics));
         RunCommand.NotifyCanExecuteChanged();
@@ -459,7 +471,8 @@ public partial class ScriptManagementViewModel(
                 MetadataName,
                 MetadataDescription,
                 script.IsAutomation ? AutomationScheduleText : null,
-                script.IsAutomation && AutomationRunOnStartup);
+                script.IsAutomation && AutomationRunOnStartup,
+                GetAutomationTriggers());
             MetadataSettingsError = string.Empty;
             OnPropertyChanged(nameof(HasMetadataSettingsError));
             await ReloadAsync(forceReload: true);
@@ -469,6 +482,20 @@ public partial class ScriptManagementViewModel(
             MetadataSettingsError = $"保存失败：{exception.Message}";
             OnPropertyChanged(nameof(HasMetadataSettingsError));
         }
+    }
+
+    private IReadOnlyList<ScriptAutomationTriggerKind>? GetAutomationTriggers()
+    {
+        if (SelectedScript?.IsAutomation != true)
+            return null;
+        var triggers = new List<ScriptAutomationTriggerKind>();
+        if (AutomationTriggerOnWorkItemCreated)
+            triggers.Add(ScriptAutomationTriggerKind.WorkItemCreated);
+        if (AutomationTriggerOnWorkItemSaved)
+            triggers.Add(ScriptAutomationTriggerKind.WorkItemSaved);
+        if (AutomationTriggerOnTagAdded)
+            triggers.Add(ScriptAutomationTriggerKind.TagAdded);
+        return triggers;
     }
 
     private static string FormatStatus(ScriptDirectoryEntry entry)

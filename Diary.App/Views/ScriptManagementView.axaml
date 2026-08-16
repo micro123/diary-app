@@ -162,8 +162,12 @@
                                     <TextBlock Text="调度时间" />
                                     <TextBox Text="{Binding AutomationScheduleText, Mode=TwoWay}"
                                              Watermark="daily 09:00" />
-                                    <TextBlock Text="格式 daily HH:mm；留空表示不定时。" FontSize="12" Opacity="0.6" />
+                                    <TextBlock Text="格式 daily HH:mm；留空表示不定时，由启动补跑或事件触发。" FontSize="12" Opacity="0.6" />
                                     <CheckBox Content="应用启动后补跑一轮" IsChecked="{Binding AutomationRunOnStartup, Mode=TwoWay}" />
+                                    <TextBlock Text="事件触发" />
+                                    <CheckBox Content="工作项创建后" IsChecked="{Binding AutomationTriggerOnWorkItemCreated, Mode=TwoWay}" />
+                                    <CheckBox Content="工作项保存后" IsChecked="{Binding AutomationTriggerOnWorkItemSaved, Mode=TwoWay}" />
+                                    <CheckBox Content="添加标签后" IsChecked="{Binding AutomationTriggerOnTagAdded, Mode=TwoWay}" />
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Button Content="保存" Classes="Primary" Command="{Binding SaveMetadataSettingsCommand}"
