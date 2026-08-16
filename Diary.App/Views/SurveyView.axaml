@@ -64,8 +64,8 @@
                         <DataTemplate x:DataType="viewModels:SurveyCapabilityResult">
                             <Grid ColumnDefinitions="180,*,*,*" ColumnSpacing="8" Margin="0,2">
                                 <TextBlock Text="{Binding NodeName}" FontWeight="SemiBold" />
-                                <TextBlock Grid.Column="1" Text="查询：{Binding KindsText}" />
-                                <TextBlock Grid.Column="2" Text="分组：{Binding GroupDimensionsText}" />
+                                <TextBlock Grid.Column="1" Text="{Binding KindsText, StringFormat='查询：{0}'}" />
+                                <TextBlock Grid.Column="2" Text="{Binding GroupDimensionsText, StringFormat='分组：{0}'}" />
                                 <TextBlock Grid.Column="3" Text="{Binding DetailsText}" Opacity="0.7" />
                             </Grid>
                         </DataTemplate>
