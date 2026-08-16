@@ -247,7 +247,7 @@ public sealed class CSharpEngine : IScriptEngineV1
         }
     }
 
-    private static ImmutableArray<MetadataReference> CreateReferences()
+    internal static ImmutableArray<MetadataReference> CreateReferences()
     {
         var trustedAssemblies = (AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string ?? string.Empty)
             .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)

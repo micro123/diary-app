@@ -4,6 +4,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.GUIBase.ViewModels;
+using Diary.Script.CSharp;
 using Diary.Script.Runtime;
 using Diary.ScriptBase;
 using Diary.Utils;
@@ -54,6 +55,11 @@ public partial class ScriptEditorViewModel(
     private string _savedText = string.Empty;
     private bool _loading;
     private bool _writing;
+    private readonly CSharpLanguageService _languageService = new();
+    private CSharpLanguageAnalysis? _languageAnalysis;
+    private string _languageAnalysisText = string.Empty;
+    private CancellationTokenSource? _languageAnalysisCancellation;
+    private int _languageAnalysisVersion;
 
     public ObservableCollection<ScriptEditorDiagnosticItem> Diagnostics { get; } = new();
 
@@ -103,7 +109,10 @@ public partial class ScriptEditorViewModel(
     partial void OnTextChanged(string value)
     {
         if (!_loading)
+        {
             IsDirty = !string.Equals(value, _savedText, StringComparison.Ordinal);
+            ScheduleLanguageAnalysis(value);
+        }
         OnPropertyChanged(nameof(WindowTitle));
     }
 
@@ -144,6 +153,93 @@ public partial class ScriptEditorViewModel(
         OnPropertyChanged(nameof(FileName));
         OnPropertyChanged(nameof(WindowTitle));
         StartWatcher();
+        ScheduleLanguageAnalysis(_savedText);
+    }
+
+    public async Task<IReadOnlyList<CSharpLanguageCompletionItem>> GetCSharpCompletionsAsync(
+        int caretOffset,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsCSharpSource)
+            return [];
+
+        var source = Text;
+        var analysis = _languageAnalysis;
+        if (analysis is null || !string.Equals(_languageAnalysisText, source, StringComparison.Ordinal))
+        {
+            analysis = await Task.Run(
+                () => _languageService.Analyze(source, _sourcePath, cancellationToken),
+                cancellationToken);
+            if (string.Equals(Text, source, StringComparison.Ordinal))
+            {
+                _languageAnalysis = analysis;
+                _languageAnalysisText = source;
+            }
+        }
+        return analysis.GetCompletions(caretOffset);
+    }
+
+    public CSharpLanguageHover? GetCSharpHover(int caretOffset) =>
+        IsCSharpSource
+            && _languageAnalysis is not null
+            && string.Equals(_languageAnalysisText, Text, StringComparison.Ordinal)
+            ? _languageAnalysis.GetHover(caretOffset)
+            : null;
+
+    private bool IsCSharpSource =>
+        _sourcePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
+
+    private void ScheduleLanguageAnalysis(string source)
+    {
+        if (!IsCSharpSource || string.IsNullOrWhiteSpace(_sourcePath))
+            return;
+
+        _languageAnalysisCancellation?.Cancel();
+        _languageAnalysisCancellation?.Dispose();
+        var cancellation = new CancellationTokenSource();
+        _languageAnalysisCancellation = cancellation;
+        var version = ++_languageAnalysisVersion;
+        _ = AnalyzeLanguageAsync(source, version, cancellation.Token);
+    }
+
+    private async Task AnalyzeLanguageAsync(
+        string source,
+        int version,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(250, cancellationToken);
+            var analysis = await Task.Run(
+                () => _languageService.Analyze(source, _sourcePath, cancellationToken),
+                cancellationToken);
+            if (cancellationToken.IsCancellationRequested
+                || version != _languageAnalysisVersion
+                || !string.Equals(Text, source, StringComparison.Ordinal))
+                return;
+
+            _languageAnalysis = analysis;
+            _languageAnalysisText = source;
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                Diagnostics.Clear();
+                foreach (var diagnostic in analysis.Diagnostics)
+                    Diagnostics.Add(FormatLanguageDiagnostic(diagnostic));
+                OnPropertyChanged(nameof(HasDiagnostics));
+                var errors = analysis.Diagnostics.Count(item =>
+                    item.Severity == CSharpLanguageDiagnosticSeverity.Error);
+                Status = errors == 0
+                    ? "实时语义检查通过"
+                    : $"实时诊断：{errors} 个错误";
+            });
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            logger.LogDebug(exception, "C# 实时语义分析失败：{SourcePath}", _sourcePath);
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanSave))]
@@ -439,6 +535,9 @@ public partial class ScriptEditorViewModel(
 
     public override void Cleanup()
     {
+        _languageAnalysisCancellation?.Cancel();
+        _languageAnalysisCancellation?.Dispose();
+        _languageAnalysisCancellation = null;
         _watcher?.Dispose();
         _watcher = null;
         base.Cleanup();
@@ -451,6 +550,28 @@ public partial class ScriptEditorViewModel(
     private bool CanDiscard() => IsDirty;
 
     private bool CanReloadExternal() => HasExternalChange;
+
+    private ScriptEditorDiagnosticItem FormatLanguageDiagnostic(
+        CSharpLanguageDiagnostic diagnostic)
+    {
+        ScriptEditorDiagnosticItem? item = null;
+        item = new(
+            diagnostic.Severity switch
+            {
+                CSharpLanguageDiagnosticSeverity.Error => "错误",
+                CSharpLanguageDiagnosticSeverity.Warning => "警告",
+                _ => "信息",
+            },
+            diagnostic.Code,
+            diagnostic.Message,
+            diagnostic.SourcePath is null
+                ? string.Empty
+                : $"{diagnostic.SourcePath}:{diagnostic.Line}:{diagnostic.Column}",
+            diagnostic.Line,
+            diagnostic.Column,
+            () => DiagnosticSelected?.Invoke(item!));
+        return item;
+    }
 
     private ScriptEditorDiagnosticItem FormatDiagnostic(ScriptDiagnostic diagnostic)
     {

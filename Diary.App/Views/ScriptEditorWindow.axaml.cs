@@ -22,6 +22,8 @@ public partial class ScriptEditorWindow : UrsaWindow
     private bool _syncingEditor;
     private TextMate.Installation? _textMateInstallation;
     private CompletionWindow? _completionWindow;
+    private CancellationTokenSource? _completionCancellation;
+    private CancellationTokenSource? _hoverCancellation;
 
     public ScriptEditorWindow()
     {
@@ -50,6 +52,8 @@ public partial class ScriptEditorWindow : UrsaWindow
         _editor.TextArea.TextEntered += OnTextEntered;
         _editor.TextArea.KeyDown += OnEditorKeyDown;
         _editor.PointerWheelChanged += OnEditorPointerWheelChanged;
+        _editor.PointerMoved += OnEditorPointerMoved;
+        _editor.PointerExited += OnEditorPointerExited;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         _viewModel.SaveAsRequested += OnSaveAsRequested;
         _viewModel.DiagnosticSelected += OnDiagnosticSelected;
@@ -62,16 +66,72 @@ public partial class ScriptEditorWindow : UrsaWindow
     private void OnTextEntered(object? sender, TextInputEventArgs e)
     {
         if (e.Text == ".")
-            ShowCompletion();
+            _ = ShowCompletionAsync();
     }
 
     private void OnEditorKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key == Key.Space && e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
-            ShowCompletion();
+            _ = ShowCompletionAsync();
             e.Handled = true;
         }
+    }
+
+    private async void OnEditorPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_editor is null || _viewModel is null
+            || !Path.GetExtension(_viewModel.SourcePath).Equals(".cs", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var position = _editor.GetPositionFromPoint(e.GetPosition(_editor));
+        if (position is null)
+        {
+            ToolTip.SetTip(_editor, null);
+            return;
+        }
+
+        var line = _editor.Document.GetLineByNumber(position.Value.Line);
+        var offset = Math.Clamp(
+            line.Offset + Math.Max(0, position.Value.Column - 1),
+            line.Offset,
+            line.EndOffset);
+        _hoverCancellation?.Cancel();
+        _hoverCancellation?.Dispose();
+        var cancellation = new CancellationTokenSource();
+        _hoverCancellation = cancellation;
+        try
+        {
+            await Task.Delay(350, cancellation.Token);
+            var hover = _viewModel.GetCSharpHover(offset);
+            if (cancellation.IsCancellationRequested || hover is null)
+            {
+                ToolTip.SetTip(_editor, null);
+                return;
+            }
+
+            ToolTip.SetTip(
+                _editor,
+                string.IsNullOrWhiteSpace(hover.Documentation)
+                    ? hover.Signature
+                    : $"{hover.Signature}\n{hover.Documentation}");
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            if (ReferenceEquals(_hoverCancellation, cancellation))
+                _hoverCancellation = null;
+            cancellation.Dispose();
+        }
+    }
+
+    private void OnEditorPointerExited(object? sender, PointerEventArgs e)
+    {
+        _hoverCancellation?.Cancel();
+        if (_editor is not null)
+            ToolTip.SetTip(_editor, null);
     }
 
     private void OnEditorPointerWheelChanged(object? sender, PointerWheelEventArgs e)
@@ -104,17 +164,50 @@ public partial class ScriptEditorWindow : UrsaWindow
         }
     }
 
-    private void ShowCompletion()
+    private async Task ShowCompletionAsync()
     {
         if (_editor is null || _viewModel is null)
             return;
-        _completionWindow?.Close();
-        var items = ScriptCompletionProvider.GetCompletions(
-            _viewModel.SourcePath,
-            _editor.Text,
-            _editor.TextArea.Caret.Offset);
-        if (items.Count == 0)
+
+        _completionCancellation?.Cancel();
+        _completionCancellation?.Dispose();
+        var cancellation = new CancellationTokenSource();
+        _completionCancellation = cancellation;
+        var caretOffset = _editor.TextArea.Caret.Offset;
+        IReadOnlyList<ScriptCompletionItem> items;
+        try
+        {
+            var semanticItems = Path.GetExtension(_viewModel.SourcePath)
+                .Equals(".cs", StringComparison.OrdinalIgnoreCase)
+                ? await _viewModel.GetCSharpCompletionsAsync(caretOffset, cancellation.Token)
+                : [];
+            items = semanticItems.Count > 0
+                ? semanticItems
+                    .Select(item => new ScriptCompletionItem(
+                        item.Text,
+                        string.IsNullOrWhiteSpace(item.Documentation)
+                            ? item.Description
+                            : $"{item.Description}\n{item.Documentation}"))
+                    .ToArray()
+                : ScriptCompletionProvider.GetCompletions(
+                    _viewModel.SourcePath,
+                    _editor.Text,
+                    caretOffset);
+        }
+        catch (OperationCanceledException)
+        {
             return;
+        }
+        finally
+        {
+            if (ReferenceEquals(_completionCancellation, cancellation))
+                _completionCancellation = null;
+            cancellation.Dispose();
+        }
+
+        if (items.Count == 0 || _editor.TextArea.Caret.Offset != caretOffset)
+            return;
+        _completionWindow?.Close();
         var window = new CompletionWindow(_editor.TextArea);
         foreach (var item in items)
             window.CompletionList.CompletionData.Add(new ScriptCompletionData(item));
@@ -212,7 +305,17 @@ public partial class ScriptEditorWindow : UrsaWindow
             _editor.TextArea.TextEntered -= OnTextEntered;
             _editor.TextArea.KeyDown -= OnEditorKeyDown;
             _editor.PointerWheelChanged -= OnEditorPointerWheelChanged;
+            _editor.PointerMoved -= OnEditorPointerMoved;
+            _editor.PointerExited -= OnEditorPointerExited;
         }
+        _completionCancellation?.Cancel();
+        _completionCancellation?.Dispose();
+        _completionCancellation = null;
+        _hoverCancellation?.Cancel();
+        _hoverCancellation?.Dispose();
+        _hoverCancellation = null;
+        if (_editor is not null)
+            ToolTip.SetTip(_editor, null);
         _completionWindow?.Close();
         _textMateInstallation?.Dispose();
         _viewModel.Dispose();
