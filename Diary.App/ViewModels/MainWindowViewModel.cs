@@ -134,7 +134,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         Messenger.Register<RunCommandEvent>(this, (r, m) => { ExecuteSettingCommand(m.Value); });
 
-        Messenger.Register<ToastEvent>(this, (r, m) => { ToastManager?.Show(m.Value); });
+        Messenger.Register<ToastEvent>(this, (r, m) => { ToastManager?.Show(m.Value, m.Type); });
 
         Messenger.Register<ConfirmRequest<ConfirmMessage, bool>>(this, async (r, m) =>
         {

@@ -392,7 +392,7 @@ Worker 握手通过 `supportedHostApis` 协商实际可用的 HostCall，宿主 
 （metadata `Schedule`="daily HH:mm"）与 RunOnStartup：`ScriptAutomationScheduler` 以 30 秒 tick 调度、
 内存 last-run 表防重、启动补跑一轮到期脚本，并生成请求级幂等键；Startup/Scheduled、
 WorkItemCreated/WorkItemSaved/TagAdded 触发器均已接线。Query 入口已落地（`IQueryScriptV1`/`QueryScript`
-基类与三语言创建模板，管理页可运行）。普通和模板日志项创建使用 provider 事务，支持 `Preview` 投影且预览不写入数据库；执行历史与进度均为会话内存态，持久化经决策明确延期；
+基类与三语言创建模板，管理页可运行）。普通和模板日志项创建使用 provider 事务，支持 `Preview` 投影且预览不写入数据库；工作项相关自动化失败会通过全局 Toast 非阻塞提示，Startup/Scheduled 失败仍通过日志和执行历史追踪；执行历史与进度均为会话内存态，持久化经决策明确延期；
 脚本包管理、Windows/Linux 运行时打包和更强的操作系统级资源限制仍需继续扩展；macOS 不在当前支持范围内。
 
 ## 16. 维护约定

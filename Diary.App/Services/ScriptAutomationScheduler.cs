@@ -1,5 +1,7 @@
 using System.Collections.Immutable;
+using Avalonia.Controls.Notifications;
 using Avalonia.Threading;
+using Diary.GUIBase.Utils;
 using Diary.Script.Runtime;
 using Diary.ScriptBase;
 using Diary.Utils;
@@ -194,10 +196,29 @@ public sealed class ScriptAutomationScheduler(
             logger.LogInformation(
                 "自动化脚本 {ScriptId} 执行完成：{Status}（{DiagnosticCount} 条诊断）。",
                 plan.ScriptId, outcome.Result.Status, outcome.Result.Diagnostics.Length);
+            if (outcome.Result.Status != ScriptExecutionStatus.Succeeded
+                && source is (ScriptExecutionSource.WorkItemCreated
+                    or ScriptExecutionSource.WorkItemSaved
+                    or ScriptExecutionSource.TagAdded))
+            {
+                var subject = source == ScriptExecutionSource.TagAdded ? "标签已保存" : "工作项已保存";
+                EventDispatcher.ShowToast(
+                    $"{subject}，但自动化脚本“{plan.ScriptId}”执行失败，请查看脚本执行记录。",
+                    NotificationType.Error);
+            }
         }
         catch (Exception exception)
         {
             logger.LogError(exception, "自动化脚本 {ScriptId} 执行失败。", plan.ScriptId);
+            if (source is (ScriptExecutionSource.WorkItemCreated
+                or ScriptExecutionSource.WorkItemSaved
+                or ScriptExecutionSource.TagAdded))
+            {
+                var subject = source == ScriptExecutionSource.TagAdded ? "标签已保存" : "工作项已保存";
+                EventDispatcher.ShowToast(
+                    $"{subject}，但自动化脚本“{plan.ScriptId}”执行失败，请查看脚本执行记录。",
+                    NotificationType.Error);
+            }
         }
         finally
         {

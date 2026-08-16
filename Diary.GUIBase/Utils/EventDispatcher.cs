@@ -1,3 +1,4 @@
+using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.GUIBase.Events;
 
@@ -23,9 +24,11 @@ public static class EventDispatcher
         Messenger.Send(new DbChangedEvent(what));
     }
 
-    public static void ShowToast(string content)
+    public static void ShowToast(
+        string content,
+        NotificationType type = NotificationType.Information)
     {
-        Messenger.Send(new ToastEvent(content));
+        Messenger.Send(new ToastEvent(content, type));
     }
 
     public static void RunCommand(string command)

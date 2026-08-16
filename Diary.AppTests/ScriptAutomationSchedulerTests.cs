@@ -1,5 +1,8 @@
+using Avalonia.Controls.Notifications;
+using CommunityToolkit.Mvvm.Messaging;
 using System.Collections.Immutable;
 using Diary.App.Services;
+using Diary.GUIBase.Events;
 using Diary.Script.Runtime;
 using Diary.ScriptBase;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -69,6 +72,36 @@ public sealed class ScriptAutomationSchedulerTests
     }
 
     [TestMethod]
+    public async Task TriggerAsync_WhenEventScriptFails_ShowsErrorToast()
+    {
+        var manager = new RecordingScriptManager(fail: true);
+        var scheduler = new ScriptAutomationScheduler(
+            manager,
+            NullLogger<ScriptAutomationScheduler>.Instance,
+            new FixedTimeProvider(FixedNow));
+        scheduler.ApplyLoadResult(BuildEventResult(
+            ("failed-script", new[] { ScriptAutomationTriggerKind.WorkItemSaved })));
+        var recipient = new ToastRecipient();
+        WeakReferenceMessenger.Default.Register<ToastEvent>(recipient);
+
+        try
+        {
+            await scheduler.TriggerAsync(
+                ScriptAutomationTriggerKind.WorkItemSaved,
+                new Dictionary<string, string> { ["eventId"] = "save-42" });
+
+            Assert.IsNotNull(recipient.Message);
+            Assert.AreEqual(NotificationType.Error, recipient.Message!.Type);
+            StringAssert.Contains(recipient.Message.Value, "工作项已保存");
+            StringAssert.Contains(recipient.Message.Value, "failed-script");
+        }
+        finally
+        {
+            WeakReferenceMessenger.Default.Unregister<ToastEvent>(recipient);
+        }
+    }
+
+    [TestMethod]
     public async Task ApplyLoadResult_DropsRemovedScripts()
     {
         var manager = new RecordingScriptManager();
@@ -129,7 +162,7 @@ public sealed class ScriptAutomationSchedulerTests
             ValueTask.FromResult(ScriptExecutionResult.Succeeded());
     }
 
-    private sealed class RecordingScriptManager : IScriptManager
+    private sealed class RecordingScriptManager(bool fail = false) : IScriptManager
     {
         public List<(string ScriptId, ScriptExecutionSource Source, string? IdempotencyKey, IReadOnlyDictionary<string, string> Arguments)> Executions { get; } = [];
 
@@ -161,10 +194,26 @@ public sealed class ScriptAutomationSchedulerTests
                 request.Source,
                 request.IdempotencyKey,
                 request.Arguments ?? ImmutableDictionary<string, string>.Empty));
+            var result = fail
+                ? new ScriptExecutionResult(
+                    ScriptExecutionStatus.Failed,
+                    [new ScriptDiagnostic(
+                        "TEST_SCRIPT_FAILED",
+                        "测试脚本失败。",
+                        ScriptDiagnosticSeverity.Error,
+                        ScriptDiagnosticCategory.Runtime)])
+                : ScriptExecutionResult.Succeeded();
             return ValueTask.FromResult(new ScriptExecutionOutcome(
                 Guid.NewGuid(),
-                new ScriptExecutionResult(ScriptExecutionStatus.Succeeded, []),
+                result,
                 Source: request.Source));
         }
+    }
+
+    public sealed class ToastRecipient : IRecipient<ToastEvent>
+    {
+        public ToastEvent? Message { get; private set; }
+
+        public void Receive(ToastEvent message) => Message = message;
     }
 }
