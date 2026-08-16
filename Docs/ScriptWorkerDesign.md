@@ -106,7 +106,7 @@ supervisor 启动 worker 时必须：
 1. 使用绝对可执行文件路径和受控工作目录。
 2. 单独配置 stdin、stdout、stderr，并禁止继承不必要的句柄。
 3. 不通过命令行传递 Token、密码或完整配置内容。
-4. 使用环境变量白名单；不把主进程全部环境变量复制给 worker。
+4. 使用环境变量白名单；不把主进程全部环境变量复制给 worker。Windows 进程白名单必须保留系统启动所需的 `SYSTEMROOT`，调用方显式变量在此基础上覆盖；这避免 Python 3.10 因无法初始化系统随机源而在握手前退出。
 5. 设置启动超时，默认 10 秒。（已实现：`WorkerSupervisor.HandshakeTimeout` 默认 10 秒（`WorkerProtocol.DefaultHandshakeTimeoutSeconds`）；等待 `hello` 超时后 worker 置为 `Failed`、产生 `WORKER_HANDSHAKE_TIMED_OUT` 诊断并停止 transport。App 的三个 supervisor 构造已显式传入 10 秒。）
 6. 读取第一条 `hello` 消息并完成协议协商后，才把状态设置为 `Ready`。
 

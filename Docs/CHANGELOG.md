@@ -28,6 +28,7 @@
 
 - CI 改为 Windows/Ubuntu Release 构建矩阵，移除测试容错并执行解决方案内全部测试项目；正式标签和手动候选发布均在验证通过后才构建产物
 - Worker 真实进程测试移除 Linux-only 路径和平台跳过，Windows/Ubuntu CI 固定 Python 3.10，并强制执行 C#、Lua、Python 的握手、执行、取消、超时、日志、Effects 与消息上限用例
+- Windows Worker 环境白名单保留系统启动所需的 `SYSTEMROOT`，修复 Python 3.10 因系统随机源初始化失败而在握手前退出
 - `win-x64` 与 `linux-x64` 改由对应原生 Runner 发布，按 RID 还原整个解决方案；发布包显式包含 Jira/Redmine UI 插件与脚本 Worker，并在压缩前校验关键文件
 - 自动化脚本调度器改用可注入 `TimeProvider`，消除启动补跑测试受本机时间影响的波动
 - 核心迁移契约新增成功迁移保留业务数据、失败回滚后保留原数据、当前 provider 无待执行迁移和提升数据版本必须同步登记 SQLite/PostgreSQL 迁移的测试；SQLite 在实际迁移前创建可恢复快照，备份失败会阻止升级

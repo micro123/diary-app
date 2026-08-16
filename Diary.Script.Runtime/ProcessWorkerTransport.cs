@@ -35,6 +35,12 @@ public sealed class ProcessWorkerTransportFactory(WorkerProcessOptions options) 
         if (options.Environment is not null)
         {
             startInfo.Environment.Clear();
+            if (OperatingSystem.IsWindows())
+            {
+                var systemRoot = Environment.GetEnvironmentVariable("SYSTEMROOT");
+                if (!string.IsNullOrWhiteSpace(systemRoot))
+                    startInfo.Environment["SYSTEMROOT"] = systemRoot;
+            }
             foreach (var pair in options.Environment)
                 startInfo.Environment[pair.Key] = pair.Value;
         }
