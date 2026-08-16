@@ -18,6 +18,7 @@
 
 ### 维护与协议收紧
 
+- CrashDump：Windows/Linux 终止性托管异常由独立 DiagnosticsClient 进程生成 Triage Dump；隔离的最小 Avalonia 窗口显示简要异常和 Dump 状态，并提供打开 Dump 文件夹；Dump 仅保存在本机且默认保留最近 5 个
 - 移除遗留 `IScriptApi`/`IScriptEngine`/`IScript`/`ScriptUsage`/`ITrackerScriptApi` 接口族与适配层（全部实现已迁移至 V1，删除前确认无实现、无 DI、无测试引用）
 - Worker 协议：握手协商结果（`maxMessageBytes`/`maxResultMessageBytes`/`apiVersion`）三语言 Worker 全面生效；新增 `WORKER_INVALID_MESSAGE`、`WORKER_HOST_CALL_TOO_LARGE` 诊断码并区分消息超限/格式错误；执行结果按 16MB 单独读取使 `WORKER_RESULT_TOO_LARGE` 可达；补充 4MB/16MB/1MB 消息大小层级注释
 - print 语义统一：C# `Console`、Lua `print`、Python `print` 按行转发到脚本日志 Info 级（管理页「运行日志」Tab 可见），执行结束冲刷残余半行，总量 1MB 兜底；转发为尽力而为（log.write 未配置/失败不导致脚本失败）；C# 白名单新增 `System.Console.dll` 支持控制台输出（输入恒为空流）

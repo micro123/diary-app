@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using AvaloniaEdit;
 using CommunityToolkit.Mvvm.Input;
+using Diary.App.Diagnostics;
 using Diary.App.ViewModels;
 using Diary.App.Views;
 using Diary.Script.Runtime;
@@ -198,6 +199,58 @@ public sealed class ScriptEditorWindowTests
         finally
         {
             await DeleteDirectoryAsync(root);
+        }
+    }
+
+
+    [TestMethod]
+    public async Task CrashReporterWindow_ShowsBriefDetailsAndOpenFolderAction()
+    {
+        var directory = CreateScriptDirectory(out _);
+        try
+        {
+            var request = new CrashReportRequest(
+                123,
+                "Diary.App",
+                "1.0.0",
+                DateTimeOffset.UtcNow,
+                "System.InvalidOperationException",
+                "brief failure",
+                directory,
+                Path.Combine(directory, "sample.dmp"),
+                Path.Combine(directory, "sample.json"),
+                true);
+            var result = new CrashReportResult(request, true, 2048, null);
+
+            await _session.Dispatch(() =>
+            {
+                var window = new CrashReporterWindow(result);
+                window.Show();
+                try
+                {
+                    var exceptionType = window.FindControl<TextBlock>("ExceptionTypeText");
+                    var message = window.FindControl<TextBlock>("ExceptionMessageText");
+                    var status = window.FindControl<TextBlock>("DumpStatusText");
+                    var openFolder = window.FindControl<Button>("OpenDumpFolderButton");
+
+                    Assert.IsNotNull(exceptionType);
+                    Assert.IsNotNull(message);
+                    Assert.IsNotNull(status);
+                    Assert.IsNotNull(openFolder);
+                    StringAssert.Contains(exceptionType.Text, "InvalidOperationException");
+                    Assert.AreEqual("brief failure", message.Text);
+                    StringAssert.Contains(status.Text, "2 KB");
+                    Assert.AreEqual("打开 Dump 文件夹", openFolder.Content);
+                }
+                finally
+                {
+                    window.Close();
+                }
+            }, CancellationToken.None);
+        }
+        finally
+        {
+            await DeleteDirectoryAsync(directory);
         }
     }
 

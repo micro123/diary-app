@@ -1,0 +1,36 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Diary.App.Diagnostics.CrashReporterWindow"
+        Title="Diary Tools NG 崩溃报告"
+        Width="600" Height="350"
+        MinWidth="520" MinHeight="320"
+        CanResize="False"
+        ShowInTaskbar="True"
+        WindowStartupLocation="CenterScreen">
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="14" Margin="24">
+        <StackPanel Spacing="4">
+            <TextBlock Text="Diary Tools NG 意外退出" FontSize="24" FontWeight="SemiBold" />
+            <TextBlock Text="程序已尝试保存诊断 Dump，可将其用于定位崩溃原因。"
+                       Opacity="0.72" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <Border Grid.Row="1" Padding="14" CornerRadius="8" Background="#18000000">
+            <StackPanel Spacing="6">
+                <TextBlock x:Name="ExceptionTypeText" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock x:Name="ExceptionMessageText" Opacity="0.8" TextWrapping="Wrap" MaxHeight="64" />
+            </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="2" Spacing="5">
+            <TextBlock x:Name="DumpStatusText" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock x:Name="DumpPathText" Opacity="0.7" TextWrapping="Wrap" />
+            <TextBlock Text="Dump 可能包含进程内存中的敏感信息，请在确认后再提供给他人。"
+                       Foreground="#D97706" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+            <Button x:Name="OpenDumpFolderButton" Content="打开 Dump 文件夹" Click="OnOpenDumpFolder" />
+            <Button Content="关闭" Click="OnClose" />
+        </StackPanel>
+    </Grid>
+</Window>

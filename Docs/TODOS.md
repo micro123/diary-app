@@ -7,7 +7,7 @@
 ## 非 tracker TODO
 
 - [x] 已加固 SQLite/PostgreSQL 核心迁移执行、逐步提交、失败回滚、降级和断链校验；业务数据保留与失败恢复由共享 provider 契约测试覆盖
-- [~] SQLite 核心数据迁移前已创建可恢复快照，PostgreSQL 会记录外部备份提醒；应用包增量更新和 CrashDump 仍待实现
+- [~] SQLite 核心数据迁移前已创建可恢复快照，PostgreSQL 会记录外部备份提醒；应用包增量更新仍待实现。Windows/Linux 终止性托管异常已通过独立 DiagnosticsClient 进程生成 Triage Dump，并显示最小崩溃提示窗口
 
 ## 阶段 7：代码质量与运行稳定性
 
@@ -21,7 +21,17 @@
 
 验收：后台任务异常可以进入日志或结构化诊断，应用关闭不会遗留接收任务；工作项上传从后台线程调用时不会跨线程修改 UI 绑定对象。
 
-### 7.2 Provider 数据升级登记
+### 7.2 CrashDump 与崩溃提示
+
+- [x] `Program.Main` 最早阶段注册终止性托管异常捕获；同一 `Diary.App` 可执行文件以独立命令行模式生成 Triage Dump、写入结果并显示最小 Avalonia 崩溃提示窗口。
+- [x] 崩溃窗口显示异常类型、简要消息、Dump 状态和路径，并提供“打开 Dump 文件夹”；Dump 仅保存在本机、默认保留最近 5 个，不自动上传。
+- [~] 已覆盖 Windows/Linux DiagnosticsClient 真实进程 Dump；`FailFast`、StackOverflow 和本机代码严重崩溃仍需 Runtime/操作系统级 Dump 兜底。
+
+设计文档：[`CrashDumpDesign.md`](CrashDumpDesign.md)
+
+验收：终止性托管未处理异常不依赖原进程 UI 弹窗；捕获失败不覆盖原始异常；Windows/Linux CI 能从独立进程对真实 .NET Worker 生成非空 Dump。
+
+### 7.3 Provider 数据升级登记
 
 - [x] 已明确 SQLite/PostgreSQL `DbRecords` 当前无业务数据升级时返回 `null`；`ProviderMigrationRegistrationTests` 锁定上一正式数据版本，提升 `DataVersion` 时必须同步登记两个 provider 的迁移。
 

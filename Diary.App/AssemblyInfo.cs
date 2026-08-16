@@ -8,3 +8,5 @@ using Diary.Core;
 [assembly: AssemblyDescription(AppInfo.AppName)]
 [assembly: InternalsVisibleTo("Diary.DbTests")]
 [assembly: InternalsVisibleTo("Diary.UtilTests")]
+
+[assembly: InternalsVisibleTo("Diary.AppTests")]

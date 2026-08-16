@@ -1,5 +1,6 @@
 ﻿using Avalonia;
 using Avalonia.Media;
+using Diary.App.Diagnostics;
 using Diary.Core.Constants;
 using Diary.GUIBase.Utils;
 using Diary.Utils;
@@ -17,6 +18,9 @@ namespace Diary.App
         [STAThread]
         public static void Main(string[] args)
         {
+            if (CrashReporterProcess.TryRun(args))
+                return;
+            CrashReporterProcess.InstallUnhandledExceptionCapture();
             App.StartupOptions = AppStartupOptions.Parse(args);
             // 跨平台单实例守卫：已有实例在跑则唤起它后退出，不重复启动
             using var single = new SingletonApp(AppInfo.AppName);

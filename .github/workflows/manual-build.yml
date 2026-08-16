@@ -89,6 +89,7 @@ jobs:
             $workerExecutable,
             'Diary.Script.Worker.deps.json',
             'Diary.Script.Worker.runtimeconfig.json',
+            'Microsoft.Diagnostics.NETCore.Client.dll',
             'Diary.RedMine.dll',
             'Diary.RedMine.UI.dll',
             'Diary.RedMine.SQLite.dll',

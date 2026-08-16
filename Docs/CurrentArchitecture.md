@@ -100,7 +100,7 @@ Jira --> JiraApi
 
 | 项目 | 当前职责 | 关键边界 |
 | --- | --- | --- |
-| `Diary.App` | 启动、服务容器、插件发现、数据库选择、主窗口和 Tracker 配置对话框 | 程序设置以及 Tracker 配置/插件状态均通过右上角独立模态对话框打开；固定导航页只创建一次，Tracker 动态页追加在其后并按配置刷新 |
+| `Diary.App` | 启动、服务容器、插件发现、数据库选择、主窗口、Tracker 配置及独立 CrashDump 捕获/提示模式 | 程序设置以及 Tracker 配置/插件状态均通过右上角独立模态对话框打开；终止性托管异常由独立 DiagnosticsClient 进程生成本地 Triage Dump，不依赖已经崩溃的正常应用 UI |
 | `Diary.Core` | 工作项、标签、模板、配置和统计模型 | 不应依赖具体 tracker 类型 |
 | `Diary.Database` | 核心数据库抽象、provider 原语、扩展工厂加载 | 通过 `GetExtension<T>(instanceId)` 延迟取得可选扩展 |
 | `Diary.GUIBase` | 跨页面共享的通用 UI、ViewModel、转换器、资源和事件消息 | 不依赖具体 tracker 类型和插件实现 |
@@ -180,7 +180,15 @@ stop
 
 工作项上传的远程协调可以从后台线程执行，但 `WorkEditorViewModel.Upload()` 完成后统一通过 Avalonia UI Dispatcher 更新 `UploadResults`、锁定状态和状态绑定，避免后台线程直接修改绑定集合。
 
-## 5. 数据库分层和扩展
+## 5. CrashDump 与诊断进程
+
+`Diary.App` 在正常模式之外提供 `--capture-crash-dump` 和 `--show-crash-report` 两个内部模式。
+终止性托管异常到达 `AppDomain.UnhandledException` 后，正常进程启动独立捕获进程；捕获进程使用
+`Microsoft.Diagnostics.NETCore.Client` 对目标 PID 生成 Triage Dump，再启动不加载数据库、插件和脚本的最小 Avalonia 提示窗口。
+Dump 默认位于 LocalApplicationData 下的 `Diary.App/CrashDumps`，只保留最近 5 个且不自动上传。
+详细边界见 [`CrashDumpDesign.md`](CrashDumpDesign.md)。
+
+## 6. 数据库分层和扩展
 
 核心数据库由 `DbInterfaceBase` 负责连接、核心 schema 版本和工作项数据。Redmine 表不通过核心 CRUD 接口访问，而是通过数据库扩展工厂动态发现：
 
@@ -247,7 +255,7 @@ Ubuntu 门禁另通过 `DIARY_REQUIRE_POSTGRES_TESTS=1` 强制启动 PostgreSQL 
 Windows 用于覆盖平台构建和 Windows 专用运行路径。标签发布在对应原生 Runner 上分别生成 `win-x64` 和
 `linux-x64` 自包含包，并在压缩前检查 Tracker 插件程序集和脚本 Worker 是否齐全。
 
-## 6. Redmine schema 迁移
+## 7. Redmine schema 迁移
 
 当前 Redmine 数据库 schema 为版本 1：
 
@@ -264,7 +272,7 @@ Windows 用于覆盖平台构建和 Windows 专用运行路径。标签发布在
 - 插件数据不应被删除。
 - 核心工作项数据库不应因此被删除或回滚到不可用状态。
 
-## 7. 多实例模型
+## 8. 多实例模型
 
 实例身份由 `(PluginId, InstanceId)` 确定。`PluginInstanceRegistry` 创建实例时检查：
 
@@ -276,7 +284,7 @@ Redmine 数据库扩展已经使用实例 ID 过滤所有项目、问题、活�
 
 当前限制：插件宿主和数据库扩展已经支持多实例，所有扩展创建调用都显式传入插件迁移链。Redmine 和 Jira 共 8 个插件程序集仍由 `Diary.App.csproj` 的构建目标生成并复制到输出目录，运行时再通过目录扫描发现；尚未实现独立插件包目录或安装器。
 
-## 8. UI 和编辑器扩展
+## 9. UI 和编辑器扩展
 
 Redmine 和 Jira UI 通过 `Diary.PluginUI` 的契约接入：
 
@@ -287,7 +295,7 @@ Redmine 和 Jira UI 通过 `Diary.PluginUI` 的契约接入：
 核心编辑器从 `TrackerUiContributionRegistry` 获取按实例创建的 `ITrackerUiContribution`，不直接依赖 Redmine 具体 ViewModel。模板只保存核心字段和默认标签，Tracker 活动、问题等默认值由标签规则推导；当前 Redmine UI 仍保留 `IRedMineUiData` 和部分 Redmine 专用数据缓存，用于管理页和选择器。
 核心编辑器的一般信息区域使用统一标签列和内容列，耗时输入保持足够宽度并与快捷时长、优先级并列；日记页左侧工作项列表按标题、耗时/标签、保存与同步状态分层展示，列表项只依赖 `WorkEditorViewModel` 的通用状态属性，不引入具体 Tracker 类型。
 
-## 9. 数据保存边界
+## 10. 数据保存边界
 
 当前设计把本地保存和远程 API 调用分开：
 
@@ -302,7 +310,7 @@ Redmine 和 Jira UI 通过 `Diary.PluginUI` 的契约接入：
 远程 API 失败不应丢失核心日记或本地绑定。Jira 和 Redmine 的工作项绑定表直接保存最近一次上传状态、错误文本和尝试时间；成功状态仍以远程 ID 为最终锁定依据，网络异常或本地状态写入失败时记录为 `Uncertain`，避免用户无条件重复追加远程工时。
 当前外部 API 集成测试存在依赖服务状态的 403、500 和 422，不能作为本地数据库契约测试的替代品。
 
-## 10. 插件配置 schema 迁移
+## 11. 插件配置 schema 迁移
 
 插件配置文件统一支持以下包格式：
 
@@ -326,7 +334,7 @@ Redmine 和 Jira UI 通过 `Diary.PluginUI` 的契约接入：
 敏感配置使用 `StorageFileAttribute` 的加密键保存，API Key 等字段通过 `ConfigureTextAttribute`
 标记为密码输入。编辑器只在用户显式修改后更新字段，配置迁移和日志导出均不输出明文密钥。
 
-## 11. 当前已知缺口
+## 12. 当前已知缺口
 
 - `SupportsMultipleInstances` 已接入 Redmine 和 Jira manifest、实例配置、导航和编辑器上下文；后续新插件仍需按自身能力声明该标志。
 - 插件实例注册、数据库扩展迁移和 UI/模板注册已收敛到统一生命周期；数据库扩展的具体创建和迁移仍由插件实现。
@@ -338,7 +346,7 @@ Redmine 和 Jira UI 通过 `Diary.PluginUI` 的契约接入：
 - 工作项查询结果由 ViewModel 统一生成耗时合计，并通过通用文件保存入口导出 CSV/Markdown；导出不改变本地数据。
 - 首次启动引导和开发者功能开关保存在应用视图配置中；固定导航页按开关重建，Tracker 管理页仍按插件实例动态注册。
 
-## 12. 自定义事项查询
+## 13. 自定义事项查询
 
 核心查询使用 `WorkItemQuery`，由 `DbInterfaceBase.QueryWorkItems()` 统一定义 provider 契约。
 SQLite 和 PostgreSQL 都支持日期范围、标题/备注关键字、优先级、分页以及五种标签模式：
@@ -351,7 +359,7 @@ SQLite 和 PostgreSQL 都支持日期范围、标题/备注关键字、优先级
 `Diary.ScriptHost` 已提供受限只读事项查询 API。详细设计见
 [`WorkItemQueryDesign.md`](WorkItemQueryDesign.md)。
 
-## 13. 标签自动化规则
+## 14. 标签自动化规则
 
 `WorkEditorViewModel.AddTags()` 统一用户、模板和批量标签添加。只有实际新增标签才按输入顺序调用
 `ITagAutomationCoordinator`；数据库加载、重新同步和删除标签不会触发规则。
@@ -365,7 +373,7 @@ Redmine 实例设置页和核心标签编辑器复用规则编辑 ViewModel，�
 
 详细设计见 [`TagAutomationDesign.md`](TagAutomationDesign.md)。
 
-## 14. 脚本运行时
+## 15. 脚本运行时
 
 `Diary.Script.Runtime` 当前提供 `IScriptManager`、`ScriptCatalog`、构建服务、进程内
 `ScriptExecutor` 和按语言路由的 `WorkerScriptExecutor`。应用启动时注册 C#、Lua、Python 三个引擎，
@@ -387,7 +395,7 @@ WorkItemCreated/WorkItemSaved/TagAdded 仍未接线。Query 入口已落地（`I
 基类与三语言创建模板，管理页可运行）。执行历史与进度均为会话内存态，持久化经决策明确延期；
 脚本包管理、Windows/Linux 运行时打包和更强的操作系统级资源限制仍需继续扩展；macOS 不在当前支持范围内。
 
-## 15. 维护约定
+## 16. 维护约定
 
 - 新增 tracker 不得把具体类型加入 `Diary.Core` 或核心编辑器。
 - 新增数据库扩展必须实现 provider 契约测试，并验证缺失程序集时核心数据库仍可启动。
