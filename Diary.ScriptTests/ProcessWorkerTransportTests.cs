@@ -10,16 +10,10 @@ public sealed class ProcessWorkerTransportTests
     [TestMethod]
     public async Task ProcessTransport_CompletesHandshakeHealthCheckAndExecution()
     {
-        if (!OperatingSystem.IsLinux())
-        {
-            Assert.Inconclusive("当前集成测试使用 Linux dotnet 路径。");
-            return;
-        }
-
         var workerPath = GetWorkerPath();
         Assert.IsTrue(File.Exists(workerPath), $"Worker 文件不存在：{workerPath}");
         var factory = new ProcessWorkerTransportFactory(new(
-            "/usr/share/dotnet/dotnet",
+            GetRequiredDotnetPath(),
             [workerPath],
             Path.GetDirectoryName(workerPath)!,
             new Dictionary<string, string> { ["DOTNET_CLI_UI_LANGUAGE"] = "en-US" }));
@@ -44,15 +38,9 @@ public sealed class ProcessWorkerTransportTests
     [TestMethod]
     public async Task ProcessTransport_HeartbeatKeepsWorkerAlive()
     {
-        if (!OperatingSystem.IsLinux())
-        {
-            Assert.Inconclusive("当前集成测试使用 Linux dotnet 路径。");
-            return;
-        }
-
         var workerPath = GetWorkerPath();
         var factory = new ProcessWorkerTransportFactory(new(
-            GetDotnetPath() ?? throw new InvalidOperationException("dotnet 路径不可用。"),
+            GetRequiredDotnetPath(),
             [workerPath, "--language", "csharp"],
             Path.GetDirectoryName(workerPath)!,
             new Dictionary<string, string> { ["DOTNET_CLI_UI_LANGUAGE"] = "en-US" }));
@@ -79,12 +67,6 @@ public sealed class ProcessWorkerTransportTests
     [TestMethod]
     public async Task ProcessTransport_LuaWorkerExecutesScript()
     {
-        if (!OperatingSystem.IsLinux())
-        {
-            Assert.Inconclusive("当前集成测试使用 Linux dotnet 路径。");
-            return;
-        }
-
         var workerPath = GetWorkerPath();
         var supervisor = CreateDotnetSupervisor(workerPath, "lua");
         try
@@ -109,21 +91,10 @@ public sealed class ProcessWorkerTransportTests
     [TestMethod]
     public async Task ProcessTransport_PythonWorkerExecutesScriptAndIsolatesPrint()
     {
-        if (!OperatingSystem.IsLinux())
-        {
-            Assert.Inconclusive("当前集成测试使用 Linux Python 路径。");
-            return;
-        }
-
-        var runtime = await new Diary.Script.Py.PythonRuntimeResolver().ResolveAsync();
-        if (!runtime.Succeeded || runtime.ExecutablePath is null)
-        {
-            Assert.Inconclusive("当前环境没有可用的 Python 3.10+ runtime。");
-            return;
-        }
+        var runtime = await GetRequiredPythonRuntimeAsync();
 
         var supervisor = new WorkerSupervisor(new ProcessWorkerTransportFactory(new WorkerProcessOptions(
-            runtime.ExecutablePath,
+            runtime.ExecutablePath!,
             Diary.Script.Py.PythonWorkerSource.CreateArguments(),
             AppContext.BaseDirectory,
             new Dictionary<string, string>
@@ -153,21 +124,10 @@ public sealed class ProcessWorkerTransportTests
     [TestMethod]
     public async Task WorkerScriptExecutor_RoutesLuaAndPythonLikeApplication()
     {
-        if (!OperatingSystem.IsLinux())
-        {
-            Assert.Inconclusive("当前集成测试使用 Linux Worker 产物。");
-            return;
-        }
-
         var workerPath = GetAppWorkerPath();
         Assert.IsTrue(File.Exists(workerPath), $"App Worker 文件不存在：{workerPath}");
         var pythonResolver = new Diary.Script.Py.PythonRuntimeResolver();
-        var python = await pythonResolver.ResolveAsync();
-        if (!python.Succeeded)
-        {
-            Assert.Inconclusive("当前环境没有可用的 Python 3.10+ runtime。");
-            return;
-        }
+        _ = await GetRequiredPythonRuntimeAsync(pythonResolver);
 
         var catalog = new ScriptCatalog();
         RegisterSource(catalog, "lua-app", "lua", "demo.lua", "function application_main(context) return nil end");
@@ -225,22 +185,12 @@ public sealed class ProcessWorkerTransportTests
     {
         var workerPath = GetWorkerPath();
         Assert.IsTrue(File.Exists(workerPath), $"Worker 文件不存在：{workerPath}");
-        var dotnetPath = GetDotnetPath();
-        if (dotnetPath is null)
-        {
-            Assert.Inconclusive("当前环境没有可用的绝对 dotnet 路径。");
-            return;
-        }
+        var dotnetPath = GetRequiredDotnetPath();
 
         var csharpDispatcher = new ProgressDispatcher();
         var luaDispatcher = new ProgressDispatcher();
         var pythonDispatcher = new ProgressDispatcher();
-        var pythonRuntime = await new Diary.Script.Py.PythonRuntimeResolver().ResolveAsync();
-        if (!pythonRuntime.Succeeded || pythonRuntime.ExecutablePath is null)
-        {
-            Assert.Inconclusive("当前环境没有可用的 Python 3.10+ runtime。");
-            return;
-        }
+        var pythonRuntime = await GetRequiredPythonRuntimeAsync();
 
         var cases = new[]
         {
@@ -268,7 +218,7 @@ public sealed class ProcessWorkerTransportTests
                 Language: "python",
                 Supervisor: new WorkerSupervisor(
                     new ProcessWorkerTransportFactory(new WorkerProcessOptions(
-                        pythonRuntime.ExecutablePath,
+                        pythonRuntime.ExecutablePath!,
                         Diary.Script.Py.PythonWorkerSource.CreateArguments(),
                         AppContext.BaseDirectory,
                         new Dictionary<string, string>
@@ -328,19 +278,9 @@ public sealed class ProcessWorkerTransportTests
     {
         var workerPath = GetWorkerPath();
         Assert.IsTrue(File.Exists(workerPath), $"Worker 文件不存在：{workerPath}");
-        var dotnetPath = GetDotnetPath();
-        if (dotnetPath is null)
-        {
-            Assert.Inconclusive("当前环境没有可用的绝对 dotnet 路径。");
-            return;
-        }
+        var dotnetPath = GetRequiredDotnetPath();
 
-        var pythonRuntime = await new Diary.Script.Py.PythonRuntimeResolver().ResolveAsync();
-        if (!pythonRuntime.Succeeded || pythonRuntime.ExecutablePath is null)
-        {
-            Assert.Inconclusive("当前环境没有可用的 Python 3.10+ runtime。");
-            return;
-        }
+        var pythonRuntime = await GetRequiredPythonRuntimeAsync();
 
         var cases = new[]
         {
@@ -390,7 +330,7 @@ public sealed class ProcessWorkerTransportTests
 
         foreach (var testCase in cases)
         {
-            var supervisor = CreateSupervisor(testCase.Language, workerPath, dotnetPath, pythonRuntime.ExecutablePath);
+            var supervisor = CreateSupervisor(testCase.Language, workerPath, dotnetPath, pythonRuntime.ExecutablePath!);
             try
             {
                 await supervisor.StartAsync(new(testCase.Language, [ScriptApiVersion.V1], []));
@@ -507,27 +447,11 @@ public sealed class ProcessWorkerTransportTests
     [TestMethod]
     public async Task ProcessTransport_ForwardsScriptPrintToLogAcrossLanguages()
     {
-        if (!OperatingSystem.IsLinux())
-        {
-            Assert.Inconclusive("当前集成测试使用 Linux 路径。");
-            return;
-        }
-
         var workerPath = GetWorkerPath();
         Assert.IsTrue(File.Exists(workerPath), $"Worker 文件不存在：{workerPath}");
-        var dotnetPath = GetDotnetPath();
-        if (dotnetPath is null)
-        {
-            Assert.Inconclusive("当前环境没有可用的绝对 dotnet 路径。");
-            return;
-        }
+        var dotnetPath = GetRequiredDotnetPath();
 
-        var pythonRuntime = await new Diary.Script.Py.PythonRuntimeResolver().ResolveAsync();
-        if (!pythonRuntime.Succeeded || pythonRuntime.ExecutablePath is null)
-        {
-            Assert.Inconclusive("当前环境没有可用的 Python 3.10+ runtime。");
-            return;
-        }
+        var pythonRuntime = await GetRequiredPythonRuntimeAsync();
 
         var cases = new[]
         {
@@ -555,7 +479,7 @@ public sealed class ProcessWorkerTransportTests
                 "python",
                 dispatcher => new WorkerSupervisor(
                     new ProcessWorkerTransportFactory(new WorkerProcessOptions(
-                        pythonRuntime.ExecutablePath,
+                        pythonRuntime.ExecutablePath!,
                         Diary.Script.Py.PythonWorkerSource.CreateArguments(),
                         AppContext.BaseDirectory,
                         new Dictionary<string, string>
@@ -629,27 +553,11 @@ public sealed class ProcessWorkerTransportTests
     [TestMethod]
     public async Task ProcessTransport_PassesEffectsThroughLuaAndPython()
     {
-        if (!OperatingSystem.IsLinux())
-        {
-            Assert.Inconclusive("当前集成测试使用 Linux 路径。");
-            return;
-        }
-
         var workerPath = GetWorkerPath();
         Assert.IsTrue(File.Exists(workerPath), $"Worker 文件不存在：{workerPath}");
-        var dotnetPath = GetDotnetPath();
-        if (dotnetPath is null)
-        {
-            Assert.Inconclusive("当前环境没有可用的绝对 dotnet 路径。");
-            return;
-        }
+        var dotnetPath = GetRequiredDotnetPath();
 
-        var pythonRuntime = await new Diary.Script.Py.PythonRuntimeResolver().ResolveAsync();
-        if (!pythonRuntime.Succeeded || pythonRuntime.ExecutablePath is null)
-        {
-            Assert.Inconclusive("当前环境没有可用的 Python 3.10+ runtime。");
-            return;
-        }
+        var pythonRuntime = await GetRequiredPythonRuntimeAsync();
 
         var cases = new[]
         {
@@ -666,7 +574,7 @@ public sealed class ProcessWorkerTransportTests
                 Language: "python",
                 Supervisor: new WorkerSupervisor(
                     new ProcessWorkerTransportFactory(new WorkerProcessOptions(
-                        pythonRuntime.ExecutablePath,
+                        pythonRuntime.ExecutablePath!,
                         Diary.Script.Py.PythonWorkerSource.CreateArguments(),
                         AppContext.BaseDirectory,
                         new Dictionary<string, string>
@@ -712,16 +620,10 @@ public sealed class ProcessWorkerTransportTests
     [TestMethod]
     public async Task ProcessTransport_WorkerHonorsNegotiatedLimits()
     {
-        if (!OperatingSystem.IsLinux())
-        {
-            Assert.Inconclusive("当前集成测试使用 Linux dotnet 路径。");
-            return;
-        }
-
         var workerPath = GetWorkerPath();
         var supervisor = new WorkerSupervisor(
             new ProcessWorkerTransportFactory(new(
-                GetDotnetPath() ?? throw new InvalidOperationException("dotnet 路径不可用。"),
+                GetRequiredDotnetPath(),
                 [workerPath, "--language", "csharp"],
                 Path.GetDirectoryName(workerPath)!,
                 new Dictionary<string, string> { ["DOTNET_CLI_UI_LANGUAGE"] = "en-US" })),
@@ -757,16 +659,10 @@ public sealed class ProcessWorkerTransportTests
     [TestMethod]
     public async Task ProcessTransport_WorkerReportsOversizedResultCleanly()
     {
-        if (!OperatingSystem.IsLinux())
-        {
-            Assert.Inconclusive("当前集成测试使用 Linux dotnet 路径。");
-            return;
-        }
-
         var workerPath = GetWorkerPath();
         var supervisor = new WorkerSupervisor(
             new ProcessWorkerTransportFactory(new(
-                GetDotnetPath() ?? throw new InvalidOperationException("dotnet 路径不可用。"),
+                GetRequiredDotnetPath(),
                 [workerPath, "--language", "csharp"],
                 Path.GetDirectoryName(workerPath)!,
                 new Dictionary<string, string> { ["DOTNET_CLI_UI_LANGUAGE"] = "en-US" })),
@@ -813,34 +709,76 @@ public sealed class ProcessWorkerTransportTests
         string? dotnetPath = null,
         IWorkerHostCallDispatcher? dispatcher = null) =>
         new(new ProcessWorkerTransportFactory(new(
-            dotnetPath ?? GetDotnetPath() ?? throw new InvalidOperationException("dotnet 路径不可用。"),
+            dotnetPath ?? GetRequiredDotnetPath(),
             [workerPath, "--language", language],
             Path.GetDirectoryName(workerPath)!,
             new Dictionary<string, string> { ["DOTNET_CLI_UI_LANGUAGE"] = "en-US" })),
             dispatcher,
             cancellationGracePeriod: TimeSpan.FromSeconds(2));
+    private const string RequirePythonTestsEnvironmentVariable = "DIARY_REQUIRE_PYTHON_TESTS";
+
+    private static string GetRequiredDotnetPath() =>
+        GetDotnetPath() ?? throw new AssertFailedException("当前环境没有可用的绝对 dotnet 路径。");
+
     private static string? GetDotnetPath()
     {
         var executableName = OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet";
-        var roots = new[]
+        var processPath = Environment.ProcessPath;
+        var candidates = new List<string?>
         {
-            Environment.GetEnvironmentVariable("DOTNET_ROOT"),
-            Environment.GetEnvironmentVariable("DOTNET_ROOT(x86)"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "dotnet"),
-            "/usr/share/dotnet",
+            Environment.GetEnvironmentVariable("DOTNET_HOST_PATH"),
+            string.Equals(Path.GetFileName(processPath), executableName, StringComparison.OrdinalIgnoreCase)
+                ? processPath
+                : null,
+            CombineExecutable(Environment.GetEnvironmentVariable("DOTNET_ROOT"), executableName),
+            CombineExecutable(Environment.GetEnvironmentVariable("DOTNET_ROOT(x86)"), executableName),
+            CombineExecutable(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet"), executableName),
+            CombineExecutable(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "dotnet"), executableName),
+            CombineExecutable("/usr/share/dotnet", executableName),
         };
-        return roots
-            .Where(root => !string.IsNullOrWhiteSpace(root))
-            .Select(root => Path.Combine(root!, executableName))
+        var path = Environment.GetEnvironmentVariable("PATH");
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            candidates.AddRange(path
+                .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(directory => CombineExecutable(directory, executableName)));
+        }
+
+        return candidates
+            .Where(candidate => !string.IsNullOrWhiteSpace(candidate))
+            .Select(candidate => Path.GetFullPath(candidate!))
+            .Distinct(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal)
             .FirstOrDefault(File.Exists);
+    }
+
+    private static string? CombineExecutable(string? directory, string executableName) =>
+        string.IsNullOrWhiteSpace(directory) ? null : Path.Combine(directory, executableName);
+
+    private static async Task<Diary.Script.Py.PythonRuntimeResolution> GetRequiredPythonRuntimeAsync(
+        Diary.Script.Py.PythonRuntimeResolver? resolver = null)
+    {
+        var runtime = await (resolver ?? new Diary.Script.Py.PythonRuntimeResolver()).ResolveAsync();
+        if (runtime.Succeeded && runtime.ExecutablePath is not null)
+            return runtime;
+
+        var detail = string.Join("; ", runtime.Diagnostics.Select(diagnostic =>
+            $"{diagnostic.Code}: {diagnostic.Message}"));
+        var message = $"当前环境没有可用的 Python 3.10+ runtime。{detail}";
+        if (string.Equals(
+                Environment.GetEnvironmentVariable(RequirePythonTestsEnvironmentVariable),
+                "1",
+                StringComparison.Ordinal))
+            throw new AssertFailedException(message);
+
+        Assert.Inconclusive(message);
+        throw new InvalidOperationException(message);
     }
 
     private static string GetWorkerPath() => GetBuildArtifactPath(
         "Diary.Script.Worker/bin", "Diary.Script.Worker.dll");
 
     private static string GetAppWorkerPath() => GetBuildArtifactPath(
-        "Diary.App/bin", "Diary.Script.Worker");
+        "Diary.App/bin", OperatingSystem.IsWindows() ? "Diary.Script.Worker.exe" : "Diary.Script.Worker");
 
     private static string GetBuildArtifactPath(string projectOutput, string artifactName)
     {

@@ -241,9 +241,10 @@ Jira：plugin_data_versions（与 Redmine 共用同一张表）、jira_projects�
 备份失败会阻止迁移；PostgreSQL provider 不在客户端生成服务器备份，应用会记录必须确认外部备份的告警。
 
 当前产品支持范围为 Windows 和 Linux；macOS 暂不纳入产品支持、发布产物和稳定性验证范围。
-CI 在 Windows 和 Ubuntu 上执行 Release 构建与全量测试。Ubuntu 门禁通过
-`DIARY_REQUIRE_POSTGRES_TESTS=1` 强制启动 PostgreSQL Testcontainers，容器不可用即失败；Windows
-用于覆盖平台构建和 Windows 专用运行路径。标签发布在对应原生 Runner 上分别生成 `win-x64` 和
+CI 在 Windows 和 Ubuntu 上执行 Release 构建与全量测试，并固定 Python 3.10；
+`DIARY_REQUIRE_PYTHON_TESTS=1` 要求两端真实执行 C#、Lua、Python Worker 进程测试，运行时不可用即失败。
+Ubuntu 门禁另通过 `DIARY_REQUIRE_POSTGRES_TESTS=1` 强制启动 PostgreSQL Testcontainers，容器不可用即失败；
+Windows 用于覆盖平台构建和 Windows 专用运行路径。标签发布在对应原生 Runner 上分别生成 `win-x64` 和
 `linux-x64` 自包含包，并在压缩前检查 Tracker 插件程序集和脚本 Worker 是否齐全。
 
 ## 6. Redmine schema 迁移

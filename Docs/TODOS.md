@@ -179,7 +179,7 @@ Jira 失败时核心工作记录仍可保存。
 
 Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 
-- [~] 已增加强制终止、忽略取消脚本的超时回收、跨平台进程终止测试、资源超限回收以及 Python/Lua runtime 缺失诊断；Windows/Linux 启动与 native/runtime 打包矩阵仍待持续验证。macOS 不在当前产品支持、发布和验证范围内。
+- [~] Windows/Linux CI 已固定 Python 3.10 并强制执行 C#、Lua、Python 真实 Worker 启动、握手、心跳、执行、取消、超时、日志和 Effects 用例；测试工件、dotnet、Python 与 Worker apphost 定位已平台无关，不再因 Windows 环境静默跳过。native/runtime 发布包 Smoke Test 仍待完成。macOS 不在当前产品支持、发布和验证范围内。
 - [x] Python Worker 的安全内置函数白名单已加入 `next`，并补充真实 Worker 执行回归测试与 API 文档说明。
 
 ### 9.9 Worker 落地
@@ -193,7 +193,7 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [x] 已实现显式 Worker 隔离策略：C#、Lua 使用共享 worker，Python 使用每请求独立 worker；高风险脚本可在运行时注册层选择 `Dedicated`。
 - [x] 已评估查询流架构：当前保留分页式 Worker HostCall；reader/chunk 仅在跨 provider 异步契约和性能基准证明分页物化为瓶颈后再引入新协议。
 - [x] 已接线 Worker 心跳与超时：App 为三个 supervisor 显式开启心跳（30s 间隔/15s 超时，默认关闭；仅 `Ready` 且抢到执行门时 ping）；启动/握手超时（默认 10s）→`Failed`+`WORKER_HANDSHAKE_TIMED_OUT`；宿主调用响应超时（默认 30s）→`Failed`+停止进程+`WORKER_HOST_CALL_TIMED_OUT`（视为 worker 故障不重试）；应用退出通过 `StopAllAsync` 优雅停 worker，修复孤儿进程。
-- [~] 已增加 C#、Lua、Python Worker 执行对照、跨平台进程终止、工作集和 stderr 超限回收测试，并完成 runtime 缺失结构化诊断；工作集/输出超限真实进程集成测试及 Windows/Linux 运行时打包矩阵仍待完成。macOS 不纳入本阶段验证。
+- [~] `ProcessWorkerTransportTests` 的 15 个核心真实进程用例已在 Windows/Linux 共用实现，CI 通过 `DIARY_REQUIRE_PYTHON_TESTS=1` 禁止 Python 测试静默跳过；工作集/输出超限真实进程集成测试及 Windows/Linux 发布包运行时 Smoke Test 仍待完成。macOS 不纳入本阶段验证。
 
 验收：脚本 worker 崩溃、协议失步、超时或被强制终止时，主程序和其他语言 worker 继续运行；
 脚本执行历史可以关联 worker ID、请求 ID 和执行 ID；只读宿主调用跨 C#、Lua、Python 使用一致协议。

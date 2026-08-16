@@ -28,6 +28,10 @@ jobs:
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.10'
       - name: Restore packages
         run: dotnet restore DiaryApp.sln
       - name: Release build
@@ -36,6 +40,7 @@ jobs:
         run: dotnet test DiaryApp.sln --configuration Release --no-build --no-restore --verbosity minimal
         env:
           DIARY_REQUIRE_POSTGRES_TESTS: ${{ runner.os == 'Linux' && '1' || '0' }}
+          DIARY_REQUIRE_PYTHON_TESTS: '1'
 
   build:
     needs: verify
