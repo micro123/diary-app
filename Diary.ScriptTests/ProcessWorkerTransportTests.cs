@@ -16,9 +16,7 @@ public sealed class ProcessWorkerTransportTests
             return;
         }
 
-        var workerPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "../../../../Diary.Script.Worker/bin/Debug/net10.0/Diary.Script.Worker.dll"));
+        var workerPath = GetWorkerPath();
         Assert.IsTrue(File.Exists(workerPath), $"Worker 文件不存在：{workerPath}");
         var factory = new ProcessWorkerTransportFactory(new(
             "/usr/share/dotnet/dotnet",
@@ -161,9 +159,7 @@ public sealed class ProcessWorkerTransportTests
             return;
         }
 
-        var workerPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "../../../../Diary.App/bin/Debug/net10.0/Diary.Script.Worker"));
+        var workerPath = GetAppWorkerPath();
         Assert.IsTrue(File.Exists(workerPath), $"App Worker 文件不存在：{workerPath}");
         var pythonResolver = new Diary.Script.Py.PythonRuntimeResolver();
         var python = await pythonResolver.ResolveAsync();
@@ -840,7 +836,13 @@ public sealed class ProcessWorkerTransportTests
             .FirstOrDefault(File.Exists);
     }
 
-    private static string GetWorkerPath()
+    private static string GetWorkerPath() => GetBuildArtifactPath(
+        "Diary.Script.Worker/bin", "Diary.Script.Worker.dll");
+
+    private static string GetAppWorkerPath() => GetBuildArtifactPath(
+        "Diary.App/bin", "Diary.Script.Worker");
+
+    private static string GetBuildArtifactPath(string projectOutput, string artifactName)
     {
         var baseDirectory = new DirectoryInfo(AppContext.BaseDirectory);
         var configuration = baseDirectory.Parent?.Name;
@@ -849,9 +851,11 @@ public sealed class ProcessWorkerTransportTests
 
         return Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory,
-            "../../../../Diary.Script.Worker/bin",
+            "../../../../",
+            projectOutput,
             configuration,
-            "net10.0/Diary.Script.Worker.dll"));
+            "net10.0",
+            artifactName));
     }
 
     private const string CSharpCancellationSource = """

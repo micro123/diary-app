@@ -70,7 +70,8 @@ public sealed class WorkEditorViewModelTests
             AttemptedAt: attemptedAt);
 
         StringAssert.Contains(result.ResultSummary, "请先核对远程记录后再决定是否重试");
-        StringAssert.Contains(result.ResultSummary, "尝试时间：2026-08-11 14:00:00");
+        var expectedAttemptedAt = attemptedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
+        StringAssert.Contains(result.ResultSummary, $"尝试时间：{expectedAttemptedAt}");
     }
 
     private static void SetWorkItem(WorkEditorViewModel viewModel, WorkItem item)
