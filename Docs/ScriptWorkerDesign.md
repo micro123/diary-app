@@ -9,7 +9,7 @@
 本文同时记录目标设计和当前实现。当前已实现协议握手、版本和 HostCall 协商、UTF-8 JSON 行编解码、
 可注入传输层、本机进程 transport、C#/Lua/Python Worker 执行链路、按 EngineName 隔离的 supervisor、
 双向宿主 API 转发、通道终止结构化失败以及执行消息和宿主调用次数限制。
-工作集上限按 supervisor 的资源检查周期持续监控，stderr 超限会触发 Worker 回收；操作系统级硬内存限制仍按平台能力处理，跨平台运行时和打包矩阵仍需持续验证。Worker 协议 stdout 已与脚本标准输出隔离，并限制脚本输出大小。工作项流当前采用受限分页 HostCall，不跨 Worker 边界持有数据库连接或 reader，详见查询设计文档。现有脚本 V1 类型和执行结果见
+工作集上限按 supervisor 的资源检查周期持续监控，stderr 超限会触发 Worker 回收；操作系统级硬内存限制仍按平台能力处理，Windows/Linux 运行时和打包矩阵仍需持续验证；macOS 不在当前支持范围内。Worker 协议 stdout 已与脚本标准输出隔离，并限制脚本输出大小。工作项流当前采用受限分页 HostCall，不跨 Worker 边界持有数据库连接或 reader，详见查询设计文档。现有脚本 V1 类型和执行结果见
 [`ScriptSystemDesign.md`](ScriptSystemDesign.md) 及 `Diary.ScriptBase`。
 
 ## 2. 设计结论
@@ -571,7 +571,7 @@ supervisor 应支持以下限制，并在 worker 启动或执行前配置：
 
 - 使用独立 Python 3 解释器进程和受控 `worker.py`，不嵌入 CPython；Worker 源码作为 `Diary.Script.Python.dll` 嵌入资源，通过 `python -I -c` 启动。
 - `PythonRuntimeResolver` 位于 `Diary.Script.Python`，负责绝对解释器路径、版本探测、worker 路径和环境诊断。
-- Windows 正式包使用应用内的 embeddable distribution；Linux 使用系统 `python3`/`python3.X` 包；macOS 使用显式配置或系统/用户 `python3`。Resolver 会报告候选路径、平台和版本探测原因，Windows 额外支持 `py.exe` 启动器候选。
+- Windows 正式包使用应用内的 embeddable distribution；Linux 使用系统 `python3`/`python3.X` 包。Resolver 会报告候选路径、平台和版本探测原因，Windows 额外支持 `py.exe` 启动器候选。
 - embeddable distribution 只作为应用发布资源解压使用，不执行 pip，不修改 PATH/注册表；Linux 不调用发行版包管理器。
 - 禁止脚本直接把协议 JSON 写入 stdout；`print` 和 traceback 写入受限 stderr。
 - worker 通过 `ast.parse(source, filename=source_path)` 做语法检查（`worker.py` 的 `source_diagnostics`），`compile` 只在执行阶段调用；执行时创建新的 globals/context；第一版每个 worker 最多执行一个请求。
@@ -661,7 +661,7 @@ worker 重启后不会自动重复未确认的副作用操作。
 - [x] 接入独立 Python 3 worker，使用 `PythonRuntimeResolver` 管理解释器发现。
 - [x] 按语言维护独立 supervisor 和故障状态，复用同一协议与 HostCall。
 - [x] 目录加载和构建结果保留所选 `EngineName`，确保 Lua/Python 执行不会回退到 C# Worker。
-- [~] 已实现多语言路由、运行时发现和版本诊断；Windows/Linux/macOS 启动与打包矩阵待持续验证。
+- [~] 已实现多语言路由、运行时发现和版本诊断；Windows/Linux 启动与打包矩阵待持续验证，macOS 不纳入验证矩阵。
 - [x] 实现 worker 强制终止和忽略取消脚本的超时回收；stderr 仅保留超限状态，不保留文本摘要。
 
 ### 第四阶段：资源和副作用

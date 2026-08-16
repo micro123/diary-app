@@ -240,6 +240,7 @@ Jira：plugin_data_versions（与 Redmine 共用同一张表）、jira_projects�
 迁移开始前，SQLite 使用在线备份 API 在数据库同目录的 `Backups` 下生成带源/目标版本的独立快照，
 备份失败会阻止迁移；PostgreSQL provider 不在客户端生成服务器备份，应用会记录必须确认外部备份的告警。
 
+当前产品支持范围为 Windows 和 Linux；macOS 暂不纳入产品支持、发布产物和稳定性验证范围。
 CI 在 Windows 和 Ubuntu 上执行 Release 构建与全量测试。Ubuntu 门禁通过
 `DIARY_REQUIRE_POSTGRES_TESTS=1` 强制启动 PostgreSQL Testcontainers，容器不可用即失败；Windows
 用于覆盖平台构建和 Windows 专用运行路径。标签发布在对应原生 Runner 上分别生成 `win-x64` 和
@@ -383,7 +384,7 @@ Worker 握手通过 `supportedHostApis` 协商实际可用的 HostCall，宿主 
 内存 last-run 表防重、启动补跑一轮到期脚本，并生成请求级幂等键；Startup/Scheduled 触发器已接线，
 WorkItemCreated/WorkItemSaved/TagAdded 仍未接线。Query 入口已落地（`IQueryScriptV1`/`QueryScript`
 基类与三语言创建模板，管理页可运行）。执行历史与进度均为会话内存态，持久化经决策明确延期；
-脚本包管理、跨平台运行时打包和更强的操作系统级资源限制仍需继续扩展。
+脚本包管理、Windows/Linux 运行时打包和更强的操作系统级资源限制仍需继续扩展；macOS 不在当前支持范围内。
 
 ## 15. 维护约定
 
