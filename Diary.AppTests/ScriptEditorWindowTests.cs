@@ -68,7 +68,7 @@ public sealed class ScriptEditorWindowTests
         }
         finally
         {
-            DeleteDirectory(root);
+            await DeleteDirectoryAsync(root);
         }
     }
 
@@ -96,7 +96,7 @@ public sealed class ScriptEditorWindowTests
         }
         finally
         {
-            DeleteDirectory(root);
+            await DeleteDirectoryAsync(root);
         }
     }
 
@@ -153,7 +153,7 @@ public sealed class ScriptEditorWindowTests
         }
         finally
         {
-            DeleteDirectory(root);
+            await DeleteDirectoryAsync(root);
         }
     }
 
@@ -197,7 +197,7 @@ public sealed class ScriptEditorWindowTests
         }
         finally
         {
-            DeleteDirectory(root);
+            await DeleteDirectoryAsync(root);
         }
     }
 
@@ -213,10 +213,25 @@ public sealed class ScriptEditorWindowTests
         return root;
     }
 
-    private static void DeleteDirectory(string path)
+    private static async Task DeleteDirectoryAsync(string path)
     {
-        if (Directory.Exists(path))
-            Directory.Delete(path, true);
+        const int maxAttempts = 5;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            if (!Directory.Exists(path))
+                return;
+            try
+            {
+                Directory.Delete(path, true);
+                return;
+            }
+            catch (Exception exception) when (
+                attempt < maxAttempts
+                && exception is IOException or UnauthorizedAccessException)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(100 * attempt));
+            }
+        }
     }
 
     private sealed class EmptyDirectoryLoader : IScriptDirectoryLoader
