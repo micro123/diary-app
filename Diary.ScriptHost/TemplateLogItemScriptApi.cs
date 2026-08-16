@@ -18,9 +18,6 @@ public sealed class TemplateLogItemScriptApi(
             return ValueTask.FromResult(Failure(ScriptLogItemErrorCode.Cancelled, "记录已取消。"));
         if (!TryValidate(request, out var error))
             return ValueTask.FromResult(Failure(ScriptLogItemErrorCode.InvalidInput, error));
-        using var idempotencyLease = string.IsNullOrWhiteSpace(request.IdempotencyKey)
-            ? null
-            : _idempotencyStore.Acquire("templateLogItems.create", request.IdempotencyKey);
         var template = templatesProvider().FirstOrDefault(item =>
             string.Equals(item.Id, request.TemplateId, StringComparison.OrdinalIgnoreCase));
         if (template is null)
@@ -28,15 +25,6 @@ public sealed class TemplateLogItemScriptApi(
         var title = string.IsNullOrWhiteSpace(request.Title) ? template.DefaultTitle : request.Title;
         if (string.IsNullOrWhiteSpace(title) || title.Length > LogItemScriptApi.MaxTitleLength)
             return ValueTask.FromResult(Failure(ScriptLogItemErrorCode.InvalidInput, "标题不能为空或超过长度限制。"));
-        if (!string.IsNullOrWhiteSpace(request.IdempotencyKey)
-            && _idempotencyStore.TryGet("templateLogItems.create", request.IdempotencyKey, out var previous))
-        {
-            return ValueTask.FromResult(previous with
-            {
-                Duplicate = true,
-                Effects = previous.Effects is { } effects ? effects with { AppendedCount = 0 } : null,
-            });
-        }
         if (request.Preview)
         {
             var previewItem = new ScriptWorkItem(
@@ -45,6 +33,19 @@ public sealed class TemplateLogItemScriptApi(
             return ValueTask.FromResult(ScriptLogItemResult.Success(
                 previewItem,
                 new ScriptEffectSummary(0, true, request.IdempotencyKey, [])));
+        }
+
+        using var idempotencyLease = string.IsNullOrWhiteSpace(request.IdempotencyKey)
+            ? null
+            : _idempotencyStore.Acquire("templateLogItems.create", request.IdempotencyKey);
+        if (!string.IsNullOrWhiteSpace(request.IdempotencyKey)
+            && _idempotencyStore.TryGet("templateLogItems.create", request.IdempotencyKey, out var previous))
+        {
+            return ValueTask.FromResult(previous with
+            {
+                Duplicate = true,
+                Effects = previous.Effects is { } effects ? effects with { AppendedCount = 0 } : null,
+            });
         }
 
         DbInterfaceBase? database;

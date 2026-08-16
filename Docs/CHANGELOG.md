@@ -8,6 +8,8 @@
 
 ### 脚本系统（Worker 可靠性、自动化与查询）
 
+- 脚本日志项创建：普通创建补充 provider 事务，失败时回滚；普通和模板创建的 `Preview` 均在数据库访问前返回投影结果，不写入数据库或幂等存储
+
 - Worker 心跳与超时：心跳 30s 间隔/15s 超时（仅 Ready 状态）；握手超时 `WORKER_HANDSHAKE_TIMED_OUT`、宿主调用超时 `WORKER_HOST_CALL_TIMED_OUT`；应用退出优雅停止 Worker
 - 执行进度：管理页运行区进度条 + 执行历史详情进度时间线（会话内存态，重启即失；持久化明确延期）
 - 自动化脚本：`Scheduled`（`daily HH:mm`）与 `Startup`（启动补跑）触发、30s 调度器防重、请求级幂等键；管理页 metadata 设置区与创建向导可配置

@@ -152,7 +152,7 @@ Query 入口已落地：ScriptBase 提供 `IQueryScriptV1` 接口与 `QueryScrip
 
 `ScriptAutomationScheduler` 挂在脚本目录加载完成后：`LoadScriptsAsync` 成功后应用加载结果并启动调度器，再在后台执行启动补跑（`RunStartupCatchUpAsync`）；调度器按内存 last-run 表防止同一调度窗口重复执行。
 
-追加式日志项的幂等结果由宿主共享的 `ScriptIdempotencyStore` 保存。普通日志项和模板日志项使用不同的 API 作用域，即使幂等键字符串相同也不会互相覆盖；已提交结果会在应用重启后恢复，Worker 重启不会自动重放带副作用的请求。脚本自动化不提供删除或直接改写历史记录，Tracker 远程写入也不在当前 Worker HostCall 范围内。
+追加式日志项的幂等结果由宿主共享的 `ScriptIdempotencyStore` 保存。普通日志项和模板日志项使用不同的 API 作用域，即使幂等键字符串相同也不会互相覆盖；已提交结果会在应用重启后恢复，Worker 重启不会自动重放带副作用的请求。普通日志项和模板日志项的真实写入均在 provider 事务中完成，失败时回滚；`Preview=true` 只返回投影记录和副作用摘要，不开启写入事务，也不改变数据库或幂等存储。脚本自动化不提供删除或直接改写历史记录，Tracker 远程写入也不在当前 Worker HostCall 范围内。
 
 构建失败的脚本可以显示在诊断列表中，但不得阻止其他脚本和核心程序启动。
 

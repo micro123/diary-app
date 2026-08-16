@@ -21,6 +21,16 @@ public sealed class LogItemScriptApi(
             return ValueTask.FromResult(ScriptLogItemResult.Failure(ScriptLogItemErrorCode.Cancelled, "记录已取消。"));
         if (!TryValidate(request, out var error))
             return ValueTask.FromResult(ScriptLogItemResult.Failure(ScriptLogItemErrorCode.InvalidInput, error));
+        if (request!.Preview)
+        {
+            var previewItem = new ScriptWorkItem(
+                0, request.Date, request.Title, request.Hours, 0, request.Note,
+                ImmutableArray<ScriptWorkTag>.Empty);
+            return ValueTask.FromResult(ScriptLogItemResult.Success(
+                previewItem,
+                new ScriptEffectSummary(0, true, request.IdempotencyKey, [])));
+        }
+
         using var idempotencyLease = string.IsNullOrWhiteSpace(request!.IdempotencyKey)
             ? null
             : _idempotencyStore.Acquire("logItems.create", request.IdempotencyKey);
@@ -33,15 +43,6 @@ public sealed class LogItemScriptApi(
                 Effects = previous.Effects is { } effects ? effects with { AppendedCount = 0 } : null,
             });
         }
-        if (request.Preview)
-        {
-            var previewItem = new ScriptWorkItem(
-                0, request.Date, request.Title, request.Hours, 0, request.Note,
-                ImmutableArray<ScriptWorkTag>.Empty);
-            return ValueTask.FromResult(ScriptLogItemResult.Success(
-                previewItem,
-                new ScriptEffectSummary(0, true, request.IdempotencyKey, [])));
-        }
 
         DbInterfaceBase? database;
         try { database = databaseProvider(); }
@@ -49,21 +50,38 @@ public sealed class LogItemScriptApi(
         if (database is null)
             return ValueTask.FromResult(ScriptLogItemResult.Failure(ScriptLogItemErrorCode.DatabaseUnavailable, "数据库尚未连接。"));
 
+        var transactionStarted = false;
         try
         {
+            transactionStarted = database.BeginTransaction();
+            if (!transactionStarted)
+                return ValueTask.FromResult(ScriptLogItemResult.Failure(
+                    ScriptLogItemErrorCode.ProviderFailure,
+                    "无法开启数据库事务。"));
+
             cancellationToken.ThrowIfCancellationRequested();
             var item = database.CreateWorkItem(request!.Date, request.Title);
             item.Time = request.Hours;
             if (!database.UpdateWorkItem(item))
-                return ValueTask.FromResult(ScriptLogItemResult.Failure(ScriptLogItemErrorCode.ProviderFailure, "保存记录失败。"));
+                return ValueTask.FromResult(ScriptLogItemResult.Failure(
+                    ScriptLogItemErrorCode.ProviderFailure,
+                    "保存记录失败。"));
             if (!string.IsNullOrWhiteSpace(request.Note))
                 database.WorkUpdateNote(item, request.Note);
+
             var result = ScriptLogItemResult.Success(
                 new ScriptWorkItem(
                     item.Id, item.CreateDate, item.Comment, item.Time, (int)item.Priority,
                     string.IsNullOrWhiteSpace(request.Note) ? null : request.Note,
                     ImmutableArray<ScriptWorkTag>.Empty),
                 new ScriptEffectSummary(1, false, request.IdempotencyKey, [item.Id]));
+            var committed = database.CommitTransaction();
+            transactionStarted = false;
+            if (!committed)
+                return ValueTask.FromResult(ScriptLogItemResult.Failure(
+                    ScriptLogItemErrorCode.ProviderFailure,
+                    "提交数据库事务失败。"));
+
             if (!string.IsNullOrWhiteSpace(request.IdempotencyKey))
                 _idempotencyStore.Save("logItems.create", request.IdempotencyKey, result);
             return ValueTask.FromResult(result);
@@ -72,6 +90,14 @@ public sealed class LogItemScriptApi(
         { return ValueTask.FromResult(ScriptLogItemResult.Failure(ScriptLogItemErrorCode.Cancelled, "记录已取消。")); }
         catch
         { return ValueTask.FromResult(ScriptLogItemResult.Failure(ScriptLogItemErrorCode.ProviderFailure, "保存记录失败。")); }
+        finally
+        {
+            if (transactionStarted)
+            {
+                try { database.RollbackTransaction(); }
+                catch { }
+            }
+        }
     }
 
     private static bool TryValidate(ScriptLogItemRequest? request, out string error)

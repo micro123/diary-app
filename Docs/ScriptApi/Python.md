@@ -42,7 +42,7 @@ def application_main(context):
 | `items.stream()` | 按当前日期范围分页迭代事项。 |
 | `log` | 调试日志 API。 |
 
-请求、参数和结果字段使用 camelCase，例如 `startDate`、`endDate`、`normalizedQuery`。脚本自动化只能追加工作记录，不提供删除或直接改写历史记录；`idempotencyKey` 对已提交结果持久有效。
+请求、参数和结果字段使用 camelCase，例如 `startDate`、`endDate`、`normalizedQuery`。脚本自动化只能追加工作记录，不提供删除或直接改写历史记录；真实写入使用 provider 事务，失败时回滚；`preview=True` 在数据库访问前返回投影且不修改数据库或幂等存储；`idempotencyKey` 对已提交结果持久有效。
 
 `target` 按 `kind` 提供不同字段（字典访问）：`Year` → `year`（1-9999）；`Quarter` → `year` + `quarter`（1-4）；`Month` → `year` + `month`（1-12）；`Week` → `weekStart`（周一的 `yyyy-MM-dd`，范围周一至周日）；`Day` → `date`；`WorkItem` → `workItem`（不可变事项快照，`dateRange`、`getDateRange()` 和 `items.stream()` 不可用）。`context.source` 是 `Manual`、`Editor`、`Startup`、`Automation`、`WorkItemCreated`、`WorkItemSaved` 或 `TagAdded`。目标字段由宿主校验，不合法的目标在执行前以 `Rejected` 状态拒绝。
 

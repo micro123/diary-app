@@ -390,9 +390,9 @@ Worker 握手通过 `supportedHostApis` 协商实际可用的 HostCall，宿主 
 进度上报通过 `ScriptProgressTracker`（内存，最近 20 次执行、每次最多 50 条时间线）接入管理页底部
 运行栏（进度条+文本）与执行历史条目日志（「进度：」时间线）。自动化脚本已支持 Scheduled
 （metadata `Schedule`="daily HH:mm"）与 RunOnStartup：`ScriptAutomationScheduler` 以 30 秒 tick 调度、
-内存 last-run 表防重、启动补跑一轮到期脚本，并生成请求级幂等键；Startup/Scheduled 触发器已接线，
-WorkItemCreated/WorkItemSaved/TagAdded 仍未接线。Query 入口已落地（`IQueryScriptV1`/`QueryScript`
-基类与三语言创建模板，管理页可运行）。执行历史与进度均为会话内存态，持久化经决策明确延期；
+内存 last-run 表防重、启动补跑一轮到期脚本，并生成请求级幂等键；Startup/Scheduled、
+WorkItemCreated/WorkItemSaved/TagAdded 触发器均已接线。Query 入口已落地（`IQueryScriptV1`/`QueryScript`
+基类与三语言创建模板，管理页可运行）。普通和模板日志项创建使用 provider 事务，支持 `Preview` 投影且预览不写入数据库；执行历史与进度均为会话内存态，持久化经决策明确延期；
 脚本包管理、Windows/Linux 运行时打包和更强的操作系统级资源限制仍需继续扩展；macOS 不在当前支持范围内。
 
 ## 16. 维护约定

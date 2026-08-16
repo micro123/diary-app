@@ -331,7 +331,7 @@ if (log is not null)
 | `ILogApi.*Async` | `log.write` |
 | `ReportProgressAsync` | `script.progress` |
 
-Worker 调用由主进程执行并返回结构化结果。普通日志项和模板日志项支持 `IdempotencyKey` 与 `Preview`，结果会带 `ScriptEffectSummary`。已提交的幂等结果由宿主共享存储持久化，应用重启后仍能识别重复请求；脚本不能直接访问文件、网络、进程、反射、数据库、DI 或任意 UI 控件。超时、取消、Worker 退出和宿主失败都会转换为执行诊断。
+Worker 调用由主进程执行并返回结构化结果。普通日志项和模板日志项支持 `IdempotencyKey` 与 `Preview`，结果会带 `ScriptEffectSummary`；真实写入使用 provider 事务，失败时回滚，Preview 在数据库访问前返回投影且不改变幂等存储。已提交的幂等结果由宿主共享存储持久化，应用重启后仍能识别重复请求；脚本不能直接访问文件、网络、进程、反射、数据库、DI 或任意 UI 控件。超时、取消、Worker 退出和宿主失败都会转换为执行诊断。
 
 C# 脚本沙箱（构建期检查，违反时构建失败并产生 `CSHARP_API_FORBIDDEN` 诊断）：
 
