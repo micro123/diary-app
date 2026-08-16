@@ -840,9 +840,19 @@ public sealed class ProcessWorkerTransportTests
             .FirstOrDefault(File.Exists);
     }
 
-    private static string GetWorkerPath() => Path.GetFullPath(Path.Combine(
-        AppContext.BaseDirectory,
-        "../../../../Diary.Script.Worker/bin/Debug/net10.0/Diary.Script.Worker.dll"));
+    private static string GetWorkerPath()
+    {
+        var baseDirectory = new DirectoryInfo(AppContext.BaseDirectory);
+        var configuration = baseDirectory.Parent?.Name;
+        if (configuration is not ("Debug" or "Release"))
+            configuration = "Release";
+
+        return Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../Diary.Script.Worker/bin",
+            configuration,
+            "net10.0/Diary.Script.Worker.dll"));
+    }
 
     private const string CSharpCancellationSource = """
 public sealed class CancelDemo : Diary.ScriptBase.IScriptProgramV1

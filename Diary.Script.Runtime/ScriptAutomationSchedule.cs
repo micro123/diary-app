@@ -26,9 +26,8 @@ public static class ScriptAutomationSchedule
     /// </summary>
     public static DateTimeOffset GetNextDue(TimeOnly time, DateTimeOffset now, DateTimeOffset? lastRun)
     {
-        var localNow = now.LocalDateTime;
         var todayDue = new DateTimeOffset(
-            localNow.Date.Add(time.ToTimeSpan()),
+            now.Date.Add(time.ToTimeSpan()),
             now.Offset);
         if (lastRun is null)
             return todayDue <= now ? now : todayDue;

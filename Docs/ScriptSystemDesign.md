@@ -136,7 +136,7 @@ Worker 协议（HostCall 分发）
 
 自动化脚本使用 `IAutomationScriptV1` 或 `AutomationScript`，对应 `ScriptEntryKind.Automation`。`IScriptAutomationContext.Automation` 携带触发器类型、事件数据和幂等键；触发器类型包括 Startup、Scheduled、WorkItemCreated、WorkItemSaved 和 TagAdded。自动化脚本只允许通过追加式 API 产生工作记录，不提供删除或直接改写历史记录。
 
-当前已实现 Startup 与 Scheduled 两类触发：metadata/manifest 支持 `Schedule`（格式 `"daily HH:mm"`，仅 Automation 入口合法）与 `RunOnStartup`（bool，默认 false），目录加载时校验，非法（或非 Automation 入口携带）→ `SCRIPT_SCHEDULE_INVALID` 构建失败且不注册。`Diary.App/Services/ScriptAutomationScheduler` 以 30 秒 DispatcherTimer tick + `SemaphoreSlim` 串行 + 内存 last-run 表防重调度，启动时补跑一轮 `RunOnStartup` 与今日到期脚本，并为每个请求生成幂等键（Scheduled=`auto:{scriptId}:{yyyy-MM-dd HH:mm}`、Startup=`startup:{scriptId}:{yyyy-MM-dd}`）；应用 PreShutdown 时停止调度器。三语言 context 均提供 `automation = { trigger, eventData, idempotencyKey }`（`ScriptAutomationContextFactory.FromRequest` 按 Source 生成 Trigger：Automation→Scheduled、Startup→Startup）。WorkItemCreated、WorkItemSaved、TagAdded 三种触发器仍未接线。
+当前已实现 Startup 与 Scheduled 两类触发：metadata/manifest 支持 `Schedule`（格式 `"daily HH:mm"`，仅 Automation 入口合法）与 `RunOnStartup`（bool，默认 false），目录加载时校验，非法（或非 Automation 入口携带）→ `SCRIPT_SCHEDULE_INVALID` 构建失败且不注册。`Diary.App/Services/ScriptAutomationScheduler` 以 30 秒 DispatcherTimer tick + `SemaphoreSlim` 串行 + 内存 last-run 表防重调度，启动时补跑一轮 `RunOnStartup` 与今日到期脚本，并为每个请求生成幂等键（Scheduled=`auto:{scriptId}:{yyyy-MM-dd HH:mm}`、Startup=`startup:{scriptId}:{yyyy-MM-dd}`）；调度日期使用传入 `DateTimeOffset` 自身的偏移计算，不依赖主机本地时区；应用 PreShutdown 时停止调度器。三语言 context 均提供 `automation = { trigger, eventData, idempotencyKey }`（`ScriptAutomationContextFactory.FromRequest` 按 Source 生成 Trigger：Automation→Scheduled、Startup→Startup）。WorkItemCreated、WorkItemSaved、TagAdded 三种触发器仍未接线。
 
 ### 5.4 查询入口和模板边界
 

@@ -188,6 +188,8 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 
 目标：通过常驻 worker 隔离脚本崩溃、超时和资源问题，同时复用统一宿主 API。
 
+- [x] 已修正自动化调度按 `DateTimeOffset` 自身偏移计算日期，避免依赖 CI Runner 本地时区；Worker 集成测试根据当前测试输出配置定位 Debug/Release 工件。
+
 - [x] 已实现显式 Worker 隔离策略：C#、Lua 使用共享 worker，Python 使用每请求独立 worker；高风险脚本可在运行时注册层选择 `Dedicated`。
 - [x] 已评估查询流架构：当前保留分页式 Worker HostCall；reader/chunk 仅在跨 provider 异步契约和性能基准证明分页物化为瓶颈后再引入新协议。
 - [x] 已接线 Worker 心跳与超时：App 为三个 supervisor 显式开启心跳（30s 间隔/15s 超时，默认关闭；仅 `Ready` 且抢到执行门时 ping）；启动/握手超时（默认 10s）→`Failed`+`WORKER_HANDSHAKE_TIMED_OUT`；宿主调用响应超时（默认 30s）→`Failed`+停止进程+`WORKER_HOST_CALL_TIMED_OUT`（视为 worker 故障不重试）；应用退出通过 `StopAllAsync` 优雅停 worker，修复孤儿进程。
