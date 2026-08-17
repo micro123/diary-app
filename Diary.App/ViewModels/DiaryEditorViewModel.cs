@@ -53,6 +53,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     private string CurrentDateString => TimeTools.FormatDateTime(CurrentDate);
     private bool _creating;
+    private bool _sortingDailyWorks;
 
     [ObservableProperty] private ObservableCollection<Template> _templates = new();
     [ObservableProperty] private bool _canUseTemplates = false;
@@ -115,6 +116,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
             GoDate(TimeTools.FromFormatedDate(date)); // 这里会修改选中的对象
             SelectWorkById(id);
         }
+        SortDailyWorks();
 
         UpdateTimeInfos();
         DuplicateWorkItemCommand.NotifyCanExecuteChanged();
@@ -126,6 +128,22 @@ public partial class DiaryEditorViewModel : ViewModelBase
         var item = DailyWorks.FirstOrDefault(x => x.WorkId == id);
         if (item is not null)
             SelectedWork = item;
+    }
+
+    private void SortDailyWorks()
+    {
+        _sortingDailyWorks = true;
+        try
+        {
+            WorkItemOrdering.SortByPriorityAndId(
+                DailyWorks,
+                work => work.Priority,
+                work => work.WorkId);
+        }
+        finally
+        {
+            _sortingDailyWorks = false;
+        }
     }
 
     private bool CanSave => SelectedWork is { IsLocked: false };
@@ -159,7 +177,9 @@ public partial class DiaryEditorViewModel : ViewModelBase
                 ++copied;
         }
 
-        SelectedWork = DailyWorks.LastOrDefault();
+        var lastCopied = DailyWorks.LastOrDefault();
+        SortDailyWorks();
+        SelectedWork = lastCopied;
         UpdateTimeInfos();
         EventDispatcher.Notify("复制完成", $"已复制 {copied}/{sourceItems.Length} 条记录。");
     }
@@ -197,7 +217,9 @@ public partial class DiaryEditorViewModel : ViewModelBase
             return;
         }
 
-        SelectedWork = DailyWorks.LastOrDefault();
+        var copiedWork = DailyWorks.LastOrDefault();
+        SortDailyWorks();
+        SelectedWork = copiedWork;
         UpdateTimeInfos();
         EventDispatcher.Notify("复制完成", $"已将 {sourceItem.CreateDate} 的最近记录复制到 {CurrentDateString}。");
     }
@@ -243,7 +265,9 @@ public partial class DiaryEditorViewModel : ViewModelBase
                 ++copied;
         }
 
-        SelectedWork = DailyWorks.LastOrDefault();
+        var lastCopied = DailyWorks.LastOrDefault();
+        SortDailyWorks();
+        SelectedWork = lastCopied;
         UpdateTimeInfos();
         EventDispatcher.Notify("复制完成", $"已从 {sourceDate} 复制 {copied}/{sourceItems.Length} 条记录到 {CurrentDateString}。");
     }
@@ -476,7 +500,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     partial void OnSelectedWorkChanging(WorkEditorViewModel? value) // 指 即将 从 当前值 更改为 value
     {
-        if (!_deleting && !_creating && SelectedWork is not null)
+        if (!_deleting && !_creating && !_sortingDailyWorks && SelectedWork is not null)
             SaveWorkItem();
         UpdateTimeInfos();
     }
@@ -574,6 +598,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
                     x.SyncFromBatch(notesById, tagsById, bindingsByTracker);
                     DailyWorks.Add(x);
                 }
+                SortDailyWorks();
             }
         }
         else
