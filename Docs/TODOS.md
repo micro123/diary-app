@@ -222,7 +222,7 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [x] 自动化脚本已实现 Scheduled、Startup、WorkItemCreated、WorkItemSaved 与 TagAdded 触发：metadata/manifest 支持 `Schedule`、`RunOnStartup` 和事件 `Triggers`，事件型自动化可不配置 schedule；调度器按定时/启动或 `scriptId + trigger + eventId` 防重，生成对应幂等键；工作项创建、保存和标签添加入口已接入，草稿标签在首次保存后按顺序补发；三语言 context 提供 `automation`（trigger/eventData/idempotencyKey），新建向导和管理页可配置三种事件触发。
 - [x] Query 入口已落地：ScriptBase 提供 `IQueryScriptV1` 与 `QueryScript` 抽象基类（Scope=Application、EntryKind=Query），`ScriptProgramAdapter` 与 C# 引擎类型识别已支持；创建向导提供「查询脚本」模板（Lua/Python 使用 `query_main`、C# 使用 `QueryScript` 子类），管理页可直接运行。
 - [x] 右上角设置按钮已改为下拉菜单，可直接进入程序设置、模板设置、标签设置和 Tracker 设置，避免从程序设置页面层层进入二级设置。
-- [~] 调查协议：已保留 DiaryToolpp 兼容的 v1/9721 日期查询，并增加新版 v2/9722 自定义统计查询（关键词、标签、标签模式和优先级）；扩展查询只发送到新版节点；已增加 v2 能力发现、标签/日期/优先级分组和最多 500 条结果明细展示。能力发现缓存、分页明细和更多分组维度仍待补充。
+- [~] 调查协议与使用体验：已保留 DiaryToolpp 兼容的 v1/9721 日期查询，并增加新版 v2/9722 自定义统计查询（关键词、标签、标签模式和优先级）；调查页显式选择兼容/扩展模式，避免填写字段时隐式切换协议；已增加 v2 能力发现、标签/日期/优先级分组、最多 500 条结果明细、节点数量/查询错误状态、随发布包携带并可从页面打开的用户指南。能力发现缓存、分页明细、节点级错误身份和更多分组维度仍待补充。
 
 验收：用户能够明确区分本地已保存、待同步、已同步和同步失败；未上传或误写记录可以直接删除；已上传或状态不确定记录的远程影响对用户透明；批量同步产生的副作用在执行前可预览、执行后可追踪；日常记录和耗时汇总不需要理解插件或 Worker 的内部实现。
 

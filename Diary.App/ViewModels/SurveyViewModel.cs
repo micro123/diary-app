@@ -169,14 +169,36 @@ public partial class SurveyViewModel : ViewModelBase
     [ObservableProperty] private int _extendedPriorityIndex;
     [ObservableProperty] private int _extendedGroupByIndex;
     [ObservableProperty] private bool _extendedIncludeDetails;
-    [ObservableProperty] private string _queryMode = "兼容查询：支持旧版和新版调查节点";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsExtendedQuery))]
+    [NotifyPropertyChangedFor(nameof(QueryModeDescription))]
+    private int _queryModeIndex;
+    [ObservableProperty] private string _queryStatus = "尚未发起调查";
     [ObservableProperty] private ObservableCollection<SurveyCapabilityResult> _peerCapabilities = new();
     [ObservableProperty] private string _capabilityStatus = "尚未探测新版节点能力";
-    private object _lock = new();
+    private readonly object _lock = new();
+    private readonly List<string> _queryErrors = new();
 
+    public IReadOnlyList<string> QueryModes { get; } =
+        ["兼容查询（v1，支持旧版和新版）", "扩展查询（v2，仅新版）"];
     public IReadOnlyList<string> ExtendedTagFilters { get; } = ["忽略标签", "任意标签", "全部标签", "无标签", "精确匹配"];
     public IReadOnlyList<string> ExtendedPriorities { get; } = ["全部优先级", .. Enum.GetNames<WorkPriorities>()];
     public IReadOnlyList<string> ExtendedGroupDimensions { get; } = ["标签", "日期", "优先级"];
+    public bool IsExtendedQuery => QueryModeIndex == 1;
+    public bool HasQueryErrors
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _queryErrors.Count > 0;
+            }
+        }
+    }
+
+    public string QueryModeDescription => IsExtendedQuery
+        ? "使用 9722，可设置筛选、分组和明细，只返回新版节点。"
+        : "使用 9721，只按日期查询，兼容旧版和新版节点。";
 
     private IDictionary<string, RespondData> _respondDatas = new Dictionary<string, RespondData>();
 
@@ -211,6 +233,7 @@ public partial class SurveyViewModel : ViewModelBase
         catch (JsonException exception)
         {
             _logger.LogError(exception, exception.Message);
+            AddQueryError("收到无法解析的兼容调查响应");
         }
     }
 
@@ -221,7 +244,9 @@ public partial class SurveyViewModel : ViewModelBase
             var response = JsonSerializer.Deserialize<ExtendedSurveyResponse>(content);
             if (response is null || !response.Ok || response.Data is null)
             {
-                _logger.LogWarning("扩展调查失败：{Error}", response?.Error ?? "响应无效");
+                var error = response?.Error ?? "响应无效";
+                _logger.LogWarning("扩展调查失败：{Error}", error);
+                AddQueryError(error);
                 return;
             }
 
@@ -232,15 +257,7 @@ public partial class SurveyViewModel : ViewModelBase
                 if (capabilities is null || string.IsNullOrWhiteSpace(capabilities.Hostname))
                     return;
 
-                var result = new SurveyCapabilityResult(capabilities);
-                var existing = PeerCapabilities
-                    .Select((value, index) => (value, index))
-                    .FirstOrDefault(item => item.value.NodeName == result.NodeName);
-                if (existing.value is not null)
-                    PeerCapabilities[existing.index] = result;
-                else
-                    PeerCapabilities.Add(result);
-                CapabilityStatus = $"已发现 {PeerCapabilities.Count} 个新版节点";
+                Dispatcher.UIThread.Post(() => StoreCapabilities(capabilities));
                 return;
             }
 
@@ -249,7 +266,21 @@ public partial class SurveyViewModel : ViewModelBase
         catch (JsonException exception)
         {
             _logger.LogError(exception, "扩展调查响应解析失败");
+            AddQueryError("收到无法解析的扩展调查响应");
         }
+    }
+
+    private void StoreCapabilities(ExtendedSurveyCapabilities capabilities)
+    {
+        var result = new SurveyCapabilityResult(capabilities);
+        var existing = PeerCapabilities
+            .Select((value, index) => (value, index))
+            .FirstOrDefault(item => item.value.NodeName == result.NodeName);
+        if (existing.value is not null)
+            PeerCapabilities[existing.index] = result;
+        else
+            PeerCapabilities.Add(result);
+        CapabilityStatus = $"已发现 {PeerCapabilities.Count} 个新版节点";
     }
 
     private void StoreData(RespondData? data)
@@ -262,7 +293,11 @@ public partial class SurveyViewModel : ViewModelBase
         {
             _respondDatas[data.Key] = data;
         }
-        Dispatcher.UIThread.InvokeAsync(UpdateTree);
+        Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            UpdateTree();
+            UpdateQueryStatus();
+        });
     }
 
     private void UpdateTree()
@@ -275,6 +310,33 @@ public partial class SurveyViewModel : ViewModelBase
                 SurveyResults.Add(new SurveyResult(v, CustomTotal));
             }
         }
+    }
+
+    private void AddQueryError(string error)
+    {
+        lock (_lock)
+        {
+            if (!_queryErrors.Contains(error, StringComparer.Ordinal))
+                _queryErrors.Add(error);
+        }
+        Dispatcher.UIThread.Post(UpdateQueryStatus);
+    }
+
+    private void UpdateQueryStatus()
+    {
+        int resultCount;
+        string[] errors;
+        lock (_lock)
+        {
+            resultCount = _respondDatas.Count;
+            errors = _queryErrors.ToArray();
+        }
+
+        var phase = Surveying ? "正在调查" : "调查结束";
+        QueryStatus = errors.Length == 0
+            ? $"{phase}：已收到 {resultCount} 个节点结果"
+            : $"{phase}：已收到 {resultCount} 个节点结果；节点错误：{string.Join("；", errors)}";
+        OnPropertyChanged(nameof(HasQueryErrors));
     }
 
 
@@ -412,11 +474,12 @@ public partial class SurveyViewModel : ViewModelBase
         lock (_lock)
         {
             _respondDatas.Clear();
+            _queryErrors.Clear();
         }
         ReCalc();
-        if (HasExtendedQuery)
+        UpdateQueryStatus();
+        if (IsExtendedQuery)
         {
-            QueryMode = "扩展查询：仅新版调查节点";
             var request = new ExtendedSurveyRequest
             {
                 RequestId = Guid.NewGuid().ToString("N"),
@@ -439,20 +502,13 @@ public partial class SurveyViewModel : ViewModelBase
         }
         else
         {
-            QueryMode = "兼容查询：支持旧版和新版调查节点";
             EventDispatcher.Msg(new SurveyQueryEvent($"{TimeTools.FormatDateTime(StartDate)}:{TimeTools.FormatDateTime(EndDate)}"));
         }
         await Task.Delay(3000);
-        ReCalc();
         Surveying = false;
+        ReCalc();
+        UpdateQueryStatus();
     }
-
-    private bool HasExtendedQuery => !string.IsNullOrWhiteSpace(ExtendedText)
-        || !string.IsNullOrWhiteSpace(ExtendedTagNames)
-        || ExtendedTagFilterIndex != 0
-        || ExtendedPriorityIndex != 0
-        || ExtendedGroupByIndex != 0
-        || ExtendedIncludeDetails;
 
     [RelayCommand]
     private async Task DiscoverCapabilities()
@@ -465,6 +521,22 @@ public partial class SurveyViewModel : ViewModelBase
         await Task.Delay(1500);
         if (PeerCapabilities.Count == 0 && CapabilityStatus == "正在探测新版节点能力...")
             CapabilityStatus = "未发现支持 v2 的节点";
+    }
+
+    [RelayCommand]
+    private void OpenSurveyGuide()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "Docs", "SurveyUserGuide.md");
+        try
+        {
+            ProcUtils.OpenFileCrossPlatform(path);
+            QueryStatus = "已打开调查功能使用指南";
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "打开调查功能使用指南失败");
+            QueryStatus = $"无法打开调查功能使用指南：{exception.Message}";
+        }
     }
 
     [RelayCommand]

@@ -22,6 +22,19 @@
                    Foreground="{DynamicResource ButtonDefaultDisabledForeground}" />
         <DockPanel IsVisible="{Binding SurveyEnabled, Source={x:Static app:App.Instance}}"
                    VerticalSpacing="8">
+            <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,280,*,Auto" ColumnSpacing="8">
+                <TextBlock Text="查询模式：" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding QueryModes}"
+                          SelectedIndex="{Binding QueryModeIndex}" />
+                <TextBlock Grid.Column="2" Text="{Binding QueryModeDescription}" Opacity="0.7"
+                           TextWrapping="Wrap" />
+                <Button Grid.Column="3" Command="{Binding OpenSurveyGuideCommand}">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <i:Icon Value="mdi-help-circle-outline" />
+                        <TextBlock Text="打开使用指南" />
+                    </StackPanel>
+                </Button>
+            </Grid>
             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="4">
                 <TextBlock Text="时间范围：" />
                 <CalendarDatePicker SelectedDate="{Binding StartDate}" IsTodayHighlighted="True"/>
@@ -39,7 +52,7 @@
                            Foreground="{DynamicResource ButtonDefaultSuccessForeground}" />
             </StackPanel>
             <StackPanel Orientation="Horizontal" Spacing="4" DockPanel.Dock="Top">
-                <TextBlock Text="自定义总时间" />
+                <TextBlock Text="占比计算基准" />
                 <u:NumericDoubleUpDown ShowButtonSpinner="True" InnerRightContent="小时" Width="120"
                                        Value="{Binding CustomTotal}" />
                 <Button Command="{Binding ReCalcCommand}">
@@ -72,7 +85,8 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </Expander>
-            <Expander Header="扩展查询（仅新版节点）" DockPanel.Dock="Top">
+            <Expander Header="扩展查询条件（仅新版节点）" DockPanel.Dock="Top"
+                      IsEnabled="{Binding IsExtendedQuery}">
                 <Grid ColumnDefinitions="Auto,*,Auto,*,Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
                     <TextBlock Grid.Row="0" Grid.Column="0" Text="关键词" />
                     <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding ExtendedText}"
@@ -87,7 +101,7 @@
                     <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding ExtendedPriorities}"
                               SelectedIndex="{Binding ExtendedPriorityIndex}" />
                     <TextBlock Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="4"
-                               Text="填写任一扩展条件后，将只发送到支持 v2 的调查节点。"
+                               Text="这些条件仅在选择“扩展查询（v2）”时生效。"
                                Opacity="0.7" />
                     <TextBlock Grid.Row="2" Grid.Column="0" Text="分组维度" />
                     <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding ExtendedGroupDimensions}"
@@ -98,7 +112,8 @@
                                Text="明细最多返回 500 条。" Opacity="0.7" />
                 </Grid>
             </Expander>
-            <TextBlock DockPanel.Dock="Top" Text="{Binding QueryMode}" Opacity="0.7" />
+            <TextBlock DockPanel.Dock="Top" Text="{Binding QueryStatus}" TextWrapping="Wrap"
+                       Classes.Danger="{Binding HasQueryErrors}" />
             <ScrollViewer HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Auto">
                 <ItemsControl ItemsSource="{Binding SurveyResults}">

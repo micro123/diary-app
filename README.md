@@ -9,7 +9,7 @@
 - **自定义事项查询**：日期/标签/文本/优先级过滤（五种标签模式）、快捷日期、结果导出 CSV/Markdown
 - **标签自动化规则**：按 Tracker 实例配置「添加标签 → 补默认字段」规则
 - **统计页**：工时分布、标签明细
-- **Survey**：调查协议 v1/v2（端口 9721/9722），支持能力发现与自定义统计
+- **跨设备工时调查**：在局域网中汇总多台 DiaryApp/DiaryToolpp 的工时统计，兼容旧版日期查询，并支持新版关键词、标签、优先级和明细查询
 - **脚本系统**：C#、Lua、Python 三种语言的脚本，支持应用脚本（手动执行）、编辑器脚本（日历右键按日/周/月/季/年/事项执行）、自动化脚本（`daily HH:mm` 定时 + 启动补跑）与查询脚本（只读统计汇总）。API 参考见 [`Docs/ScriptApi`](Docs/ScriptApi/CSharp.md)
 
 ## 运行要求
@@ -42,6 +42,7 @@ dotnet test DiaryApp.sln --configuration Release
 
 - 脚本 API 参考：[C#](Docs/ScriptApi/CSharp.md)、[Lua](Docs/ScriptApi/Lua.md)、[Python](Docs/ScriptApi/Python.md)
 - 架构：[当前架构](Docs/CurrentArchitecture.md)、[插件目标架构](Docs/TrackerPluginArchitecture.md)、[脚本系统设计](Docs/ScriptSystemDesign.md)
+- 调查功能：[使用指南](Docs/SurveyUserGuide.md)、[协议设计](Docs/SurveyProtocolDesign.md)
 - 发布说明：[CHANGELOG](Docs/CHANGELOG.md)；Agent 发布操作：[新 Tag 发布指南](Docs/AgentReleaseTagGuide.md)
 
 ## 版本
