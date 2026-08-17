@@ -2,7 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700"
              xmlns:u="https://irihi.tech/ursa"
              x:DataType="viewModels:SurveyViewModel"
              xmlns:i="https://github.com/projektanker/icons.avalonia"
@@ -15,206 +15,304 @@
         <Style Selector="TextBlock">
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
+        <Style Selector="Border.SurveyCard">
+            <Setter Property="Padding" Value="16" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Background" Value="{DynamicResource SemiColorFill2}" />
+        </Style>
+        <Style Selector="TextBlock.SurveySectionTitle">
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.SurveyLabel">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Opacity" Value="0.82" />
+        </Style>
+        <Style Selector="Expander.SurveySection">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Expander.SurveySection:down /template/ ToggleButton#ExpanderHeader">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Expander.SurveySection:down /template/ Border#ExpanderContent">
+            <Setter Property="Padding" Value="0,10,0,0" />
+        </Style>
+        <Style Selector="Expander.SurveyResult">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Expander.SurveyResult:down /template/ ToggleButton#ExpanderHeader">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Expander.SurveyResult:down /template/ Border#ExpanderContent">
+            <Setter Property="Padding" Value="12,8,12,12" />
+        </Style>
     </UserControl.Styles>
+
     <Panel>
-        <TextBlock Text="没有启用调查功能，此页面不可用" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="48"
+        <TextBlock Text="没有启用调查功能，此页面不可用"
+                   HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="48"
                    IsVisible="{Binding !SurveyEnabled, Source={x:Static app:App.Instance}}"
                    Foreground="{DynamicResource ButtonDefaultDisabledForeground}" />
-        <DockPanel IsVisible="{Binding SurveyEnabled, Source={x:Static app:App.Instance}}"
-                   VerticalSpacing="8">
-            <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,280,*,Auto" ColumnSpacing="8">
-                <TextBlock Text="查询模式：" />
-                <ComboBox Grid.Column="1" ItemsSource="{Binding QueryModes}"
-                          SelectedIndex="{Binding QueryModeIndex}" />
-                <TextBlock Grid.Column="2" Text="{Binding QueryModeDescription}" Opacity="0.7"
-                           TextWrapping="Wrap" />
-                <Button Grid.Column="3" Command="{Binding OpenSurveyGuideCommand}">
-                    <StackPanel Orientation="Horizontal" Spacing="4">
+
+        <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,*" RowSpacing="12"
+              IsVisible="{Binding SurveyEnabled, Source={x:Static app:App.Instance}}">
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                <StackPanel Spacing="3">
+                    <TextBlock Text="团队调查" FontSize="24" FontWeight="SemiBold" />
+                    <TextBlock Text="查询受访节点的工作记录，并按节点能力选择兼容或扩展查询。"
+                               Opacity="0.7" TextWrapping="Wrap" />
+                </StackPanel>
+                <Button Grid.Column="1" Command="{Binding OpenSurveyGuideCommand}"
+                        VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
                         <i:Icon Value="mdi-help-circle-outline" />
                         <TextBlock Text="打开使用指南" />
                     </StackPanel>
                 </Button>
             </Grid>
-            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="4">
-                <TextBlock Text="时间范围：" />
-                <CalendarDatePicker SelectedDate="{Binding StartDate}" IsTodayHighlighted="True"/>
-                <TextBlock Text="至" />
-                <CalendarDatePicker SelectedDate="{Binding EndDate}" IsTodayHighlighted="True"/>
-                <views:QuickDateSelectButton />
-                <Button Command="{Binding SendQueryCommand}"
-                        Theme="{DynamicResource BorderlessButton}" Classes="Primary">
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                        <i:Icon Value="mdi-account-voice" />
-                        <TextBlock Text="发起调查" />
-                    </StackPanel>
-                </Button>
-                <TextBlock Text="正在调查中..." IsVisible="{Binding Surveying}"
-                           Foreground="{DynamicResource ButtonDefaultSuccessForeground}" />
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="4" DockPanel.Dock="Top">
-                <TextBlock Text="占比计算基准" />
-                <u:NumericDoubleUpDown ShowButtonSpinner="True" InnerRightContent="小时" Width="120"
-                                       Value="{Binding CustomTotal}" />
-                <Button Command="{Binding ReCalcCommand}">
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                        <i:Icon Value="mdi-check-circle-outline" />
-                        <TextBlock Text="重新计算" />
-                    </StackPanel>
-                </Button>
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="8" DockPanel.Dock="Top">
-                <Button Command="{Binding DiscoverCapabilitiesCommand}">
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                        <i:Icon Value="mdi-lan-connect" />
-                        <TextBlock Text="探测新版节点" />
-                    </StackPanel>
-                </Button>
-                <TextBlock Text="{Binding CapabilityStatus}" Opacity="0.7" />
-            </StackPanel>
-            <Expander Header="已发现的新版节点能力" DockPanel.Dock="Top">
-                <ItemsControl ItemsSource="{Binding PeerCapabilities}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="viewModels:SurveyCapabilityResult">
-                            <Grid ColumnDefinitions="180,*,*,*" ColumnSpacing="8" Margin="0,2">
-                                <TextBlock Text="{Binding NodeName}" FontWeight="SemiBold" />
-                                <TextBlock Grid.Column="1" Text="{Binding KindsText, StringFormat='查询：{0}'}" />
-                                <TextBlock Grid.Column="2" Text="{Binding GroupDimensionsText, StringFormat='分组：{0}'}" />
-                                <TextBlock Grid.Column="3" Text="{Binding DetailsText}" Opacity="0.7" />
-                            </Grid>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </Expander>
-            <Expander Header="扩展查询条件（仅新版节点）" DockPanel.Dock="Top"
-                      IsEnabled="{Binding IsExtendedQuery}">
-                <Grid ColumnDefinitions="Auto,*,Auto,*,Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
-                    <TextBlock Grid.Row="0" Grid.Column="0" Text="关键词" />
-                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding ExtendedText}"
-                             Watermark="事项标题或备注，可留空" />
-                    <TextBlock Grid.Row="0" Grid.Column="2" Text="标签名" />
-                    <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding ExtendedTagNames}"
-                             Watermark="多个标签用逗号分隔" />
-                    <TextBlock Grid.Row="0" Grid.Column="4" Text="标签模式" />
-                    <ComboBox Grid.Row="0" Grid.Column="5" ItemsSource="{Binding ExtendedTagFilters}"
-                              SelectedIndex="{Binding ExtendedTagFilterIndex}" />
-                    <TextBlock Grid.Row="1" Grid.Column="0" Text="优先级" />
-                    <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding ExtendedPriorities}"
-                              SelectedIndex="{Binding ExtendedPriorityIndex}" />
-                    <TextBlock Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="4"
-                               Text="这些条件仅在选择“扩展查询（v2）”时生效。"
-                               Opacity="0.7" />
-                    <TextBlock Grid.Row="2" Grid.Column="0" Text="分组维度" />
-                    <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding ExtendedGroupDimensions}"
-                              SelectedIndex="{Binding ExtendedGroupByIndex}" />
-                    <CheckBox Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="2"
-                              Content="返回结果明细" IsChecked="{Binding ExtendedIncludeDetails}" />
-                    <TextBlock Grid.Row="2" Grid.Column="4" Grid.ColumnSpan="2"
-                               Text="明细最多返回 500 条。" Opacity="0.7" />
+
+            <Border Grid.Row="1" Classes="SurveyCard" Padding="14">
+                <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="9">
+                    <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="10">
+                        <Border Width="32" Height="32" CornerRadius="8"
+                                Background="{DynamicResource SemiColorPrimaryBrush}">
+                            <i:Icon Value="mdi-account-voice" FontSize="17"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                                    Foreground="White" />
+                        </Border>
+                        <TextBlock Grid.Column="1" Text="查询配置" Classes="SurveySectionTitle" />
+                        <TextBlock Grid.Column="2" Text="{Binding QueryModeDescription}"
+                                   MaxWidth="390" Opacity="0.68"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTip.Tip="{Binding QueryModeDescription}" />
+
+                        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="7"
+                                    VerticalAlignment="Center">
+                            <Border Padding="9,5" CornerRadius="7"
+                                    Background="{DynamicResource SemiColorFill1}">
+                                <TextBlock Text="{Binding CapabilityStatus}" MaxWidth="190"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip.Tip="{Binding CapabilityStatus}" />
+                            </Border>
+                            <Button Command="{Binding DiscoverCapabilitiesCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <i:Icon Value="mdi-lan-connect" />
+                                    <TextBlock Text="探测节点" />
+                                </StackPanel>
+                            </Button>
+                            <Button Command="{Binding ViewCapabilitiesCommand}"
+                                    IsEnabled="{Binding CanViewCapabilities}">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <i:Icon Value="mdi-information-outline" />
+                                    <TextBlock Text="查看详情" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Grid.Row="1"
+                          ColumnDefinitions="Auto,260,*,Auto,160,Auto,160,Auto"
+                          ColumnSpacing="8">
+                        <TextBlock Text="查询模式" Classes="SurveyLabel" />
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding QueryModes}"
+                                  SelectedIndex="{Binding QueryModeIndex}" />
+                        <TextBlock Grid.Column="3" Text="时间范围" Classes="SurveyLabel" />
+                        <CalendarDatePicker Grid.Column="4" SelectedDate="{Binding StartDate}"
+                                            IsTodayHighlighted="True" />
+                        <TextBlock Grid.Column="5" Text="至" />
+                        <CalendarDatePicker Grid.Column="6" SelectedDate="{Binding EndDate}"
+                                            IsTodayHighlighted="True" />
+                        <views:QuickDateSelectButton Grid.Column="7" />
+                    </Grid>
+
+                    <Grid Grid.Row="2" ColumnDefinitions="Auto,120,Auto,*,Auto,Auto"
+                          ColumnSpacing="8">
+                        <TextBlock Text="占比计算基准" Classes="SurveyLabel" />
+                        <u:NumericDoubleUpDown Grid.Column="1" ShowButtonSpinner="True"
+                                               InnerRightContent="小时" Value="{Binding CustomTotal}" />
+                        <Button Grid.Column="2" Command="{Binding ReCalcCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                <i:Icon Value="mdi-check-circle-outline" />
+                                <TextBlock Text="重新计算" />
+                            </StackPanel>
+                        </Button>
+                        <TextBlock Grid.Column="4" Text="正在调查中…"
+                                   IsVisible="{Binding Surveying}"
+                                   Foreground="{DynamicResource ButtonDefaultSuccessForeground}" />
+                        <Button Grid.Column="5" Command="{Binding SendQueryCommand}"
+                                Classes="Primary" MinWidth="112">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <i:Icon Value="mdi-account-voice" />
+                                <TextBlock Text="发起调查" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
                 </Grid>
-            </Expander>
-            <TextBlock DockPanel.Dock="Top" Text="{Binding QueryStatus}" TextWrapping="Wrap"
-                       Classes.Danger="{Binding HasQueryErrors}" />
-            <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                          VerticalScrollBarVisibility="Auto">
-                <ItemsControl ItemsSource="{Binding SurveyResults}">
-                    <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="viewModels:SurveyResult">
-                        <Expander Header="{Binding Title}" IsExpanded="True">
-                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,*" RowSpacing="4">
-                                <TextBlock Grid.Column="0" Grid.Row="0" Text="日期：" />
-                                <TextBlock Grid.Column="1" Grid.Row="0" Text="{Binding Range}" />
-                                <TextBlock Grid.Column="0" Grid.Row="1" Text="总耗时：" />
-                                <TextBlock Grid.Column="1" Grid.Row="1" Text="{Binding Total}" />
-                                <TextBlock Grid.Column="0" Grid.Row="2" Text="汇总方式：" />
-                                <TextBlock Grid.Column="1" Grid.Row="2" Text="{Binding GroupLabel}" />
-                                <Expander Grid.Column="0" Grid.Row="3" Grid.ColumnSpan="2"
-                                          Header="{Binding DetailsHeader}" IsVisible="{Binding HasDetails}">
-                                    <ItemsControl ItemsSource="{Binding Details}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate DataType="models:RespondDetail">
-                                                <Grid ColumnDefinitions="110,*,90,120,*" ColumnSpacing="8" Margin="0,2">
-                                                    <TextBlock Text="{Binding Date}" />
-                                                    <TextBlock Grid.Column="1" Text="{Binding Comment}"
-                                                               TextTrimming="CharacterEllipsis" />
-                                                    <TextBlock Grid.Column="2"
-                                                               Text="{Binding Time, StringFormat='{}{0:0.##} 小时'}" />
-                                                    <TextBlock Grid.Column="3" Text="{Binding Priority}" />
-                                                    <TextBlock Grid.Column="4" Text="{Binding TagsText, StringFormat='标签：{0}'}"
-                                                               TextTrimming="CharacterEllipsis" />
-                                                </Grid>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </Expander>
-                                <TreeDataGrid Grid.Column="0" Grid.Row="4" Grid.ColumnSpan="2"
-                                              CanUserResizeColumns="False" CanUserSortColumns="False"
-                                              Source="{Binding GridSource}" >
-                                    <Interaction.Behaviors>
-                                        <EventTriggerBehavior EventName="Tapped">
-                                            <InvokeCommandAction PassEventArgsToCommand="True"
-                                                                 Command="{Binding ToggleExpandCommand}"/>
-                                        </EventTriggerBehavior>
-                                    </Interaction.Behaviors>
-                                    <TreeDataGrid.Styles>
-                                        <Style Selector="TreeDataGridRow">
-                                            <Style Selector="^ /template/ Border#RowBorder">
-                                                <Setter Property="Background" Value="Transparent" />
-                                                <Setter Property="Focusable" Value="False" />
-                                            </Style>
-                                            <Style Selector="^:pointerover /template/ Border#RowBorder">
-                                                <Setter Property="Background" Value="{DynamicResource SemiColorFill1}" />
-                                            </Style>
-                                            <Style Selector="^:selected">
-                                                <Style
-                                                    Selector="^ /template/ TreeDataGridCellsPresenter#PART_CellsPresenter">
-                                                    <Setter Property="Background" Value="Transparent" />
-                                                </Style>
-                                                <Style Selector="^ /template/ Border#RowBorder">
-                                                    <Setter Property="Background"
-                                                            Value="{DynamicResource SemiColorPrimaryLight}" />
-                                                </Style>
-                                                <Style Selector="^:pointerover /template/ Border#RowBorder">
-                                                    <Setter Property="Background"
-                                                            Value="{DynamicResource SemiColorPrimaryLightPointerover}" />
-                                                </Style>
-                                                <Style Selector="^:focus /template/ Border#RowBorder">
-                                                    <Setter Property="Background"
-                                                            Value="{DynamicResource SemiColorPrimaryLight}" />
-                                                </Style>
-                                                <Style Selector="^:pointerover:focus /template/ Border#RowBorder">
-                                                    <Setter Property="Background"
-                                                            Value="{DynamicResource SemiColorPrimaryLightPointerover}" />
-                                                </Style>
-                                            </Style>
-                                        </Style>
-                                    </TreeDataGrid.Styles>
-                                    <TreeDataGrid.Resources>
-                                        <DataTemplate DataType="models:RespondTag" x:Key="NameCell">
-                                            <TextBlock Text="{Binding TagName}"
-                                                       Classes.Warning="{Binding IsAnno}"
-                                                       Classes.Danger="{Binding !IsValid}"
-                                                       Classes="GridText"/>
-                                        </DataTemplate>
-                                        <DataTemplate DataType="models:RespondTag" x:Key="TimeCell">
-                                            <TextBlock Text="{Binding TagTime, StringFormat='{}{0:0.##} 小时'}"
-                                                       IsVisible="{Binding IsValid}"
-                                                       Classes.Warning="{Binding IsAnno}"
-                                                       Classes="GridText"/>
-                                        </DataTemplate>
-                                        <DataTemplate DataType="models:RespondTag" x:Key="PercentCell">
-                                            <TextBlock Text="{Binding Percent, StringFormat='{}{0:0.##} %'}"
-                                                       IsVisible="{Binding IsValid}"
-                                                       Classes.Warning="{Binding IsAnno}"
-                                                       Classes="GridText"/>
-                                        </DataTemplate>
-                                    </TreeDataGrid.Resources>
-                                </TreeDataGrid>
-                            </Grid>
-                        </Expander>
-                    </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
-        </DockPanel>
+            </Border>
+
+            <Border Grid.Row="2" Classes="SurveyCard" Padding="14"
+                    IsVisible="{Binding IsExtendedQuery}">
+                <Expander Classes="SurveySection" Header="扩展查询条件（仅新版节点）">
+                    <Grid ColumnDefinitions="Auto,*,Auto,*,Auto,*"
+                          RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="10">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="关键词" Classes="SurveyLabel" />
+                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding ExtendedText}"
+                                 Watermark="事项标题或备注，可留空" />
+                        <TextBlock Grid.Row="0" Grid.Column="2" Text="标签名" Classes="SurveyLabel" />
+                        <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding ExtendedTagNames}"
+                                 Watermark="多个标签用逗号分隔" />
+                        <TextBlock Grid.Row="0" Grid.Column="4" Text="标签模式" Classes="SurveyLabel" />
+                        <ComboBox Grid.Row="0" Grid.Column="5" ItemsSource="{Binding ExtendedTagFilters}"
+                                  SelectedIndex="{Binding ExtendedTagFilterIndex}" />
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="优先级" Classes="SurveyLabel" />
+                        <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding ExtendedPriorities}"
+                                  SelectedIndex="{Binding ExtendedPriorityIndex}" />
+                        <TextBlock Grid.Row="1" Grid.Column="2" Text="分组维度" Classes="SurveyLabel" />
+                        <ComboBox Grid.Row="1" Grid.Column="3" ItemsSource="{Binding ExtendedGroupDimensions}"
+                                  SelectedIndex="{Binding ExtendedGroupByIndex}" />
+                        <CheckBox Grid.Row="1" Grid.Column="4" Content="返回结果明细"
+                                  IsChecked="{Binding ExtendedIncludeDetails}" />
+                        <TextBlock Grid.Row="1" Grid.Column="5"
+                                   Text="仅在扩展查询中生效，明细最多返回 500 条。"
+                                   Opacity="0.7" TextWrapping="Wrap" />
+                    </Grid>
+                </Expander>
+            </Border>
+
+            <Border Grid.Row="3" CornerRadius="10" BorderThickness="1"
+                    BorderBrush="{DynamicResource SemiColorBorder}">
+                <Grid RowDefinitions="Auto,*">
+                    <Border Grid.Row="0" Padding="14,10" CornerRadius="9,9,0,0"
+                            Background="{DynamicResource SemiColorFill2}">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                            <TextBlock Text="调查结果" Classes="SurveySectionTitle" />
+                            <TextBlock Grid.Column="1" Text="{Binding QueryStatus}"
+                                       TextWrapping="Wrap" Opacity="0.72"
+                                       Classes.Danger="{Binding HasQueryErrors}" />
+                            <TextBlock Grid.Column="2" Text="结果区域支持纵向和横向滚动"
+                                       Opacity="0.55" />
+                        </Grid>
+                    </Border>
+
+                    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding SurveyResults}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="viewModels:SurveyResult">
+                                    <Border BorderThickness="0,0,0,1"
+                                            BorderBrush="{DynamicResource SemiColorBorder}">
+                                        <Expander Classes="SurveyResult" Header="{Binding Title}"
+                                                  IsExpanded="True">
+                                            <Grid ColumnDefinitions="Auto,*"
+                                                  RowDefinitions="Auto,Auto,Auto,Auto,*" RowSpacing="5">
+                                                <TextBlock Grid.Column="0" Grid.Row="0" Text="日期："
+                                                           Classes="SurveyLabel" />
+                                                <TextBlock Grid.Column="1" Grid.Row="0" Text="{Binding Range}" />
+                                                <TextBlock Grid.Column="0" Grid.Row="1" Text="总耗时："
+                                                           Classes="SurveyLabel" />
+                                                <TextBlock Grid.Column="1" Grid.Row="1" Text="{Binding Total}" />
+                                                <TextBlock Grid.Column="0" Grid.Row="2" Text="汇总方式："
+                                                           Classes="SurveyLabel" />
+                                                <TextBlock Grid.Column="1" Grid.Row="2" Text="{Binding GroupLabel}" />
+                                                <Expander Grid.Column="0" Grid.Row="3" Grid.ColumnSpan="2"
+                                                          Classes="SurveySection"
+                                                          Header="{Binding DetailsHeader}"
+                                                          IsVisible="{Binding HasDetails}">
+                                                    <ItemsControl ItemsSource="{Binding Details}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate DataType="models:RespondDetail">
+                                                                <Grid ColumnDefinitions="110,*,90,120,*"
+                                                                      ColumnSpacing="8" Margin="0,3">
+                                                                    <TextBlock Text="{Binding Date}" />
+                                                                    <TextBlock Grid.Column="1" Text="{Binding Comment}"
+                                                                               TextTrimming="CharacterEllipsis" />
+                                                                    <TextBlock Grid.Column="2"
+                                                                               Text="{Binding Time, StringFormat='{}{0:0.##} 小时'}" />
+                                                                    <TextBlock Grid.Column="3" Text="{Binding Priority}" />
+                                                                    <TextBlock Grid.Column="4"
+                                                                               Text="{Binding TagsText, StringFormat='标签：{0}'}"
+                                                                               TextTrimming="CharacterEllipsis" />
+                                                                </Grid>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </Expander>
+                                                <TreeDataGrid Grid.Column="0" Grid.Row="4" Grid.ColumnSpan="2"
+                                                              CanUserResizeColumns="False"
+                                                              CanUserSortColumns="False"
+                                                              Source="{Binding GridSource}">
+                                                    <Interaction.Behaviors>
+                                                        <EventTriggerBehavior EventName="Tapped">
+                                                            <InvokeCommandAction PassEventArgsToCommand="True"
+                                                                                 Command="{Binding ToggleExpandCommand}" />
+                                                        </EventTriggerBehavior>
+                                                    </Interaction.Behaviors>
+                                                    <TreeDataGrid.Styles>
+                                                        <Style Selector="TreeDataGridRow">
+                                                            <Style Selector="^ /template/ Border#RowBorder">
+                                                                <Setter Property="Background" Value="Transparent" />
+                                                                <Setter Property="Focusable" Value="False" />
+                                                            </Style>
+                                                            <Style Selector="^:pointerover /template/ Border#RowBorder">
+                                                                <Setter Property="Background"
+                                                                        Value="{DynamicResource SemiColorFill1}" />
+                                                            </Style>
+                                                            <Style Selector="^:selected">
+                                                                <Style Selector="^ /template/ TreeDataGridCellsPresenter#PART_CellsPresenter">
+                                                                    <Setter Property="Background" Value="Transparent" />
+                                                                </Style>
+                                                                <Style Selector="^ /template/ Border#RowBorder">
+                                                                    <Setter Property="Background"
+                                                                            Value="{DynamicResource SemiColorPrimaryLight}" />
+                                                                </Style>
+                                                                <Style Selector="^:pointerover /template/ Border#RowBorder">
+                                                                    <Setter Property="Background"
+                                                                            Value="{DynamicResource SemiColorPrimaryLightPointerover}" />
+                                                                </Style>
+                                                                <Style Selector="^:focus /template/ Border#RowBorder">
+                                                                    <Setter Property="Background"
+                                                                            Value="{DynamicResource SemiColorPrimaryLight}" />
+                                                                </Style>
+                                                                <Style Selector="^:pointerover:focus /template/ Border#RowBorder">
+                                                                    <Setter Property="Background"
+                                                                            Value="{DynamicResource SemiColorPrimaryLightPointerover}" />
+                                                                </Style>
+                                                            </Style>
+                                                        </Style>
+                                                    </TreeDataGrid.Styles>
+                                                    <TreeDataGrid.Resources>
+                                                        <DataTemplate DataType="models:RespondTag" x:Key="NameCell">
+                                                            <TextBlock Text="{Binding TagName}"
+                                                                       Classes.Warning="{Binding IsAnno}"
+                                                                       Classes.Danger="{Binding !IsValid}"
+                                                                       Classes="GridText" />
+                                                        </DataTemplate>
+                                                        <DataTemplate DataType="models:RespondTag" x:Key="TimeCell">
+                                                            <TextBlock Text="{Binding TagTime, StringFormat='{}{0:0.##} 小时'}"
+                                                                       IsVisible="{Binding IsValid}"
+                                                                       Classes.Warning="{Binding IsAnno}"
+                                                                       Classes="GridText" />
+                                                        </DataTemplate>
+                                                        <DataTemplate DataType="models:RespondTag" x:Key="PercentCell">
+                                                            <TextBlock Text="{Binding Percent, StringFormat='{}{0:0.##} %'}"
+                                                                       IsVisible="{Binding IsValid}"
+                                                                       Classes.Warning="{Binding IsAnno}"
+                                                                       Classes="GridText" />
+                                                        </DataTemplate>
+                                                    </TreeDataGrid.Resources>
+                                                </TreeDataGrid>
+                                            </Grid>
+                                        </Expander>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Grid>
     </Panel>
 </UserControl>

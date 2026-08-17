@@ -18,7 +18,7 @@
         <guiBase:ViewLocator />
         <!-- SettingDataTemplates: SettingsView 和 GenericConfigView 及其他设置对话框共享 -->
         <DataTemplate DataType="{x:Type giBaseVm:SettingGroup}">
-            <Expander IsExpanded="False">
+            <Expander Classes="Settings" IsExpanded="False">
                 <Expander.Header>
                     <Grid ColumnDefinitions="Auto,*,Auto">
                         <TextBlock Classes="SectionHeader" Text="{Binding Title}"

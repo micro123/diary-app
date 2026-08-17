@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.Models;
+using Diary.App.ViewModels.Dialogs;
 using Diary.App.Utils;
 using Diary.Core.Data.Base;
 using Diary.Database;
@@ -18,6 +19,7 @@ using Diary.GUIBase.ViewModels;
 using Diary.Survey;
 using Diary.Utils;
 using Microsoft.Extensions.Logging;
+using Ursa.Controls;
 
 namespace Diary.App.ViewModels;
 
@@ -147,9 +149,24 @@ public sealed class SurveyCapabilityResult
     public IReadOnlyList<string> Kinds { get; }
     public IReadOnlyList<string> GroupDimensions { get; }
     public bool SupportsDetails { get; }
-    public string KindsText => string.Join("、", Kinds);
-    public string GroupDimensionsText => string.Join("、", GroupDimensions);
+    public string KindsText => string.Join("、", Kinds.Select(FormatKind));
+    public string GroupDimensionsText => string.Join("、", GroupDimensions.Select(FormatGroupDimension));
     public string DetailsText => SupportsDetails ? "支持明细" : "仅支持汇总";
+
+    private static string FormatKind(string kind) => kind switch
+    {
+        ExtendedSurveyProtocol.CapabilitiesKind => "能力发现",
+        ExtendedSurveyProtocol.CustomStatisticsKind => "扩展统计",
+        _ => kind,
+    };
+
+    private static string FormatGroupDimension(string dimension) => dimension switch
+    {
+        ExtendedSurveyProtocol.GroupByTag => "标签",
+        ExtendedSurveyProtocol.GroupByDate => "日期",
+        ExtendedSurveyProtocol.GroupByPriority => "优先级",
+        _ => dimension,
+    };
 }
 
 [DiAutoRegister(singleton: true)]
@@ -185,6 +202,7 @@ public partial class SurveyViewModel : ViewModelBase
     public IReadOnlyList<string> ExtendedPriorities { get; } = ["全部优先级", .. Enum.GetNames<WorkPriorities>()];
     public IReadOnlyList<string> ExtendedGroupDimensions { get; } = ["标签", "日期", "优先级"];
     public bool IsExtendedQuery => QueryModeIndex == 1;
+    public bool CanViewCapabilities => PeerCapabilities.Count > 0;
     public bool HasQueryErrors
     {
         get
@@ -208,6 +226,11 @@ public partial class SurveyViewModel : ViewModelBase
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
+        PeerCapabilities.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(CanViewCapabilities));
+            ViewCapabilitiesCommand.NotifyCanExecuteChanged();
+        };
 
         Messenger.Register<SurveyRequestEvent>(this, (r, m) => CollectData(m.Value));
         Messenger.Register<RespondEvent>(this, (r, m) => StoreData(m.Value));
@@ -521,6 +544,20 @@ public partial class SurveyViewModel : ViewModelBase
         await Task.Delay(1500);
         if (PeerCapabilities.Count == 0 && CapabilityStatus == "正在探测新版节点能力...")
             CapabilityStatus = "未发现支持 v2 的节点";
+    }
+
+    [RelayCommand(CanExecute = nameof(CanViewCapabilities))]
+    private async Task ViewCapabilities()
+    {
+        await OverlayDialog.ShowCustomModal<object>(
+            new SurveyCapabilitiesViewModel(PeerCapabilities, CapabilityStatus),
+            options: new OverlayDialogOptions
+            {
+                CanDragMove = false,
+                CanResize = true,
+                CanLightDismiss = true,
+                IsCloseButtonVisible = true,
+            });
     }
 
     [RelayCommand]

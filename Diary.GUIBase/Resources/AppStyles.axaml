@@ -65,13 +65,13 @@
     <Style Selector="TextBox.SLV, ComboBox.SLV, Button.SLV, u|NumericUpDown.SLV">
         <Setter Property="FontSize" Value="18"/>
     </Style>
-    <Style Selector="Expander:down /template/ Border#ExpanderContent">
+    <Style Selector="Expander.Settings:down /template/ Border#ExpanderContent">
         <Setter Property="BorderThickness" Value="0 0 0 2" />
         <Style Selector="^:expanded /template/ Border#ExpanderContent">
             <Setter Property="BorderBrush" Value="{DynamicResource ButtonDefaultDangerForeground}" />
         </Style>
     </Style>
-    <Style Selector="Expander:down /template/ ToggleButton#ExpanderHeader">
+    <Style Selector="Expander.Settings:down /template/ ToggleButton#ExpanderHeader">
         <Setter Property="FontSize" Value="{StaticResource SemiFontSizeHeader3}"/>
         <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultSuccessForeground}"/>
     </Style>
