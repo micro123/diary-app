@@ -79,9 +79,14 @@
     <Target Name="BuildAndCopyScriptWorker" AfterTargets="Build">
         <MSBuild Projects="..\Diary.Script.Worker\Diary.Script.Worker.csproj"
                  Targets="Build"
-                 Properties="Configuration=$(Configuration)" />
+                 Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier)" />
         <ItemGroup>
-            <ScriptWorkerOutput Include="..\Diary.Script.Worker\bin\$(Configuration)\net10.0\**\*" />
+            <!-- RID 发布时 Worker 输出在 net10.0/$(RuntimeIdentifier)/ 子目录，RecursiveDir 需相对于该目录，
+                 否则文件会嵌套进 OutputPath 的 RID 子目录，导致发布复制找不到 Worker 文件。 -->
+            <ScriptWorkerOutput Include="..\Diary.Script.Worker\bin\$(Configuration)\net10.0\$(RuntimeIdentifier)\**\*"
+                                Condition="'$(RuntimeIdentifier)' != ''" />
+            <ScriptWorkerOutput Include="..\Diary.Script.Worker\bin\$(Configuration)\net10.0\**\*"
+                                Condition="'$(RuntimeIdentifier)' == ''" />
         </ItemGroup>
         <Copy SourceFiles="@(ScriptWorkerOutput)"
               DestinationFiles="@(ScriptWorkerOutput->'$(OutputPath)%(RecursiveDir)%(Filename)%(Extension)')"
