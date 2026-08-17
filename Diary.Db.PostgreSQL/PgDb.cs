@@ -338,9 +338,13 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
         if (!string.IsNullOrWhiteSpace(excludingFieldId))
             sql += " AND field_id<>$2";
         sql += ";";
-        return !Exists(sql,
-            ("$1", TagExtraFieldKeyRules.Normalize(fieldKey)),
-            ("$2", excludingFieldId));
+        var args = new List<(string Name, object? Value)>
+        {
+            ("$1", TagExtraFieldKeyRules.Normalize(fieldKey))
+        };
+        if (!string.IsNullOrWhiteSpace(excludingFieldId))
+            args.Add(("$2", excludingFieldId));
+        return !Exists(sql, args.ToArray());
     }
 
     public override ICollection<WorkItemExtraField> GetWorkItemExtraFields(WorkItem item)
