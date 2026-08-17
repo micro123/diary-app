@@ -99,8 +99,10 @@
                 </Grid>
             </Expander>
             <TextBlock DockPanel.Dock="Top" Text="{Binding QueryMode}" Opacity="0.7" />
-            <ItemsControl ItemsSource="{Binding SurveyResults}">
-                <ItemsControl.ItemTemplate>
+            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding SurveyResults}">
+                    <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="viewModels:SurveyResult">
                         <Expander Header="{Binding Title}" IsExpanded="True">
                             <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,*" RowSpacing="4">
@@ -195,8 +197,9 @@
                             </Grid>
                         </Expander>
                     </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
         </DockPanel>
     </Panel>
 </UserControl>

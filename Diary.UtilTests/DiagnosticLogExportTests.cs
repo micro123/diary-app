@@ -33,6 +33,42 @@ public sealed class DiagnosticLogExportTests
     }
 
     [TestMethod]
+    public void FindCurrentLogFileReturnsMostRecentlyWrittenApplicationLog()
+    {
+        var source = CreateDirectory();
+        try
+        {
+            var previous = Path.Combine(source, "Diary.App20260816.log");
+            var current = Path.Combine(source, "Diary.App20260817.log");
+            File.WriteAllText(previous, "previous");
+            File.WriteAllText(current, "current");
+            File.WriteAllText(Path.Combine(source, "other.log"), "ignored");
+            File.SetLastWriteTimeUtc(previous, new DateTime(2026, 8, 16, 12, 0, 0, DateTimeKind.Utc));
+            File.SetLastWriteTimeUtc(current, new DateTime(2026, 8, 17, 12, 0, 0, DateTimeKind.Utc));
+
+            Assert.AreEqual(current, DiagnosticLogExportService.FindCurrentLogFile(source));
+        }
+        finally
+        {
+            Directory.Delete(source, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void FindCurrentLogFileWithoutLogsReturnsNull()
+    {
+        var source = CreateDirectory();
+        try
+        {
+            Assert.IsNull(DiagnosticLogExportService.FindCurrentLogFile(source));
+        }
+        finally
+        {
+            Directory.Delete(source, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void ExportWithoutLogsReturnsNull()
     {
         var source = CreateDirectory();

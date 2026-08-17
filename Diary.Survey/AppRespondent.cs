@@ -47,6 +47,7 @@ public class AppRespondent
             _respondentCtx = _respondent.CreateAsyncContext(NngManager.Factory).Unwrap();
             _respondentCtx.Aio.SetTimeout(250);
 
+            Logger.LogInformation("Respondent connecting to {Host}:{Port}", hostIpAddress, _port);
             StartReceive(_respondentCtx);
             return true;
         }
@@ -173,12 +174,17 @@ public class AppRespondent
                     continue;
                 }
 
-                await DispatchReceiveMessageAsync(Encoding.UTF8.GetString(data.AsSpan()));
+                var requestBytes = data.AsSpan();
+                Logger.LogDebug("Respondent received {ByteCount} bytes on port {Port}", requestBytes.Length, _port);
+                await DispatchReceiveMessageAsync(Encoding.UTF8.GetString(requestBytes));
                 var response = await DequeueResponse(token);
+                var responseBytes = Encoding.UTF8.GetBytes(response);
                 var nngMsg = NngManager.Factory.CreateMessage();
-                nngMsg.Append(Encoding.UTF8.GetBytes(response));
+                nngMsg.Append(responseBytes);
                 var result = await context.Send(nngMsg);
-                if (!result.IsOk() && !token.IsCancellationRequested)
+                if (result.IsOk())
+                    Logger.LogDebug("Respondent sent {ByteCount} bytes on port {Port}", responseBytes.Length, _port);
+                else if (!token.IsCancellationRequested)
                     Logger.LogError("Respondent send failed with code {Code}", result.Err());
             }
         }

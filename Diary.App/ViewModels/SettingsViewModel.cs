@@ -51,6 +51,28 @@ public partial class SettingsViewModel : ViewModelBase, IDialogContext
     }
 
     [RelayCommand]
+    private void OpenCurrentLog()
+    {
+        try
+        {
+            _logger.LogInformation("用户请求打开当前日志文件");
+            var path = _logExport.GetCurrentLogFile();
+            if (path is null)
+            {
+                NotificationManager?.Show("没有可打开的日志", NotificationType.Information);
+                return;
+            }
+
+            ProcUtils.OpenFileCrossPlatform(path);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "打开当前日志文件失败");
+            NotificationManager?.Show("打开当前日志文件失败", NotificationType.Error);
+        }
+    }
+
+    [RelayCommand]
     private void ExportLogs()
     {
         var path = _logExport.Export();

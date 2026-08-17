@@ -21,6 +21,7 @@
         <StackPanel Grid.Row="1" Orientation="Horizontal"
                     HorizontalAlignment="Center" Spacing="16"
                     Margin="32  8 32 0">
+            <Button Classes="Large" Content="打开当前日志" Command="{Binding OpenCurrentLogCommand}" />
             <Button Classes="Large" Content="导出日志" Command="{Binding ExportLogsCommand}" />
             <Button Classes="Large Primary" Content="保存" Command="{Binding SaveCommand}" />
             <Button Classes="Large Danger" Content="关闭" Command="{Binding LoadCommand}" />

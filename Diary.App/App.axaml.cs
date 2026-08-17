@@ -84,6 +84,9 @@ namespace Diary.App
             AvaloniaXamlLoader.Load(this);
             DataContext = Services.GetRequiredService<AppModel>();
 
+            // 调查响应处理不能依赖调查页是否显示；普通受访者也必须注册 v1/v2 请求处理器。
+            _ = Services.GetRequiredService<SurveyViewModel>();
+
             // 同步主题设置
             SyncTheme();
             ObserveBackgroundTask(UpdateSurveyObjectsAsync(), "调查对象初始化");

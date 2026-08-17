@@ -42,7 +42,7 @@ dotnet test DiaryApp.sln --configuration Release
 
 - 脚本 API 参考：[C#](Docs/ScriptApi/CSharp.md)、[Lua](Docs/ScriptApi/Lua.md)、[Python](Docs/ScriptApi/Python.md)
 - 架构：[当前架构](Docs/CurrentArchitecture.md)、[插件目标架构](Docs/TrackerPluginArchitecture.md)、[脚本系统设计](Docs/ScriptSystemDesign.md)
-- 发布说明：[CHANGELOG](Docs/CHANGELOG.md)
+- 发布说明：[CHANGELOG](Docs/CHANGELOG.md)；Agent 发布操作：[新 Tag 发布指南](Docs/AgentReleaseTagGuide.md)
 
 ## 版本
 

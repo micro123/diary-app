@@ -6,8 +6,23 @@ namespace Diary.App;
 [DiAutoRegister(singleton: true)]
 public sealed class DiagnosticLogExportService
 {
+    public string? GetCurrentLogFile()
+        => FindCurrentLogFile(FsTools.GetApplicationDataDirectory());
+
     public string? Export()
         => Export(FsTools.GetApplicationDataDirectory(), FsTools.GetTemporaryDirectory());
+
+    public static string? FindCurrentLogFile(string sourceDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceDirectory);
+        if (!Directory.Exists(sourceDirectory))
+            return null;
+
+        return Directory.EnumerateFiles(sourceDirectory, "Diary.App*.log")
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .ThenByDescending(path => path, StringComparer.Ordinal)
+            .FirstOrDefault();
+    }
 
     public static string? Export(string sourceDirectory, string destinationDirectory)
     {
