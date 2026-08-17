@@ -162,6 +162,41 @@ public sealed class WorkItemQueryScriptApiTests
     }
 
     [TestMethod]
+    public async Task QueryAsync_ExposesExtraFieldsByStableFieldKey()
+    {
+        using var db = TestDatabase.Create();
+        var tag = db.CreateWorkTag("会议", true, 0);
+        var definition = new TagExtraFieldDefinition
+        {
+            FieldKey = "meeting.participants",
+            TagId = tag.Id,
+            Label = "参会人",
+            Type = TagExtraFieldType.Text,
+        };
+        Assert.IsTrue(db.CreateTagExtraFieldDefinition(definition));
+        var item = db.CreateWorkItem("2026-08-17", "会议记录");
+        Assert.IsTrue(db.WorkItemAddTag(item, tag));
+        Assert.IsTrue(db.SaveWorkItemExtraFieldValues(item.Id, [new WorkItemExtraFieldValue
+        {
+            WorkItemId = item.Id,
+            FieldId = definition.FieldId,
+            Value = "张三、李四",
+        }]));
+
+        var result = await CreateApi(() => db).QueryAsync(new ScriptWorkItemQuery
+        {
+            StartDate = "2026-08-17",
+            EndDate = "2026-08-17",
+        });
+
+        Assert.IsTrue(result.Succeeded, result.Error?.Message);
+        var mapped = result.Items.Single();
+        Assert.AreEqual("张三、李四", mapped.GetExtraFieldValue("meeting.participants"));
+        Assert.AreEqual(TagExtraFieldType.Text, mapped.GetExtraField("meeting.participants")!.Type);
+        Assert.AreEqual("会议", mapped.GetExtraField("meeting.participants")!.TagName);
+    }
+
+    [TestMethod]
     public async Task QueryAsync_ResolvesRangeShortcutsToDateRanges()
     {
         using var db = TestDatabase.Create();

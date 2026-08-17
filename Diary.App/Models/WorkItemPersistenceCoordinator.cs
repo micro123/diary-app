@@ -13,6 +13,7 @@ public sealed record WorkItemSaveRequest(
     double Time,
     WorkPriorities Priority,
     IReadOnlyCollection<WorkTag> Tags,
+    IReadOnlyCollection<WorkItemExtraFieldValue> ExtraFieldValues,
     IReadOnlyCollection<ITrackerEditorExtension> Extensions);
 
 public sealed record WorkItemSaveResult(
@@ -79,6 +80,9 @@ public sealed class WorkItemPersistenceCoordinator : IWorkItemPersistenceCoordin
                         throw new InvalidOperationException($"保存工作项标签失败: {tag.Id}");
                 }
             }
+
+            if (!db.SaveWorkItemExtraFieldValues(item.Id, request.ExtraFieldValues))
+                throw new InvalidOperationException("保存附加字段失败");
 
             var commitSuccess = db.CommitTransaction();
             committed = true;

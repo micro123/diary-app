@@ -47,6 +47,8 @@ public sealed class WorkItemQueryScriptApi(
             cancellationToken.ThrowIfCancellationRequested();
             var tags = database.GetWorkTagsByWorkItemIds(workItemIds);
             cancellationToken.ThrowIfCancellationRequested();
+            var extraFields = database.GetWorkItemExtraFieldsByWorkItemIds(workItemIds);
+            cancellationToken.ThrowIfCancellationRequested();
 
             var result = workItems.Select(item => new ScriptWorkItem(
                 item.Id,
@@ -63,7 +65,14 @@ public sealed class WorkItemQueryScriptApi(
                         (int)tag.Level,
                         tag.Disabled)
                     { Metadata = new Dictionary<string, string>(tag.Metadata, StringComparer.Ordinal) })]
-                    : ImmutableArray<ScriptWorkTag>.Empty)).ToImmutableArray();
+                    : ImmutableArray<ScriptWorkTag>.Empty)
+            {
+                ExtraFields = extraFields.TryGetValue(item.Id, out var itemFields)
+                        ? [.. itemFields.Select(field => new ScriptWorkItemExtraField(
+                            field.FieldId, field.FieldKey, field.TagId, field.TagName,
+                            field.Label, field.Type, field.Value))]
+                        : ImmutableArray<ScriptWorkItemExtraField>.Empty,
+            }).ToImmutableArray();
             return ValueTask.FromResult(ScriptWorkItemQueryResult.Success(result, normalized));
         }
         catch (OperationCanceledException)

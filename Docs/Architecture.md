@@ -49,6 +49,9 @@
 
 自定义事项查询的模型、标签匹配语义、数据库实现和页面能力见
 [`WorkItemQueryDesign.md`](WorkItemQueryDesign.md)。当前 SQLite/PostgreSQL、查询页面和统计复用已经落地。
+
+标签附加字段的字段定义、工作项值编辑、SQLite/PostgreSQL 公共契约和脚本只读访问见
+[`TagExtraFieldDesign.md`](TagExtraFieldDesign.md)。附加字段属于核心工作项数据，不依赖具体 Tracker，字段类型在创建时固定，字段停用保留历史数据。
 - Test：各种单元测试放这里
 - Tools：编程工具和一些代码工具
   - Diary.Utils：程序工具，包括时间、文件、和一些属性定义

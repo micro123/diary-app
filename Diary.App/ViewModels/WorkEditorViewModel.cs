@@ -6,9 +6,11 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
+using Diary.App.ViewModels.Dialogs;
 using Diary.App.Services;
 using Diary.Core.Data.Base;
 using Diary.Database;
+using Diary.GUIBase;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
 using Diary.PluginBase;
@@ -16,6 +18,7 @@ using Diary.PluginUI;
 using Diary.ScriptBase;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
+using Ursa.Controls;
 
 namespace Diary.App.ViewModels;
 
@@ -68,8 +71,24 @@ public partial class WorkEditorViewModel : ViewModelBase
     [ObservableProperty] private WorkPriorities _priority;
     [ObservableProperty] private ObservableCollection<WorkTag> _workTags = new();
     [ObservableProperty] private ObservableCollection<WorkTag> _availableTags = new();
+    private readonly ObservableCollection<WorkItemExtraFieldValue> _extraFieldValues = new();
+    private IReadOnlyList<WorkItemExtraField> _extraFields = Array.Empty<WorkItemExtraField>();
 
     public bool HasAvailableTags => !IsLocked && AvailableTags.Count > 0;
+    public bool HasExtraFields => _extraFields.Count > 0;
+    public string ExtraFieldsSummary => _extraFields.Count == 0
+        ? "暂无附加信息"
+        : string.Join(Environment.NewLine, _extraFields
+            .Where(extraField => !string.IsNullOrWhiteSpace(extraField.Value))
+            .GroupBy(extraField => extraField.TagName)
+            .Select(group => $"{group.Key}: {string.Join("；", group.Select(extraField => $"{extraField.Label}={extraField.Value}"))}"))
+        switch
+        {
+            { Length: > 600 } summary => summary[..600] + "…",
+            var summary => summary.Length == 0 ? "暂无附加信息" : summary,
+        };
+    public IReadOnlyCollection<WorkItemExtraFieldValue> ExtraFieldValues => _extraFieldValues;
+    public IReadOnlyCollection<WorkItemExtraField> GetExtraFieldsSnapshot() => _extraFields;
 
     public bool IsImportedReadOnly => WorkItem?.IsReadOnly == true;
 
@@ -107,7 +126,7 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     // todo: plm?
 
-    private DbInterfaceBase? Db => App.Instance.UseDb;
+    private DbInterfaceBase? Db => (BaseApp.Instance as App)?.UseDb;
 
     public static WorkEditorViewModel FromWorkItem(WorkItem workItem)
     {
@@ -223,7 +242,8 @@ public partial class WorkEditorViewModel : ViewModelBase
     {
         var db = Db!;
         var result = _persistence.Save(db, new WorkItemSaveRequest(
-            WorkItem, Date, Comment, Note, Time, Priority, WorkTags, Extensions));
+            WorkItem, Date, Comment, Note, Time, Priority, WorkTags,
+            _extraFieldValues, Extensions));
         created = result.Created;
         if (!result.Success || result.WorkItem is null)
         {
@@ -299,10 +319,108 @@ public partial class WorkEditorViewModel : ViewModelBase
         };
     }
 
+    [RelayCommand]
+    private async Task EditExtraFields()
+    {
+        if (IsLocked)
+            return;
+        RefreshExtraFieldsSnapshot();
+        var fields = _extraFields;
+        if (fields.Count == 0)
+            return;
+        var dialog = new WorkItemExtraFieldsViewModel(Db!, WorkId, fields);
+        var result = await OverlayDialog.ShowCustomModal<bool>(dialog, options: new OverlayDialogOptions
+        {
+            Title = "编辑附加信息",
+            CanDragMove = false,
+            CanResize = true,
+            CanLightDismiss = false,
+            Mode = DialogMode.None,
+        });
+        if (!result)
+            return;
+
+        var values = dialog.GetValues();
+        if (WorkItem is { Id: > 0 } item && !Db!.SaveWorkItemExtraFieldValues(item.Id, values))
+        {
+            EventDispatcher.ShowToast("保存附加信息失败。");
+            return;
+        }
+
+        _extraFieldValues.Clear();
+        foreach (var value in values.Where(value => !string.IsNullOrWhiteSpace(value.Value)))
+            _extraFieldValues.Add(value with { WorkItemId = WorkId });
+        RefreshExtraFieldsSnapshot();
+    }
+
+    private List<WorkItemExtraField> BuildExtraFields()
+    {
+        var db = Db;
+        if (db is null)
+            return [];
+        if (WorkItem is { Id: > 0 } item)
+            return db.GetWorkItemExtraFields(item).ToList();
+
+        var values = _extraFieldValues.ToDictionary(value => value.FieldId, value => value.Value);
+        var fields = new List<WorkItemExtraField>();
+        foreach (var tag in WorkTags)
+        {
+            foreach (var definition in db.GetTagExtraFieldDefinitions(tag.Id))
+            {
+                fields.Add(new WorkItemExtraField
+                {
+                    FieldId = definition.FieldId,
+                    FieldKey = definition.FieldKey,
+                    TagId = tag.Id,
+                    TagName = tag.Name,
+                    Label = definition.Label,
+                    Type = definition.Type,
+                    Description = definition.Description,
+                    SortOrder = definition.SortOrder,
+                    Options = definition.Options,
+                    Enabled = definition.Enabled,
+                    Value = values.GetValueOrDefault(definition.FieldId, string.Empty),
+                });
+            }
+        }
+        return fields
+            .OrderBy(field => field.TagId)
+            .ThenBy(field => field.SortOrder)
+            .ThenBy(field => field.FieldKey)
+            .ToList();
+    }
+
+    private void SyncExtraFields()
+    {
+        _extraFieldValues.Clear();
+        if (WorkItem is { Id: > 0 } item && Db is not null)
+        {
+            foreach (var field in Db.GetWorkItemExtraFields(item)
+                         .Where(field => !string.IsNullOrWhiteSpace(field.Value)))
+            {
+                _extraFieldValues.Add(new WorkItemExtraFieldValue
+                {
+                    WorkItemId = item.Id,
+                    FieldId = field.FieldId,
+                    Value = field.Value,
+                });
+            }
+        }
+        RefreshExtraFieldsSnapshot();
+    }
+
+    private void RefreshExtraFieldsSnapshot()
+    {
+        _extraFields = BuildExtraFields();
+        OnPropertyChanged(nameof(HasExtraFields));
+        OnPropertyChanged(nameof(ExtraFieldsSummary));
+    }
+
     public void SyncAll()
     {
         SyncNote();
         SyncTags();
+        SyncExtraFields();
         foreach (var ext in Extensions)
             ext.Load(WorkItem);
         RecomputeIsLocked();
@@ -334,6 +452,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         }
         _syncing_tags = false;
         UpdateAvailableTags();
+        SyncExtraFields();
 
         // 每个 tracker 扩展从 map 中按 InstanceId 取自己的 per-work 绑定
         foreach (var ext in Extensions)
@@ -375,6 +494,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         }
 
         UpdateAvailableTags();
+        SyncExtraFields();
         _syncing_tags = false;
     }
 
@@ -402,6 +522,9 @@ public partial class WorkEditorViewModel : ViewModelBase
                 extension.CloneTo(target);
         }
         result.AddTags(WorkTags, TagAddSource.Duplicate);
+        foreach (var value in _extraFieldValues)
+            result._extraFieldValues.Add(value with { WorkItemId = 0 });
+        result.RefreshExtraFieldsSnapshot();
 
         return result;
     }
@@ -493,6 +616,7 @@ public partial class WorkEditorViewModel : ViewModelBase
                 _pendingTagAutomation.Add((tag, source, tagSequence));
         }
         UpdateAvailableTags();
+        RefreshExtraFieldsSnapshot();
     }
 
     [RelayCommand]
@@ -523,6 +647,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         }
         _syncing_tags = false;
         UpdateAvailableTags();
+        RefreshExtraFieldsSnapshot();
     }
 
     private void UpdateAvailableTags()

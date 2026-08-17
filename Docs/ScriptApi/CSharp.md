@@ -166,7 +166,16 @@ foreach (var item in result.Items)
 | `Offset` | `int` | 默认 0，最大 1,000,000。 |
 | `Range` | `string?` | 日期范围快捷值：`today`、`yesterday`、`thisWeek`、`thisMonth`；提供时覆盖 `StartDate`/`EndDate`，由宿主解析为实际日期范围。 |
 
-返回的 `ScriptWorkItemQueryResult` 包含 `Succeeded`、`Items`、`NormalizedQuery` 和 `Error`，另有计算属性 `ApiError`（`ScriptApiError?`，由 `Error.ToApiError()` 计算，提供稳定大写错误码）。`NormalizedQuery` 是宿主规范化后的参数回显：`Limit` 补全默认值 100、`Offset` 补全 0、`TagFilter` 补全 `Ignore`，`Range` 快捷值已被解析为 `StartDate`/`EndDate` 不再回显。`ScriptWorkItem` 仅是安全 DTO：`Id`、`Date`、`Comment`、`Hours`、`Priority`、`Note`、`Tags`。该 API 没有更新或删除方法。
+返回的 `ScriptWorkItemQueryResult` 包含 `Succeeded`、`Items`、`NormalizedQuery` 和 `Error`，另有计算属性 `ApiError`（`ScriptApiError?`，由 `Error.ToApiError()` 计算，提供稳定大写错误码）。`NormalizedQuery` 是宿主规范化后的参数回显：`Limit` 补全默认值 100、`Offset` 补全 0、`TagFilter` 补全 `Ignore`，`Range` 快捷值已被解析为 `StartDate`/`EndDate` 不再回显。`ScriptWorkItem` 仅是安全 DTO：`Id`、`Date`、`Comment`、`Hours`、`Priority`、`Note`、`Tags` 和只读 `ExtraFields`。该 API 没有更新或删除方法。
+
+每个 `ExtraFields` 项包含 `FieldId`、全局唯一的 `FieldKey`、标签信息、`Label`、`Type` 和 `Value`。脚本应通过稳定的 `FieldKey` 读取，例如：
+
+```csharp
+var participants = item.GetExtraFieldValue("meeting.participants");
+var field = item.GetExtraField("meeting.participants");
+```
+
+附加字段是只读数据；编辑字段不会触发脚本执行。
 
 ### 流式查询大量明细
 

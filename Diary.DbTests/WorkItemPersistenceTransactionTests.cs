@@ -53,6 +53,7 @@ public sealed class WorkItemPersistenceTransactionTests
                 Time: 1,
                 Priority: WorkPriorities.P2,
                 Tags: Array.Empty<WorkTag>(),
+                ExtraFieldValues: Array.Empty<WorkItemExtraFieldValue>(),
                 Extensions: extensions));
 
     private sealed class FakeExtension(string pluginId, bool saveResult) : ITrackerEditorExtension

@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Globalization;
+using Diary.Core.Data.Base;
 
 namespace Diary.ScriptBase;
 
@@ -193,7 +194,26 @@ public sealed record ScriptWorkItem(
     double Hours,
     int Priority,
     string? Note,
-    ImmutableArray<ScriptWorkTag> Tags);
+    ImmutableArray<ScriptWorkTag> Tags)
+{
+    public ImmutableArray<ScriptWorkItemExtraField> ExtraFields { get; init; } =
+        ImmutableArray<ScriptWorkItemExtraField>.Empty;
+
+    public ScriptWorkItemExtraField? GetExtraField(string fieldKey) =>
+        ExtraFields.FirstOrDefault(field =>
+            string.Equals(field.FieldKey, fieldKey, StringComparison.OrdinalIgnoreCase));
+
+    public string? GetExtraFieldValue(string fieldKey) => GetExtraField(fieldKey)?.Value;
+}
+
+public sealed record ScriptWorkItemExtraField(
+    string FieldId,
+    string FieldKey,
+    int TagId,
+    string TagName,
+    string Label,
+    TagExtraFieldType Type,
+    string Value);
 
 public sealed record ScriptEditorTarget(
     ScriptEditorTargetKind Kind,

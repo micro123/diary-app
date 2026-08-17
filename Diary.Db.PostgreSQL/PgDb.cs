@@ -111,6 +111,30 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
                   	PRIMARY KEY (work_id, tag_id)
                   );
 
+                  CREATE TABLE IF NOT EXISTS tag_extra_field_definitions (
+                     field_id TEXT PRIMARY KEY,
+                     field_key TEXT NOT NULL,
+                     tag_id INTEGER NOT NULL REFERENCES work_tags(id) ON DELETE CASCADE,
+                     label TEXT NOT NULL,
+                     field_type INTEGER NOT NULL,
+                     description TEXT NOT NULL DEFAULT '',
+                     sort_order INTEGER NOT NULL DEFAULT 0,
+                     options_json TEXT NOT NULL DEFAULT '[]',
+                     enabled INTEGER NOT NULL DEFAULT TRUE
+                  );
+                  CREATE UNIQUE INDEX IF NOT EXISTS ux_tag_extra_fields_key
+                     ON tag_extra_field_definitions (LOWER(field_key));
+                  CREATE INDEX IF NOT EXISTS idx_tag_extra_fields_tag
+                     ON tag_extra_field_definitions(tag_id, enabled, sort_order);
+                  CREATE TABLE IF NOT EXISTS work_item_extra_field_values (
+                     work_id INTEGER NOT NULL REFERENCES work_items(id) ON DELETE CASCADE,
+                     field_id TEXT NOT NULL REFERENCES tag_extra_field_definitions(field_id),
+                     value_json TEXT NOT NULL DEFAULT '',
+                     PRIMARY KEY (work_id, field_id)
+                  );
+                  CREATE INDEX IF NOT EXISTS idx_work_item_extra_fields_work
+                     ON work_item_extra_field_values(work_id);
+
                   CREATE TABLE IF NOT EXISTS data_versions (version_code INTEGER PRIMARY KEY);
 
                    -- default data version is 1.0.0 (0x10000 = 65536)
@@ -221,6 +245,169 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
     {
         const string sql = "UPDATE work_tags SET id=$1 WHERE id=$2;";
         return Execute(sql, ("$1", newId), ("$2", oldId)) > 0;
+    }
+
+    public override ICollection<TagExtraFieldDefinition> GetTagExtraFieldDefinitions(
+        int tagId, bool includeDisabled = false)
+    {
+        var sql = """
+                  SELECT field_id, field_key, tag_id, label, field_type, description,
+                         sort_order, options_json, enabled
+                  FROM tag_extra_field_definitions
+                  WHERE tag_id=$1
+                  """ + (includeDisabled ? string.Empty : " AND enabled=TRUE") +
+                  " ORDER BY sort_order, field_key;";
+        return Query(sql, MapTagExtraFieldDefinition, ("$1", tagId));
+    }
+
+    public override ICollection<TagExtraFieldDefinition> GetAllTagExtraFieldDefinitions(
+        bool includeDisabled = false)
+    {
+        var sql = """
+                  SELECT field_id, field_key, tag_id, label, field_type, description,
+                         sort_order, options_json, enabled
+                  FROM tag_extra_field_definitions
+                  """ + (includeDisabled ? string.Empty : " WHERE enabled=TRUE") +
+                  " ORDER BY tag_id, sort_order, field_key;";
+        return Query(sql, MapTagExtraFieldDefinition);
+    }
+
+    public override bool CreateTagExtraFieldDefinition(TagExtraFieldDefinition definition)
+    {
+        if (definition.TagId <= 0
+            || !TagExtraFieldKeyRules.IsValid(definition.FieldKey)
+            || string.IsNullOrWhiteSpace(definition.Label)
+            || string.IsNullOrWhiteSpace(definition.FieldId)
+            || !IsTagExtraFieldKeyAvailable(definition.FieldKey))
+            return false;
+        const string sql = """
+                           INSERT INTO tag_extra_field_definitions
+                              (field_id, field_key, tag_id, label, field_type, description,
+                               sort_order, options_json, enabled)
+                           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                           ON CONFLICT DO NOTHING;
+                           """;
+        return Execute(sql,
+            ("$1", definition.FieldId),
+            ("$2", TagExtraFieldKeyRules.Normalize(definition.FieldKey)),
+            ("$3", definition.TagId),
+            ("$4", definition.Label.Trim()),
+            ("$5", (int)definition.Type),
+            ("$6", definition.Description ?? string.Empty),
+            ("$7", definition.SortOrder),
+            ("$8", SerializeTagExtraFieldOptions(definition.Options)),
+            ("$9", definition.Enabled)) > 0;
+    }
+
+    public override bool UpdateTagExtraFieldDefinition(TagExtraFieldDefinition definition)
+    {
+        if (string.IsNullOrWhiteSpace(definition.FieldId)
+            || !TagExtraFieldKeyRules.IsValid(definition.FieldKey)
+            || string.IsNullOrWhiteSpace(definition.Label))
+            return false;
+        var current = QueryFirst(
+            "SELECT field_id, field_key, tag_id, label, field_type, description, sort_order, options_json, enabled " +
+            "FROM tag_extra_field_definitions WHERE field_id=$1;",
+            MapTagExtraFieldDefinition,
+            ("$1", definition.FieldId));
+        if (current is null
+            || !string.Equals(current.FieldKey, TagExtraFieldKeyRules.Normalize(definition.FieldKey), StringComparison.OrdinalIgnoreCase)
+            || current.Type != definition.Type
+            || current.TagId != definition.TagId)
+            return false;
+        const string sql = """
+                           UPDATE tag_extra_field_definitions
+                           SET label=$1, description=$2, sort_order=$3,
+                               options_json=$4, enabled=$5
+                           WHERE field_id=$6;
+                           """;
+        return Execute(sql,
+            ("$1", definition.Label.Trim()),
+            ("$2", definition.Description ?? string.Empty),
+            ("$3", definition.SortOrder),
+            ("$4", SerializeTagExtraFieldOptions(definition.Options)),
+            ("$5", definition.Enabled),
+            ("$6", definition.FieldId)) > 0;
+    }
+
+    public override bool IsTagExtraFieldKeyAvailable(string fieldKey, string? excludingFieldId = null)
+    {
+        if (!TagExtraFieldKeyRules.IsValid(fieldKey))
+            return false;
+        var sql = "SELECT 1 FROM tag_extra_field_definitions WHERE lower(field_key)=lower($1)";
+        if (!string.IsNullOrWhiteSpace(excludingFieldId))
+            sql += " AND field_id<>$2";
+        sql += ";";
+        return !Exists(sql,
+            ("$1", TagExtraFieldKeyRules.Normalize(fieldKey)),
+            ("$2", excludingFieldId));
+    }
+
+    public override ICollection<WorkItemExtraField> GetWorkItemExtraFields(WorkItem item)
+    {
+        if (item.Id <= 0)
+            return Array.Empty<WorkItemExtraField>();
+        const string sql = """
+                           SELECT d.field_id, d.field_key, d.tag_id, t.tag_name, d.label,
+                                  d.field_type, d.description, d.sort_order, d.options_json,
+                                  d.enabled, v.value_json
+                           FROM work_item_tags wit
+                           INNER JOIN tag_extra_field_definitions d
+                              ON d.tag_id=wit.tag_id AND d.enabled=TRUE
+                           INNER JOIN work_tags t ON t.id=d.tag_id
+                           LEFT JOIN work_item_extra_field_values v
+                              ON v.work_id=wit.work_id AND v.field_id=d.field_id
+                           WHERE wit.work_id=$1
+                           ORDER BY t.tag_level, t.id, d.sort_order, d.field_key;
+                           """;
+        return Query(sql, MapWorkItemExtraField, ("$1", item.Id));
+    }
+
+    public override bool SaveWorkItemExtraFieldValues(
+        int workItemId, IReadOnlyCollection<WorkItemExtraFieldValue> values)
+    {
+        if (workItemId <= 0 || !IsWorkItemWritable(workItemId))
+            return false;
+        var ownsTransaction = _transaction is null;
+        if (ownsTransaction && !BeginTransaction())
+            return false;
+        try
+        {
+            Execute("""
+                    DELETE FROM work_item_extra_field_values
+                    WHERE work_id=$1
+                      AND field_id IN (
+                          SELECT d.field_id
+                          FROM work_item_tags wit
+                          INNER JOIN tag_extra_field_definitions d ON d.tag_id=wit.tag_id
+                          WHERE wit.work_id=$1 AND d.enabled=TRUE);
+                    """, ("$1", workItemId));
+            foreach (var value in values.Where(value => !string.IsNullOrWhiteSpace(value.FieldId)
+                                                         && !string.IsNullOrWhiteSpace(value.Value)))
+            {
+                Execute("""
+                        INSERT INTO work_item_extra_field_values(work_id, field_id, value_json)
+                        SELECT $1, d.field_id, $2
+                        FROM tag_extra_field_definitions d
+                        INNER JOIN work_item_tags wit ON wit.tag_id=d.tag_id
+                        WHERE wit.work_id=$1 AND d.field_id=$3 AND d.enabled=TRUE
+                        ON CONFLICT (work_id, field_id)
+                        DO UPDATE SET value_json=EXCLUDED.value_json;
+                        """,
+                    ("$1", workItemId),
+                    ("$2", value.Value),
+                    ("$3", value.FieldId));
+            }
+            if (ownsTransaction && !CommitTransaction())
+                return false;
+            return true;
+        }
+        catch (Exception)
+        {
+            if (ownsTransaction)
+                RollbackTransaction();
+            return false;
+        }
     }
 
     // $1=date $2=comment

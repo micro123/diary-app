@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
+             xmlns:models="clr-namespace:Diary.App.Models"
+             mc:Ignorable="d"
+             x:Class="Diary.App.Views.Dialogs.WorkItemExtraFieldsView"
+             x:DataType="dialogs:WorkItemExtraFieldsViewModel"
+             Width="620" Height="520" Margin="12">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
+        <TextBlock Text="{Binding Title}" Classes="Header" />
+        <ScrollViewer Grid.Row="1">
+            <ItemsControl ItemsSource="{Binding Groups}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Padding="10" Margin="0 0 0 8"
+                                Background="{DynamicResource SemiColorFill1}">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="{Binding TagName}" FontWeight="SemiBold" />
+                                <ItemsControl ItemsSource="{Binding Fields}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="models:EditableWorkItemExtraField">
+                                            <Grid ColumnDefinitions="130,*" ColumnSpacing="8" Margin="0 2">
+                                                <TextBlock Text="{Binding Label}" VerticalAlignment="Center"
+                                                           ToolTip.Tip="{Binding Description}" />
+                                                <TextBox Grid.Column="1" Text="{Binding Value}" AcceptsReturn="True"
+                                                         MinHeight="30" Watermark="{Binding FieldKey}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+        <StackPanel Grid.Row="2" Spacing="6">
+            <TextBlock Text="{Binding ValidationMessage}" Foreground="{DynamicResource SystemControlErrorTextForeground}"
+                       TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="取消" Command="{Binding CancelCommand}" />
+                <Button Content="保存" Classes="Primary" Command="{Binding SaveCommand}" />
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</UserControl>

@@ -119,6 +119,15 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
     public abstract ICollection<WorkTag> AllWorkTags();
     public abstract bool UpdateWorkTagId(int oldId, int newId);
 
+    // tag extra fields
+    public virtual ICollection<TagExtraFieldDefinition> GetTagExtraFieldDefinitions(
+        int tagId, bool includeDisabled = false) => Array.Empty<TagExtraFieldDefinition>();
+    public virtual ICollection<TagExtraFieldDefinition> GetAllTagExtraFieldDefinitions(
+        bool includeDisabled = false) => Array.Empty<TagExtraFieldDefinition>();
+    public virtual bool CreateTagExtraFieldDefinition(TagExtraFieldDefinition definition) => false;
+    public virtual bool UpdateTagExtraFieldDefinition(TagExtraFieldDefinition definition) => false;
+    public virtual bool IsTagExtraFieldKeyAvailable(string fieldKey, string? excludingFieldId = null) => true;
+
     // work item
     public abstract WorkItem CreateWorkItem(string date, string comment);
     public abstract bool UpdateWorkItem(WorkItem item);
@@ -128,6 +137,23 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
     public abstract ICollection<WorkItem> QueryWorkItems(WorkItemQuery query);
     public abstract bool UpdateWorkItemId(int oldId, int newId);
     public abstract bool MarkWorkItemReadOnly(WorkItem item);
+    public virtual ICollection<WorkItemExtraField> GetWorkItemExtraFields(WorkItem item) =>
+        Array.Empty<WorkItemExtraField>();
+    public virtual Dictionary<int, ICollection<WorkItemExtraField>> GetWorkItemExtraFieldsByWorkItemIds(
+        IReadOnlyCollection<int> workItemIds)
+    {
+        ArgumentNullException.ThrowIfNull(workItemIds);
+        var result = new Dictionary<int, ICollection<WorkItemExtraField>>();
+        foreach (var id in workItemIds.Where(id => id > 0).Distinct())
+        {
+            var fields = GetWorkItemExtraFields(new WorkItem { Id = id });
+            if (fields.Count > 0)
+                result[id] = fields;
+        }
+        return result;
+    }
+    public virtual bool SaveWorkItemExtraFieldValues(
+        int workItemId, IReadOnlyCollection<WorkItemExtraFieldValue> values) => true;
 
     // work note
     public abstract void WorkUpdateNote(WorkItem work, string content);
@@ -387,6 +413,21 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
     protected static string SerializeWorkTagMetadata(IReadOnlyDictionary<string, string> metadata) =>
         JsonSerializer.Serialize(metadata);
 
+    protected static string SerializeTagExtraFieldOptions(IReadOnlyCollection<string> options) =>
+        JsonSerializer.Serialize(options);
+
+    protected static string[] ParseTagExtraFieldOptions(string json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<string[]>(json) ?? Array.Empty<string>();
+        }
+        catch (JsonException)
+        {
+            return Array.Empty<string>();
+        }
+    }
+
     private static Dictionary<string, string> ParseWorkTagMetadata(string json)
     {
         try
@@ -399,6 +440,34 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
             return new Dictionary<string, string>(StringComparer.Ordinal);
         }
     }
+
+    protected TagExtraFieldDefinition MapTagExtraFieldDefinition(DbDataReader r) => new()
+    {
+        FieldId = ReadString(r, 0),
+        FieldKey = ReadString(r, 1),
+        TagId = r.GetInt32(2),
+        Label = ReadString(r, 3),
+        Type = (TagExtraFieldType)r.GetInt32(4),
+        Description = ReadString(r, 5),
+        SortOrder = r.GetInt32(6),
+        Options = ParseTagExtraFieldOptions(ReadString(r, 7)),
+        Enabled = Convert.ToBoolean(r.GetValue(8)),
+    };
+
+    protected WorkItemExtraField MapWorkItemExtraField(DbDataReader r) => new()
+    {
+        FieldId = ReadString(r, 0),
+        FieldKey = ReadString(r, 1),
+        TagId = r.GetInt32(2),
+        TagName = ReadString(r, 3),
+        Label = ReadString(r, 4),
+        Type = (TagExtraFieldType)r.GetInt32(5),
+        Description = ReadString(r, 6),
+        SortOrder = r.GetInt32(7),
+        Options = ParseTagExtraFieldOptions(ReadString(r, 8)),
+        Enabled = Convert.ToBoolean(r.GetValue(9)),
+        Value = r.IsDBNull(10) ? string.Empty : ReadString(r, 10),
+    };
 
     protected WorkItem MapWorkItem(DbDataReader r) => new()
     {

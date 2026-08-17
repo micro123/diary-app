@@ -379,7 +379,19 @@ Redmine 实例设置页和核心标签编辑器复用规则编辑 ViewModel，�
 
 详细设计见 [`TagAutomationDesign.md`](TagAutomationDesign.md)。
 
-## 15. 脚本运行时
+## 15. 标签附加字段
+
+核心标签可以定义多个可选附加字段。字段定义保存在 `tag_extra_field_definitions`，工作项值保存在
+`work_item_extra_field_values`；SQLite 和 PostgreSQL 在 `Initialized()` 中幂等创建对应表，
+不新增版本化 migration。字段的 `FieldKey` 全局唯一且创建后不可修改，字段类型在创建时固定；
+字段停用而非物理删除，历史字段值保留。
+
+日志编辑器不展开附加字段，只提供独立“附加信息”对话框，并按标签分组编辑；按钮 Tooltip
+显示截断预览。附加字段编辑不触发脚本执行，脚本查询 DTO 通过 `FieldKey` 只读访问字段值。
+
+详细设计见 [`TagExtraFieldDesign.md`](TagExtraFieldDesign.md)。
+
+## 16. 脚本运行时
 
 `Diary.Script.Runtime` 当前提供 `IScriptManager`、`ScriptCatalog`、构建服务、进程内
 `ScriptExecutor` 和按语言路由的 `WorkerScriptExecutor`。应用启动时注册 C#、Lua、Python 三个引擎，
@@ -401,7 +413,7 @@ WorkItemCreated/WorkItemSaved/TagAdded 触发器均已接线。Query 入口已�
 基类与三语言创建模板，管理页可运行）。普通和模板日志项创建使用 provider 事务，支持 `Preview` 投影且预览不写入数据库；工作项相关自动化失败会通过全局 Toast 非阻塞提示，Startup/Scheduled 失败仍通过日志和执行历史追踪；C# 脚本编辑器已使用复用正式编译引用的进程内 Roslyn 语言服务，支持防抖实时诊断、语义补全和悬停信息，关键字补全作为降级；执行历史与进度均为会话内存态，持久化经决策明确延期；
 脚本包管理、Windows/Linux 运行时打包和更强的操作系统级资源限制仍需继续扩展；macOS 不在当前支持范围内。
 
-## 16. 维护约定
+## 17. 维护约定
 
 - 新增 tracker 不得把具体类型加入 `Diary.Core` 或核心编辑器。
 - 新增数据库扩展必须实现 provider 契约测试，并验证缺失程序集时核心数据库仍可启动。

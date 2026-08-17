@@ -774,7 +774,11 @@ public partial class DiaryEditorViewModel : ViewModelBase
                 tag.Color,
                 (int)tag.Level,
                 tag.Disabled)
-            { Metadata = new Dictionary<string, string>(tag.Metadata, StringComparer.Ordinal) })]);
+            { Metadata = new Dictionary<string, string>(tag.Metadata, StringComparer.Ordinal) })])
+        {
+            ExtraFields = [.. workItem.GetExtraFieldsSnapshot().Select(field => new ScriptWorkItemExtraField(
+                field.FieldId, field.FieldKey, field.TagId, field.TagName, field.Label, field.Type, field.Value))],
+        };
 
     private void FillDayMenus(DateTime date)
     {

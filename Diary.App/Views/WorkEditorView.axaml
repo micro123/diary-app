@@ -137,6 +137,15 @@
                 </MenuFlyout>
             </Button.Flyout>
         </Button>
+        <Button DockPanel.Dock="Top" HorizontalAlignment="Left"
+                IsVisible="{Binding HasExtraFields}" IsEnabled="{Binding !IsLocked}"
+                Command="{Binding EditExtraFieldsCommand}"
+                ToolTip.Tip="{Binding ExtraFieldsSummary}">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+                <i:Icon Value="mdi-information-outline" />
+                <TextBlock Text="附加信息" />
+            </StackPanel>
+        </Button>
         <!-- tracker 扩展区（RedMine 等，可多个）：按实例切换，每个扩展由全局 ViewLocator 渲染 -->
         <TabControl DockPanel.Dock="Top" ItemsSource="{Binding TrackerTabs}"
                     TabStripPlacement="Top" Theme="{DynamicResource LineTabControl}">

@@ -1,0 +1,112 @@
+# 标签附加字段设计
+
+## 1. 功能范围
+
+标签可以关联多个附加字段。字段是工作项的可选数据，不会阻止标签添加或工作项保存。
+日志编辑界面不直接展开字段，只提供“附加信息”按钮；独立对话框按标签分组编辑当前工作项的字段值，按钮 Tooltip 仅预览已填写内容。
+
+附加字段编辑不触发脚本执行，不新增 `TagFieldChanged` 事件，也不重复触发 `TagAdded`。
+脚本只读访问字段值，并通过全局唯一的 `FieldKey` 查询，例如 `meeting.participants`。
+
+## 2. 字段定义
+
+一个标签可以定义多个字段。字段定义包含：
+
+- `FieldId`：内部 GUID，用于数据库关联；
+- `FieldKey`：全局唯一、面向脚本的稳定标识，只允许英文、数字、点、下划线和短横线；
+- `TagId`：所属标签；
+- `Label`：界面显示名称；
+- `Type`：创建时确定且之后不可修改；
+- `Description`：字段说明；
+- `SortOrder`：对话框显示顺序；
+- `Options`：`Choice` 类型的选项；
+- `Enabled`：是否继续在编辑器中显示。
+
+第一版字段类型为：`Text`、`MultilineText`、`Integer`、`Decimal`、`Boolean`、`Date`、`Time`、`DateTime` 和 `Choice`。
+所有字段均为可选，不包含 `Required` 语义。
+
+`FieldKey` 创建后不可修改。显示名称、描述、排序和启用状态可以修改。
+字段类型必须在创建时确定，即使字段尚未被工作项使用，也不允许直接改类型；需要其他类型时创建新的字段定义。
+
+字段不提供普通物理删除，删除操作表现为禁用。禁用会隐藏字段编辑入口，但保留字段定义、历史值和 `FieldKey`，旧 Key 永不复用。
+`Choice` 选项可以新增或改显示文本，已经被使用的选项通过禁用保留，不直接删除。
+
+## 3. 数据存储
+
+核心数据库初始化时幂等创建两张表，不新增版本化 migration：
+
+```text
+tag_extra_field_definitions
+- field_id
+- field_key
+- tag_id
+- label
+- field_type
+- description
+- sort_order
+- options_json
+- enabled
+
+work_item_extra_field_values
+- work_id
+- field_id
+- value_json
+```
+
+`field_key` 在 SQLite 使用 `NOCASE UNIQUE`，PostgreSQL 使用 `LOWER(field_key)` 唯一索引，保证不同标签不能注册相同的脚本标识。
+
+`Diary.Database.DbInterfaceBase` 提供公共字段定义和值访问契约、通用模型和默认兼容行为；SQLite 与 PostgreSQL 分别实现初始化 SQL、查询、写入和事务绑定。
+
+## 4. 字段定义编辑
+
+标签设置页中按标签维护字段定义。字段管理支持新增、编辑显示名称/描述/排序、启用或禁用，以及维护下拉选项。
+编辑已有字段时，`FieldKey` 和 `Type` 控件不可修改；数据库 provider 也会拒绝变更这两个属性，避免绕过 UI 造成脚本和历史值不兼容。
+
+## 5. 工作项字段值编辑
+
+工作项编辑器只显示附加信息按钮。点击后打开独立对话框：
+
+```text
+会议
+  参会人
+  会议日期
+  会议地点
+
+加班
+  加班原因
+```
+
+字段按当前工作项的标签分组，空值合法。已保存工作项点击对话框“保存”后独立写入字段值；新工作项暂存字段值，在工作项首次保存时随本地事务写入。
+
+删除工作项中的标签不会删除字段值。重新添加标签后可以恢复历史值；禁用字段和移除标签的历史值默认不在普通编辑对话框中显示。
+
+Tooltip 只提供截断后的摘要，完整内容通过独立对话框查看。
+
+## 6. 脚本只读访问
+
+`ScriptWorkItem` 暴露 `ExtraFields`，每项包含 `FieldId`、`FieldKey`、标签信息、显示名称、字段类型和值，并提供：
+
+```csharp
+workItem.GetExtraFieldValue("meeting.participants");
+workItem.GetExtraField("meeting.participants");
+```
+
+查询脚本结果和工作项编辑器中的脚本目标都携带附加字段。脚本不能新增、修改或删除字段定义和值，字段编辑也不会触发脚本执行。
+
+## 7. 事务和兼容性
+
+工作项首次创建时，标签和草稿附加字段值在同一个本地事务中保存。已保存工作项从附加字段对话框保存时，provider 为当前工作项的启用字段值执行独立事务写入；空值删除当前启用字段的值，禁用字段历史值保留。
+
+旧数据库打开时由 SQLite/PostgreSQL 的 `Initialized()` 幂等创建新表，不改变已有核心数据版本和业务数据。
+
+## 8. 测试要求
+
+- SQLite/PostgreSQL 字段定义 CRUD 契约一致；
+- `FieldKey` 全局唯一且不区分大小写；
+- 已有字段不能修改类型或 Key；
+- 禁用字段保留定义和历史值；
+- 工作项字段值保存、清空和按当前标签读取正确；
+- 脚本查询可以通过 `FieldKey` 读取字段；
+- 字段编辑不触发字段脚本事件；
+- 旧数据库初始化可以重复执行；
+- 迁移工具和只读工作项不因附加字段写入而绕过只读边界。

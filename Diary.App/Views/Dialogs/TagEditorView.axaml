@@ -47,7 +47,7 @@
                     <DataTemplate DataType="{x:Type models:EditableWorkTag}">
                         <Border Theme="{DynamicResource CardBorder}" Width="310" Padding="10"
                                 Margin="0 0 8 8">
-                            <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8">
+                            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
                                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                                     <TextBlock Text="{Binding Id, StringFormat='#{0}'}"
                                                VerticalAlignment="Center" />
@@ -101,6 +101,50 @@
                                                                 Theme="{DynamicResource BorderlessButton}"
                                                                 Classes="Danger" />
                                                     </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Grid>
+                                </Border>
+                                <Border Grid.Row="4" Padding="8"
+                                        Background="{DynamicResource SemiColorFill1}">
+                                    <Grid RowDefinitions="Auto,Auto" RowSpacing="6">
+                                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+                                            <TextBlock Text="附加字段" FontWeight="SemiBold"
+                                                       VerticalAlignment="Center" />
+                                            <Button Grid.Column="2" Content="添加"
+                                                    Command="{Binding AddExtraFieldCommand}"
+                                                    Theme="{DynamicResource BorderlessButton}" />
+                                        </Grid>
+                                        <ItemsControl Grid.Row="1" ItemsSource="{Binding ExtraFields}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type models:EditableTagExtraField}">
+                                                    <Border BorderBrush="{DynamicResource SemiColorBorder}"
+                                                            BorderThickness="0 0 0 1" Padding="0 4">
+                                                        <StackPanel Spacing="4">
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
+                                                                <TextBox Text="{Binding Label}" Watermark="显示名称" />
+                                                                <ToggleSwitch Grid.Column="1" IsChecked="{Binding Enabled}"
+                                                                              OffContent="禁用" OnContent="启用" />
+                                                            </Grid>
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
+                                                                <TextBox Text="{Binding FieldKey}" Watermark="FieldKey"
+                                                                         IsEnabled="{Binding IsNew}" />
+                                                                <ComboBox Grid.Column="1" Width="120"
+                                                                          ItemsSource="{Binding AvailableTypes}"
+                                                                          SelectedItem="{Binding Type}"
+                                                                          IsEnabled="{Binding IsNew}" />
+                                                            </Grid>
+                                                            <TextBox Text="{Binding Description}" Watermark="说明（可选）" />
+                                                            <TextBox Text="{Binding OptionsText}" Watermark="下拉选项（每行一项，Choice 类型使用）"
+                                                                     AcceptsReturn="True" MinHeight="36" />
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
+                                                                <TextBox Text="{Binding SortOrder}" Watermark="排序" />
+                                                                <TextBlock Grid.Column="1" Text="类型创建后不可修改"
+                                                                           VerticalAlignment="Center" Opacity="0.65" />
+                                                            </Grid>
+                                                        </StackPanel>
+                                                    </Border>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>

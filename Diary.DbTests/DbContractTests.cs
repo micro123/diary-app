@@ -107,6 +107,95 @@ public abstract class DbContractTests
         Assert.IsTrue(db.AllWorkTags().Any(x => x.Id == 5000));
     }
 
+    // ---------- 标签附加字段 ----------
+
+    [TestMethod]
+    public void TagExtraFieldDefinition_GlobalKeyAndImmutableType()
+    {
+        using var db = CreateDb();
+        var meeting = db.CreateWorkTag("会议", true, 0);
+        var overtime = db.CreateWorkTag("加班", false, 0);
+        var definition = new TagExtraFieldDefinition
+        {
+            FieldKey = "meeting.date",
+            TagId = meeting.Id,
+            Label = "会议日期",
+            Type = TagExtraFieldType.Date,
+        };
+
+        Assert.IsTrue(db.CreateTagExtraFieldDefinition(definition));
+        Assert.IsFalse(db.IsTagExtraFieldKeyAvailable("MEETING.DATE"));
+        Assert.IsFalse(db.CreateTagExtraFieldDefinition(new TagExtraFieldDefinition
+        {
+            FieldKey = "meeting.date",
+            TagId = overtime.Id,
+            Label = "重复字段",
+            Type = TagExtraFieldType.Text,
+        }));
+
+        definition.Type = TagExtraFieldType.DateTime;
+        Assert.IsFalse(db.UpdateTagExtraFieldDefinition(definition));
+        Assert.AreEqual(TagExtraFieldType.Date,
+            db.GetTagExtraFieldDefinitions(meeting.Id, includeDisabled: true).Single().Type);
+    }
+
+    [TestMethod]
+    public void TagExtraFieldDefinition_DisableKeepsDefinition()
+    {
+        using var db = CreateDb();
+        var tag = db.CreateWorkTag("项目", true, 0);
+        var definition = new TagExtraFieldDefinition
+        {
+            FieldKey = "project.number",
+            TagId = tag.Id,
+            Label = "项目编号",
+            Type = TagExtraFieldType.Text,
+        };
+        Assert.IsTrue(db.CreateTagExtraFieldDefinition(definition));
+
+        definition.Enabled = false;
+        Assert.IsTrue(db.UpdateTagExtraFieldDefinition(definition));
+        Assert.AreEqual(0, db.GetTagExtraFieldDefinitions(tag.Id).Count);
+        var disabled = db.GetTagExtraFieldDefinitions(tag.Id, includeDisabled: true).Single();
+        Assert.IsFalse(disabled.Enabled);
+        Assert.AreEqual("project.number", disabled.FieldKey);
+    }
+
+    [TestMethod]
+    public void WorkItemExtraFieldValues_SaveAndLoadByCurrentTags()
+    {
+        using var db = CreateDb();
+        var tag = db.CreateWorkTag("会议", true, 0);
+        var definition = new TagExtraFieldDefinition
+        {
+            FieldKey = "meeting.participants",
+            TagId = tag.Id,
+            Label = "参会人",
+            Type = TagExtraFieldType.Text,
+        };
+        Assert.IsTrue(db.CreateTagExtraFieldDefinition(definition));
+        var item = db.CreateWorkItem("2026-08-17", "会议记录");
+        Assert.IsTrue(db.WorkItemAddTag(item, tag));
+
+        Assert.IsTrue(db.SaveWorkItemExtraFieldValues(item.Id, [new WorkItemExtraFieldValue
+        {
+            WorkItemId = item.Id,
+            FieldId = definition.FieldId,
+            Value = "张三、李四",
+        }]));
+        var field = db.GetWorkItemExtraFields(item).Single();
+        Assert.AreEqual("meeting.participants", field.FieldKey);
+        Assert.AreEqual("张三、李四", field.Value);
+
+        Assert.IsTrue(db.SaveWorkItemExtraFieldValues(item.Id, [new WorkItemExtraFieldValue
+        {
+            WorkItemId = item.Id,
+            FieldId = definition.FieldId,
+            Value = string.Empty,
+        }]));
+        Assert.AreEqual(string.Empty, db.GetWorkItemExtraFields(item).Single().Value);
+    }
+
     // ---------- WorkItem + WorkNote ----------
 
     [TestMethod]

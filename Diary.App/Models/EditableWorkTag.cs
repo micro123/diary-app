@@ -18,6 +18,9 @@ public partial class EditableWorkTag : ObservableObject
         Disabled = tag.Disabled;
         foreach (var (key, value) in tag.Metadata)
             Metadata.Add(CreateMetadata(key, value));
+        foreach (var field in App.Instance.UseDb?.GetTagExtraFieldDefinitions(tag.Id, includeDisabled: true)
+                     ?? Array.Empty<Diary.Core.Data.Base.TagExtraFieldDefinition>())
+            ExtraFields.Add(new EditableTagExtraField(field));
     }
 
     public WorkTag Tag => _tag;
@@ -27,9 +30,13 @@ public partial class EditableWorkTag : ObservableObject
     [ObservableProperty] private bool _primary;
     [ObservableProperty] private bool _disabled;
     public ObservableCollection<EditableWorkTagMetadata> Metadata { get; } = new();
+    public ObservableCollection<EditableTagExtraField> ExtraFields { get; } = new();
 
     [RelayCommand]
     private void AddMetadata() => Metadata.Add(CreateMetadata(string.Empty, string.Empty));
+
+    [RelayCommand]
+    private void AddExtraField() => ExtraFields.Add(new EditableTagExtraField(Id));
 
     private EditableWorkTagMetadata CreateMetadata(string key, string value) =>
         new(key, value, RemoveMetadata);
@@ -48,15 +55,23 @@ public partial class EditableWorkTag : ObservableObject
             || Primary != (_tag.Level == TagLevels.Primary)
             || Disabled != _tag.Disabled
             || metadataChanged;
-        if (!changed)
-            return false;
+        if (changed)
+        {
+            _tag.Color = Color;
+            _tag.Level = Primary ? TagLevels.Primary : TagLevels.Secondary;
+            _tag.Disabled = Disabled;
+            _tag.Metadata = metadata;
+            App.Instance.UseDb!.UpdateWorkTag(_tag);
+        }
 
-        _tag.Color = Color;
-        _tag.Level = Primary ? TagLevels.Primary : TagLevels.Secondary;
-        _tag.Disabled = Disabled;
-        _tag.Metadata = metadata;
-        App.Instance.UseDb!.UpdateWorkTag(_tag);
-        return true;
+        var fieldsChanged = false;
+        foreach (var field in ExtraFields)
+        {
+            if (!field.ApplyChanges(out error))
+                return false;
+            fieldsChanged = true;
+        }
+        return changed || fieldsChanged;
     }
 
     private bool TryBuildMetadata(

@@ -124,7 +124,17 @@ end
 }
 ```
 
-查询是只读的。结果中的工作项和标签都是普通 Lua 表，不能通过 API 修改或删除。
+查询是只读的。结果中的工作项和标签都是普通 Lua 表，不能通过 API 修改或删除。每个工作项还可能包含 `extraFields` 数组；字段项提供 `fieldId`、全局唯一 `fieldKey`、`tagId`、`tagName`、`label`、`type` 和 `value`。脚本通过 `fieldKey` 读取，例如：
+
+```lua
+for _, field in ipairs(item.extraFields or {}) do
+    if field.fieldKey == "meeting.participants" then
+        print(field.value)
+    end
+end
+```
+
+附加字段只读，编辑字段不会触发脚本执行。
 
 `normalizedQuery` 是宿主规范化后的查询参数回显，字段与查询参数一致：`limit` 补全默认值 100，`offset` 补全 0，`tagFilter` 补全 `Ignore`；`range` 快捷值已被解析为 `startDate`/`endDate`，不再回显 `range`。可以用它确认宿主实际生效的过滤条件。
 
