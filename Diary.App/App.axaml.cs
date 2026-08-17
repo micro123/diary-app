@@ -402,11 +402,15 @@ namespace Diary.App
                       () => new WorkItemQueryScriptApi(() => UseDb),
                      () => new TrackerInstanceScriptApi(
                          Services.GetRequiredService<PluginInstanceRegistry>()),
-                     () => new LogItemScriptApi(() => UseDb, Services.GetRequiredService<IScriptIdempotencyStore>()),
+                     () => new LogItemScriptApi(
+                         () => UseDb,
+                         Services.GetRequiredService<IScriptIdempotencyStore>(),
+                         () => EventDispatcher.DbChanged(DbChangedEvent.ShareData)),
                       () => new TemplateLogItemScriptApi(
                           () => UseDb,
                           () => TemplateManager.Instance.Templates.ToArray(),
-                          Services.GetRequiredService<IScriptIdempotencyStore>()),
+                          Services.GetRequiredService<IScriptIdempotencyStore>(),
+                          () => EventDispatcher.DbChanged(DbChangedEvent.ShareData)),
                        () => new TemplateScriptApi(
                            () => TemplateManager.Instance.Templates.ToArray()),
                       () => new HostCapabilitiesScriptApi(() => ScriptHostApiCatalog.All),
@@ -505,11 +509,15 @@ namespace Diary.App
                     context.RegisterApi<ITrackerInstanceScriptApi>(
                          new TrackerInstanceScriptApi(
                              Services.GetRequiredService<PluginInstanceRegistry>()));
-                    context.RegisterApi<ILogItemScriptApi>(new LogItemScriptApi(() => UseDb, Services.GetRequiredService<IScriptIdempotencyStore>()));
+                    context.RegisterApi<ILogItemScriptApi>(new LogItemScriptApi(
+                        () => UseDb,
+                        Services.GetRequiredService<IScriptIdempotencyStore>(),
+                        () => EventDispatcher.DbChanged(DbChangedEvent.ShareData)));
                     context.RegisterApi<ITemplateLogItemScriptApi>(new TemplateLogItemScriptApi(
                          () => UseDb,
                          () => TemplateManager.Instance.Templates.ToArray(),
-                         Services.GetRequiredService<IScriptIdempotencyStore>()));
+                         Services.GetRequiredService<IScriptIdempotencyStore>(),
+                         () => EventDispatcher.DbChanged(DbChangedEvent.ShareData)));
                     context.RegisterApi<ITemplateScriptApi>(new TemplateScriptApi(
                          () => TemplateManager.Instance.Templates.ToArray()));
                     context.RegisterApi<IHostCapabilitiesScriptApi>(new HostCapabilitiesScriptApi(

@@ -6,7 +6,8 @@ namespace Diary.ScriptHost;
 
 public sealed class LogItemScriptApi(
     Func<DbInterfaceBase?> databaseProvider,
-    IScriptIdempotencyStore? idempotencyStore = null) : ILogItemScriptApi
+    IScriptIdempotencyStore? idempotencyStore = null,
+    Action? databaseChanged = null) : ILogItemScriptApi
 {
     public const int MaxTitleLength = 500;
     public const int MaxNoteLength = 10_000;
@@ -82,6 +83,7 @@ public sealed class LogItemScriptApi(
                     ScriptLogItemErrorCode.ProviderFailure,
                     "提交数据库事务失败。"));
 
+            NotifyDatabaseChanged(databaseChanged);
             if (!string.IsNullOrWhiteSpace(request.IdempotencyKey))
                 _idempotencyStore.Save("logItems.create", request.IdempotencyKey, result);
             return ValueTask.FromResult(result);
@@ -114,6 +116,12 @@ public sealed class LogItemScriptApi(
         if (request.IdempotencyKey?.Length > MaxIdempotencyKeyLength)
             return Fail($"幂等键不能超过 {MaxIdempotencyKeyLength} 个字符。", out error);
         return true;
+    }
+
+    private static void NotifyDatabaseChanged(Action? databaseChanged)
+    {
+        try { databaseChanged?.Invoke(); }
+        catch { }
     }
 
     private static bool Fail(string message, out string error) { error = message; return false; }

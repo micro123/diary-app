@@ -13,9 +13,11 @@ public sealed class ScriptLogItemApiTests
     [TestMethod]
     public async Task Preview_DoesNotAccessDatabaseOrIdempotencyStore()
     {
+        var notifications = 0;
         var api = new LogItemScriptApi(
             () => throw new AssertFailedException("Preview 不应访问数据库。"),
-            new ThrowingIdempotencyStore());
+            new ThrowingIdempotencyStore(),
+            () => ++notifications);
 
         var result = await api.CreateAsync(new ScriptLogItemRequest(
             "2026-08-16",
@@ -31,12 +33,14 @@ public sealed class ScriptLogItemApiTests
         Assert.AreEqual("预览记录", result.Item.Comment);
         Assert.IsTrue(result.Effects?.Preview);
         Assert.AreEqual(0, result.Effects?.AppendedCount);
+        Assert.AreEqual(0, notifications);
     }
 
     [TestMethod]
     public async Task TemplatePreview_DoesNotAccessDatabaseOrIdempotencyStore()
     {
         var templateId = Guid.NewGuid().ToString("D");
+        var notifications = 0;
         var api = new TemplateLogItemScriptApi(
             () => throw new AssertFailedException("模板 Preview 不应访问数据库。"),
             () =>
@@ -49,7 +53,8 @@ public sealed class ScriptLogItemApiTests
                     DefaultTime = 1,
                 },
             ],
-            new ThrowingIdempotencyStore());
+            new ThrowingIdempotencyStore(),
+            () => ++notifications);
 
         var result = await api.CreateAsync(new ScriptTemplateLogItemRequest(
             "2026-08-16",
@@ -62,13 +67,17 @@ public sealed class ScriptLogItemApiTests
         Assert.AreEqual("模板默认标题", result.Item?.Comment);
         Assert.IsTrue(result.Effects?.Preview);
         Assert.AreEqual(0, result.Effects?.AppendedCount);
+        Assert.AreEqual(0, notifications);
     }
 
     [TestMethod]
     public async Task Create_CommitsWorkItemAndNote()
     {
         using var database = TestDatabase.Create();
-        var api = new LogItemScriptApi(() => database);
+        var notifications = 0;
+        var api = new LogItemScriptApi(
+            () => database,
+            databaseChanged: () => ++notifications);
 
         var result = await api.CreateAsync(new ScriptLogItemRequest(
             "2026-08-16",
@@ -80,6 +89,38 @@ public sealed class ScriptLogItemApiTests
         var item = database.GetWorkItemByDate("2026-08-16").Single(item => item.Id == result.Item!.Id);
         Assert.AreEqual(2.5, item.Time);
         Assert.AreEqual("事务备注", database.WorkGetNote(item));
+        Assert.AreEqual(1, notifications);
+    }
+
+    [TestMethod]
+    public async Task TemplateCreate_CommitsWorkItemAndNotifiesDatabaseChanged()
+    {
+        using var database = TestDatabase.Create();
+        var templateId = Guid.NewGuid().ToString("D");
+        var notifications = 0;
+        var api = new TemplateLogItemScriptApi(
+            () => database,
+            () =>
+            [
+                new Template
+                {
+                    Id = templateId,
+                    Name = "模板",
+                    DefaultTitle = "模板创建记录",
+                    DefaultTime = 1,
+                },
+            ],
+            databaseChanged: () => ++notifications);
+
+        var result = await api.CreateAsync(new ScriptTemplateLogItemRequest(
+            "2026-08-16",
+            templateId,
+            1.5));
+
+        Assert.IsTrue(result.Succeeded, result.Error?.Message);
+        Assert.AreEqual("模板创建记录", result.Item?.Comment);
+        Assert.AreEqual(1, database.GetWorkItemByDate("2026-08-16").Count);
+        Assert.AreEqual(1, notifications);
     }
 
     [TestMethod]
@@ -87,7 +128,11 @@ public sealed class ScriptLogItemApiTests
     {
         using var database = TestDatabase.Create();
         var store = new ScriptIdempotencyStore();
-        var api = new LogItemScriptApi(() => database, store);
+        var notifications = 0;
+        var api = new LogItemScriptApi(
+            () => database,
+            store,
+            () => ++notifications);
         var request = new ScriptLogItemRequest(
             "2026-08-16",
             1,
@@ -102,13 +147,17 @@ public sealed class ScriptLogItemApiTests
         Assert.IsTrue(second.Duplicate);
         Assert.AreEqual(0, second.Effects?.AppendedCount);
         Assert.AreEqual(1, database.GetWorkItemByDate("2026-08-16").Count);
+        Assert.AreEqual(1, notifications);
     }
 
     [TestMethod]
     public async Task Create_RollsBackWhenNoteWriteFails()
     {
         var database = new FailingNoteDatabase();
-        var api = new LogItemScriptApi(() => database);
+        var notifications = 0;
+        var api = new LogItemScriptApi(
+            () => database,
+            databaseChanged: () => ++notifications);
 
         var result = await api.CreateAsync(new ScriptLogItemRequest(
             "2026-08-16",
@@ -121,6 +170,7 @@ public sealed class ScriptLogItemApiTests
         Assert.IsTrue(database.TransactionStarted);
         Assert.IsTrue(database.RollbackCalled);
         Assert.IsFalse(database.CommitCalled);
+        Assert.AreEqual(0, notifications);
     }
 
     private sealed class ThrowingIdempotencyStore : IScriptIdempotencyStore

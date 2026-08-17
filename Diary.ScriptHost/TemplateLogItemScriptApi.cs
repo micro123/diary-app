@@ -8,7 +8,8 @@ namespace Diary.ScriptHost;
 public sealed class TemplateLogItemScriptApi(
     Func<DbInterfaceBase?> databaseProvider,
     Func<IReadOnlyCollection<Template>> templatesProvider,
-    IScriptIdempotencyStore? idempotencyStore = null) : ITemplateLogItemScriptApi
+    IScriptIdempotencyStore? idempotencyStore = null,
+    Action? databaseChanged = null) : ITemplateLogItemScriptApi
 {
     private readonly IScriptIdempotencyStore _idempotencyStore = idempotencyStore ?? new ScriptIdempotencyStore();
     public ValueTask<ScriptLogItemResult> CreateAsync(
@@ -78,6 +79,7 @@ public sealed class TemplateLogItemScriptApi(
                     [.. tags.Select(tag => new ScriptWorkTag(tag.Id, tag.Name, tag.Color, (int)tag.Level, tag.Disabled)
                     { Metadata = new Dictionary<string, string>(tag.Metadata, StringComparer.Ordinal) })]),
                 new ScriptEffectSummary(1, false, request.IdempotencyKey, [item.Id]));
+            NotifyDatabaseChanged(databaseChanged);
             if (!string.IsNullOrWhiteSpace(request.IdempotencyKey))
                 _idempotencyStore.Save("templateLogItems.create", request.IdempotencyKey, result);
             return ValueTask.FromResult(result);
@@ -107,6 +109,12 @@ public sealed class TemplateLogItemScriptApi(
         if (request.IdempotencyKey?.Length > LogItemScriptApi.MaxIdempotencyKeyLength)
             return Fail($"幂等键不能超过 {LogItemScriptApi.MaxIdempotencyKeyLength} 个字符。", out error);
         return true;
+    }
+
+    private static void NotifyDatabaseChanged(Action? databaseChanged)
+    {
+        try { databaseChanged?.Invoke(); }
+        catch { }
     }
 
     private static ScriptLogItemResult Failure(ScriptLogItemErrorCode code, string message) =>
