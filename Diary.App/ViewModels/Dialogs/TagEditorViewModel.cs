@@ -3,6 +3,7 @@ using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
+using Diary.Core.Data.Base;
 using Diary.GUIBase.Converters;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
@@ -11,6 +12,7 @@ using Diary.PluginUI;
 using Diary.Utils;
 using Irihi.Avalonia.Shared.Contracts;
 using Microsoft.Extensions.Logging;
+using Ursa.Controls;
 
 namespace Diary.App.ViewModels.Dialogs;
 
@@ -31,7 +33,7 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
     [ObservableProperty] private EditableWorkTag? _selectedTag;
     public ObservableCollection<ITagRuleEditorContribution> RuleContributions { get; } = new();
 
-    private bool _changed = false;
+    private bool _changed;
 
     public TagEditorViewModel(
         ILogger logger,
@@ -57,17 +59,19 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
             contribution.SelectTag(value.Tag);
     }
 
-    public void Close()
-    {
-        ReloadRules();
-        RequestClose?.Invoke(this, null);
-    }
+    public void Close() => Cancel();
 
     public event EventHandler<object?>? RequestClose;
 
     [RelayCommand]
     private void Save()
     {
+        if (!ValidateExtraFieldKeys(out var fieldError))
+        {
+            EventDispatcher.Notify("错误", fieldError!);
+            return;
+        }
+
         bool changed = _changed;
         foreach (var tag in AllTags)
         {
@@ -92,6 +96,13 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
         RequestClose?.Invoke(this, null);
     }
 
+    [RelayCommand]
+    private void Cancel()
+    {
+        ReloadRules();
+        RequestClose?.Invoke(this, null);
+    }
+
     public void ReloadRules()
     {
         foreach (var contribution in RuleContributions)
@@ -104,7 +115,44 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
         if (tag.Delete())
         {
             AllTags.Remove(tag);
+            SelectedTag = AllTags.FirstOrDefault();
         }
+    }
+
+    [RelayCommand]
+    private async Task AddExtraField()
+    {
+        await EditExtraField(null);
+    }
+
+    [RelayCommand]
+    private async Task EditExtraField(EditableTagExtraField? field)
+    {
+        var tag = SelectedTag;
+        if (tag is null)
+            return;
+
+        var draft = field?.Clone() ?? new EditableTagExtraField(tag.Id);
+        var editor = new TagExtraFieldEditorViewModel(draft);
+        var accepted = await OverlayDialog.ShowCustomModal<bool>(
+            editor,
+            options: new OverlayDialogOptions
+            {
+                Title = editor.Title,
+                CanDragMove = false,
+                CanResize = false,
+                CanLightDismiss = false,
+                IsCloseButtonVisible = false,
+                Mode = DialogMode.None,
+            });
+        if (!accepted)
+            return;
+
+        if (field is null)
+            tag.ExtraFields.Add(draft);
+        else
+            field.CopyFrom(draft);
+        _changed = true;
     }
 
     [RelayCommand(CanExecute = nameof(CanAddTag))]
@@ -116,8 +164,7 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
         if (tag.Id > 0)
         {
             _changed = true;
-            // success
-            NewTagName = string.Empty; // clear name
+            NewTagName = string.Empty;
             LoadTags();
         }
         else
@@ -126,20 +173,37 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
         }
     }
 
-    private bool CanAddTag()
+    private bool CanAddTag() => !string.IsNullOrWhiteSpace(NewTagName);
+
+    private bool ValidateExtraFieldKeys(out string? error)
     {
-        return !string.IsNullOrWhiteSpace(NewTagName);
+        var fields = AllTags.SelectMany(tag => tag.ExtraFields);
+        var keys = new Dictionary<string, EditableTagExtraField>(StringComparer.OrdinalIgnoreCase);
+        foreach (var field in fields)
+        {
+            if (!field.Validate(out error))
+                return false;
+
+            var normalized = TagExtraFieldKeyRules.Normalize(field.FieldKey.Trim());
+            if (!keys.TryAdd(normalized, field))
+            {
+                error = $"字段标识已存在：{field.FieldKey.Trim()}";
+                return false;
+            }
+        }
+
+        error = null;
+        return true;
     }
 
     private void LoadTags()
     {
         var all = App.Instance.UseDb?.AllWorkTags();
-        if (all == null) return;
+        if (all == null)
+            return;
         AllTags.Clear();
         foreach (var tag in all)
-        {
             AllTags.Add(new EditableWorkTag(tag));
-        }
         SelectedTag = AllTags.FirstOrDefault();
     }
 }

@@ -40,18 +40,49 @@ public partial class EditableTagExtraField : ObservableObject
     public int TagId => _definition.TagId;
     public bool IsNew => _isNew;
     public bool CanEditType => IsNew;
+    public bool IsChoice => Type == TagExtraFieldType.Choice;
     public IReadOnlyList<TagExtraFieldType> AvailableTypes { get; } =
         Enum.GetValues<TagExtraFieldType>();
 
     [ObservableProperty] private string _fieldKey;
     [ObservableProperty] private string _label;
-    [ObservableProperty] private TagExtraFieldType _type;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsChoice))]
+    private TagExtraFieldType _type;
     [ObservableProperty] private string _description;
     [ObservableProperty] private int _sortOrder;
     [ObservableProperty] private bool _enabled;
     [ObservableProperty] private string _optionsText;
 
-    public bool ApplyChanges(out string? error)
+    public EditableTagExtraField Clone()
+    {
+        var clone = new EditableTagExtraField(new TagExtraFieldDefinition
+        {
+            FieldId = FieldId,
+            TagId = TagId,
+            FieldKey = FieldKey,
+            Label = Label,
+            Type = Type,
+            Description = Description,
+            SortOrder = SortOrder,
+            Options = GetOptions(),
+            Enabled = Enabled,
+        });
+        return clone;
+    }
+
+    public void CopyFrom(EditableTagExtraField source)
+    {
+        FieldKey = source.FieldKey;
+        Label = source.Label;
+        Type = source.Type;
+        Description = source.Description;
+        SortOrder = source.SortOrder;
+        OptionsText = source.OptionsText;
+        Enabled = source.Enabled;
+    }
+
+    public bool Validate(out string? error)
     {
         error = null;
         var key = FieldKey.Trim();
@@ -68,6 +99,17 @@ public partial class EditableTagExtraField : ObservableObject
             return false;
         }
 
+        return true;
+    }
+
+    public bool ApplyChanges(out string? error)
+    {
+        error = null;
+        if (!Validate(out error))
+            return false;
+
+        var key = FieldKey.Trim();
+        var label = Label.Trim();
         var db = App.Instance.UseDb;
         if (db is null)
         {
@@ -81,12 +123,6 @@ public partial class EditableTagExtraField : ObservableObject
             return false;
         }
 
-        var options = OptionsText
-            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
-            .Select(option => option.Trim())
-            .Where(option => option.Length > 0)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
         var candidate = new TagExtraFieldDefinition
         {
             FieldId = FieldId,
@@ -96,7 +132,7 @@ public partial class EditableTagExtraField : ObservableObject
             Type = Type,
             Description = Description.Trim(),
             SortOrder = SortOrder,
-            Options = options,
+            Options = GetOptions(),
             Enabled = Enabled,
         };
 
@@ -122,4 +158,11 @@ public partial class EditableTagExtraField : ObservableObject
         OptionsText = string.Join(Environment.NewLine, candidate.Options);
         return true;
     }
+
+    private string[] GetOptions() => OptionsText
+        .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+        .Select(option => option.Trim())
+        .Where(option => option.Length > 0)
+        .Distinct(StringComparer.Ordinal)
+        .ToArray();
 }
