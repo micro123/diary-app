@@ -1,10 +1,16 @@
 # CHANGELOG
 
-发布说明（Release Notes）。版本号为 `1.0.0-r{CommitCount}`：`1.0.0` 为数据格式版本（`Diary.Core/DataVersion.cs`），`rN` 为发布时的 Git 提交计数（构建脚本 `Diary.App/Scripts/gen_version.sh` 自动生成）。正式发布通过推送 `v*` 标签触发 CI（`.github/workflows/release-on-tags.yml`），Release body 自动引用本文件对应版本章节——各版本标题需保持 `## 版本号` 格式。
+发布说明（Release Notes）。版本号为 `1.0.0-r{CommitCount}`：`1.0.0` 为数据格式版本（`Diary.Core/DataVersion.cs`），`rN` 为发布时的 Git 提交计数（构建脚本 `Diary.App/Scripts/gen_version.sh` 自动生成）。正式发布通过推送 `v*` 标签触发 CI（`.github/workflows/release-on-tags.yml`），Release body 自动引用本文件对应版本章节——各版本标题需保持 `## 版本号` 格式；内部验证标签可不带 `rN`（如 `v1.0.0-alpha1`），对应本文件独立小节。
 
-## 1.0.0-r420 (未发布)
+## 1.0.0-alpha1 (内部验证版)
 
-日期：2026-08-14（预计）
+日期：2026-08-17
+
+首个内部验证版（alpha）：面向内部评测与反馈。完整变更清单见下方 `1.0.0-r435` 条目。已知限制：执行历史与进度为会话内存态（重启即失）；Python 脚本需要本机安装 Python 3.10+；macOS 不在支持范围；脚本管理页默认隐藏，需在设置中开启「显示开发者功能」。
+
+## 1.0.0-r435 (未发布)
+
+日期：2026-08-17（预计）
 
 ### 脚本系统（Worker 可靠性、自动化与查询）
 

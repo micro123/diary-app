@@ -126,11 +126,15 @@ jobs:
       - name: Extract release notes from CHANGELOG
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          awk -v version="$VERSION" '
-            $0 ~ "^## " version " " { found=1; print; next }
-            found && $0 ~ /^## / { exit }
-            found { print }
-          ' Docs/CHANGELOG.md > release-body.md
+          BASE_VERSION=$(echo "$VERSION" | sed -E 's/-[a-zA-Z][a-zA-Z0-9.]*$//')
+          for candidate in "$VERSION" "$BASE_VERSION"; do
+            awk -v version="$candidate" '
+              $0 ~ "^## " version " " { found=1; print; next }
+              found && $0 ~ /^## / { exit }
+              found { print }
+            ' Docs/CHANGELOG.md > release-body.md
+            [ -s release-body.md ] && break
+          done
           if [ ! -s release-body.md ]; then
             echo "Automated release created by CI for ${GITHUB_REF_NAME}." > release-body.md
           fi
