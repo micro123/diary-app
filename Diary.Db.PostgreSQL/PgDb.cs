@@ -120,7 +120,7 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
                      description TEXT NOT NULL DEFAULT '',
                      sort_order INTEGER NOT NULL DEFAULT 0,
                      options_json TEXT NOT NULL DEFAULT '[]',
-                     enabled INTEGER NOT NULL DEFAULT TRUE
+                     enabled BOOLEAN NOT NULL DEFAULT TRUE
                   );
                   CREATE UNIQUE INDEX IF NOT EXISTS ux_tag_extra_fields_key
                      ON tag_extra_field_definitions (LOWER(field_key));
