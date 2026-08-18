@@ -244,14 +244,19 @@ namespace Diary.App
                 }
                 Logger.LogInformation("数据库连接成功：驱动 {Driver}", factory.Name);
 
-                // init
-                if (!database.Initialized())
+                // 普通启动允许幂等初始化空库；待还原数据库必须先按备份原貌检查，
+                // 避免 Initialized() 自动补表后掩盖不完整归档。
+                if (pendingRestore is null && !database.Initialized())
                 {
                     Logger.LogWarning("数据库初始化失败：驱动 {Driver}", factory.Name);
                     return RejectDatabaseCandidate(
                         ref database, ref message, "数据库初始化失败！", pendingRestore);
                 }
-                Logger.LogDebug("数据库结构初始化成功：驱动 {Driver}", factory.Name);
+                Logger.LogDebug(
+                    pendingRestore is null
+                        ? "数据库结构初始化成功：驱动 {Driver}"
+                        : "待还原数据库跳过初始化并进入原貌兼容性检查：驱动 {Driver}",
+                    factory.Name);
 
                 // compatibility check: version is only one input; provider, schema, migration state and data integrity
                 // are checked together before the application receives a writable database handle.
@@ -299,6 +304,25 @@ namespace Diary.App
                         ref database, ref message, compatibilityError, pendingRestore);
                 }
 
+                if (pendingRestore is not null && database is IDbPostRestoreValidator restoreValidator)
+                {
+                    var postRestoreValidation = restoreValidator.ValidateRestoredDatabase();
+                    if (!postRestoreValidation.Success)
+                    {
+                        var validationError = postRestoreValidation.Error
+                                              ?? "数据库还原后的附加完整性检查失败。";
+                        Logger.LogWarning(
+                            "数据库还原附加检查失败：驱动 {Driver}，原因 {Reason}",
+                            factory.Name,
+                            validationError);
+                        return RejectDatabaseCandidate(
+                            ref database,
+                            ref message,
+                            validationError,
+                            pendingRestore);
+                    }
+                }
+
                 if (!database.PersistCompatibilityMetadata(compatibility))
                 {
                     Logger.LogWarning("数据库兼容性元数据写入失败：驱动 {Driver}", factory.Name);
@@ -311,6 +335,18 @@ namespace Diary.App
 
                 if (pendingRestore is not null)
                 {
+                    // PostgreSQL 还原可能已经把配置切换到了新目标数据库；
+                    // 只有启动兼容性检查和迁移复检全部通过后才持久化这次切换。
+                    if (!string.IsNullOrWhiteSpace(pendingRestore.RestoreResult.PreviousDatabase)
+                        && !EasySaveLoad.Save(dbConfig))
+                    {
+                        return RejectDatabaseCandidate(
+                            ref database,
+                            ref message,
+                            "数据库还原已通过检查，但无法保存新的数据库配置。",
+                            pendingRestore);
+                    }
+
                     restoreCoordinator.Complete(pendingRestore);
                     Logger.LogInformation("数据库还原完成并通过启动复检：驱动 {Driver}", factory.Name);
                 }

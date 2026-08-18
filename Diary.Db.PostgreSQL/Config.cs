@@ -13,6 +13,12 @@ public class Config
 
     [ConfigureText("数据库")]
     public string Database { get; set; } = "";
+
+    [ConfigureText(
+        "还原目标数据库",
+        helpTip: "留空时在具备 CREATEDB 权限时自动创建独立目标库；没有 CREATEDB 时必须填写已有空数据库。")]
+    public string RestoreTargetDatabase { get; set; } = "";
+
     [ConfigureText("用户名")]
     public string User { get; set; } = "";
 

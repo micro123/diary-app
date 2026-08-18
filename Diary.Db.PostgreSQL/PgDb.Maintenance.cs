@@ -1,16 +1,37 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using System.Text;
 using Diary.Database;
 using Npgsql;
 
 namespace Diary.Db.PostgreSQL;
 
-public sealed partial class PgDb : IDbMaintenanceProvider
+public sealed partial class PgDb : IDbMaintenanceProvider, IDbPostRestoreValidator
 {
+    private static readonly TimeSpan ToolVersionTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan ArchiveValidationTimeout = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan BackupRestoreTimeout = TimeSpan.FromHours(1);
+    private static readonly string[] RedMineTables =
+    [
+        "redmine_projects",
+        "redmine_activities",
+        "redmine_issues",
+        "redmine_time_entries",
+    ];
+    private static readonly string[] JiraTables =
+    [
+        "jira_projects",
+        "jira_issues",
+        "jira_work_entries",
+    ];
     private static readonly string[] KnownDiaryTables =
         CoreSchemaContract.Current.Tables
             .Select(table => table.Name)
+            .Concat(["plugin_data_versions"])
+            .Concat(RedMineTables)
+            .Concat(JiraTables)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
     public DbMaintenanceSupport GetMaintenanceSupport()
@@ -46,7 +67,8 @@ public sealed partial class PgDb : IDbMaintenanceProvider
             var version = PgToolProcess.Run(
                 tools.PgDumpPath!,
                 ["--version"],
-                config);
+                config,
+                ToolVersionTimeout);
             if (!version.Success)
                 return new DbBackupResult(false, null, $"pg_dump 工具不可用：{version.ErrorMessage}");
             if (!TryGetToolMajorVersion(version, out var toolMajor))
@@ -68,7 +90,11 @@ public sealed partial class PgDb : IDbMaintenanceProvider
                 "--no-password",
             };
             AddConnectionArguments(arguments, config);
-            var result = PgToolProcess.Run(tools.PgDumpPath!, arguments, config);
+            var result = PgToolProcess.Run(
+                tools.PgDumpPath!,
+                arguments,
+                config,
+                BackupRestoreTimeout);
             if (!result.Success)
                 return new DbBackupResult(false, null, $"PostgreSQL 备份创建失败：{result.ErrorMessage}");
 
@@ -118,14 +144,16 @@ public sealed partial class PgDb : IDbMaintenanceProvider
             var version = PgToolProcess.Run(
                 tools.PgRestorePath!,
                 ["--version"],
-                config);
+                config,
+                ToolVersionTimeout);
             if (!version.Success)
                 return InvalidBackup($"pg_restore 工具不可用：{version.ErrorMessage}");
 
             var result = PgToolProcess.Run(
                 tools.PgRestorePath!,
                 ["--list", "--no-password", fullPath],
-                config);
+                config,
+                ArchiveValidationTimeout);
             if (!result.Success)
                 return InvalidBackup($"PostgreSQL 备份文件校验失败：{result.ErrorMessage}");
             if (!result.StandardOutput.Contains("TABLE", StringComparison.OrdinalIgnoreCase))
@@ -159,13 +187,33 @@ public sealed partial class PgDb : IDbMaintenanceProvider
             return FailedRestore(validation.Error);
 
         var config = GetConfig();
-        if (string.IsNullOrWhiteSpace(config.Database))
-            return FailedRestore("PostgreSQL 目标数据库名称未配置。");
+        var sourceDatabase = config.Database.Trim();
+        if (string.IsNullOrWhiteSpace(sourceDatabase))
+            return FailedRestore("PostgreSQL 当前数据库名称未配置。");
+
+        var requestedTarget = config.RestoreTargetDatabase.Trim();
+        if (string.Equals(sourceDatabase, requestedTarget, StringComparison.OrdinalIgnoreCase))
+        {
+            return FailedRestore(
+                "PostgreSQL 还原目标不能与当前数据库相同，否则可能覆盖当前数据。");
+        }
+
+        string targetDatabase;
+        if (string.IsNullOrWhiteSpace(requestedTarget))
+        {
+            targetDatabase = CreateAutomaticTargetDatabaseName();
+        }
+        else
+        {
+            if (!IsValidDatabaseName(requestedTarget))
+                return FailedRestore("PostgreSQL 还原目标数据库名称无效或超过 63 字节。");
+            targetDatabase = requestedTarget;
+        }
 
         PgRestorePreflight preflight;
         try
         {
-            preflight = InspectRestoreTarget(config);
+            preflight = InspectRestoreTarget(config, targetDatabase);
         }
         catch (Exception exception)
         {
@@ -175,7 +223,11 @@ public sealed partial class PgDb : IDbMaintenanceProvider
         if (!preflight.HasRole)
             return FailedRestore("无法读取当前 PostgreSQL 用户的必要权限信息。");
         if (!TryGetToolMajorVersion(
-                PgToolProcess.Run(tools.PgRestorePath!, ["--version"], config),
+                PgToolProcess.Run(
+                    tools.PgRestorePath!,
+                    ["--version"],
+                    config,
+                    ToolVersionTimeout),
                 out var toolMajor))
         {
             return FailedRestore("无法识别 pg_restore 的版本。");
@@ -185,7 +237,8 @@ public sealed partial class PgDb : IDbMaintenanceProvider
             return FailedRestore(
                 $"pg_restore 主版本 {toolMajor} 与 PostgreSQL 服务端主版本 {preflight.ServerMajorVersion} 不匹配。");
         }
-        if (!preflight.HasPublicUsage || !preflight.HasPublicCreate)
+        if (preflight.DatabaseExists
+            && (!preflight.HasPublicUsage || !preflight.HasPublicCreate))
         {
             return FailedRestore(
                 "当前用户缺少目标库 public schema 的 USAGE 或 CREATE 权限，无法执行还原。");
@@ -204,10 +257,10 @@ public sealed partial class PgDb : IDbMaintenanceProvider
                 if (!preflight.RoleCanCreateDatabase)
                 {
                     return FailedRestore(
-                        "目标数据库不存在，且当前用户没有 CREATEDB 权限，无法自动创建还原目标。");
+                        "目标数据库不存在，且当前用户没有 CREATEDB 权限；请配置已有空数据库作为还原目标。");
                 }
 
-                CreateDatabase(config);
+                CreateDatabase(config, targetDatabase);
                 createdDatabase = true;
             }
 
@@ -217,29 +270,35 @@ public sealed partial class PgDb : IDbMaintenanceProvider
                 "--single-transaction",
                 "--no-owner",
                 "--no-password",
-                "--dbname", config.Database,
+                "--dbname", targetDatabase,
             };
             AddConnectionArguments(arguments, config, includeDatabase: false);
             arguments.Add(Path.GetFullPath(backupPath));
-            var result = PgToolProcess.Run(tools.PgRestorePath!, arguments, config);
+            var result = PgToolProcess.Run(
+                tools.PgRestorePath!,
+                arguments,
+                config,
+                BackupRestoreTimeout);
             if (!result.Success)
             {
                 if (createdDatabase)
-                    TryDropDatabase(config);
+                    TryDropDatabase(config, targetDatabase);
                 return FailedRestore($"PostgreSQL 还原失败：{result.ErrorMessage}");
             }
 
+            config.Database = targetDatabase;
             return new DbRestoreResult(
                 true,
-                config.Database,
+                targetDatabase,
                 createdDatabase ? CreatedDatabaseRecoveryMarker : null,
                 !createdDatabase,
-                null);
+                null,
+                sourceDatabase);
         }
         catch (Exception exception)
         {
             if (createdDatabase)
-                TryDropDatabase(config);
+                TryDropDatabase(config, targetDatabase);
             return FailedRestore($"PostgreSQL 还原失败：{exception.Message}");
         }
     }
@@ -247,14 +306,27 @@ public sealed partial class PgDb : IDbMaintenanceProvider
     public bool RollbackRestore(DbRestoreResult restore, out string? error)
     {
         error = null;
-        if (!restore.Success || restore.TargetPreviouslyExisted)
+        if (!restore.Success)
             return true;
-        if (!string.Equals(restore.RecoveryPath, CreatedDatabaseRecoveryMarker, StringComparison.Ordinal))
+
+        var config = GetConfig();
+        var previousDatabase = restore.PreviousDatabase;
+        if (!string.IsNullOrWhiteSpace(previousDatabase))
+            config.Database = previousDatabase;
+
+        if (string.IsNullOrWhiteSpace(restore.RestoredPath))
             return true;
 
         try
         {
-            TryDropDatabase(GetConfig());
+            if (restore.TargetPreviouslyExisted)
+            {
+                ClearKnownDiaryTables(config, restore.RestoredPath);
+            }
+            else if (string.Equals(restore.RecoveryPath, CreatedDatabaseRecoveryMarker, StringComparison.Ordinal))
+            {
+                TryDropDatabase(config, restore.RestoredPath);
+            }
             return true;
         }
         catch (Exception exception)
@@ -264,15 +336,83 @@ public sealed partial class PgDb : IDbMaintenanceProvider
         }
     }
 
+    public DbPostRestoreValidationResult ValidateRestoredDatabase()
+    {
+        if (_dataSource is null)
+            return new DbPostRestoreValidationResult(false, "PostgreSQL 还原目标尚未连接。");
+
+        try
+        {
+            var knownObjects = Query(
+                    $"""
+                    SELECT c.relname
+                    FROM pg_class c
+                    JOIN pg_namespace n ON n.oid = c.relnamespace
+                    WHERE n.nspname = 'public'
+                      AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
+                      AND c.relname IN ({string.Join(", ", KnownDiaryTables.Select(QuoteLiteral))});
+                    """,
+                    reader => reader.GetString(0))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var redMineValidation = ValidateTrackerTableGroup(
+                "RedMine",
+                RedMineTables,
+                knownObjects);
+            if (!redMineValidation.Success)
+                return redMineValidation;
+
+            var jiraValidation = ValidateTrackerTableGroup(
+                "Jira",
+                JiraTables,
+                knownObjects);
+            if (!jiraValidation.Success)
+                return jiraValidation;
+
+            return new DbPostRestoreValidationResult(true);
+        }
+        catch (Exception exception)
+        {
+            return new DbPostRestoreValidationResult(
+                false,
+                $"PostgreSQL Tracker 表复检失败：{exception.Message}");
+        }
+    }
+
     private const string CreatedDatabaseRecoveryMarker = "postgresql-created-database";
 
     private Config GetConfig() => (Config)Factory.GetConfig();
 
-    private PgRestorePreflight InspectRestoreTarget(Config config)
+    private static DbPostRestoreValidationResult ValidateTrackerTableGroup(
+        string trackerName,
+        IReadOnlyCollection<string> expectedTables,
+        IReadOnlySet<string> existingTables)
+    {
+        var present = expectedTables.Where(existingTables.Contains).ToArray();
+        if (present.Length == 0)
+            return new DbPostRestoreValidationResult(true);
+        if (present.Length != expectedTables.Count)
+        {
+            var missing = expectedTables.Where(table => !existingTables.Contains(table));
+            return new DbPostRestoreValidationResult(
+                false,
+                $"PostgreSQL 备份中的 {trackerName} 表不完整，缺少：{string.Join(", ", missing)}。");
+        }
+        if (!existingTables.Contains("plugin_data_versions"))
+        {
+            return new DbPostRestoreValidationResult(
+                false,
+                $"PostgreSQL 备份包含 {trackerName} 表，但缺少 plugin_data_versions。");
+        }
+
+        return new DbPostRestoreValidationResult(true);
+    }
+
+    private PgRestorePreflight InspectRestoreTarget(Config config, string targetDatabase)
     {
         using var admin = OpenConnection(config, GetMaintenanceDatabase(config));
         var role = QueryRole(admin);
-        var databaseExists = DatabaseExists(admin, config.Database);
+        var databaseExists = DatabaseExists(admin, targetDatabase);
         if (!databaseExists)
         {
             return new PgRestorePreflight(
@@ -286,7 +426,7 @@ public sealed partial class PgDb : IDbMaintenanceProvider
                 []);
         }
 
-        using var target = OpenConnection(config, config.Database);
+        using var target = OpenConnection(config, targetDatabase);
         var targetState = QueryTargetState(target, config.User);
         return new PgRestorePreflight(
             true,
@@ -365,19 +505,30 @@ public sealed partial class PgDb : IDbMaintenanceProvider
         return (bool)(command.ExecuteScalar() ?? false);
     }
 
-    private static void CreateDatabase(Config config)
+    private static void CreateDatabase(Config config, string database)
     {
         using var admin = OpenConnection(config, GetMaintenanceDatabase(config));
-        using var command = new NpgsqlCommand($"CREATE DATABASE {QuoteIdentifier(config.Database)};", admin);
+        using var command = new NpgsqlCommand($"CREATE DATABASE {QuoteIdentifier(database)};", admin);
         command.ExecuteNonQuery();
     }
 
-    private static void TryDropDatabase(Config config)
+    private static void TryDropDatabase(Config config, string database)
     {
         using var admin = OpenConnection(config, GetMaintenanceDatabase(config));
         using var command = new NpgsqlCommand(
-            $"DROP DATABASE IF EXISTS {QuoteIdentifier(config.Database)};",
+            $"DROP DATABASE IF EXISTS {QuoteIdentifier(database)};",
             admin);
+        command.ExecuteNonQuery();
+    }
+
+    private static void ClearKnownDiaryTables(Config config, string database)
+    {
+        using var connection = OpenConnection(config, database);
+        var statements = string.Join(
+            Environment.NewLine,
+            KnownDiaryTables.Select(table =>
+                $"DROP TABLE IF EXISTS {QuoteIdentifier(table)} CASCADE;"));
+        using var command = new NpgsqlCommand(statements, connection);
         command.ExecuteNonQuery();
     }
 
@@ -402,6 +553,16 @@ public sealed partial class PgDb : IDbMaintenanceProvider
         => string.Equals(config.Database, "postgres", StringComparison.OrdinalIgnoreCase)
             ? "template1"
             : "postgres";
+
+    private static string CreateAutomaticTargetDatabaseName()
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..10];
+        return $"diaryapp_restore_{DateTime.UtcNow:yyyyMMddHHmmss}_{suffix}";
+    }
+
+    private static bool IsValidDatabaseName(string database)
+        => !database.Contains('\0')
+           && Encoding.UTF8.GetByteCount(database) <= 63;
 
     private static int GetServerMajorVersion(Config config, string database)
     {
@@ -525,7 +686,8 @@ internal static class PgToolProcess
     public static PgToolProcessResult Run(
         string executable,
         IEnumerable<string> arguments,
-        Config config)
+        Config config,
+        TimeSpan? timeout = null)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -547,10 +709,32 @@ internal static class PgToolProcess
 
             var outputTask = process.StandardOutput.ReadToEndAsync();
             var errorTask = process.StandardError.ReadToEndAsync();
-            process.WaitForExit();
+            var effectiveTimeout = timeout ?? TimeSpan.FromHours(1);
+            var timeoutMilliseconds = effectiveTimeout.TotalMilliseconds >= int.MaxValue
+                ? int.MaxValue
+                : Math.Max(1, checked((int)effectiveTimeout.TotalMilliseconds));
+            if (!process.WaitForExit(timeoutMilliseconds))
+            {
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                    process.WaitForExit();
+                }
+                catch
+                {
+                }
+
+                Task.WaitAll(outputTask, errorTask);
+                return new PgToolProcessResult(
+                    false,
+                    -1,
+                    Sanitize(outputTask.GetAwaiter().GetResult(), config.Password),
+                    $"PostgreSQL 工具执行超时（{effectiveTimeout}）。");
+            }
+
             Task.WaitAll(outputTask, errorTask);
-            var output = outputTask.GetAwaiter().GetResult();
-            var error = errorTask.GetAwaiter().GetResult();
+            var output = Sanitize(outputTask.GetAwaiter().GetResult(), config.Password);
+            var error = Sanitize(errorTask.GetAwaiter().GetResult(), config.Password);
             return new PgToolProcessResult(process.ExitCode == 0, process.ExitCode, output, error);
         }
         catch (Exception exception)
@@ -558,4 +742,9 @@ internal static class PgToolProcess
             return new PgToolProcessResult(false, -1, string.Empty, exception.Message);
         }
     }
+
+    private static string Sanitize(string value, string password)
+        => string.IsNullOrEmpty(password)
+            ? value
+            : value.Replace(password, "******", StringComparison.Ordinal);
 }

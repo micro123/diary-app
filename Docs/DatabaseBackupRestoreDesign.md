@@ -632,19 +632,21 @@ PostgreSQL：
 - 工具主版本与服务端主版本检查；不匹配时拒绝执行，避免新客户端生成服务端无法执行的恢复语句；
 - 当前用户、目标数据库、服务器版本、`rolsuper`/`rolcreatedb`、`public` schema 权限和 DiaryApp 已知表的最小预检；
 - 目标不存在时按 `CREATEDB` 创建目标，目标已存在时拒绝包含 DiaryApp 已知表的数据库；
-- `pg_restore --exit-on-error --single-transaction --no-owner` 非覆盖式还原，以及新建目标失败后的清理。
+- `pg_restore --exit-on-error --single-transaction --no-owner` 非覆盖式还原；
+- 自动目标使用独立数据库名；没有 `CREATEDB` 时从设置读取用户提供的已有空目标，且目标不得等于当前数据库；
+- 还原后先在当前进程切换目标，跳过 `Initialized()` 并按归档原貌执行核心兼容性和迁移复检，成功后才持久化新数据库名；
+- 对 RedMine/Jira 已知表组执行完整性复检，任一表组部分缺失时拒绝切换；
+- 启动复检失败时恢复原配置，删除自动创建的目标；已有空目标只清理本次恢复出的 DiaryApp 已知表。
+- 工具版本、归档检查和备份还原分别设置超时；超时会终止整棵进程树，stdout/stderr 中出现的密码会被脱敏。
 
 仍需补齐：
 
-- 工具版本解析和服务端版本不兼容；
-- `pg_dump` 成功、失败、超时和取消；
+- `pg_dump` 成功、失败和用户取消；
 - 临时 dump 和密码文件清理；
-- stderr 脱敏；
 - 当前角色有/无 `CREATEDB`；
 - 已有目标库为空、非空、不可连接和缺少 schema `CREATE`；
-- 自动创建新数据库、还原成功、兼容性检查和配置切换；
-- 还原失败时删除新目标并保持原配置；
-- PostgreSQL 核心表和 Tracker 表数据均保留；
+- Tracker 扩展的 schema 版本迁移结果与业务数据语义检查；
+- PostgreSQL 核心表和 Tracker 表数据均保留的真实工具集成门禁；
 - 工具缺失不影响普通数据库连接。
 
 PostgreSQL 集成测试继续使用 Testcontainers；工具执行测试应覆盖 Linux CI，Windows 至少覆盖路径、进程参数和密码文件策略。
@@ -669,18 +671,22 @@ PostgreSQL 集成测试继续使用 Testcontainers；工具执行测试应覆盖
 - [x] `pg_dump` custom format；
 - [x] `pg_restore --list` 校验；
 - [x] 临时 dump 文件和密码环境清理；
+- [x] 工具进程超时、整棵进程树终止和输出密码脱敏；
 - [x] UI 接入；
-- [ ] 完成真实 PostgreSQL 工具和容器组合测试、超时/取消测试。
+- [ ] 完成真实 PostgreSQL 工具和容器组合测试、用户取消测试。
 
 ### 阶段 C：PostgreSQL 安全还原（基础实现已完成）
 
 - [x] `CREATEDB` 最小检查；
-- [x] 自动创建当前配置指定的目标数据库；
+- [x] 自动创建独立目标数据库；
 - [x] 恢复到不存在或已存在空目标；
 - [x] 拒绝包含 DiaryApp 已知表的目标，禁止覆盖当前数据；
 - [x] 无 `CREATEDB` 时恢复到已有空数据库；
-- [x] 新建目标失败后的清理；
-- [ ] 目标兼容性和 Tracker 检查后的独立配置切换；
+- [x] 还原目标不得与当前数据库相同；
+- [x] 还原后按归档原貌执行核心兼容性和迁移复检，通过后持久化配置切换；
+- [x] 新建目标失败后的删除，以及已有空目标失败后的 DiaryApp 已知表清理；
+- [x] RedMine/Jira 已知表组完整性检查和失败回滚；
+- [ ] Tracker schema 版本迁移结果与业务数据语义检查后的统一提交/回滚；
 - [ ] 失败目标跨进程恢复、超时/取消和完整权限矩阵测试。
 
 ### 阶段 D：增强项

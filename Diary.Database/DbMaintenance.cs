@@ -33,7 +33,12 @@ public sealed record DbRestoreResult(
     string? RestoredPath,
     string? RecoveryPath,
     bool TargetPreviouslyExisted,
-    string? Error);
+    string? Error,
+    string? PreviousDatabase = null);
+
+public sealed record DbPostRestoreValidationResult(
+    bool Success,
+    string? Error = null);
 
 /// <summary>
 /// Provider 可选的数据库维护能力。创建备份要求当前数据库已连接；
@@ -50,4 +55,12 @@ public interface IDbMaintenanceProvider
     DbRestoreResult RestoreBackup(string backupPath, uint expectedVersion);
 
     bool RollbackRestore(DbRestoreResult restore, out string? error);
+}
+
+/// <summary>
+/// Provider 可选的还原后附加检查。应用在核心兼容性检查通过后、持久化目标配置前调用。
+/// </summary>
+public interface IDbPostRestoreValidator
+{
+    DbPostRestoreValidationResult ValidateRestoredDatabase();
 }

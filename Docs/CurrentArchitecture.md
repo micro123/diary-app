@@ -264,7 +264,10 @@ Jira：plugin_data_versions（与 Redmine 共用同一张表）、jira_projects�
 PostgreSQL provider 通过 PostgreSQL Client 进程生成 custom-format 备份并执行非覆盖式还原；设置中已增加 PostgreSQL Client `bin` 目录：
 Windows 必须配置，Linux 未配置时搜索 `PATH`，必须同时找到 `pg_dump` 和 `pg_restore` 才报告工具可用。还原前只查询当前用户、目标数据库、
 服务器版本、`rolsuper`/`rolcreatedb`、`public` schema 必要权限和 DiaryApp 已知表；目标不存在时仅在具备 `CREATEDB` 时自动创建，
-否则要求已有空数据库。工具缺失时退化为不支持。备份范围、最小权限预检和后续目标切换策略见
+否则要求在 PostgreSQL 设置中填写已有空数据库。还原目标不得与当前数据库相同；还原成功后先切换当前进程到目标库，跳过幂等初始化并按归档原貌执行兼容性检查，
+只有检查和迁移复检通过后才持久化新数据库名。失败时恢复原配置；自动创建的目标库会删除，用户提供的已有空库只清理本次恢复出的 DiaryApp 已知表。
+核心复检后还会检查 RedMine/Jira 已知表组是否完整。PostgreSQL 工具调用设置版本、归档和长任务超时，超时会终止子进程树并对输出中的密码脱敏。
+工具缺失时退化为不支持。备份范围、最小权限预检和后续增强策略见
 [`DatabaseBackupRestoreDesign.md`](DatabaseBackupRestoreDesign.md)。
 
 当前产品支持范围为 Windows 和 Linux；macOS 暂不纳入产品支持、发布产物和稳定性验证范围。

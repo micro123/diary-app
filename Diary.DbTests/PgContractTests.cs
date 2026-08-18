@@ -103,7 +103,8 @@ public class PgContractTests : DbContractTests
             {
                 Host = sourceConfig.Host,
                 Port = sourceConfig.Port,
-                Database = targetDatabase,
+                Database = sourceConfig.Database,
+                RestoreTargetDatabase = targetDatabase,
                 User = sourceConfig.User,
                 Password = sourceConfig.Password,
                 ToolsBinPath = sourceConfig.ToolsBinPath,
@@ -127,6 +128,34 @@ public class PgContractTests : DbContractTests
         {
             DropDatabase(sourceConfig, targetDatabase);
             Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void PostRestoreValidation_AcceptsCompleteTrackerSchema()
+    {
+        using var db = CreateDb();
+
+        var result = ((IDbPostRestoreValidator)db).ValidateRestoredDatabase();
+
+        Assert.IsTrue(result.Success, result.Error);
+    }
+
+    [TestMethod]
+    public void PostRestoreValidation_RejectsIncompleteTrackerSchema()
+    {
+        using var db = CreateDb();
+        Assert.IsTrue(db.ExecRaw("DROP TABLE IF EXISTS jira_projects; CREATE TABLE jira_projects(id INTEGER PRIMARY KEY);"));
+        try
+        {
+            var result = ((IDbPostRestoreValidator)db).ValidateRestoredDatabase();
+
+            Assert.IsFalse(result.Success);
+            StringAssert.Contains(result.Error, "Jira 表不完整");
+        }
+        finally
+        {
+            Assert.IsTrue(db.ExecRaw("DROP TABLE IF EXISTS jira_projects;"));
         }
     }
 
