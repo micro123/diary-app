@@ -10,7 +10,8 @@
 可注入传输层、本机进程 transport、C#/Lua/Python Worker 执行链路、按 EngineName 隔离的 supervisor、
 双向宿主 API 转发、通道终止结构化失败以及执行消息和宿主调用次数限制。
 工作集上限按 supervisor 的资源检查周期持续监控，stderr 超限会触发 Worker 回收；操作系统级硬内存限制仍按平台能力处理。Windows/Linux CI 已固定 Python 3.10，并在两端执行真实 C#、Lua、Python Worker 进程测试；发布包运行时 Smoke Test 仍需补充。macOS 不在当前支持范围内。Worker 协议 stdout 已与脚本标准输出隔离，并限制脚本输出大小。工作项流当前采用受限分页 HostCall，不跨 Worker 边界持有数据库连接或 reader，详见查询设计文档。现有脚本 V1 类型和执行结果见
-[`ScriptSystemDesign.md`](ScriptSystemDesign.md) 及 `Diary.ScriptBase`。
+[`ScriptSystemDesign.md`](ScriptSystemDesign.md) 及 `Diary.ScriptBase`。选项选择对话框、通用导出 HostCall（当前 XLSX，后续 CSV/DOCX）、目录选择令牌和 `FileId` 生命周期的目标协议见
+[`ScriptSpreadsheetExportDesign.md`](ScriptSpreadsheetExportDesign.md)，当前不代表已实现能力。
 
 ## 2. 设计结论
 

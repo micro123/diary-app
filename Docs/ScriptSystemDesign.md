@@ -351,6 +351,8 @@ IScriptExecutionContext
   - 便于为脚本提供测试替身。
   - 让脚本文档可以按领域和实际 HostCall 生成。
 
+通用选项对话框、目录选择令牌、通用导出能力（当前 XLSX，后续 CSV/DOCX）、结果文件询问打开以及对应的 HostCall/跨语言协议，属于尚未实现的扩展设计，详见 [`ScriptSpreadsheetExportDesign.md`](ScriptSpreadsheetExportDesign.md)。该设计还额外规定了交互 API 只允许有人值守的 `Editor+Editor`、`Application+Manual` 和 `Query+Manual` 执行使用；无人值守自动化入口禁止调用，能力发现不能替代宿主每次 HostCall 的上下文校验。
+
 ### 11.1 Tracker API
 
 当前 `GetTracker(string pluginId)` 只适合简单的单实例键值读取。由于 Tracker 已支持多实例，建议扩展为：

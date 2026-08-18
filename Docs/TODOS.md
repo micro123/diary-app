@@ -196,6 +196,14 @@ Jira 失败时核心工作记录仍可保存。
 - [x] 查询工作项标签 DTO 已增加语义化的 `IsPrimary`/`isPrimary` 字段；`Level` 保留用于兼容，C#、Lua、Python 示例均使用语义化字段判断主标签。
 - [x] 标签支持只读字符串键值元数据，编辑器可维护 `projectNumber` 等项目属性，并同步暴露给 C#、Lua、Python 脚本；当前数据库通过初始表结构和本地 SQLite 手工补列保持兼容。
 - [x] 标签附加字段已落地：字段按标签定义多个全局唯一 `FieldKey`，类型创建后固定，字段通过禁用保留历史数据；工作项使用独立对话框按标签编辑可选值，日志界面只显示按钮和 Tooltip 预览；SQLite/PostgreSQL 由核心数据库基类契约和 provider 初始化表支持，脚本通过 `FieldKey` 只读访问且不触发字段脚本；迁移导入的只读工作项不显示附加字段入口。
+- [ ] 脚本交互式通用导出：按 [`ScriptSpreadsheetExportDesign.md`](ScriptSpreadsheetExportDesign.md) 拆分实现：
+  - [ ] 增加仅允许有人值守的 `Editor+Editor`、`Application+Manual` 和 `Query+Manual` 使用的选项选择、目录选择、通用导出和询问打开 HostCall；其中 `RequireChoice` 对话框禁止右上角关闭；
+  - [ ] 增加绑定 `ExecutionId`/`WorkerId` 的 `DirectorySelectionId` 和短期 `FileId` 生命周期；
+  - [ ] 增加通用 `IExportApi`、格式目录和 `XlsxTableExportHandler`，由宿主使用 ClosedXML 生成支持中文、背景色、合并单元格、日期/时间/日期时间、数值及 `SUM` 合计的 `.xlsx`；
+  - [ ] 预留并实现 `CsvTableExportHandler`，明确 CSV 对样式、合并和公式的能力差异；
+  - [ ] 设计并实现 `DocxTableExportHandler`/`DocxDocumentExportHandler` 和文档块模型；
+  - [ ] 完成 C#、Lua、Python 门面、Worker 代理、协议契约和无数据/取消/打开失败测试；
+  - [ ] 补充加班明细示例脚本及三语言 API 文档。
 - [x] 标签编辑器已重排为标签导航和右侧详情页签；Tracker 自动化操作独立归入自动化页签，附加字段定义通过二级对话框编辑并由主页面统一保存。
 新建脚本向导已提供周目标脚本模板，生成的 metadata 自动声明 Week 目标。
 
