@@ -34,6 +34,14 @@
 ### 7.3 Provider 数据升级登记
 
 - [x] 已明确 SQLite/PostgreSQL `DbRecords` 当前无业务数据升级时返回 `null`；`ProviderMigrationRegistrationTests` 锁定上一正式数据版本，提升 `DataVersion` 时必须同步登记两个 provider 的迁移。
+- [~] 已将核心数据库兼容性从单一数据版本升级为 provider 能力、结构快照指纹、迁移状态/历史和基础数据完整性检查；provider 指纹按核心契约归一化，迁移每步提交后同步 Running 元数据并在最终复检通过后写入 Stable，结构漂移和更新版本数据库不会直接进入可写状态。共享 SQLite/PostgreSQL 契约测试已覆盖空库/断连、provider 与元数据不匹配、缺表缺字段和错误索引、额外索引归一化、迁移历史与 checksum、第二步失败后的部分提交、失败状态重启检查，以及 SQLite 外键和 PostgreSQL 字段键完整性错误；本地 `Diary.DbTests` 现为 222/222 通过，完整项目构建与 CI PostgreSQL 容器门禁仍需继续保持。
+
+后续增强测试（不阻塞当前核心迁移功能验收）：
+
+- [ ] 增加 `WriteSchemaMetadata()`、`RecordMigrationHistory()`、事务提交和回滚失败的故障注入测试，确认底层 I/O 错误不会被误报为迁移成功。
+- [ ] 使用真实上一正式版本的 SQLite 数据库文件和 PostgreSQL 初始化快照，执行至少一条包含真实 DDL 的升级链，而不只使用测试迁移写入版本号。
+- [ ] 增加 SQLite 备份目录不可写、备份临时文件清理和备份恢复失败等文件系统异常测试。
+- [ ] 如果未来明确支持同一数据库的多实例并发，再增加迁移锁和并发启动测试；当前产品没有要求两个进程同时迁移同一个数据库，该项暂不作为发布门禁。
 
 前置依赖：先确认核心数据库与插件数据库的版本职责边界，避免把插件迁移重复登记到核心 provider。
 

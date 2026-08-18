@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Diary.Database;
 
 namespace Diary.Db.SQLite;
@@ -11,6 +13,9 @@ internal class SQLiteMigration : Migration
     {
         _up = string.Join(";\n", upStmts);
     }
+
+    public override string Checksum => Convert.ToHexString(
+        SHA256.HashData(Encoding.UTF8.GetBytes(_up)));
 
     public override bool Up(DbInterfaceBase db)
     {

@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+
 namespace Diary.Database;
 
 public abstract class Migration(uint from, uint to)
@@ -11,6 +14,12 @@ public abstract class Migration(uint from, uint to)
     /// 应用此升级会数据版本会是这个值
     /// </summary>
     public uint VersionTo { get; } = to;
+
+    /// <summary>稳定的迁移标识，用于迁移历史和诊断。</summary>
+    public virtual string Id => $"{VersionFrom:X8}-{VersionTo:X8}";
+
+    /// <summary>迁移定义校验值；provider 迁移可覆盖为 SQL 内容的哈希。</summary>
+    public virtual string Checksum => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Id)));
 
     /// <summary>
     /// 如何升级

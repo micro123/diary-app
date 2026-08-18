@@ -824,6 +824,228 @@ public abstract class DbContractTests
     // ---------- 版本 / 事务 / 工具 + helper 边界 ----------
 
     [TestMethod]
+    public void Compatibility_InitializedDatabase_IsCompatibleAndPersistsFingerprint()
+    {
+        using var db = CreateDb();
+
+        var report = db.CheckCompatibility(DataVersion.VersionCode);
+        Assert.AreEqual(DbCompatibilityState.Compatible, report.State, report.ToUserMessage());
+        Assert.AreEqual(report.ExpectedSchema.Fingerprint, report.ActualSchema.Fingerprint);
+        Assert.IsTrue(db.PersistCompatibilityMetadata(report));
+
+        var rechecked = db.CheckCompatibility(DataVersion.VersionCode);
+        Assert.AreEqual(DbCompatibilityState.Compatible, rechecked.State, rechecked.ToUserMessage());
+        Assert.IsNotNull(rechecked.Metadata);
+        Assert.AreEqual(report.ActualSchema.Fingerprint, rechecked.Metadata!.SchemaFingerprint);
+    }
+
+    [TestMethod]
+    public void Compatibility_DroppedRequiredIndex_IsReportedAsSchemaDrift()
+    {
+        using var db = CreateDb();
+        Assert.IsTrue(db.ExecRaw("DROP INDEX IF EXISTS idx_work_items_date;"));
+        try
+        {
+            var report = db.CheckCompatibility(DataVersion.VersionCode);
+            Assert.AreEqual(DbCompatibilityState.SchemaDrift, report.State);
+            Assert.IsTrue(report.Issues.Any(issue => issue.Code == "DB-SCHEMA-INDEX-MISSING"));
+        }
+        finally
+        {
+            Assert.IsTrue(db.ExecRaw("CREATE INDEX IF NOT EXISTS idx_work_items_date ON work_items(create_date);"));
+        }
+    }
+
+    [TestMethod]
+    public void Compatibility_NewerDataVersion_IsRejectedBeforeWrite()
+    {
+        using var db = CreateDb();
+        Assert.IsTrue(db.ExecRaw("INSERT INTO data_versions VALUES(999999);"));
+
+        var report = db.CheckCompatibility(DataVersion.VersionCode);
+        Assert.AreEqual(DbCompatibilityState.NewerThanApplication, report.State);
+        Assert.IsFalse(report.IsUsable);
+    }
+
+    [TestMethod]
+    public void Compatibility_MigrationUnavailable_IsReported()
+    {
+        using var db = CreateDb();
+
+        var report = db.CheckCompatibility(DataVersion.VersionCode + 1);
+
+        Assert.AreEqual(DbCompatibilityState.MigrationUnavailable, report.State, report.ToUserMessage());
+        Assert.IsFalse(report.IsUsable);
+        Assert.IsFalse(report.CanMigrate);
+    }
+
+    [TestMethod]
+    public void Compatibility_MetadataRunning_IsRejected()
+    {
+        using var db = CreateDb();
+        var stable = db.CheckCompatibility(DataVersion.VersionCode);
+        Assert.IsTrue(db.PersistCompatibilityMetadata(stable));
+        Assert.IsTrue(db.ExecRaw(
+            "UPDATE diary_schema_metadata SET migration_state='Running', last_migration_id='test-running';"));
+
+        var report = db.CheckCompatibility(DataVersion.VersionCode);
+
+        Assert.AreEqual(DbCompatibilityState.MigrationIncomplete, report.State, report.ToUserMessage());
+        Assert.AreEqual(DbMigrationState.Running, report.Metadata!.MigrationState);
+        Assert.IsFalse(report.IsUsable);
+    }
+
+    [TestMethod]
+    public void Compatibility_MetadataFailed_IsRejected()
+    {
+        using var db = CreateDb();
+        var stable = db.CheckCompatibility(DataVersion.VersionCode);
+        Assert.IsTrue(db.PersistCompatibilityMetadata(stable));
+        Assert.IsTrue(db.ExecRaw(
+            "UPDATE diary_schema_metadata SET migration_state='Failed', last_migration_id='test-failed', last_error='boom';"));
+
+        var report = db.CheckCompatibility(DataVersion.VersionCode);
+
+        Assert.AreEqual(DbCompatibilityState.MigrationIncomplete, report.State, report.ToUserMessage());
+        Assert.AreEqual(DbMigrationState.Failed, report.Metadata!.MigrationState);
+        StringAssert.Contains(report.ToUserMessage(), "boom");
+    }
+
+    [TestMethod]
+    public void Compatibility_MetadataProviderMismatch_IsRejected()
+    {
+        using var db = CreateDb();
+        var stable = db.CheckCompatibility(DataVersion.VersionCode);
+        Assert.IsTrue(db.PersistCompatibilityMetadata(stable));
+        Assert.IsTrue(db.ExecRaw("UPDATE diary_schema_metadata SET provider_id='OtherProvider';"));
+
+        var report = db.CheckCompatibility(DataVersion.VersionCode);
+
+        Assert.AreEqual(DbCompatibilityState.ProviderMismatch, report.State, report.ToUserMessage());
+        Assert.IsTrue(report.Issues.Any(issue => issue.Code == "DB-METADATA-PROVIDER-MISMATCH"));
+    }
+
+    [TestMethod]
+    public void Compatibility_MetadataVersionMismatch_BlocksMigration()
+    {
+        using var db = CreateDb(_ =>
+            new TestMigration(0x0FFFF, 0x10000, MigrationResult.Success));
+        var stable = db.CheckCompatibility(DataVersion.VersionCode);
+        Assert.IsTrue(db.PersistCompatibilityMetadata(stable));
+        Assert.IsTrue(db.ExecRaw("UPDATE data_versions SET version_code=65535;"));
+
+        var report = db.CheckCompatibility(DataVersion.VersionCode);
+
+        Assert.AreEqual(DbCompatibilityState.SchemaDrift, report.State, report.ToUserMessage());
+        Assert.IsTrue(report.Issues.Any(issue => issue.Code == "DB-METADATA-VERSION-MISMATCH"));
+    }
+
+    [TestMethod]
+    public void Compatibility_ExtraIndex_DoesNotChangeCoreFingerprint()
+    {
+        using var db = CreateDb();
+        var before = db.CheckCompatibility(DataVersion.VersionCode);
+        Assert.IsTrue(db.ExecRaw("CREATE INDEX compatibility_extra_index ON work_items(comment);"));
+
+        try
+        {
+            var report = db.CheckCompatibility(DataVersion.VersionCode);
+            Assert.AreEqual(DbCompatibilityState.Compatible, report.State, report.ToUserMessage());
+            Assert.AreEqual(before.ActualSchema.Fingerprint, report.ActualSchema.Fingerprint);
+        }
+        finally
+        {
+            Assert.IsTrue(db.ExecRaw("DROP INDEX IF EXISTS compatibility_extra_index;"));
+        }
+    }
+
+    [TestMethod]
+    public void Compatibility_MissingRequiredTable_IsSchemaDrift()
+    {
+        using var db = CreateDb();
+        Assert.IsTrue(db.ExecRaw("DROP TABLE work_notes;"));
+
+        var report = db.CheckCompatibility(DataVersion.VersionCode);
+
+        Assert.AreEqual(DbCompatibilityState.SchemaDrift, report.State, report.ToUserMessage());
+        Assert.IsTrue(report.Issues.Any(issue => issue.Code == "DB-SCHEMA-TABLE-MISSING"));
+    }
+
+    [TestMethod]
+    public void Compatibility_MissingRequiredColumn_IsSchemaDrift()
+    {
+        using var db = CreateDb();
+        Assert.IsTrue(db.ExecRaw("ALTER TABLE work_items DROP COLUMN is_read_only;"));
+
+        try
+        {
+            var report = db.CheckCompatibility(DataVersion.VersionCode);
+            Assert.AreEqual(DbCompatibilityState.SchemaDrift, report.State, report.ToUserMessage());
+            Assert.IsTrue(report.Issues.Any(issue => issue.Code == "DB-SCHEMA-COLUMN-MISSING"));
+        }
+        finally
+        {
+            var columnDefinition = db.GetProviderInfo().ProviderId == "PostgreSQL"
+                ? "BOOLEAN NOT NULL DEFAULT FALSE"
+                : "INTEGER NOT NULL DEFAULT 0";
+            Assert.IsTrue(db.ExecRaw(
+                $"ALTER TABLE work_items ADD COLUMN is_read_only {columnDefinition};"));
+        }
+    }
+
+    [TestMethod]
+    public void Compatibility_WrongIndexDefinition_IsSchemaDrift()
+    {
+        using var db = CreateDb();
+        Assert.IsTrue(db.ExecRaw(
+            "DROP INDEX idx_work_items_date; " +
+            "CREATE INDEX idx_work_items_date ON work_items(comment);"));
+
+        try
+        {
+            var report = db.CheckCompatibility(DataVersion.VersionCode);
+            Assert.AreEqual(DbCompatibilityState.SchemaDrift, report.State, report.ToUserMessage());
+            Assert.IsTrue(report.Issues.Any(issue => issue.Code == "DB-SCHEMA-INDEX-MISSING"));
+        }
+        finally
+        {
+            Assert.IsTrue(db.ExecRaw(
+                "DROP INDEX IF EXISTS idx_work_items_date; " +
+                "CREATE INDEX idx_work_items_date ON work_items(create_date);"));
+        }
+    }
+
+    [TestMethod]
+    public void Compatibility_ClosedDatabase_IsUnavailable()
+    {
+        using var db = CreateDb();
+        db.Close();
+
+        var report = db.CheckCompatibility(DataVersion.VersionCode);
+
+        Assert.AreEqual(DbCompatibilityState.Unavailable, report.State);
+        Assert.IsFalse(report.IsUsable);
+        Assert.IsTrue(report.Issues.Any(issue => issue.Code == "DB-COMPATIBILITY-CHECK-FAILED"));
+    }
+
+    [TestMethod]
+    public void Compatibility_RegisteredFingerprintDrift_BlocksMigration()
+    {
+        using var db = CreateDb(_ =>
+            new TestMigration(0x0FFFF, 0x10000, MigrationResult.Success));
+
+        var stable = db.CheckCompatibility(DataVersion.VersionCode);
+        Assert.AreEqual(DbCompatibilityState.Compatible, stable.State, stable.ToUserMessage());
+        Assert.IsTrue(db.PersistCompatibilityMetadata(stable));
+        Assert.IsTrue(db.ExecRaw("DROP INDEX IF EXISTS idx_work_items_date;"));
+        Assert.IsTrue(db.ExecRaw("UPDATE data_versions SET version_code=65535;"));
+
+        var report = db.CheckCompatibility(DataVersion.VersionCode);
+        Assert.AreEqual(DbCompatibilityState.SchemaDrift, report.State, report.ToUserMessage());
+        Assert.IsTrue(report.Issues.Any(issue => issue.Code == "DB-SCHEMA-FINGERPRINT-MISMATCH"));
+    }
+
+    [TestMethod]
     public void GetDataVersion_DefaultIsInitialCode()
     {
         using var db = CreateDb();
@@ -856,6 +1078,86 @@ public abstract class DbContractTests
 
         Assert.IsTrue(db.UpdateTables(0x10002));
         Assert.AreEqual(0x10002u, db.GetDataVersion());
+        var history = ReadMigrationHistory(db);
+        Assert.AreEqual(2, history.Count);
+        Assert.IsTrue(history.All(entry => entry.Success));
+        CollectionAssert.AreEqual(
+            new[] { migrations[0x10000].Id, migrations[0x10001].Id },
+            history.Select(entry => entry.MigrationId).ToArray());
+    }
+
+    [TestMethod]
+    public void MigrateTo_Success_WritesStableMetadataAndHistory()
+    {
+        var migration = new TestMigration(0x10000, 0x10001, MigrationResult.Success);
+        using var db = CreateDb(_ => migration);
+
+        var result = db.MigrateTo(0x10001);
+        var report = db.CheckCompatibility(0x10001);
+        var history = ReadMigrationHistory(db);
+
+        Assert.IsTrue(result.Success, result.Error);
+        Assert.AreEqual(DbCompatibilityState.Compatible, report.State, report.ToUserMessage());
+        Assert.AreEqual(DbMigrationState.Stable, report.Metadata!.MigrationState);
+        Assert.AreEqual(0x10001u, report.Metadata.SchemaVersion);
+        Assert.IsNull(report.Metadata.LastMigrationId);
+        Assert.IsNull(report.Metadata.LastError);
+        Assert.AreEqual(1, history.Count);
+        Assert.AreEqual(migration.Id, history[0].MigrationId);
+        Assert.AreEqual(0x10000u, history[0].VersionFrom);
+        Assert.AreEqual(0x10001u, history[0].VersionTo);
+        Assert.AreEqual(migration.Checksum, history[0].Checksum);
+        Assert.IsTrue(history[0].Success);
+        Assert.IsNull(history[0].Error);
+    }
+
+    [TestMethod]
+    public void MigrateTo_Failure_WritesFailedMetadataAndHistory()
+    {
+        var migration = new TestMigration(0x10000, 0x10001, MigrationResult.ThrowAfterWrite);
+        using var db = CreateDb(_ => migration);
+
+        var result = db.MigrateTo(0x10001);
+        var report = db.CheckCompatibility(0x10001);
+        var history = ReadMigrationHistory(db);
+
+        Assert.IsFalse(result.Success);
+        Assert.AreEqual(DbCompatibilityState.MigrationIncomplete, report.State, report.ToUserMessage());
+        Assert.AreEqual(DbMigrationState.Failed, report.Metadata!.MigrationState);
+        Assert.AreEqual(0x10000u, report.Metadata.SchemaVersion);
+        Assert.AreEqual(migration.Id, report.Metadata.LastMigrationId);
+        StringAssert.Contains(report.Metadata.LastError!, "migration failed");
+        Assert.AreEqual(1, history.Count);
+        Assert.IsFalse(history[0].Success);
+        StringAssert.Contains(history[0].Error!, "migration failed");
+    }
+
+    [TestMethod]
+    public void MigrateTo_SecondStepFailure_PreservesFirstCommit()
+    {
+        var first = new TestMigration(0x10000, 0x10001, MigrationResult.Success);
+        var second = new TestMigration(0x10001, 0x10002, MigrationResult.ThrowAfterWrite);
+        var migrations = new Dictionary<uint, Migration>
+        {
+            [first.VersionFrom] = first,
+            [second.VersionFrom] = second,
+        };
+        using var db = CreateDb(version => migrations.GetValueOrDefault(version));
+
+        var result = db.MigrateTo(0x10002);
+        var report = db.CheckCompatibility(0x10002);
+        var history = ReadMigrationHistory(db);
+
+        Assert.IsFalse(result.Success);
+        Assert.AreEqual(0x10001u, db.GetDataVersion());
+        Assert.AreEqual(DbCompatibilityState.MigrationIncomplete, report.State, report.ToUserMessage());
+        Assert.AreEqual(0x10001u, report.Metadata!.SchemaVersion);
+        Assert.AreEqual(DbMigrationState.Failed, report.Metadata.MigrationState);
+        Assert.AreEqual(2, history.Count);
+        Assert.IsTrue(history[0].Success);
+        Assert.AreEqual(first.Id, history[0].MigrationId);
+        Assert.IsFalse(history[1].Success);
+        Assert.AreEqual(second.Id, history[1].MigrationId);
     }
 
     [TestMethod]
@@ -965,7 +1267,27 @@ public abstract class DbContractTests
         Assert.IsTrue(db.RollbackTransaction());
     }
 
-    private enum MigrationResult
+    protected sealed record MigrationHistorySnapshot(
+        string MigrationId,
+        uint VersionFrom,
+        uint VersionTo,
+        string Checksum,
+        bool Success,
+        string? Error);
+
+    protected static IReadOnlyList<MigrationHistorySnapshot> ReadMigrationHistory(DbInterfaceBase db)
+        => ((IDbExtensionHost)db).Query(
+            "SELECT migration_id, version_from, version_to, checksum, success, error " +
+            "FROM diary_schema_migrations ORDER BY applied_at, migration_id;",
+            reader => new MigrationHistorySnapshot(
+                reader.GetString(0),
+                Convert.ToUInt32(reader.GetValue(1)),
+                Convert.ToUInt32(reader.GetValue(2)),
+                reader.GetString(3),
+                Convert.ToBoolean(reader.GetValue(4)),
+                reader.IsDBNull(5) ? null : reader.GetString(5)));
+
+    protected enum MigrationResult
     {
         Success,
         FalseAfterWrite,
@@ -973,7 +1295,7 @@ public abstract class DbContractTests
         NoVersionWrite,
     }
 
-    private sealed class TestMigration(
+    protected sealed class TestMigration(
         uint from,
         uint to,
         MigrationResult result,

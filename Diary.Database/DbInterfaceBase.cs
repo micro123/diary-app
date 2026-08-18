@@ -6,7 +6,7 @@ using Diary.PluginBase;
 
 namespace Diary.Database;
 
-public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
+public abstract partial class DbInterfaceBase : IDisposable, IDbExtensionHost
 {
     public string ProviderName => GetType().Name;
     protected readonly IDbFactory Factory;
@@ -42,60 +42,7 @@ public abstract class DbInterfaceBase : IDisposable, IDbExtensionHost
     }
 
     // migrate tables
-    public virtual bool UpdateTables(uint targetVersion)
-    {
-        var currentVersion = GetDataVersion();
-        if (targetVersion < currentVersion)
-            return false;
-
-        while (currentVersion < targetVersion)
-        {
-            var migration = Factory.GetMigration(currentVersion);
-            if (migration == null ||
-                migration.VersionFrom != currentVersion ||
-                migration.VersionTo <= currentVersion ||
-                migration.VersionTo > targetVersion)
-                return false;
-
-            var transactionStarted = false;
-            var committed = false;
-            try
-            {
-                transactionStarted = BeginTransaction();
-                if (!transactionStarted || !migration.Up(this))
-                    return false;
-
-                var migratedVersion = GetDataVersion();
-                if (migratedVersion != migration.VersionTo)
-                    return false;
-
-                committed = CommitTransaction();
-                if (!committed)
-                    return false;
-
-                currentVersion = migratedVersion;
-            }
-            catch (Exception)
-            {
-                return false;
-            }
-            finally
-            {
-                if (transactionStarted && !committed)
-                {
-                    try
-                    {
-                        RollbackTransaction();
-                    }
-                    catch (Exception)
-                    {
-                    }
-                }
-            }
-        }
-
-        return true;
-    }
+    public virtual bool UpdateTables(uint targetVersion) => MigrateTo(targetVersion).Success;
 
     /// <summary>
     /// 执行多语句 DDL（版本迁移用）。命令由 <see cref="CreateCommand"/> 构建，

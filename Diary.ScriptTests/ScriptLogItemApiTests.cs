@@ -200,6 +200,19 @@ public sealed class ScriptLogItemApiTests
         public override void Close() { }
         public override void Dispose() { }
         public override uint GetDataVersion() => 0;
+        public override DbProviderInfo GetProviderInfo() => new(
+            "Test",
+            "test",
+            new HashSet<DbCapability>
+            {
+                DbCapability.Transactions,
+                DbCapability.ForeignKeys,
+                DbCapability.UniqueIndexes,
+            });
+        public override DbSchemaSnapshot InspectSchema() => new([]);
+        protected override DbSchemaMetadata? ReadSchemaMetadata() => null;
+        protected override bool WriteSchemaMetadata(DbSchemaMetadata metadata) => true;
+        protected override bool RecordMigrationHistory(DbMigrationHistoryEntry entry) => true;
         public override WorkTag CreateWorkTag(string name, bool primary, int color, IReadOnlyDictionary<string, string>? metadata = null) => throw new NotSupportedException();
         public override bool UpdateWorkTag(WorkTag tag) => throw new NotSupportedException();
         public override bool DeleteWorkTag(WorkTag tag) => throw new NotSupportedException();

@@ -102,7 +102,7 @@ workItem.GetExtraField("meeting.participants");
 
 工作项首次创建时，标签和草稿附加字段值在同一个本地事务中保存。已保存工作项从附加字段对话框保存时，provider 为当前工作项的启用字段值执行独立事务写入；空值删除当前启用字段的值，禁用字段历史值保留。
 
-旧数据库打开时由 SQLite/PostgreSQL 的 `Initialized()` 幂等创建新表，不改变已有核心数据版本和业务数据。
+旧数据库打开时由 SQLite/PostgreSQL 的 `Initialized()` 幂等创建基础表；随后由核心数据库兼容性检查确认字段、索引和外键均符合 schema contract。新增附加字段结构不能只依赖 `IF NOT EXISTS`，必须由结构指纹和正式迁移共同保证，不改变已有核心数据和历史值。
 
 ## 8. 测试要求
 

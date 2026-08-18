@@ -8,7 +8,7 @@ using Npgsql;
 
 namespace Diary.Db.PostgreSQL;
 
-public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDisposable, IAsyncDisposable
+public sealed partial class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDisposable, IAsyncDisposable
 {
     private const int WorkTagQueryBatchSize = 500;
     private NpgsqlDataSource? _dataSource;
@@ -122,6 +122,8 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
                      options_json TEXT NOT NULL DEFAULT '[]',
                      enabled BOOLEAN NOT NULL DEFAULT TRUE
                   );
+                  CREATE UNIQUE INDEX IF NOT EXISTS ux_work_tags_name
+                     ON work_tags(tag_name);
                   CREATE UNIQUE INDEX IF NOT EXISTS ux_tag_extra_fields_key
                      ON tag_extra_field_definitions (LOWER(field_key));
                   CREATE INDEX IF NOT EXISTS idx_tag_extra_fields_tag
@@ -134,6 +136,30 @@ public sealed class PgDb(IDbFactory factory) : DbInterfaceBase(factory), IDispos
                   );
                   CREATE INDEX IF NOT EXISTS idx_work_item_extra_fields_work
                      ON work_item_extra_field_values(work_id);
+
+                  CREATE INDEX IF NOT EXISTS idx_work_items_date ON work_items(create_date);
+                  CREATE INDEX IF NOT EXISTS idx_work_item_tags_tag ON work_item_tags(tag_id);
+                  CREATE INDEX IF NOT EXISTS idx_work_item_tags_work ON work_item_tags(work_id);
+
+                  CREATE TABLE IF NOT EXISTS diary_schema_metadata(
+                      id INTEGER PRIMARY KEY CHECK (id = 1),
+                      schema_version INTEGER NOT NULL,
+                      provider_id TEXT NOT NULL,
+                      schema_fingerprint TEXT NOT NULL,
+                      migration_state TEXT NOT NULL,
+                      last_migration_id TEXT,
+                      last_error TEXT,
+                      updated_at TEXT NOT NULL
+                  );
+                  CREATE TABLE IF NOT EXISTS diary_schema_migrations(
+                      migration_id TEXT PRIMARY KEY,
+                      version_from INTEGER NOT NULL,
+                      version_to INTEGER NOT NULL,
+                      checksum TEXT NOT NULL,
+                      applied_at TEXT NOT NULL,
+                      success BOOLEAN NOT NULL,
+                      error TEXT
+                  );
 
                   CREATE TABLE IF NOT EXISTS data_versions (version_code INTEGER PRIMARY KEY);
 

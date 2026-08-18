@@ -232,7 +232,8 @@ Db --> UI : IRedMineDb 或 null
 核心表和 Redmine 表目前共享同一个物理数据库，但职责分离：
 
 ```text
-核心：work_items、work_notes、work_tags、work_item_tags、data_versions
+核心：work_items、work_notes、work_tags、work_item_tags、tag_extra_field_definitions、
+      work_item_extra_field_values、data_versions、diary_schema_metadata、diary_schema_migrations
 Redmine：plugin_data_versions、redmine_projects、redmine_activities、
          redmine_issues、redmine_time_entries
 Jira：plugin_data_versions（与 Redmine 共用同一张表）、jira_projects、
@@ -243,9 +244,14 @@ Jira：plugin_data_versions（与 Redmine 共用同一张表）、jira_projects�
 
 ### 核心数据迁移与发布门禁
 
-`DbInterfaceBase.UpdateTables()` 按 `VersionFrom -> VersionTo` 连续链逐步迁移。每一步都在 provider
-事务中执行，并要求迁移实现写入准确的目标版本；迁移返回失败、抛异常、未推进版本、迁移链断裂、
-越过目标版本或请求降级时均停止，未提交步骤由 SQLite/PostgreSQL 回滚。
+数据库兼容性不再只依赖 `data_versions`。`DbInterfaceBase.CheckCompatibility()` 综合检查 provider 身份和能力、
+声明数据版本、迁移元数据、规范化 schema fingerprint，以及 provider 数据完整性检查；只有
+`Compatible` 状态才允许业务层写入。详细设计见 [`DatabaseCompatibilityDesign.md`](DatabaseCompatibilityDesign.md)。
+
+`DbInterfaceBase.MigrateTo()` 按 `VersionFrom -> VersionTo` 连续链逐步迁移。每一步都在 provider 事务中执行，并要求迁移实现写入准确的目标版本；迁移返回失败、抛异常、未推进版本、迁移链断裂、
+越过目标版本或请求降级时均停止，未提交步骤由 SQLite/PostgreSQL 回滚。迁移开始、结束和失败会写入
+`diary_schema_metadata`，成功步骤写入 `diary_schema_migrations`，每个已提交步骤会先把新版本写回 `Running` 状态，
+全部步骤完成后必须重新读取结构并通过兼容性复检，最后才写入 `Stable` 状态。
 
 当前核心数据版本仍为 `1.0.0`（`0x10000`），与上一正式版本一致，因此两个 provider 的
 `DbRecords.GetMigration()` 在当前版本返回 `null`。`ProviderMigrationRegistrationTests` 锁定这一契约：

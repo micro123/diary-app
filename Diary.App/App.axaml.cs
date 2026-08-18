@@ -239,48 +239,61 @@ namespace Diary.App
             }
             Logger.LogDebug("数据库结构初始化成功：驱动 {Driver}", factory.Name);
 
-            // version check
-            var currentDataVersion = database.GetDataVersion();
-            if (currentDataVersion != DataVersion.VersionCode)
+            // compatibility check: version is only one input; provider, schema, migration state and data integrity
+            // are checked together before the application receives a writable database handle.
+            var compatibility = database.CheckCompatibility(DataVersion.VersionCode);
+            Logger.LogInformation(
+                "数据库兼容性检查完成：驱动 {Driver}，状态 {State}，声明版本 {DeclaredVersion}，目标版本 {ExpectedVersion}，结构指纹 {Fingerprint}",
+                factory.Name,
+                compatibility.State,
+                compatibility.DeclaredVersion,
+                compatibility.ExpectedVersion,
+                compatibility.ActualSchema.Fingerprint);
+            foreach (var issue in compatibility.Issues.Where(issue => issue.Severity >= DbIssueSeverity.Warning))
             {
-                if (!database.TryCreateMigrationBackup(
-                        DataVersion.VersionCode,
-                        out var backupPath,
-                        out var backupError))
+                Logger.LogWarning(
+                    "数据库兼容性问题：代码 {Code}，级别 {Severity}，对象 {ObjectName}，说明 {Message}",
+                    issue.Code, issue.Severity, issue.ObjectName ?? "<database>", issue.Message);
+            }
+
+            if (compatibility.State == DbCompatibilityState.NeedsMigration)
+            {
+                var migration = database.MigrateTo(DataVersion.VersionCode);
+                if (!migration.Success)
                 {
                     database.Dispose();
                     database = null;
-                    message = $"数据库升级前备份失败：{backupError}";
+                    message = migration.Error ?? "数据库迁移失败，请检查诊断日志。";
                     Logger.LogWarning(
-                        "数据库迁移备份失败：驱动 {Driver}，当前版本 {CurrentVersion}，目标版本 {TargetVersion}，原因 {Reason}",
-                        factory.Name, currentDataVersion, DataVersion.VersionCode, backupError);
+                        "数据库迁移失败：驱动 {Driver}，当前版本 {CurrentVersion}，目标版本 {TargetVersion}，原因 {Reason}",
+                        factory.Name, migration.VersionFrom, DataVersion.VersionCode, message);
                     return false;
                 }
 
-                if (string.IsNullOrWhiteSpace(backupPath))
-                {
-                    Logger.LogWarning(
-                        "数据库驱动 {Driver} 未创建本地迁移备份；继续前应确认已有外部备份。当前版本 {CurrentVersion}，目标版本 {TargetVersion}",
-                        factory.Name, currentDataVersion, DataVersion.VersionCode);
-                }
-                else
-                {
-                    Logger.LogInformation(
-                        "数据库迁移备份已创建：驱动 {Driver}，路径 {BackupPath}",
-                        factory.Name, backupPath);
-                }
+                compatibility = migration.FinalReport ?? database.CheckCompatibility(DataVersion.VersionCode);
+                Logger.LogInformation(
+                    "数据库迁移完成并通过复检：驱动 {Driver}，版本 {Version}，备份 {BackupPath}",
+                    factory.Name, compatibility.DeclaredVersion, migration.BackupPath ?? "<external>");
+            }
 
-                if (!database.UpdateTables(DataVersion.VersionCode))
-                {
-                    database.Dispose();
-                    database = null;
-                    message = "数据库升级失败了，可能是程序bug！";
-                    Logger.LogWarning("数据库迁移失败：驱动 {Driver}，目标版本 {Version}",
-                        factory.Name, DataVersion.VersionCode);
-                    return false;
-                }
-                Logger.LogDebug("数据库迁移成功：驱动 {Driver}，目标版本 {Version}",
-                    factory.Name, DataVersion.VersionCode);
+            if (!compatibility.IsUsable)
+            {
+                database.Dispose();
+                database = null;
+                message = compatibility.ToUserMessage();
+                Logger.LogWarning(
+                    "数据库不可用：驱动 {Driver}，状态 {State}，说明 {Message}",
+                    factory.Name, compatibility.State, message);
+                return false;
+            }
+
+            if (!database.PersistCompatibilityMetadata(compatibility))
+            {
+                database.Dispose();
+                database = null;
+                message = "数据库兼容性元数据写入失败，请检查数据库权限。";
+                Logger.LogWarning("数据库兼容性元数据写入失败：驱动 {Driver}", factory.Name);
+                return false;
             }
             UseFactory = factory;
             _connectedDriver = factory.Name;

@@ -11,7 +11,7 @@ package "核心" {
   entity "work_tags" as work_tags {
     * id : SERIAL
     --
-    tag_name : CHAR(64) UNIQUE
+    tag_name : CHAR(64) UNIQUE (ux_work_tags_name)
     tag_color : INTEGER
     tag_level : INTEGER
     tag_metadata : TEXT
@@ -37,6 +37,45 @@ package "核心" {
   }
   entity "data_versions" as data_versions {
     * version_code : INTEGER
+  }
+  entity "tag_extra_field_definitions" as tag_extra_field_definitions {
+    * field_id : TEXT
+    --
+    field_key : TEXT UNIQUE
+    tag_id : INTEGER
+    label : TEXT
+    field_type : INTEGER
+    description : TEXT
+    sort_order : INTEGER
+    options_json : TEXT
+    enabled : BOOLEAN
+  }
+  entity "work_item_extra_field_values" as work_item_extra_field_values {
+    * work_id : INTEGER
+    * field_id : TEXT
+    --
+    value_json : TEXT
+  }
+  entity "diary_schema_metadata" as diary_schema_metadata {
+    * id : INTEGER
+    --
+    schema_version : INTEGER
+    provider_id : TEXT
+    schema_fingerprint : TEXT
+    migration_state : TEXT
+    last_migration_id : TEXT
+    last_error : TEXT
+    updated_at : TEXT
+  }
+  entity "diary_schema_migrations" as diary_schema_migrations {
+    * migration_id : TEXT
+    --
+    version_from : INTEGER
+    version_to : INTEGER
+    checksum : TEXT
+    applied_at : TEXT
+    success : BOOLEAN
+    error : TEXT
   }
 }
 
@@ -119,6 +158,9 @@ package "插件版本" {
 work_items ||--o{ work_notes : "id (ON DELETE CASCADE)"
 work_items ||--o{ work_item_tags : "work_id (ON DELETE CASCADE)"
 work_tags ||--o{ work_item_tags : "tag_id (ON DELETE CASCADE)"
+work_tags ||--o{ tag_extra_field_definitions : "tag_id (ON DELETE CASCADE)"
+work_items ||--o{ work_item_extra_field_values : "work_id (ON DELETE CASCADE)"
+tag_extra_field_definitions ||--o{ work_item_extra_field_values : "field_id"
 redmine_projects ||--o{ redmine_issues : "(instance_id, project_id)"
 redmine_activities ||--o{ redmine_time_entries : "(instance_id, act_id)"
 redmine_issues ||--o{ redmine_time_entries : "(instance_id, issue_id)"

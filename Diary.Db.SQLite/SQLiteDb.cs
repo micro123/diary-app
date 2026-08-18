@@ -8,7 +8,7 @@ using Diary.Database;
 
 namespace Diary.Db.SQLite;
 
-public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDisposable, IAsyncDisposable
+public sealed partial class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDisposable, IAsyncDisposable
 {
     private const int WorkTagQueryBatchSize = 500;
     private SQLiteConnection? _connection;
@@ -42,6 +42,11 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
         };
         _connection = new SQLiteConnection(csb.ToString());
         _connection.Open();
+        using (var foreignKeys = _connection.CreateCommand())
+        {
+            foreignKeys.CommandText = "PRAGMA foreign_keys = ON;";
+            foreignKeys.ExecuteNonQuery();
+        }
 
         // query version
         using var cmd = _connection.CreateCommand();
@@ -50,6 +55,7 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
         if (reader.Read())
         {
             var version = reader.GetString(0);
+            _sqliteVersion = version;
             return !string.IsNullOrWhiteSpace(version);
         }
 
@@ -113,6 +119,10 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
                                        value_json TEXT NOT NULL DEFAULT '',
                                        PRIMARY KEY (work_id, field_id)
                                     );
+                                    CREATE UNIQUE INDEX IF NOT EXISTS ux_work_tags_name
+                                       ON work_tags(tag_name);
+                                    CREATE UNIQUE INDEX IF NOT EXISTS ux_tag_extra_fields_key
+                                       ON tag_extra_field_definitions(field_key COLLATE NOCASE);
                                     CREATE INDEX IF NOT EXISTS idx_tag_extra_fields_tag
                                        ON tag_extra_field_definitions(tag_id, enabled, sort_order);
                                     CREATE INDEX IF NOT EXISTS idx_work_item_extra_fields_work
@@ -129,6 +139,26 @@ public sealed class SQLiteDb(IDbFactory factory) : DbInterfaceBase(factory), IDi
                                     CREATE INDEX IF NOT EXISTS idx_work_items_date ON work_items(create_date);
                                     CREATE INDEX IF NOT EXISTS idx_work_item_tags_tag ON work_item_tags(tag_id);
                                     CREATE INDEX IF NOT EXISTS idx_work_item_tags_work ON work_item_tags(work_id);
+
+                                    CREATE TABLE IF NOT EXISTS diary_schema_metadata(
+                                        id INTEGER PRIMARY KEY CHECK (id = 1),
+                                        schema_version INTEGER NOT NULL,
+                                        provider_id TEXT NOT NULL,
+                                        schema_fingerprint TEXT NOT NULL,
+                                        migration_state TEXT NOT NULL,
+                                        last_migration_id TEXT,
+                                        last_error TEXT,
+                                        updated_at TEXT NOT NULL
+                                    );
+                                    CREATE TABLE IF NOT EXISTS diary_schema_migrations(
+                                        migration_id TEXT PRIMARY KEY,
+                                        version_from INTEGER NOT NULL,
+                                        version_to INTEGER NOT NULL,
+                                        checksum TEXT NOT NULL,
+                                        applied_at TEXT NOT NULL,
+                                        success INTEGER NOT NULL,
+                                        error TEXT
+                                    );
                                     """;
         using var transaction = _connection!.BeginTransaction();
         try
