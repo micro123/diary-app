@@ -18,4 +18,10 @@ public class Config
 
     [ConfigureText("密码", true)]
     public string Password { get; set; } = "";
+
+    [ConfigurePath(
+        "PostgreSQL 工具目录",
+        true,
+        "包含 pg_dump 和 pg_restore 的 bin 目录。Windows 必须配置；Linux 未配置时会搜索 PATH。")]
+    public string ToolsBinPath { get; set; } = "";
 }

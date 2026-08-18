@@ -27,6 +27,12 @@ public sealed partial class PgDb(IDbFactory factory) : DbInterfaceBase(factory),
     protected override void BindParameter(DbCommand cmd, string name, object? value)
         => ((NpgsqlCommand)cmd).Parameters.AddWithValue(value ?? DBNull.Value);
 
+    /// <summary>
+    /// 返回本机 PostgreSQL Client 工具探测结果。实际 dump/restore 调用由后续维护能力接入。
+    /// </summary>
+    public PostgreSqlToolAvailability GetToolAvailability()
+        => PostgreSqlToolLocator.Resolve((Config)Factory.GetConfig());
+
     #endregion
 
     public override bool Connect()

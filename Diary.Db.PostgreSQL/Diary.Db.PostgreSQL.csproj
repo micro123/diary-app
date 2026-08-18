@@ -13,4 +13,7 @@
     <Nullable>enable</Nullable>
     <CETCompat>false</CETCompat>
   </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Diary.DbTests" />
+  </ItemGroup>
 </Project>

@@ -398,14 +398,16 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        var isPostgreSql = string.Equals(App.Instance.UseDb?.ProviderName, "PgDb", StringComparison.Ordinal);
         var file = await storageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "备份数据库",
-            SuggestedFileName = $"DiaryApp-backup-{DateTime.Now:yyyyMMdd-HHmmss}.sqlite3",
-            DefaultExtension = "sqlite3",
+            SuggestedFileName = $"DiaryApp-backup-{DateTime.Now:yyyyMMdd-HHmmss}.{(isPostgreSql ? "dump" : "sqlite3")}",
+            DefaultExtension = isPostgreSql ? "dump" : "sqlite3",
             FileTypeChoices =
             [
                 new FilePickerFileType("SQLite 数据库备份") { Patterns = ["*.sqlite3", "*.bak"] },
+                new FilePickerFileType("PostgreSQL 数据库备份") { Patterns = ["*.dump", "*.backup", "*.bak"] },
             ],
         });
         if (file is null)
@@ -450,6 +452,7 @@ public partial class MainWindowViewModel : ViewModelBase
             FileTypeFilter =
             [
                 new FilePickerFileType("SQLite 数据库备份") { Patterns = ["*.sqlite3", "*.bak"] },
+                new FilePickerFileType("PostgreSQL 数据库备份") { Patterns = ["*.dump", "*.backup", "*.bak"] },
             ],
         });
         var file = files.FirstOrDefault();
@@ -465,9 +468,15 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        var restoreSafetyMessage = string.Equals(validation.ProviderName, "PostgreSQL", StringComparison.Ordinal)
+            ? "PostgreSQL 还原只允许写入不存在或不包含 DiaryApp 已知表的目标数据库，不会覆盖当前数据库。"
+            : "当前数据库会先生成安全副本，还原将在下次启动时执行。";
         var confirmed = await MessageBox.ShowOverlayAsync(
-            $"将还原 SQLite 数据版本 0x{validation.DataVersion:X8}。\n\n" +
-            "当前数据库会先生成安全副本，还原将在下次启动时执行。是否继续？",
+            $"将还原 {validation.ProviderName} 数据库" +
+            (validation.DataVersion == 0
+                ? "。备份数据版本将在还原后的启动检查中确认。"
+                : $"，数据版本 0x{validation.DataVersion:X8}。") + "\n\n" +
+            restoreSafetyMessage + "\n是否继续？",
             "确认还原数据库",
             icon: MessageBoxIcon.Warning,
             button: MessageBoxButton.YesNo);

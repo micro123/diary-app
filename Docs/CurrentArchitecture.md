@@ -261,9 +261,10 @@ Jira：plugin_data_versions（与 Redmine 共用同一张表）、jira_projects�
 备份失败会阻止迁移。数据库设置还提供 SQLite 手动备份、校验和还原入口：还原任务先暂存，下一次启动时替换数据库文件，
 启动连接、迁移或兼容性复检失败会恢复还原前安全副本。SQLite 备份覆盖同一物理数据库中的核心表和 Tracker 扩展表。
 
-PostgreSQL provider 当前不在客户端生成服务器备份。设置中已增加 PostgreSQL Client `bin` 目录：Windows 必须配置，
-Linux 未配置时搜索 `PATH`，必须同时找到 `pg_dump` 和 `pg_restore` 才报告工具可用；实际 PostgreSQL dump/restore 尚待后续实现，
-工具缺失时退化为不支持。备份范围、最小权限预检、自动创建安全还原数据库和无 `CREATEDB` 时的降级策略见
+PostgreSQL provider 通过 PostgreSQL Client 进程生成 custom-format 备份并执行非覆盖式还原；设置中已增加 PostgreSQL Client `bin` 目录：
+Windows 必须配置，Linux 未配置时搜索 `PATH`，必须同时找到 `pg_dump` 和 `pg_restore` 才报告工具可用。还原前只查询当前用户、目标数据库、
+服务器版本、`rolsuper`/`rolcreatedb`、`public` schema 必要权限和 DiaryApp 已知表；目标不存在时仅在具备 `CREATEDB` 时自动创建，
+否则要求已有空数据库。工具缺失时退化为不支持。备份范围、最小权限预检和后续目标切换策略见
 [`DatabaseBackupRestoreDesign.md`](DatabaseBackupRestoreDesign.md)。
 
 当前产品支持范围为 Windows 和 Linux；macOS 暂不纳入产品支持、发布产物和稳定性验证范围。

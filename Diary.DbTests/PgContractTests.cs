@@ -1,5 +1,7 @@
 using Diary.Core;
 using Diary.Database;
+using Diary.Db.PostgreSQL;
+using Npgsql;
 
 namespace Diary.DbTests;
 
@@ -55,5 +57,92 @@ public class PgContractTests : DbContractTests
                 "CREATE UNIQUE INDEX ux_tag_extra_fields_key " +
                 "ON tag_extra_field_definitions(LOWER(field_key));"));
         }
+    }
+
+    [TestMethod]
+    public void Maintenance_BackupAndRestoreCustomArchiveToFreshDatabase()
+    {
+        var sourceFactory = PgContainerFixture.CreateFactory();
+        if (sourceFactory is null)
+        {
+            Assert.Inconclusive("PostgreSQL 容器不可用（Docker 未运行？）");
+            return;
+        }
+
+        var sourceConfig = (Config)sourceFactory.GetConfig();
+        using var source = (PgDb)sourceFactory.Create();
+        Assert.IsTrue(source.Connect(), "源 PostgreSQL 连接失败");
+        Assert.IsTrue(source.Initialized(), "源 PostgreSQL 初始化失败");
+        Assert.IsTrue(source.DropData(), "源 PostgreSQL 清理失败");
+        var tag = source.CreateWorkTag("maintenance-tag", true, 7);
+        Assert.AreNotEqual(0, tag.Id);
+
+        var tools = source.GetToolAvailability();
+        if (!tools.Supported)
+        {
+            Assert.Inconclusive(tools.UnavailableReason ?? "PostgreSQL 工具不可用。");
+            return;
+        }
+
+        var root = Path.Combine(Path.GetTempPath(), $"diary-pg-maintenance-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var backupPath = Path.Combine(root, "diary.dump");
+        var targetDatabase = $"diary_restore_{Guid.NewGuid():N}";
+        try
+        {
+            var backup = ((IDbMaintenanceProvider)source).CreateBackup(backupPath);
+            if (!backup.Success && backup.Error?.Contains("主版本", StringComparison.Ordinal) == true)
+            {
+                Assert.Inconclusive(backup.Error);
+                return;
+            }
+            Assert.IsTrue(backup.Success, backup.Error);
+            source.Dispose();
+
+            var targetConfig = new Config
+            {
+                Host = sourceConfig.Host,
+                Port = sourceConfig.Port,
+                Database = targetDatabase,
+                User = sourceConfig.User,
+                Password = sourceConfig.Password,
+                ToolsBinPath = sourceConfig.ToolsBinPath,
+            };
+            using var target = new PgDb(new TestPgFactory(targetConfig));
+            var restore = ((IDbMaintenanceProvider)target).RestoreBackup(
+                backupPath,
+                DataVersion.VersionCode);
+            if (!restore.Success && restore.Error?.Contains("主版本", StringComparison.Ordinal) == true)
+            {
+                Assert.Inconclusive(restore.Error);
+                return;
+            }
+            Assert.IsTrue(restore.Success, restore.Error);
+            Assert.IsFalse(restore.TargetPreviouslyExisted);
+
+            Assert.IsTrue(target.Connect(), "还原目标连接失败");
+            Assert.AreEqual("maintenance-tag", target.AllWorkTags().Single().Name);
+        }
+        finally
+        {
+            DropDatabase(sourceConfig, targetDatabase);
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static void DropDatabase(Config config, string database)
+    {
+        var builder = new NpgsqlConnectionStringBuilder
+        {
+            Host = config.Host,
+            Port = config.Port,
+            Database = "postgres",
+            Username = config.User,
+            Password = config.Password,
+        };
+        using var connection = new NpgsqlConnection(builder.ConnectionString);
+        connection.Open();
+        using var command = new NpgsqlCommand($"DROP DATABASE IF EXISTS \"{database}\";", connection);
+        command.ExecuteNonQuery();
     }
 }

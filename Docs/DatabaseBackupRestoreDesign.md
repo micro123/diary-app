@@ -623,7 +623,18 @@ PostgreSQL：
 - 任一工具缺失时判定不支持；
 - 不支持的平台不启用维护能力。
 
-### 16.3 PostgreSQL 后续实现门禁
+### 16.3 PostgreSQL 已实现与后续门禁
+
+当前实现已覆盖：
+
+- `pg_dump --format custom` 和 `pg_restore --list`；
+- 工具 `--version` 检查，密码只通过子进程环境传递，不写入参数；
+- 工具主版本与服务端主版本检查；不匹配时拒绝执行，避免新客户端生成服务端无法执行的恢复语句；
+- 当前用户、目标数据库、服务器版本、`rolsuper`/`rolcreatedb`、`public` schema 权限和 DiaryApp 已知表的最小预检；
+- 目标不存在时按 `CREATEDB` 创建目标，目标已存在时拒绝包含 DiaryApp 已知表的数据库；
+- `pg_restore --exit-on-error --single-transaction --no-owner` 非覆盖式还原，以及新建目标失败后的清理。
+
+仍需补齐：
 
 - 工具版本解析和服务端版本不兼容；
 - `pg_dump` 成功、失败、超时和取消；
@@ -651,25 +662,26 @@ PostgreSQL 集成测试继续使用 Testcontainers；工具执行测试应覆盖
 - 安全副本和自动回滚；
 - UI、测试和文档。
 
-### 阶段 B：PostgreSQL 备份
+### 阶段 B：PostgreSQL 备份（基础实现已完成）
 
-- 工具版本探测；
-- 最小备份权限预检；
-- 安全子进程执行器；
-- `pg_dump` custom format；
-- `pg_restore --list` 校验；
-- 临时文件和密码文件清理；
-- UI 和测试。
+- [x] 工具版本探测；
+- [x] 安全子进程执行器；
+- [x] `pg_dump` custom format；
+- [x] `pg_restore --list` 校验；
+- [x] 临时 dump 文件和密码环境清理；
+- [x] UI 接入；
+- [ ] 完成真实 PostgreSQL 工具和容器组合测试、超时/取消测试。
 
-### 阶段 C：PostgreSQL 安全还原
+### 阶段 C：PostgreSQL 安全还原（基础实现已完成）
 
-- `CREATEDB` 最小检查；
-- 自动创建唯一目标数据库；
-- 恢复到新目标；
-- 目标兼容性和 Tracker 检查；
-- 配置切换；
-- 无 `CREATEDB` 时恢复到已有空数据库；
-- 失败目标清理和诊断。
+- [x] `CREATEDB` 最小检查；
+- [x] 自动创建当前配置指定的目标数据库；
+- [x] 恢复到不存在或已存在空目标；
+- [x] 拒绝包含 DiaryApp 已知表的目标，禁止覆盖当前数据；
+- [x] 无 `CREATEDB` 时恢复到已有空数据库；
+- [x] 新建目标失败后的清理；
+- [ ] 目标兼容性和 Tracker 检查后的独立配置切换；
+- [ ] 失败目标跨进程恢复、超时/取消和完整权限矩阵测试。
 
 ### 阶段 D：增强项
 

@@ -21,7 +21,7 @@
 
 - 默认使用 SQLite，本地即可运行；也支持 PostgreSQL
 - 核心表与 Tracker 插件表共享同一物理数据库，插件 schema 独立迁移（当前 schema 见 [`Docs/diagrams/database-schema.puml`](Docs/diagrams/database-schema.puml)）
-- 当前核心数据版本仍为 `1.0.0`，SQLite/PostgreSQL 暂无待执行核心迁移；提升数据版本时，契约测试要求两个 provider 同步登记迁移。SQLite 支持手动创建、校验和还原完整物理数据库，包含核心表与 Tracker 扩展表；还原任务会在下次启动时执行，失败时自动恢复还原前数据库。SQLite 迁移前也会将一致性快照写入数据库同目录的 `Backups`。PostgreSQL 当前仍由运维侧负责实际备份；数据库设置已提供 PostgreSQL Client `bin` 目录配置，Windows 必须配置，Linux 未配置时会探测 `PATH`，缺少 `pg_dump`/`pg_restore` 时视为不支持。完整设计见 [`Docs/DatabaseBackupRestoreDesign.md`](Docs/DatabaseBackupRestoreDesign.md)
+- 当前核心数据版本仍为 `1.0.0`，SQLite/PostgreSQL 暂无待执行核心迁移；提升数据版本时，契约测试要求两个 provider 同步登记迁移。SQLite 支持手动创建、校验和还原完整物理数据库，包含核心表与 Tracker 扩展表；还原任务会在下次启动时执行，失败时自动恢复还原前数据库。SQLite 迁移前也会将一致性快照写入数据库同目录的 `Backups`。PostgreSQL 已接入 custom-format `pg_dump`/`pg_restore`、工具版本检查、最小权限预检和非覆盖式还原；还原目标必须不存在或不包含 DiaryApp 已知表，缺少 `CREATEDB` 时支持已有空数据库。数据库设置已提供 PostgreSQL Client `bin` 目录配置，Windows 必须配置，Linux 未配置时会探测 `PATH`，缺少 `pg_dump`/`pg_restore` 时视为不支持。完整设计见 [`Docs/DatabaseBackupRestoreDesign.md`](Docs/DatabaseBackupRestoreDesign.md)
 
 ## 快速开始
 
