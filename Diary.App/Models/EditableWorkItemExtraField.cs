@@ -25,11 +25,12 @@ public partial class EditableWorkItemExtraField : ObservableObject
     public TagExtraFieldType Type { get; }
     public IReadOnlyList<string> Options { get; }
     public string Description { get; }
+    public bool IsReadOnly { get; }
 
     [ObservableProperty]
     private string _value;
 
-    public EditableWorkItemExtraField(WorkItemExtraField field)
+    public EditableWorkItemExtraField(WorkItemExtraField field, bool isReadOnly = false)
     {
         FieldId = field.FieldId;
         FieldKey = field.FieldKey;
@@ -37,6 +38,7 @@ public partial class EditableWorkItemExtraField : ObservableObject
         Type = field.Type;
         Options = field.Options;
         Description = field.Description;
+        IsReadOnly = isReadOnly;
         _value = field.Value;
     }
 }

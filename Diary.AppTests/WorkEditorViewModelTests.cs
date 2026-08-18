@@ -4,6 +4,7 @@ using Avalonia.Headless;
 using Diary.App;
 using Diary.App.Models;
 using Diary.App.ViewModels;
+using Diary.App.ViewModels.Dialogs;
 using Diary.Core.Data.Base;
 using Diary.Database;
 using Diary.PluginBase;
@@ -55,6 +56,27 @@ public sealed class WorkEditorViewModelTests
             Assert.AreEqual(TrackerUploadState.Succeeded, viewModel.UploadResults[0].State);
             Assert.AreEqual(42, coordinator.LastItem?.Id);
         }, CancellationToken.None);
+    }
+
+    [TestMethod]
+    public void ImportedExtraFieldsAreReadOnlyInDialog()
+    {
+        var field = new WorkItemExtraField
+        {
+            FieldId = "field-id",
+            FieldKey = "legacy.value",
+            TagId = 7,
+            TagName = "旧标签",
+            Label = "旧值",
+            Type = TagExtraFieldType.Text,
+            Value = "历史值",
+        };
+        var viewModel = new WorkItemExtraFieldsViewModel(null!, 42, [field], isReadOnly: true);
+
+        Assert.IsTrue(viewModel.IsReadOnly);
+        Assert.AreEqual("查看附加信息", viewModel.Title);
+        Assert.IsTrue(viewModel.Groups.Single().Fields.Single().IsReadOnly);
+        Assert.IsFalse(viewModel.SaveCommand.CanExecute(null));
     }
 
     [TestMethod]

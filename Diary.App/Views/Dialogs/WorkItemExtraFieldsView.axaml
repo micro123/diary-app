@@ -25,6 +25,7 @@
                                                 <TextBlock Text="{Binding Label}" VerticalAlignment="Center"
                                                            ToolTip.Tip="{Binding Description}" />
                                                 <TextBox Grid.Column="1" Text="{Binding Value}" AcceptsReturn="True"
+                                                         IsReadOnly="{Binding IsReadOnly}"
                                                          MinHeight="30" Watermark="{Binding FieldKey}" />
                                             </Grid>
                                         </DataTemplate>
@@ -40,8 +41,10 @@
             <TextBlock Text="{Binding ValidationMessage}" Foreground="{DynamicResource SystemControlErrorTextForeground}"
                        TextWrapping="Wrap" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-            <Button Content="取消" Command="{Binding CancelCommand}" />
-                <Button Content="保存" Classes="Primary" Command="{Binding SaveCommand}" />
+                <Button Content="取消" IsVisible="{Binding !IsReadOnly}" Command="{Binding CancelCommand}" />
+                <Button Content="关闭" IsVisible="{Binding IsReadOnly}" Command="{Binding CancelCommand}" />
+                <Button Content="保存" Classes="Primary" IsVisible="{Binding !IsReadOnly}"
+                        Command="{Binding SaveCommand}" />
             </StackPanel>
         </StackPanel>
     </Grid>

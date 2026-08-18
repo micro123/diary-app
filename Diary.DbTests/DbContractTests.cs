@@ -194,6 +194,15 @@ public abstract class DbContractTests
             Value = string.Empty,
         }]));
         Assert.AreEqual(string.Empty, db.GetWorkItemExtraFields(item).Single().Value);
+
+        Assert.IsTrue(db.MarkWorkItemReadOnly(item));
+        Assert.IsFalse(db.SaveWorkItemExtraFieldValues(item.Id, [new WorkItemExtraFieldValue
+        {
+            WorkItemId = item.Id,
+            FieldId = definition.FieldId,
+            Value = "只读记录不可修改",
+        }]));
+        Assert.AreEqual(string.Empty, db.GetWorkItemExtraFields(item).Single().Value);
     }
 
     // ---------- WorkItem + WorkNote ----------

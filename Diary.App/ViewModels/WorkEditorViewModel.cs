@@ -75,7 +75,9 @@ public partial class WorkEditorViewModel : ViewModelBase
     private IReadOnlyList<WorkItemExtraField> _extraFields = Array.Empty<WorkItemExtraField>();
 
     public bool HasAvailableTags => !IsLocked && AvailableTags.Count > 0;
-    public bool HasExtraFields => _extraFields.Count > 0;
+    public bool HasExtraFields => !IsImportedReadOnly && _extraFields.Count > 0;
+    public bool CanOpenExtraFields => HasExtraFields && !IsLocked;
+    public string ExtraFieldsButtonText => IsImportedReadOnly ? "查看附加信息" : "附加信息";
     public string ExtraFieldsSummary => _extraFields.Count == 0
         ? "暂无附加信息"
         : string.Join(Environment.NewLine, _extraFields
@@ -322,16 +324,17 @@ public partial class WorkEditorViewModel : ViewModelBase
     [RelayCommand]
     private async Task EditExtraFields()
     {
-        if (IsLocked)
+        if (!CanOpenExtraFields)
             return;
         RefreshExtraFieldsSnapshot();
         var fields = _extraFields;
         if (fields.Count == 0)
             return;
-        var dialog = new WorkItemExtraFieldsViewModel(Db!, WorkId, fields);
+        var dialog = new WorkItemExtraFieldsViewModel(
+            Db!, WorkId, fields, isReadOnly: IsImportedReadOnly);
         var result = await OverlayDialog.ShowCustomModal<bool>(dialog, options: new OverlayDialogOptions
         {
-            Title = "编辑附加信息",
+            Title = dialog.Title,
             CanDragMove = false,
             CanResize = true,
             CanLightDismiss = false,
@@ -413,7 +416,9 @@ public partial class WorkEditorViewModel : ViewModelBase
     {
         _extraFields = BuildExtraFields();
         OnPropertyChanged(nameof(HasExtraFields));
+        OnPropertyChanged(nameof(CanOpenExtraFields));
         OnPropertyChanged(nameof(ExtraFieldsSummary));
+        OnPropertyChanged(nameof(ExtraFieldsButtonText));
     }
 
     public void SyncAll()
@@ -714,5 +719,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         OnPropertyChanged(nameof(UploadStatusText));
         OnPropertyChanged(nameof(StatusSummary));
         OnPropertyChanged(nameof(HasAvailableTags));
+        OnPropertyChanged(nameof(CanOpenExtraFields));
+        OnPropertyChanged(nameof(ExtraFieldsButtonText));
     }
 }

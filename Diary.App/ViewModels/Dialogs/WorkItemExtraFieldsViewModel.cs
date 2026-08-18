@@ -14,7 +14,8 @@ public partial class WorkItemExtraFieldsViewModel : ViewModelBase, IDialogContex
     private readonly DbInterfaceBase _db;
     private readonly int _workItemId;
 
-    public string Title => "编辑附加信息";
+    public bool IsReadOnly { get; }
+    public string Title => IsReadOnly ? "查看附加信息" : "编辑附加信息";
     public ObservableCollection<ExtraFieldGroupViewModel> Groups { get; } = new();
     public bool HasFields => Groups.Any(group => group.Fields.Count > 0);
 
@@ -24,15 +25,17 @@ public partial class WorkItemExtraFieldsViewModel : ViewModelBase, IDialogContex
     public WorkItemExtraFieldsViewModel(
         DbInterfaceBase db,
         int workItemId,
-        IReadOnlyCollection<WorkItemExtraField> fields)
+        IReadOnlyCollection<WorkItemExtraField> fields,
+        bool isReadOnly = false)
     {
         _db = db;
         _workItemId = workItemId;
+        IsReadOnly = isReadOnly;
         foreach (var group in fields.GroupBy(field => new { field.TagId, field.TagName }))
         {
             var target = new ExtraFieldGroupViewModel(group.Key.TagId, group.Key.TagName);
             foreach (var field in group.OrderBy(field => field.SortOrder).ThenBy(field => field.FieldKey))
-                target.Fields.Add(new EditableWorkItemExtraField(field));
+                target.Fields.Add(new EditableWorkItemExtraField(field, isReadOnly));
             Groups.Add(target);
         }
     }
@@ -47,7 +50,9 @@ public partial class WorkItemExtraFieldsViewModel : ViewModelBase, IDialogContex
             })
             .ToArray();
 
-    [RelayCommand]
+    private bool CanSave => !IsReadOnly;
+
+    [RelayCommand(CanExecute = nameof(CanSave))]
     private void Save()
     {
         foreach (var field in Groups.SelectMany(group => group.Fields))
