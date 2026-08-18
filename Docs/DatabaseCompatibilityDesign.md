@@ -102,7 +102,38 @@ diary_schema_migrations
 迁移失败时事务回滚，并在事务外留下 `Failed` 状态和错误信息。下一次启动不会把失败库当作正常数据库，
 而是提示恢复备份或重新执行迁移。
 
-## 5. Provider 契约
+## 5. 数据库备份与还原
+
+完整 provider 行为、PostgreSQL 工具调用、最小权限预检、安全还原目标和验收标准见
+[`DatabaseBackupRestoreDesign.md`](DatabaseBackupRestoreDesign.md)。本节只记录与兼容性和迁移直接相关的摘要。
+
+数据库维护能力通过 `IDbMaintenanceProvider` 作为 provider 的可选能力暴露。创建备份要求当前连接仍然有效，
+还原和还原回滚要求 provider 尚未建立连接；应用层的 `DatabaseRestoreCoordinator` 负责维护任务暂存、启动时应用、
+启动复检和失败回滚。
+
+当前 SQLite 备份使用 SQLite Online Backup API 生成完整物理数据库副本，覆盖核心表和同一物理数据库中的 Tracker 扩展表。
+备份创建后执行 `PRAGMA quick_check`，用户还原前再次执行完整性和核心兼容性检查。还原不会在业务进程运行期间直接替换打开的文件，
+而是先将备份复制到应用数据目录的待还原区域，下一次启动时执行以下流程：
+
+```text
+选择备份
+  → 当前连接中校验备份
+  → 暂存还原任务
+  → 下次启动前关闭数据库连接
+  → 生成还原前安全副本
+  → 替换 SQLite 主文件及 WAL/SHM 伴随文件
+  → 连接、初始化、迁移和兼容性复检
+  → 成功则清理暂存任务；失败则恢复安全副本
+```
+
+还原前安全副本保留在 SQLite 数据库同目录的 `Backups` 中，便于用户在应用复检成功后仍保留一个恢复点。
+当前 SQLite 备份文件是可直接打开的 SQLite 文件，尚未增加密码加密和自动保留策略。
+
+PostgreSQL 的工具目录配置已加入 provider 设置。Windows 必须显式配置包含 `pg_dump` 和 `pg_restore` 的 `bin` 目录；
+Linux 在未配置目录时搜索 `PATH`。任一工具缺失时，provider 应退化为不支持本地备份和还原；PostgreSQL 原生 dump/restore
+的实际调用和恢复到目标数据库的流程另行实现，不通过业务表逐行导出。
+
+## 6. Provider 契约
 
 每个 provider 必须实现：
 
@@ -120,7 +151,7 @@ foreign keys，PostgreSQL 从系统目录读取实际结构。
 provider 的 `Initialized()` 仍可用于空库和向后兼容的幂等基础设施创建，但不能再被视为兼容性证明。
 初始化完成后必须调用 `CheckCompatibility()`。
 
-## 6. 数据完整性检查
+## 7. 数据完整性检查
 
 结构检查通过后，provider 执行轻量的数据检查：
 
@@ -130,7 +161,7 @@ provider 的 `Initialized()` 仍可用于空库和向后兼容的幂等基础设
 
 数据问题和结构问题使用不同错误码，UI 可以分别提示“修复数据”和“恢复/迁移结构”。
 
-## 7. 核心库与插件库的边界
+## 8. 核心库与插件库的边界
 
 核心 schema 报告不吞并 tracker 插件的业务表。插件目前使用独立的 `plugin_data_versions` 和
 `IPluginMigration` 链，由 `TrackerPluginLifecycleCoordinator` 按实例隔离执行；某个插件迁移失败时，只应将该实例标为
@@ -146,7 +177,7 @@ provider 的 `Initialized()` 仍可用于空库和向后兼容的幂等基础设
 宿主最终可以把这些结果聚合成“核心数据库兼容，但 Redmine 实例迁移失败”的分层诊断，而不是把插件问题误报为核心
 数据库不可用。插件扩展表不应直接加入核心 `CoreSchemaContract`，避免安装或禁用 tracker 改变核心库兼容性。
 
-## 7. 启动行为
+## 9. 启动行为
 
 `Diary.App.App.TryConnectDatabase()` 不再直接比较 `GetDataVersion()`：
 
@@ -160,7 +191,7 @@ provider 的 `Initialized()` 仍可用于空库和向后兼容的幂等基础设
 这样可以明确区分“数据库来自更新版本”“结构被手动修改”“迁移链缺失”和“数据损坏”，避免所有问题都被归类为
 “版本不一致”。
 
-## 8. 测试要求
+## 10. 测试要求
 
 数据库契约测试至少覆盖：
 

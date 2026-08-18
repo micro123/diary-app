@@ -239,37 +239,10 @@ public sealed partial class SQLiteDb(IDbFactory factory) : DbInterfaceBase(facto
         var backupName =
             $"{Path.GetFileName(sourcePath)}.v{currentVersion:X8}-to-v{targetVersion:X8}." +
             $"{DateTimeOffset.Now:yyyyMMddHHmmssfff}.{Guid.NewGuid():N}.bak";
-        var finalPath = Path.Combine(backupDirectory, backupName);
-        var temporaryPath = finalPath + ".tmp";
-
-        try
-        {
-            Directory.CreateDirectory(backupDirectory);
-            var connectionString = new SQLiteConnectionStringBuilder { DataSource = temporaryPath }.ToString();
-            using (var destination = new SQLiteConnection(connectionString))
-            {
-                destination.Open();
-                _connection!.BackupDatabase(destination, "main", "main", -1, null, 0);
-            }
-
-            File.Move(temporaryPath, finalPath);
-            backupPath = finalPath;
-            return true;
-        }
-        catch (Exception exception)
-        {
-            try
-            {
-                if (File.Exists(temporaryPath))
-                    File.Delete(temporaryPath);
-            }
-            catch (Exception)
-            {
-            }
-
-            error = $"SQLite 迁移备份创建失败：{exception.Message}";
-            return false;
-        }
+        var result = CreateBackup(Path.Combine(backupDirectory, backupName));
+        backupPath = result.BackupPath;
+        error = result.Error;
+        return result.Success;
     }
 
     public override WorkTag CreateWorkTag(
@@ -1005,12 +978,16 @@ public sealed partial class SQLiteDb(IDbFactory factory) : DbInterfaceBase(facto
     public override void Dispose()
     {
         _transaction?.Dispose();
+        _transaction = null;
         _connection?.Dispose();
+        _connection = null;
     }
 
     public async ValueTask DisposeAsync()
     {
         if (_transaction != null) await _transaction.DisposeAsync();
+        _transaction = null;
         if (_connection != null) await _connection.DisposeAsync();
+        _connection = null;
     }
 }

@@ -258,7 +258,13 @@ Jira：plugin_data_versions（与 Redmine 共用同一张表）、jira_projects�
 未来提升 `DataVersion.VersionCode` 时，必须同时登记 SQLite/PostgreSQL 迁移并更新上一正式版本基线。
 共享 `DbContractTests` 还验证成功迁移保留工作项、标签和备注，失败迁移回滚版本写入且不丢失原业务数据。
 迁移开始前，SQLite 使用在线备份 API 在数据库同目录的 `Backups` 下生成带源/目标版本的独立快照，
-备份失败会阻止迁移；PostgreSQL provider 不在客户端生成服务器备份，应用会记录必须确认外部备份的告警。
+备份失败会阻止迁移。数据库设置还提供 SQLite 手动备份、校验和还原入口：还原任务先暂存，下一次启动时替换数据库文件，
+启动连接、迁移或兼容性复检失败会恢复还原前安全副本。SQLite 备份覆盖同一物理数据库中的核心表和 Tracker 扩展表。
+
+PostgreSQL provider 当前不在客户端生成服务器备份。设置中已增加 PostgreSQL Client `bin` 目录：Windows 必须配置，
+Linux 未配置时搜索 `PATH`，必须同时找到 `pg_dump` 和 `pg_restore` 才报告工具可用；实际 PostgreSQL dump/restore 尚待后续实现，
+工具缺失时退化为不支持。备份范围、最小权限预检、自动创建安全还原数据库和无 `CREATEDB` 时的降级策略见
+[`DatabaseBackupRestoreDesign.md`](DatabaseBackupRestoreDesign.md)。
 
 当前产品支持范围为 Windows 和 Linux；macOS 暂不纳入产品支持、发布产物和稳定性验证范围。
 CI 在 Windows 和 Ubuntu 上执行 Release 构建与全量测试，并固定 Python 3.10；

@@ -21,7 +21,7 @@
 
 - 默认使用 SQLite，本地即可运行；也支持 PostgreSQL
 - 核心表与 Tracker 插件表共享同一物理数据库，插件 schema 独立迁移（当前 schema 见 [`Docs/diagrams/database-schema.puml`](Docs/diagrams/database-schema.puml)）
-- 当前核心数据版本仍为 `1.0.0`，SQLite/PostgreSQL 暂无待执行核心迁移；提升数据版本时，契约测试要求两个 provider 同步登记迁移。SQLite 会在迁移前将一致性快照写入数据库同目录的 `Backups`，PostgreSQL 迁移则要求运维侧已有外部备份
+- 当前核心数据版本仍为 `1.0.0`，SQLite/PostgreSQL 暂无待执行核心迁移；提升数据版本时，契约测试要求两个 provider 同步登记迁移。SQLite 支持手动创建、校验和还原完整物理数据库，包含核心表与 Tracker 扩展表；还原任务会在下次启动时执行，失败时自动恢复还原前数据库。SQLite 迁移前也会将一致性快照写入数据库同目录的 `Backups`。PostgreSQL 当前仍由运维侧负责实际备份；数据库设置已提供 PostgreSQL Client `bin` 目录配置，Windows 必须配置，Linux 未配置时会探测 `PATH`，缺少 `pg_dump`/`pg_restore` 时视为不支持。完整设计见 [`Docs/DatabaseBackupRestoreDesign.md`](Docs/DatabaseBackupRestoreDesign.md)
 
 ## 快速开始
 
@@ -41,7 +41,7 @@ dotnet test DiaryApp.sln --configuration Release
 ## 文档
 
 - 脚本 API 参考：[C#](Docs/ScriptApi/CSharp.md)、[Lua](Docs/ScriptApi/Lua.md)、[Python](Docs/ScriptApi/Python.md)
-- 架构：[当前架构](Docs/CurrentArchitecture.md)、[插件目标架构](Docs/TrackerPluginArchitecture.md)、[脚本系统设计](Docs/ScriptSystemDesign.md)
+- 架构：[当前架构](Docs/CurrentArchitecture.md)、[数据库备份还原设计](Docs/DatabaseBackupRestoreDesign.md)、[插件目标架构](Docs/TrackerPluginArchitecture.md)、[脚本系统设计](Docs/ScriptSystemDesign.md)
 - 调查功能：[使用指南](Docs/SurveyUserGuide.md)、[协议设计](Docs/SurveyProtocolDesign.md)
 - 发布说明：[CHANGELOG](Docs/CHANGELOG.md)；Agent 发布操作：[新 Tag 发布指南](Docs/AgentReleaseTagGuide.md)
 

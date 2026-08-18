@@ -1,14 +1,18 @@
 using System.Collections.ObjectModel;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
+using Diary.App.Services;
+using Diary.Core;
 using Diary.Core.Constants;
 using Diary.App.Models;
 using Diary.Core.Data.AppConfig;
 using Diary.Core.Utils;
+using Diary.Database;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
@@ -276,6 +280,12 @@ public partial class MainWindowViewModel : ViewModelBase
                     }
                 }, "数据库设置");
                 return;
+            case CommandNames.BackupDatabase:
+                PostUiAsync(BackupDatabaseAsync, "备份数据库");
+                return;
+            case CommandNames.RestoreDatabase:
+                PostUiAsync(RestoreDatabaseAsync, "还原数据库");
+                return;
             case CommandNames.ShowMigrateGuide:
                 PostUiAsync(async () =>
                 {
@@ -364,6 +374,117 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         throw new ArgumentOutOfRangeException(nameof(cmd));
+    }
+
+    private async Task BackupDatabaseAsync()
+    {
+        if (App.Instance.UseDb is not IDbMaintenanceProvider provider)
+        {
+            EventDispatcher.Notify("不支持备份", $"数据库驱动 {App.Instance.UseFactory?.Name ?? "<unknown>"} 当前不支持应用内备份。");
+            return;
+        }
+
+        var support = provider.GetMaintenanceSupport();
+        if (!support.CanBackup)
+        {
+            EventDispatcher.Notify("不支持备份", support.UnavailableReason ?? "当前数据库不支持应用内备份。");
+            return;
+        }
+
+        var storageProvider = TopLevel.GetTopLevel(View)?.StorageProvider;
+        if (storageProvider is null)
+        {
+            EventDispatcher.Notify("备份失败", "无法打开文件选择器。");
+            return;
+        }
+
+        var file = await storageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "备份数据库",
+            SuggestedFileName = $"DiaryApp-backup-{DateTime.Now:yyyyMMdd-HHmmss}.sqlite3",
+            DefaultExtension = "sqlite3",
+            FileTypeChoices =
+            [
+                new FilePickerFileType("SQLite 数据库备份") { Patterns = ["*.sqlite3", "*.bak"] },
+            ],
+        });
+        if (file is null)
+            return;
+
+        var result = await Task.Run(() => provider.CreateBackup(file.Path.LocalPath));
+        if (!result.Success)
+        {
+            EventDispatcher.Notify("备份失败", result.Error ?? "数据库备份创建失败。");
+            return;
+        }
+
+        EventDispatcher.Notify("备份完成", $"数据库备份已保存到：\n{result.BackupPath}");
+    }
+
+    private async Task RestoreDatabaseAsync()
+    {
+        if (App.Instance.UseDb is not IDbMaintenanceProvider provider)
+        {
+            EventDispatcher.Notify("不支持还原", $"数据库驱动 {App.Instance.UseFactory?.Name ?? "<unknown>"} 当前不支持应用内还原。");
+            return;
+        }
+
+        var support = provider.GetMaintenanceSupport();
+        if (!support.CanRestore)
+        {
+            EventDispatcher.Notify("不支持还原", support.UnavailableReason ?? "当前数据库不支持应用内还原。");
+            return;
+        }
+
+        var storageProvider = TopLevel.GetTopLevel(View)?.StorageProvider;
+        if (storageProvider is null)
+        {
+            EventDispatcher.Notify("还原失败", "无法打开文件选择器。");
+            return;
+        }
+
+        var files = await storageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "选择数据库备份",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("SQLite 数据库备份") { Patterns = ["*.sqlite3", "*.bak"] },
+            ],
+        });
+        var file = files.FirstOrDefault();
+        if (file is null)
+            return;
+
+        var validation = await Task.Run(() => provider.ValidateBackup(
+            file.Path.LocalPath,
+            DataVersion.VersionCode));
+        if (!validation.Success)
+        {
+            EventDispatcher.Notify("备份无效", validation.Error ?? "所选文件不是可还原的数据库备份。");
+            return;
+        }
+
+        var confirmed = await MessageBox.ShowOverlayAsync(
+            $"将还原 SQLite 数据版本 0x{validation.DataVersion:X8}。\n\n" +
+            "当前数据库会先生成安全副本，还原将在下次启动时执行。是否继续？",
+            "确认还原数据库",
+            icon: MessageBoxIcon.Warning,
+            button: MessageBoxButton.YesNo);
+        if (confirmed != MessageBoxResult.Yes)
+            return;
+
+        var stage = _serviceProvider.GetRequiredService<DatabaseRestoreCoordinator>()
+            .Stage(validation.ProviderName, file.Path.LocalPath);
+        if (!stage.Success)
+        {
+            EventDispatcher.Notify("还原暂存失败", stage.Error ?? "无法暂存数据库还原任务。");
+            return;
+        }
+
+        EventDispatcher.Notify(
+            "还原已安排",
+            "备份已通过校验。请退出并重新启动 DiaryApp；下次启动会执行还原并在失败时自动恢复当前数据库。");
     }
 
     private void PostUiAsync(Func<Task> action, string operation)

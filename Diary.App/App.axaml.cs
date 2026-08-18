@@ -216,89 +216,151 @@ namespace Diary.App
             Logger.LogDebug("数据库配置已加载：驱动 {Driver}，配置类型 {ConfigType}",
                 factory.Name, dbConfig.GetType().FullName);
 
-            // open
-            Logger.LogInformation("开始连接数据库：驱动 {Driver}", factory.Name);
-            if (!database.Connect())
+            var restoreCoordinator = Services.GetRequiredService<DatabaseRestoreCoordinator>();
+            if (!restoreCoordinator.TryApplyPending(
+                    factory.Name,
+                    database as IDbMaintenanceProvider,
+                    DataVersion.VersionCode,
+                    out var pendingRestore,
+                    out var restoreError))
             {
                 database.Dispose();
                 database = null;
-                message = "数据库连接失败！";
-                Logger.LogWarning("数据库连接失败：驱动 {Driver}", factory.Name);
+                message = restoreError ?? "应用待还原数据库失败。";
+                Logger.LogWarning("数据库待还原任务应用失败：驱动 {Driver}，原因 {Reason}",
+                    factory.Name, message);
                 return false;
             }
-            Logger.LogInformation("数据库连接成功：驱动 {Driver}", factory.Name);
 
-            // init
-            if (!database.Initialized())
+            try
             {
-                database.Dispose();
-                database = null;
-                message = "数据库初始化失败！";
-                Logger.LogWarning("数据库初始化失败：驱动 {Driver}", factory.Name);
-                return false;
-            }
-            Logger.LogDebug("数据库结构初始化成功：驱动 {Driver}", factory.Name);
-
-            // compatibility check: version is only one input; provider, schema, migration state and data integrity
-            // are checked together before the application receives a writable database handle.
-            var compatibility = database.CheckCompatibility(DataVersion.VersionCode);
-            Logger.LogInformation(
-                "数据库兼容性检查完成：驱动 {Driver}，状态 {State}，声明版本 {DeclaredVersion}，目标版本 {ExpectedVersion}，结构指纹 {Fingerprint}",
-                factory.Name,
-                compatibility.State,
-                compatibility.DeclaredVersion,
-                compatibility.ExpectedVersion,
-                compatibility.ActualSchema.Fingerprint);
-            foreach (var issue in compatibility.Issues.Where(issue => issue.Severity >= DbIssueSeverity.Warning))
-            {
-                Logger.LogWarning(
-                    "数据库兼容性问题：代码 {Code}，级别 {Severity}，对象 {ObjectName}，说明 {Message}",
-                    issue.Code, issue.Severity, issue.ObjectName ?? "<database>", issue.Message);
-            }
-
-            if (compatibility.State == DbCompatibilityState.NeedsMigration)
-            {
-                var migration = database.MigrateTo(DataVersion.VersionCode);
-                if (!migration.Success)
+                // open
+                Logger.LogInformation("开始连接数据库：驱动 {Driver}", factory.Name);
+                if (!database.Connect())
                 {
-                    database.Dispose();
-                    database = null;
-                    message = migration.Error ?? "数据库迁移失败，请检查诊断日志。";
+                    Logger.LogWarning("数据库连接失败：驱动 {Driver}", factory.Name);
+                    return RejectDatabaseCandidate(
+                        ref database, ref message, "数据库连接失败！", pendingRestore);
+                }
+                Logger.LogInformation("数据库连接成功：驱动 {Driver}", factory.Name);
+
+                // init
+                if (!database.Initialized())
+                {
+                    Logger.LogWarning("数据库初始化失败：驱动 {Driver}", factory.Name);
+                    return RejectDatabaseCandidate(
+                        ref database, ref message, "数据库初始化失败！", pendingRestore);
+                }
+                Logger.LogDebug("数据库结构初始化成功：驱动 {Driver}", factory.Name);
+
+                // compatibility check: version is only one input; provider, schema, migration state and data integrity
+                // are checked together before the application receives a writable database handle.
+                var compatibility = database.CheckCompatibility(DataVersion.VersionCode);
+                Logger.LogInformation(
+                    "数据库兼容性检查完成：驱动 {Driver}，状态 {State}，声明版本 {DeclaredVersion}，目标版本 {ExpectedVersion}，结构指纹 {Fingerprint}",
+                    factory.Name,
+                    compatibility.State,
+                    compatibility.DeclaredVersion,
+                    compatibility.ExpectedVersion,
+                    compatibility.ActualSchema.Fingerprint);
+                foreach (var issue in compatibility.Issues.Where(issue => issue.Severity >= DbIssueSeverity.Warning))
+                {
                     Logger.LogWarning(
-                        "数据库迁移失败：驱动 {Driver}，当前版本 {CurrentVersion}，目标版本 {TargetVersion}，原因 {Reason}",
-                        factory.Name, migration.VersionFrom, DataVersion.VersionCode, message);
-                    return false;
+                        "数据库兼容性问题：代码 {Code}，级别 {Severity}，对象 {ObjectName}，说明 {Message}",
+                        issue.Code, issue.Severity, issue.ObjectName ?? "<database>", issue.Message);
                 }
 
-                compatibility = migration.FinalReport ?? database.CheckCompatibility(DataVersion.VersionCode);
-                Logger.LogInformation(
-                    "数据库迁移完成并通过复检：驱动 {Driver}，版本 {Version}，备份 {BackupPath}",
-                    factory.Name, compatibility.DeclaredVersion, migration.BackupPath ?? "<external>");
-            }
+                if (compatibility.State == DbCompatibilityState.NeedsMigration)
+                {
+                    var migration = database.MigrateTo(DataVersion.VersionCode);
+                    if (!migration.Success)
+                    {
+                        var migrationError = migration.Error ?? "数据库迁移失败，请检查诊断日志。";
+                        Logger.LogWarning(
+                            "数据库迁移失败：驱动 {Driver}，当前版本 {CurrentVersion}，目标版本 {TargetVersion}，原因 {Reason}",
+                            factory.Name, migration.VersionFrom, DataVersion.VersionCode, migrationError);
+                        return RejectDatabaseCandidate(
+                            ref database, ref message, migrationError, pendingRestore);
+                    }
 
-            if (!compatibility.IsUsable)
-            {
-                database.Dispose();
-                database = null;
-                message = compatibility.ToUserMessage();
-                Logger.LogWarning(
-                    "数据库不可用：驱动 {Driver}，状态 {State}，说明 {Message}",
-                    factory.Name, compatibility.State, message);
-                return false;
-            }
+                    compatibility = migration.FinalReport ?? database.CheckCompatibility(DataVersion.VersionCode);
+                    Logger.LogInformation(
+                        "数据库迁移完成并通过复检：驱动 {Driver}，版本 {Version}，备份 {BackupPath}",
+                        factory.Name, compatibility.DeclaredVersion, migration.BackupPath ?? "<external>");
+                }
 
-            if (!database.PersistCompatibilityMetadata(compatibility))
-            {
-                database.Dispose();
-                database = null;
-                message = "数据库兼容性元数据写入失败，请检查数据库权限。";
-                Logger.LogWarning("数据库兼容性元数据写入失败：驱动 {Driver}", factory.Name);
-                return false;
+                if (!compatibility.IsUsable)
+                {
+                    var compatibilityError = compatibility.ToUserMessage();
+                    Logger.LogWarning(
+                        "数据库不可用：驱动 {Driver}，状态 {State}，说明 {Message}",
+                        factory.Name, compatibility.State, compatibilityError);
+                    return RejectDatabaseCandidate(
+                        ref database, ref message, compatibilityError, pendingRestore);
+                }
+
+                if (!database.PersistCompatibilityMetadata(compatibility))
+                {
+                    Logger.LogWarning("数据库兼容性元数据写入失败：驱动 {Driver}", factory.Name);
+                    return RejectDatabaseCandidate(
+                        ref database,
+                        ref message,
+                        "数据库兼容性元数据写入失败，请检查数据库权限。",
+                        pendingRestore);
+                }
+
+                if (pendingRestore is not null)
+                {
+                    restoreCoordinator.Complete(pendingRestore);
+                    Logger.LogInformation("数据库还原完成并通过启动复检：驱动 {Driver}", factory.Name);
+                }
+                UseFactory = factory;
+                _connectedDriver = factory.Name;
+                Logger.LogInformation("数据库连接候选已验证：驱动 {Driver}", _connectedDriver);
+                return true;
             }
-            UseFactory = factory;
-            _connectedDriver = factory.Name;
-            Logger.LogInformation("数据库连接候选已验证：驱动 {Driver}", _connectedDriver);
-            return true;
+            catch (Exception exception)
+            {
+                Logger.LogError(exception, "数据库连接候选验证异常：驱动 {Driver}", factory.Name);
+                return RejectDatabaseCandidate(
+                    ref database,
+                    ref message,
+                    "数据库打开异常，请检查配置或诊断日志。",
+                    pendingRestore);
+            }
+        }
+
+        private bool RejectDatabaseCandidate(
+            ref DbInterfaceBase? database,
+            ref string message,
+            string failureMessage,
+            PendingDatabaseRestoreContext? pendingRestore)
+        {
+            try
+            {
+                database?.Dispose();
+            }
+            catch (Exception exception)
+            {
+                Logger.LogWarning(exception, "关闭失败的数据库连接候选时发生异常");
+            }
+            database = null;
+            message = failureMessage;
+
+            if (pendingRestore is null)
+                return false;
+
+            var coordinator = Services.GetRequiredService<DatabaseRestoreCoordinator>();
+            if (!coordinator.Rollback(pendingRestore, out var rollbackError))
+            {
+                message += $" 自动恢复还原前数据库失败：{rollbackError}";
+                Logger.LogError("数据库还原后的启动检查失败，且自动回滚失败：{Reason}", rollbackError);
+            }
+            else
+            {
+                Logger.LogWarning("数据库还原后的启动检查失败，已恢复还原前数据库");
+            }
+            return false;
         }
 
         public bool ReconfigureDatabase(out string message)
@@ -389,6 +451,7 @@ namespace Diary.App
             services.AddSingleton<TrackerPluginLifecycleCoordinator>();
             services.AddSingleton<TrackerPluginDiagnosticsService>();
             services.AddSingleton<TrackerUiContributionRegistry>();
+            services.AddSingleton<DatabaseRestoreCoordinator>();
             services.AddSingleton<IWorkItemPersistenceCoordinator, WorkItemPersistenceCoordinator>();
             services.AddSingleton<ITrackerUploadCoordinator, TrackerUploadCoordinator>();
             services.AddSingleton(_ => new CSharpEngine(

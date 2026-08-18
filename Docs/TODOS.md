@@ -7,7 +7,7 @@
 ## 非 tracker TODO
 
 - [x] 已加固 SQLite/PostgreSQL 核心迁移执行、逐步提交、失败回滚、降级和断链校验；业务数据保留与失败恢复由共享 provider 契约测试覆盖
-- [~] SQLite 核心数据迁移前已创建可恢复快照，PostgreSQL 会记录外部备份提醒；应用包增量更新仍待实现。Windows/Linux 终止性托管异常已通过独立 DiagnosticsClient 进程生成 Triage Dump，并显示最小崩溃提示窗口
+- [~] SQLite 已支持手动创建、校验和下次启动还原完整数据库，并在启动复检失败时恢复还原前安全副本；PostgreSQL 已增加 Client `bin` 目录配置和 Windows/Linux 工具探测规则，但原生 dump/restore 尚待实现；应用包增量更新仍待实现。Windows/Linux 终止性托管异常已通过独立 DiagnosticsClient 进程生成 Triage Dump，并显示最小崩溃提示窗口
 
 ## 阶段 7：代码质量与运行稳定性
 
@@ -34,16 +34,20 @@
 ### 7.3 Provider 数据升级登记
 
 - [x] 已明确 SQLite/PostgreSQL `DbRecords` 当前无业务数据升级时返回 `null`；`ProviderMigrationRegistrationTests` 锁定上一正式数据版本，提升 `DataVersion` 时必须同步登记两个 provider 的迁移。
-- [~] 已将核心数据库兼容性从单一数据版本升级为 provider 能力、结构快照指纹、迁移状态/历史和基础数据完整性检查；provider 指纹按核心契约归一化，迁移每步提交后同步 Running 元数据并在最终复检通过后写入 Stable，结构漂移和更新版本数据库不会直接进入可写状态。共享 SQLite/PostgreSQL 契约测试已覆盖空库/断连、provider 与元数据不匹配、缺表缺字段和错误索引、额外索引归一化、迁移历史与 checksum、第二步失败后的部分提交、失败状态重启检查，以及 SQLite 外键和 PostgreSQL 字段键完整性错误；本地 `Diary.DbTests` 现为 222/222 通过，完整项目构建与 CI PostgreSQL 容器门禁仍需继续保持。
+- [~] 已将核心数据库兼容性从单一数据版本升级为 provider 能力、结构快照指纹、迁移状态/历史和基础数据完整性检查；provider 指纹按核心契约归一化，迁移每步提交后同步 Running 元数据并在最终复检通过后写入 Stable，结构漂移和更新版本数据库不会直接进入可写状态。共享 SQLite/PostgreSQL 契约测试已覆盖空库/断连、provider 与元数据不匹配、缺表缺字段和错误索引、额外索引归一化、迁移历史与 checksum、第二步失败后的部分提交、失败状态重启检查，以及 SQLite 外键和 PostgreSQL 字段键完整性错误；本地 `Diary.DbTests` 现为 230/230 通过，完整项目构建与 CI PostgreSQL 容器门禁仍需继续保持。
 
 后续增强测试（不阻塞当前核心迁移功能验收）：
 
 - [ ] 增加 `WriteSchemaMetadata()`、`RecordMigrationHistory()`、事务提交和回滚失败的故障注入测试，确认底层 I/O 错误不会被误报为迁移成功。
 - [ ] 使用真实上一正式版本的 SQLite 数据库文件和 PostgreSQL 初始化快照，执行至少一条包含真实 DDL 的升级链，而不只使用测试迁移写入版本号。
-- [ ] 增加 SQLite 备份目录不可写、备份临时文件清理和备份恢复失败等文件系统异常测试。
+- [ ] 增加 SQLite 备份目录不可写、临时文件清理、磁盘空间不足等更多文件系统故障注入测试。
+- [x] 增加 SQLite 手动备份、备份校验、下次启动还原和还原失败回滚；PostgreSQL 增加 `pg_dump`/`pg_restore` 工具目录配置与跨平台探测测试。
+- [ ] 按备份还原设计实现 PostgreSQL `pg_dump`/`pg_restore`：增加工具版本检查、当前操作所需的最小权限预检、自动创建新目标数据库，并在没有 `CREATEDB` 时降级为恢复到用户提供的已有空数据库；不覆盖当前数据库。
 - [ ] 如果未来明确支持同一数据库的多实例并发，再增加迁移锁和并发启动测试；当前产品没有要求两个进程同时迁移同一个数据库，该项暂不作为发布门禁。
 
 前置依赖：先确认核心数据库与插件数据库的版本职责边界，避免把插件迁移重复登记到核心 provider。
+
+备份还原设计：[`DatabaseBackupRestoreDesign.md`](DatabaseBackupRestoreDesign.md)
 
 验收：当前数据版本无升级时迁移流程保持幂等；共享契约测试验证成功迁移保留业务数据、失败迁移回滚版本写入并保留原数据；CI Linux 门禁强制运行 PostgreSQL 容器测试。
 

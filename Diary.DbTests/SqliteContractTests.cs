@@ -113,6 +113,75 @@ public class SqliteContractTests : DbContractTests
         }
     }
 
+    [TestMethod]
+    public void Maintenance_CreateBackup_ValidatesAndRestoresDatabase()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"diary-sqlite-maintenance-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var currentPath = Path.Combine(root, "current.sqlite3");
+            var backupSourcePath = Path.Combine(root, "backup-source.sqlite3");
+            var backupPath = Path.Combine(root, "manual-backup.sqlite3");
+            CreateFileDatabase(currentPath, "current-item");
+
+            DbBackupResult backupResult;
+            using (var backupSource = CreateFileDatabase(backupSourcePath, "backup-item"))
+                backupResult = ((IDbMaintenanceProvider)backupSource).CreateBackup(backupPath);
+            Assert.IsTrue(backupResult.Success, backupResult.Error);
+
+            using var maintenance = new SQLiteDb(new FileSqliteFactory(currentPath));
+            var provider = (IDbMaintenanceProvider)maintenance;
+            var validation = provider.ValidateBackup(backupPath, DataVersion.VersionCode);
+            Assert.IsTrue(validation.Success, validation.Error);
+            Assert.AreEqual(DataVersion.VersionCode, validation.DataVersion);
+
+            var restore = provider.RestoreBackup(backupPath, DataVersion.VersionCode);
+            Assert.IsTrue(restore.Success, restore.Error);
+            Assert.IsNotNull(restore.RecoveryPath);
+            Assert.IsTrue(File.Exists(restore.RecoveryPath));
+
+            using (var restored = OpenFileDatabase(currentPath))
+            {
+                Assert.IsTrue(restored.GetWorkItemByDate("2026-08-18")
+                    .Any(item => item.Comment == "backup-item"));
+                Assert.IsFalse(restored.GetWorkItemByDate("2026-08-18")
+                    .Any(item => item.Comment == "current-item"));
+            }
+
+            Assert.IsTrue(provider.RollbackRestore(restore, out var rollbackError), rollbackError);
+            using var rolledBack = OpenFileDatabase(currentPath);
+            Assert.IsTrue(rolledBack.GetWorkItemByDate("2026-08-18")
+                .Any(item => item.Comment == "current-item"));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void Maintenance_ValidateBackup_RejectsInvalidFile()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"diary-invalid-backup-{Guid.NewGuid():N}.sqlite3");
+        try
+        {
+            File.WriteAllText(path, "not a sqlite database");
+            using var db = new SQLiteDb(new FileSqliteFactory(path + ".target"));
+
+            var validation = ((IDbMaintenanceProvider)db)
+                .ValidateBackup(path, DataVersion.VersionCode);
+
+            Assert.IsFalse(validation.Success);
+            Assert.IsNotNull(validation.Error);
+        }
+        finally
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+    }
+
     private sealed class FileSqliteFactory(string filePath) : IDbFactory
     {
         private readonly Config _config = new() { FilePath = filePath };
@@ -131,5 +200,25 @@ public class SqliteContractTests : DbContractTests
             "PRAGMA foreign_keys=OFF; " +
             "INSERT INTO work_item_tags(work_id, tag_id) VALUES(2147483000, 2147483001); " +
             "PRAGMA foreign_keys=ON;");
+    }
+
+    private static SQLiteDb CreateFileDatabase(string path, string comment)
+    {
+        var db = new SQLiteDb(new FileSqliteFactory(path));
+        Assert.IsTrue(db.Connect());
+        Assert.IsTrue(db.Initialized());
+        db.CreateWorkItem("2026-08-18", comment);
+        var compatibility = db.CheckCompatibility(DataVersion.VersionCode);
+        Assert.IsTrue(compatibility.IsUsable, compatibility.ToUserMessage());
+        Assert.IsTrue(db.PersistCompatibilityMetadata(compatibility));
+        return db;
+    }
+
+    private static SQLiteDb OpenFileDatabase(string path)
+    {
+        var db = new SQLiteDb(new FileSqliteFactory(path));
+        Assert.IsTrue(db.Connect());
+        Assert.IsTrue(db.Initialized());
+        return db;
     }
 }
