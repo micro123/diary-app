@@ -130,7 +130,8 @@
                              IsVisible="{Binding Loading}" />
             </Grid>
 
-            <TabControl Grid.Column="1">
+            <TabControl Grid.Column="1" Name="ScriptDetailTabs"
+                        SelectedIndex="{Binding SelectedDetailTabIndex, Mode=TwoWay}">
                 <TabItem Header="概览">
                     <ScrollViewer>
                     <StackPanel Margin="8" Spacing="8">
@@ -201,27 +202,6 @@
                             <TextBlock Text="没有诊断信息" Opacity="0.68"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"
                                        IsVisible="{Binding !HasSelectedDiagnostics}" />
-                            </Grid>
-                        </ScrollViewer>
-                    </Grid>
-                </TabItem>
-                <TabItem Header="启动诊断">
-                    <Grid RowDefinitions="Auto,*">
-                        <Button Content="复制启动诊断" HorizontalAlignment="Right"
-                                Command="{Binding CopyStartupDiagnosticsCommand}"
-                                IsEnabled="{Binding HasStartupDiagnostics}" />
-                        <ScrollViewer Grid.Row="1">
-                            <Grid>
-                                <ItemsControl ItemsSource="{Binding StartupDiagnostics}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:ScriptDiagnosticListItem">
-                                            <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" Margin="4" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                                <TextBlock Text="没有启动诊断" Opacity="0.68"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                           IsVisible="{Binding !HasStartupDiagnostics}" />
                             </Grid>
                         </ScrollViewer>
                     </Grid>

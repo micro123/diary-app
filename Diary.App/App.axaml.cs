@@ -111,8 +111,6 @@ namespace Diary.App
                         diagnostic.Message,
                         diagnostic.SourcePath);
                 }
-                Services.GetRequiredService<ScriptStartupDiagnosticsStore>()
-                    .Replace(result.Diagnostics.Select(FormatScriptDiagnostic));
                 var scheduler = Services.GetRequiredService<ScriptAutomationScheduler>();
                 scheduler.ApplyLoadResult(result);
                 scheduler.Start();
@@ -121,27 +119,8 @@ namespace Diary.App
             catch (Exception ex)
             {
                 Logger.LogError(ex, "脚本目录加载失败");
-                Services.GetRequiredService<ScriptStartupDiagnosticsStore>().Replace([
-                    new ScriptDiagnosticListItem(
-                        "错误",
-                        "SCRIPT_DIRECTORY_LOAD_FAILED",
-                        "脚本目录加载失败，请查看日志或重试。",
-                        string.Empty)
-                ], loadFailed: true);
             }
         }
-
-        private static ScriptDiagnosticListItem FormatScriptDiagnostic(ScriptDiagnostic diagnostic) =>
-            new(
-                diagnostic.Severity switch
-                {
-                    ScriptDiagnosticSeverity.Error => "错误",
-                    ScriptDiagnosticSeverity.Warning => "警告",
-                    _ => "信息",
-                },
-                diagnostic.Code,
-                diagnostic.Message,
-                diagnostic.SourcePath is null ? string.Empty : $"{diagnostic.SourcePath}:{diagnostic.Line}:{diagnostic.Column}");
 
         private bool ConfigureCheck(out string message)
         {
@@ -601,7 +580,6 @@ namespace Diary.App
             services.AddSingleton<IScriptDirectoryLoader, ScriptDirectoryLoader>();
             services.AddSingleton<ScriptLogStore>();
             services.AddSingleton<ScriptProgressTracker>();
-            services.AddSingleton<ScriptStartupDiagnosticsStore>();
             var exportPluginDirectory = FsTools.GetBinaryDirectory();
             const string exportPluginPattern = "Diary.Export.*.dll";
             var exportPluginFiles = Directory.GetFiles(

@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
@@ -150,13 +152,26 @@ public sealed record ScriptDiagnosticListItem(
         : $"[{Code}] {Location} {Message}";
 }
 
+public sealed class ResettableObservableCollection<T> : ObservableCollection<T>
+{
+    public void ReplaceAll(IEnumerable<T> items)
+    {
+        Items.Clear();
+        foreach (var item in items)
+            Items.Add(item);
+
+        OnPropertyChanged(new PropertyChangedEventArgs(nameof(Count)));
+        OnPropertyChanged(new PropertyChangedEventArgs("Item[]"));
+        OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+    }
+}
+
 [DiAutoRegister(singleton: true)]
 public partial class ScriptManagementViewModel(
     ScriptDirectoryLoadState directoryLoadState,
     IScriptManager scriptManager,
     IScriptCatalog scriptCatalog,
     IScriptExecutionHistory executionHistory,
-    ScriptStartupDiagnosticsStore startupDiagnostics,
     ScriptLogStore scriptLogStore,
     ScriptProgressTracker progressTracker,
     ScriptAutomationScheduler scheduler,
@@ -166,13 +181,12 @@ public partial class ScriptManagementViewModel(
     private readonly string _scriptRoot = Path.Combine(FsTools.GetApplicationConfigDirectory(), "scripts");
 
     public ScriptApiReferenceViewModel ApiReference { get; } = new();
-    public ObservableCollection<ScriptListItem> Scripts { get; } = new();
-    public ObservableCollection<ScriptListItem> VisibleScripts { get; } = new();
-    public ObservableCollection<ScriptHistoryListItem> History { get; } = new();
-    public ObservableCollection<ScriptHistoryListItem> VisibleHistory { get; } = new();
-    public ObservableCollection<ScriptLogEntry> ScriptLogs { get; } = new();
-    public ObservableCollection<ScriptDiagnosticListItem> DirectoryDiagnostics { get; } = new();
-    public ObservableCollection<ScriptDiagnosticListItem> StartupDiagnostics => startupDiagnostics.Diagnostics;
+    public ResettableObservableCollection<ScriptListItem> Scripts { get; } = new();
+    public ResettableObservableCollection<ScriptListItem> VisibleScripts { get; } = new();
+    public ResettableObservableCollection<ScriptHistoryListItem> History { get; } = new();
+    public ResettableObservableCollection<ScriptHistoryListItem> VisibleHistory { get; } = new();
+    public ResettableObservableCollection<ScriptLogEntry> ScriptLogs { get; } = new();
+    public ResettableObservableCollection<ScriptDiagnosticListItem> DirectoryDiagnostics { get; } = new();
     public IReadOnlyList<string> ScopeFilters { get; } = ["全部类型", "应用脚本", "编辑器脚本"];
     public IReadOnlyList<string> StatusFilters { get; } = ["全部状态", "已加载", "加载失败"];
     public IReadOnlyList<string> HistoryStatusFilters { get; } = ["全部结果", "成功", "失败", "已取消", "已超时", "已拒绝"];
@@ -193,6 +207,7 @@ public partial class ScriptManagementViewModel(
     [ObservableProperty] private string _selectedStatusFilter = "全部状态";
     [ObservableProperty] private string _selectedHistoryStatusFilter = "全部结果";
     [ObservableProperty] private string _selectedHistorySourceFilter = "全部来源";
+    [ObservableProperty] private int _selectedDetailTabIndex;
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RunCommand))]
     [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
@@ -233,7 +248,6 @@ public partial class ScriptManagementViewModel(
     public bool HasSelectedDiagnostics => SelectedScript?.Diagnostics.Count > 0;
     public bool HasScriptLogs => ScriptLogs.Count > 0;
     public bool HasDirectoryDiagnostics => DirectoryDiagnostics.Count > 0;
-    public bool HasStartupDiagnostics => StartupDiagnostics.Count > 0;
     private bool _scriptLogSubscribed;
     private bool _progressSubscribed;
     partial void OnLoadingChanged(bool value) => OnPropertyChanged(nameof(CanReload));
@@ -254,6 +268,12 @@ public partial class ScriptManagementViewModel(
     partial void OnSelectedHistoryStatusFilterChanged(string value) => RefreshVisibleHistory();
 
     partial void OnSelectedHistorySourceFilterChanged(string value) => RefreshVisibleHistory();
+
+    partial void OnSelectedDetailTabIndexChanged(int value)
+    {
+        if (value == 5)
+            ApiReference.EnsureLoaded();
+    }
 
     partial void OnSelectedScriptChanged(ScriptListItem? value)
     {
@@ -317,9 +337,7 @@ public partial class ScriptManagementViewModel(
             return;
         }
 
-        ScriptLogs.Clear();
-        foreach (var entry in scriptLogStore.GetSnapshot())
-            ScriptLogs.Add(entry);
+        ScriptLogs.ReplaceAll(scriptLogStore.GetSnapshot());
         OnPropertyChanged(nameof(HasScriptLogs));
     }
 
@@ -339,9 +357,7 @@ public partial class ScriptManagementViewModel(
             var result = await (forceReload
                 ? directoryLoadState.ReloadAsync(_scriptRoot)
                 : directoryLoadState.EnsureLoadedAsync(_scriptRoot));
-            DirectoryDiagnostics.Clear();
-            foreach (var diagnostic in result.Diagnostics)
-                DirectoryDiagnostics.Add(FormatDiagnostic(diagnostic));
+            DirectoryDiagnostics.ReplaceAll(result.Diagnostics.Select(FormatDiagnostic));
             OnPropertyChanged(nameof(HasDirectoryDiagnostics));
             var selectedId = SelectedScript?.Id;
             var loadedScripts = new List<ScriptListItem>();
@@ -364,9 +380,7 @@ public partial class ScriptManagementViewModel(
                      entryKind,
                      entry.Metadata));
             }
-            Scripts.Clear();
-            foreach (var script in loadedScripts)
-                Scripts.Add(script);
+            Scripts.ReplaceAll(loadedScripts);
             RefreshVisibleScripts();
             SelectedScript = VisibleScripts.FirstOrDefault(script => script.Id == selectedId)
                 ?? VisibleScripts.FirstOrDefault();
@@ -382,12 +396,11 @@ public partial class ScriptManagementViewModel(
         {
             logger.LogError(exception, "重新加载脚本目录失败");
             Status = "脚本目录加载失败";
-            DirectoryDiagnostics.Clear();
-            DirectoryDiagnostics.Add(new ScriptDiagnosticListItem(
+            DirectoryDiagnostics.ReplaceAll([new ScriptDiagnosticListItem(
                 "错误",
                 "SCRIPT_DIRECTORY_LOAD_FAILED",
                 "脚本目录加载失败，请查看日志或重试。",
-                string.Empty));
+                string.Empty)]);
             OnPropertyChanged(nameof(HasDirectoryDiagnostics));
         }
         finally
@@ -526,15 +539,6 @@ public partial class ScriptManagementViewModel(
             return;
         if (await CopyStringToClipboardAsync(string.Join(Environment.NewLine, DirectoryDiagnostics.Select(item => item.Summary))))
             NotificationManager?.Show("目录诊断已复制", NotificationType.Success);
-    }
-
-    [RelayCommand]
-    private async Task CopyStartupDiagnostics()
-    {
-        if (!HasStartupDiagnostics)
-            return;
-        if (await CopyStringToClipboardAsync(string.Join(Environment.NewLine, StartupDiagnostics.Select(item => item.Summary))))
-            NotificationManager?.Show("启动诊断已复制", NotificationType.Success);
     }
 
     [RelayCommand]
@@ -753,9 +757,7 @@ public partial class ScriptManagementViewModel(
                     || SelectedStatusFilter == "加载失败" && script.IsLoadFailed
                     || SelectedStatusFilter == "已加载" && script.BuildSucceeded))
             .ToArray();
-        VisibleScripts.Clear();
-        foreach (var script in visible)
-            VisibleScripts.Add(script);
+        VisibleScripts.ReplaceAll(visible);
         if (SelectedScript is not null && !VisibleScripts.Contains(SelectedScript))
             SelectedScript = VisibleScripts.FirstOrDefault();
         OnPropertyChanged(nameof(HasVisibleScripts));
@@ -764,13 +766,12 @@ public partial class ScriptManagementViewModel(
 
     private void RefreshHistory()
     {
-        History.Clear();
-        foreach (var entry in executionHistory.GetRecent())
+        History.ReplaceAll(executionHistory.GetRecent().Select(entry =>
         {
             var scriptName = scriptCatalog.TryGet(entry.ScriptId, out var program) && program is not null
                 ? program.Descriptor.Name
                 : entry.ScriptId;
-            History.Add(new ScriptHistoryListItem(
+            return new ScriptHistoryListItem(
                 entry.ScriptId,
                 scriptName,
                 entry.Outcome.Result.Status.ToString(),
@@ -779,8 +780,8 @@ public partial class ScriptManagementViewModel(
                 $"{entry.Outcome.Duration.TotalMilliseconds:0} ms",
                 FormatDiagnostics(entry.Outcome.Result.Diagnostics),
                 FormatHistoryLog(entry, scriptName),
-                entry.Outcome.Result.Effects));
-        }
+                entry.Outcome.Result.Effects);
+        }));
         RefreshVisibleHistory();
     }
 
@@ -790,9 +791,7 @@ public partial class ScriptManagementViewModel(
                 (SelectedHistoryStatusFilter == "全部结果" || entry.StatusLabel == SelectedHistoryStatusFilter)
                 && (SelectedHistorySourceFilter == "全部来源" || entry.SourceLabel == SelectedHistorySourceFilter))
             .ToArray();
-        VisibleHistory.Clear();
-        foreach (var entry in visible)
-            VisibleHistory.Add(entry);
+        VisibleHistory.ReplaceAll(visible);
     }
 
     private static IReadOnlyList<string> FormatDiagnostics(IEnumerable<ScriptDiagnostic>? diagnostics) =>

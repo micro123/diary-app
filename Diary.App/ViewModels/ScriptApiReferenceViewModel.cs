@@ -34,7 +34,7 @@ public partial class ScriptApiReferenceViewModel : ViewModelBase
     public ScriptApiReferenceViewModel(string? docsRoot = null)
     {
         _docsRoot = docsRoot ?? Path.Combine(AppContext.BaseDirectory, "Docs", "ScriptApi");
-        LoadReference();
+        _status = "切换到 API Reference 后加载文档";
     }
 
     public IReadOnlyList<string> Languages { get; } = ["C#", "Lua", "Python"];
@@ -51,13 +51,28 @@ public partial class ScriptApiReferenceViewModel : ViewModelBase
 
     [ObservableProperty] private string _status = string.Empty;
     [ObservableProperty] private string _error = string.Empty;
+    private bool _loaded;
+
+    public bool IsLoaded => _loaded;
 
     public string Title => $"{SelectedLanguage} API Reference";
     public string DocumentPath => Path.Combine(_docsRoot, GetDocumentFileName(SelectedLanguage));
     public bool HasNoReference => !HasReference;
     public bool HasError => !string.IsNullOrWhiteSpace(Error);
 
-    partial void OnSelectedLanguageChanged(string value) => LoadReference();
+    partial void OnSelectedLanguageChanged(string value)
+    {
+        if (_loaded)
+            LoadReference();
+    }
+
+    public void EnsureLoaded()
+    {
+        if (_loaded)
+            return;
+        _loaded = true;
+        LoadReference();
+    }
 
     partial void OnErrorChanged(string value) => OnPropertyChanged(nameof(HasError));
 

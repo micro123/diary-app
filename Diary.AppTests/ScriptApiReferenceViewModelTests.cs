@@ -19,6 +19,11 @@ public sealed class ScriptApiReferenceViewModelTests
             var viewModel = new ScriptApiReferenceViewModel(root);
 
             Assert.AreEqual("C# API Reference", viewModel.Title);
+            Assert.IsFalse(viewModel.HasReference);
+            Assert.AreEqual(0, viewModel.Blocks.Count);
+
+            viewModel.EnsureLoaded();
+
             Assert.IsTrue(viewModel.HasReference);
             Assert.IsTrue(viewModel.Blocks.Any(block => block.IsHeading && block.Text == "C# API"));
             Assert.IsTrue(viewModel.Blocks.Any(block => block.IsCode && block.Text.Contains("var value = 1;", StringComparison.Ordinal)));
