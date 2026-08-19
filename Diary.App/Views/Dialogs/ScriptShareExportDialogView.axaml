@@ -1,0 +1,40 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:dialogs="using:Diary.App.ViewModels.Dialogs"
+             x:Class="Diary.App.Views.Dialogs.ScriptShareExportDialogView"
+             x:DataType="dialogs:ScriptShareExportDialogViewModel"
+             Width="680" MinHeight="430" MaxHeight="680" Padding="24">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="14">
+        <StackPanel Spacing="4">
+            <TextBlock Text="导出脚本共享包" FontSize="24" FontWeight="Bold" />
+            <TextBlock Text="选择要共享的脚本；源码和同目录运行配置会一起导出。"
+                       Opacity="0.68" TextWrapping="Wrap" />
+        </StackPanel>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
+            <Button Content="全选" Command="{Binding SelectAllCommand}" />
+            <Button Content="清空" Command="{Binding ClearSelectionCommand}" />
+            <TextBlock Text="{Binding SelectedCount, StringFormat='已选择 {0} 个脚本'}"
+                       VerticalAlignment="Center" Opacity="0.68" />
+        </StackPanel>
+        <Border Grid.Row="2" Classes="Card" Padding="8">
+            <ListBox ItemsSource="{Binding Items}" SelectionMode="Single">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="dialogs:ScriptShareExportItemViewModel">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" Margin="4">
+                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding Id}" Opacity="0.58" />
+                                <TextBlock Text="{Binding Details}" Opacity="0.68" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Border>
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="取消" Command="{Binding CancelCommand}" />
+            <Button Content="选择保存位置" Classes="Primary" Command="{Binding ExportCommand}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

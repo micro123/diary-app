@@ -197,6 +197,7 @@ Jira 失败时核心工作记录仍可保存。
 - [x] 脚本管理手动运行已增加参数、幂等键、超时和 Preview 对话框；默认参数和默认超时可写入 metadata。
 - [x] Query 只读和 Preview 已由宿主强制：日志写入转预览，导出转 validate-only，预览目录使用虚拟令牌，剪贴板写入/打开文件等副作用拒绝；Worker 与进程内路径语义一致。
 - [x] Python/Lua 公共门面新增并推荐 snake_case 命名，保留旧 camelCase 别名；请求和结果 DTO 继续遵循宿主协议字段，避免与 C# 风格强行统一。
+- [x] 脚本管理页已支持通过版本化 .diaryscripts 共享包批量导入/导出源码和运行配置；导入先做大小、路径、语言、SHA-256 和 metadata 校验，冲突默认跳过、显式授权后原位覆盖，批量失败会恢复备份。设计见 [ScriptSharingDesign.md](ScriptSharingDesign.md)。
 
 - [x] 已增加 Week 编辑器目标（用周一的 `yyyy-MM-dd` 标识），日历右键可对本周/上周运行脚本，C#/Lua/Python 的 `dateRange` 同步解析周范围。
 - [x] 查询工作项标签 DTO 已增加语义化的 `IsPrimary`/`isPrimary` 字段；`Level` 保留用于兼容，C#、Lua、Python 示例均使用语义化字段判断主标签。

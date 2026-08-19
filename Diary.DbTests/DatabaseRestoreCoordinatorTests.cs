@@ -82,7 +82,9 @@ public sealed class DatabaseRestoreCoordinatorTests
             var root = Path.Combine(Path.GetTempPath(), $"diary-restore-{Guid.NewGuid():N}");
             Directory.CreateDirectory(root);
             var currentFactory = new FileSqliteFactory(Path.Combine(root, "current.sqlite3"));
-            CreateDatabase(currentFactory, "current-item");
+            using (CreateDatabase(currentFactory, "current-item"))
+            {
+            }
 
             var backupSourceFactory = new FileSqliteFactory(Path.Combine(root, "backup-source.sqlite3"));
             var backupPath = Path.Combine(root, "backup.sqlite3");

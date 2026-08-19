@@ -1,0 +1,49 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:dialogs="using:Diary.App.ViewModels.Dialogs"
+             x:Class="Diary.App.Views.Dialogs.ScriptShareImportDialogView"
+             x:DataType="dialogs:ScriptShareImportDialogViewModel"
+             Width="720" MinHeight="460" MaxHeight="700" Padding="24">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="14">
+        <StackPanel Spacing="4">
+            <TextBlock Text="导入脚本共享包" FontSize="24" FontWeight="Bold" />
+            <TextBlock Text="导入后不会立即执行；脚本会重新加载并显示正式构建诊断。"
+                       Opacity="0.68" TextWrapping="Wrap" />
+            <TextBlock Text="共享包只有完整性校验，没有来源签名。请只导入你信任的脚本；自动化脚本导入后会参与后续调度。"
+                       Foreground="DarkOrange" TextWrapping="Wrap" />
+        </StackPanel>
+        <StackPanel Grid.Row="1" Spacing="6">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="只选无冲突项" Command="{Binding SelectSafeCommand}" />
+                <TextBlock Text="{Binding SelectedCount, StringFormat='将导入 {0} 个脚本'}"
+                           VerticalAlignment="Center" Opacity="0.68" />
+            </StackPanel>
+            <TextBlock Text="存在冲突的项目默认不选中；主动勾选即表示覆盖现有源码和运行配置。"
+                       Foreground="DarkOrange" TextWrapping="Wrap" IsVisible="{Binding HasConflicts}" />
+        </StackPanel>
+        <Border Grid.Row="2" Classes="Card" Padding="8">
+            <ListBox ItemsSource="{Binding Items}" SelectionMode="Single">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="dialogs:ScriptShareImportItemViewModel">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" Margin="4">
+                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding Id}" Opacity="0.58" />
+                                <TextBlock Text="{Binding Details}" Opacity="0.68" />
+                                <TextBlock Text="{Binding Status}" TextWrapping="Wrap"
+                                           Foreground="DarkOrange" IsVisible="{Binding HasConflict}" />
+                                <TextBlock Text="{Binding Status}" TextWrapping="Wrap"
+                                           Opacity="0.68" IsVisible="{Binding !HasConflict}" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Border>
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="取消" Command="{Binding CancelCommand}" />
+            <Button Content="导入所选脚本" Classes="Primary" Command="{Binding ImportCommand}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

@@ -123,7 +123,9 @@ public class SqliteContractTests : DbContractTests
             var currentPath = Path.Combine(root, "current.sqlite3");
             var backupSourcePath = Path.Combine(root, "backup-source.sqlite3");
             var backupPath = Path.Combine(root, "manual-backup.sqlite3");
-            CreateFileDatabase(currentPath, "current-item");
+            using (CreateFileDatabase(currentPath, "current-item"))
+            {
+            }
 
             DbBackupResult backupResult;
             using (var backupSource = CreateFileDatabase(backupSourcePath, "backup-item"))

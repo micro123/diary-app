@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -175,6 +176,7 @@ public partial class ScriptManagementViewModel(
     ScriptLogStore scriptLogStore,
     ScriptProgressTracker progressTracker,
     ScriptAutomationScheduler scheduler,
+    ScriptSharePackageService sharePackageService,
     ILogger logger,
     IServiceProvider services) : ViewModelBase
 {
@@ -247,6 +249,8 @@ public partial class ScriptManagementViewModel(
         SelectedScript is { BuildSucceeded: true } && !IsExecuting;
 
     public bool CanReload => !Loading && !IsExecuting;
+    public bool CanImportScripts => !Loading && !IsExecuting;
+    public bool CanExportScripts => !Loading && !IsExecuting && HasScripts;
     public bool CanOpenSelectedScript => SelectedScript is not null;
     public bool HasScripts => Scripts.Count > 0;
     public bool HasVisibleScripts => VisibleScripts.Count > 0;
@@ -257,13 +261,20 @@ public partial class ScriptManagementViewModel(
     public bool HasDirectoryDiagnostics => DirectoryDiagnostics.Count > 0;
     private bool _scriptLogSubscribed;
     private bool _progressSubscribed;
-    partial void OnLoadingChanged(bool value) => OnPropertyChanged(nameof(CanReload));
+    partial void OnLoadingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanReload));
+        ImportScriptsCommand.NotifyCanExecuteChanged();
+        ExportScriptsCommand.NotifyCanExecuteChanged();
+    }
 
     partial void OnIsExecutingChanged(bool value)
     {
         OnPropertyChanged(nameof(CanReload));
         OnPropertyChanged(nameof(HasProgress));
         SaveMetadataSettingsCommand.NotifyCanExecuteChanged();
+        ImportScriptsCommand.NotifyCanExecuteChanged();
+        ExportScriptsCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSearchTextChanged(string value) => RefreshVisibleScripts();
@@ -403,6 +414,7 @@ public partial class ScriptManagementViewModel(
                 ?? VisibleScripts.FirstOrDefault();
             OnPropertyChanged(nameof(HasScripts));
             OnPropertyChanged(nameof(ShowEmptyState));
+            ExportScriptsCommand.NotifyCanExecuteChanged();
             RefreshHistory();
             scheduler.ApplyLoadResult(result);
             Status = result.Diagnostics.Count(item => item.Severity == ScriptDiagnosticSeverity.Error) is var errors && errors > 0
@@ -610,6 +622,154 @@ public partial class ScriptManagementViewModel(
             logger.LogDebug(exception, "清空脚本执行历史失败");
         }
         return Task.CompletedTask;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanExportScripts))]
+    private async Task ExportScripts()
+    {
+        var dialog = services.GetRequiredService<ScriptShareExportDialogViewModel>();
+        dialog.Initialize(Scripts);
+        var selection = await OverlayDialog.ShowCustomModal<ScriptShareExportSelection>(
+            dialog,
+            options: new OverlayDialogOptions
+            {
+                CanDragMove = false,
+                CanResize = false,
+                CanLightDismiss = false,
+                IsCloseButtonVisible = false,
+            });
+        if (selection is null || selection.Scripts.Count == 0)
+            return;
+
+        var storageProvider = GetStorageProvider();
+        if (storageProvider is null)
+        {
+            NotifyShareResult("导出失败", "当前没有可用的文件选择器。", NotificationType.Error);
+            return;
+        }
+        var file = await storageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "导出脚本共享包",
+            SuggestedFileName = $"DiaryApp-scripts-{DateTime.Now:yyyyMMdd-HHmmss}{ScriptSharePackageService.FileExtension}",
+            DefaultExtension = ScriptSharePackageService.FileExtension.TrimStart('.'),
+            FileTypeChoices =
+            [
+                new FilePickerFileType("DiaryApp 脚本共享包")
+                {
+                    Patterns = [$"*{ScriptSharePackageService.FileExtension}"],
+                },
+            ],
+        });
+        if (file is null)
+            return;
+
+        try
+        {
+            var packagePath = EnsureSharePackageExtension(file.Path.LocalPath);
+            await sharePackageService.ExportAsync(
+                packagePath,
+                _scriptRoot,
+                selection.Scripts.Select(script => new ScriptShareExportItem(
+                    script.SourcePath,
+                    script.Id,
+                    script.Name,
+                    script.Scope,
+                    script.EntryKind,
+                    script.Language,
+                    script.Metadata)).ToArray());
+            NotifyShareResult(
+                "脚本导出完成",
+                $"已导出 {selection.Scripts.Count} 个脚本：{packagePath}",
+                NotificationType.Success);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+            or InvalidDataException or InvalidOperationException)
+        {
+            logger.LogError(exception, "导出脚本共享包失败");
+            NotifyShareResult("脚本导出失败", exception.Message, NotificationType.Error);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanImportScripts))]
+    private async Task ImportScripts()
+    {
+        var storageProvider = GetStorageProvider();
+        if (storageProvider is null)
+        {
+            NotifyShareResult("导入失败", "当前没有可用的文件选择器。", NotificationType.Error);
+            return;
+        }
+        var files = await storageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "导入脚本共享包",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("DiaryApp 脚本共享包")
+                {
+                    Patterns = [$"*{ScriptSharePackageService.FileExtension}"],
+                },
+            ],
+        });
+        var file = files.FirstOrDefault();
+        if (file is null)
+            return;
+
+        try
+        {
+            var existing = Scripts.Select(script => new ScriptShareExistingItem(script.Id, script.SourcePath)).ToArray();
+            var preview = await sharePackageService.InspectAsync(file.Path.LocalPath, _scriptRoot, existing);
+            var dialog = services.GetRequiredService<ScriptShareImportDialogViewModel>();
+            dialog.Initialize(preview);
+            var selection = await OverlayDialog.ShowCustomModal<ScriptShareImportSelection>(
+                dialog,
+                options: new OverlayDialogOptions
+                {
+                    CanDragMove = false,
+                    CanResize = false,
+                    CanLightDismiss = false,
+                    IsCloseButtonVisible = false,
+                });
+            if (selection is null || selection.Decisions.Count == 0)
+                return;
+
+            var result = await sharePackageService.ImportAsync(
+                preview,
+                _scriptRoot,
+                selection.Decisions,
+                existing);
+            await ReloadAsync(forceReload: true);
+            var importedIds = selection.Decisions.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
+            SelectedScript = VisibleScripts.FirstOrDefault(script => importedIds.Contains(script.Id))
+                ?? SelectedScript;
+            NotifyShareResult(
+                "脚本导入完成",
+                $"已导入 {result.ImportedCount} 个脚本，跳过 {result.SkippedCount} 个。请查看重新加载后的构建诊断。",
+                NotificationType.Success);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+            or InvalidDataException or InvalidOperationException or JsonException)
+        {
+            logger.LogError(exception, "导入脚本共享包失败：{PackagePath}", file.Path.LocalPath);
+            NotifyShareResult("脚本导入失败", exception.Message, NotificationType.Error);
+        }
+    }
+
+    private static IStorageProvider? GetStorageProvider() =>
+        TopLevel.GetTopLevel(App.Instance.ApplicationLifetime
+            is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+                ? desktop.MainWindow
+                : null)?.StorageProvider;
+
+    private static string EnsureSharePackageExtension(string path) =>
+        path.EndsWith(ScriptSharePackageService.FileExtension, StringComparison.OrdinalIgnoreCase)
+            ? path
+            : path + ScriptSharePackageService.FileExtension;
+
+    private void NotifyShareResult(string title, string message, NotificationType type)
+    {
+        Status = message;
+        NotificationManager?.Show($"{title}：{message}", type);
     }
 
     [RelayCommand]
