@@ -20,6 +20,7 @@ public static class ScriptHostApiCatalog
         "ui.directory.pick",
         "ui.exported_file.open",
         "exports.formats.list",
+        "exports.templates.list",
         "exports.export",
         "log.write",
         "script.progress",

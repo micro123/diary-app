@@ -364,6 +364,7 @@ end
 | `diary.ui.pick_directory` | `ui.directory.pick` |
 | `diary.ui.ask_to_open_exported_file` | `ui.exported_file.open` |
 | `diary.exports.list_formats` | `exports.formats.list` |
+| `diary.exports.list_templates` | `exports.templates.list` |
 | `diary.exports.export` | `exports.export` |
 | `diary.log.*` | `log.write` |
 | `context.progress.report` | `script.progress` |

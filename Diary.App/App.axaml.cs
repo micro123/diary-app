@@ -602,6 +602,18 @@ namespace Diary.App
             services.AddSingleton<ScriptLogStore>();
             services.AddSingleton<ScriptProgressTracker>();
             services.AddSingleton<ScriptStartupDiagnosticsStore>();
+            foreach (var exportPlugin in TypeLoader.GetImplementations<IExportPlugin>(
+                         FsTools.GetBinaryDirectory(), "Diary.Export.*.dll"))
+            {
+                services.AddSingleton(exportPlugin);
+                foreach (var handler in exportPlugin.GetExportHandlers())
+                    services.AddSingleton<IExportHandler>(handler);
+                foreach (var handler in exportPlugin.GetTemplateHandlers())
+                    services.AddSingleton<IExportTemplateHandler>(handler);
+            }
+            services.AddSingleton<ExportTemplateCatalog>();
+            services.AddSingleton<IExportTemplateCatalog>(services =>
+                services.GetRequiredService<ExportTemplateCatalog>());
             services.AddSingleton<ScriptExportService>();
             services.AddSingleton<IScriptExecutionContextFactory>(_ =>
                 new ScriptExecutionContextFactory((metadata, request) =>

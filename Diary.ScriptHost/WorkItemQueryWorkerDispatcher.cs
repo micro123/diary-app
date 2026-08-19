@@ -4,6 +4,8 @@ using Diary.ScriptBase;
 
 namespace Diary.ScriptHost;
 
+public sealed record TemplateListRequest(string? FormatId = null);
+
 public sealed class WorkItemQueryWorkerDispatcher(
     Func<IWorkItemQueryScriptApi> apiFactory,
     Func<ITrackerInstanceScriptApi>? trackerApiFactory = null,
@@ -62,6 +64,7 @@ public sealed class WorkItemQueryWorkerDispatcher(
             || string.Equals(call.Method, "ui.exported_file.open", StringComparison.Ordinal))
             return await DispatchFileInteractionAsync(fileInteractionApiFactory, call, cancellationToken, context);
         if (string.Equals(call.Method, "exports.formats.list", StringComparison.Ordinal)
+            || string.Equals(call.Method, "exports.templates.list", StringComparison.Ordinal)
             || string.Equals(call.Method, "exports.export", StringComparison.Ordinal))
             return await DispatchExportAsync(exportApiFactory, call, cancellationToken, context);
         if (string.Equals(call.Method, "log.write", StringComparison.Ordinal))
@@ -162,6 +165,12 @@ public sealed class WorkItemQueryWorkerDispatcher(
             if (call.Method == "exports.formats.list")
                 return new(true, JsonSerializer.SerializeToElement(
                     await api.ListFormatsAsync(cancellationToken), ExportJson.Options));
+            if (call.Method == "exports.templates.list")
+            {
+                var parameters = call.Params.Deserialize<TemplateListRequest>(ExportJson.Options) ?? new();
+                return new(true, JsonSerializer.SerializeToElement(
+                    await api.ListTemplatesAsync(parameters.FormatId, cancellationToken), ExportJson.Options));
+            }
             var request = call.Params.Deserialize<ExportRequest>(ExportJson.Options)
                 ?? throw new JsonException();
             var result = api is IContextualExportApi contextual

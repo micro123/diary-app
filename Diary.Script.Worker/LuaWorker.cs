@@ -281,6 +281,7 @@ internal sealed class LuaWorker(Stream input, Stream output)
         lua.RegisterFunction("__diary_ui_exported_file_open", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.OpenExportedFile))!);
         lua.RegisterFunction("__diary_exports_export", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Export))!);
         lua.RegisterFunction("__diary_exports_formats_list", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.ListFormats))!);
+        lua.RegisterFunction("__diary_exports_templates_list", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.ListExportTemplates))!);
         lua.RegisterFunction("__diary_log_write", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Log))!);
         lua.RegisterFunction("__diary_progress_report", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Progress))!);
         lua.RegisterFunction("__diary_is_cancelled", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.IsCancelled))!);
@@ -427,6 +428,9 @@ internal sealed class LuaWorker(Stream input, Stream output)
         public object? OpenExportedFile(object? request) => Call("ui.exported_file.open", request ?? new { });
         public object? Export(object? request) => Call("exports.export", request ?? new { });
         public object? ListFormats() => Call("exports.formats.list", new { });
+        public object? ListExportTemplates(object? formatId) => Call(
+            "exports.templates.list",
+            new { format_id = formatId?.ToString() });
         public object? Log(object? level, object? message) => Call("log.write", new { level = level?.ToString() ?? "Info", message = message?.ToString() ?? string.Empty });
         public object? Progress(object? fraction, object? message) => Call("script.progress", new { fraction = Convert.ToDouble(fraction ?? 0), message = message?.ToString() ?? string.Empty });
         public bool IsCancelled() => cancellationToken.IsCancellationRequested;

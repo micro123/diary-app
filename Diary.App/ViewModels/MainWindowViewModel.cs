@@ -32,6 +32,7 @@ using StandardMessageViewModel = Diary.App.ViewModels.Dialogs.StandardMessageVie
 using TagEditorViewModel = Diary.App.ViewModels.Dialogs.TagEditorViewModel;
 using TemplateEditorViewModel = Diary.App.ViewModels.Dialogs.TemplateEditorViewModel;
 using TrackerSettingsDialogViewModel = Diary.App.ViewModels.Dialogs.TrackerSettingsDialogViewModel;
+using ExportTemplateManagerViewModel = Diary.App.ViewModels.Dialogs.ExportTemplateManagerViewModel;
 
 namespace Diary.App.ViewModels;
 
@@ -616,6 +617,22 @@ public partial class MainWindowViewModel : ViewModelBase
                 IsCloseButtonVisible = false,
             });
         }, "设置对话框");
+    }
+
+    [RelayCommand]
+    private void ShowExportTemplateSettings()
+    {
+        PostUiAsync(async () =>
+        {
+            var viewModel = _serviceProvider.GetRequiredService<ExportTemplateManagerViewModel>();
+            await OverlayDialog.ShowCustomModal<object>(viewModel, options: new OverlayDialogOptions
+            {
+                CanDragMove = false,
+                CanResize = true,
+                CanLightDismiss = false,
+                IsCloseButtonVisible = false,
+            });
+        }, "导出模板管理对话框");
     }
 
     [RelayCommand]

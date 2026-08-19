@@ -51,6 +51,7 @@ diary = {
     exports = {
         export = function(request) return __diary_exports_export(request) end,
         list_formats = function() return __diary_exports_formats_list() end,
+        list_templates = function(format_id) return __diary_exports_templates_list(format_id) end,
     },
     log = {
         debug = function(message) return __diary_log_write('Debug', message) end,

@@ -238,12 +238,16 @@ class ExportsApi:
     def __init__(self, state):
         self._export = HostApi(state, "exports.export")
         self._list_formats = HostApi(state, "exports.formats.list")
+        self._list_templates = HostApi(state, "exports.templates.list")
 
     def export(self, request):
         return self._export(request)
 
     def list_formats(self):
         return self._list_formats({})
+
+    def list_templates(self, format_id=None):
+        return self._list_templates({"format_id": format_id})
 
 
 class ScriptContext:
@@ -718,7 +722,7 @@ def run():
         "language": "python",
         "workerVersion": "0.3",
         "supportedApiVersions": ["V1"],
-        "supportedHostApis": ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "ui.options.select", "ui.directory.pick", "ui.exported_file.open", "exports.formats.list", "exports.export", "log.write", "script.progress", "host.capabilities.list"],
+        "supportedHostApis": ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "ui.options.select", "ui.directory.pick", "ui.exported_file.open", "exports.formats.list", "exports.templates.list", "exports.export", "log.write", "script.progress", "host.capabilities.list"],
         "processId": os.getpid(),
     })
     accepted = read_message()

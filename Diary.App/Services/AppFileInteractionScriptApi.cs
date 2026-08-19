@@ -129,6 +129,11 @@ public sealed class ContextualExportScriptApi(
     public ValueTask<IReadOnlyList<ExportFormatDescriptor>> ListFormatsAsync(CancellationToken cancellationToken = default) =>
         service.ListFormatsAsync(cancellationToken);
 
+    public ValueTask<IReadOnlyList<ExportTemplateDescriptor>> ListTemplatesAsync(
+        string? formatId = null,
+        CancellationToken cancellationToken = default) =>
+        service.ListTemplatesAsync(formatId, cancellationToken);
+
     public ValueTask<ExportResult> ExportAsync(ExportRequest request, CancellationToken cancellationToken = default) =>
         service.ExportAsync(request, context, cancellationToken);
 }

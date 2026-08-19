@@ -313,9 +313,12 @@ if result["succeeded"]:
 | `context.diary.ui.pick_directory` | `ui.directory.pick` |
 | `context.diary.ui.ask_to_open_exported_file` | `ui.exported_file.open` |
 | `context.exports.list_formats` | `exports.formats.list` |
+| `context.exports.list_templates` | `exports.templates.list` |
 | `context.exports.export` | `exports.export` |
 | `context.log.*` | `log.write` |
 | `context.progress.report` | `script.progress` |
+
+模板导出先调用 `context.exports.list_templates(format_id)` 获取插件已校验的模板和绑定 schema，再提交 `template_id`、`template_version` 及绑定数据；省略带默认值的绑定时宿主会补充默认值。
 
 Python Worker 禁止导入模块、文件访问、动态代码执行、运行时自省、输入和双下划线属性。允许的内置函数（SAFE_BUILTINS）：`abs`、`all`、`any`、`bool`、`dict`、`enumerate`、`Exception`、`HostCallError`、`float`、`int`、`isinstance`、`len`、`list`、`max`、`min`、`next`、`print`、`range`、`set`、`sorted`、`str`、`sum`、`tuple`、`type`、`ValueError`、`RuntimeError`、`zip`。除此之外没有其他内置函数；`__builtins__`、`__import__`、`eval`、`exec`、`open`、`getattr`、`globals`、`setattr`、`vars`、`compile`、`breakpoint`、`input`、`help`、`quit` 等名称在执行前由 AST 静态扫描拒绝。取消通过逐行 trace 注入，运行中的脚本会收到 `CancelledExecution`。`print` 按行转发到脚本日志（Info 级），与 `context.log.info` 一样显示在管理页「运行日志」Tab 和宿主日志中；每条打印占用一次宿主调用，计入宿主调用次数上限，打印密集型脚本请改用 `context.log` 或合并输出。输出总量超过 1MB 时脚本执行失败，异常 traceback 仍写入 Worker stderr。脚本不能直接访问网络、进程、数据库、DI 或 UI 控件。
 

@@ -1,6 +1,6 @@
 # 脚本交互式导出能力设计（Excel、CSV、DOCX）
 
-状态：第一阶段已实现（交互式 XLSX 与协议骨架），CSV/DOCX 仍待实现
+状态：导出插件化第一阶段已实现（XLSX、CSV、DOCX 通用处理器及模板链路已接入；模板能力按插件提供）
 
 ## 1. 背景
 
@@ -18,7 +18,7 @@
         ↓
 脚本向宿主提交电子表格导出请求
         ↓
-宿主使用 ClosedXML 生成 xlsx 文件
+宿主通过导出插件生成目标文件（XLSX/CSV/DOCX）
         ↓
 脚本请求宿主询问是否打开结果文件
         ↓
@@ -31,7 +31,7 @@
 - 不向脚本开放任意文件系统写入能力；
 - 让目录选择、打开文件等交互统一属于系统 API；
 - 让具体格式的生成、样式、公式和文件生命周期由宿主控制；
-- 通过通用导出模型支持当前 Excel，并为后续 CSV、DOCX 和 OA 固定模板保留扩展空间；
+- 通过通用导出模型支持 XLSX、CSV、DOCX，并为后续 OA 固定模板保留扩展空间；
 - C#、Lua、Python 三种脚本提供语义一致的接口。
 
 ## 2. 当前能力和缺口
@@ -58,14 +58,14 @@
 
 ### 2.2 当前缺口
 
-当前脚本系统仍不允许脚本直接访问文件系统；第一阶段已通过宿主 HostCall 提供受限目录选择、XLSX 导出和结果文件打开询问。当前剩余缺口是 CSV/DOCX 处理器和完整 UI 端到端覆盖：
+当前脚本系统仍不允许脚本直接访问文件系统；当前已通过宿主 HostCall 提供受限目录选择、统一插件导出和结果文件打开询问。当前剩余缺口主要是更完整的 UI 端到端覆盖、示例脚本和通用导出注册诊断：
 
 - C# 禁止 `System.IO` 命名空间和相关引用；
 - Lua Worker 禁用 `io`、`os`、`package`、`require` 等能力；
 - Python Worker 禁止导入模块、`open`、动态执行和文件访问；
 - Worker 的文件写入仅限宿主内部缓存、脚本元数据或协议实现，不能由脚本调用。
 
-当前应用内已有 CSV/Markdown 等非脚本导出能力；面向脚本的 CSV/DOCX 处理器尚未接入。本设计不把 API 命名为 Excel 专用 API，Excel 是第一阶段已落地的格式。
+当前应用内已有 CSV/Markdown 等非脚本导出能力；面向脚本的 CSV/DOCX 处理器已经通过独立插件接入。本设计不把 API 命名为 Excel 专用 API。
 
 ## 3. 设计目标
 
@@ -135,23 +135,31 @@ ScriptEditorTarget
 加班明细-2026-07-01至2026-07-31.xlsx
 ```
 
-### 4.3 未来 OA 模板导出
+### 4.3 通用导出和模板导出并存
 
-如果 OA 要求固定模板，后续可以在同一套导出 API 上增加模板模式：
+导出 API 保留两条明确但共享基础设施的路径：
 
 ```text
-选择 OA 模板
+通用导出（不使用模板）
+脚本整理 ExportContent
         ↓
-脚本整理结构化数据
+宿主按 format_id 选择格式插件
         ↓
-宿主加载模板
+生成标准表格/文档
+
+模板导出
+脚本查询模板目录并选择 template_id
         ↓
-按字段映射填充模板
+脚本整理模板声明的业务绑定值
+        ↓
+宿主按 template_id + version 选择模板插件
+        ↓
+宿主加载用户导入的只读模板并由模板插件填充
         ↓
 另存为新的申请文件
 ```
 
-第一阶段先实现标准明细表，不把模板映射混入基础表格 API。
+两条路径共用目录选择、文件名校验、作用域检查、取消、临时文件清理、`FileId` 和打开询问；只有内容来源不同：通用导出由脚本提供 `ExportContent`，模板导出由用户导入的模板提供布局，插件负责校验和渲染，脚本只提供模板声明的语义字段。模板不是通用导出的替代品，脚本可以继续在没有任何模板时导出标准 XLSX/CSV/DOCX。
 
 ## 5. API 分层
 
@@ -390,18 +398,18 @@ public sealed record OpenExportedFileResult(
 
 #### 5.3.1 设计原则
 
-导出能力分为四层，避免以后增加 CSV 或 DOCX 时重新设计脚本门面：
+导出能力分为五层，通用导出和模板导出使用同一个脚本入口：
 
 ```text
 脚本门面 IExportApi
         ↓
 统一 ExportRequest / ExportResult
         ↓
-ExportContent（table / document）
+ExportContent（通用内容）或 TemplateExportSource（模板绑定）
         ↓
-按 format_id 选择宿主导出处理器
+ExportHandlerRegistry 按 format_id / template_id 选择插件
         ↓
-生成目标文件并登记 FileId
+插件生成目标文件，宿主登记 FileId
 ```
 
 核心原则：
@@ -411,7 +419,8 @@ ExportContent（table / document）
 3. **内容模型与文件格式解耦。** `table` 是可被 XLSX、CSV 和未来 DOCX 表格处理器消费的内容模型；`document` 是由段落、标题和文档表格组成的文档模型。
 4. **能力差异显式声明。** 每种格式按内容类型声明支持的特性。请求包含目标格式不支持的特性时返回错误，不静默丢弃数据或样式。
 5. **公共能力统一，格式特性隔离。** 目录令牌、文件名、冲突策略、结果引用和打开询问属于公共导出流程；工作表、CSV 分隔符、段落和 Word 样式等属于格式处理器。
-6. **HostCall 保持稳定。** 使用统一 `exports.export`；后续增加格式只需注册处理器和格式描述，不新增相互平行的格式专用协议入口。
+6. **HostCall 保持稳定。** 通用导出和模板导出都使用 `exports.export`；模板发现使用 `exports.templates.list`，不新增 XLSX/CSV/DOCX 专用导出入口。
+7. **模板布局不进入脚本协议。** 脚本只提交模板 ID、精确版本和语义绑定值，不能提交任意单元格地址、文件路径、公式或模板二进制。
 
 #### 5.3.2 统一 API 入口
 
@@ -425,6 +434,10 @@ public interface IExportApi
         CancellationToken cancellationToken = default);
 
     ValueTask<IReadOnlyList<ExportFormatDescriptor>> ListFormatsAsync(
+        CancellationToken cancellationToken = default);
+
+    ValueTask<IReadOnlyList<ExportTemplateDescriptor>> ListTemplatesAsync(
+        string? formatId = null,
         CancellationToken cancellationToken = default);
 }
 ```
@@ -445,7 +458,7 @@ ExportRequest ForTable(...)
 ExportRequest ForDocument(...)
 ```
 
-这些方法只负责构造 `ExportRequest`，最终仍调用 `ExportAsync()` 和 `exports.export`。
+这些方法只负责构造 `ExportRequest`，最终仍调用 `ExportAsync()` 和 `exports.export`。模板目录查询使用 `ListTemplatesAsync()`/`exports.templates.list`；脚本不通过模板 API 读取模板文件路径。
 
 #### 5.3.3 公共请求和内容模型
 
@@ -455,13 +468,53 @@ public sealed record ExportRequest
     public required string FormatId { get; init; }
     public required string DirectorySelectionId { get; init; }
     public required string FileName { get; init; }
-    public required ExportContent Content { get; init; }
+
+    // 通用导出：Content 与 Template 二选一。保留 Content 以兼容当前 V1 请求。
+    public ExportContent? Content { get; init; }
+    public TemplateExportSource? Template { get; init; }
     public ExportFormatOptions? FormatOptions { get; init; }
 }
 
 public abstract record ExportContent
 {
     public abstract ExportContentKind Kind { get; }
+}
+
+public sealed record TemplateExportSource
+{
+    public required string TemplateId { get; init; }
+    public required string TemplateVersion { get; init; }
+    public IReadOnlyDictionary<string, object?> Values { get; init; } =
+        new Dictionary<string, object?>(StringComparer.Ordinal);
+    public IReadOnlyDictionary<string, ExportTableContent> Tables { get; init; } =
+        new Dictionary<string, ExportTableContent>(StringComparer.Ordinal);
+    public IReadOnlyDictionary<string, ExportDocumentContent> Documents { get; init; } =
+        new Dictionary<string, ExportDocumentContent>(StringComparer.Ordinal);
+}
+
+public enum ExportSourceKind
+{
+    Content,
+    Template,
+}
+
+public enum ExportBindingKind
+{
+    Scalar,
+    Table,
+    Document,
+}
+
+public enum ExportScalarType
+{
+    Text,
+    Integer,
+    Decimal,
+    Date,
+    Time,
+    Duration,
+    DateTime,
+    Boolean,
 }
 ```
 
@@ -480,7 +533,7 @@ public sealed record ExportTableContent : ExportContent
 }
 ```
 
-`ExportRequest.Content` 在 `Content.Kind=Table` 时携带 `ExportTableContent`，序列化为 `content.kind=table`。C# 类型系统中的 `ExportContent` 可以使用 `ExportTableContent`/`ExportDocumentContent` 的受控联合实现；HostCall JSON 使用明确的 `content.kind`，不使用 .NET 类型名称或 `$type`。
+通用请求的 `ExportRequest.Content` 在 `Content.Kind=Table` 时携带 `ExportTableContent`，序列化为 `content.kind=table`；模板请求使用 `template.template_id`、`template.template_version` 和 `template.values`/`tables`/`documents`。`Content` 与 `Template` 必须恰好存在一个。C# 类型系统中的 `ExportContent` 可以使用 `ExportTableContent`/`ExportDocumentContent` 的受控联合实现；HostCall JSON 使用明确的 `content.kind` 和 `template` 判别结构，不使用 .NET 类型名称或 `$type`。
 
 公共列类型：
 
@@ -599,12 +652,52 @@ public sealed record ExportContentCapabilities(
     ExportContentKind ContentKind,
     IReadOnlyList<ExportFeature> Features);
 
+public sealed record ExportBindingDescriptor(
+    string Key,
+    ExportBindingKind Kind,
+    ExportScalarType? ScalarType = null,
+    bool Required = true,
+    bool HasDefaultValue = false,
+    object? DefaultValue = null,
+    string? Description = null);
+
+public sealed record ExportTemplateDescriptor(
+    string TemplateId,
+    string TemplateVersion,
+    string PluginId,
+    string FormatId,
+    string TemplateFileExtension,
+    string DisplayName,
+    string? Description,
+    IReadOnlyList<ExportBindingDescriptor> Bindings,
+    IReadOnlyList<ExportFeature> Features);
+
+public sealed record ExportTemplateValidationContext(
+    string FileExtension,
+    string FileName);
+
+public sealed record ExportDiagnostic(
+    string Code,
+    string Message,
+    string? BindingKey = null);
+
+public sealed record ExportTemplateValidationResult(
+    bool IsValid,
+    string? TemplateName,
+    string? DisplayName,
+    string? Description,
+    string? TemplateVersion,
+    IReadOnlyList<ExportBindingDescriptor> Bindings,
+    IReadOnlyList<ExportFeature> Features,
+    IReadOnlyList<ExportDiagnostic> Diagnostics);
+
 public sealed record ExportFormatDescriptor(
     string FormatId,
     string DisplayName,
     string DefaultExtension,
     IReadOnlyList<string> AllowedExtensions,
-    IReadOnlyList<ExportContentCapabilities> ContentCapabilities);
+    IReadOnlyList<ExportContentCapabilities> ContentCapabilities,
+    bool SupportsTemplates = false);
 
 public enum ExportContentKind
 {
@@ -627,41 +720,51 @@ public enum ExportFeature
 
 格式目录规划如下：
 
-| `FormatId` | 内容类型 | 规划状态 | 主要能力 |
-| --- | --- | --- | --- |
-| `xlsx` | `table` | 第一阶段实现 | 中文、类型值、基础样式、背景色、合并、生成 `SUM` 公式、合计行 |
-| `csv` | `table` | 后续实现 | UTF-8 文本、表头、类型格式化文本、计算后的合计行；不支持视觉样式和合并 |
-| `docx` | `document`/`table` | 后续实现 | 段落、文档表格、基础样式、中文、表格合并 |
+| `FormatId` | 内容类型 | 通用导出 | 模板导出 | 主要能力 |
+| --- | --- | ---: | ---: | --- |
+| `xlsx` | `table` | 已实现 | 已实现 | 中文、类型值、基础样式、背景色、合并、生成 `SUM` 公式、合计行 |
+| `csv` | `table` | 已实现 | 已实现（文本占位符模板） | UTF-8 BOM、表头、类型格式化文本、计算后的合计行、公式注入防护；不支持视觉样式和合并 |
+| `docx` | `document`/`table` | 已实现 | 已实现（文档占位符模板） | 段落、文档表格、基础样式、中文、表格合并 |
 
-第一阶段运行时的 `ListFormatsAsync()` 只返回实际注册的 `xlsx`；CSV 和 DOCX 完成处理器后才出现在格式目录中。能力声明必须按 `ContentKind` 关联，脚本不能只根据格式 ID 猜测能力。C# 中的 `IReadOnlyList<ExportContentCapabilities>` 在 JSON 中序列化为以 `table`/`document` 为键的 `contentCapabilities` 对象。
+运行时的 `ListFormatsAsync()` 只返回实际注册的格式；`ListTemplatesAsync()` 返回模板注册表中已导入、已校验、已启用且兼容的模板描述。能力声明必须同时区分通用内容和模板绑定，脚本不能只根据格式 ID 猜测模板是否可用。模板目录只返回 `template_id`、精确版本、模板扩展名、绑定 schema 和能力，不返回物理模板路径或模板二进制。
 
 #### 5.3.6 导出处理器注册
 
-宿主内部使用处理器注册表。下面的请求模型是宿主内部对公共 `ExportRequest` 的直接消费，不是另一套脚本协议：
+宿主内部使用处理器注册表。下面的请求模型是宿主内部对公共 `ExportRequest` 的直接消费，不是另一套脚本协议。一个处理器可以同时支持通用内容和它声明的模板；模板布局、绑定 schema 和资源版本属于插件，不属于脚本：
 
 ```csharp
 public interface IExportHandler
 {
     string FormatId { get; }
     IReadOnlyList<ExportContentCapabilities> ContentCapabilities { get; }
+    IReadOnlyList<ExportTemplateDescriptor> Templates { get; }
 
-    ValueTask<ExportResult> ExportAsync(
+    ValueTask<ExportRenderResult> RenderAsync(
         ExportRequest request,
         ExportExecutionContext context,
         CancellationToken cancellationToken = default);
 }
+
+public sealed record ExportExecutionContext(
+    string OutputPath,
+    Func<CancellationToken, ValueTask<Stream>> OpenTemplateAsync,
+    CancellationToken CancellationToken,
+    Action<string>? Log = null);
+
+public sealed record ExportRenderResult(
+    int? ItemCount);
 ```
 
 第一阶段及后续处理器：
 
 ```text
 XlsxTableExportHandler      -> ClosedXML -> xlsx/table
-CsvTableExportHandler       -> CSV writer -> csv/table（后续）
-DocxTableExportHandler      -> DOCX writer -> docx/table（后续）
-DocxDocumentExportHandler   -> DOCX writer -> docx/document（后续）
+CsvTableExportHandler       -> CSV writer -> csv/table
+DocxTableExportHandler      -> Open XML -> docx/table
+DocxDocumentExportHandler   -> Open XML -> docx/document
 ```
 
-处理器必须只负责格式生成，不负责：
+处理器必须只负责格式生成，并返回 `ExportRenderResult`；`FileId`、最终 `ExportResult` 和临时文件提交由宿主生成。处理器不负责：
 
 - 选择目录；
 - 判断脚本入口是否允许交互；
@@ -707,6 +810,10 @@ CSV 处理器的第一版约定：
 - 第一版不开放 CSV `FormatOptions`，固定为 UTF-8 BOM、逗号分隔、CRLF 和 RFC 4180 转义；非空 `FormatOptions` 返回 `EXPORT_INVALID_REQUEST`；
 - 不支持背景色、字体、冻结窗格和合并，视觉样式或 `Merges` 请求返回 `EXPORT_UNSUPPORTED_FEATURE`。
 
+DOCX 模板使用专用元数据段：正文文本中前三个非空行依次为 `[[diary.export.template]]`、`template_name: <snake_case>` 和 `version: <version>`；其余正文中的 `{{binding_key}}` 作为标量绑定，宿主导出时替换占位符并保留其余 Word 结构和样式。
+
+CSV 模板使用 UTF-8 文本头：前三行依次为 `# diary.export.template`、`# template_name: <snake_case>` 和 `# version: <version>`；其余行中的 `{{binding_key}}` 作为标量绑定，`# binding: key|scalar|type|required|default` 可声明类型和默认值。
+
 DOCX 处理器的第一版约定：
 
 - 使用文档块模型，包括标题、段落和文档表格；
@@ -717,17 +824,62 @@ DOCX 处理器的第一版约定：
 - 第一版不开放 DOCX `FormatOptions`，普通文档使用公共 `Title`、`Blocks` 和 `Style`；未来新增选项必须通过 `FormatId=docx` 的命名空间校验；
 - OA 固定模板另走模板导出模型，不把模板文件路径混入普通 `ExportRequest`。
 
-#### 5.3.9 插件化导出处理器（建议方案）
+#### 5.3.9 模板导出契约
 
-脚本面对的 `IExportApi` 仍是宿主统一 API，不直接暴露插件对象。插件化边界放在宿主的“格式处理器”层：脚本提交经过校验的 `ExportRequest`，宿主根据 `format_id` 从注册表选择处理器，处理器只负责生成文件。这样可以在不改变 C#、Lua、Python 脚本契约的前提下增加 CSV、DOCX、PDF 或 OA 固定模板格式。
+模板导出不是第二个脚本 API，而是同一个 `ExportRequest` 的另一种数据来源：
 
-推荐新增独立的稳定契约项目 `Diary.ExportBase`，不要把导出 DTO 和处理器接口继续堆入 `Diary.ScriptHost`：
+- `Content != null` 且 `Template == null`：通用导出，不使用模板；
+- `Content == null` 且 `Template != null`：模板导出；
+- 两者同时为空或同时存在：返回 `EXPORT_INVALID_REQUEST`。
+
+模板请求示例：
+
+```json
+{
+  "format_id": "xlsx",
+  "directory_selection_id": "dirsel-01J...",
+  "file_name": "overtime-2026-07.xlsx",
+  "template": {
+    "template_id": "overtime.standard",
+    "template_version": "1.2.0",
+    "values": {
+      "employee_name": "张三",
+      "period": "2026-07"
+    },
+    "tables": {
+      "overtime_items": {
+        "columns": [{"name": "日期", "type": "date"}],
+        "rows": [["2026-07-01"]]
+      }
+    }
+  }
+}
+```
+
+模板绑定规则：
+
+- `TemplateId` 由宿主根据插件 ID 和插件校验返回的模板名组合生成，推荐使用 `xlsx.work_report`；插件 ID 和模板名均使用全小写 `snake_case`，宿主负责校验完整 ID 合法性和唯一性；不同插件可以使用相同的模板名，例如 `xlsx.work_report` 与 `docx.work_report`；脚本不能提交路径、URL 或模板文件内容；
+- `TemplateVersion` 必须精确匹配模板目录中的版本，导出过程不自动将旧版本替换为新版本；
+- `Values` 只允许模板 schema 声明的标量键，`Tables`/`Documents` 只允许声明的集合键；未知键、没有默认值的缺少必填键、类型不匹配、违反空值策略或超过集合限制时返回 `EXPORT_TEMPLATE_BINDING_INVALID`，错误结果必须列出缺失或非法的绑定键；
+- 模板需要哪些导出数据由插件校验模板文件后返回 `ExportTemplateValidationResult.Bindings`，宿主保存为模板 descriptor 并在真正渲染前再次校验；不能仅依赖脚本作者自行阅读说明；
+- 模板只能通过语义绑定填充，脚本不能传入单元格地址、任意范围、公式、书签内部 ID 或 XML 路径；
+- 模板文件由宿主管理的模板库以只读方式保存，插件只通过受限流读取，输出始终另存为新文件；
+- 模板处理器可以保留模板中的样式、合并、打印设置和保护区域，但不能绕过宿主文件名、路径、临时文件和 `FileId` 约束；
+- 模板插件不得执行模板内宏、外部链接或脚本。需要保留宏时必须由格式插件显式声明能力，并由宿主单独设置受信任策略，第一版默认拒绝宏执行和外部资源访问。
+
+`exports.templates.list` 只用于发现已经通过插件校验的模板和绑定 schema；用户可以先用 `SelectOption` 选择模板，再构造 `TemplateExportSource`。如果对应扩展名的插件卸载、模板校验状态失效、模板版本被撤回或依赖不满足，列表中不返回该模板，直接导出已保存的 `template_id + version` 时返回 `EXPORT_TEMPLATE_UNAVAILABLE`，不回退到其他模板。
+
+#### 5.3.10 插件化导出处理器（建议方案）
+
+脚本面对的 `IExportApi` 仍是宿主统一 API，不直接暴露插件对象。插件化边界放在宿主的“格式处理器和模板处理器”层：通用请求按 `format_id` 选择处理器，模板请求按 `format_id + template_id + template_version` 选择模板注册记录及其扩展名对应的处理器。这样可以在不改变 C#、Lua、Python 脚本契约的前提下增加 CSV、DOCX、PDF 或 OA 固定模板格式，同时保留不使用模板的标准导出。
+
+当前版本先复用 `Diary.ScriptHost` 中已经稳定的脚本导出 DTO 和插件契约；后续若需要独立分发契约，再拆出 `Diary.ExportBase`，不改变脚本协议：
 
 ```text
-Diary.ExportBase
+Diary.ScriptHost
   ExportContent / ExportRequest 的格式无关契约
-  ExportFormatDescriptor / ExportFeature
-  IExportPlugin / IExportHandler
+  ExportFormatDescriptor / ExportTemplateDescriptor / ExportFeature
+  IExportPlugin / IExportHandler / IExportTemplateHandler
   ExportExecutionContext
 
 Diary.Export.Xlsx
@@ -741,17 +893,42 @@ Diary.ScriptHost
   IExportApi、三语言门面和 Worker HostCall
 ```
 
-建议新增插件入口；处理器沿用前文 5.3.6 定义的 `IExportHandler`，不再为插件另起一套处理器接口：
+建议新增插件入口；处理器沿用前文 5.3.6 定义的 `IExportHandler`，不再为通用导出和模板导出各起一套处理器接口：
+
+`ExportPluginManifest` 复用现有插件 manifest 的 ID、版本、API 版本和依赖语义，但独立声明导出插件能力；不需要 Tracker 实例配置、数据库迁移或 UI 贡献。
 
 ```csharp
+public sealed record ExportPluginManifest(
+    string Id,
+    string Version,
+    int ApiVersion = 1);
+
 public interface IExportPlugin
 {
     ExportPluginManifest Manifest { get; }
-    IEnumerable<IExportHandler> GetHandlers();
+    IEnumerable<IExportHandler> GetExportHandlers();
+    IEnumerable<IExportTemplateHandler> GetTemplateHandlers();
+}
+
+public interface IExportTemplateHandler
+{
+    string PluginId { get; }
+    string FormatId { get; }
+    IReadOnlyList<string> SupportedTemplateExtensions { get; }
+
+    ValueTask<ExportTemplateValidationResult> ValidateAsync(
+        Stream templateStream,
+        ExportTemplateValidationContext context,
+        CancellationToken cancellationToken = default);
+
+    ValueTask<ExportRenderResult> RenderAsync(
+        ExportRequest request,
+        ExportExecutionContext context,
+        CancellationToken cancellationToken = default);
 }
 ```
 
-`ExportExecutionContext` 由宿主创建，只包含宿主分配的输出路径、取消令牌和受限日志回调；插件不得从上下文反查 `App`、DI、数据库或脚本执行对象。`ExportRequest`、`ExportFormatDescriptor` 和处理器契约最终放入 `Diary.ExportBase`，`Diary.ScriptHost` 只保留 `IExportApi` 及跨语言/Worker 适配。
+`ExportExecutionContext` 由宿主创建，只包含宿主分配的输出路径、只读模板流打开回调、取消令牌和受限日志回调；插件不得从上下文反查 `App`、DI、数据库或脚本执行对象。模板文件不随插件发布，插件只注册它能识别的模板扩展名、校验器和渲染器。当前这些稳定契约暂位于 `Diary.ScriptHost`，后续若拆分 `Diary.ExportBase`，不改变脚本协议。
 
 插件处理器的职责边界：
 
@@ -759,21 +936,27 @@ public interface IExportPlugin
 - 只能写入宿主分配的 `OutputPath`，不能自行选择目录、生成 `FileId`、打开文件或弹出 UI；
 - 不接收 `App`、`IServiceProvider`、数据库连接、Worker 对象或脚本执行上下文；
 - 必须支持取消、失败时不留下可见的半成品文件，并把异常转换为宿主结构化错误；
-- `format_id` 必须全局唯一，插件加载时发现重复 ID、重复扩展名或能力声明不一致时拒绝注册，不静默覆盖。
+- `format_id` 和模板扩展名必须全局唯一；`template_id` 由 `plugin_id + template_name` 组合而成，因此不同插件可以有同名模板，但同一插件内的模板名不能重复；`template_id + template_version` 在模板注册表中必须唯一；插件加载或模板导入时发现冲突、模板绑定键冲突或能力声明不一致时拒绝注册/导入，不静默覆盖；
+- 模板扩展名必须以点号开头、全小写、比较时不区分大小写，例如 `.xlsx`、`.docx`；一个扩展名只能由一个已注册模板插件负责，冲突时拒绝插件加载；
+- 插件只注册扩展名和模板处理能力，不提供内置模板文件；宿主导入文件时按扩展名选择插件，再将模板流交给 `ValidateAsync`；
+- `ValidateAsync` 必须判断文件结构、格式和安全约束，并返回模板是否有效、显示信息、版本、支持能力以及完整绑定 schema；校验失败的模板不得进入可用目录；
+- 模板导出前，宿主根据保存的 schema 校验所有必填值、类型、空值策略和行数限制；插件渲染前仍可执行最终校验，但不能绕过宿主的必填数据检查。
 
 插件加载建议分两阶段：
 
-1. 启动时发现插件 manifest，检查导出插件 API 版本、依赖和宿主能力；
-2. 兼容插件注册处理器，建立按 `format_id` 排序的只读格式目录；单个插件加载失败只使其格式不可用，不影响脚本系统和核心日记。
+1. 启动时发现插件 manifest，检查导出插件 API 版本、依赖、格式和模板扩展名声明；
+2. 兼容插件注册通用处理器和模板处理器，建立按 `format_id`/扩展名/`template_id` 排序的只读目录；
+3. 单个插件加载失败只使其格式或对应扩展名模板不可用，不影响脚本系统、通用导出或核心日记。
 
 与现有 Tracker 插件相比，导出插件不需要实例配置、数据库迁移或 Tracker UI。第一阶段可先使用独立的 `ExportPluginHost`，复用 manifest 兼容性和依赖检查规则；长期再把 Tracker/Export 的公共插件发现、诊断和生命周期抽象为通用 `IPlugin`，避免两套加载器继续分叉。
 
 迁移顺序：
 
-1. 先把当前 `ScriptExportService.WriteXlsx` 提取为 `Diary.Export.Xlsx` 的 `XlsxTableExportHandler`；
+1. 先把当前 `ScriptExportService.WriteXlsx` 提取为 `Diary.Export.Xlsx` 的通用 `XlsxTableExportHandler`，确保不使用模板的请求继续可用；
 2. `ScriptExportService` 改为目录/FileId/安全校验外观层，并依赖 `IExportHandlerRegistry`；
-3. 再以同一注册表增加 `CsvTableExportHandler` 和 `Docx*ExportHandler`；
-4. 插件未加载或格式不可用时，`exports.formats.list` 不返回该格式，导出返回稳定的 `EXPORT_FORMAT_UNAVAILABLE`，不自动回退到其他格式。
+3. 在 XLSX 插件中增加模板扩展名声明、模板校验器、绑定 schema 生成和渲染器；
+4. 已以同一注册表接入 `CsvTableExportHandler`、`Docx*ExportHandler` 及其模板扩展名、校验器和渲染器；后续新增格式沿用相同流程；
+5. 插件未加载、格式不可用或模板版本不可用时，`exports.formats.list`/`exports.templates.list` 不返回对应项，导出返回稳定错误，不自动回退到其他格式或模板。
 
 安全边界：当前插件程序集与主程序同进程，插件属于受信任扩展，不能把插件化误认为沙箱。若未来允许来源不受信任的第三方格式插件，应把 `IExportHandler` 调整为独立 exporter Worker，通过受限协议传递已校验内容，主进程继续掌握输出路径和 `FileId` 生命周期。
 
@@ -785,8 +968,9 @@ public interface IExportPlugin
 | --- | --- | --- | --- | --- |
 | 选择选项 | `api.System.SelectOptionAsync(request)` | `diary.ui.select_option(request)` | `context.diary.ui.select_option(request)` | `ui.options.select` |
 | 选择目录 | `api.System.PickDirectoryAsync(options)` | `diary.ui.pick_directory(options)` | `context.diary.ui.pick_directory(options)` | `ui.directory.pick` |
-| 通用导出 | `api.Exports.ExportAsync(request)` | `diary.exports.export(request)` | `context.diary.exports.export(request)` | `exports.export` |
+| 通用/模板导出 | `api.Exports.ExportAsync(request)` | `diary.exports.export(request)` | `context.diary.exports.export(request)` | `exports.export` |
 | 查询格式 | `api.Exports.ListFormatsAsync()` | `diary.exports.list_formats()` | `context.diary.exports.list_formats()` | `exports.formats.list` |
+| 查询模板 | `api.Exports.ListTemplatesAsync(formatId)` | `diary.exports.list_templates(format_id)` | `context.diary.exports.list_templates(format_id)` | `exports.templates.list` |
 | 询问打开 | `api.System.AskToOpenExportedFileAsync(fileId)` | `diary.ui.ask_to_open_exported_file(file_id)` | `context.diary.ui.ask_to_open_exported_file(file_id)` | `ui.exported_file.open` |
 
 约束如下：
@@ -1080,7 +1264,7 @@ HostCall 收到文件交互请求后必须切换到 Avalonia UI 线程显示对�
 
 ### 9.1 HostCall 方法
 
-第一阶段已增加以下 HostCall；CSV/DOCX 处理器仍待后续实现：
+当前已增加以下 HostCall；格式处理器均通过同一 `exports.export` 入口调用：
 
 ```text
 ui.options.select
@@ -1500,49 +1684,189 @@ Decimal：按样式显示但保存为数值，不使用字符串拼接
 null：空单元格
 ```
 
-## 11. OA 模板扩展
+## 11. 模板导出设计
 
-### 11.1 为什么不在第一阶段直接实现模板
+### 11.1 模板和通用导出的边界
 
-OA 模板通常包含：
+模板导出用于布局、字段位置、打印设置或 OA 约束已经固定的场景；通用导出用于脚本需要完全控制列、行、表格块和内容布局的场景。两者不能互相隐式转换：
 
-- 固定单元格位置；
-- 合并单元格；
-- 固定标题和说明；
-- 可能存在隐藏列、保护区域和打印设置；
-- 某些字段需要固定格式或校验。
+| 项目 | 通用导出 | 模板导出 |
+| --- | --- | --- |
+| 布局来源 | 脚本提交 `ExportContent` | 用户导入模板文件；插件提供扩展名、校验器、binding schema 和渲染器 |
+| 脚本可控制内容 | 列、行、标题、文档块、聚合 | schema 声明的值、表格和文档绑定 |
+| 脚本可控制位置 | 逻辑表格坐标和公共合并模型 | 不可传单元格地址或任意范围 |
+| 文件来源 | 格式插件新建文件 | 宿主管理的用户模板另存为新文件 |
+| 适用场景 | 标准报表、CSV 明细、自由文档 | OA 固定格式、公司模板、固定打印版式 |
+| 没有模板时 | 正常可用 | 返回模板不可用，不回退为通用布局 |
 
-如果第一阶段就把通用表格 API 设计成模板编辑器，脚本调用会迅速复杂化。
+### 11.2 模板目录和版本
 
-### 11.2 第二阶段模板模型
+本方案不提供插件内置模板。模板文件由用户通过宿主管理页面导入，插件只提供：
 
-未来可以新增：
+- 能识别的模板文件扩展名；
+- 模板结构和安全校验功能；
+- 模板需要的导出数据 schema；
+- 根据 schema 将数据写入模板的渲染功能。
+
+脚本只能看到经过宿主导入和插件校验后的描述信息：
 
 ```csharp
-public sealed record TemplateExportRequest
+public interface IExportApi
 {
-    public required string FormatId { get; init; }
-    public required string TemplateFileId { get; init; }
-    public required string DirectorySelectionId { get; init; }
-    public required string FileName { get; init; }
-    public required IReadOnlyDictionary<string, object?> Values { get; init; }
-    public required IReadOnlyList<TemplateExportRange> Ranges { get; init; }
+    ValueTask<IReadOnlyList<ExportTemplateDescriptor>> ListTemplatesAsync(
+        string? formatId = null,
+        CancellationToken cancellationToken = default);
 }
 ```
 
-脚本仍只提供业务字段：
+模板描述至少包含：
+
+- 宿主根据插件 ID 和模板名生成并校验后的全局唯一 `template_id`；
+- 精确的 `template_version`；
+- 目标 `format_id`；
+- 模板文件扩展名 `template_file_extension`；
+- 显示名称和说明；
+- 插件校验返回的标量、表格、文档绑定键、类型、是否必填、空值策略和说明；
+- 支持的特性，如合并、保留打印设置、保护区域或批量行；
+- 负责该扩展名的插件 ID 和插件版本，供管理页面诊断显示。
+
+模板校验结果必须提供 `template_name`。宿主将插件 manifest 中稳定的 `plugin_id` 与该名称组合为 `template_id`，推荐形式为 `plugin_id.template_name`，例如 `xlsx.work_report`。宿主校验 `plugin_id`、`template_name` 和完整 ID 的合法性，并拒绝同一插件下的重复模板 ID；不同插件使用相同的 `template_name` 不冲突。模板 ID 一经发布不可复用；删除模板时只做归档/禁用，历史导出记录仍可用 `template_id + template_version` 追溯。
+
+模板版本由宿主管理并且不可覆盖。导入同一模板文件的新修订时创建新的 `template_version`；如果绑定 schema 不兼容，则创建新的逻辑模板 ID。一次导出在开始前解析精确版本，并在整个过程中固定该版本；插件更新不能让正在执行的请求中途切换模板。脚本保存的导出任务或自动化配置必须保存 `template_id + template_version`，不能只保存“当前模板”。
+
+### 11.3 模板导入、扩展名识别和校验
+
+导入流程如下：
 
 ```text
-日期
-加班事由
-开始时间
-结束时间
-加班时长
+用户在“导出模板”页面选择模板文件
+                ↓
+宿主规范化并检查文件扩展名
+                ↓
+按扩展名查找唯一的 IExportTemplateHandler
+                ↓
+以只读流调用 ValidateAsync
+                ↓
+校验通过后由宿主根据 plugin_id + template_name 生成并校验 template_id，再持久化模板
+                ↓
+模板进入可用目录，脚本可以通过 exports.templates.list 查询
 ```
 
-宿主根据模板映射填入固定区域。
+扩展名规则：
 
-模板文件选择可以使用未来的 `PickOpenFileAsync()`，但不要和第一阶段目录选择 API 混在一起实现。
+- 插件必须声明一个或多个模板文件扩展名，例如 `.xlsx`、`.docx`；
+- 扩展名统一保存为全小写、以点号开头，比较时不区分大小写；
+- 一个扩展名只能映射到一个模板插件；注册冲突时拒绝后加载的插件，不静默选择；
+- 扩展名只用于选择校验/渲染插件，不代表模板已经有效；不能仅凭 `.xlsx` 或 `.docx` 判断文件是可用模板；
+- 插件可以在扩展名之外检查文件签名、容器结构、MIME 和格式版本，防止用户把普通文件改名后绕过识别。
+
+当前 XLSX 插件的第一版模板约定为隐藏/专用工作表 `__diary_template`：`A1` 为 `diary.export.template`，`A2` 为全小写 `snake_case` 模板名，`A3` 为模板版本，`A4/A5` 为显示名称和说明；从第 8 行开始依次声明 `key`、`kind`、`scalar_type`、`required`、`default_value`、`target` 和说明。宿主不直接理解这些地址，只保存插件校验返回的 schema；该约定属于 XLSX 插件实现，不是通用脚本协议。
+
+`ValidateAsync` 是模板进入目录前的必要步骤。插件必须检查模板是否“可作为本插件的有效模板”，至少包括：
+
+- 文件容器和格式结构是否正确；
+- 必需的工作表、文档节点、命名区域、标记或其他模板锚点是否存在；
+- 模板绑定是否完整、无重复、无歧义；
+- 模板中的公式、宏、外部链接、嵌入对象和远程资源是否符合宿主安全策略；
+- 模板声明的能力是否能由当前插件版本实际渲染；
+- 模板大小、复杂度、最大重复区域和资源消耗是否在限制内。
+
+校验结果至少包含：
+
+- `is_valid`；
+- `template_name`：用于与插件 ID 组合生成 `template_id`；
+- 模板显示名称、说明和版本信息；
+- `bindings`：完整的导出数据 schema；
+- 支持的模板特性；
+- 面向管理页面的结构化诊断信息。
+
+校验失败的模板不得生成 `template_id`，不得进入脚本模板目录，也不得被导出调用。插件更新后，宿主可以重新校验已保存模板；重新校验失败时将模板标记为不可用，不删除模板文件，也不自动替换为其他模板。
+
+### 11.4 是否需要模板管理页面
+
+需要，而且在“不提供内置模板”的方案中，管理页面是模板进入系统的必要入口，而不是可选功能。它负责模板文件导入、校验、存储和生命周期管理；脚本 API 只负责发现模板、提交模板 ID、版本和导出数据。
+
+建议页面放在“设置/导出模板”下，第一阶段提供：
+
+- **导入模板**：选择本地模板文件，按扩展名匹配插件并显示校验进度；
+- **列表和筛选**：按显示名称、`format_id`、模板扩展名、插件、状态和版本筛选；显示模板 ID、版本、文件扩展名、插件来源、绑定摘要和最近校验结果；
+- **详情**：查看插件报告的模板信息、所需导出数据、类型、必填状态、空值策略、最大行数和支持特性；
+- **校验诊断**：展示缺失工作表、无效绑定、格式不兼容、宏/外链等结构化错误；
+- **生命周期操作**：启用、禁用、重新校验、归档、查看版本；
+- **安全限制**：不显示或复制外部绝对路径，不开放脚本读取模板文件，不允许直接编辑模板 ID、扩展名、绑定键或模板二进制。
+
+模板管理页面和运行时 `ExportTemplateCatalog` 共用同一持久化注册表：
+
+```text
+用户模板文件
+    ↓
+扩展名 → IExportTemplateHandler
+    ↓ ValidateAsync
+ExportTemplateCatalog
+    ↙                 ↘
+管理页面          IExportApi.ListTemplatesAsync()
+                         ↓
+             脚本提供 template_id + version + values/tables/documents
+```
+
+### 11.5 模板绑定和必填导出数据
+
+模板需要哪些内容由插件对具体模板文件执行校验后返回，不能只由插件类型或文件扩展名推断。绑定 schema 使用语义键，不暴露单元格地址或文档内部路径：
+
+```text
+values.employee_name       -> scalar text, required
+values.period              -> scalar text, default="current_month"
+tables.overtime_items      -> table, required, allow_empty=false
+documents.summary          -> document, optional
+```
+
+每个绑定至少声明：
+
+- `key`：全小写 `snake_case` 语义键；
+- `kind`：`scalar`、`table` 或 `document`；
+- 标量类型、表格列定义或文档块定义；
+- `required`：没有提供值且没有默认值时，是否必须存在；
+- `default_value`：省略该绑定时由宿主填充的默认值，必须与绑定类型匹配；默认值属于 schema，不由脚本请求覆盖；
+- 是否允许 `null`、空字符串或空集合；
+- 最大长度、最大行数和其他资源限制；
+- 面向脚本和管理页面的说明。
+
+宿主在调用插件渲染前必须执行完整绑定校验：
+
+1. 模板请求必须指定有效的 `template_id` 和精确 `template_version`；
+2. 请求省略且 schema 提供 `default_value` 的绑定，由宿主先填充默认值；
+3. 请求省略、没有默认值且 `required=true` 的绑定直接拒绝；
+4. 请求省略、没有默认值且 `required=false` 的绑定按 schema 作为缺省/空值处理；
+5. 未知绑定键直接拒绝；
+6. 标量类型、表格列名/类型、日期/时间/`Duration` 编码必须匹配；
+7. `null`、空字符串、空集合和最大行数必须符合 schema；
+8. 模板声明不允许的合并、聚合、公式、样式或格式选项直接拒绝。
+
+缺少数据或数据不符合 schema 时返回 `EXPORT_TEMPLATE_BINDING_INVALID`，并在结构化错误中列出缺少、未知、类型错误和超限的绑定键。默认值只对省略字段生效；脚本显式提供的值或显式 `null` 仍按正常类型和空值规则校验。宿主必须在调用插件前完成默认值填充和必填校验，不能调用插件后才发现数据不完整。
+
+### 11.6 模板资源和安全
+
+- 模板文件由宿主管理的模板库保存，插件只能通过宿主提供的只读流读取；
+- 模板输出必须写入宿主分配的临时文件，成功后再登记 `FileId`；失败或取消时删除临时文件；
+- 插件不得通过模板流反查宿主路径、数据库、UI 或脚本执行对象；
+- 模板中的宏、外部链接、嵌入脚本、远程图片或任意外部资源第一阶段默认拒绝；
+- XLSX/DOCX 模板中的保护、隐藏列、打印区域和样式只能在插件校验结果声明支持后保留；不支持的特性返回 `EXPORT_TEMPLATE_UNSUPPORTED`，不能静默丢弃；
+- 模板校验器和渲染器必须支持取消，并限制文件大小、容器解压大小、重复行数和处理耗时；
+- 当前插件属于同进程受信任代码，插件化不等于沙箱；不受信任插件或模板以后需要独立 Worker。
+
+### 11.7 模板选择和执行流程
+
+推荐流程：
+
+1. 用户先在模板管理页面导入并校验模板；
+2. 脚本调用 `exports.templates.list(format_id)`；
+3. 脚本用 `ui.options.select` 让用户选择模板，或从手动参数中读取已经确认的 `template_id + template_version`；
+4. 脚本根据模板 descriptor 组装 `TemplateExportSource`，提供全部必填 `values`/`tables`/`documents`；
+5. 宿主校验模板状态、版本、绑定 schema、必填数据和格式能力；
+6. 插件通过只读模板流校验上下文并渲染到宿主分配的输出路径；
+7. 宿主登记 `FileId`，脚本可继续调用 `ui.exported_file.open`。
+
+模板目录查询本身不需要 UI 作用域；目录选择、模板选择对话框、导出和询问打开仍遵循第 7 节有人值守策略。无人值守脚本可以使用预先固定且已验证的模板配置，但不能临时弹出模板选择或目录选择对话框。
 
 ## 12. 错误模型
 
@@ -1560,6 +1884,10 @@ public sealed record TemplateExportRequest
 | `EXPORT_TOO_LARGE` | 数据或文件超过限制 | 否 |
 | `EXPORT_FAILED` | 目标格式生成或保存失败 | 视错误而定 |
 | `EXPORT_UNSUPPORTED_FEATURE` | 目标格式不支持请求中的内容或特性 | 否 |
+| `EXPORT_FORMAT_UNAVAILABLE` | 格式插件未加载、被阻止或处理器不可用 | 否 |
+| `EXPORT_TEMPLATE_UNAVAILABLE` | 模板不存在、版本被撤回或插件不可用 | 否 |
+| `EXPORT_TEMPLATE_BINDING_INVALID` | 模板绑定缺失、未知、类型不匹配或超出 schema | 否 |
+| `EXPORT_TEMPLATE_UNSUPPORTED` | 模板或模板插件不支持请求的特性 | 否 |
 | `EXPORTED_FILE_NOT_FOUND` | 导出文件不存在 | 否 |
 | `EXPORTED_FILE_OPEN_FAILED` | 系统默认程序打开失败 | 否 |
 | `HOSTCALL_NOT_FOUND` | HostCall 方法未注册 | 否 |
@@ -1597,6 +1925,8 @@ ConflictMode = ExportConflictMode.AutoRename;
 
 - 交互 API 检查脚本入口和执行来源；
 - 导出 API 检查文件名、目录和数据大小；
+- 导入模板限制为 20 MiB、最多 2048 个压缩包条目和 100 MiB 解压总量；
+- OpenXML 模板拒绝外部关系、宏、ActiveX、OLE 和嵌入对象，XLSX/DOCX 再检查危险公式或字段指令；
 - 只有宿主生成的 `FileId` 可以请求打开；
 - 不能从脚本直接打开任意系统文件；
 - 导出失败、取消和打开失败写入脚本执行诊断；
@@ -1661,6 +1991,7 @@ C# Worker 的静态限制不是完整安全沙箱，因此本设计不把文件�
 - 有标题和无标题时的 CSV 行布局分别正确；
 - `style=default` 成功，`style=compact/report` 返回 `EXPORT_UNSUPPORTED_FEATURE`；
 - 未知 CSV 选项返回 `EXPORT_INVALID_REQUEST`；以 `=`, `+`, `-`, `@` 开头的文本不会被导出为可执行公式。
+- CSV 文本模板按字段解析后再插值，插入值中的逗号、双引号、CR/LF 和公式前缀会重新转义，重复绑定或无效引号结构在导入阶段拒绝。
 
 ### 15.5 DOCX 输出测试
 
@@ -1672,7 +2003,24 @@ C# Worker 的静态限制不是完整安全沙箱，因此本设计不把文件�
 - 普通文档导出与 OA 模板导出边界清晰；
 - `docx/table` 与 `docx/document` 的能力目录和处理器一致。
 
-### 15.6 数据场景测试
+### 15.6 模板导出测试
+
+- 模板目录只返回注册表中已启用模板的 `template_id`、精确版本、模板扩展名和绑定 schema，不返回模板路径；
+- 模板文件按扩展名匹配唯一插件，扩展名冲突时拒绝插件注册；
+- 模板导入必须调用插件 `ValidateAsync`，校验失败不生成 `template_id`、不进入可用目录；
+- 校验结果能够发现无效结构、缺失锚点、超限压缩包、外部关系、宏/ActiveX/OLE/嵌入对象和不支持的模板能力，并返回结构化诊断；
+- 通用 `Content` 请求不需要模板也能成功，模板缺失不能影响通用导出；
+- 模板请求缺少 `template_id`、版本、必填绑定或包含未知绑定键时返回 `EXPORT_TEMPLATE_BINDING_INVALID`；
+- 模板版本不可用时返回 `EXPORT_TEMPLATE_UNAVAILABLE`，不自动回退到最新版本或通用导出；
+- 标量、表格、文档绑定按 schema 正确写入，Duration、日期、时间和中文保持类型/编码正确；
+- 缺少没有默认值的必填绑定、出现未知绑定或数据类型/空值/行数不符合 schema 时，在调用渲染器前返回 `EXPORT_TEMPLATE_BINDING_INVALID`；
+- 省略带默认值的绑定时，宿主使用 schema 中的默认值；显式传入的值不被默认值覆盖；
+- 模板声明的重复表格区域、最大行数、合并和保护区域约束有效；
+- XLSX 外部工作簿引用及 `WEBSERVICE`/`FILTERXML`/`HYPERLINK`/`RTD`/`DDE` 等危险公式、DOCX 外部字段指令，以及 OpenXML 外部关系、宏和嵌入对象返回 `EXPORT_TEMPLATE_UNSUPPORTED`；
+- 模板处理失败、取消或 Worker 终止时清理临时文件，不登记 `FileId`；
+- 同一插件同时提供通用处理器和模板处理器时，`exports.formats.list` 与 `exports.templates.list` 的能力描述一致。
+
+### 15.7 数据场景测试
 
 - 本月有单条加班记录；
 - 本月有多条加班记录；
@@ -1695,22 +2043,32 @@ C# Worker 的静态限制不是完整安全沙箱，因此本设计不把文件�
 5. 编写加班明细导出示例脚本；
 6. 同步 CSharp/Lua/Python API 文档。
 
-### 阶段二：CSV 表格导出
+### 阶段二：导出插件契约和通用 XLSX 迁移
 
-1. 增加 `CsvTableExportHandler`；
-2. 实现并验证文档已定义的 UTF-8、表头、分隔符、引号和换行策略；
-3. 对 CSV 不支持的合并、背景色和原始公式返回 `EXPORT_UNSUPPORTED_FEATURE`；
-4. 增加 CSV 文件内容和中文兼容性测试。
+1. [x] 增加模板 `IExportPlugin`/`IExportTemplateHandler` 契约、按扩展名发现和 XLSX 模板插件；
+2. [x] 增加宿主模板目录，导入时调用插件校验，按 `plugin_id.template_name` 生成并校验 `template_id`；
+3. [x] 增加绑定 schema、默认值填充、必填数据校验和 `exports.templates.list` Worker 代理；
+4. [x] 增加导出模板管理页面，支持导入、重新校验、启用/禁用和归档；
+5. [x] 将通用 XLSX 处理器迁移到统一导出插件注册表，保留后台生成语义，并增加 CSV、DOCX 插件；
+6. [x] 增加 OpenXML 模板大小、压缩包膨胀、外部关系、宏和嵌入对象校验，并为 XLSX/DOCX 增加危险公式与字段指令检查。
 
-### 阶段三：DOCX 文档和 OA 模板
+### 阶段三：CSV 表格导出
 
-1. 沿用阶段一已经定义的 `ExportDocumentContent` 和文档块模型；
-2. 注册 `DocxTableExportHandler`/`DocxDocumentExportHandler`，支持表格、段落和标题；
-3. 增加 OA 模板文件引用和固定区域映射；
-4. 保留模板样式、合并、保护和打印设置；
-5. 补充模板兼容性检查。
+1. [x] 增加 `CsvTableExportHandler`；
+2. [x] 实现并验证 UTF-8 BOM、表头、分隔符、引号和 CRLF 换行策略；
+3. [x] 对 CSV 不支持的合并、背景色和原始公式返回结构化错误，并执行公式注入防护；
+4. [x] 增加 CSV 文件内容、中文兼容性和模板导入渲染测试，覆盖模板插值后的逗号、双引号、换行和公式前缀转义。
 
-### 阶段四：批量和大数据导出
+### 阶段四：DOCX 文档和模板导出
+
+1. [x] 落地 `ExportDocumentContent` 和文档块模型；
+2. [x] 注册 DOCX 通用处理器，支持表格、段落、标题、合计和表格合并；
+3. [x] 为 DOCX 插件增加 `.docx` 模板扩展名、校验器、binding schema 生成和占位符渲染器；
+4. [x] 通过统一 `exports.templates.list` 和模板绑定校验暴露 DOCX 模板；
+5. [x] 保留导入模板的原有样式和文档结构；
+6. [x] 增加 DOCX 文件结构、模板渲染和危险外部字段拒绝测试；更完整的跨 Word 版本兼容矩阵仍作为后续增强。
+
+### 阶段五：批量和大数据导出
 
 1. 增加分块导出 HostCall；
 2. 增加分块导出、跨阶段取消和大文件临时文件清理；
@@ -1732,4 +2090,4 @@ C# Worker 的静态限制不是完整安全沙箱，因此本设计不把文件�
 8. 取消目录选择不会产生错误文件；
 9. 不需要给脚本开放任意文件读写权限；
 10. 后续增加 CSV 或 DOCX 时，不需要修改脚本的目录选择、结果打开和执行作用域模型；
-11. 后续可以在不改变脚本查询逻辑的情况下接入 OA 固定模板。
+11. 后续可以在不改变脚本查询逻辑的情况下接入 OA 固定模板；没有模板时通用导出仍然可独立使用。

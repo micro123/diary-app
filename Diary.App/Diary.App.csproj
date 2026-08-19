@@ -36,7 +36,6 @@
 
     <ItemGroup>
         <PackageReference Include="Avalonia.Desktop" Version="11.3.18" />
-        <PackageReference Include="ClosedXML" Version="0.105.0" />
         <PackageReference Include="Microsoft.Diagnostics.NETCore.Client" Version="0.2.661903" />
         <PackageReference Include="Semi.Avalonia.AvaloniaEdit" Version="11.2.0.2" />
         <PackageReference Include="AvaloniaEdit.TextMate" Version="11.2.0" />
@@ -57,6 +56,9 @@
         <ProjectReference Include="..\Diary.PluginBase\Diary.PluginBase.csproj" />
         <ProjectReference Include="..\Diary.PluginUI\Diary.PluginUI.csproj" />
         <ProjectReference Include="..\Diary.Db.SQLite\Diary.Db.SQLite.csproj" />
+        <ProjectReference Include="..\Diary.Export.Csv\Diary.Export.Csv.csproj" />
+        <ProjectReference Include="..\Diary.Export.Docx\Diary.Export.Docx.csproj" />
+        <ProjectReference Include="..\Diary.Export.Xlsx\Diary.Export.Xlsx.csproj" />
         <ProjectReference Include="..\Diary.Script.CSharp\Diary.Script.CSharp.csproj" />
         <ProjectReference Include="..\Diary.Script.Lua\Diary.Script.Lua.csproj" />
         <ProjectReference Include="..\Diary.Script.Python\Diary.Script.Python.csproj" />

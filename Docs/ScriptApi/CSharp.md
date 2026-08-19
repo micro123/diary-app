@@ -333,6 +333,8 @@ if (result.Succeeded)
     await api.System.AskToOpenExportedFileAsync(result.FileId!, cancellationToken);
 ```
 
+模板导出使用 `ExportTemplateSource`，先调用 `api.Exports.ListTemplatesAsync("xlsx")` 获取已经由插件校验的模板和绑定 schema，再提交 `template_id`、`template_version` 以及 `values`/`tables`/`documents`。省略带 `default_value` 的绑定时由宿主填充；缺少没有默认值的必填绑定会返回 `EXPORT_TEMPLATE_BINDING_INVALID`。
+
 Wire JSON 使用全小写/snake_case（例如 `format_id`、`directory_selection_id`、`file_id`、`duration`）；C# 模型仍遵循 C# 命名约定。`Time` 表示时分秒，不参与 `SUM`；`Duration` 表示可超过 24 小时的时长，XLSX 使用 `[h]:mm:ss`。文件名含路径分隔符、控制字符、`.`/`..` 或路径穿越片段时直接拒绝，不做替换。
 
 ## 10. 调试日志
@@ -527,6 +529,7 @@ public interface IExportApi
 {
     ValueTask<ExportResult> ExportAsync(ExportRequest request, CancellationToken cancellationToken = default);
     ValueTask<IReadOnlyList<ExportFormatDescriptor>> ListFormatsAsync(CancellationToken cancellationToken = default);
+    ValueTask<IReadOnlyList<ExportTemplateDescriptor>> ListTemplatesAsync(string? formatId = null, CancellationToken cancellationToken = default);
 }
 
 public interface ILogApi

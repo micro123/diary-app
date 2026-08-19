@@ -1,6 +1,8 @@
 using System.Globalization;
+using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Xml;
 using Diary.ScriptBase;
 using Diary.Script.Runtime;
 
@@ -134,12 +136,38 @@ public sealed record ExportTableContent : ExportContent
     public ExportTableStyle Style { get; init; } = ExportTableStyle.Default;
 }
 
+public sealed record ExportDocumentContent : ExportContent
+{
+    public override ExportContentKind Kind => ExportContentKind.Document;
+    public string? Title { get; init; }
+    public required IReadOnlyList<ExportDocumentBlock> Blocks { get; init; }
+    public ExportTableStyle Style { get; init; } = ExportTableStyle.Default;
+}
+
+public abstract record ExportDocumentBlock;
+
+public sealed record ExportHeadingBlock(string Text, int Level = 1) : ExportDocumentBlock;
+
+public sealed record ExportParagraphBlock(string Text) : ExportDocumentBlock;
+
+public sealed record ExportTableBlock(ExportTableContent Table) : ExportDocumentBlock;
+
+public sealed record ExportTemplateSource
+{
+    public required string TemplateId { get; init; }
+    public required string TemplateVersion { get; init; }
+    public IReadOnlyDictionary<string, object?> Values { get; init; } = new Dictionary<string, object?>();
+    public IReadOnlyDictionary<string, ExportTableContent> Tables { get; init; } = new Dictionary<string, ExportTableContent>();
+    public IReadOnlyDictionary<string, ExportContent> Documents { get; init; } = new Dictionary<string, ExportContent>();
+}
+
 public sealed record ExportRequest
 {
     public required string FormatId { get; init; }
     public required string DirectorySelectionId { get; init; }
     public required string FileName { get; init; }
-    public required ExportContent Content { get; init; }
+    public ExportContent? Content { get; init; }
+    public ExportTemplateSource? Template { get; init; }
     public ExportFormatOptions? FormatOptions { get; init; }
 }
 
@@ -147,12 +175,71 @@ public sealed record ExportContentCapabilities(
     ExportContentKind ContentKind,
     IReadOnlyList<ExportFeature> Features);
 
+public sealed record ExportBindingDescriptor(
+    string Key,
+    ExportBindingKind Kind,
+    ExportScalarType? ScalarType = null,
+    bool Required = true,
+    bool HasDefaultValue = false,
+    object? DefaultValue = null,
+    string? Description = null);
+
+public sealed record ExportTemplateDescriptor(
+    string TemplateId,
+    string TemplateVersion,
+    string PluginId,
+    string FormatId,
+    string TemplateFileExtension,
+    string DisplayName,
+    string? Description,
+    IReadOnlyList<ExportBindingDescriptor> Bindings,
+    IReadOnlyList<ExportFeature> Features);
+
+public sealed record ExportTemplateValidationContext(
+    string FileExtension,
+    string FileName);
+
+public sealed record ExportDiagnostic(
+    string Code,
+    string Message,
+    string? BindingKey = null);
+
+public sealed record ExportTemplateValidationResult(
+    bool IsValid,
+    string? TemplateName,
+    string? DisplayName,
+    string? Description,
+    string? TemplateVersion,
+    IReadOnlyList<ExportBindingDescriptor> Bindings,
+    IReadOnlyList<ExportFeature> Features,
+    IReadOnlyList<ExportDiagnostic> Diagnostics);
+
 public sealed record ExportFormatDescriptor(
     string FormatId,
     string DisplayName,
     string DefaultExtension,
     IReadOnlyList<string> AllowedExtensions,
-    IReadOnlyList<ExportContentCapabilities> ContentCapabilities);
+    IReadOnlyList<ExportContentCapabilities> ContentCapabilities,
+    bool SupportsTemplates = false);
+
+public enum ExportBindingKind
+{
+    Scalar,
+    Table,
+    Document,
+}
+
+public enum ExportScalarType
+{
+    Text,
+    Integer,
+    Decimal,
+    Date,
+    Time,
+    Duration,
+    DateTime,
+    Boolean,
+}
 
 public sealed record ExportResult(
     bool Succeeded,
@@ -171,6 +258,187 @@ public interface IExportApi
 
     ValueTask<IReadOnlyList<ExportFormatDescriptor>> ListFormatsAsync(
         CancellationToken cancellationToken = default);
+
+    ValueTask<IReadOnlyList<ExportTemplateDescriptor>> ListTemplatesAsync(
+        string? formatId = null,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed record ExportExecutionContext(
+    string OutputPath,
+    Func<CancellationToken, ValueTask<Stream>> OpenTemplateAsync,
+    CancellationToken CancellationToken,
+    Action<string>? Log = null);
+
+public sealed record ExportRenderResult(int? ItemCount);
+
+public sealed record ExportPluginManifest(
+    string Id,
+    string Version,
+    int ApiVersion = 1);
+
+public interface IExportPlugin
+{
+    ExportPluginManifest Manifest { get; }
+    IEnumerable<IExportHandler> GetExportHandlers();
+    IEnumerable<IExportTemplateHandler> GetTemplateHandlers();
+}
+
+public interface IExportHandler
+{
+    ExportFormatDescriptor Descriptor { get; }
+
+    ValueTask<ExportRenderResult> RenderAsync(
+        ExportRequest request,
+        ExportExecutionContext context,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IExportTemplateHandler
+{
+    string PluginId { get; }
+    string FormatId { get; }
+    IReadOnlyList<string> SupportedTemplateExtensions { get; }
+
+    ValueTask<ExportTemplateValidationResult> ValidateAsync(
+        Stream templateStream,
+        ExportTemplateValidationContext context,
+        CancellationToken cancellationToken = default);
+
+    ValueTask<ExportRenderResult> RenderAsync(
+        ExportRequest request,
+        ExportExecutionContext context,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed record ExportTemplateRegistration(
+    ExportTemplateDescriptor Descriptor,
+    string TemplateFilePath,
+    IExportTemplateHandler Handler);
+
+public sealed record ExportTemplateCatalogEntry(
+    ExportTemplateDescriptor Descriptor,
+    bool Enabled);
+
+public sealed record ExportTemplateImportResult(
+    bool Succeeded,
+    ExportTemplateDescriptor? Descriptor = null,
+    IReadOnlyList<ExportDiagnostic>? Diagnostics = null,
+    string? ErrorCode = null,
+    string? ErrorMessage = null);
+
+public static class ExportTemplateBindingValidator
+{
+    public static bool TryApplyDefaults(
+        ExportTemplateSource source,
+        ExportTemplateDescriptor descriptor,
+        out ExportTemplateSource normalized,
+        out IReadOnlyList<ExportDiagnostic> diagnostics)
+    {
+        var errors = new List<ExportDiagnostic>();
+        var bindings = descriptor.Bindings.ToDictionary(binding => binding.Key, StringComparer.Ordinal);
+        var values = new Dictionary<string, object?>(source.Values, StringComparer.Ordinal);
+        var tables = new Dictionary<string, ExportTableContent>(source.Tables, StringComparer.Ordinal);
+        var documents = new Dictionary<string, ExportContent>(source.Documents, StringComparer.Ordinal);
+
+        foreach (var key in values.Keys)
+            if (!bindings.TryGetValue(key, out var binding) || binding.Kind != ExportBindingKind.Scalar)
+                errors.Add(new("EXPORT_TEMPLATE_UNKNOWN_BINDING", $"未知或类型不匹配的标量绑定：{key}。", key));
+        foreach (var key in tables.Keys)
+            if (!bindings.TryGetValue(key, out var binding) || binding.Kind != ExportBindingKind.Table)
+                errors.Add(new("EXPORT_TEMPLATE_UNKNOWN_BINDING", $"未知或类型不匹配的表格绑定：{key}。", key));
+        foreach (var key in documents.Keys)
+            if (!bindings.TryGetValue(key, out var binding) || binding.Kind != ExportBindingKind.Document)
+                errors.Add(new("EXPORT_TEMPLATE_UNKNOWN_BINDING", $"未知或类型不匹配的文档绑定：{key}。", key));
+
+        foreach (var binding in descriptor.Bindings)
+        {
+            var exists = binding.Kind switch
+            {
+                ExportBindingKind.Scalar => values.ContainsKey(binding.Key),
+                ExportBindingKind.Table => tables.ContainsKey(binding.Key),
+                ExportBindingKind.Document => documents.ContainsKey(binding.Key),
+                _ => false,
+            };
+            if (!exists && binding.HasDefaultValue)
+            {
+                if (binding.Kind != ExportBindingKind.Scalar)
+                    errors.Add(new("EXPORT_TEMPLATE_DEFAULT_INVALID", "只有标量绑定支持默认值。", binding.Key));
+                else
+                    values[binding.Key] = binding.DefaultValue;
+                exists = true;
+            }
+
+            if (!exists && binding.Required)
+                errors.Add(new("EXPORT_TEMPLATE_REQUIRED_BINDING_MISSING", "缺少必填模板数据。", binding.Key));
+
+            if (exists && binding.Kind == ExportBindingKind.Scalar
+                && !IsScalarValueValid(values[binding.Key], binding.ScalarType))
+                errors.Add(new("EXPORT_TEMPLATE_BINDING_TYPE_INVALID", "模板绑定数据类型不匹配。", binding.Key));
+        }
+
+        diagnostics = errors;
+        normalized = source with
+        {
+            Values = values,
+            Tables = tables,
+            Documents = documents,
+        };
+        return errors.Count == 0;
+    }
+
+    private static bool IsScalarValueValid(object? value, ExportScalarType? type)
+    {
+        if (value is null || type is null)
+            return true;
+        if (value is JsonElement element)
+        {
+            return type switch
+            {
+                ExportScalarType.Text => element.ValueKind == JsonValueKind.String,
+                ExportScalarType.Boolean => element.ValueKind is JsonValueKind.True or JsonValueKind.False,
+                ExportScalarType.Integer or ExportScalarType.Decimal => element.ValueKind == JsonValueKind.Number,
+                _ => element.ValueKind == JsonValueKind.String,
+            };
+        }
+        return type switch
+        {
+            ExportScalarType.Text => value is string,
+            ExportScalarType.Integer => value is int or long or short or byte,
+            ExportScalarType.Decimal => value is decimal or double or float or int or long,
+            ExportScalarType.Date => value is DateOnly or string,
+            ExportScalarType.Time => value is TimeOnly or string,
+            ExportScalarType.Duration => value is TimeSpan or string,
+            ExportScalarType.DateTime => value is DateTimeOffset or DateTime or string,
+            ExportScalarType.Boolean => value is bool,
+            _ => true,
+        };
+    }
+}
+
+public interface IExportTemplateCatalog
+{
+    IReadOnlyList<ExportTemplateDescriptor> List(string? formatId = null);
+
+    IReadOnlyList<ExportTemplateCatalogEntry> ListAll();
+
+    bool TryResolve(
+        string templateId,
+        string templateVersion,
+        out ExportTemplateRegistration registration);
+
+    ValueTask<ExportTemplateImportResult> ImportAsync(
+        string sourcePath,
+        CancellationToken cancellationToken = default);
+
+    ValueTask<ExportTemplateImportResult> RevalidateAsync(
+        string templateId,
+        string templateVersion,
+        CancellationToken cancellationToken = default);
+
+    bool SetEnabled(string templateId, string templateVersion, bool enabled);
+
+    bool Archive(string templateId, string templateVersion);
 }
 
 public interface IFileInteractionApi : IOptionDialogApi
@@ -210,8 +478,62 @@ public sealed class ExportRequestValidator
             extension = descriptor.DefaultExtension;
         if (!descriptor.AllowedExtensions.Any(x => string.Equals(x, extension, StringComparison.OrdinalIgnoreCase)))
             return Error("文件扩展名与导出格式不匹配。");
-        if (request.Content is not ExportTableContent table)
-            return Error("当前导出处理器只支持 table 内容。");
+        if ((request.Content is null) == (request.Template is null))
+            return Error("通用导出和模板导出必须且只能选择一种内容来源。");
+        if (request.Template is not null)
+        {
+            if (!descriptor.SupportsTemplates)
+                return Error($"格式 {descriptor.FormatId} 不支持模板导出。");
+            if (string.IsNullOrWhiteSpace(request.Template.TemplateId)
+                || string.IsNullOrWhiteSpace(request.Template.TemplateVersion))
+                return Error("模板 ID 和版本不能为空。");
+            return null;
+        }
+        var content = request.Content!;
+        var capability = descriptor.ContentCapabilities.FirstOrDefault(item => item.ContentKind == content.Kind);
+        if (capability is null)
+            return Error($"格式 {descriptor.FormatId} 不支持 {content.Kind.ToString().ToLowerInvariant()} 内容。");
+        if (request.FormatOptions is not null
+            && !string.Equals(request.FormatOptions.FormatId, descriptor.FormatId, StringComparison.Ordinal))
+            return Error("格式选项的格式 ID 与导出格式不一致。");
+
+        return content switch
+        {
+            ExportTableContent table => ValidateTable(table),
+            ExportDocumentContent document => ValidateDocument(document),
+            _ => Error("未知的导出内容类型。"),
+        };
+    }
+
+
+    private static ScriptApiError? ValidateDocument(ExportDocumentContent document)
+    {
+        if (document.Blocks.Count > MaxRows)
+            return Error("文档块数量超出限制。");
+        foreach (var block in document.Blocks)
+        {
+            switch (block)
+            {
+                case ExportHeadingBlock heading when heading.Level is < 1 or > 6:
+                    return Error("文档标题级别必须在 1 到 6 之间。");
+                case ExportHeadingBlock heading when string.IsNullOrWhiteSpace(heading.Text):
+                    return Error("文档标题不能为空。");
+                case ExportParagraphBlock paragraph when paragraph.Text.Length > 1_000_000:
+                    return Error("文档段落长度超出限制。");
+                case ExportTableBlock table:
+                    {
+                        var error = ValidateTable(table.Table);
+                        if (error is not null)
+                            return error;
+                        break;
+                    }
+            }
+        }
+        return null;
+    }
+
+    private static ScriptApiError? ValidateTable(ExportTableContent table)
+    {
         if (table.Columns.Count is 0 or > MaxColumns)
             return Error("导出列数量超出限制。");
         if (table.Rows.Count > MaxRows)
@@ -259,7 +581,6 @@ public sealed class ExportRequestValidator
                     return Error("合并区域不能相互重叠。");
             }
         }
-
         return null;
     }
 
@@ -323,6 +644,9 @@ public sealed class ExportRequestValidator
         return TimeSpan.FromHours(hours) + TimeSpan.FromMinutes(minutes) + TimeSpan.FromSeconds(secondsValue);
     }
 
+    public static ExportContentKind GetContentKind(ExportRequest request) =>
+        request.Content?.Kind ?? ExportContentKind.Table;
+
     private static ScriptApiError Error(string message) =>
         new("EXPORT_INVALID_REQUEST", message, ScriptErrorCategory.Validation);
 }
@@ -364,37 +688,122 @@ public static class ExportJson
         {
             using var document = JsonDocument.ParseValue(ref reader);
             var root = document.RootElement;
-            var kind = root.GetProperty("kind").GetString();
-            if (!string.Equals(kind, "table", StringComparison.Ordinal))
-                throw new JsonException("只支持 table 导出内容。");
-            var columns = root.GetProperty("columns").Deserialize<List<ExportColumn>>(options) ?? [];
-            var rows = root.GetProperty("rows").EnumerateArray()
+            return root.GetProperty("kind").GetString() switch
+            {
+                "table" => ReadTable(root, options),
+                "document" => ReadDocument(root, options),
+                _ => throw new JsonException("只支持 table 或 document 导出内容。"),
+            };
+        }
+
+        public override void Write(Utf8JsonWriter writer, ExportContent value, JsonSerializerOptions options)
+        {
+            switch (value)
+            {
+                case ExportTableContent table:
+                    WriteTable(writer, table, options, includeKind: true);
+                    break;
+                case ExportDocumentContent document:
+                    WriteDocument(writer, document, options);
+                    break;
+                default:
+                    throw new JsonException("只支持 table 或 document 导出内容。");
+            }
+        }
+
+        private static ExportTableContent ReadTable(JsonElement root, JsonSerializerOptions options) => new()
+        {
+            Title = root.TryGetProperty("title", out var title) ? title.GetString() : null,
+            Columns = root.GetProperty("columns").Deserialize<List<ExportColumn>>(options) ?? [],
+            Rows = root.GetProperty("rows").EnumerateArray()
                 .Select(row => row.EnumerateArray().Select(ToObject).ToArray())
                 .Cast<IReadOnlyList<object?>>()
-                .ToArray();
-            return new ExportTableContent
+                .ToArray(),
+            Aggregates = root.TryGetProperty("aggregates", out var aggregates)
+                ? aggregates.Deserialize<List<ExportAggregateColumn>>(options) ?? []
+                : [],
+            Merges = root.TryGetProperty("merges", out var merges)
+                ? merges.Deserialize<List<TableCellMerge>>(options) ?? []
+                : [],
+            Style = root.TryGetProperty("style", out var style)
+                ? style.Deserialize<ExportTableStyle>(options)
+                : ExportTableStyle.Default,
+        };
+
+        private static ExportDocumentContent ReadDocument(JsonElement root, JsonSerializerOptions options)
+        {
+            var blocks = new List<ExportDocumentBlock>();
+            foreach (var block in root.GetProperty("blocks").EnumerateArray())
+            {
+                blocks.Add(block.GetProperty("kind").GetString() switch
+                {
+                    "heading" => new ExportHeadingBlock(
+                        block.GetProperty("text").GetString() ?? string.Empty,
+                        block.TryGetProperty("level", out var level) ? level.GetInt32() : 1),
+                    "paragraph" => new ExportParagraphBlock(block.GetProperty("text").GetString() ?? string.Empty),
+                    "table" => new ExportTableBlock(ReadTable(block.GetProperty("table"), options)),
+                    _ => throw new JsonException("文档包含未知块类型。"),
+                });
+            }
+            return new ExportDocumentContent
             {
                 Title = root.TryGetProperty("title", out var title) ? title.GetString() : null,
-                Columns = columns,
-                Rows = rows,
-                Aggregates = root.TryGetProperty("aggregates", out var aggregates)
-                    ? aggregates.Deserialize<List<ExportAggregateColumn>>(options) ?? []
-                    : [],
-                Merges = root.TryGetProperty("merges", out var merges)
-                    ? merges.Deserialize<List<TableCellMerge>>(options) ?? []
-                    : [],
+                Blocks = blocks,
                 Style = root.TryGetProperty("style", out var style)
                     ? style.Deserialize<ExportTableStyle>(options)
                     : ExportTableStyle.Default,
             };
         }
 
-        public override void Write(Utf8JsonWriter writer, ExportContent value, JsonSerializerOptions options)
+        private static void WriteDocument(
+            Utf8JsonWriter writer,
+            ExportDocumentContent document,
+            JsonSerializerOptions options)
         {
-            if (value is not ExportTableContent table)
-                throw new JsonException("只支持 table 导出内容。");
             writer.WriteStartObject();
-            writer.WriteString("kind", "table");
+            writer.WriteString("kind", "document");
+            if (document.Title is not null)
+                writer.WriteString("title", document.Title);
+            writer.WritePropertyName("blocks");
+            writer.WriteStartArray();
+            foreach (var block in document.Blocks)
+            {
+                writer.WriteStartObject();
+                switch (block)
+                {
+                    case ExportHeadingBlock heading:
+                        writer.WriteString("kind", "heading");
+                        writer.WriteNumber("level", heading.Level);
+                        writer.WriteString("text", heading.Text);
+                        break;
+                    case ExportParagraphBlock paragraph:
+                        writer.WriteString("kind", "paragraph");
+                        writer.WriteString("text", paragraph.Text);
+                        break;
+                    case ExportTableBlock table:
+                        writer.WriteString("kind", "table");
+                        writer.WritePropertyName("table");
+                        WriteTable(writer, table.Table, options, includeKind: false);
+                        break;
+                    default:
+                        throw new JsonException("文档包含未知块类型。");
+                }
+                writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
+            writer.WriteString("style", document.Style.ToString().ToLowerInvariant());
+            writer.WriteEndObject();
+        }
+
+        private static void WriteTable(
+            Utf8JsonWriter writer,
+            ExportTableContent table,
+            JsonSerializerOptions options,
+            bool includeKind)
+        {
+            writer.WriteStartObject();
+            if (includeKind)
+                writer.WriteString("kind", "table");
             if (table.Title is not null)
                 writer.WriteString("title", table.Title);
             writer.WritePropertyName("columns");
@@ -432,11 +841,106 @@ public static class CsvTextSafety
         return value.Length > 0 && FormulaPrefixes.Contains(value[0]) ? "'" + value : value;
     }
 
-    public static string Escape(string? value)
+    public static string Escape(string? value, bool protectFormulaText = true)
     {
-        var text = ProtectFormulaText(value ?? string.Empty);
+        var text = value ?? string.Empty;
+        if (protectFormulaText)
+            text = ProtectFormulaText(text);
         return text.IndexOfAny([',', '"', '\r', '\n']) >= 0
             ? '"' + text.Replace("\"", "\"\"") + '"'
             : text;
     }
+}
+
+public static class OpenXmlTemplateSafety
+{
+    public const long MaxPackageBytes = 20L * 1024 * 1024;
+    public const long MaxExpandedBytes = 100L * 1024 * 1024;
+    public const int MaxEntryCount = 2_048;
+
+    public static IReadOnlyList<ExportDiagnostic> ValidatePackage(Stream stream)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        if (!stream.CanSeek)
+            return [new("EXPORT_TEMPLATE_STREAM_INVALID", "模板流必须支持定位。")];
+        if (stream.Length > MaxPackageBytes)
+            return [new("EXPORT_TEMPLATE_TOO_LARGE", "模板文件大小超过 20 MiB 限制。")];
+
+        var originalPosition = stream.Position;
+        var diagnostics = new List<ExportDiagnostic>();
+        try
+        {
+            stream.Position = 0;
+            using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: true);
+            if (archive.Entries.Count > MaxEntryCount)
+                diagnostics.Add(new("EXPORT_TEMPLATE_TOO_LARGE", "模板压缩包条目数量超过限制。"));
+
+            long expandedBytes = 0;
+            foreach (var entry in archive.Entries)
+            {
+                expandedBytes = checked(expandedBytes + entry.Length);
+                if (expandedBytes > MaxExpandedBytes)
+                {
+                    diagnostics.Add(new("EXPORT_TEMPLATE_TOO_LARGE", "模板解压后的总大小超过 100 MiB 限制。"));
+                    break;
+                }
+
+                var normalizedName = entry.FullName.Replace('\\', '/').ToLowerInvariant();
+                if (normalizedName.Contains("vbaproject", StringComparison.Ordinal)
+                    || normalizedName.Contains("/activex/", StringComparison.Ordinal)
+                    || normalizedName.Contains("/embeddings/", StringComparison.Ordinal)
+                    || normalizedName.Contains("oleobject", StringComparison.Ordinal))
+                {
+                    diagnostics.Add(new(
+                        "EXPORT_TEMPLATE_UNSUPPORTED",
+                        "模板包含宏、ActiveX 或嵌入对象。",
+                        entry.FullName));
+                }
+
+                if (normalizedName.EndsWith(".rels", StringComparison.Ordinal))
+                    ValidateRelationships(entry, diagnostics);
+            }
+        }
+        catch (Exception exception) when (exception is InvalidDataException or IOException or OverflowException or XmlException)
+        {
+            diagnostics.Add(new("EXPORT_TEMPLATE_STRUCTURE_INVALID", $"无法检查模板包结构：{exception.Message}"));
+        }
+        finally
+        {
+            stream.Position = originalPosition;
+        }
+        return diagnostics;
+    }
+
+    private static void ValidateRelationships(
+        ZipArchiveEntry entry,
+        ICollection<ExportDiagnostic> diagnostics)
+    {
+        using var relationshipStream = entry.Open();
+        using var reader = XmlReader.Create(relationshipStream, new XmlReaderSettings
+        {
+            DtdProcessing = DtdProcessing.Prohibit,
+            XmlResolver = null,
+            IgnoreComments = true,
+            IgnoreWhitespace = true,
+        });
+        while (reader.Read())
+        {
+            if (reader.NodeType != XmlNodeType.Element
+                || !string.Equals(reader.LocalName, "Relationship", StringComparison.Ordinal))
+                continue;
+            if (!string.Equals(reader.GetAttribute("TargetMode"), "External", StringComparison.OrdinalIgnoreCase))
+                continue;
+            diagnostics.Add(new(
+                "EXPORT_TEMPLATE_UNSUPPORTED",
+                "模板包含外部关系或外部链接。",
+                entry.FullName));
+        }
+    }
+}
+
+public sealed class ExportHandlerException(string code, string message, bool retryable = false) : Exception(message)
+{
+    public string Code { get; } = code;
+    public bool Retryable { get; } = retryable;
 }

@@ -200,11 +200,12 @@ Jira 失败时核心工作记录仍可保存。
   - [x] 已增加仅允许有人值守的 `Editor+Editor`、`Application+Manual` 和 `Query+Manual` 选项选择、目录选择、XLSX 导出和询问打开 HostCall；`RequireChoice` 禁止右上角关闭，并对取消、Worker 终止、通道断开和响应发送失败做一次性清理。
   - [x] 已增加绑定 `ExecutionId`/`WorkerId` 的 `DirectorySelectionId` 和短期 `FileId` 生命周期；非法文件名直接拒绝，不做替换。
   - [x] 已增加通用 `IExportApi`、格式目录和 ClosedXML XLSX 表格处理器，支持中文、基础样式、合并单元格、日期/时间/日期时间、数值、`Duration` 和 `SUM` 合计；`Time` 不参与合计，`Duration` 使用 `[h]:mm:ss`。
-  - [x] 已补充 CSV 必要的 RFC 4180 转义和公式注入防护基础工具；完整 `CsvTableExportHandler` 仍待实现。
-  - [ ] 设计并实现 `DocxTableExportHandler`/`DocxDocumentExportHandler` 和文档块模型。
+  - [x] 已实现独立 CSV 插件，固定 UTF-8 BOM/CRLF/RFC 4180，包含公式注入防护、合计计算和 CSV 文本模板；模板插值会重新按字段执行逗号、引号、换行转义和公式前缀防护。
+  - [x] 已实现独立 DOCX 插件，支持文档块、标题、段落、表格、合计、合并和 DOCX 占位符模板；模板导入拒绝外部关系、宏/ActiveX/OLE/嵌入对象及可能访问外部资源的字段指令。
   - [x] 已完成 C#、Lua、Python 门面、Worker 代理、snake_case 协议契约以及无数据/取消/打开失败相关基础测试；真实 UI 端到端测试仍待补充。
   - [ ] 补充加班明细示例脚本及更完整的三语言 API 示例。
-  - [ ] 将格式处理器抽取为独立导出插件契约和注册表：先迁移 XLSX，再接入 CSV/DOCX；插件不得获得目录选择、FileId、UI 或数据库权限。
+  - [x] 已将通用 XLSX、CSV、DOCX 处理器抽取为独立导出插件并统一由格式注册表调度；XLSX 保留后台生成，插件不得获得目录选择、FileId、UI 或数据库权限。重复格式 ID 和模板扩展名会拒绝注册，应用输出目录的真实 DLL 扫描已有回归测试。
+  - [x] 增加导出模板注册表和管理页面：模板文件由宿主管理，按扩展名选择唯一模板插件；宿主按 `plugin_id.template_name` 生成并校验 `template_id`，插件负责模板校验、导出数据 schema 和渲染；模板限制为 20 MiB、最多 2048 个压缩包条目和 100 MiB 解压总量，OpenXML 模板统一拒绝外部关系、宏和嵌入对象；支持导入校验、启用/禁用、重新校验、版本查看和归档，脚本只通过 `exports.templates.list` 获取可用模板。
 
 - [x] 标签编辑器已重排为标签导航和右侧详情页签；Tracker 自动化操作独立归入自动化页签，附加字段定义通过二级对话框编辑并由主页面统一保存。
 新建脚本向导已提供周目标脚本模板，生成的 metadata 自动声明 Week 目标。

@@ -1,6 +1,4 @@
 using System.Collections.Concurrent;
-using System.Globalization;
-using ClosedXML.Excel;
 using Diary.ScriptHost;
 using Diary.Script.Runtime;
 using Diary.ScriptBase;
@@ -8,12 +6,30 @@ using Microsoft.Extensions.Logging;
 
 namespace Diary.App.Services;
 
-public sealed class ScriptExportService(
-    ILogger<ScriptExportService> logger) : IExportApi
+public sealed class ScriptExportService : IContextualExportApi
 {
+    private readonly ILogger<ScriptExportService> _logger;
+    private readonly IExportTemplateCatalog _templateCatalog;
+    private readonly IReadOnlyDictionary<string, IExportHandler> _exportHandlers;
     private readonly ConcurrentDictionary<string, DirectorySelectionEntry> _directories = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, ExportFileEntry> _files = new(StringComparer.Ordinal);
     private readonly TimeSpan _lifetime = TimeSpan.FromMinutes(10);
+
+    public ScriptExportService(
+        ILogger<ScriptExportService> logger,
+        IExportTemplateCatalog templateCatalog,
+        IEnumerable<IExportHandler> exportHandlers)
+    {
+        _logger = logger;
+        _templateCatalog = templateCatalog;
+        var handlers = new Dictionary<string, IExportHandler>(StringComparer.Ordinal);
+        foreach (var handler in exportHandlers)
+        {
+            if (!handlers.TryAdd(handler.Descriptor.FormatId, handler))
+                throw new InvalidOperationException($"导出格式 ID 冲突：{handler.Descriptor.FormatId}。");
+        }
+        _exportHandlers = handlers;
+    }
 
     public void RegisterDirectory(string selectionId, string path, ScriptHostCallContext context)
     {
@@ -51,61 +67,32 @@ public sealed class ScriptExportService(
         return true;
     }
 
+    public ValueTask<IReadOnlyList<ExportTemplateDescriptor>> ListTemplatesAsync(
+        string? formatId = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.FromResult(_templateCatalog.List(formatId));
+    }
+
     public ValueTask<IReadOnlyList<ExportFormatDescriptor>> ListFormatsAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return ValueTask.FromResult<IReadOnlyList<ExportFormatDescriptor>>(
-        [
-            new ExportFormatDescriptor(
-                "xlsx",
-                "Excel 工作簿",
-                ".xlsx",
-                [".xlsx"],
-                [new ExportContentCapabilities(
-                    ExportContentKind.Table,
-                    [
-                        ExportFeature.UnicodeText,
-                        ExportFeature.TypedValues,
-                        ExportFeature.BasicStyle,
-                        ExportFeature.BackgroundColor,
-                        ExportFeature.MergeCells,
-                        ExportFeature.GeneratedAggregate,
-                    ])]),
-        ]);
+            _exportHandlers.Values
+                .Select(handler => handler.Descriptor)
+                .OrderBy(descriptor => descriptor.FormatId, StringComparer.Ordinal)
+                .ToArray());
     }
 
-    public async ValueTask<ExportResult> ExportAsync(
+    public ValueTask<ExportResult> ExportAsync(
         ExportRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        var descriptor = (await ListFormatsAsync(cancellationToken))
-            .FirstOrDefault(item => string.Equals(item.FormatId, request.FormatId, StringComparison.Ordinal));
-        if (descriptor is null)
-            return Failure(request, "EXPORT_INVALID_REQUEST", "不支持的导出格式。", ScriptErrorCategory.Validation);
-
-        var validation = ExportRequestValidator.Validate(request, descriptor);
-        if (validation is not null)
-            return request.Content is null
-                ? new(false, request.FormatId, ExportContentKind.Table, null, null, null, validation)
-                : new(false, request.FormatId, request.Content.Kind, null, null, null, validation);
-
-        if (request.Content is not ExportTableContent table)
-            return Failure(request, "EXPORT_INVALID_REQUEST", "当前导出处理器只支持表格内容。", ScriptErrorCategory.Validation);
-
-        if (request.FormatOptions is not null
-            && (!string.Equals(request.FormatOptions.FormatId, request.FormatId, StringComparison.Ordinal)
-                || request.FormatOptions.Values.Keys.Any(key => !string.Equals(key, "sheetName", StringComparison.Ordinal))))
-            return Failure(request, "EXPORT_INVALID_REQUEST", "XLSX 格式选项无效。", ScriptErrorCategory.Validation);
-
-        if (!TryGetDirectory(request.DirectorySelectionId, new ScriptHostCallContext(
-                "", "", "", ScriptEntryKind.Application, ScriptExecutionSource.Unknown), out _))
-        {
-            // 实际执行路径使用带上下文的 ExportAsync overload；这里保留接口兼容并阻止无上下文调用。
-            return Failure(request, "DIRECTORY_SELECTION_INVALID", "目录选择令牌无效。", ScriptErrorCategory.Permission);
-        }
-
-        return Failure(request, "DIRECTORY_SELECTION_INVALID", "导出请求缺少执行上下文。", ScriptErrorCategory.Permission);
-    }
+        CancellationToken cancellationToken = default) =>
+        ValueTask.FromResult(Failure(
+            request,
+            "DIRECTORY_SELECTION_INVALID",
+            "导出请求缺少执行上下文。",
+            ScriptErrorCategory.Permission));
 
     public async ValueTask<ExportResult> ExportAsync(
         ExportRequest request,
@@ -115,183 +102,119 @@ public sealed class ScriptExportService(
         if (!ScriptHostCallScope.AllowsInteractive(context))
             return Failure(request, "HOSTCALL_SCOPE_NOT_SUPPORTED", "当前脚本执行入口不允许导出。", ScriptErrorCategory.Permission);
 
-        var descriptor = (await ListFormatsAsync(cancellationToken))
-            .FirstOrDefault(item => string.Equals(item.FormatId, request.FormatId, StringComparison.Ordinal));
-        if (descriptor is null)
+        if (!_exportHandlers.TryGetValue(request.FormatId, out var handler))
             return Failure(request, "EXPORT_INVALID_REQUEST", "不支持的导出格式。", ScriptErrorCategory.Validation);
 
-        var validation = ExportRequestValidator.Validate(request, descriptor);
+        var validation = ExportRequestValidator.Validate(request, handler.Descriptor);
         if (validation is not null)
-            return new(false, request.FormatId, request.Content.Kind, null, null, null, validation);
-        if (request.Content is not ExportTableContent table)
-            return Failure(request, "EXPORT_INVALID_REQUEST", "当前导出处理器只支持表格内容。", ScriptErrorCategory.Validation);
+            return new(false, request.FormatId, ExportRequestValidator.GetContentKind(request), null, null, null, validation);
         if (!TryGetDirectory(request.DirectorySelectionId, context, out var directory))
             return Failure(request, "DIRECTORY_SELECTION_INVALID", "目录选择令牌无效或已过期。", ScriptErrorCategory.Permission);
 
-        var sheetName = request.FormatOptions?.Values.TryGetValue("sheetName", out var value) == true
-            ? value?.ToString()
-            : "明细";
-        if (string.IsNullOrWhiteSpace(sheetName))
-            sheetName = "明细";
+        if (request.Template is not null)
+            return await ExportTemplateAsync(request, request.Template, handler.Descriptor, directory, context, cancellationToken);
 
-        var finalName = EnsureExtension(request.FileName, descriptor.DefaultExtension);
+        var finalName = EnsureExtension(request.FileName, handler.Descriptor.DefaultExtension);
         var outputPath = GetUniquePath(directory, finalName);
         try
         {
             Directory.CreateDirectory(directory);
-            await Task.Run(() => WriteXlsx(outputPath, sheetName, table, cancellationToken), cancellationToken);
-            var fileId = Guid.NewGuid().ToString("N");
-            _files[fileId] = new ExportFileEntry(
-                fileId,
-                context.ExecutionId,
-                context.WorkerId,
+            var executionContext = new ExportExecutionContext(
                 outputPath,
-                Path.GetFileName(outputPath),
-                DateTimeOffset.UtcNow.Add(_lifetime));
-            return new(true, request.FormatId, table.Kind, fileId, Path.GetFileName(outputPath), table.Rows.Count, null);
+                _ => throw new InvalidOperationException("通用导出没有模板流。"),
+                cancellationToken,
+                message => _logger.LogDebug("导出插件：{Message}", message));
+            var renderResult = await handler.RenderAsync(request, executionContext, cancellationToken);
+            var fileId = RegisterFile(context, outputPath);
+            return new(true, request.FormatId, ExportRequestValidator.GetContentKind(request), fileId,
+                Path.GetFileName(outputPath), renderResult.ItemCount, null);
         }
         catch (OperationCanceledException)
         {
             TryDelete(outputPath);
             throw;
         }
+        catch (ExportHandlerException exception)
+        {
+            TryDelete(outputPath);
+            return Failure(request, exception.Code, exception.Message, ScriptErrorCategory.Validation, exception.Retryable);
+        }
         catch (Exception exception)
         {
             TryDelete(outputPath);
-            logger.LogWarning(exception, "脚本导出失败：{Path}", outputPath);
+            _logger.LogWarning(exception, "脚本导出失败：{Path}", outputPath);
             return Failure(request, "EXPORT_FAILED", "导出文件生成或保存失败。", ScriptErrorCategory.Host, true);
         }
     }
 
-    private static void WriteXlsx(string path, string sheetName, ExportTableContent table, CancellationToken cancellationToken)
+    private async ValueTask<ExportResult> ExportTemplateAsync(
+        ExportRequest request,
+        ExportTemplateSource source,
+        ExportFormatDescriptor format,
+        string directory,
+        ScriptHostCallContext context,
+        CancellationToken cancellationToken)
     {
-        using var workbook = new XLWorkbook();
-        var worksheet = workbook.Worksheets.Add(SanitizeSheetName(sheetName));
-        var dataStartRow = string.IsNullOrWhiteSpace(table.Title) ? 2 : 3;
-        var headerRow = string.IsNullOrWhiteSpace(table.Title) ? 1 : 2;
-        var dataEndRow = dataStartRow + table.Rows.Count - 1;
+        if (!_templateCatalog.TryResolve(source.TemplateId, source.TemplateVersion, out var registration))
+            return Failure(request, "EXPORT_TEMPLATE_UNAVAILABLE", "模板不存在、已禁用或对应插件不可用。", ScriptErrorCategory.Validation);
+        if (!string.Equals(registration.Descriptor.FormatId, format.FormatId, StringComparison.Ordinal))
+            return Failure(request, "EXPORT_TEMPLATE_FORMAT_MISMATCH", "模板与导出格式不匹配。", ScriptErrorCategory.Validation);
+        if (!ExportTemplateBindingValidator.TryApplyDefaults(
+                source,
+                registration.Descriptor,
+                out var normalized,
+                out var diagnostics))
+            return Failure(
+                request,
+                "EXPORT_TEMPLATE_BINDING_INVALID",
+                string.Join(" ", diagnostics.Select(item => item.Message)),
+                ScriptErrorCategory.Validation);
 
-        if (!string.IsNullOrWhiteSpace(table.Title))
+        var finalName = EnsureExtension(request.FileName, registration.Descriptor.TemplateFileExtension);
+        var outputPath = GetUniquePath(directory, finalName);
+        try
         {
-            worksheet.Cell(1, 1).Value = table.Title;
-            worksheet.Range(1, 1, 1, table.Columns.Count).Merge();
-            ApplyTitleStyle(worksheet.Range(1, 1, 1, table.Columns.Count));
+            Directory.CreateDirectory(directory);
+            var executionContext = new ExportExecutionContext(
+                outputPath,
+                _ => ValueTask.FromResult<Stream>(File.OpenRead(registration.TemplateFilePath)),
+                cancellationToken,
+                message => _logger.LogDebug("模板导出：{Message}", message));
+            var renderRequest = request with { Template = normalized };
+            var renderResult = await registration.Handler.RenderAsync(renderRequest, executionContext, cancellationToken);
+            var fileId = RegisterFile(context, outputPath);
+            return new(true, request.FormatId, ExportRequestValidator.GetContentKind(request), fileId,
+                Path.GetFileName(outputPath), renderResult.ItemCount, null);
         }
-
-        for (var columnIndex = 0; columnIndex < table.Columns.Count; columnIndex++)
+        catch (OperationCanceledException)
         {
-            worksheet.Cell(headerRow, columnIndex + 1).Value = table.Columns[columnIndex].Name;
-            ApplyHeaderStyle(worksheet.Cell(headerRow, columnIndex + 1));
+            TryDelete(outputPath);
+            throw;
         }
-
-        for (var rowIndex = 0; rowIndex < table.Rows.Count; rowIndex++)
+        catch (ExportHandlerException exception)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            for (var columnIndex = 0; columnIndex < table.Columns.Count; columnIndex++)
-            {
-                var column = table.Columns[columnIndex];
-                var cell = worksheet.Cell(dataStartRow + rowIndex, columnIndex + 1);
-                var normalized = ExportRequestValidator.NormalizeValue(
-                    table.Rows[rowIndex][columnIndex], column.Type, column.Name, rowIndex + 1);
-                SetCellValue(cell, normalized, column.Type);
-                if (!string.IsNullOrWhiteSpace(column.NumberFormat))
-                    cell.Style.NumberFormat.Format = column.NumberFormat;
-                else if (column.Type == ExportColumnType.Duration)
-                    cell.Style.NumberFormat.Format = "[h]:mm:ss";
-            }
+            TryDelete(outputPath);
+            return Failure(request, exception.Code, exception.Message, ScriptErrorCategory.Validation, exception.Retryable);
         }
-
-        if (table.Aggregates.Count > 0)
+        catch (Exception exception)
         {
-            var aggregateRow = Math.Max(dataEndRow + 1, dataStartRow);
-            worksheet.Cell(aggregateRow, 1).Value = "合计";
-            foreach (var aggregate in table.Aggregates)
-            {
-                var columnIndex = table.Columns
-                    .Select((column, index) => (column, index))
-                    .First(item => string.Equals(item.column.Name, aggregate.ColumnName, StringComparison.OrdinalIgnoreCase)).index + 1;
-                var formula = dataEndRow >= dataStartRow
-                    ? $"SUM({worksheet.Cell(dataStartRow, columnIndex).Address}:{worksheet.Cell(dataEndRow, columnIndex).Address})"
-                    : "0";
-                worksheet.Cell(aggregateRow, columnIndex).FormulaA1 = formula;
-                ApplyTotalStyle(worksheet.Cell(aggregateRow, columnIndex));
-            }
-            ApplyTotalStyle(worksheet.Cell(aggregateRow, 1));
-        }
-
-        foreach (var merge in table.Merges)
-        {
-            var rowOffset = dataStartRow - 1;
-            worksheet.Range(
-                merge.StartRow + rowOffset,
-                merge.StartColumn,
-                merge.StartRow + merge.RowSpan - 1 + rowOffset,
-                merge.StartColumn + merge.ColumnSpan - 1).Merge();
-        }
-
-        worksheet.Columns().AdjustToContents();
-        workbook.SaveAs(path);
-    }
-
-    private static void SetCellValue(IXLCell cell, object? value, ExportColumnType type)
-    {
-        if (value is null)
-        {
-            cell.Clear();
-            return;
-        }
-
-        switch (type)
-        {
-            case ExportColumnType.Text:
-                cell.SetValue(value.ToString() ?? string.Empty);
-                break;
-            case ExportColumnType.Integer:
-                cell.Value = Convert.ToInt32(value, CultureInfo.InvariantCulture);
-                break;
-            case ExportColumnType.Decimal:
-                cell.Value = Convert.ToDecimal(value, CultureInfo.InvariantCulture);
-                break;
-            case ExportColumnType.Boolean:
-                cell.Value = Convert.ToBoolean(value, CultureInfo.InvariantCulture);
-                break;
-            case ExportColumnType.Date:
-                cell.Value = ((DateOnly)value).ToDateTime(TimeOnly.MinValue);
-                cell.Style.DateFormat.Format = "yyyy-mm-dd";
-                break;
-            case ExportColumnType.Time:
-                cell.Value = ((TimeOnly)value).ToTimeSpan();
-                cell.Style.DateFormat.Format = "hh:mm:ss";
-                break;
-            case ExportColumnType.Duration:
-                cell.Value = (TimeSpan)value;
-                cell.Style.NumberFormat.Format = "[h]:mm:ss";
-                break;
-            case ExportColumnType.DateTime:
-                cell.Value = ((DateTimeOffset)value).LocalDateTime;
-                cell.Style.DateFormat.Format = "yyyy-mm-dd hh:mm:ss";
-                break;
+            TryDelete(outputPath);
+            _logger.LogWarning(exception, "模板导出失败：{Path}", outputPath);
+            return Failure(request, "EXPORT_TEMPLATE_FAILED", "模板导出失败。", ScriptErrorCategory.Host, true);
         }
     }
 
-    private static void ApplyTitleStyle(IXLRange range)
+    private string RegisterFile(ScriptHostCallContext context, string outputPath)
     {
-        range.Style.Font.Bold = true;
-        range.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-        range.Style.Fill.BackgroundColor = XLColor.FromHtml("#D9EAF7");
-    }
-
-    private static void ApplyHeaderStyle(IXLCell cell)
-    {
-        cell.Style.Font.Bold = true;
-        cell.Style.Font.FontColor = XLColor.White;
-        cell.Style.Fill.BackgroundColor = XLColor.FromHtml("#4472C4");
-    }
-
-    private static void ApplyTotalStyle(IXLCell cell)
-    {
-        cell.Style.Font.Bold = true;
-        cell.Style.Fill.BackgroundColor = XLColor.FromHtml("#D9EAF7");
+        var fileId = Guid.NewGuid().ToString("N");
+        _files[fileId] = new ExportFileEntry(
+            fileId,
+            context.ExecutionId,
+            context.WorkerId,
+            outputPath,
+            Path.GetFileName(outputPath),
+            DateTimeOffset.UtcNow.Add(_lifetime));
+        return fileId;
     }
 
     private static string EnsureExtension(string fileName, string extension) =>
@@ -312,19 +235,13 @@ public sealed class ScriptExportService(
         }
     }
 
-    private static string SanitizeSheetName(string value)
-    {
-        var filtered = new string(value.Where(character => !"[]:*?/\\".Contains(character)).ToArray());
-        return string.IsNullOrWhiteSpace(filtered) ? "明细" : filtered[..Math.Min(31, filtered.Length)];
-    }
-
     private static ExportResult Failure(
         ExportRequest request,
         string code,
         string message,
         ScriptErrorCategory category,
         bool retryable = false) =>
-        new(false, request.FormatId, request.Content.Kind, null, null, null,
+        new(false, request.FormatId, ExportRequestValidator.GetContentKind(request), null, null, null,
             new ScriptApiError(code, message, category, retryable));
 
     private static void TryDelete(string path)
