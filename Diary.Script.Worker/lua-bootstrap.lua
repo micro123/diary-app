@@ -44,6 +44,13 @@ diary = {
     ui = {
         notify = function(title, body) return __diary_ui_notify(title, body) end,
         confirm = function(title, body) return __diary_ui_confirm(title, body) end,
+        select_option = function(request) return __diary_ui_options_select(request) end,
+        pick_directory = function(options) return __diary_ui_directory_pick(options or {}) end,
+        ask_to_open_exported_file = function(file_id) return __diary_ui_exported_file_open({ file_id = file_id }) end,
+    },
+    exports = {
+        export = function(request) return __diary_exports_export(request) end,
+        list_formats = function() return __diary_exports_formats_list() end,
     },
     log = {
         debug = function(message) return __diary_log_write('Debug', message) end,

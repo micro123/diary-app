@@ -316,6 +316,34 @@ if not ok then
 end
 ```
 
+### 6.1 交互式导出（第一阶段）
+
+Lua API 使用全小写/snake_case；交互式能力只允许有人值守的 `Editor+Editor`、`Application+Manual` 和 `Query+Manual` 执行。
+
+```lua
+local directory = diary.ui.pick_directory({ title = "选择导出目录" })
+if directory == nil then
+    return
+end
+
+local result = diary.exports.export({
+    format_id = "xlsx",
+    directory_selection_id = directory.selection_id,
+    file_name = "report.xlsx",
+    content = {
+        kind = "table",
+        columns = { { name = "时长", type = "duration" } },
+        rows = { { "25:30:00" } },
+        aggregates = { { column_name = "时长", aggregation = "sum" } },
+    },
+})
+if result.succeeded then
+    diary.ui.ask_to_open_exported_file(result.file_id)
+end
+```
+
+`diary.ui.select_option()` 的 `require_choice` 策略禁止用户关闭对话框，但 Worker 终止、取消或宿主退出时会安全结束等待。`Time` 不参与合计；`Duration` 使用 `[h]:mm:ss`。CSV 的基础工具会对 RFC 4180 字段进行转义，并对以 `=`, `+`, `-`, `@` 开头的文本增加前置单引号。
+
 ## 7. Worker API 和沙箱
 
 | Lua API | Worker HostCall |
@@ -332,6 +360,11 @@ end
 | `diary.clipboard.set` | `clipboard.set` |
 | `diary.ui.notify` | `ui.notify` |
 | `diary.ui.confirm` | `ui.confirm` |
+| `diary.ui.select_option` | `ui.options.select` |
+| `diary.ui.pick_directory` | `ui.directory.pick` |
+| `diary.ui.ask_to_open_exported_file` | `ui.exported_file.open` |
+| `diary.exports.list_formats` | `exports.formats.list` |
+| `diary.exports.export` | `exports.export` |
 | `diary.log.*` | `log.write` |
 | `context.progress.report` | `script.progress` |
 

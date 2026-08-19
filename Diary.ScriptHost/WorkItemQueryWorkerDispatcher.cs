@@ -13,14 +13,33 @@ public sealed class WorkItemQueryWorkerDispatcher(
     Func<IHostCapabilitiesScriptApi>? hostCapabilitiesApiFactory = null,
     Func<IClipboardScriptApi>? clipboardApiFactory = null,
     Func<IUserInteractionScriptApi>? interactionApiFactory = null,
+    Func<ScriptHostCallContext, IFileInteractionApi>? fileInteractionApiFactory = null,
+    Func<ScriptHostCallContext, IExportApi>? exportApiFactory = null,
     Func<string, ILogApi>? scriptLogApiFactory = null,
     Func<string, ScriptProgressUpdate, CancellationToken, ValueTask>? progressReporter = null) : IWorkerHostCallDispatcher
 {
-    public async ValueTask<WorkerHostResultPayload> DispatchAsync(
+    public ValueTask<WorkerHostResultPayload> DispatchAsync(
         string executionId,
+        WorkerHostCallPayload call,
+        CancellationToken cancellationToken = default) =>
+        DispatchAsync(
+            new ScriptHostCallContext(
+                executionId,
+                "legacy",
+                "legacy",
+                ScriptEntryKind.Application,
+                ScriptExecutionSource.Manual),
+            call,
+            cancellationToken);
+
+    public async ValueTask<WorkerHostResultPayload> DispatchAsync(
+        ScriptHostCallContext context,
         WorkerHostCallPayload call,
         CancellationToken cancellationToken = default)
     {
+        if (IsInteractiveMethod(call.Method) && !ScriptHostCallScope.AllowsInteractive(context))
+            return new(false, Error: new("HOSTCALL_SCOPE_NOT_SUPPORTED", "当前脚本执行入口不允许交互式导出能力。"));
+
         if (string.Equals(call.Method, "trackerInstances.get", StringComparison.Ordinal)
             || string.Equals(call.Method, "trackerInstances.list", StringComparison.Ordinal))
             return await DispatchTrackerAsync(trackerApiFactory, call);
@@ -38,10 +57,17 @@ public sealed class WorkItemQueryWorkerDispatcher(
         if (string.Equals(call.Method, "ui.notify", StringComparison.Ordinal)
             || string.Equals(call.Method, "ui.confirm", StringComparison.Ordinal))
             return await DispatchInteractionAsync(interactionApiFactory, call, cancellationToken);
+        if (string.Equals(call.Method, "ui.options.select", StringComparison.Ordinal)
+            || string.Equals(call.Method, "ui.directory.pick", StringComparison.Ordinal)
+            || string.Equals(call.Method, "ui.exported_file.open", StringComparison.Ordinal))
+            return await DispatchFileInteractionAsync(fileInteractionApiFactory, call, cancellationToken, context);
+        if (string.Equals(call.Method, "exports.formats.list", StringComparison.Ordinal)
+            || string.Equals(call.Method, "exports.export", StringComparison.Ordinal))
+            return await DispatchExportAsync(exportApiFactory, call, cancellationToken, context);
         if (string.Equals(call.Method, "log.write", StringComparison.Ordinal))
-            return await DispatchScriptLogAsync(scriptLogApiFactory, executionId, call, cancellationToken);
+            return await DispatchScriptLogAsync(scriptLogApiFactory, context.ExecutionId, call, cancellationToken);
         if (string.Equals(call.Method, "script.progress", StringComparison.Ordinal))
-            return await DispatchProgressAsync(progressReporter, executionId, call, cancellationToken);
+            return await DispatchProgressAsync(progressReporter, context.ExecutionId, call, cancellationToken);
         if (!string.Equals(call.Method, "workItems.query", StringComparison.Ordinal))
             return new(false, Error: new("InvalidInput", "不支持的 Worker 宿主 API。"));
         try
@@ -68,6 +94,92 @@ public sealed class WorkItemQueryWorkerDispatcher(
             return new(true, JsonSerializer.SerializeToElement(
                 ScriptWorkItemQueryResult.Failure(ScriptQueryErrorCode.ProviderFailure, "数据库查询失败。"),
                 WorkerProtocol.JsonOptions));
+        }
+    }
+
+    private static bool IsInteractiveMethod(string method) => method is
+        "ui.options.select" or "ui.directory.pick" or "ui.exported_file.open" or "exports.export";
+
+    private static async ValueTask<WorkerHostResultPayload> DispatchFileInteractionAsync(
+        Func<ScriptHostCallContext, IFileInteractionApi>? factory,
+        WorkerHostCallPayload call,
+        CancellationToken cancellationToken,
+        ScriptHostCallContext context)
+    {
+        if (factory is null)
+            return new(false, Error: new("ProviderFailure", "文件交互宿主 API 未配置。"));
+        try
+        {
+            var api = factory(context);
+            if (call.Method == "ui.options.select")
+            {
+                var request = call.Params.Deserialize<OptionDialogRequest>(ExportJson.Options)
+                    ?? throw new JsonException();
+                var result = await api.SelectOptionAsync(request, cancellationToken);
+                return new(true, JsonSerializer.SerializeToElement(result, ExportJson.Options));
+            }
+            if (call.Method == "ui.directory.pick")
+            {
+                var request = call.Params.Deserialize<DirectoryPickerOptions>(ExportJson.Options)
+                    ?? throw new JsonException();
+                var result = await api.PickDirectoryAsync(request, cancellationToken);
+                return new(true, result is null
+                    ? default(JsonElement?)
+                    : JsonSerializer.SerializeToElement(result, ExportJson.Options));
+            }
+
+            var fileId = call.Params.GetProperty("file_id").GetString();
+            if (string.IsNullOrWhiteSpace(fileId))
+                throw new JsonException();
+            var openResult = await api.AskToOpenExportedFileAsync(fileId, cancellationToken);
+            return new(true, JsonSerializer.SerializeToElement(openResult, ExportJson.Options));
+        }
+        catch (JsonException)
+        {
+            return new(false, Error: new("HOSTCALL_INVALID_ARGUMENT", "文件交互参数格式无效。"));
+        }
+        catch (OperationCanceledException)
+        {
+            return new(false, Error: new("CANCELLED", "文件交互已取消。"));
+        }
+        catch (Exception exception)
+        {
+            return new(false, Error: new("HOSTCALL_UNAVAILABLE", exception.Message));
+        }
+    }
+
+    private static async ValueTask<WorkerHostResultPayload> DispatchExportAsync(
+        Func<ScriptHostCallContext, IExportApi>? factory,
+        WorkerHostCallPayload call,
+        CancellationToken cancellationToken,
+        ScriptHostCallContext context)
+    {
+        if (factory is null)
+            return new(false, Error: new("ProviderFailure", "导出宿主 API 未配置。"));
+        try
+        {
+            var api = factory(context);
+            if (call.Method == "exports.formats.list")
+                return new(true, JsonSerializer.SerializeToElement(
+                    await api.ListFormatsAsync(cancellationToken), ExportJson.Options));
+            var request = call.Params.Deserialize<ExportRequest>(ExportJson.Options)
+                ?? throw new JsonException();
+            var result = api is IContextualExportApi contextual
+                ? await contextual.ExportAsync(request, context, cancellationToken)
+                : await api.ExportAsync(request, cancellationToken);
+            return new(true, JsonSerializer.SerializeToElement(result, ExportJson.Options));
+        }
+        catch (JsonException)
+        {
+            return new(false, Error: new("HOSTCALL_INVALID_ARGUMENT", "导出参数格式无效。"));
+        }
+        catch (OperationCanceledException)
+        {
+            return new(false, Error: new("CANCELLED", "导出已取消。"));
+        }
+        catch (Exception exception)
+        {
+            return new(false, Error: new("HOSTCALL_UNAVAILABLE", exception.Message));
         }
     }
 

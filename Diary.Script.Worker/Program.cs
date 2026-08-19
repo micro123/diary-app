@@ -262,6 +262,8 @@ internal sealed class CSharpWorker(Stream input, Stream output)
             context.RegisterApi<ILogApi>(new WorkerScriptLogApi(CallHostAsync));
             context.RegisterApi<IClipboardScriptApi>(new WorkerClipboardProxy(CallHostAsync));
             context.RegisterApi<IUserInteractionScriptApi>(new WorkerUserInteractionProxy(CallHostAsync));
+            context.RegisterApi<IFileInteractionApi>(new WorkerFileInteractionProxy(CallHostAsync));
+            context.RegisterApi<IExportApi>(new WorkerExportProxy(CallHostAsync));
             context.RegisterApi<IDiaryApi>(new WorkerDiaryApiProxy(
                 context.GetApi<IWorkItemQueryScriptApi>()!,
                 context.GetApi<ILogItemScriptApi>()!,
@@ -270,7 +272,9 @@ internal sealed class CSharpWorker(Stream input, Stream output)
                 context.GetApi<IHostCapabilitiesScriptApi>()!));
             context.RegisterApi<ITrackerApi>(new WorkerTrackerApiProxy(context.GetApi<ITrackerInstanceScriptApi>()!));
             context.RegisterApi<SysApi>(new WorkerSystemInteractionApiProxy(
-                context.GetApi<IClipboardScriptApi>()!, context.GetApi<IUserInteractionScriptApi>()!));
+                context.GetApi<IClipboardScriptApi>()!,
+                context.GetApi<IUserInteractionScriptApi>()!,
+                context.GetApi<IFileInteractionApi>()!));
             var outcome = await _executor.ExecuteAsync(build.Program, payload.Request, context, cancellationToken: cancellationToken, executionId: executionId);
             await WriteResultAsync(message, new(outcome.Result.Status, outcome.Result.Diagnostics, DurationMilliseconds: (long)outcome.Duration.TotalMilliseconds, Effects: outcome.Result.Effects));
         }

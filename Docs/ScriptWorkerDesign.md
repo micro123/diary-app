@@ -10,8 +10,7 @@
 可注入传输层、本机进程 transport、C#/Lua/Python Worker 执行链路、按 EngineName 隔离的 supervisor、
 双向宿主 API 转发、通道终止结构化失败以及执行消息和宿主调用次数限制。
 工作集上限按 supervisor 的资源检查周期持续监控，stderr 超限会触发 Worker 回收；操作系统级硬内存限制仍按平台能力处理。Windows/Linux CI 已固定 Python 3.10，并在两端执行真实 C#、Lua、Python Worker 进程测试；发布包运行时 Smoke Test 仍需补充。macOS 不在当前支持范围内。Worker 协议 stdout 已与脚本标准输出隔离，并限制脚本输出大小。工作项流当前采用受限分页 HostCall，不跨 Worker 边界持有数据库连接或 reader，详见查询设计文档。现有脚本 V1 类型和执行结果见
-[`ScriptSystemDesign.md`](ScriptSystemDesign.md) 及 `Diary.ScriptBase`。选项选择对话框、通用导出 HostCall（当前 XLSX，后续 CSV/DOCX）、目录选择令牌和 `FileId` 生命周期的目标协议见
-[`ScriptSpreadsheetExportDesign.md`](ScriptSpreadsheetExportDesign.md)，当前不代表已实现能力。
+[`ScriptSystemDesign.md`](ScriptSystemDesign.md) 及 `Diary.ScriptBase`。选项选择对话框、通用导出 HostCall（第一阶段为 XLSX，后续 CSV/DOCX）、目录选择令牌和 `FileId` 生命周期见 [`ScriptSpreadsheetExportDesign.md`](ScriptSpreadsheetExportDesign.md)；第一阶段的目录选择、RequireChoice、XLSX 导出和结果文件打开询问已接入 C#、Lua、Python Worker。
 
 ## 2. 设计结论
 
@@ -636,9 +635,7 @@ worker 重启后不会自动重复未确认的副作用操作。
 
 脚本是否可执行只由目录加载和编译结果决定；metadata、manifest、目录加载结果和管理页模型均不维护启用/禁用状态，旧 JSON 中的多余字段按未知属性忽略。删除普通脚本需要二次确认并删除源码及 metadata，删除脚本包则删除整个包目录。
 
-脚本契约不再包含 capability 权限字段，默认获得宿主已实现的 API；Worker 握手仍通过
-`supportedHostApis` 声明实际可用方法。C#、Lua、Python Worker 已接入工作项查询、日志项
-创建、模板日志项、Tracker 只读实例目录、剪贴板、用户交互和 `log.write` HostCall。
+脚本契约不再包含 capability 权限字段，默认获得宿主已实现的 API；Worker 握手通过 `supportedHostApis` 声明实际可用方法。C#、Lua、Python Worker 已接入工作项查询、日志项创建、模板日志项、Tracker 只读实例目录、剪贴板、用户交互、目录选择、选项选择、导出文件打开、XLSX 导出和 `log.write` HostCall。协议方法名与字段统一使用全小写/snake_case；每次 HostCall 都由宿主根据 Worker 绑定的执行上下文重新校验入口和触发来源。
 
 ## 20. 分阶段实施
 

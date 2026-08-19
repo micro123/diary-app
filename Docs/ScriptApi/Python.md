@@ -267,6 +267,32 @@ except HostCallError as error:
 
 `HostCallError.code` 与领域错误名的对应关系：`InvalidInput → INVALID_ARGUMENT`、`PermissionDenied → PERMISSION_DENIED`、`DatabaseUnavailable → SCRIPT_API_HOST_NOT_CONFIGURED`、`InstanceUnavailable → INSTANCE_UNAVAILABLE`、`ProviderFailure → PROVIDER_FAILURE`、`Cancelled → CANCELLED`；其他全大写码原样直通，无法识别时兜底 `PROVIDER_FAILURE`。
 
+### 6.1 交互式导出（第一阶段）
+
+Python API 使用全小写/snake_case；交互式能力只允许有人值守的 `Editor+Editor`、`Application+Manual` 和 `Query+Manual` 执行。
+
+```python
+directory = context.diary.ui.pick_directory({"title": "选择导出目录"})
+if directory is None:
+    return
+
+result = context.exports.export({
+    "format_id": "xlsx",
+    "directory_selection_id": directory["selection_id"],
+    "file_name": "report.xlsx",
+    "content": {
+        "kind": "table",
+        "columns": [{"name": "时长", "type": "duration"}],
+        "rows": [["25:30:00"]],
+        "aggregates": [{"column_name": "时长", "aggregation": "sum"}],
+    },
+})
+if result["succeeded"]:
+    context.diary.ui.ask_to_open_exported_file(result["file_id"])
+```
+
+`context.diary.ui.select_option()` 的 `require_choice` 策略禁止用户关闭对话框，但 Worker 终止、取消或宿主退出时会安全结束等待。`Time` 不参与合计；`Duration` 使用 `[h]:mm:ss`。CSV 的基础工具会对 RFC 4180 字段进行转义，并对以 `=`, `+`, `-`, `@` 开头的文本增加前置单引号。
+
 ## 7. Worker API 和沙箱
 
 | Python API | Worker HostCall |
@@ -283,6 +309,11 @@ except HostCallError as error:
 | `context.diary.clipboard.set` | `clipboard.set` |
 | `context.diary.ui.notify` | `ui.notify` |
 | `context.diary.ui.confirm` | `ui.confirm` |
+| `context.diary.ui.select_option` | `ui.options.select` |
+| `context.diary.ui.pick_directory` | `ui.directory.pick` |
+| `context.diary.ui.ask_to_open_exported_file` | `ui.exported_file.open` |
+| `context.exports.list_formats` | `exports.formats.list` |
+| `context.exports.export` | `exports.export` |
 | `context.log.*` | `log.write` |
 | `context.progress.report` | `script.progress` |
 

@@ -214,12 +214,36 @@ class UiApi:
     def __init__(self, state):
         self._notify = HostApi(state, "ui.notify")
         self._confirm = HostApi(state, "ui.confirm")
+        self._select_option = HostApi(state, "ui.options.select")
+        self._pick_directory = HostApi(state, "ui.directory.pick")
+        self._open_exported_file = HostApi(state, "ui.exported_file.open")
 
     def notify(self, title, body):
         return self._notify({"title": title, "body": body})
 
     def confirm(self, title, body):
         return self._confirm({"title": title, "body": body})
+
+    def select_option(self, request):
+        return self._select_option(request)
+
+    def pick_directory(self, options=None):
+        return self._pick_directory(options or {})
+
+    def ask_to_open_exported_file(self, file_id):
+        return self._open_exported_file({"file_id": file_id})
+
+
+class ExportsApi:
+    def __init__(self, state):
+        self._export = HostApi(state, "exports.export")
+        self._list_formats = HostApi(state, "exports.formats.list")
+
+    def export(self, request):
+        return self._export(request)
+
+    def list_formats(self):
+        return self._list_formats({})
 
 
 class ScriptContext:
@@ -233,6 +257,7 @@ class ScriptContext:
         self.idempotencyKey = self.request.get("idempotencyKey")
         self.preview = bool(self.request.get("preview", False))
         self.diary = DiaryApi(state)
+        self.exports = ExportsApi(state)
         self.log = self.diary.log
         self.progress = ProgressApi(state)
         self.dateRange = resolve_date_range(self.target)
@@ -254,6 +279,8 @@ class ScriptContext:
     def __getitem__(self, key):
         if key == "diary":
             return self.diary
+        if key == "exports":
+            return self.exports
         if key == "request":
             return self.request
         if key == "arguments":
@@ -691,7 +718,7 @@ def run():
         "language": "python",
         "workerVersion": "0.3",
         "supportedApiVersions": ["V1"],
-        "supportedHostApis": ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress", "host.capabilities.list"],
+        "supportedHostApis": ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "ui.options.select", "ui.directory.pick", "ui.exported_file.open", "exports.formats.list", "exports.export", "log.write", "script.progress", "host.capabilities.list"],
         "processId": os.getpid(),
     })
     accepted = read_message()

@@ -40,6 +40,13 @@ public sealed class WorkerScriptExecutor(
                 await runtime.Supervisor.StartAsync(runtime.HandshakeOptions, cancellationToken);
             var resolvedExecutionId = executionId ?? Guid.NewGuid();
             var descriptor = program.Descriptor;
+            var entryKind = ScriptEntryKindResolver.Resolve(request, descriptor);
+            var hostCallContext = new ScriptHostCallContext(
+                resolvedExecutionId.ToString(),
+                runtime.Supervisor.WorkerId ?? "unknown",
+                scriptId,
+                entryKind,
+                request.Source);
             var result = await runtime.Supervisor.ExecuteAsync(
                 scriptId,
                 resolvedExecutionId.ToString(),
@@ -57,7 +64,8 @@ public sealed class WorkerScriptExecutor(
                          descriptor.SupportedEditorTargets,
                          descriptor.EntryKind)),
                 timeout,
-                cancellationToken);
+                cancellationToken,
+                hostCallContext);
             return new(resolvedExecutionId, new ScriptExecutionResult(
                 result.Payload.Status,
                 result.Payload.Diagnostics.ToImmutableArray(),

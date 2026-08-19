@@ -276,6 +276,11 @@ internal sealed class LuaWorker(Stream input, Stream output)
         lua.RegisterFunction("__diary_clipboard_set", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.SetClipboard))!);
         lua.RegisterFunction("__diary_ui_notify", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Notify))!);
         lua.RegisterFunction("__diary_ui_confirm", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Confirm))!);
+        lua.RegisterFunction("__diary_ui_options_select", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.SelectOption))!);
+        lua.RegisterFunction("__diary_ui_directory_pick", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.PickDirectory))!);
+        lua.RegisterFunction("__diary_ui_exported_file_open", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.OpenExportedFile))!);
+        lua.RegisterFunction("__diary_exports_export", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Export))!);
+        lua.RegisterFunction("__diary_exports_formats_list", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.ListFormats))!);
         lua.RegisterFunction("__diary_log_write", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Log))!);
         lua.RegisterFunction("__diary_progress_report", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Progress))!);
         lua.RegisterFunction("__diary_is_cancelled", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.IsCancelled))!);
@@ -417,6 +422,11 @@ internal sealed class LuaWorker(Stream input, Stream output)
         public object? SetClipboard(object? text) => Call("clipboard.set", new { text = text?.ToString() ?? string.Empty });
         public object? Notify(object? title, object? body) => Call("ui.notify", new { title = title?.ToString() ?? string.Empty, body = body?.ToString() ?? string.Empty });
         public object? Confirm(object? title, object? body) => Call("ui.confirm", new { title = title?.ToString() ?? string.Empty, body = body?.ToString() ?? string.Empty });
+        public object? SelectOption(object? request) => Call("ui.options.select", request ?? new { });
+        public object? PickDirectory(object? options) => Call("ui.directory.pick", options ?? new { });
+        public object? OpenExportedFile(object? request) => Call("ui.exported_file.open", request ?? new { });
+        public object? Export(object? request) => Call("exports.export", request ?? new { });
+        public object? ListFormats() => Call("exports.formats.list", new { });
         public object? Log(object? level, object? message) => Call("log.write", new { level = level?.ToString() ?? "Info", message = message?.ToString() ?? string.Empty });
         public object? Progress(object? fraction, object? message) => Call("script.progress", new { fraction = Convert.ToDouble(fraction ?? 0), message = message?.ToString() ?? string.Empty });
         public bool IsCancelled() => cancellationToken.IsCancellationRequested;

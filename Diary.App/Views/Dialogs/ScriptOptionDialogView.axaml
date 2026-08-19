@@ -1,0 +1,27 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
+             x:Class="Diary.App.Views.Dialogs.ScriptOptionDialogView"
+             x:DataType="dialogs:ScriptOptionDialogViewModel"
+             Width="480" MinHeight="180" Padding="20">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="14">
+        <TextBlock Text="{Binding DialogTitle}" Classes="Header" />
+        <TextBlock Grid.Row="1" Text="{Binding Message}" TextWrapping="Wrap" />
+        <ItemsControl Grid.Row="2" ItemsSource="{Binding Options}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="dialogs:ScriptOptionDialogViewModel+OptionItem">
+                    <Button Margin="0,4" HorizontalContentAlignment="Left"
+                            Command="{Binding $parent[ItemsControl].DataContext.SelectCommand}"
+                            CommandParameter="{Binding}">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="{Binding Option.Label}" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding Option.Description}" Opacity="0.7" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Button>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Button Grid.Row="3" Content="取消" HorizontalAlignment="Right"
+                Command="{Binding CancelCommand}" IsVisible="{Binding RequireChoice, Converter={x:Static BoolConverters.Not}}" />
+    </Grid>
+</UserControl>

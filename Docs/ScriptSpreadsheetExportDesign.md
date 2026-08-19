@@ -1,6 +1,6 @@
 # 脚本交互式导出能力设计（Excel、CSV、DOCX）
 
-状态：设计中，暂不实现
+状态：第一阶段已实现（交互式 XLSX 与协议骨架），CSV/DOCX 仍待实现
 
 ## 1. 背景
 
@@ -58,14 +58,14 @@
 
 ### 2.2 当前缺口
 
-当前脚本系统不允许脚本直接访问文件系统：
+当前脚本系统仍不允许脚本直接访问文件系统；第一阶段已通过宿主 HostCall 提供受限目录选择、XLSX 导出和结果文件打开询问。当前剩余缺口是 CSV/DOCX 处理器和完整 UI 端到端覆盖：
 
 - C# 禁止 `System.IO` 命名空间和相关引用；
 - Lua Worker 禁用 `io`、`os`、`package`、`require` 等能力；
 - Python Worker 禁止导入模块、`open`、动态执行和文件访问；
 - Worker 的文件写入仅限宿主内部缓存、脚本元数据或协议实现，不能由脚本调用。
 
-当前应用内已有 CSV/Markdown 等导出能力，但没有面向脚本的通用导出 HostCall，也没有文件选择/目录选择脚本 API。本设计不把 API 命名为 Excel 专用 API，Excel 只是第一阶段落地的格式。
+当前应用内已有 CSV/Markdown 等非脚本导出能力；面向脚本的 CSV/DOCX 处理器尚未接入。本设计不把 API 命名为 Excel 专用 API，Excel 是第一阶段已落地的格式。
 
 ## 3. 设计目标
 
@@ -125,7 +125,7 @@ ScriptEditorTarget
 
 ### 4.2 右键导出本周或自定义范围
 
-同一个脚本不绑定“月份”概念，只依赖 `GetDateRange()`。因此日历右键选择本周、上周、本季度或自定义日期范围时，脚本都可以复用。工作项编辑器目标当前没有日期范围；若脚本从该入口运行，应按“缺少日期范围”拒绝，不能自行猜测月份。
+同一个脚本不绑定“月份”概念，只依赖 `GetDateRange()`。因此日历右键选择本周、上周或本季度时，脚本都可以复用。当前编辑器目标不提供自定义日期范围；自定义范围只通过 `Application`/`Query` 脚本的 `Arguments` 传入 `startDate`/`endDate`。工作项编辑器目标当前没有日期范围；若脚本从该入口运行，应按“缺少日期范围”拒绝，不能自行猜测月份。
 
 文件名由脚本根据返回的日期范围生成，例如：
 
@@ -163,7 +163,7 @@ ScriptEditorTarget
 var api = context.Api();
 ```
 
-建议增加：
+第一阶段已增加：
 
 ```csharp
 api.Exports
@@ -253,6 +253,8 @@ public sealed record OptionDialogResult(
 
 `RequireChoice` 的语义是：只要应用和脚本执行仍然有效，对话框就不能通过右上角关闭、Escape、Alt+F4 或点击遮罩层结束；只有选项按钮可以完成 HostCall。不能把“第一个选项”当作关闭时的隐式默认答案。
 
+异常防护必须优先于“必须回答”：如果 CancellationToken 被取消、Worker 已终止、HostCall 通道断开、宿主窗口退出或响应无法发送，宿主必须通过一次性结算逻辑关闭对话框并清理等待状态，不能继续阻塞 UI，也不能伪造 OptionId。用户点击、外部取消和 Worker 终止可能并发发生时，只允许一个路径完成 HostCall；响应发送失败只记录通信错误并释放资源，不无限重试。
+
 UI 实现约束：
 
 - `RequireChoice` 必须使用宿主自有的模态对话框壳，不依赖无法控制关闭按钮的通用 MessageBox；
@@ -327,7 +329,7 @@ public sealed record DirectoryPickerOptions
 public interface SysApi
 {
     ValueTask<OpenExportedFileResult> AskToOpenExportedFileAsync(
-        string fileId,
+        string file_id,
         CancellationToken cancellationToken = default);
 }
 ```
@@ -397,7 +399,7 @@ public sealed record OpenExportedFileResult(
         ↓
 ExportContent（table / document）
         ↓
-按 formatId 选择宿主导出处理器
+按 format_id 选择宿主导出处理器
         ↓
 生成目标文件并登记 FileId
 ```
@@ -547,7 +549,7 @@ public enum ExportTableStyle
 
 `Default` 表示基本内容布局，所有格式都必须能接受；`Compact` 和 `Report` 是可选视觉样式，格式不支持时返回 `EXPORT_UNSUPPORTED_FEATURE`。XLSX 可以将它们映射为背景色、加粗、冻结表头和筛选，DOCX 可以映射为标题/表头样式，CSV 不提供视觉样式。
 
-格式选项带有明确的格式 ID，避免 `sheetName` 等 XLSX 选项污染其他格式：
+格式选项带有明确的格式 ID，避免 `sheet_name` 等 XLSX 选项污染其他格式：
 
 ```csharp
 public sealed record ExportFormatOptions(
@@ -698,7 +700,8 @@ CSV 处理器的第一版约定：
 - 使用 UTF-8；默认带 UTF-8 BOM，便于 Windows/Excel 识别中文；
 - 使用逗号分隔，字段包含逗号、双引号或换行时按 RFC 4180 风格转义；
 - 使用 CRLF 换行；
-- `null` 输出为空字段，日期/时间按公共协议格式化为文本；
+- `null` 输出为空字段，日期/时间/持续时间按公共协议格式化为文本；
+- 文本字段经过必要的公式注入防护：以 `=`, `+`, `-`, `@` 开头的文本必须在首字符前增加单引号 `'` 再按 RFC 4180 转义，不能被 Excel 等程序解释为公式；该防护由 CSV 处理器统一执行，脚本不负责预处理；
 - 有 `Title` 时输出：标题、表头、数据；没有 `Title` 时不生成空白行，表头从第一行开始；
 - `ExportAggregation.Sum` 输出计算后的合计值，不输出公式字符串；
 - 第一版不开放 CSV `FormatOptions`，固定为 UTF-8 BOM、逗号分隔、CRLF 和 RFC 4180 转义；非空 `FormatOptions` 返回 `EXPORT_INVALID_REQUEST`；
@@ -720,17 +723,17 @@ DOCX 处理器的第一版约定：
 
 | 能力 | C# | Lua | Python | HostCall |
 | --- | --- | --- | --- | --- |
-| 选择选项 | `api.System.SelectOptionAsync(request)` | `diary.ui.selectOption(request)` | `context.diary.ui.selectOption(request)` | `ui.options.select` |
-| 选择目录 | `api.System.PickDirectoryAsync(options)` | `diary.ui.pickDirectory(options)` | `context.diary.ui.pickDirectory(options)` | `ui.directory.pick` |
+| 选择选项 | `api.System.SelectOptionAsync(request)` | `diary.ui.select_option(request)` | `context.diary.ui.select_option(request)` | `ui.options.select` |
+| 选择目录 | `api.System.PickDirectoryAsync(options)` | `diary.ui.pick_directory(options)` | `context.diary.ui.pick_directory(options)` | `ui.directory.pick` |
 | 通用导出 | `api.Exports.ExportAsync(request)` | `diary.exports.export(request)` | `context.diary.exports.export(request)` | `exports.export` |
-| 查询格式 | `api.Exports.ListFormatsAsync()` | `diary.exports.listFormats()` | `context.diary.exports.listFormats()` | `exports.formats.list` |
-| 询问打开 | `api.System.AskToOpenExportedFileAsync(fileId)` | `diary.ui.askToOpenExportedFile(fileId)` | `context.diary.ui.askToOpenExportedFile(fileId)` | `ui.exportedFile.open` |
+| 查询格式 | `api.Exports.ListFormatsAsync()` | `diary.exports.list_formats()` | `context.diary.exports.list_formats()` | `exports.formats.list` |
+| 询问打开 | `api.System.AskToOpenExportedFileAsync(fileId)` | `diary.ui.ask_to_open_exported_file(file_id)` | `context.diary.ui.ask_to_open_exported_file(file_id)` | `ui.exported_file.open` |
 
 约束如下：
 
 - C#、Lua、Python 都使用 `ExportRequest` 的 `content.kind` 区分 `table` 和 `document`；
 - Lua/Python 使用语言友好的字典/表，但字段名和 JSON 协议保持一致；
-- Lua/Python 不接收绝对目录路径，只接收 `selectionId`、`displayName`、`fileId` 和 `fileName`；
+- Lua/Python 不接收绝对目录路径，只接收 `selection_id`、`display_name`、`file_id` 和 `file_name`；
 - 非结果类交互调用的宿主故障按现有 Worker 约定抛出/转为 HostCall 错误；导出结果类调用返回 `succeeded` 与 `ScriptApiError`；
 - 用户取消目录选择在三种语言中都映射为 `null`/`nil`，不抛出错误；
 - 用户拒绝打开在三种语言中都返回 `UserDeclined` 状态，不改变导出结果；
@@ -814,7 +817,7 @@ public override async ValueTask<ScriptExecutionResult> ExecuteAsync(
                 "xlsx",
                 new Dictionary<string, object?>
                 {
-                    ["sheetName"] = "加班明细",
+                    ["sheet_name"] = "加班明细",
                 }),
         },
         cancellationToken);
@@ -982,12 +985,11 @@ HostCall 收到文件交互请求后必须切换到 Avalonia UI 线程显示对�
 
 脚本只能提供文件名，宿主负责：
 
-- 去除路径分隔符；
-- 拒绝 `.`、`..` 和路径穿越；
+- 拒绝路径分隔符、控制字符、`.`、`..` 和路径穿越；不做静默替换或清洗；
 - 限制文件名长度；
 - `FileName` 可以不带扩展名；不带扩展名时根据格式目录追加 `DefaultExtension`；
 - 带扩展名时必须与格式目录的 `AllowedExtensions` 匹配，扩展名比较不区分大小写；
-- 不自动替换不匹配的扩展名，例如 `formatId=csv` 与 `report.xlsx` 直接返回 `EXPORT_INVALID_REQUEST`；
+- 不自动替换不匹配的扩展名，例如 `format_id=csv` 与 `report.xlsx` 直接返回 `EXPORT_INVALID_REQUEST`；
 - 格式目录统一保存带点的扩展名，例如 `.xlsx`、`.csv`、`.docx`；
 - 拒绝重复扩展名、空扩展名和路径分隔符，避免生成“内容格式”和文件名不一致的文件；
 - 处理 Windows 保留名称；
@@ -1018,17 +1020,19 @@ HostCall 收到文件交互请求后必须切换到 Avalonia UI 线程显示对�
 
 ### 9.1 HostCall 方法
 
-建议增加：
+第一阶段已增加以下 HostCall；CSV/DOCX 处理器仍待后续实现：
 
 ```text
 ui.options.select
 ui.directory.pick
-ui.exportedFile.open
+ui.exported_file.open
 exports.formats.list
 exports.export
 ```
 
 `host.capabilities.list` 应能发现这些方法，但能力发现不能代替上下文校验。实现时还必须同步更新 `ScriptHostApiCatalog.All`、C# Worker 代理、Lua/Python Worker 代理和握手中的 `supportedHostApis`；HostCall 分发器不得只依赖“已注册”判断，还要执行第 7 节的入口策略检查。
+
+HostCall 分发必须接收不可伪造的执行上下文，至少包括 `ExecutionId`、`WorkerId`、`ScriptId`、`EntryKind` 和 `Source`。该上下文由宿主执行器建立并传递，不能从 Worker 提交的普通参数中读取。
 
 ### 9.2 请求和响应
 
@@ -1043,9 +1047,9 @@ HostCall 使用统一外层响应：
 协议枚举值统一使用小写稳定字符串或 snake_case：
 
 ```text
-formatId: xlsx / csv / docx
+format_id: xlsx / csv / docx
 content.kind: table / document
-column.type: text / integer / decimal / date / time / datetime / boolean
+column.type: text / integer / decimal / date / time / duration / datetime / boolean
 aggregation: sum
 feature: unicode_text / typed_values / generated_aggregate / merge_cells
 ```
@@ -1059,7 +1063,7 @@ C# 内部可以使用 PascalCase 枚举，但 Worker 序列化器必须统一转
   "title": "导出方式",
   "message": "请选择要生成的文件类型",
   "dismissPolicy": "require_choice",
-  "defaultOptionId": "xlsx",
+  "default_option_id": "xlsx",
   "options": [
     {
       "id": "xlsx",
@@ -1118,8 +1122,8 @@ C# 内部可以使用 PascalCase 枚举，但 Worker 序列化器必须统一转
 {
   "success": true,
   "result": {
-    "selectionId": "dirsel-01J...",
-    "displayName": "Exports"
+    "selection_id": "dirsel-01J...",
+    "display_name": "Exports"
   },
   "error": null
 }
@@ -1142,8 +1146,8 @@ C# 内部可以使用 PascalCase 枚举，但 Worker 序列化器必须统一转
   "success": true,
   "result": [
     {
-      "formatId": "xlsx",
-      "displayName": "Excel 工作簿",
+      "format_id": "xlsx",
+      "display_name": "Excel 工作簿",
       "defaultExtension": ".xlsx",
       "allowedExtensions": [".xlsx"],
       "contentCapabilities": {
@@ -1167,19 +1171,19 @@ C# 内部可以使用 PascalCase 枚举，但 Worker 序列化器必须统一转
 ```json
 [
   {
-    "formatId": "xlsx",
+    "format_id": "xlsx",
     "contentCapabilities": {
       "table": ["unicode_text", "typed_values", "basic_style", "background_color", "merge_cells", "generated_aggregate"]
     }
   },
   {
-    "formatId": "csv",
+    "format_id": "csv",
     "contentCapabilities": {
       "table": ["unicode_text", "typed_values", "generated_aggregate"]
     }
   },
   {
-    "formatId": "docx",
+    "format_id": "docx",
     "contentCapabilities": {
       "table": ["unicode_text", "typed_values", "basic_style", "merge_cells", "generated_aggregate"],
       "document": ["unicode_text", "basic_style", "paragraphs", "document_tables"]
@@ -1194,13 +1198,13 @@ CSV 和 DOCX 完成处理器后才出现在运行时格式目录中。脚本应�
 
 ```json
 {
-  "formatId": "xlsx",
-  "directorySelectionId": "dirsel-01J...",
-  "fileName": "加班明细-2026-07.xlsx",
+  "format_id": "xlsx",
+  "directory_selection_id": "dirsel-01J...",
+  "file_name": "加班明细-2026-07.xlsx",
   "formatOptions": {
-    "formatId": "xlsx",
+    "format_id": "xlsx",
     "values": {
-      "sheetName": "加班明细"
+      "sheet_name": "加班明细"
     }
   },
   "content": {
@@ -1228,9 +1232,9 @@ DOCX 文档请求示例：
 
 ```json
 {
-  "formatId": "docx",
-  "directorySelectionId": "dirsel-01J...",
-  "fileName": "加班说明.docx",
+  "format_id": "docx",
+  "directory_selection_id": "dirsel-01J...",
+  "file_name": "加班说明.docx",
   "content": {
     "kind": "document",
     "title": "加班说明",
@@ -1259,10 +1263,10 @@ DOCX 文档请求示例：
   "success": true,
   "result": {
     "succeeded": true,
-    "formatId": "xlsx",
+    "format_id": "xlsx",
     "contentKind": "table",
-    "fileId": "export-01J...",
-    "fileName": "加班明细-2026-07.xlsx",
+    "file_id": "export-01J...",
+    "file_name": "加班明细-2026-07.xlsx",
     "itemCount": 1,
     "error": null
   },
@@ -1277,10 +1281,10 @@ DOCX 文档请求示例：
   "success": true,
   "result": {
     "succeeded": false,
-    "formatId": "csv",
+    "format_id": "csv",
     "contentKind": "table",
-    "fileId": null,
-    "fileName": null,
+    "file_id": null,
+    "file_name": null,
     "itemCount": null,
     "error": {
       "code": "EXPORT_UNSUPPORTED_FEATURE",
@@ -1317,7 +1321,7 @@ ExportRequest
           └── ExportDocumentContent -> content.kind=document
 ```
 
-这套映射由三语言 Worker 代理统一维护，不允许 C#、Lua、Python 各自定义不同字段名。绝对路径不返回给 Worker；脚本只需要选择令牌、格式 ID、内容类型、`fileId` 和 `fileName`。
+这套映射由三语言 Worker 代理统一维护，不允许 C#、Lua、Python 各自定义不同字段名。绝对路径不返回给 Worker；脚本只需要选择令牌、格式 ID、内容类型、`file_id` 和 `file_name`。
 
 #### 9.2.1 单元格值编码
 
@@ -1330,10 +1334,11 @@ ExportRequest
 | `integer` | JSON 整数或 `null` | 不接受带千分位的字符串 |
 | `decimal` | JSON 数字或 `null` | 宿主使用不变文化解析并保存为数值 |
 | `date` | `yyyy-MM-dd` 字符串或 `null` | 不接受本地化日期文本 |
-| `time` | `HH:mm:ss` 字符串或 `null` | 秒为可选输入时先在代理层补齐为 `00` |
+| `time` | `HH:mm:ss` 字符串或 `null` | 表示一天中的时刻，不允许隐式转换为持续时间 |
+| `duration` | JSON 数字（秒）、`HH:mm:ss` 字符串或 `null` | 表示持续时间，允许配置 `sum`；宿主统一转换为时长值 |
 | `datetime` | ISO 8601、带偏移字符串或 `null` | 宿主先按应用配置的本地时区转换；Worker 不得按自身时区隐式转换 |
 
-`content.rows` 中每一行的单元格数量必须等于 `content.columns` 数量，否则返回 `EXPORT_INVALID_REQUEST`。未定义或无法转换的值不进行猜测转换，而是返回带列名和行号的校验错误。
+`content.rows` 中每一行的单元格数量必须等于 `content.columns` 数量，否则返回 `EXPORT_INVALID_REQUEST`。未定义或无法转换的值不进行猜测转换，而是返回带列名和行号的校验错误。C#、Lua、Python 不直接序列化抽象 `ExportContent`；统一使用带 `content.kind` 判别字段的 wire DTO，并由显式 converter/映射将枚举序列化为全小写或 snake_case。
 
 #### 9.2.2 合并坐标
 
@@ -1375,7 +1380,7 @@ exports.export.cancel
 默认创建一个工作表：
 
 ```text
-工作表名称：`formatOptions.sheetName`，缺省为“明细”
+工作表名称：`formatOptions.sheet_name`，缺省为“明细”
 第一行：标题（如果提供）
 第二行：表头
 第三行开始：明细数据
@@ -1417,7 +1422,7 @@ exports.export.cancel
 - 设置数字格式；
 - 在保存前进行必要的公式计算或设置 Excel 重算标志。
 
-第一阶段只支持 `Sum` 聚合。`null` 单元格被忽略；指定列没有任何有效数值时合计为 0。第一阶段只允许对 `Integer`、`Decimal` 和 `Time` 列配置聚合，不允许对文本、布尔或日期列求和。对于 XLSX，宿主将其落地为 `SUM` 公式。
+第一阶段只支持 `Sum` 聚合。`null` 单元格被忽略；指定列没有任何有效数值时合计为 0。第一阶段只允许对 `Integer`、`Decimal` 和 `Duration` 列配置聚合，不允许对 `Time`、文本、布尔或日期列求和。XLSX 的持续时间使用 `[h]:mm:ss` 等不会在 24 小时处回绕的格式。对于 XLSX，宿主将其落地为 `SUM` 公式。
 
 不允许脚本直接传入任意公式字符串作为第一阶段能力，避免公式注入、跨版本兼容和错误引用。后续如确有需要，再增加经过校验的公式表达式能力。
 
@@ -1595,7 +1600,7 @@ C# Worker 的静态限制不是完整安全沙箱，因此本设计不把文件�
 - 同名文件和扩展名校验正确；
 - 有标题和无标题时的 CSV 行布局分别正确；
 - `style=default` 成功，`style=compact/report` 返回 `EXPORT_UNSUPPORTED_FEATURE`；
-- 未知 CSV 选项返回 `EXPORT_INVALID_REQUEST`。
+- 未知 CSV 选项返回 `EXPORT_INVALID_REQUEST`；以 `=`, `+`, `-`, `@` 开头的文本不会被导出为可执行公式。
 
 ### 15.5 DOCX 输出测试
 
@@ -1624,7 +1629,7 @@ C# Worker 的静态限制不是完整安全沙箱，因此本设计不把文件�
 ### 阶段一：通用导出核心和 XLSX 表格
 
 1. 增加 `IExportApi`、通用 `ExportRequest`/`ExportContent`/`ExportResult` 和格式目录；
-2. 增加 `SelectOptionAsync()`/`ui.options.select`、`PickDirectoryAsync()`、`exports.formats.list`、`exports.export` 和 `ui.exportedFile.open`；
+2. 增加 `SelectOptionAsync()`/`ui.options.select`、`PickDirectoryAsync()`、`exports.formats.list`、`exports.export` 和 `ui.exported_file.open`；
 3. 增加 `XlsxTableExportHandler`，由 ClosedXML 生成标准明细表；
 4. C#、Lua、Python Worker 增加通用导出代理和门面；
 5. 编写加班明细导出示例脚本；
@@ -1640,7 +1645,7 @@ C# Worker 的静态限制不是完整安全沙箱，因此本设计不把文件�
 ### 阶段三：DOCX 文档和 OA 模板
 
 1. 沿用阶段一已经定义的 `ExportDocumentContent` 和文档块模型；
-2. 注册 `DocxTableExportHandler`/`DocxDocumentExportHandler`，并增加 `DocxTableExportHandler`/`DocxDocumentExportHandler`，支持表格、段落和标题；
+2. 注册 `DocxTableExportHandler`/`DocxDocumentExportHandler`，支持表格、段落和标题；
 3. 增加 OA 模板文件引用和固定区域映射；
 4. 保留模板样式、合并、保护和打印设置；
 5. 补充模板兼容性检查。

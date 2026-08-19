@@ -528,7 +528,12 @@ namespace Diary.App
                       () => new HostCapabilitiesScriptApi(() => ScriptHostApiCatalog.All),
                       () => new AppClipboardScriptApi(this),
                       () => new AppUserInteractionScriptApi(),
-                      executionId => CreateScriptLogApi(null, executionId),
+                      fileInteractionApiFactory: context => new AppFileInteractionScriptApi(
+                          this,
+                          Services.GetRequiredService<ScriptExportService>(),
+                          context),
+                      exportApiFactory: _ => Services.GetRequiredService<ScriptExportService>(),
+                      scriptLogApiFactory: executionId => CreateScriptLogApi(null, executionId),
                       (executionId, update, _) =>
                       {
                           Services.GetRequiredService<ScriptProgressTracker>().Report(executionId, update);
@@ -555,7 +560,7 @@ namespace Diary.App
                         hostCallTimeout: TimeSpan.FromSeconds(30),
                         heartbeatInterval: TimeSpan.FromSeconds(30),
                         heartbeatTimeout: TimeSpan.FromSeconds(15)),
-                    new WorkerHandshakeOptions("csharp", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress", "host.capabilities.list"]),
+                    new WorkerHandshakeOptions("csharp", [ScriptApiVersion.V1], ScriptHostApiCatalog.All),
                     sharedWorkerPolicy);
                 var luaRuntime = new WorkerRuntime(
                     "lua",
@@ -567,7 +572,7 @@ namespace Diary.App
                         hostCallTimeout: TimeSpan.FromSeconds(30),
                         heartbeatInterval: TimeSpan.FromSeconds(30),
                         heartbeatTimeout: TimeSpan.FromSeconds(15)),
-                    new WorkerHandshakeOptions("lua", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress", "host.capabilities.list"]),
+                    new WorkerHandshakeOptions("lua", [ScriptApiVersion.V1], ScriptHostApiCatalog.All),
                     sharedWorkerPolicy);
                 var pythonRuntime = new WorkerRuntime(
                     "python",
@@ -580,7 +585,7 @@ namespace Diary.App
                         hostCallTimeout: TimeSpan.FromSeconds(30),
                         heartbeatInterval: TimeSpan.FromSeconds(30),
                         heartbeatTimeout: TimeSpan.FromSeconds(15)),
-                    new WorkerHandshakeOptions("python", [ScriptApiVersion.V1], ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "log.write", "script.progress", "host.capabilities.list"]),
+                    new WorkerHandshakeOptions("python", [ScriptApiVersion.V1], ScriptHostApiCatalog.All),
                     dedicatedWorkerPolicy);
                 return new WorkerScriptExecutor(
                     services.GetRequiredService<IScriptCatalog>(),
@@ -597,6 +602,7 @@ namespace Diary.App
             services.AddSingleton<ScriptLogStore>();
             services.AddSingleton<ScriptProgressTracker>();
             services.AddSingleton<ScriptStartupDiagnosticsStore>();
+            services.AddSingleton<ScriptExportService>();
             services.AddSingleton<IScriptExecutionContextFactory>(_ =>
                 new ScriptExecutionContextFactory((metadata, request) =>
                 {
@@ -634,6 +640,18 @@ namespace Diary.App
                          () => TemplateManager.Instance.Templates.ToArray()));
                     context.RegisterApi<IHostCapabilitiesScriptApi>(new HostCapabilitiesScriptApi(
                         () => ScriptHostApiCatalog.All));
+                    context.RegisterApi<IClipboardScriptApi>(new AppClipboardScriptApi(this));
+                    context.RegisterApi<IUserInteractionScriptApi>(new AppUserInteractionScriptApi());
+                    var hostContext = new ScriptHostCallContext(
+                        metadata.ExecutionId.ToString(),
+                        "in-process",
+                        metadata.ScriptId,
+                        metadata.EntryKind,
+                        metadata.Source);
+                    context.RegisterApi<IFileInteractionApi>(new AppFileInteractionScriptApi(
+                        this, Services.GetRequiredService<ScriptExportService>(), hostContext));
+                    context.RegisterApi<IExportApi>(new ContextualExportScriptApi(
+                        Services.GetRequiredService<ScriptExportService>(), hostContext));
                     context.RegisterApi<IDiaryApi>(new DiaryApi(
                          context.GetApi<IWorkItemQueryScriptApi>()!,
                          context.GetApi<ILogItemScriptApi>()!,
@@ -642,7 +660,9 @@ namespace Diary.App
                           context.GetApi<IHostCapabilitiesScriptApi>()!));
                     context.RegisterApi<ITrackerApi>(new TrackerApi(context.GetApi<ITrackerInstanceScriptApi>()!));
                     context.RegisterApi<SysApi>(new SystemInteractionApi(
-                       context.GetApi<IClipboardScriptApi>()!, context.GetApi<IUserInteractionScriptApi>()!));
+                       context.GetApi<IClipboardScriptApi>()!,
+                       context.GetApi<IUserInteractionScriptApi>()!,
+                       context.GetApi<IFileInteractionApi>()!));
                     return context;
                 }));
             var compatibility = new PluginCompatibilityContext(

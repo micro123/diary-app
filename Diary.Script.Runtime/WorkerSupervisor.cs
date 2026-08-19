@@ -54,6 +54,28 @@ public interface IWorkerHostCallDispatcher
         string executionId,
         WorkerHostCallPayload call,
         CancellationToken cancellationToken = default);
+
+    ValueTask<WorkerHostResultPayload> DispatchAsync(
+        ScriptHostCallContext context,
+        WorkerHostCallPayload call,
+        CancellationToken cancellationToken = default) =>
+        DispatchAsync(context.ExecutionId, call, cancellationToken);
+}
+
+public sealed record ScriptHostCallContext(
+    string ExecutionId,
+    string WorkerId,
+    string ScriptId,
+    ScriptEntryKind EntryKind,
+    ScriptExecutionSource Source);
+
+public static class ScriptHostCallScope
+{
+    public static bool AllowsInteractive(ScriptHostCallContext context) =>
+        (context.EntryKind, context.Source) is
+            (ScriptEntryKind.Editor, ScriptExecutionSource.Editor)
+            or (ScriptEntryKind.Application, ScriptExecutionSource.Manual)
+            or (ScriptEntryKind.Query, ScriptExecutionSource.Manual);
 }
 
 public sealed class WorkerSupervisor(
@@ -81,6 +103,7 @@ public sealed class WorkerSupervisor(
     private int _restartAttempts;
     private int _requestCount;
     private CancellationTokenSource? _lifetimeCancellation;
+    private CancellationTokenSource? _activeTerminationCancellation;
     private Task? _idleMonitor;
 
     public WorkerState State { get; private set; } = WorkerState.Stopped;
@@ -193,11 +216,14 @@ public sealed class WorkerSupervisor(
         string executionId,
         object payload,
         TimeSpan? timeout = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        ScriptHostCallContext? hostCallContext = null)
     {
         if (State != WorkerState.Ready)
             throw new InvalidOperationException("Worker 尚未就绪。");
         await _executionGate.WaitAsync(cancellationToken);
+        using var terminationCancellation = new CancellationTokenSource();
+        _activeTerminationCancellation = terminationCancellation;
         try
         {
             State = WorkerState.Busy;
@@ -220,7 +246,8 @@ public sealed class WorkerSupervisor(
             _requestCount++;
             using var timeoutCancellation = timeout is null ? null : new CancellationTokenSource(timeout.Value);
             using var receiveCancellation = CancellationTokenSource.CreateLinkedTokenSource(
-                timeoutCancellation?.Token ?? CancellationToken.None);
+                timeoutCancellation?.Token ?? CancellationToken.None,
+                terminationCancellation.Token);
             var cancellationSignal = WaitForCancellationAsync(cancellationToken);
             WorkerMessage<WorkerExecutionResultPayload> result;
             var hostCallCount = 0;
@@ -267,13 +294,22 @@ public sealed class WorkerSupervisor(
                                 ScriptDiagnosticCategory.Validation));
                         using var hostCallTimeoutCancellation = new CancellationTokenSource(HostCallTimeout);
                         using var hostCallCancellation = CancellationTokenSource.CreateLinkedTokenSource(
-                            receiveCancellation.Token, cancellationToken, hostCallTimeoutCancellation.Token);
+                            receiveCancellation.Token, cancellationToken, hostCallTimeoutCancellation.Token,
+                            terminationCancellation.Token);
                         WorkerHostResultPayload hostResult;
                         try
                         {
                             hostResult = hostCallDispatcher is null
                                 ? new WorkerHostResultPayload(false, Error: new("PermissionDenied", "当前 Worker 未配置宿主 API。"))
-                                : await hostCallDispatcher.DispatchAsync(executionId, call, hostCallCancellation.Token);
+                                : await hostCallDispatcher.DispatchAsync(
+                                    hostCallContext ?? new ScriptHostCallContext(
+                                        executionId,
+                                        WorkerId ?? "unknown",
+                                        scriptId,
+                                        ScriptEntryKind.Application,
+                                        ScriptExecutionSource.Unknown),
+                                    call,
+                                    hostCallCancellation.Token);
                         }
                         catch (OperationCanceledException) when (hostCallTimeoutCancellation.IsCancellationRequested)
                         {
@@ -368,6 +404,8 @@ public sealed class WorkerSupervisor(
         }
         finally
         {
+            if (ReferenceEquals(_activeTerminationCancellation, terminationCancellation))
+                _activeTerminationCancellation = null;
             if (State == WorkerState.Busy)
                 State = WorkerState.Ready;
             _lastActivity = DateTimeOffset.UtcNow;
@@ -425,6 +463,7 @@ public sealed class WorkerSupervisor(
         {
             State = WorkerState.Failed;
             _restartAttempts++;
+            _activeTerminationCancellation?.Cancel();
         }
     }
 

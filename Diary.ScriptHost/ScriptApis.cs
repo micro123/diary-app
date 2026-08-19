@@ -37,6 +37,9 @@ public interface SysApi
     ValueTask<bool> SetClipboardTextAsync(string text, CancellationToken cancellationToken = default);
     ValueTask NotifyAsync(string title, string body, CancellationToken cancellationToken = default);
     ValueTask<bool> ConfirmAsync(string title, string body, CancellationToken cancellationToken = default);
+    ValueTask<OptionDialogResult> SelectOptionAsync(OptionDialogRequest request, CancellationToken cancellationToken = default);
+    ValueTask<DirectorySelection?> PickDirectoryAsync(DirectoryPickerOptions options, CancellationToken cancellationToken = default);
+    ValueTask<OpenExportedFileResult> AskToOpenExportedFileAsync(string fileId, CancellationToken cancellationToken = default);
 }
 
 public sealed class DiaryApi(
@@ -82,10 +85,25 @@ internal sealed class EmptyHostCapabilitiesScriptApi : IHostCapabilitiesScriptAp
 
 public sealed class SystemInteractionApi(
     IClipboardScriptApi clipboard,
-    IUserInteractionScriptApi interaction) : SysApi
+    IUserInteractionScriptApi interaction,
+    IFileInteractionApi? fileInteraction = null) : SysApi
 {
     public ValueTask<string?> GetClipboardTextAsync(CancellationToken cancellationToken = default) => clipboard.GetTextAsync(cancellationToken);
     public ValueTask<bool> SetClipboardTextAsync(string text, CancellationToken cancellationToken = default) => clipboard.SetTextAsync(text, cancellationToken);
     public ValueTask NotifyAsync(string title, string body, CancellationToken cancellationToken = default) => interaction.NotifyAsync(title, body, cancellationToken);
     public ValueTask<bool> ConfirmAsync(string title, string body, CancellationToken cancellationToken = default) => interaction.ConfirmAsync(title, body, cancellationToken);
+    public ValueTask<OptionDialogResult> SelectOptionAsync(OptionDialogRequest request, CancellationToken cancellationToken = default) =>
+        fileInteraction is null
+            ? ValueTask.FromException<OptionDialogResult>(new InvalidOperationException("选项对话框 API 未配置。"))
+            : fileInteraction is IOptionDialogApi options
+                ? options.SelectOptionAsync(request, cancellationToken)
+                : ValueTask.FromException<OptionDialogResult>(new InvalidOperationException("选项对话框 API 未配置。"));
+    public ValueTask<DirectorySelection?> PickDirectoryAsync(DirectoryPickerOptions options, CancellationToken cancellationToken = default) =>
+        fileInteraction is null
+            ? ValueTask.FromException<DirectorySelection?>(new InvalidOperationException("目录选择 API 未配置。"))
+            : fileInteraction.PickDirectoryAsync(options, cancellationToken);
+    public ValueTask<OpenExportedFileResult> AskToOpenExportedFileAsync(string fileId, CancellationToken cancellationToken = default) =>
+        fileInteraction is null
+            ? ValueTask.FromException<OpenExportedFileResult>(new InvalidOperationException("导出文件 API 未配置。"))
+            : fileInteraction.AskToOpenExportedFileAsync(fileId, cancellationToken);
 }

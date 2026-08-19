@@ -305,6 +305,36 @@ var confirmed = await system.ConfirmAsync("继续操作", "是否继续？", can
 
 `NotifyAsync` 显示通知；`ConfirmAsync` 返回用户是否确认。自动化或后台执行时 UI 可能不可用，应捕获异常并将失败作为脚本诊断处理。
 
+### 9.1 交互式导出（第一阶段）
+
+第一阶段支持有人值守执行的选项选择、目录选择、XLSX 导出和结果文件打开询问。`Automation`、`Startup`、`Scheduled` 及事件触发脚本调用这些 API 会返回宿主作用域错误。
+
+```csharp
+var directory = await api.System.PickDirectoryAsync(new DirectoryPickerOptions
+{
+    Title = "选择导出目录",
+}, cancellationToken);
+if (directory is null)
+    return;
+
+var result = await api.Exports.ExportAsync(new ExportRequest
+{
+    FormatId = "xlsx",
+    DirectorySelectionId = directory.SelectionId,
+    FileName = "report.xlsx",
+    Content = new ExportTableContent
+    {
+        Columns = [new ExportColumn("时长", ExportColumnType.Duration)],
+        Rows = [["25:30:00"]],
+        Aggregates = [new ExportAggregateColumn("时长")],
+    },
+}, cancellationToken);
+if (result.Succeeded)
+    await api.System.AskToOpenExportedFileAsync(result.FileId!, cancellationToken);
+```
+
+Wire JSON 使用全小写/snake_case（例如 `format_id`、`directory_selection_id`、`file_id`、`duration`）；C# 模型仍遵循 C# 命名约定。`Time` 表示时分秒，不参与 `SUM`；`Duration` 表示可超过 24 小时的时长，XLSX 使用 `[h]:mm:ss`。文件名含路径分隔符、控制字符、`.`/`..` 或路径穿越片段时直接拒绝，不做替换。
+
 ## 10. 调试日志
 
 ```csharp
@@ -488,6 +518,15 @@ public interface SysApi
     ValueTask<bool> SetClipboardTextAsync(string text, CancellationToken cancellationToken = default);
     ValueTask NotifyAsync(string title, string body, CancellationToken cancellationToken = default);
     ValueTask<bool> ConfirmAsync(string title, string body, CancellationToken cancellationToken = default);
+    ValueTask<OptionDialogResult> SelectOptionAsync(OptionDialogRequest request, CancellationToken cancellationToken = default);
+    ValueTask<DirectorySelection?> PickDirectoryAsync(DirectoryPickerOptions options, CancellationToken cancellationToken = default);
+    ValueTask<OpenExportedFileResult> AskToOpenExportedFileAsync(string fileId, CancellationToken cancellationToken = default);
+}
+
+public interface IExportApi
+{
+    ValueTask<ExportResult> ExportAsync(ExportRequest request, CancellationToken cancellationToken = default);
+    ValueTask<IReadOnlyList<ExportFormatDescriptor>> ListFormatsAsync(CancellationToken cancellationToken = default);
 }
 
 public interface ILogApi

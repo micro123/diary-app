@@ -7,6 +7,7 @@ public sealed class ScriptApiFacade(IScriptExecutionContext context)
     public IDiaryApi Diary => context.GetRequiredApi<IDiaryApi>();
     public ITrackerApi Tracker => context.GetRequiredApi<ITrackerApi>();
     public SysApi System => context.GetRequiredApi<SysApi>();
+    public IExportApi Exports => context.GetRequiredApi<IExportApi>();
     public ILogApi Log => context.GetRequiredApi<ILogApi>();
 }
 
