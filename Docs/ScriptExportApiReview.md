@@ -271,3 +271,8 @@ result.success == false -> 使用 result.error.code/message/category/retryable/d
 - [ScriptApi/Export.md](ScriptApi/Export.md)
 - [TODOS.md](TODOS.md)
 
+
+
+## 8. Preview / validate-only 收口（2026-08-19）
+
+导出请求新增 `validate_only`，结果新增 `validated_only`。管理页以 Preview 运行时，宿主自动开启仅校验模式：目录选择返回虚拟令牌，服务执行共享请求校验和模板绑定默认值/诊断，不创建目录、文件或 FileId，也不调用格式插件渲染。Query 入口仅允许这种导出预检，真实导出由宿主拒绝。脚本可以复用真实导出代码，只需通过 `ExportResult.ValidatedOnly` 判断是否存在可打开文件。

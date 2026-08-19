@@ -682,32 +682,39 @@ namespace Diary.App
                                 metadata.ExecutionId.ToString(), update);
                             return ValueTask.CompletedTask;
                         });
-                    context.RegisterApi<IWorkItemQueryScriptApi>(queryApi);
-                    context.RegisterApi<ILogApi>(CreateScriptLogApi(metadata, null));
-                    context.RegisterApi<ITrackerInstanceScriptApi>(
-                         new TrackerInstanceScriptApi(
-                             Services.GetRequiredService<PluginInstanceRegistry>()));
-                    context.RegisterApi<ILogItemScriptApi>(new LogItemScriptApi(
-                        () => UseDb,
-                        Services.GetRequiredService<IScriptIdempotencyStore>(),
-                        () => EventDispatcher.DbChanged(DbChangedEvent.ShareData)));
-                    context.RegisterApi<ITemplateLogItemScriptApi>(new TemplateLogItemScriptApi(
-                         () => UseDb,
-                         () => TemplateManager.Instance.Templates.ToArray(),
-                         Services.GetRequiredService<IScriptIdempotencyStore>(),
-                         () => EventDispatcher.DbChanged(DbChangedEvent.ShareData)));
-                    context.RegisterApi<ITemplateScriptApi>(new TemplateScriptApi(
-                         () => TemplateManager.Instance.Templates.ToArray()));
-                    context.RegisterApi<IHostCapabilitiesScriptApi>(new HostCapabilitiesScriptApi(
-                        () => ScriptHostApiCatalog.All));
-                    context.RegisterApi<IClipboardScriptApi>(new AppClipboardScriptApi(this));
-                    context.RegisterApi<IUserInteractionScriptApi>(new AppUserInteractionScriptApi());
                     var hostContext = new ScriptHostCallContext(
                         metadata.ExecutionId.ToString(),
                         "in-process",
                         metadata.ScriptId,
                         metadata.EntryKind,
-                        metadata.Source);
+                        metadata.Source,
+                        metadata.Preview);
+                    context.RegisterApi<IWorkItemQueryScriptApi>(queryApi);
+                    context.RegisterApi<ILogApi>(CreateScriptLogApi(metadata, null));
+                    context.RegisterApi<ITrackerInstanceScriptApi>(
+                         new TrackerInstanceScriptApi(
+                             Services.GetRequiredService<PluginInstanceRegistry>()));
+                    context.RegisterApi<ILogItemScriptApi>(new ExecutionPolicyLogItemScriptApi(
+                        new LogItemScriptApi(
+                            () => UseDb,
+                            Services.GetRequiredService<IScriptIdempotencyStore>(),
+                            () => EventDispatcher.DbChanged(DbChangedEvent.ShareData)),
+                        hostContext));
+                    context.RegisterApi<ITemplateLogItemScriptApi>(new ExecutionPolicyTemplateLogItemScriptApi(
+                        new TemplateLogItemScriptApi(
+                            () => UseDb,
+                            () => TemplateManager.Instance.Templates.ToArray(),
+                            Services.GetRequiredService<IScriptIdempotencyStore>(),
+                            () => EventDispatcher.DbChanged(DbChangedEvent.ShareData)),
+                        hostContext));
+                    context.RegisterApi<ITemplateScriptApi>(new TemplateScriptApi(
+                         () => TemplateManager.Instance.Templates.ToArray()));
+                    context.RegisterApi<IHostCapabilitiesScriptApi>(new HostCapabilitiesScriptApi(
+                        () => ScriptHostApiCatalog.All));
+                    context.RegisterApi<IClipboardScriptApi>(new ExecutionPolicyClipboardScriptApi(
+                        new AppClipboardScriptApi(this),
+                        hostContext));
+                    context.RegisterApi<IUserInteractionScriptApi>(new AppUserInteractionScriptApi());
                     context.RegisterApi<IFileInteractionApi>(new AppFileInteractionScriptApi(
                         this, Services.GetRequiredService<ScriptExportService>(), hostContext));
                     context.RegisterApi<IExportApi>(new ContextualExportScriptApi(

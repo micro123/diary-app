@@ -1,6 +1,6 @@
 # Lua 脚本 API Reference
 
-Lua 使用 `ScriptApiVersion.V1`。脚本在独立 Lua Worker 中执行，通过全局 `diary` 表访问宿主 API。所有宿主调用参数和返回值都是 JSON 可转换的 Lua 值。
+Lua 使用 `ScriptApiVersion.V1`。脚本在独立 Lua Worker 中执行，通过全局 `diary` 表访问宿主 API。公共门面统一使用 snake_case（如 `work_items`、`get_date_range()`）；请求和结果 DTO 保持宿主协议字段。旧 camelCase 门面保留为兼容别名，新脚本不再推荐。所有宿主调用参数和返回值都是 JSON 可转换的 Lua 值。
 
 ## 1. 脚本入口和上下文
 
@@ -17,7 +17,7 @@ Lua 使用 `ScriptApiVersion.V1`。脚本在独立 Lua Worker 中执行，通过
 
 ~~~lua
 function application_main(context)
-    local result = diary.workItems.query({
+    local result = diary.work_items.query({
         startDate = "2026-08-01",
         endDate = "2026-08-31",
         limit = 100
@@ -42,14 +42,14 @@ end
 | 字段 | 说明 |
 | --- | --- |
 | `request` | 完整执行请求，包含 `entryKind`、`source`、`arguments`、`idempotencyKey` 和 `preview`。 |
-| `entryKind` | 当前入口类型。 |
+| `entry_kind` | 当前入口类型。 |
 | `arguments` | 执行参数表；未传参数时为空表。 |
 | `target` | 编辑器目标；包含 `kind` 以及目标对应的字段。 |
-| `dateRange` | 年、季度、月、周、日目标的 `{ startDate, endDate }`；事项目标为 `nil`。 |
-| `workItem` | 事项目标的不可变事项快照；其他目标为 `nil`。 |
-| `isCancelled()` | 查询当前执行是否已请求取消；长循环应在批次之间主动轮询。 |
+| `date_range` | 年、季度、月、周、日目标的 `{ startDate, endDate }`；事项目标为 `nil`。 |
+| `work_item` | 事项目标的不可变事项快照；其他目标为 `nil`。 |
+| `is_cancelled()` | 查询当前执行是否已请求取消；长循环应在批次之间主动轮询。 |
 | `progress.report(fraction, message)` | 报告 0 到 1 之间的执行进度。 |
-| `getDateRange()` | 获取当前目标日期范围；无范围时返回 `nil`。 |
+| `get_date_range()` | 获取当前目标日期范围；无范围时返回 `nil`。 |
 | `items.stream()` | 按当前日期范围分页迭代事项。 |
 | `log` | 调试日志 API。 |
 
@@ -58,7 +58,7 @@ end
 ~~~lua
 function application_main(context)
     for i = 1, 1000 do
-        if context.isCancelled() then
+        if context.is_cancelled() then
             return
         end
         -- 处理一小批工作
@@ -87,7 +87,7 @@ end
 
 ## 2. 查询工作项
 
-调用：`diary.workItems.query(params)`。
+调用：`diary.work_items.query(params)`。
 
 | 参数 | 类型 | 说明 |
 | --- | --- | --- |
@@ -141,7 +141,7 @@ end
 ### 流式查询大量明细
 
 ```lua
-for item in diary.workItems.stream({
+for item in diary.work_items.stream({
     startDate = "2026-01-01",
     endDate = "2026-12-31",
     pageSize = 500
@@ -152,16 +152,16 @@ end
 
 迭代器按需调用 `workItems.query`，一页消费完后才拉取下一页。`pageSize` 必须在 1 到 500 之间，默认 500；除 `pageSize` 外还支持查询参数中的 `offset` 和全部过滤字段。查询期间数据变化可能影响 offset 分页边界。某一页查询领域失败（`succeeded = false`）时迭代器抛出 Lua 错误结束迭代，不会静默截断结果。不要在循环中把所有项重新保存到一个大表，否则会失去流式处理的内存优势。
 
-`context.items.stream()` 按当前目标日期范围分页迭代，仅日期目标可用——事项目标没有日期范围，调用会报错。需要按自定义范围迭代时使用 `diary.workItems.stream(params)` 手动传日期。
+`context.items.stream()` 按当前目标日期范围分页迭代，仅日期目标可用——事项目标没有日期范围，调用会报错。需要按自定义范围迭代时使用 `diary.work_items.stream(params)` 手动传日期。
 
 ## 3. 创建日志项
 
-调用 `diary.logItems.create(params)` 会新建一个工作项，不会修改已有工作项。
+调用 `diary.log_items.create(params)` 会新建一个工作项，不会修改已有工作项。
 
 `diary.log.debug(message)`、`diary.log.info(message)`、`diary.log.warning(message)` 和 `diary.log.error(message)` 将调试信息写入宿主日志。单条日志受大小限制，不能输出敏感配置。
 
 ```lua
-local result = diary.logItems.create({
+local result = diary.log_items.create({
     date = "2026-08-08",
     hours = 2.5,
     title = "完善 Lua Worker API",
@@ -230,7 +230,7 @@ print("created work item: " .. result.item.id)
 ## 3.1 按模板创建日志项
 
 ```lua
-local result = diary.templateLogItems.create({
+local result = diary.template_log_items.create({
     date = "2026-08-08",
     templateId = "00000000-0000-0000-0000-000000000001",
     hours = 2.5,
@@ -272,10 +272,10 @@ end
 
 ## 4. Tracker 实例目录
 
-调用 `diary.trackerInstances.get({ pluginId = "tracker.memory", instanceId = "company" })`。
+调用 `diary.tracker_instances.get({ pluginId = "tracker.memory", instanceId = "company" })`。
 
 ```lua
-local result = diary.trackerInstances.get({
+local result = diary.tracker_instances.get({
     pluginId = "tracker.memory",
     instanceId = "company"
 })
@@ -284,7 +284,7 @@ if result.succeeded then
 end
 ```
 
-返回的 `instance` 字段包括 `pluginId`、`instanceId`、`displayName`、`icon`、`isConfigured`。`diary.trackerInstances.list()` 返回当前已启用实例的同一 DTO 列表，并按显示名称稳定排序。错误代码为 `InvalidInput` 或 `InstanceUnavailable`；失败时值返回 `{ succeeded = false, error = { code, message }, apiError = { ... } }`，不抛异常。不暴露 Tracker 客户端、配置和数据库。
+返回的 `instance` 字段包括 `pluginId`、`instanceId`、`displayName`、`icon`、`isConfigured`。`diary.tracker_instances.list()` 返回当前已启用实例的同一 DTO 列表，并按显示名称稳定排序。错误代码为 `InvalidInput` 或 `InstanceUnavailable`；失败时值返回 `{ succeeded = false, error = { code, message }, apiError = { ... } }`，不抛异常。不暴露 Tracker 客户端、配置和数据库。
 
 ## 5. 剪贴板
 
@@ -374,14 +374,14 @@ end
 
 | Lua API | Worker HostCall |
 | --- | --- |
-| `diary.workItems.query` | `workItems.query` |
-| `diary.workItems.stream` | `workItems.query`（分页） |
+| `diary.work_items.query` | `workItems.query` |
+| `diary.work_items.stream` | `workItems.query`（分页） |
 | `diary.templates.list` | `templates.list` |
 | `diary.host.list` | `host.capabilities.list` |
-| `diary.logItems.create` | `logItems.create` |
-| `diary.templateLogItems.create` | `templateLogItems.create` |
-| `diary.trackerInstances.get` | `trackerInstances.get` |
-| `diary.trackerInstances.list` | `trackerInstances.list` |
+| `diary.log_items.create` | `logItems.create` |
+| `diary.template_log_items.create` | `templateLogItems.create` |
+| `diary.tracker_instances.get` | `trackerInstances.get` |
+| `diary.tracker_instances.list` | `trackerInstances.list` |
 | `diary.clipboard.get` | `clipboard.get` |
 | `diary.clipboard.set` | `clipboard.set` |
 | `diary.ui.notify` | `ui.notify` |
@@ -402,7 +402,7 @@ Worker 禁用 `io`、`os`、`debug`、`package`、`require`、动态加载和 CL
 查询、创建等返回结果的 API 使用 `apiError.code` 提供稳定的大写错误码，例如 `INVALID_ARGUMENT`、`CANCELLED` 和 `PROVIDER_FAILURE`。领域结果中的 `error.code` 保留 Lua 可读的领域错误名。
 
 ```lua
-local result = diary.workItems.query({ limit = 0 })
+local result = diary.work_items.query({ limit = 0 })
 if not result.succeeded then
     local code = result.apiError and result.apiError.code or "PROVIDER_FAILURE"
     if code == "INVALID_ARGUMENT" then
@@ -455,7 +455,7 @@ end
 | `idempotencyKey` | string 或 nil | 业务幂等键。 |
 | `preview` | boolean | 是否预览。 |
 
-枚举字段以字符串形式出现（例如 `source = "Manual"`）。`context.workItem` 是事项目标的不可变快照，字段与查询结果中的 `item` 相同（见附录 C）。
+枚举字段以字符串形式出现（例如 `source = "Manual"`）。`context.work_item` 是事项目标的不可变快照，字段与查询结果中的 `item` 相同（见附录 C）。
 
 ### 入口返回值约定
 
@@ -465,7 +465,7 @@ end
 - 执行已取消 → `Cancelled`。
 - 超时、Worker 终止由宿主报告，脚本无需处理。
 
-例外：若返回宿主 API 的结果表（如 `diary.logItems.create` 的返回值），其中的 `effects` 字段会被 Worker 提取并随执行结果传回宿主，显示在管理页执行历史与完成通知中（追加条数、预览、幂等重放、新建 ID）。
+例外：若返回宿主 API 的结果表（如 `diary.log_items.create` 的返回值），其中的 `effects` 字段会被 Worker 提取并随执行结果传回宿主，显示在管理页执行历史与完成通知中（追加条数、预览、幂等重放、新建 ID）。
 
 ### 自动化触发器上下文
 

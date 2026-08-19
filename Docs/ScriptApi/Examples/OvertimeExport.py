@@ -6,11 +6,11 @@ def has_overtime_tag(item):
 
 
 def editor_main(context):
-    if context.getDateRange() is not None:
+    if context.get_date_range() is not None:
         items = context.items.stream()
-    elif context.workItem is not None:
-        date = context.workItem["date"]
-        items = context.diary.workItems.stream(startDate=date, endDate=date, pageSize=500)
+    elif context.work_item is not None:
+        date = context.work_item["date"]
+        items = context.diary.work_items.stream(startDate=date, endDate=date, pageSize=500)
     else:
         raise RuntimeError("请从日期或工作项右键菜单执行此脚本。")
 

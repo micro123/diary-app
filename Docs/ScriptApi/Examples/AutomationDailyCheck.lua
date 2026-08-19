@@ -3,7 +3,7 @@ function automation_main(context)
     local trigger = context.automation.trigger
     diary.log.info("自动化触发：" .. trigger)
 
-    local result = diary.workItems.query({ range = "yesterday", limit = 1 })
+    local result = diary.work_items.query({ range = "yesterday", limit = 1 })
     if not result.succeeded then
         error(result.error.message)
     end
@@ -13,7 +13,7 @@ function automation_main(context)
     end
 
     local yesterday = result.normalizedQuery.startDate
-    local append = diary.logItems.create({
+    local append = diary.log_items.create({
         date = yesterday,
         hours = 0.5,
         title = "昨日无记录自动补录",

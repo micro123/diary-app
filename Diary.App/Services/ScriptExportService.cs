@@ -118,7 +118,11 @@ public sealed class ScriptExportService : IContextualExportApi
         ScriptHostCallContext context,
         CancellationToken cancellationToken = default)
     {
-        if (!ScriptHostCallScope.AllowsInteractive(context))
+        if (context.Preview && !request.ValidateOnly)
+            request = request with { ValidateOnly = true };
+        if (context.EntryKind == ScriptEntryKind.Query && !request.ValidateOnly)
+            return Failure(request, "HOSTCALL_SCOPE_NOT_SUPPORTED", "查询脚本为只读入口，不允许生成导出文件。", ScriptErrorCategory.Permission);
+        if (!request.ValidateOnly && !ScriptHostCallScope.AllowsInteractive(context))
             return Failure(request, "HOSTCALL_SCOPE_NOT_SUPPORTED", "当前脚本执行入口不允许导出。", ScriptErrorCategory.Permission);
 
         if (!_exportHandlers.TryGetValue(request.FormatId, out var handler))
@@ -127,11 +131,14 @@ public sealed class ScriptExportService : IContextualExportApi
         var validation = ExportRequestValidator.Validate(request, handler.Descriptor);
         if (validation is not null)
             return new(false, request.FormatId, ExportRequestValidator.GetContentKind(request), null, null, null, validation);
-        if (!TryGetDirectory(request.DirectorySelectionId, context, out var directory))
-            return Failure(request, "DIRECTORY_SELECTION_INVALID", "目录选择令牌无效或已过期。", ScriptErrorCategory.Permission);
 
         if (request.Template is not null)
-            return await ExportTemplateAsync(request, request.Template, handler.Descriptor, directory, context, cancellationToken);
+            return await ExportTemplateAsync(request, request.Template, handler.Descriptor, context, cancellationToken);
+
+        if (request.ValidateOnly)
+            return ValidationSuccess(request, GetItemCount(request.Content));
+        if (!TryGetDirectory(request.DirectorySelectionId, context, out var directory))
+            return Failure(request, "DIRECTORY_SELECTION_INVALID", "目录选择令牌无效或已过期。", ScriptErrorCategory.Permission);
 
         var finalName = EnsureExtension(request.FileName, handler.Descriptor.DefaultExtension);
         var outputPath = GetUniquePath(directory, finalName);
@@ -176,7 +183,6 @@ public sealed class ScriptExportService : IContextualExportApi
         ExportRequest request,
         ExportTemplateSource source,
         ExportFormatDescriptor format,
-        string directory,
         ScriptHostCallContext context,
         CancellationToken cancellationToken)
     {
@@ -198,6 +204,11 @@ public sealed class ScriptExportService : IContextualExportApi
                 {
                     ["diagnostics"] = diagnostics,
                 });
+
+        if (request.ValidateOnly)
+            return ValidationSuccess(request with { Template = normalized }, GetTemplateItemCount(normalized));
+        if (!TryGetDirectory(request.DirectorySelectionId, context, out var directory))
+            return Failure(request, "DIRECTORY_SELECTION_INVALID", "目录选择令牌无效或已过期。", ScriptErrorCategory.Permission);
 
         var finalName = EnsureExtension(request.FileName, registration.Descriptor.TemplateFileExtension);
         var outputPath = GetUniquePath(directory, finalName);
@@ -279,6 +290,26 @@ public sealed class ScriptExportService : IContextualExportApi
         IReadOnlyDictionary<string, object?>? details = null) =>
         new(false, request.FormatId, ExportRequestValidator.GetContentKind(request), null, null, null,
             new ScriptApiError(code, message, category, retryable, details));
+
+    private static ExportResult ValidationSuccess(ExportRequest request, int? itemCount) =>
+        new(true, request.FormatId, ExportRequestValidator.GetContentKind(request), null, null, itemCount, null, true);
+
+    private static int? GetItemCount(ExportContent? content) => content switch
+    {
+        ExportTableContent table => table.Rows.Count,
+        ExportDocumentContent document => document.Blocks.Count,
+        _ => null,
+    };
+
+    private static int? GetTemplateItemCount(ExportTemplateSource source)
+    {
+        var tableRows = source.Tables.Values.Sum(table => table.Rows.Count);
+        var documentBlocks = source.Documents.Values
+            .OfType<ExportDocumentContent>()
+            .Sum(document => document.Blocks.Count);
+        var count = tableRows + documentBlocks;
+        return count == 0 ? null : count;
+    }
 
     private static void TryDelete(string path)
     {

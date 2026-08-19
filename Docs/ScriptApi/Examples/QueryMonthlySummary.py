@@ -1,6 +1,6 @@
 def query_main(context):
     totals = {}
-    for item in context.diary.workItems.stream(pageSize=500, range="thisMonth"):
+    for item in context.diary.work_items.stream(pageSize=500, range="thisMonth"):
         tag_name = "无"
         for tag in item.get("tags", []):
             if tag.get("isPrimary", False):

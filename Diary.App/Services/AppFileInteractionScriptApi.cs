@@ -21,6 +21,9 @@ public sealed class AppFileInteractionScriptApi(
     {
         EnsureScope();
         cancellationToken.ThrowIfCancellationRequested();
+        if (context.Preview)
+            return new DirectorySelection("preview", "预览（不写入）");
+        EnsurePersistentInteractionAllowed();
         var window = (app.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
         var storageProvider = window?.StorageProvider;
         if (storageProvider is null)
@@ -70,6 +73,7 @@ public sealed class AppFileInteractionScriptApi(
         CancellationToken cancellationToken = default)
     {
         EnsureScope();
+        EnsurePersistentInteractionAllowed();
         if (!exportService.TryGetFile(fileId, context, out var path, out var fileName))
             return new(OpenExportedFileStatus.Failed,
                 new("EXPORTED_FILE_NOT_FOUND", "导出文件不存在或已过期。", ScriptErrorCategory.Validation));
@@ -110,6 +114,14 @@ public sealed class AppFileInteractionScriptApi(
         if (!ScriptHostCallScope.AllowsInteractive(context))
             throw new InvalidOperationException("当前脚本执行入口不允许交互式宿主能力。");
     }
+    private void EnsurePersistentInteractionAllowed()
+    {
+        if (context.EntryKind == ScriptEntryKind.Query)
+            throw new InvalidOperationException("查询脚本为只读入口，不允许选择导出目录或打开导出文件。");
+        if (context.Preview)
+            throw new InvalidOperationException("预览执行不允许选择导出目录或打开导出文件。");
+    }
+
     private static void Validate(OptionDialogRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Title) || request.Options.Count == 0)

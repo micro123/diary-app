@@ -4,7 +4,7 @@
 
 ## 1. 推荐调用流程
 
-交互式导出只允许有人值守的 `Editor+Editor`、`Application+Manual` 和 `Query+Manual` 执行：
+真实交互式导出只允许有人值守的 `Editor+Editor` 和 `Application+Manual` 执行。`Query+Manual` 是只读入口，只能在 Preview / `validate_only` 下执行导出预检：
 
 ```text
 list_formats / list_templates
@@ -25,6 +25,7 @@ wire JSON 使用全小写 `snake_case`：
   "format_id": "xlsx",
   "directory_selection_id": "short_lived_token",
   "file_name": "report.xlsx",
+  "validate_only": false,
   "format_options": {
     "format_id": "xlsx",
     "values": {
@@ -50,7 +51,7 @@ wire JSON 使用全小写 `snake_case`：
 }
 ```
 
-`content` 与 `template` 必须且只能提供一个。模板导出不接受通用 `format_options`，格式选项只作用于非模板导出。
+`content` 与 `template` 必须且只能提供一个。模板导出不接受通用 `format_options`，格式选项只作用于非模板导出。`validate_only=true` 时目录令牌可以为空；宿主仍执行格式、内容、模板版本和绑定校验，但不调用渲染插件、不创建文件或 FileId。管理页 Preview 会自动强制该字段，并为目录选择返回虚拟令牌。
 
 ### 2.1 表格
 
@@ -73,8 +74,9 @@ wire JSON 使用全小写 `snake_case`：
 普通导出失败返回结果，不因业务校验失败抛异常：
 
 ```text
-succeeded = true  → file_id、file_name、item_count 可用
-succeeded = false → error.code/message/category/retryable/details 可用
+succeeded = true, validated_only = false → file_id、file_name、item_count 可用
+succeeded = true, validated_only = true  → 预检通过；file_id/file_name 为空
+succeeded = false                         → error.code/message/category/retryable/details 可用
 ```
 
 示例错误：

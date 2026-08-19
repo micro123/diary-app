@@ -22,8 +22,8 @@ public static class ScriptMetadataEditor
     }
 
     /// <summary>
-    /// 读-改-写 metadata：只覆盖 Name/Description/Schedule/RunOnStartup/Triggers，
-    /// 其余字段（含未知字段）原样保留；文件不存在时新建。schedule 非空时校验 "daily HH:mm"。
+    /// 读-改-写 metadata：更新运行配置并保留未知字段。
+    /// C# 脚本的身份、作用域和入口类型由源码声明，保存时会移除对应 metadata 字段。
     /// </summary>
     public static async ValueTask WriteAsync(
         string sourcePath,
@@ -32,15 +32,35 @@ public static class ScriptMetadataEditor
         string? schedule,
         bool runOnStartup,
         IReadOnlyCollection<ScriptAutomationTriggerKind>? triggers = null,
+        IReadOnlyDictionary<string, string>? defaultArguments = null,
+        int? timeoutSeconds = null,
+        bool updateIdentity = true,
         CancellationToken cancellationToken = default)
     {
         var normalizedSchedule = string.IsNullOrWhiteSpace(schedule) ? null : schedule.Trim();
         if (normalizedSchedule is not null && !ScriptAutomationSchedule.TryParse(normalizedSchedule, out _))
             throw new ArgumentException("调度时间必须是 'daily HH:mm' 格式。", nameof(schedule));
 
+        if (timeoutSeconds is <= 0 or > 3600)
+            throw new ArgumentOutOfRangeException(nameof(timeoutSeconds), "脚本超时必须在 1 到 3600 秒之间。");
+
         var root = await ReadAsync(sourcePath, cancellationToken);
-        SetProperty(root, "Name", string.IsNullOrWhiteSpace(name) ? null : JsonValue.Create(name.Trim()));
-        SetProperty(root, "Description", string.IsNullOrWhiteSpace(description) ? null : JsonValue.Create(description.Trim()));
+        if (updateIdentity)
+        {
+            SetProperty(root, "Name", string.IsNullOrWhiteSpace(name) ? null : JsonValue.Create(name.Trim()));
+            SetProperty(root, "Description", string.IsNullOrWhiteSpace(description) ? null : JsonValue.Create(description.Trim()));
+        }
+        else
+        {
+            foreach (var propertyName in new[]
+                     {
+                         "ApiVersion", "Id", "Name", "Description", "Engine", "Scope",
+                         "SupportedEditorTargets", "EntryKind",
+                     })
+            {
+                SetProperty(root, propertyName, null);
+            }
+        }
         SetProperty(root, "Schedule", normalizedSchedule is null ? null : JsonValue.Create(normalizedSchedule));
         SetProperty(root, "RunOnStartup", JsonValue.Create(runOnStartup));
         var normalizedTriggers = triggers?
@@ -53,6 +73,16 @@ public static class ScriptMetadataEditor
             root,
             "Triggers",
             normalizedTriggers.Length == 0 ? null : JsonSerializer.SerializeToNode(normalizedTriggers));
+        var normalizedArguments = defaultArguments?
+            .Where(pair => !string.IsNullOrWhiteSpace(pair.Key))
+            .ToDictionary(pair => pair.Key.Trim(), pair => pair.Value ?? string.Empty, StringComparer.Ordinal);
+        SetProperty(
+            root,
+            "DefaultArguments",
+            normalizedArguments is null or { Count: 0 }
+                ? null
+                : JsonSerializer.SerializeToNode(normalizedArguments));
+        SetProperty(root, "TimeoutSeconds", timeoutSeconds is null ? null : JsonValue.Create(timeoutSeconds.Value));
 
         var metadataPath = GetMetadataPath(sourcePath);
         var tempPath = metadataPath + $".{Guid.NewGuid():N}.tmp";

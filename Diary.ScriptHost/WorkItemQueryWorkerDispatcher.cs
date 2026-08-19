@@ -39,6 +39,27 @@ public sealed class WorkItemQueryWorkerDispatcher(
         WorkerHostCallPayload call,
         CancellationToken cancellationToken = default)
     {
+        if (context.EntryKind == ScriptEntryKind.Query
+            && IsPersistentMutation(call.Method)
+            && !(context.Preview && call.Method is ("exports.export" or "ui.directory.pick")))
+        {
+            return new(false, Error: new(
+                ScriptApiErrorCodes.ApiScopeNotSupported,
+                "查询脚本为只读入口，不允许执行持久写入或真实文件导出。"));
+        }
+        if (context.Preview && string.Equals(call.Method, "ui.directory.pick", StringComparison.Ordinal))
+        {
+            return new(true, JsonSerializer.SerializeToElement(
+                new DirectorySelection("preview", "预览（不写入）"),
+                ExportJson.Options));
+        }
+        if (context.Preview && string.Equals(call.Method, "clipboard.set", StringComparison.Ordinal))
+        {
+            return new(false, Error: new(
+                ScriptApiErrorCodes.ApiScopeNotSupported,
+                "预览执行不允许写入剪贴板。"));
+        }
+
         if (IsInteractiveMethod(call.Method) && !ScriptHostCallScope.AllowsInteractive(context))
             return new(false, Error: new("HOSTCALL_SCOPE_NOT_SUPPORTED", "当前脚本执行入口不允许交互式导出能力。"));
 
@@ -50,9 +71,9 @@ public sealed class WorkItemQueryWorkerDispatcher(
         if (string.Equals(call.Method, "host.capabilities.list", StringComparison.Ordinal))
             return await DispatchHostCapabilities(hostCapabilitiesApiFactory);
         if (string.Equals(call.Method, "logItems.create", StringComparison.Ordinal))
-            return await DispatchLogItemAsync(logItemApiFactory, call, cancellationToken);
+            return await DispatchLogItemAsync(logItemApiFactory, call, cancellationToken, context.Preview);
         if (string.Equals(call.Method, "templateLogItems.create", StringComparison.Ordinal))
-            return await DispatchTemplateLogItemAsync(templateLogItemApiFactory, call, cancellationToken);
+            return await DispatchTemplateLogItemAsync(templateLogItemApiFactory, call, cancellationToken, context.Preview);
         if (string.Equals(call.Method, "clipboard.get", StringComparison.Ordinal)
             || string.Equals(call.Method, "clipboard.set", StringComparison.Ordinal))
             return await DispatchClipboardAsync(clipboardApiFactory, call, cancellationToken);
@@ -102,6 +123,14 @@ public sealed class WorkItemQueryWorkerDispatcher(
 
     private static bool IsInteractiveMethod(string method) => method is
         "ui.options.select" or "ui.directory.pick" or "ui.exported_file.open" or "exports.export";
+
+    private static bool IsPersistentMutation(string method) => method is
+        "logItems.create"
+        or "templateLogItems.create"
+        or "clipboard.set"
+        or "ui.directory.pick"
+        or "ui.exported_file.open"
+        or "exports.export";
 
     private static async ValueTask<WorkerHostResultPayload> DispatchFileInteractionAsync(
         Func<ScriptHostCallContext, IFileInteractionApi>? factory,
@@ -173,6 +202,8 @@ public sealed class WorkItemQueryWorkerDispatcher(
             }
             var request = call.Params.Deserialize<ExportRequest>(ExportJson.Options)
                 ?? throw new JsonException();
+            if (context.Preview)
+                request = request with { ValidateOnly = true };
             var result = api is IContextualExportApi contextual
                 ? await contextual.ExportAsync(request, context, cancellationToken)
                 : await api.ExportAsync(request, cancellationToken);
@@ -218,7 +249,10 @@ public sealed class WorkItemQueryWorkerDispatcher(
     }
 
     private static async ValueTask<WorkerHostResultPayload> DispatchTemplateLogItemAsync(
-        Func<ITemplateLogItemScriptApi>? factory, WorkerHostCallPayload call, CancellationToken cancellationToken)
+        Func<ITemplateLogItemScriptApi>? factory,
+        WorkerHostCallPayload call,
+        CancellationToken cancellationToken,
+        bool forcePreview)
     {
         if (factory is null)
             return new(true, JsonSerializer.SerializeToElement(
@@ -227,6 +261,8 @@ public sealed class WorkItemQueryWorkerDispatcher(
         try
         {
             var request = call.Params.Deserialize<ScriptTemplateLogItemRequest>(WorkerProtocol.JsonOptions) ?? throw new JsonException();
+            if (forcePreview)
+                request = request with { Preview = true };
             var result = await factory().CreateAsync(request, cancellationToken);
             return new(true, JsonSerializer.SerializeToElement(result, WorkerProtocol.JsonOptions));
         }
@@ -252,7 +288,8 @@ public sealed class WorkItemQueryWorkerDispatcher(
 
     private static async ValueTask<WorkerHostResultPayload> DispatchLogItemAsync(
         Func<ILogItemScriptApi>? factory, WorkerHostCallPayload call,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool forcePreview)
     {
         if (factory is null)
             return new(true, JsonSerializer.SerializeToElement(
@@ -261,6 +298,8 @@ public sealed class WorkItemQueryWorkerDispatcher(
         try
         {
             var request = call.Params.Deserialize<ScriptLogItemRequest>(WorkerProtocol.JsonOptions) ?? throw new JsonException();
+            if (forcePreview)
+                request = request with { Preview = true };
             var result = await factory().CreateAsync(request, cancellationToken);
             return new(true, JsonSerializer.SerializeToElement(result, WorkerProtocol.JsonOptions));
         }

@@ -227,6 +227,12 @@ public partial class ScriptManagementViewModel(
     private string _automationScheduleText = string.Empty;
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveMetadataSettingsCommand))]
+    private string _defaultArgumentsText = string.Empty;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveMetadataSettingsCommand))]
+    private int _defaultTimeoutSeconds = 300;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveMetadataSettingsCommand))]
     private bool _automationRunOnStartup;
     [ObservableProperty] private bool _automationTriggerOnWorkItemCreated;
     [ObservableProperty] private bool _automationTriggerOnWorkItemSaved;
@@ -235,6 +241,7 @@ public partial class ScriptManagementViewModel(
 
     public bool HasProgress => IsExecuting && !string.IsNullOrWhiteSpace(ProgressMessage);
     public bool HasMetadataSettingsError => !string.IsNullOrWhiteSpace(MetadataSettingsError);
+    public bool CanEditMetadataIdentity => SelectedScript?.IsCSharp == false;
 
     public bool CanSaveMetadataSettings =>
         SelectedScript is { BuildSucceeded: true } && !IsExecuting;
@@ -283,6 +290,15 @@ public partial class ScriptManagementViewModel(
         MetadataName = value?.Metadata?.Name ?? value?.Name ?? string.Empty;
         MetadataDescription = value?.Metadata?.Description ?? value?.Description ?? string.Empty;
         AutomationScheduleText = value?.Metadata?.Schedule ?? string.Empty;
+        DefaultArgumentsText = string.Join(
+            Environment.NewLine,
+            value?.Metadata?.DefaultArguments?
+                .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                .Select(pair => $"{pair.Key}={pair.Value}")
+            ?? []);
+        DefaultTimeoutSeconds = value?.Metadata?.TimeoutSeconds is > 0 and <= 3600
+            ? value.Metadata.TimeoutSeconds.Value
+            : 300;
         AutomationRunOnStartup = value?.Metadata?.RunOnStartup ?? false;
         var triggers = value?.Metadata?.Triggers ?? [];
         AutomationTriggerOnWorkItemCreated = triggers.Contains(ScriptAutomationTriggerKind.WorkItemCreated);
@@ -290,6 +306,7 @@ public partial class ScriptManagementViewModel(
         AutomationTriggerOnTagAdded = triggers.Contains(ScriptAutomationTriggerKind.TagAdded);
         OnPropertyChanged(nameof(HasMetadataSettingsError));
         OnPropertyChanged(nameof(HasSelectedDiagnostics));
+        OnPropertyChanged(nameof(CanEditMetadataIdentity));
         RunCommand.NotifyCanExecuteChanged();
         OpenSelectedScriptCommand.NotifyCanExecuteChanged();
         SaveMetadataSettingsCommand.NotifyCanExecuteChanged();
@@ -424,16 +441,29 @@ public partial class ScriptManagementViewModel(
         var script = SelectedScript;
         if (script is null)
             return;
+        var runDialog = services.GetRequiredService<ScriptRunDialogViewModel>();
+        runDialog.Initialize(script.Name, script.Metadata);
+        var options = await OverlayDialog.ShowCustomModal<ScriptRunOptions>(
+            runDialog,
+            options: new OverlayDialogOptions
+            {
+                CanDragMove = false,
+                CanResize = false,
+                CanLightDismiss = false,
+                IsCloseButtonVisible = false,
+            });
+        if (options is null)
+            return;
         IsExecuting = true;
-        Status = $"正在运行 {script.Name}";
+        Status = options.Preview ? $"正在预览运行 {script.Name}" : $"正在运行 {script.Name}";
         using var cancellation = new CancellationTokenSource();
         _executionCancellation = cancellation;
         try
         {
             var outcome = await Task.Run(async () => await scriptManager.ExecuteAsync(
                 script.Id,
-                CreateExecutionRequest(script),
-                TimeSpan.FromMinutes(5),
+                CreateExecutionRequest(options),
+                options.Timeout,
                 cancellation.Token), cancellation.Token);
             Status = FormatExecutionStatus(
                 script.Name, outcome.Result.Status, outcome.Result.Diagnostics, outcome.Duration, outcome.Result.Effects);
@@ -479,13 +509,21 @@ public partial class ScriptManagementViewModel(
             return;
         try
         {
+            if (!ScriptRunDialogViewModel.TryParseArguments(
+                    DefaultArgumentsText,
+                    out var defaultArguments,
+                    out var argumentError))
+                throw new ArgumentException(argumentError, nameof(DefaultArgumentsText));
             await ScriptMetadataEditor.WriteAsync(
                 script.SourcePath,
                 MetadataName,
                 MetadataDescription,
                 script.IsAutomation ? AutomationScheduleText : null,
                 script.IsAutomation && AutomationRunOnStartup,
-                GetAutomationTriggers());
+                GetAutomationTriggers(),
+                defaultArguments,
+                DefaultTimeoutSeconds,
+                updateIdentity: !script.IsCSharp);
             MetadataSettingsError = string.Empty;
             OnPropertyChanged(nameof(HasMetadataSettingsError));
             await ReloadAsync(forceReload: true);
@@ -871,8 +909,10 @@ public partial class ScriptManagementViewModel(
                 ? string.Empty
                 : $"{diagnostic.SourcePath}:{diagnostic.Line}:{diagnostic.Column}");
 
-    private ScriptExecutionRequest CreateExecutionRequest(ScriptListItem script)
-    {
-        return new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual);
-    }
+    private static ScriptExecutionRequest CreateExecutionRequest(ScriptRunOptions options) =>
+        new(
+            Arguments: options.Arguments,
+            Source: ScriptExecutionSource.Manual,
+            IdempotencyKey: options.IdempotencyKey,
+            Preview: options.Preview);
 }

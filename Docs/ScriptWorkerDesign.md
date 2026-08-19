@@ -671,3 +671,12 @@ worker 重启后不会自动重复未确认的副作用操作。
 ### C# Worker 当前宿主 API
 
 C# Worker 通过 HostCall 使用以下已实现能力（`ScriptHostApiCatalog.All` 共 13 个方法，见 `Diary.ScriptHost/ScriptDiscoveryApis.cs`）：`workItems.query`、`logItems.create`、`templateLogItems.create`、`templates.list`、`trackerInstances.get`、`trackerInstances.list`、`clipboard.get`、`clipboard.set`、`ui.notify`、`ui.confirm`、`log.write`、`script.progress` 和 `host.capabilities.list`。剪贴板和用户交互由主进程提供实现；工作项查询结果包含备注、标签等只读日记数据。写入日记、Tracker 写入及任意数据库/DI 访问不属于当前协议。
+
+
+## 执行策略边界（2026-08-19）
+
+- `QueryScript` 是宿主强制的只读入口。Worker HostCall 和进程内 API 注册都拒绝日志创建、按模板创建、剪贴板写入、真实目录/文件交互和真实导出。
+- 管理页 Preview 是执行级策略，不依赖脚本主动传递 `preview`：日志写入请求被强制改为预览，导出请求被强制改为 `validate_only`。
+- Preview 的目录选择返回虚拟令牌，不弹 UI、不访问文件系统；打开导出文件和写剪贴板仍被拒绝。
+- 导出预检会执行格式能力、内容、格式选项、模板存在性、版本和绑定校验，但不解析真实目录令牌、不调用渲染器、不注册 FileId。
+- 上述策略由 `ScriptHostCallContext` 的 EntryKind 与 Preview 统一驱动，C# Worker、Python Worker、Lua Worker 和进程内执行保持同一语义。

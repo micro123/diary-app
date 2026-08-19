@@ -18,13 +18,13 @@ clr = nil
 
 -- 2. 宿主 API 门面（底层 __diary_* 函数由 LuaWorker 以 C# 注册）
 diary = {
-    workItems = {
+    work_items = {
         query = function(params) return __diary_work_items_query(params) end,
     },
-    logItems = {
+    log_items = {
         create = function(params) return __diary_log_items_create(params) end,
     },
-    templateLogItems = {
+    template_log_items = {
         create = function(params) return __diary_template_log_items_create(params) end,
     },
     templates = {
@@ -33,7 +33,7 @@ diary = {
     host = {
         list = function() return __diary_host_capabilities_list() end,
     },
-    trackerInstances = {
+    tracker_instances = {
         get = function(params) return __diary_tracker_get(params) end,
         list = function() return __diary_tracker_list() end,
     },
@@ -61,6 +61,12 @@ diary = {
     },
 }
 
+-- 兼容既有脚本；新脚本统一使用 snake_case 门面。
+diary.workItems = diary.work_items
+diary.logItems = diary.log_items
+diary.templateLogItems = diary.template_log_items
+diary.trackerInstances = diary.tracker_instances
+
 -- print 重定向到脚本日志 Info 级（与 C# Console.WriteLine、Python print 语义一致）；
 -- 转发是尽力而为：log.write 未配置/失败时不因此让脚本失败。
 print = function(...)
@@ -71,8 +77,8 @@ print = function(...)
     pcall(__diary_log_write, 'Info', table.concat(parts, '\t'))
 end
 
--- 3. 分页流式查询（workItems.stream / items.stream）
-diary.workItems.stream = function(params)
+-- 3. 分页流式查询（work_items.stream / items.stream）
+diary.work_items.stream = function(params)
     params = params or {}
     local pageSize = params.pageSize or 500
     if pageSize < 1 or pageSize > 500 then
@@ -110,15 +116,19 @@ end
 -- 4. 执行上下文装配
 __diary_context = {}
 __diary_context.target = __diary_context_target
-__diary_context.dateRange = __diary_context_date_range
-__diary_context.workItem = __diary_context_work_item
+__diary_context.date_range = __diary_context_date_range
+__diary_context.work_item = __diary_context_work_item
+__diary_context.dateRange = __diary_context.date_range
+__diary_context.workItem = __diary_context.work_item
 __diary_context.arguments = __diary_context_arguments or {}
 __diary_context.log = diary.log
 __diary_context.progress = {
     report = function(fraction, message) return __diary_progress_report(fraction, message) end,
 }
-__diary_context.isCancelled = function() return __diary_is_cancelled() end
-__diary_context.getDateRange = function() return __diary_context_date_range end
+__diary_context.is_cancelled = function() return __diary_is_cancelled() end
+__diary_context.get_date_range = function() return __diary_context_date_range end
+__diary_context.isCancelled = __diary_context.is_cancelled
+__diary_context.getDateRange = __diary_context.get_date_range
 __diary_context.items = {
     stream = function(params)
         local range = __diary_context_date_range
@@ -128,12 +138,14 @@ __diary_context.items = {
         params = params or {}
         params.startDate = range.startDate
         params.endDate = range.endDate
-        return diary.workItems.stream(params)
+        return diary.work_items.stream(params)
     end,
 }
 
-__diary_context.entryKind = __diary_context_entry_kind
-__diary_context.idempotencyKey = __diary_context_idempotency_key
+__diary_context.entry_kind = __diary_context_entry_kind
+__diary_context.idempotency_key = __diary_context_idempotency_key
+__diary_context.entryKind = __diary_context.entry_kind
+__diary_context.idempotencyKey = __diary_context.idempotency_key
 __diary_context.preview = __diary_context_preview
 __diary_context.automation = {
     trigger = __diary_context_automation_trigger,

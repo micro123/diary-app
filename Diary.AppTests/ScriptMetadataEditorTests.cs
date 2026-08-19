@@ -117,6 +117,43 @@ public sealed class ScriptMetadataEditorTests
         }
     }
 
+    [TestMethod]
+    public async Task WriteAsync_CSharpModeRemovesIdentityAndWritesRunDefaults()
+    {
+        var root = CreateRoot();
+        try
+        {
+            var sourcePath = Path.Combine(root, "sample.cs");
+            await File.WriteAllTextAsync(
+                sourcePath + ".json",
+                """{"id":"old","name":"旧名称","engine":"csharp","scope":1,"entryKind":3,"custom":42}""");
+
+            await ScriptMetadataEditor.WriteAsync(
+                sourcePath,
+                "ignored",
+                "ignored",
+                null,
+                false,
+                defaultArguments: new Dictionary<string, string> { ["range"] = "today" },
+                timeoutSeconds: 60,
+                updateIdentity: false);
+
+            using var document = JsonDocument.Parse(await File.ReadAllTextAsync(sourcePath + ".json"));
+            Assert.IsFalse(document.RootElement.TryGetProperty("Id", out _));
+            Assert.IsFalse(document.RootElement.TryGetProperty("Name", out _));
+            Assert.IsFalse(document.RootElement.TryGetProperty("Engine", out _));
+            Assert.IsFalse(document.RootElement.TryGetProperty("Scope", out _));
+            Assert.IsFalse(document.RootElement.TryGetProperty("EntryKind", out _));
+            Assert.AreEqual("today", document.RootElement.GetProperty("DefaultArguments").GetProperty("range").GetString());
+            Assert.AreEqual(60, document.RootElement.GetProperty("TimeoutSeconds").GetInt32());
+            Assert.AreEqual(42, document.RootElement.GetProperty("custom").GetInt32());
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
     private static string CreateRoot()
     {
         var root = Path.Combine(Path.GetTempPath(), $"diary-script-metadata-{Guid.NewGuid():N}");

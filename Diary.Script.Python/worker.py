@@ -157,13 +157,17 @@ class LogApi:
 
 class DiaryApi:
     def __init__(self, state):
-        self.workItems = WorkItemsApi(state)
-        self.logItems = type("LogItemsApi", (), {"create": HostApi(state, "logItems.create")})()
-        self.templateLogItems = type("TemplateLogItemsApi", (), {"create": HostApi(state, "templateLogItems.create")})()
-        self.trackerInstances = type("TrackerInstancesApi", (), {
+        self.work_items = WorkItemsApi(state)
+        self.log_items = type("LogItemsApi", (), {"create": HostApi(state, "logItems.create")})()
+        self.template_log_items = type("TemplateLogItemsApi", (), {"create": HostApi(state, "templateLogItems.create")})()
+        self.tracker_instances = type("TrackerInstancesApi", (), {
             "get": HostApi(state, "trackerInstances.get"),
             "list": HostApi(state, "trackerInstances.list"),
         })()
+        self.workItems = self.work_items
+        self.logItems = self.log_items
+        self.templateLogItems = self.template_log_items
+        self.trackerInstances = self.tracker_instances
         self.templates = type("TemplatesApi", (), {"list": HostApi(state, "templates.list")})()
         self.host = type("HostApi", (), {"list": HostApi(state, "host.capabilities.list")})()
         self.clipboard = ClipboardApi(state)
@@ -176,14 +180,14 @@ class TargetItemsApi:
         self.context = context
 
     def stream(self, params=None, **kwargs):
-        date_range = self.context.dateRange
+        date_range = self.context.date_range
         if not date_range:
             raise HostCallError("InvalidInput", "当前目标没有日期范围。")
         query = {} if params is None else dict(params)
         query.update(kwargs)
         query["startDate"] = date_range["startDate"]
         query["endDate"] = date_range["endDate"]
-        return self.context.diary.workItems.stream(query)
+        return self.context.diary.work_items.stream(query)
 
 
 class ProgressApi:
@@ -257,28 +261,38 @@ class ScriptContext:
         self.arguments = self.request.get("arguments") or {}
         self.target = self.request.get("target")
         self.source = self.request.get("source", "Unknown")
-        self.entryKind = self.request.get("entryKind", "Application")
-        self.idempotencyKey = self.request.get("idempotencyKey")
+        self.entry_kind = self.request.get("entryKind", "Application")
+        self.idempotency_key = self.request.get("idempotencyKey")
+        self.entryKind = self.entry_kind
+        self.idempotencyKey = self.idempotency_key
         self.preview = bool(self.request.get("preview", False))
         self.diary = DiaryApi(state)
         self.exports = ExportsApi(state)
         self.log = self.diary.log
         self.progress = ProgressApi(state)
-        self.dateRange = resolve_date_range(self.target)
-        self.workItem = self.target.get("workItem") if isinstance(self.target, dict) else None
+        self.date_range = resolve_date_range(self.target)
+        self.work_item = self.target.get("workItem") if isinstance(self.target, dict) else None
+        self.dateRange = self.date_range
+        self.workItem = self.work_item
         self.items = TargetItemsApi(self)
         trigger = "Scheduled" if self.source == "Automation" else "Startup" if self.source == "Startup" else "Unknown"
         self.automation = {
             "trigger": trigger,
             "eventData": dict(self.arguments or {}),
-            "idempotencyKey": self.idempotencyKey,
+            "idempotencyKey": self.idempotency_key,
         }
 
+    def get_date_range(self):
+        return self.date_range
+
+    def is_cancelled(self):
+        return self.state.cancelled.is_set()
+
     def getDateRange(self):
-        return self.dateRange
+        return self.get_date_range()
 
     def isCancelled(self):
-        return self.state.cancelled.is_set()
+        return self.is_cancelled()
 
     def __getitem__(self, key):
         if key == "diary":
@@ -293,16 +307,16 @@ class ScriptContext:
             return self.target
         if key == "source":
             return self.source
-        if key == "entryKind":
-            return self.entryKind
-        if key == "idempotencyKey":
-            return self.idempotencyKey
+        if key in ("entry_kind", "entryKind"):
+            return self.entry_kind
+        if key in ("idempotency_key", "idempotencyKey"):
+            return self.idempotency_key
         if key == "preview":
             return self.preview
-        if key == "dateRange":
-            return self.dateRange
-        if key == "workItem":
-            return self.workItem
+        if key in ("date_range", "dateRange"):
+            return self.date_range
+        if key in ("work_item", "workItem"):
+            return self.work_item
         if key == "items":
             return self.items
         if key == "log":

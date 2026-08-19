@@ -20,12 +20,12 @@ end
 
 function editor_main(context)
     local items
-    local date_range = context.getDateRange()
+    local date_range = context.get_date_range()
     if date_range ~= nil then
         items = context.items.stream()
-    elseif context.workItem ~= nil then
-        local work_item_date = context.workItem.date
-        items = diary.workItems.stream({
+    elseif context.work_item ~= nil then
+        local work_item_date = context.work_item.date
+        items = diary.work_items.stream({
             startDate = work_item_date,
             endDate = work_item_date,
             pageSize = 500

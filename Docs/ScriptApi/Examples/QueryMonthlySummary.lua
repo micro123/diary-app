@@ -1,6 +1,6 @@
 function query_main(context)
     local totals = {}
-    for item in diary.workItems.stream({ range = "thisMonth", pageSize = 500 }) do
+    for item in diary.work_items.stream({ range = "thisMonth", pageSize = 500 }) do
         local tagName = "无"
         for _, tag in ipairs(item.tags) do
             if tag.isPrimary then

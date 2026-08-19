@@ -67,7 +67,8 @@ public sealed record ScriptHostCallContext(
     string WorkerId,
     string ScriptId,
     ScriptEntryKind EntryKind,
-    ScriptExecutionSource Source);
+    ScriptExecutionSource Source,
+    bool Preview = false);
 
 public static class ScriptHostCallScope
 {

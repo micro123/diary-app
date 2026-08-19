@@ -192,6 +192,12 @@ Jira 失败时核心工作记录仍可保存。
 - [x] 已明确脚本查询与追加工作项的事务边界和失败行为；当前无脚本授权体系，默认访问宿主已注册的完整 Host API。普通/模板追加使用 provider 事务，失败回滚；数据库级幂等原子化和批量追加仍待后续评估。
 - [~] 已统一 Tracker 实例目录的只读 DTO、能力声明和错误结果；后端 Issue 查询模型随首个新 Tracker 实现补充。
 - [x] 已为查询 API 增加 `today`/`yesterday`/`thisWeek`/`thisMonth` 日期范围快捷值，并统一三语言 create API 的 `preview`/`idempotencyKey` 文档与幂等持久化说明。
+- [x] C# 脚本 API 已按主推语言收口：新增 `context.Api()` 推荐路径、今日/区间查询、简化日志创建、`EnsureSucceeded()` 与独立快速入门；新建模板不再生成底层 `GetApi<T>()` 样板。
+- [x] C# metadata 已收缩为运行配置：descriptor 身份、作用域、入口类型和编辑器目标只由源码声明；管理页保存会清理旧身份字段，目录加载按编译后入口校验自动化配置。
+- [x] 脚本管理手动运行已增加参数、幂等键、超时和 Preview 对话框；默认参数和默认超时可写入 metadata。
+- [x] Query 只读和 Preview 已由宿主强制：日志写入转预览，导出转 validate-only，预览目录使用虚拟令牌，剪贴板写入/打开文件等副作用拒绝；Worker 与进程内路径语义一致。
+- [x] Python/Lua 公共门面新增并推荐 snake_case 命名，保留旧 camelCase 别名；请求和结果 DTO 继续遵循宿主协议字段，避免与 C# 风格强行统一。
+
 - [x] 已增加 Week 编辑器目标（用周一的 `yyyy-MM-dd` 标识），日历右键可对本周/上周运行脚本，C#/Lua/Python 的 `dateRange` 同步解析周范围。
 - [x] 查询工作项标签 DTO 已增加语义化的 `IsPrimary`/`isPrimary` 字段；`Level` 保留用于兼容，C#、Lua、Python 示例均使用语义化字段判断主标签。
 - [x] 标签支持只读字符串键值元数据，编辑器可维护 `projectNumber` 等项目属性，并同步暴露给 C#、Lua、Python 脚本；当前数据库通过初始表结构和本地 SQLite 手工补列保持兼容。

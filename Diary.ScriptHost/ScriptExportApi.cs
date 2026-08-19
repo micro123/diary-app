@@ -170,6 +170,7 @@ public sealed record ExportRequest
     public ExportContent? Content { get; init; }
     public ExportTemplateSource? Template { get; init; }
     public ExportFormatOptions? FormatOptions { get; init; }
+    public bool ValidateOnly { get; init; }
 }
 
 public sealed record ExportContentCapabilities(
@@ -257,7 +258,8 @@ public sealed record ExportResult(
     string? FileId,
     string? FileName,
     int? ItemCount,
-    ScriptApiError? Error);
+    ScriptApiError? Error,
+    bool ValidatedOnly = false);
 
 public interface IExportApi
 {
@@ -471,7 +473,7 @@ public sealed class ExportRequestValidator
     {
         if (!string.Equals(request.FormatId, descriptor.FormatId, StringComparison.Ordinal))
             return Error("导出格式与格式目录不一致。");
-        if (string.IsNullOrWhiteSpace(request.DirectorySelectionId))
+        if (!request.ValidateOnly && string.IsNullOrWhiteSpace(request.DirectorySelectionId))
             return Error("目录选择令牌不能为空。");
         if (string.IsNullOrWhiteSpace(request.FileName))
             return Error("文件名不能为空。");

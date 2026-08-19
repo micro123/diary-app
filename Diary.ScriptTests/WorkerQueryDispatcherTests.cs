@@ -131,6 +131,41 @@ public sealed class WorkerQueryDispatcherTests
     }
 
     [TestMethod]
+    public async Task DispatchAsync_QueryEntryRejectsPersistentMutation()
+    {
+        var dispatcher = new WorkItemQueryWorkerDispatcher(
+            () => new FakeQueryApi(),
+            logItemApiFactory: () => new CapturingLogItemApi());
+        var context = new ScriptHostCallContext(
+            "exec", "worker", "query", ScriptEntryKind.Query, ScriptExecutionSource.Manual);
+
+        var result = await dispatcher.DispatchAsync(context, new(
+            "logItems.create",
+            JsonSerializer.SerializeToElement(new ScriptLogItemRequest("2026-08-19", 1, "只读测试"))));
+
+        Assert.IsFalse(result.Success);
+        Assert.AreEqual(ScriptApiErrorCodes.ApiScopeNotSupported, result.Error?.Code);
+    }
+
+    [TestMethod]
+    public async Task DispatchAsync_PreviewForcesLogItemPreview()
+    {
+        var api = new CapturingLogItemApi();
+        var dispatcher = new WorkItemQueryWorkerDispatcher(
+            () => new FakeQueryApi(),
+            logItemApiFactory: () => api);
+        var context = new ScriptHostCallContext(
+            "exec", "worker", "app", ScriptEntryKind.Application, ScriptExecutionSource.Manual, Preview: true);
+
+        var result = await dispatcher.DispatchAsync(context, new(
+            "logItems.create",
+            JsonSerializer.SerializeToElement(new ScriptLogItemRequest("2026-08-19", 1, "预览测试"))));
+
+        Assert.IsTrue(result.Success);
+        Assert.IsTrue(api.Request?.Preview == true);
+    }
+
+    [TestMethod]
     public async Task DispatchAsync_TransportsLargeQueryResultWithinMessageLimit()
     {
         var items = Enumerable.Range(1, 1_000)
@@ -313,6 +348,20 @@ public sealed class WorkerQueryDispatcherTests
 
         Assert.IsFalse(result.Success);
         Assert.AreEqual("InvalidInput", result.Error!.Code);
+    }
+
+    private sealed class CapturingLogItemApi : ILogItemScriptApi
+    {
+        public ScriptLogItemRequest? Request { get; private set; }
+
+        public ValueTask<ScriptLogItemResult> CreateAsync(
+            ScriptLogItemRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            Request = request;
+            return ValueTask.FromResult(ScriptLogItemResult.Success(
+                new ScriptWorkItem(1, request.Date, request.Title, request.Hours, 0, request.Note, [])));
+        }
     }
 
     private sealed class FakeQueryApi : IWorkItemQueryScriptApi

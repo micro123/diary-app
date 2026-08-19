@@ -11,12 +11,12 @@ def primary_tag_name(item):
 
 
 def editor_main(context):
-    date_range = context.getDateRange()
+    date_range = context.get_date_range()
     if date_range is not None:
         items = context.items.stream()
-    elif context.workItem is not None:
-        work_item_date = context.workItem["date"]
-        items = context.diary.workItems.stream(
+    elif context.work_item is not None:
+        work_item_date = context.work_item["date"]
+        items = context.diary.work_items.stream(
             startDate=work_item_date,
             endDate=work_item_date,
             pageSize=500,

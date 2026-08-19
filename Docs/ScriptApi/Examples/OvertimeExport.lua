@@ -9,11 +9,11 @@ end
 
 function editor_main(context)
     local items
-    if context.getDateRange() ~= nil then
+    if context.get_date_range() ~= nil then
         items = context.items.stream()
-    elseif context.workItem ~= nil then
-        local date = context.workItem.date
-        items = diary.workItems.stream({ startDate = date, endDate = date, pageSize = 500 })
+    elseif context.work_item ~= nil then
+        local date = context.work_item.date
+        items = diary.work_items.stream({ startDate = date, endDate = date, pageSize = 500 })
     else
         error("请从日期或工作项右键菜单执行此脚本。")
     end

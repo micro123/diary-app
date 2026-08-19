@@ -153,12 +153,23 @@
                         </StackPanel>
                         <Border Classes="Card" Padding="12" IsVisible="{Binding CanOpenSelectedScript}">
                             <StackPanel Spacing="6">
-                                <TextBlock Text="metadata 设置" FontWeight="SemiBold" />
-                                <TextBlock Text="名称" />
-                                <TextBox Text="{Binding MetadataName, Mode=TwoWay}" />
-                                <TextBlock Text="描述" />
-                                <TextBox Text="{Binding MetadataDescription, Mode=TwoWay}" AcceptsReturn="True"
-                                         TextWrapping="Wrap" Height="56" />
+                                <TextBlock Text="运行配置" FontWeight="SemiBold" />
+                                <StackPanel Spacing="6" IsVisible="{Binding CanEditMetadataIdentity}">
+                                    <TextBlock Text="名称" />
+                                    <TextBox Text="{Binding MetadataName, Mode=TwoWay}" />
+                                    <TextBlock Text="描述" />
+                                    <TextBox Text="{Binding MetadataDescription, Mode=TwoWay}" AcceptsReturn="True"
+                                             TextWrapping="Wrap" Height="56" />
+                                </StackPanel>
+                                <TextBlock Text="C# 脚本的 ID、名称、描述和入口类型以源码为准。"
+                                           FontSize="12" Opacity="0.62"
+                                           IsVisible="{Binding SelectedScript.IsCSharp}" />
+                                <TextBlock Text="默认执行参数" />
+                                <TextBox Text="{Binding DefaultArgumentsText, Mode=TwoWay}" AcceptsReturn="True"
+                                         TextWrapping="NoWrap" Height="90" Watermark="每行 key=value" />
+                                <TextBlock Text="默认超时时间（秒）" />
+                                <NumericUpDown Value="{Binding DefaultTimeoutSeconds, Mode=TwoWay}"
+                                               Minimum="1" Maximum="3600" Increment="10" />
                                 <StackPanel Spacing="4" IsVisible="{Binding SelectedScript.IsAutomation}">
                                     <TextBlock Text="调度时间" />
                                     <TextBox Text="{Binding AutomationScheduleText, Mode=TwoWay}"

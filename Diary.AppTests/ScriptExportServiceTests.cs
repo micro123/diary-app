@@ -697,6 +697,43 @@ public sealed class ExportPluginIntegrationTests
         }
     }
 
+    [TestMethod]
+    public async Task ExportAsync_ValidateOnlySkipsDirectoryAndFileCreation()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var service = CreateService(directory);
+            var context = new ScriptHostCallContext(
+                "execution", "worker", "query-script",
+                ScriptEntryKind.Query, ScriptExecutionSource.Manual, Preview: true);
+
+            var result = await service.ExportAsync(new ExportRequest
+            {
+                FormatId = "csv",
+                DirectorySelectionId = string.Empty,
+                FileName = "preview.csv",
+                ValidateOnly = true,
+                Content = new ExportTableContent
+                {
+                    Columns = [new ExportColumn("title")],
+                    Rows = [new object?[] { "Diary" }],
+                },
+            }, context);
+
+            Assert.IsTrue(result.Succeeded, result.Error?.Message);
+            Assert.IsTrue(result.ValidatedOnly);
+            Assert.IsNull(result.FileId);
+            Assert.IsNull(result.FileName);
+            Assert.AreEqual(1, result.ItemCount);
+            Assert.AreEqual(0, Directory.EnumerateFiles(directory, "*.csv", SearchOption.AllDirectories).Count());
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
     private static ExportTemplateSource CreateTableTemplateSource(ExportTableContent table) => new()
     {
         TemplateId = "xlsx.table_report",

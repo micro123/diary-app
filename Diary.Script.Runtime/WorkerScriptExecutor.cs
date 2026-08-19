@@ -46,7 +46,8 @@ public sealed class WorkerScriptExecutor(
                 runtime.Supervisor.WorkerId ?? "unknown",
                 scriptId,
                 entryKind,
-                request.Source);
+                request.Source,
+                request.Preview);
             var result = await runtime.Supervisor.ExecuteAsync(
                 scriptId,
                 resolvedExecutionId.ToString(),

@@ -16,6 +16,7 @@ public enum ScriptLogItemErrorCode
     DatabaseUnavailable = 2,
     ProviderFailure = 3,
     Cancelled = 4,
+    PermissionDenied = 5,
 }
 
 public sealed record ScriptLogItemError(ScriptLogItemErrorCode Code, string Message)
@@ -26,6 +27,7 @@ public sealed record ScriptLogItemError(ScriptLogItemErrorCode Code, string Mess
         ScriptLogItemErrorCode.DatabaseUnavailable => new(ScriptApiErrorCodes.HostNotConfigured, Message, ScriptErrorCategory.Host, true),
         ScriptLogItemErrorCode.ProviderFailure => new("PROVIDER_FAILURE", Message, ScriptErrorCategory.Provider, true),
         ScriptLogItemErrorCode.Cancelled => new(ScriptApiErrorCodes.Cancelled, Message, ScriptErrorCategory.Cancellation),
+        ScriptLogItemErrorCode.PermissionDenied => new(ScriptApiErrorCodes.ApiScopeNotSupported, Message, ScriptErrorCategory.Permission),
         _ => new("SCRIPT_LOG_ITEM_FAILED", Message, ScriptErrorCategory.Host),
     };
 }

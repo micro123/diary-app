@@ -1,6 +1,6 @@
 # Python 脚本 API Reference
 
-Python 使用 `ScriptApiVersion.V1`。脚本在独立 Python Worker 中执行，通过 `context.diary` 访问宿主 API。入口必须是同步函数，Worker 不支持 `async def` 或返回 awaitable。
+Python 使用 `ScriptApiVersion.V1`。脚本在独立 Python Worker 中执行，通过 `context.diary` 访问宿主 API。公共门面遵循 Python 习惯使用 snake_case（如 `work_items`、`get_date_range()`）；请求和结果 DTO 仍使用宿主协议的 camelCase 字段。旧 camelCase 门面保留为兼容别名，新脚本不再推荐。入口必须是同步函数，Worker 不支持 `async def` 或返回 awaitable。
 
 ## 1. 脚本入口和上下文
 
@@ -10,7 +10,7 @@ Python 使用 `ScriptApiVersion.V1`。脚本在独立 Python Worker 中执行，
 
 ~~~python
 def application_main(context):
-    result = context.diary.workItems.query(
+    result = context.diary.work_items.query(
         startDate="2026-08-01",
         endDate="2026-08-31",
         limit=100,
@@ -27,18 +27,18 @@ def application_main(context):
 | 字段 | 说明 |
 | --- | --- |
 | `request` | 完整执行请求字典。 |
-| `entryKind` | 当前入口类型。 |
+| `entry_kind` | 当前入口类型。 |
 | `arguments` | 执行参数字典。 |
 | `target` | 编辑器目标字典；包含 `kind` 和目标对应的字段。 |
 | `source` | 执行来源名称。 |
-| `idempotencyKey` | 追加式写入的业务幂等键；已提交结果由宿主共享存储持久化，应用重启后仍可识别重复请求。 |
+| `idempotency_key` | 追加式写入的业务幂等键；已提交结果由宿主共享存储持久化，应用重启后仍可识别重复请求。 |
 | `preview` | 是否只预览而不写入。 |
-| `isCancelled()` | 查询当前执行是否已请求取消。 |
+| `is_cancelled()` | 查询当前执行是否已请求取消。 |
 | `progress.report(fraction, message)` | 报告 0 到 1 之间的执行进度。 |
 | `diary` | 宿主 API 根对象。 |
-| `dateRange` | 年、季度、月、周、日目标的日期范围；事项目标为 `None`。 |
-| `workItem` | 事项目标的不可变事项快照；其他目标为 `None`。 |
-| `getDateRange()` | 获取当前目标日期范围；无范围时返回 `None`。 |
+| `date_range` | 年、季度、月、周、日目标的日期范围；事项目标为 `None`。 |
+| `work_item` | 事项目标的不可变事项快照；其他目标为 `None`。 |
+| `get_date_range()` | 获取当前目标日期范围；无范围时返回 `None`。 |
 | `items.stream()` | 按当前日期范围分页迭代事项。 |
 | `log` | 调试日志 API。 |
 
@@ -54,10 +54,10 @@ def application_main(context):
 
 ## 2. 查询工作项
 
-调用：`context.diary.workItems.query(params=None, **kwargs)`。可以传字典、关键字参数或同时传入两者：
+调用：`context.diary.work_items.query(params=None, **kwargs)`。可以传字典、关键字参数或同时传入两者：
 
 ```python
-result = context.diary.workItems.query({"limit": 100}, text="Worker")
+result = context.diary.work_items.query({"limit": 100}, text="Worker")
 ```
 
 | 参数 | 类型 | 说明 |
@@ -109,7 +109,7 @@ participants = next(
 ### 流式查询大量明细
 
 ```python
-for item in context.diary.workItems.stream(
+for item in context.diary.work_items.stream(
     startDate="2026-01-01",
     endDate="2026-12-31",
     pageSize=500,
@@ -119,14 +119,14 @@ for item in context.diary.workItems.stream(
 
 Python 生成器按需调用 `workItems.query`，一页消费完后才拉取下一页。`pageSize` 必须在 1 到 500 之间，默认 500；除 `pageSize` 外还支持查询参数中的 `offset` 和全部过滤字段。查询期间数据变化可能影响 offset 分页边界。某一页查询领域失败（`succeeded=False`）时生成器抛出 `HostCallError` 结束迭代，不会静默截断结果。非流式查询单次最多返回 1000 条。
 
-`context.diary.items.stream()` 按当前目标日期范围分页迭代，仅日期目标可用——事项目标没有日期范围，调用会抛 `HostCallError`。需要按自定义范围迭代时使用 `context.diary.workItems.stream(...)` 手动传日期。
+`context.diary.items.stream()` 按当前目标日期范围分页迭代，仅日期目标可用——事项目标没有日期范围，调用会抛 `HostCallError`。需要按自定义范围迭代时使用 `context.diary.work_items.stream(...)` 手动传日期。
 
 ## 3. 创建日志项
 
-调用 `context.diary.logItems.create(params)` 会创建一个新工作项，不能修改或删除已有工作项：
+调用 `context.diary.log_items.create(params)` 会创建一个新工作项，不能修改或删除已有工作项：
 
 ```python
-result = context.diary.logItems.create({
+result = context.diary.log_items.create({
     "date": "2026-08-08",
     "hours": 2.5,
     "title": "完善 Python Worker API",
@@ -190,7 +190,7 @@ print(created["id"])
 ## 3.1 按模板创建日志项
 
 ```python
-result = context.diary.templateLogItems.create({
+result = context.diary.template_log_items.create({
     "date": "2026-08-08",
     "templateId": "00000000-0000-0000-0000-000000000001",
     "hours": 2.5,
@@ -224,7 +224,7 @@ for capability in context.diary.host.list():
 ## 4. Tracker 实例目录
 
 ```python
-result = context.diary.trackerInstances.get({
+result = context.diary.tracker_instances.get({
     "pluginId": "tracker.memory",
     "instanceId": "company",
 })
@@ -232,7 +232,7 @@ if result["succeeded"]:
     print(result["instance"]["displayName"])
 ```
 
-返回的 `instance` 包含 `pluginId`、`instanceId`、`displayName`、`icon`、`isConfigured`。`context.diary.trackerInstances.list()` 返回当前已启用实例的同一 DTO 列表，并按显示名称稳定排序。错误代码为 `InvalidInput` 或 `InstanceUnavailable`；失败时值返回 `{"succeeded": False, "error": {"code": ..., "message": ...}, "apiError": {...}}`，不抛异常。不暴露 Tracker 客户端、配置、数据库或 DI。
+返回的 `instance` 包含 `pluginId`、`instanceId`、`displayName`、`icon`、`isConfigured`。`context.diary.tracker_instances.list()` 返回当前已启用实例的同一 DTO 列表，并按显示名称稳定排序。错误代码为 `InvalidInput` 或 `InstanceUnavailable`；失败时值返回 `{"succeeded": False, "error": {"code": ..., "message": ...}, "apiError": {...}}`，不抛异常。不暴露 Tracker 客户端、配置、数据库或 DI。
 
 ## 5. 剪贴板
 
@@ -320,14 +320,14 @@ else:
 
 | Python API | Worker HostCall |
 | --- | --- |
-| `context.diary.workItems.query` | `workItems.query` |
-| `context.diary.workItems.stream` | `workItems.query`（分页） |
+| `context.diary.work_items.query` | `workItems.query` |
+| `context.diary.work_items.stream` | `workItems.query`（分页） |
 | `context.diary.templates.list` | `templates.list` |
 | `context.diary.host.list` | `host.capabilities.list` |
-| `context.diary.logItems.create` | `logItems.create` |
-| `context.diary.templateLogItems.create` | `templateLogItems.create` |
-| `context.diary.trackerInstances.get` | `trackerInstances.get` |
-| `context.diary.trackerInstances.list` | `trackerInstances.list` |
+| `context.diary.log_items.create` | `logItems.create` |
+| `context.diary.template_log_items.create` | `templateLogItems.create` |
+| `context.diary.tracker_instances.get` | `trackerInstances.get` |
+| `context.diary.tracker_instances.list` | `trackerInstances.list` |
 | `context.diary.clipboard.get` | `clipboard.get` |
 | `context.diary.clipboard.set` | `clipboard.set` |
 | `context.diary.ui.notify` | `ui.notify` |
@@ -352,7 +352,7 @@ Python Worker 禁止导入模块、文件访问、动态代码执行、运行时
 `context.exports.export` 是例外：其失败结果中的 `error` 本身就是稳定的 `ScriptApiError`，直接包含 `code`、`message`、`category`、`retryable`、`details`，没有额外的 `apiError`。
 
 ```python
-result = context.diary.workItems.query({"limit": 0})
+result = context.diary.work_items.query({"limit": 0})
 if not result["succeeded"]:
     code = (result.get("apiError") or {}).get("code", "PROVIDER_FAILURE")
     if code == "INVALID_ARGUMENT":
@@ -389,7 +389,7 @@ except HostCallError as error:
 | `idempotencyKey` | str 或 None | 业务幂等键。 |
 | `preview` | bool | 是否预览。 |
 
-枚举字段以字符串形式出现。`context.workItem` 是事项目标的不可变快照，字段与查询结果中的 `item` 相同（见附录 C）。
+枚举字段以字符串形式出现。`context.work_item` 是事项目标的不可变快照，字段与查询结果中的 `item` 相同（见附录 C）。
 
 ### 入口返回值约定
 

@@ -1,6 +1,6 @@
 # C# 脚本 API Reference
 
-本文对应 `ScriptApiVersion.V1`。C# 脚本统一在独立 Worker 中执行，使用 `Diary.ScriptBase` 契约和 `Diary.ScriptHost` API。宿主只注册已经实现的 API，脚本不需要声明或申请 capability。
+本文对应 `ScriptApiVersion.V1`。C# 是主推脚本语言，统一在独立 Worker 中执行，使用 `Diary.ScriptBase` 契约和 `Diary.ScriptHost` API。宿主只注册已经实现的 API，脚本不需要声明或申请 capability。首次使用建议先阅读 [C# 脚本 5 分钟入门](CSharpQuickStart.md)。
 
 ## 1. 最小脚本
 
@@ -31,9 +31,7 @@ public sealed class DemoScript : ApplicationScript
 
 脚本不能访问 `IServiceProvider`、数据库对象或 UI 对象；宿主 API 只能通过上下文获取。
 
-`GetApi<T>()` 适合可选 API，必需 API 使用 `GetRequiredApi<T>()`。
-
-C# 也可以使用强类型门面：
+新脚本推荐只记住 `context.Api()` 强类型门面；`GetApi<T>()` / `GetRequiredApi<T>()` 仅用于可选能力或底层扩展场景。
 
 ```csharp
 var api = context.Api();
@@ -62,7 +60,7 @@ var trackers = api.Tracker.ListInstances();
 | `EntryKind` | `ScriptEntryKind?` | `Application`、`Editor`、`Automation` 或预留的 `Query`；与作用域和目标必须一致。 |
 | `Description` | `string?` | 可选描述。 |
 
-脚本 metadata 仍可包含旧版 `capabilities` 字段，但当前会忽略该字段，不再作为 API 门禁。
+C# 的 Id、Name、Description、Scope、EntryKind 和 SupportedEditorTargets 以源码 descriptor 为唯一来源。同目录 metadata 只保存 schedule、runOnStartup、triggers、defaultArguments、timeoutSeconds 等运行配置；保存 C# 配置时会清理旧身份字段。旧版 `capabilities` 字段仍会被忽略。
 
 ## 3. 执行请求和上下文
 
@@ -75,7 +73,7 @@ var trackers = api.Tracker.ListInstances();
 | `Source` | `ScriptExecutionSource` | `Manual`、`Editor`、`Startup`、`Automation`、`WorkItemCreated`、`WorkItemSaved` 或 `TagAdded`。 |
 | `EntryKind` | `ScriptEntryKind?` | 脚本入口类型；由宿主和 descriptor 共同校验。 |
 | `IdempotencyKey` | `string?` | 追加式写入的业务幂等键；结果由宿主共享幂等存储持久化，应用重启后仍可识别已提交的重复请求。 |
-| `Preview` | `bool` | 只返回待追加记录和副作用摘要，不写入数据库。 |
+| `Preview` | `bool` | 由宿主强制执行：写日志转为预览、导出转为仅校验，剪贴板写入和打开文件等外部副作用被拒绝。 |
 
 编辑器脚本的目标有 `Year`、`Quarter`、`Month`、`Week`、`Day` 和 `WorkItem` 六种。目标字段由宿主校验，脚本不需要自行计算季度、月份或周边界。各目标的构造方法与字段：
 
@@ -130,11 +128,8 @@ else if (editor.WorkItem is not null)
 ```csharp
 using Diary.ScriptHost;
 
-var api = context.GetApi<IDiaryApi>();
-if (api is null)
-    return new(ScriptExecutionStatus.Failed, []);
-
-var result = await api.QueryAsync(new ScriptWorkItemQuery
+var diary = context.Api().Diary;
+var result = await diary.QueryAsync(new ScriptWorkItemQuery
 {
     StartDate = "2026-08-01",
     EndDate = "2026-08-31",
@@ -146,10 +141,9 @@ var result = await api.QueryAsync(new ScriptWorkItemQuery
     Offset = 0,
 }, cancellationToken);
 
-if (!result.Succeeded)
-    return new(ScriptExecutionStatus.Failed, []);
+var items = result.EnsureSucceeded();
 
-foreach (var item in result.Items)
+foreach (var item in items)
     Console.WriteLine($"{item.Date}: {item.Comment} ({item.Hours}h)");
 ```
 
@@ -482,7 +476,7 @@ if (!result.Succeeded)
 
 当前实现已接线：执行来源为 `Automation` 时注入 `Scheduled`，来源为 `Startup` 时注入 `Startup`，其余三种事件来源分别注入同名触发器；手动、编辑器等非自动化来源为 `Unknown`。
 
-自动化脚本（`AutomationScript`）放 `application` 目录，metadata 的 `entryKind` 写 `Automation`；`schedule` 字段（`"daily HH:mm"`）配置每日定时，`runOnStartup`（true/false）配置启动补跑，`triggers` 数组配置 `WorkItemCreated`、`WorkItemSaved`、`TagAdded`。事件型自动化可省略 `schedule`；事件执行的 `eventData` 包含工作项字段，`TagAdded` 额外包含标签字段，详见 `IScriptAutomationContext.EventData`。到点、补跑或事件发生时宿主自动执行，可在管理页执行历史中按来源筛选。
+自动化脚本（`AutomationScript`）放 `application` 目录，入口类型由源码基类确定；metadata 的 `schedule` 字段（`"daily HH:mm"`）配置每日定时，`runOnStartup`（true/false）配置启动补跑，`triggers` 数组配置 `WorkItemCreated`、`WorkItemSaved`、`TagAdded`。事件型自动化可省略 `schedule`；事件执行的 `eventData` 包含工作项字段，`TagAdded` 额外包含标签字段，详见 `IScriptAutomationContext.EventData`。到点、补跑或事件发生时宿主自动执行，可在管理页执行历史中按来源筛选。
 
 ### 13.2 ScriptEditorTarget
 
@@ -578,7 +572,7 @@ public interface ILogApi
 
 `Templates` 与 `Host` 各只有一个只读方法 `List()`，返回 `IReadOnlyList<ScriptTemplateInfo>` 与 `IReadOnlyList<string>`。
 
-`ScriptApiFacade`（`context.Api()` 返回）提供 `Diary`（`IDiaryApi`）、`Tracker`（`ITrackerApi`）、`System`（`SysApi`）、`Log`（`ILogApi`）四个属性，均通过 `GetRequiredApi<T>()` 获取——门面不扩大权限，缺少 API 时同样报错。
+`ScriptApiFacade`（`context.Api()` 返回）提供 `Diary`（`IDiaryApi`）、`Tracker`（`ITrackerApi`）、`System`（`SysApi`）、`Exports`（`IExportApi`）、`Log`（`ILogApi`）五个属性，均通过 `GetRequiredApi<T>()` 获取——门面不扩大权限，缺少 API 时同样报错。
 
 ### 13.6 入口返回值与异常映射
 

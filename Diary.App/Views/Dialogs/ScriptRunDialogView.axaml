@@ -1,0 +1,37 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:dialogs="using:Diary.App.ViewModels.Dialogs"
+             x:Class="Diary.App.Views.Dialogs.ScriptRunDialogView"
+             x:DataType="dialogs:ScriptRunDialogViewModel"
+             Width="560" MinHeight="430" MaxHeight="660" Padding="24">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="16">
+        <StackPanel Spacing="4">
+            <TextBlock Text="运行脚本" FontSize="24" FontWeight="Bold" />
+            <TextBlock Text="{Binding ScriptName}" Opacity="0.68" />
+        </StackPanel>
+        <ScrollViewer Grid.Row="1">
+            <StackPanel Spacing="10">
+                <TextBlock Text="执行参数" FontWeight="SemiBold" />
+                <TextBox Text="{Binding ArgumentsText, Mode=TwoWay}" AcceptsReturn="True"
+                         TextWrapping="NoWrap" Height="170"
+                         Watermark="每行一个参数，例如：date=2026-08-19" />
+                <TextBlock Text="使用 key=value 格式；空行和以 # 开头的行会被忽略。" FontSize="12" Opacity="0.62" />
+                <TextBlock Text="幂等键" />
+                <TextBox Text="{Binding IdempotencyKey, Mode=TwoWay}"
+                         Watermark="可选，例如：daily-summary:2026-08-19" />
+                <TextBlock Text="超时时间（秒）" />
+                <NumericUpDown Value="{Binding TimeoutSeconds, Mode=TwoWay}" Minimum="1" Maximum="3600" Increment="10" />
+                <CheckBox Content="预览执行（宿主强制阻止持久写入和真实文件导出）"
+                          IsChecked="{Binding Preview, Mode=TwoWay}" />
+                <TextBlock Text="预览模式仍允许查询、日志和只读交互；写入 API 返回投影结果，导出只做请求与模板绑定预检。"
+                           FontSize="12" Opacity="0.62" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding Error}" Foreground="IndianRed" TextWrapping="Wrap"
+                           IsVisible="{Binding HasError}" />
+            </StackPanel>
+        </ScrollViewer>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="取消" Command="{Binding CancelCommand}" />
+            <Button Content="运行" Classes="Primary" Command="{Binding RunCommand}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

@@ -142,20 +142,33 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
             }
 
             var source = CreateSource(scope);
-            var metadata = JsonSerializer.Serialize(new ScriptFileMetadata(
-                ApiVersion: ScriptApiVersion.V1,
-                Id: Id,
-                Name: Name,
-                Description: Description,
-                Engine: GetEngineName(),
-                Scope: scope,
-                SupportedEditorTargets: GetSupportedEditorTargets(),
-                EntryKind: GetEntryKind(scope),
-                Schedule: SelectedTemplate == AutomationScriptTemplate
-                    ? (string.IsNullOrWhiteSpace(ScheduleText) ? null : ScheduleText.Trim())
-                    : null,
-                RunOnStartup: SelectedTemplate == AutomationScriptTemplate && RunOnStartup,
-                Triggers: GetAutomationTriggers()), new JsonSerializerOptions { WriteIndented = true });
+            var isCSharp = SelectedLanguage == "C#";
+            var schedule = SelectedTemplate == AutomationScriptTemplate
+                ? (string.IsNullOrWhiteSpace(ScheduleText) ? null : ScheduleText.Trim())
+                : null;
+            var runOnStartup = SelectedTemplate == AutomationScriptTemplate && RunOnStartup;
+            var triggers = GetAutomationTriggers();
+            var metadata = isCSharp
+                ? JsonSerializer.Serialize(new
+                {
+                    Schedule = schedule,
+                    RunOnStartup = runOnStartup,
+                    Triggers = triggers,
+                    TimeoutSeconds = 300,
+                }, new JsonSerializerOptions { WriteIndented = true })
+                : JsonSerializer.Serialize(new ScriptFileMetadata(
+                    ApiVersion: ScriptApiVersion.V1,
+                    Id: Id,
+                    Name: Name,
+                    Description: Description,
+                    Engine: GetEngineName(),
+                    Scope: scope,
+                    SupportedEditorTargets: GetSupportedEditorTargets(),
+                    EntryKind: GetEntryKind(scope),
+                    Schedule: schedule,
+                    RunOnStartup: runOnStartup,
+                    Triggers: triggers,
+                    TimeoutSeconds: 300), new JsonSerializerOptions { WriteIndented = true });
             await WriteFilesAtomicallyAsync(sourcePath, source, metadataPath, metadata);
             RequestClose?.Invoke(this, sourcePath);
         }
@@ -225,7 +238,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
                 "end", ""]),
             "Lua" when SelectedTemplate == QueryScriptTemplate => string.Join(Environment.NewLine, [
                 "function query_main(context)",
-                "    local result = diary.workItems.query({ limit = 100 })",
+                "    local result = diary.work_items.query({ limit = 100 })",
                 "    if not result.succeeded then",
                 "        error(result.error.message)",
                 "    end",
@@ -234,26 +247,26 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
             "Lua" when IsEditorTargetTemplate => CreateLuaTargetSource(scope),
             "Lua" when SelectedTemplate == WorkItemQueryTemplate && scope == ScriptScope.Editor => string.Join(Environment.NewLine, [
                 $"function {entryName}(context)",
-            "    local range = context.getDateRange()",
+            "    local range = context.get_date_range()",
             "    if range ~= nil then",
             "        for item in context.items.stream() do",
             "            print(item.date .. ': ' .. item.comment)",
             "        end",
-            "    elseif context.workItem ~= nil then",
-            "        print(context.workItem.comment)",
+            "    elseif context.work_item ~= nil then",
+            "        print(context.work_item.comment)",
             "    end",
             "end", ""]),
             "Lua" when SelectedTemplate == WorkItemQueryTemplate => string.Join(Environment.NewLine, [
     $"function {entryName}(context)",
-            "    local result = diary.workItems.query({ limit = 100 })",
+            "    local result = diary.work_items.query({ limit = 100 })",
             "    if not result.succeeded then",
             "        error(result.error.message)",
             "    end",
             "end", ""]),
             "Lua" => string.Join(Environment.NewLine, [
                 $"function {entryName}(context)",
-            "    -- context.target、context.dateRange 和 context.workItem 来自上下文菜单。",
-            "    -- context.getDateRange() 在事项目标下返回 nil。",
+            "    -- context.target、context.date_range 和 context.work_item 来自上下文菜单。",
+            "    -- context.get_date_range() 在事项目标下返回 nil。",
             "    diary.log.debug(\"开始执行脚本\")",
             "end", ""]),
             "Python" when SelectedTemplate == AutomationScriptTemplate => string.Join(Environment.NewLine, [
@@ -264,7 +277,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
                 "    return None", ""]),
             "Python" when SelectedTemplate == QueryScriptTemplate => string.Join(Environment.NewLine, [
                 "def query_main(context):",
-                "    result = context.diary.workItems.query(limit=100)",
+                "    result = context.diary.work_items.query(limit=100)",
                 "    if not result[\"succeeded\"]:",
                 "        raise RuntimeError(result[\"error\"][\"message\"])",
                 "    # 查询结果仅供脚本内使用，执行结束后不会被保存。",
@@ -272,23 +285,23 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
             "Python" when IsEditorTargetTemplate => CreatePythonTargetSource(scope),
             "Python" when SelectedTemplate == WorkItemQueryTemplate && scope == ScriptScope.Editor => string.Join(Environment.NewLine, [
                 $"def {entryName}(context):",
-            "    date_range = context.getDateRange()",
+            "    date_range = context.get_date_range()",
             "    if date_range is not None:",
             "        for item in context.items.stream():",
             "            print(item['date'], item['comment'])",
-            "    elif context.workItem is not None:",
-            "        print(context.workItem['comment'])",
+            "    elif context.work_item is not None:",
+            "        print(context.work_item['comment'])",
             "    return None", ""]),
             "Python" when SelectedTemplate == WorkItemQueryTemplate => string.Join(Environment.NewLine, [
     $"def {entryName}(context):",
-            "    result = context.diary.workItems.query(limit=100)",
+            "    result = context.diary.work_items.query(limit=100)",
             "    if not result[\"succeeded\"]:",
             "        raise RuntimeError(result[\"error\"][\"message\"])",
             "    return None", ""]),
             "Python" => string.Join(Environment.NewLine, [
                 $"def {entryName}(context):",
-            "    # context.target、context.dateRange 和 context.workItem 来自上下文菜单。",
-            "    # context.getDateRange() 在事项目标下返回 None。",
+            "    # context.target、context.date_range 和 context.work_item 来自上下文菜单。",
+            "    # context.get_date_range() 在事项目标下返回 None。",
             "    context.log.debug(\"开始执行脚本\")",
             "    return None", ""]),
             _ => throw new InvalidOperationException($"不支持的脚本语言：{SelectedLanguage}"),
@@ -366,13 +379,9 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
         else if (SelectedTemplate == WorkItemQueryTemplate || SelectedTemplate == QueryScriptTemplate)
         {
             lines.AddRange([
-                "        var api = context.GetApi<IDiaryApi>();",
-                "        if (api is null)",
-                "            return new ScriptExecutionResult(ScriptExecutionStatus.Rejected, []);",
-                "        var result = await api.QueryAsync(new ScriptWorkItemQuery { Limit = 100 }, cancellationToken);",
-                "        return result.Succeeded",
-                "            ? ScriptExecutionResult.Succeeded()",
-                "            : new ScriptExecutionResult(ScriptExecutionStatus.Failed, []);",
+                "        var diary = context.Api().Diary;",
+                "        _ = (await diary.QueryTodayAsync(100, cancellationToken)).EnsureSucceeded();",
+                "        return ScriptExecutionResult.Succeeded();",
             ]);
         }
         else
@@ -429,13 +438,13 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
         SelectedTemplate == WorkItemTargetTemplate
             ? [
 $"function {entryName}(context)",
-                "    if context.workItem == nil then error('需要当前事项目标') end",
-                "    print(context.workItem.comment)",
+                "    if context.work_item == nil then error('需要当前事项目标') end",
+                "    print(context.work_item.comment)",
                 "end", "",
             ]
             : [
                 $"function {entryName}(context)",
-                "    if context.getDateRange() == nil then error('需要日期目标') end",
+                "    if context.get_date_range() == nil then error('需要日期目标') end",
                 "    for item in context.items.stream() do",
                 "        print(item.date .. ': ' .. item.comment)",
                 "    end",
@@ -450,14 +459,14 @@ $"function {entryName}(context)",
         SelectedTemplate == WorkItemTargetTemplate
             ? [
 $"def {entryName}(context):",
-                "    if context.workItem is None:",
+                "    if context.work_item is None:",
                 "        raise RuntimeError('需要当前事项目标')",
-                "    print(context.workItem['comment'])",
+                "    print(context.work_item['comment'])",
                 "    return None", "",
             ]
             : [
                 $"def {entryName}(context):",
-                "    if context.getDateRange() is None:",
+                "    if context.get_date_range() is None:",
                 "        raise RuntimeError('需要日期目标')",
                 "    for item in context.items.stream():",
                 "        print(item['date'], item['comment'])",

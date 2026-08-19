@@ -42,8 +42,16 @@ public sealed class ScriptCreationViewModelTests
                 var metadata = JsonSerializer.Deserialize<ScriptFileMetadata>(
                     await File.ReadAllTextAsync(sourcePath + ".json"));
                 Assert.IsNotNull(metadata);
-                Assert.AreEqual(engine, metadata.Engine);
-                Assert.AreEqual(ScriptScope.Editor, metadata.Scope);
+                if (language == "C#")
+                {
+                    Assert.IsNull(metadata.Engine);
+                    Assert.IsNull(metadata.Scope);
+                }
+                else
+                {
+                    Assert.AreEqual(engine, metadata.Engine);
+                    Assert.AreEqual(ScriptScope.Editor, metadata.Scope);
+                }
             }
             finally
             {
@@ -58,9 +66,9 @@ public sealed class ScriptCreationViewModelTests
     {
         foreach (var (language, engine, marker) in new[]
                  {
-                      ("C#", "csharp", "GetApi<IDiaryApi>()"),
-                     ("Lua", "lua", "diary.workItems.query"),
-                     ("Python", "python", "context.diary.workItems.query"),
+                      ("C#", "csharp", "context.Api().Diary"),
+                     ("Lua", "lua", "diary.work_items.query"),
+                     ("Python", "python", "context.diary.work_items.query"),
                  })
         {
             var root = Path.Combine(Path.GetTempPath(), $"diary-app-script-sample-{Guid.NewGuid():N}");
@@ -123,14 +131,19 @@ public sealed class ScriptCreationViewModelTests
                 var metadata = JsonSerializer.Deserialize<ScriptFileMetadata>(
                     await File.ReadAllTextAsync(sourcePath + ".json"));
                 Assert.IsNotNull(metadata);
-                Assert.AreEqual(ScriptEntryKind.Query, metadata.EntryKind);
-                Assert.AreEqual(ScriptScope.Application, metadata.Scope);
                 if (language == "C#")
                 {
+                    Assert.IsNull(metadata.EntryKind);
+                    Assert.IsNull(metadata.Scope);
                     var build = await new CSharpEngine().BuildAsync(new ScriptBuildRequest(sourcePath, source));
                     Assert.IsTrue(
                         build.Succeeded,
                         string.Join(Environment.NewLine, build.Diagnostics.Select(diagnostic => diagnostic.Message)));
+                }
+                else
+                {
+                    Assert.AreEqual(ScriptEntryKind.Query, metadata.EntryKind);
+                    Assert.AreEqual(ScriptScope.Application, metadata.Scope);
                 }
             }
             finally
@@ -174,16 +187,21 @@ public sealed class ScriptCreationViewModelTests
                 var metadata = JsonSerializer.Deserialize<ScriptFileMetadata>(
                     await File.ReadAllTextAsync(sourcePath + ".json"));
                 Assert.IsNotNull(metadata);
-                Assert.AreEqual(ScriptEntryKind.Automation, metadata.EntryKind);
                 Assert.AreEqual("daily 22:15", metadata.Schedule);
                 Assert.IsTrue(metadata.RunOnStartup);
-                Assert.AreEqual(ScriptScope.Application, metadata.Scope);
                 if (language == "C#")
                 {
+                    Assert.IsNull(metadata.EntryKind);
+                    Assert.IsNull(metadata.Scope);
                     var build = await new CSharpEngine().BuildAsync(new ScriptBuildRequest(sourcePath, source));
                     Assert.IsTrue(
                         build.Succeeded,
                         string.Join(Environment.NewLine, build.Diagnostics.Select(diagnostic => diagnostic.Message)));
+                }
+                else
+                {
+                    Assert.AreEqual(ScriptEntryKind.Automation, metadata.EntryKind);
+                    Assert.AreEqual(ScriptScope.Application, metadata.Scope);
                 }
             }
             finally
@@ -258,7 +276,8 @@ public sealed class ScriptCreationViewModelTests
                 var metadata = JsonSerializer.Deserialize<ScriptFileMetadata>(
                     await File.ReadAllTextAsync(sourcePath + ".json"));
                 Assert.IsNotNull(metadata);
-                CollectionAssert.AreEqual(new[] { target }, metadata.SupportedEditorTargets?.ToArray());
+                Assert.IsNull(metadata.SupportedEditorTargets);
+                Assert.IsNull(metadata.Scope);
                 StringAssert.Contains(source, $"ScriptEditorTargetKind.{target}");
                 var build = await new CSharpEngine().BuildAsync(new ScriptBuildRequest(sourcePath, source));
                 Assert.IsTrue(build.Succeeded, string.Join(Environment.NewLine, build.Diagnostics.Select(item => item.Message)));

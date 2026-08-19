@@ -15,7 +15,9 @@ public sealed record ScriptFileMetadata(
     ScriptEntryKind? EntryKind = null,
     string? Schedule = null,
     bool RunOnStartup = false,
-    IReadOnlyList<ScriptAutomationTriggerKind>? Triggers = null);
+    IReadOnlyList<ScriptAutomationTriggerKind>? Triggers = null,
+    IReadOnlyDictionary<string, string>? DefaultArguments = null,
+    int? TimeoutSeconds = null);
 
 public sealed record ScriptPackageManifest(
     string Entry,
@@ -29,7 +31,9 @@ public sealed record ScriptPackageManifest(
     ScriptEntryKind? EntryKind = null,
     string? Schedule = null,
     bool RunOnStartup = false,
-    IReadOnlyList<ScriptAutomationTriggerKind>? Triggers = null);
+    IReadOnlyList<ScriptAutomationTriggerKind>? Triggers = null,
+    IReadOnlyDictionary<string, string>? DefaultArguments = null,
+    int? TimeoutSeconds = null);
 
 public sealed record ScriptDirectoryEntry(
     string SourcePath,
@@ -101,6 +105,7 @@ public sealed class ScriptDirectoryLoader(
                     }
 
                     if (metadata.Engine is not null
+                        && !string.Equals(selection.Engine.StableName, "csharp", StringComparison.OrdinalIgnoreCase)
                         && !string.Equals(metadata.Engine, selection.Engine.StableName, StringComparison.Ordinal))
                     {
                         var engineMismatch = Failure(
@@ -109,37 +114,6 @@ public sealed class ScriptDirectoryLoader(
                             sourcePath);
                         entries.Add(new ScriptDirectoryEntry(sourcePath, scope, engineMismatch, metadata));
                         diagnostics.AddRange(engineMismatch.Diagnostics);
-                        continue;
-                    }
-
-                    var effectiveEntryKind = metadata.EntryKind
-                        ?? (scope == ScriptScope.Editor ? ScriptEntryKind.Editor : ScriptEntryKind.Application);
-                    var triggers = metadata.Triggers?.Distinct().ToArray() ?? [];
-                    var invalidTrigger = triggers.Any(trigger => !IsEventTrigger(trigger));
-                    if (effectiveEntryKind == ScriptEntryKind.Automation)
-                    {
-                        if ((metadata.Schedule is not null
-                                && !ScriptAutomationSchedule.TryParse(metadata.Schedule, out _))
-                            || invalidTrigger
-                            || (metadata.Schedule is null && !metadata.RunOnStartup && triggers.Length == 0))
-                        {
-                            var scheduleInvalid = Failure(
-                                "SCRIPT_SCHEDULE_INVALID",
-                                "Automation scripts must declare a valid daily schedule, runOnStartup, or an event trigger.",
-                                sourcePath);
-                            entries.Add(new ScriptDirectoryEntry(sourcePath, scope, scheduleInvalid, metadata));
-                            diagnostics.AddRange(scheduleInvalid.Diagnostics);
-                            continue;
-                        }
-                    }
-                    else if (metadata.Schedule is not null || metadata.RunOnStartup || triggers.Length > 0)
-                    {
-                        var scheduleInvalid = Failure(
-                            "SCRIPT_SCHEDULE_INVALID",
-                            "Schedule, runOnStartup, and triggers are only allowed for automation scripts.",
-                            sourcePath);
-                        entries.Add(new ScriptDirectoryEntry(sourcePath, scope, scheduleInvalid, metadata));
-                        diagnostics.AddRange(scheduleInvalid.Diagnostics);
                         continue;
                     }
 
@@ -177,6 +151,19 @@ public sealed class ScriptDirectoryLoader(
                             sourcePath);
                     }
 
+                    if (result.Succeeded && result.Program is not null)
+                    {
+                        var runtimeConfigurationError = ValidateRuntimeConfiguration(
+                            ScriptEntryKindResolver.Resolve(result.Program.Descriptor),
+                            metadata,
+                            sourcePath);
+                        if (runtimeConfigurationError is not null)
+                        {
+                            DisposeProgram(result.Program);
+                            result = runtimeConfigurationError;
+                        }
+                    }
+
                     if (result.Succeeded && result.Program is not null
                         && !ScriptEntryKindResolver.IsCompatible(
                             ScriptEntryKindResolver.Resolve(result.Program.Descriptor), scope))
@@ -195,7 +182,7 @@ public sealed class ScriptDirectoryLoader(
 
                     if (result.Succeeded && result.Program is not null)
                     {
-                        if (!MatchesMetadata(result.Program.Descriptor, metadata))
+                        if (!MatchesMetadata(result.Program.Descriptor, metadata, result.EngineName))
                         {
                             DisposeProgram(result.Program);
                             result = new ScriptBuildResult(false, null, result.Diagnostics.Add(new ScriptDiagnostic(
@@ -328,7 +315,9 @@ public sealed class ScriptDirectoryLoader(
                         EntryKind: manifest.EntryKind,
                         Schedule: manifest.Schedule,
                         RunOnStartup: manifest.RunOnStartup,
-                        Triggers: manifest.Triggers)));
+                        Triggers: manifest.Triggers,
+                        DefaultArguments: manifest.DefaultArguments,
+                        TimeoutSeconds: manifest.TimeoutSeconds)));
             }
             catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException or InvalidDataException)
             {
@@ -342,6 +331,37 @@ public sealed class ScriptDirectoryLoader(
         }
 
         return candidates.OrderBy(candidate => candidate.SourcePath, StringComparer.Ordinal).ToArray();
+    }
+
+    private static ScriptBuildResult? ValidateRuntimeConfiguration(
+        ScriptEntryKind entryKind,
+        ScriptFileMetadata metadata,
+        string sourcePath)
+    {
+        var triggers = metadata.Triggers?.Distinct().ToArray() ?? [];
+        var invalidTrigger = triggers.Any(trigger => !IsEventTrigger(trigger));
+        if (entryKind == ScriptEntryKind.Automation)
+        {
+            if ((metadata.Schedule is not null
+                    && !ScriptAutomationSchedule.TryParse(metadata.Schedule, out _))
+                || invalidTrigger
+                || (metadata.Schedule is null && !metadata.RunOnStartup && triggers.Length == 0))
+            {
+                return Failure(
+                    "SCRIPT_SCHEDULE_INVALID",
+                    "Automation scripts must declare a valid daily schedule, runOnStartup, or an event trigger.",
+                    sourcePath);
+            }
+        }
+        else if (metadata.Schedule is not null || metadata.RunOnStartup || triggers.Length > 0)
+        {
+            return Failure(
+                "SCRIPT_SCHEDULE_INVALID",
+                "Schedule, runOnStartup, and triggers are only allowed for automation scripts.",
+                sourcePath);
+        }
+
+        return null;
     }
 
     private static bool IsEventTrigger(ScriptAutomationTriggerKind trigger) => trigger is
@@ -359,8 +379,11 @@ public sealed class ScriptDirectoryLoader(
 
     private static bool MatchesMetadata(
         ScriptDescriptor descriptor,
-        ScriptFileMetadata metadata)
+        ScriptFileMetadata metadata,
+        string? engineName)
     {
+        if (string.Equals(engineName, "csharp", StringComparison.OrdinalIgnoreCase))
+            return true;
         if (metadata.Id is not null && !string.Equals(metadata.Id, descriptor.Id, StringComparison.Ordinal))
             return false;
         if (metadata.Name is not null && !string.Equals(metadata.Name, descriptor.Name, StringComparison.Ordinal))

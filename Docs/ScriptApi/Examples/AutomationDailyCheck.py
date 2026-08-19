@@ -3,7 +3,7 @@ def automation_main(context):
     trigger = context.automation["trigger"]
     context.log.info(f"自动化触发：{trigger}")
 
-    result = context.diary.workItems.query(limit=1, range="yesterday")
+    result = context.diary.work_items.query(limit=1, range="yesterday")
     if not result["succeeded"]:
         raise RuntimeError(result["error"]["message"])
     if result["items"]:
@@ -11,7 +11,7 @@ def automation_main(context):
         return None
 
     yesterday = result["normalizedQuery"]["startDate"]
-    append = context.diary.logItems.create({
+    append = context.diary.log_items.create({
         "date": yesterday,
         "hours": 0.5,
         "title": "昨日无记录自动补录",
