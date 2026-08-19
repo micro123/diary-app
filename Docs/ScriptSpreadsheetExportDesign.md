@@ -717,6 +717,66 @@ DOCX 处理器的第一版约定：
 - 第一版不开放 DOCX `FormatOptions`，普通文档使用公共 `Title`、`Blocks` 和 `Style`；未来新增选项必须通过 `FormatId=docx` 的命名空间校验；
 - OA 固定模板另走模板导出模型，不把模板文件路径混入普通 `ExportRequest`。
 
+#### 5.3.9 插件化导出处理器（建议方案）
+
+脚本面对的 `IExportApi` 仍是宿主统一 API，不直接暴露插件对象。插件化边界放在宿主的“格式处理器”层：脚本提交经过校验的 `ExportRequest`，宿主根据 `format_id` 从注册表选择处理器，处理器只负责生成文件。这样可以在不改变 C#、Lua、Python 脚本契约的前提下增加 CSV、DOCX、PDF 或 OA 固定模板格式。
+
+推荐新增独立的稳定契约项目 `Diary.ExportBase`，不要把导出 DTO 和处理器接口继续堆入 `Diary.ScriptHost`：
+
+```text
+Diary.ExportBase
+  ExportContent / ExportRequest 的格式无关契约
+  ExportFormatDescriptor / ExportFeature
+  IExportPlugin / IExportHandler
+  ExportExecutionContext
+
+Diary.Export.Xlsx
+  ClosedXML 实现的 XLSX 表格处理器
+
+Diary.App
+  ExportPluginHost / ExportHandlerRegistry
+  目录令牌、FileId、文件名校验、冲突策略和打开询问
+
+Diary.ScriptHost
+  IExportApi、三语言门面和 Worker HostCall
+```
+
+建议新增插件入口；处理器沿用前文 5.3.6 定义的 `IExportHandler`，不再为插件另起一套处理器接口：
+
+```csharp
+public interface IExportPlugin
+{
+    ExportPluginManifest Manifest { get; }
+    IEnumerable<IExportHandler> GetHandlers();
+}
+```
+
+`ExportExecutionContext` 由宿主创建，只包含宿主分配的输出路径、取消令牌和受限日志回调；插件不得从上下文反查 `App`、DI、数据库或脚本执行对象。`ExportRequest`、`ExportFormatDescriptor` 和处理器契约最终放入 `Diary.ExportBase`，`Diary.ScriptHost` 只保留 `IExportApi` 及跨语言/Worker 适配。
+
+插件处理器的职责边界：
+
+- 只接收宿主已经完成作用域、文件名、行列数量、值类型、能力和合并区域校验的请求；
+- 只能写入宿主分配的 `OutputPath`，不能自行选择目录、生成 `FileId`、打开文件或弹出 UI；
+- 不接收 `App`、`IServiceProvider`、数据库连接、Worker 对象或脚本执行上下文；
+- 必须支持取消、失败时不留下可见的半成品文件，并把异常转换为宿主结构化错误；
+- `format_id` 必须全局唯一，插件加载时发现重复 ID、重复扩展名或能力声明不一致时拒绝注册，不静默覆盖。
+
+插件加载建议分两阶段：
+
+1. 启动时发现插件 manifest，检查导出插件 API 版本、依赖和宿主能力；
+2. 兼容插件注册处理器，建立按 `format_id` 排序的只读格式目录；单个插件加载失败只使其格式不可用，不影响脚本系统和核心日记。
+
+与现有 Tracker 插件相比，导出插件不需要实例配置、数据库迁移或 Tracker UI。第一阶段可先使用独立的 `ExportPluginHost`，复用 manifest 兼容性和依赖检查规则；长期再把 Tracker/Export 的公共插件发现、诊断和生命周期抽象为通用 `IPlugin`，避免两套加载器继续分叉。
+
+迁移顺序：
+
+1. 先把当前 `ScriptExportService.WriteXlsx` 提取为 `Diary.Export.Xlsx` 的 `XlsxTableExportHandler`；
+2. `ScriptExportService` 改为目录/FileId/安全校验外观层，并依赖 `IExportHandlerRegistry`；
+3. 再以同一注册表增加 `CsvTableExportHandler` 和 `Docx*ExportHandler`；
+4. 插件未加载或格式不可用时，`exports.formats.list` 不返回该格式，导出返回稳定的 `EXPORT_FORMAT_UNAVAILABLE`，不自动回退到其他格式。
+
+安全边界：当前插件程序集与主程序同进程，插件属于受信任扩展，不能把插件化误认为沙箱。若未来允许来源不受信任的第三方格式插件，应把 `IExportHandler` 调整为独立 exporter Worker，通过受限协议传递已校验内容，主进程继续掌握输出路径和 `FileId` 生命周期。
+
 ### 5.4 三语言门面和 Worker 代理
 
 三种语言使用相同的核心语义和 HostCall 名称：

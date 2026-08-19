@@ -204,6 +204,7 @@ Jira 失败时核心工作记录仍可保存。
   - [ ] 设计并实现 `DocxTableExportHandler`/`DocxDocumentExportHandler` 和文档块模型。
   - [x] 已完成 C#、Lua、Python 门面、Worker 代理、snake_case 协议契约以及无数据/取消/打开失败相关基础测试；真实 UI 端到端测试仍待补充。
   - [ ] 补充加班明细示例脚本及更完整的三语言 API 示例。
+  - [ ] 将格式处理器抽取为独立导出插件契约和注册表：先迁移 XLSX，再接入 CSV/DOCX；插件不得获得目录选择、FileId、UI 或数据库权限。
 
 - [x] 标签编辑器已重排为标签导航和右侧详情页签；Tracker 自动化操作独立归入自动化页签，附加字段定义通过二级对话框编辑并由主页面统一保存。
 新建脚本向导已提供周目标脚本模板，生成的 metadata 自动声明 Week 目标。
