@@ -93,7 +93,7 @@ internal sealed class XlsxTemplateHandler : IExportTemplateHandler
                 description,
                 version,
                 bindings,
-                [ExportFeature.TypedValues, ExportFeature.BasicStyle, ExportFeature.MergeCells],
+                [ExportFeature.TypedValues],
                 []));
         }
         catch (Exception exception)
@@ -132,6 +132,19 @@ internal sealed class XlsxTemplateHandler : IExportTemplateHandler
             cancellationToken.ThrowIfCancellationRequested();
             if (!bindings.TryGetValue(key, out var binding) || binding.Kind != ExportBindingKind.Table)
                 continue;
+            if (!string.IsNullOrWhiteSpace(table.Title))
+                throw new ExportHandlerException(
+                    "EXPORT_UNSUPPORTED_FEATURE",
+                    $"XLSX 模板表格绑定“{key}”不支持 title。",
+                    details: new Dictionary<string, object?> { ["binding_key"] = key });
+            var validation = ExportRequestValidator.ValidateTableContent(
+                table,
+                new ExportContentCapabilities(ExportContentKind.Table, [ExportFeature.TypedValues]));
+            if (validation is not null)
+                throw new ExportHandlerException(
+                    validation.Code,
+                    $"XLSX 模板表格绑定“{key}”无效：{validation.Message}",
+                    details: MergeDetails(validation.Details, key));
             var start = ResolveCell(workbook, binding.Target);
             for (var columnIndex = 0; columnIndex < table.Columns.Count; columnIndex++)
                 start.Worksheet.Cell(start.Address.RowNumber, start.Address.ColumnNumber + columnIndex)
@@ -143,7 +156,26 @@ internal sealed class XlsxTemplateHandler : IExportTemplateHandler
                     var cell = start.Worksheet.Cell(
                         start.Address.RowNumber + rowIndex + 1,
                         start.Address.ColumnNumber + columnIndex);
-                    SetCellValue(cell, table.Rows[rowIndex][columnIndex], ToScalarType(table.Columns[columnIndex].Type));
+                    var column = table.Columns[columnIndex];
+                    object? normalized;
+                    try
+                    {
+                        normalized = ExportRequestValidator.NormalizeValue(
+                            table.Rows[rowIndex][columnIndex],
+                            column.Type,
+                            column.Name,
+                            rowIndex + 1);
+                    }
+                    catch (ExportHandlerException exception)
+                    {
+                        throw new ExportHandlerException(
+                            exception.Code,
+                            exception.Message,
+                            exception.Retryable,
+                            MergeDetails(exception.Details, key),
+                            exception);
+                    }
+                    SetCellValue(cell, normalized, ToScalarType(column.Type));
                 }
                 itemCount++;
             }
@@ -154,6 +186,17 @@ internal sealed class XlsxTemplateHandler : IExportTemplateHandler
 
         workbook.SaveAs(context.OutputPath);
         return new ExportRenderResult(itemCount);
+    }
+
+    private static IReadOnlyDictionary<string, object?> MergeDetails(
+        IReadOnlyDictionary<string, object?>? details,
+        string bindingKey)
+    {
+        var result = details is null
+            ? new Dictionary<string, object?>()
+            : new Dictionary<string, object?>(details, StringComparer.Ordinal);
+        result["binding_key"] = bindingKey;
+        return result;
     }
 
     private static IReadOnlyList<ExportBindingDescriptor> ReadBindings(

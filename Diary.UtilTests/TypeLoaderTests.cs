@@ -25,4 +25,36 @@ public sealed class TypeLoaderTests
             Directory.Delete(tempDir, recursive: true);
         }
     }
+
+    [TestMethod]
+    public void GetImplementations_InvalidAssemblyReportsPathAndException()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "DiaryApp_TypeLoaderTests_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var assemblyPath = Path.Combine(tempDir, "Diary.Invalid.dll");
+        File.WriteAllText(assemblyPath, "not an assembly");
+        try
+        {
+            string? reportedPath = null;
+            Exception? reportedException = null;
+
+            var result = TypeLoader.GetImplementations<object>(
+                    tempDir,
+                    "*.dll",
+                    (path, exception) =>
+                    {
+                        reportedPath = path;
+                        reportedException = exception;
+                    })
+                .ToArray();
+
+            Assert.AreEqual(0, result.Length);
+            Assert.AreEqual(assemblyPath, reportedPath);
+            Assert.IsNotNull(reportedException);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
 }

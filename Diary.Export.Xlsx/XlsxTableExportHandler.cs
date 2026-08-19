@@ -16,12 +16,20 @@ internal sealed class XlsxTableExportHandler : IExportHandler
             [
                 ExportFeature.UnicodeText,
                 ExportFeature.TypedValues,
+                ExportFeature.NumberFormat,
                 ExportFeature.BasicStyle,
-                ExportFeature.BackgroundColor,
                 ExportFeature.MergeCells,
                 ExportFeature.GeneratedAggregate,
             ])],
-        SupportsTemplates: true);
+        SupportsTemplates: true,
+        FormatOptions:
+        [
+            new ExportFormatOptionDescriptor(
+                "sheet_name",
+                ExportScalarType.Text,
+                DefaultValue: "明细",
+                Description: "工作表名称；非法字符会被移除，最长 31 个字符。"),
+        ]);
 
     public async ValueTask<ExportRenderResult> RenderAsync(
         ExportRequest request,
@@ -31,10 +39,10 @@ internal sealed class XlsxTableExportHandler : IExportHandler
         if (request.Content is not ExportTableContent table)
             throw new InvalidOperationException("XLSX 通用导出只支持 table 内容。");
         if (request.FormatOptions is not null
-            && request.FormatOptions.Values.Keys.Any(key => !string.Equals(key, "sheetName", StringComparison.Ordinal)))
+            && request.FormatOptions.Values.Keys.Any(key => !string.Equals(key, "sheet_name", StringComparison.Ordinal)))
             throw new ExportHandlerException("EXPORT_INVALID_REQUEST", "XLSX 格式选项无效。");
 
-        var sheetName = request.FormatOptions?.Values.TryGetValue("sheetName", out var value) == true
+        var sheetName = request.FormatOptions?.Values.TryGetValue("sheet_name", out var value) == true
             ? value?.ToString()
             : "明细";
         if (string.IsNullOrWhiteSpace(sheetName))
@@ -53,13 +61,13 @@ internal sealed class XlsxTableExportHandler : IExportHandler
             {
                 worksheet.Cell(1, 1).Value = table.Title;
                 worksheet.Range(1, 1, 1, table.Columns.Count).Merge();
-                ApplyTitleStyle(worksheet.Range(1, 1, 1, table.Columns.Count));
+                ApplyTitleStyle(worksheet.Range(1, 1, 1, table.Columns.Count), table.Style);
             }
 
             for (var columnIndex = 0; columnIndex < table.Columns.Count; columnIndex++)
             {
                 worksheet.Cell(headerRow, columnIndex + 1).Value = table.Columns[columnIndex].Name;
-                ApplyHeaderStyle(worksheet.Cell(headerRow, columnIndex + 1));
+                ApplyHeaderStyle(worksheet.Cell(headerRow, columnIndex + 1), table.Style);
             }
 
             for (var rowIndex = 0; rowIndex < table.Rows.Count; rowIndex++)
@@ -82,7 +90,8 @@ internal sealed class XlsxTableExportHandler : IExportHandler
             if (table.Aggregates.Count > 0)
             {
                 var aggregateRow = Math.Max(dataEndRow + 1, dataStartRow);
-                worksheet.Cell(aggregateRow, 1).Value = "合计";
+                var labelColumnIndex = ExportRequestValidator.GetAggregateLabelColumnIndex(table) + 1;
+                worksheet.Cell(aggregateRow, labelColumnIndex).Value = ExportRequestValidator.GetAggregateLabel(table);
                 foreach (var aggregate in table.Aggregates)
                 {
                     var columnIndex = table.Columns
@@ -92,9 +101,9 @@ internal sealed class XlsxTableExportHandler : IExportHandler
                         ? $"SUM({worksheet.Cell(dataStartRow, columnIndex).Address}:{worksheet.Cell(dataEndRow, columnIndex).Address})"
                         : "0";
                     worksheet.Cell(aggregateRow, columnIndex).FormulaA1 = formula;
-                    ApplyTotalStyle(worksheet.Cell(aggregateRow, columnIndex));
+                    ApplyTotalStyle(worksheet.Cell(aggregateRow, columnIndex), table.Style);
                 }
-                ApplyTotalStyle(worksheet.Cell(aggregateRow, 1));
+                ApplyTotalStyle(worksheet.Cell(aggregateRow, labelColumnIndex), table.Style);
             }
 
             foreach (var merge in table.Merges)
@@ -154,24 +163,51 @@ internal sealed class XlsxTableExportHandler : IExportHandler
         }
     }
 
-    private static void ApplyTitleStyle(IXLRange range)
+    private static void ApplyTitleStyle(IXLRange range, ExportTableStyle style)
     {
         range.Style.Font.Bold = true;
+        if (style == ExportTableStyle.Compact)
+        {
+            range.Style.Font.FontSize = 12;
+            range.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+            return;
+        }
+
         range.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
         range.Style.Fill.BackgroundColor = XLColor.FromHtml("#D9EAF7");
+        if (style == ExportTableStyle.Report)
+            range.Style.Font.FontSize = 16;
     }
 
-    private static void ApplyHeaderStyle(IXLCell cell)
+    private static void ApplyHeaderStyle(IXLCell cell, ExportTableStyle style)
     {
         cell.Style.Font.Bold = true;
+        if (style == ExportTableStyle.Compact)
+        {
+            cell.Style.Font.FontSize = 10;
+            cell.Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+            return;
+        }
+
         cell.Style.Font.FontColor = XLColor.White;
         cell.Style.Fill.BackgroundColor = XLColor.FromHtml("#4472C4");
+        if (style == ExportTableStyle.Report)
+            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
     }
 
-    private static void ApplyTotalStyle(IXLCell cell)
+    private static void ApplyTotalStyle(IXLCell cell, ExportTableStyle style)
     {
         cell.Style.Font.Bold = true;
+        if (style == ExportTableStyle.Compact)
+        {
+            cell.Style.Font.FontSize = 10;
+            cell.Style.Border.TopBorder = XLBorderStyleValues.Thin;
+            return;
+        }
+
         cell.Style.Fill.BackgroundColor = XLColor.FromHtml("#D9EAF7");
+        if (style == ExportTableStyle.Report)
+            cell.Style.Border.TopBorder = XLBorderStyleValues.Double;
     }
 
     private static string SanitizeSheetName(string value)

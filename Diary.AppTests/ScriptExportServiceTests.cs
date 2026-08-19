@@ -21,27 +21,16 @@ public sealed class ScriptExportServiceTests
         Directory.CreateDirectory(directory);
         try
         {
-            var xlsxPlugin = new XlsxExportPlugin();
-            var catalog = new ExportTemplateCatalog(
-                NullLogger<ExportTemplateCatalog>.Instance,
-                xlsxPlugin.GetTemplateHandlers(),
-                Path.Combine(directory, "templates"));
-            var service = new ScriptExportService(
-                NullLogger<ScriptExportService>.Instance,
-                catalog,
-                xlsxPlugin.GetExportHandlers());
-            var context = new ScriptHostCallContext(
-                "execution",
-                "worker",
-                "script",
-                ScriptEntryKind.Application,
-                ScriptExecutionSource.Manual);
+            var (service, context) = CreateXlsxService(directory);
             service.RegisterDirectory("directory", directory, context);
             var result = await service.ExportAsync(new ExportRequest
             {
                 FormatId = "xlsx",
                 DirectorySelectionId = "directory",
                 FileName = "report",
+                FormatOptions = new ExportFormatOptions(
+                    "xlsx",
+                    new Dictionary<string, object?> { ["sheet_name"] = "加班明细" }),
                 Content = new ExportTableContent
                 {
                     Title = "测试报告",
@@ -58,9 +47,10 @@ public sealed class ScriptExportServiceTests
                     ],
                     Aggregates =
                     [
-                        new ExportAggregateColumn("时长"),
+                        new ExportAggregateColumn("时长", Label: "总计"),
                         new ExportAggregateColumn("数值"),
                     ],
+                    Style = ExportTableStyle.Report,
                 },
             }, context);
 
@@ -70,12 +60,14 @@ public sealed class ScriptExportServiceTests
             Assert.IsTrue(File.Exists(Path.Combine(directory, result.FileName!)));
 
             using var workbook = new XLWorkbook(Path.Combine(directory, result.FileName!));
-            var sheet = workbook.Worksheet("明细");
+            var sheet = workbook.Worksheet("加班明细");
             Assert.AreEqual("测试报告", sheet.Cell("A1").GetString());
             Assert.AreEqual("日期", sheet.Cell("A2").GetString());
             Assert.AreEqual("2026-08-19", sheet.Cell("A3").GetDateTime().ToString("yyyy-MM-dd"));
             Assert.AreEqual("SUM(B3:B4)", sheet.Cell("B5").FormulaA1);
             Assert.AreEqual("SUM(C3:C4)", sheet.Cell("C5").FormulaA1);
+            Assert.AreEqual("总计", sheet.Cell("A5").GetString());
+            Assert.AreEqual(XLAlignmentHorizontalValues.Center, sheet.Cell("A2").Style.Alignment.Horizontal);
             Assert.AreEqual("[h]:mm:ss", sheet.Cell("B3").Style.NumberFormat.Format);
         }
         finally
@@ -83,6 +75,97 @@ public sealed class ScriptExportServiceTests
             if (Directory.Exists(directory))
                 Directory.Delete(directory, recursive: true);
         }
+    }
+
+    [TestMethod]
+    public async Task ExportAsync_RejectsCamelCaseXlsxSheetNameOption()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "DiaryApp-export-option-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var (service, context) = CreateXlsxService(directory);
+            service.RegisterDirectory("directory", directory, context);
+            var result = await service.ExportAsync(new ExportRequest
+            {
+                FormatId = "xlsx",
+                DirectorySelectionId = "directory",
+                FileName = "report",
+                FormatOptions = new ExportFormatOptions(
+                    "xlsx",
+                    new Dictionary<string, object?> { ["sheetName"] = "旧键名" }),
+                Content = new ExportTableContent
+                {
+                    Columns = [new ExportColumn("内容")],
+                    Rows = [["测试"]],
+                },
+            }, context);
+
+            Assert.IsFalse(result.Succeeded);
+            Assert.AreEqual("EXPORT_FORMAT_OPTION_UNKNOWN", result.Error?.Code);
+            Assert.AreEqual(ScriptErrorCategory.Validation, result.Error?.Category);
+            Assert.IsFalse(File.Exists(Path.Combine(directory, "report.xlsx")));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+                Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task ExportAsync_AppliesCompactXlsxStyle()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "DiaryApp-export-compact-style-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var (service, context) = CreateXlsxService(directory);
+            service.RegisterDirectory("directory", directory, context);
+            var result = await service.ExportAsync(new ExportRequest
+            {
+                FormatId = "xlsx",
+                DirectorySelectionId = "directory",
+                FileName = "compact",
+                Content = new ExportTableContent
+                {
+                    Columns = [new ExportColumn("内容")],
+                    Rows = [["测试"]],
+                    Style = ExportTableStyle.Compact,
+                },
+            }, context);
+
+            Assert.IsTrue(result.Succeeded, result.Error?.Message);
+            using var workbook = new XLWorkbook(Path.Combine(directory, result.FileName!));
+            var header = workbook.Worksheet("明细").Cell("A1");
+            Assert.AreEqual(10d, header.Style.Font.FontSize);
+            Assert.AreEqual(XLBorderStyleValues.Thin, header.Style.Border.BottomBorder);
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+                Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private static (ScriptExportService Service, ScriptHostCallContext Context) CreateXlsxService(string directory)
+    {
+        var xlsxPlugin = new XlsxExportPlugin();
+        var catalog = new ExportTemplateCatalog(
+            NullLogger<ExportTemplateCatalog>.Instance,
+            xlsxPlugin.GetTemplateHandlers(),
+            Path.Combine(directory, "templates"));
+        var service = new ScriptExportService(
+            NullLogger<ScriptExportService>.Instance,
+            catalog,
+            xlsxPlugin.GetExportHandlers());
+        var context = new ScriptHostCallContext(
+            "execution",
+            "worker",
+            "script",
+            ScriptEntryKind.Application,
+            ScriptExecutionSource.Manual);
+        return (service, context);
     }
 }
 
@@ -285,6 +368,14 @@ public sealed class ExportPluginIntegrationTests
             CollectionAssert.AreEquivalent(
                 new[] { "csv", "docx", "xlsx" },
                 formats.Select(format => format.FormatId).ToArray());
+            var xlsx = formats.Single(format => format.FormatId == "xlsx");
+            var sheetNameOption = xlsx.FormatOptions?.Single();
+            Assert.IsNotNull(sheetNameOption);
+            Assert.AreEqual("sheet_name", sheetNameOption.Key);
+            Assert.AreEqual("明细", sheetNameOption.DefaultValue);
+            Assert.IsFalse(xlsx.ContentCapabilities.Single().Features.Contains(ExportFeature.BackgroundColor));
+            Assert.IsTrue(xlsx.ContentCapabilities.Single().Features.Contains(ExportFeature.NumberFormat));
+            Assert.AreEqual(0, formats.Single(format => format.FormatId == "csv").FormatOptions?.Count);
 
             var context = CreateContext();
             service.RegisterDirectory("directory", directory, context);
@@ -301,7 +392,7 @@ public sealed class ExportPluginIntegrationTests
                         new ExportColumn("时长", ExportColumnType.Duration),
                     ],
                     Rows = [["=1+1", "25:30:00"]],
-                    Aggregates = [new ExportAggregateColumn("时长")],
+                    Aggregates = [new ExportAggregateColumn("时长", Label: "总时长")],
                 },
             }, context);
 
@@ -311,6 +402,7 @@ public sealed class ExportPluginIntegrationTests
             var text = System.Text.Encoding.UTF8.GetString(bytes);
             StringAssert.Contains(text, "'=1+1");
             StringAssert.Contains(text, "1.01:30:00");
+            StringAssert.Contains(text, "总时长");
             StringAssert.Contains(text, "\r\n");
         }
         finally
@@ -344,7 +436,8 @@ public sealed class ExportPluginIntegrationTests
                         {
                             Columns = [new ExportColumn("项目"), new ExportColumn("耗时", ExportColumnType.Decimal)],
                             Rows = [["Diary", 2.5m]],
-                            Aggregates = [new ExportAggregateColumn("耗时")],
+                            Aggregates = [new ExportAggregateColumn("耗时", Label: "总耗时")],
+                            Style = ExportTableStyle.Report,
                         }),
                     ],
                 },
@@ -359,6 +452,8 @@ public sealed class ExportPluginIntegrationTests
             StringAssert.Contains(xml, "工作报告");
             StringAssert.Contains(xml, "本月工作完成。");
             StringAssert.Contains(xml, "Diary");
+            StringAssert.Contains(xml, "总耗时");
+            StringAssert.Contains(xml, "w:shd");
         }
         finally
         {
@@ -454,6 +549,160 @@ public sealed class ExportPluginIntegrationTests
             Directory.Delete(directory, true);
         }
     }
+
+    [TestMethod]
+    public async Task ExportAsync_ReturnsStructuredNonRetryableValueError()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var service = CreateService(directory);
+            var context = CreateContext();
+            service.RegisterDirectory("directory", directory, context);
+            var result = await service.ExportAsync(new ExportRequest
+            {
+                FormatId = "xlsx",
+                DirectorySelectionId = "directory",
+                FileName = "invalid.xlsx",
+                Content = new ExportTableContent
+                {
+                    Columns = [new ExportColumn("数量", ExportColumnType.Integer)],
+                    Rows = [["abc"]],
+                },
+            }, context);
+
+            Assert.IsFalse(result.Succeeded);
+            Assert.AreEqual("EXPORT_VALUE_INVALID", result.Error?.Code);
+            Assert.AreEqual(ScriptErrorCategory.Validation, result.Error?.Category);
+            Assert.IsFalse(result.Error?.Retryable);
+            Assert.AreEqual(1, result.Error?.Details?["row"]);
+            Assert.AreEqual("数量", result.Error?.Details?["column"]);
+            Assert.AreEqual("integer", result.Error?.Details?["expected_type"]);
+            Assert.AreEqual(false, result.Error?.Details?["value_was_null"]);
+            Assert.IsFalse(File.Exists(Path.Combine(directory, "invalid.xlsx")));
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [TestMethod]
+    public async Task TemplateExport_ReturnsStructuredBindingDiagnostics()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var templatePath = Path.Combine(directory, "required.csv");
+            await File.WriteAllTextAsync(templatePath,
+                "# diary.export.template\n" +
+                "# template_name: required_report\n" +
+                "# version: 1.0.0\n" +
+                "# binding: customer_name|scalar|text|true\n" +
+                "客户,{{customer_name}}\n",
+                new System.Text.UTF8Encoding(true));
+            var service = CreateService(directory, out var catalog);
+            var imported = await catalog.ImportAsync(templatePath);
+            Assert.IsTrue(imported.Succeeded, imported.ErrorMessage);
+
+            var context = CreateContext();
+            service.RegisterDirectory("directory", directory, context);
+            var result = await service.ExportAsync(new ExportRequest
+            {
+                FormatId = "csv",
+                DirectorySelectionId = "directory",
+                FileName = "required-output.csv",
+                Template = new ExportTemplateSource
+                {
+                    TemplateId = "csv.required_report",
+                    TemplateVersion = "1.0.0",
+                },
+            }, context);
+
+            Assert.IsFalse(result.Succeeded);
+            Assert.AreEqual("EXPORT_TEMPLATE_BINDING_INVALID", result.Error?.Code);
+            var diagnostics = result.Error?.Details?["diagnostics"] as IReadOnlyList<ExportDiagnostic>;
+            Assert.IsNotNull(diagnostics);
+            Assert.AreEqual("EXPORT_TEMPLATE_REQUIRED_BINDING_MISSING", diagnostics.Single().Code);
+            Assert.AreEqual("customer_name", diagnostics.Single().BindingKey);
+            var json = System.Text.Json.JsonSerializer.Serialize(result, ExportJson.Options);
+            StringAssert.Contains(json, "\"diagnostics\"");
+            StringAssert.Contains(json, "\"binding_key\":\"customer_name\"");
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [TestMethod]
+    public async Task XlsxTemplateTableBinding_ValidatesFieldsAndCellValues()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var templatePath = Path.Combine(directory, "table-template.xlsx");
+            using (var workbook = new XLWorkbook())
+            {
+                var metadata = workbook.Worksheets.Add("__diary_template");
+                metadata.Cell("A1").Value = "diary.export.template";
+                metadata.Cell("A2").Value = "table_report";
+                metadata.Cell("A3").Value = "1.0.0";
+                metadata.Cell("A8").Value = "items";
+                metadata.Cell("B8").Value = "table";
+                metadata.Cell("D8").Value = "true";
+                metadata.Cell("F8").Value = "明细!A1";
+                workbook.Worksheets.Add("明细");
+                workbook.SaveAs(templatePath);
+            }
+            var service = CreateService(directory, out var catalog);
+            var imported = await catalog.ImportAsync(templatePath);
+            Assert.IsTrue(imported.Succeeded, imported.ErrorMessage);
+
+            var context = CreateContext();
+            service.RegisterDirectory("directory", directory, context);
+            var invalidValue = await service.ExportAsync(new ExportRequest
+            {
+                FormatId = "xlsx",
+                DirectorySelectionId = "directory",
+                FileName = "invalid-value.xlsx",
+                Template = CreateTableTemplateSource(new ExportTableContent
+                {
+                    Columns = [new ExportColumn("数量", ExportColumnType.Integer)],
+                    Rows = [["abc"]],
+                }),
+            }, context);
+            var unsupportedStyle = await service.ExportAsync(new ExportRequest
+            {
+                FormatId = "xlsx",
+                DirectorySelectionId = "directory",
+                FileName = "unsupported-style.xlsx",
+                Template = CreateTableTemplateSource(new ExportTableContent
+                {
+                    Columns = [new ExportColumn("内容")],
+                    Rows = [["测试"]],
+                    Style = ExportTableStyle.Report,
+                }),
+            }, context);
+
+            Assert.AreEqual("EXPORT_VALUE_INVALID", invalidValue.Error?.Code);
+            Assert.AreEqual("items", invalidValue.Error?.Details?["binding_key"]);
+            Assert.AreEqual(1, invalidValue.Error?.Details?["row"]);
+            Assert.AreEqual("EXPORT_UNSUPPORTED_FEATURE", unsupportedStyle.Error?.Code);
+            Assert.AreEqual("items", unsupportedStyle.Error?.Details?["binding_key"]);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    private static ExportTemplateSource CreateTableTemplateSource(ExportTableContent table) => new()
+    {
+        TemplateId = "xlsx.table_report",
+        TemplateVersion = "1.0.0",
+        Tables = new Dictionary<string, ExportTableContent> { ["items"] = table },
+    };
 
     private static ScriptExportService CreateService(string directory) => CreateService(directory, out _);
 

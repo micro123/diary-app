@@ -27,7 +27,8 @@ internal sealed class CsvTableExportHandler : IExportHandler
         [new ExportContentCapabilities(
             ExportContentKind.Table,
             [ExportFeature.UnicodeText, ExportFeature.TypedValues, ExportFeature.GeneratedAggregate])],
-        SupportsTemplates: true);
+        SupportsTemplates: true,
+        FormatOptions: []);
 
     public async ValueTask<ExportRenderResult> RenderAsync(
         ExportRequest request,
@@ -81,8 +82,11 @@ internal sealed class CsvTableExportHandler : IExportHandler
 
         if (table.Aggregates.Count > 0)
         {
-            var totals = new CsvField[table.Columns.Count];
-            totals[0] = new CsvField("合计", true);
+            var totals = Enumerable.Range(0, table.Columns.Count)
+                .Select(_ => new CsvField(string.Empty, true))
+                .ToArray();
+            var labelColumnIndex = ExportRequestValidator.GetAggregateLabelColumnIndex(table);
+            totals[labelColumnIndex] = new CsvField(ExportRequestValidator.GetAggregateLabel(table), true);
             foreach (var aggregate in table.Aggregates)
             {
                 var columnIndex = table.Columns

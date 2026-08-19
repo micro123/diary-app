@@ -92,6 +92,7 @@ public enum ExportFeature
 {
     UnicodeText,
     TypedValues,
+    NumberFormat,
     BackgroundColor,
     MergeCells,
     GeneratedAggregate,
@@ -175,6 +176,13 @@ public sealed record ExportContentCapabilities(
     ExportContentKind ContentKind,
     IReadOnlyList<ExportFeature> Features);
 
+public sealed record ExportFormatOptionDescriptor(
+    string Key,
+    ExportScalarType Type,
+    bool Required = false,
+    object? DefaultValue = null,
+    string? Description = null);
+
 public sealed record ExportBindingDescriptor(
     string Key,
     ExportBindingKind Kind,
@@ -220,7 +228,8 @@ public sealed record ExportFormatDescriptor(
     string DefaultExtension,
     IReadOnlyList<string> AllowedExtensions,
     IReadOnlyList<ExportContentCapabilities> ContentCapabilities,
-    bool SupportsTemplates = false);
+    bool SupportsTemplates = false,
+    IReadOnlyList<ExportFormatOptionDescriptor>? FormatOptions = null);
 
 public enum ExportBindingKind
 {
@@ -480,6 +489,14 @@ public sealed class ExportRequestValidator
             return Error("文件扩展名与导出格式不匹配。");
         if ((request.Content is null) == (request.Template is null))
             return Error("通用导出和模板导出必须且只能选择一种内容来源。");
+        if (request.FormatOptions is not null
+            && !string.Equals(request.FormatOptions.FormatId, descriptor.FormatId, StringComparison.Ordinal))
+            return Error("格式选项的格式 ID 与导出格式不一致。");
+        if (request.Template is not null && request.FormatOptions is not null)
+            return Error("EXPORT_UNSUPPORTED_FEATURE", "模板导出不支持通用格式选项。");
+        var formatOptionsError = ValidateFormatOptions(request.FormatOptions, descriptor);
+        if (formatOptionsError is not null)
+            return formatOptionsError;
         if (request.Template is not null)
         {
             if (!descriptor.SupportsTemplates)
@@ -493,23 +510,100 @@ public sealed class ExportRequestValidator
         var capability = descriptor.ContentCapabilities.FirstOrDefault(item => item.ContentKind == content.Kind);
         if (capability is null)
             return Error($"格式 {descriptor.FormatId} 不支持 {content.Kind.ToString().ToLowerInvariant()} 内容。");
-        if (request.FormatOptions is not null
-            && !string.Equals(request.FormatOptions.FormatId, descriptor.FormatId, StringComparison.Ordinal))
-            return Error("格式选项的格式 ID 与导出格式不一致。");
 
         return content switch
         {
-            ExportTableContent table => ValidateTable(table),
-            ExportDocumentContent document => ValidateDocument(document),
+            ExportTableContent table => ValidateTableContent(table, capability),
+            ExportDocumentContent document => ValidateDocument(document, capability),
             _ => Error("未知的导出内容类型。"),
         };
     }
 
+    private static ScriptApiError? ValidateFormatOptions(
+        ExportFormatOptions? formatOptions,
+        ExportFormatDescriptor descriptor)
+    {
+        var optionDescriptors = descriptor.FormatOptions ?? [];
+        if (formatOptions is null)
+        {
+            var required = optionDescriptors.FirstOrDefault(option => option.Required && option.DefaultValue is null);
+            return required is null
+                ? null
+                : Error(
+                    "EXPORT_FORMAT_OPTION_REQUIRED",
+                    $"缺少必填格式选项：{required.Key}。",
+                    new Dictionary<string, object?> { ["option"] = required.Key });
+        }
+        if (optionDescriptors.Count == 0)
+            return Error("EXPORT_UNSUPPORTED_FEATURE", $"格式 {descriptor.FormatId} 不支持格式选项。");
 
-    private static ScriptApiError? ValidateDocument(ExportDocumentContent document)
+        var optionsByKey = optionDescriptors.ToDictionary(option => option.Key, StringComparer.Ordinal);
+        foreach (var (key, value) in formatOptions.Values)
+        {
+            if (!optionsByKey.TryGetValue(key, out var option))
+                return Error(
+                    "EXPORT_FORMAT_OPTION_UNKNOWN",
+                    $"未知格式选项：{key}。",
+                    new Dictionary<string, object?> { ["option"] = key });
+            if (!IsFormatOptionValueValid(value, option.Type))
+                return Error(
+                    "EXPORT_FORMAT_OPTION_TYPE_INVALID",
+                    $"格式选项“{key}”必须是 {option.Type}。",
+                    new Dictionary<string, object?>
+                    {
+                        ["option"] = key,
+                        ["expected_type"] = JsonNamingPolicy.SnakeCaseLower.ConvertName(option.Type.ToString()),
+                    });
+        }
+
+        var missing = optionDescriptors.FirstOrDefault(option =>
+            option.Required
+            && option.DefaultValue is null
+            && !formatOptions.Values.ContainsKey(option.Key));
+        return missing is null
+            ? null
+            : Error(
+                "EXPORT_FORMAT_OPTION_REQUIRED",
+                $"缺少必填格式选项：{missing.Key}。",
+                new Dictionary<string, object?> { ["option"] = missing.Key });
+    }
+
+    private static bool IsFormatOptionValueValid(object? value, ExportScalarType type)
+    {
+        if (value is null)
+            return false;
+        if (value is JsonElement element)
+        {
+            return type switch
+            {
+                ExportScalarType.Text => element.ValueKind == JsonValueKind.String,
+                ExportScalarType.Integer => element.ValueKind == JsonValueKind.Number && element.TryGetInt64(out _),
+                ExportScalarType.Decimal => element.ValueKind == JsonValueKind.Number && element.TryGetDecimal(out _),
+                ExportScalarType.Boolean => element.ValueKind is JsonValueKind.True or JsonValueKind.False,
+                _ => element.ValueKind == JsonValueKind.String,
+            };
+        }
+
+        return type switch
+        {
+            ExportScalarType.Text => value is string,
+            ExportScalarType.Integer => value is sbyte or byte or short or ushort or int or uint or long or ulong,
+            ExportScalarType.Decimal => value is sbyte or byte or short or ushort or int or uint or long or ulong or float or double or decimal,
+            ExportScalarType.Boolean => value is bool,
+            ExportScalarType.Date or ExportScalarType.Time or ExportScalarType.Duration or ExportScalarType.DateTime => value is string,
+            _ => false,
+        };
+    }
+
+    private static ScriptApiError? ValidateDocument(
+        ExportDocumentContent document,
+        ExportContentCapabilities capability)
     {
         if (document.Blocks.Count > MaxRows)
             return Error("文档块数量超出限制。");
+        if (document.Style != ExportTableStyle.Default
+            && !capability.Features.Contains(ExportFeature.BasicStyle))
+            return Error("EXPORT_UNSUPPORTED_FEATURE", "当前格式不支持文档视觉样式。");
         foreach (var block in document.Blocks)
         {
             switch (block)
@@ -522,7 +616,7 @@ public sealed class ExportRequestValidator
                     return Error("文档段落长度超出限制。");
                 case ExportTableBlock table:
                     {
-                        var error = ValidateTable(table.Table);
+                        var error = ValidateTableContent(table.Table, capability);
                         if (error is not null)
                             return error;
                         break;
@@ -532,14 +626,46 @@ public sealed class ExportRequestValidator
         return null;
     }
 
-    private static ScriptApiError? ValidateTable(ExportTableContent table)
+    public static ScriptApiError? ValidateTableContent(
+        ExportTableContent table,
+        ExportContentCapabilities capability)
     {
         if (table.Columns.Count is 0 or > MaxColumns)
             return Error("导出列数量超出限制。");
         if (table.Rows.Count > MaxRows)
             return Error("导出数据行数超出限制。");
-        if (table.Columns.Any(column => string.IsNullOrWhiteSpace(column.Name)))
-            return Error("导出列名不能为空。");
+        var emptyColumnIndex = table.Columns
+            .Select((column, index) => (column, index))
+            .FirstOrDefault(item => string.IsNullOrWhiteSpace(item.column.Name));
+        if (emptyColumnIndex.column is not null)
+            return Error(
+                "EXPORT_COLUMN_NAME_REQUIRED",
+                "导出列名不能为空。",
+                new Dictionary<string, object?> { ["column_index"] = emptyColumnIndex.index + 1 });
+        var duplicateColumn = table.Columns
+            .GroupBy(column => column.Name, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(group => group.Count() > 1);
+        if (duplicateColumn is not null)
+            return Error(
+                "EXPORT_COLUMN_NAME_DUPLICATE",
+                $"导出列名不能重复：{duplicateColumn.Key}。",
+                new Dictionary<string, object?> { ["column"] = duplicateColumn.Key });
+        if (table.Style != ExportTableStyle.Default
+            && !capability.Features.Contains(ExportFeature.BasicStyle))
+            return Error("EXPORT_UNSUPPORTED_FEATURE", "当前格式不支持表格视觉样式。");
+        if (table.Merges.Count > 0
+            && !capability.Features.Contains(ExportFeature.MergeCells))
+            return Error("EXPORT_UNSUPPORTED_FEATURE", "当前格式不支持合并单元格。");
+        if (table.Aggregates.Count > 0
+            && !capability.Features.Contains(ExportFeature.GeneratedAggregate))
+            return Error("EXPORT_UNSUPPORTED_FEATURE", "当前格式不支持合计。");
+        var numberFormatColumn = table.Columns.FirstOrDefault(column => !string.IsNullOrWhiteSpace(column.NumberFormat));
+        if (numberFormatColumn is not null
+            && !capability.Features.Contains(ExportFeature.NumberFormat))
+            return Error(
+                "EXPORT_UNSUPPORTED_FEATURE",
+                $"当前格式不支持列“{numberFormatColumn.Name}”的 number_format。",
+                new Dictionary<string, object?> { ["column"] = numberFormatColumn.Name });
         foreach (var row in table.Rows)
         {
             if (row.Count != table.Columns.Count)
@@ -551,12 +677,41 @@ public sealed class ExportRequestValidator
         foreach (var aggregate in table.Aggregates)
         {
             if (!columnNames.Contains(aggregate.ColumnName))
-                return Error($"合计列不存在：{aggregate.ColumnName}。");
+                return Error(
+                    "EXPORT_AGGREGATE_COLUMN_NOT_FOUND",
+                    $"合计列不存在：{aggregate.ColumnName}。",
+                    new Dictionary<string, object?> { ["column"] = aggregate.ColumnName });
             var column = table.Columns.First(column =>
                 string.Equals(column.Name, aggregate.ColumnName, StringComparison.OrdinalIgnoreCase));
             if (column.Type is not (ExportColumnType.Integer or ExportColumnType.Decimal or ExportColumnType.Duration))
-                return Error($"列“{aggregate.ColumnName}”不支持 Sum 合计。");
+                return Error(
+                    "EXPORT_AGGREGATE_TYPE_UNSUPPORTED",
+                    $"列“{aggregate.ColumnName}”不支持 Sum 合计。",
+                    new Dictionary<string, object?>
+                    {
+                        ["column"] = aggregate.ColumnName,
+                        ["column_type"] = JsonNamingPolicy.SnakeCaseLower.ConvertName(column.Type.ToString()),
+                        ["aggregation"] = "sum",
+                    });
         }
+        var aggregateLabels = table.Aggregates
+            .Select(aggregate => aggregate.Label)
+            .Where(label => !string.IsNullOrWhiteSpace(label))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (aggregateLabels.Length > 1)
+            return Error(
+                "EXPORT_AGGREGATE_LABEL_CONFLICT",
+                "同一合计行只能使用一个合计标签。",
+                new Dictionary<string, object?> { ["labels"] = aggregateLabels });
+        if (table.Aggregates.Count > 0 && GetAggregateLabelColumnIndex(table) < 0)
+            return Error(
+                "EXPORT_AGGREGATE_LABEL_COLUMN_MISSING",
+                "合计行至少需要一个未参与聚合的列用于显示标签。",
+                new Dictionary<string, object?>
+                {
+                    ["aggregated_columns"] = table.Aggregates.Select(aggregate => aggregate.ColumnName).ToArray(),
+                });
 
         foreach (var merge in table.Merges)
         {
@@ -610,8 +765,38 @@ public sealed class ExportRequestValidator
         }
         catch (Exception exception) when (exception is FormatException or InvalidCastException or OverflowException or ArgumentException)
         {
-            throw new FormatException($"第 {rowNumber} 行的“{columnName}”值无法转换为 {type}。", exception);
+            throw new ExportHandlerException(
+                "EXPORT_VALUE_INVALID",
+                $"第 {rowNumber} 行的“{columnName}”值无法转换为 {type}。",
+                retryable: false,
+                new Dictionary<string, object?>
+                {
+                    ["row"] = rowNumber,
+                    ["column"] = columnName,
+                    ["expected_type"] = JsonNamingPolicy.SnakeCaseLower.ConvertName(type.ToString()),
+                    ["value_was_null"] = false,
+                },
+                exception);
         }
+    }
+
+    public static string GetAggregateLabel(ExportTableContent table) =>
+        table.Aggregates
+            .Select(aggregate => aggregate.Label)
+            .FirstOrDefault(label => !string.IsNullOrWhiteSpace(label))
+        ?? "合计";
+
+    public static int GetAggregateLabelColumnIndex(ExportTableContent table)
+    {
+        var aggregateColumns = table.Aggregates
+            .Select(aggregate => aggregate.ColumnName)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        for (var index = 0; index < table.Columns.Count; index++)
+        {
+            if (!aggregateColumns.Contains(table.Columns[index].Name))
+                return index;
+        }
+        return -1;
     }
 
     private static TimeSpan ParseDuration(object value)
@@ -647,8 +832,15 @@ public sealed class ExportRequestValidator
     public static ExportContentKind GetContentKind(ExportRequest request) =>
         request.Content?.Kind ?? ExportContentKind.Table;
 
-    private static ScriptApiError Error(string message) =>
-        new("EXPORT_INVALID_REQUEST", message, ScriptErrorCategory.Validation);
+    private static ScriptApiError Error(
+        string message) =>
+        Error("EXPORT_INVALID_REQUEST", message);
+
+    private static ScriptApiError Error(
+        string code,
+        string message,
+        IReadOnlyDictionary<string, object?>? details = null) =>
+        new(code, message, ScriptErrorCategory.Validation, Details: details);
 }
 
 public interface IOptionDialogApi
@@ -939,8 +1131,14 @@ public static class OpenXmlTemplateSafety
     }
 }
 
-public sealed class ExportHandlerException(string code, string message, bool retryable = false) : Exception(message)
+public sealed class ExportHandlerException(
+    string code,
+    string message,
+    bool retryable = false,
+    IReadOnlyDictionary<string, object?>? details = null,
+    Exception? innerException = null) : Exception(message, innerException)
 {
     public string Code { get; } = code;
     public bool Retryable { get; } = retryable;
+    public IReadOnlyDictionary<string, object?>? Details { get; } = details;
 }

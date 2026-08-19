@@ -256,7 +256,7 @@ if confirmed:
 
 `context.log.debug(message)`、`context.log.info(message)`、`context.log.warning(message)` 和 `context.log.error(message)` 将调试信息写入宿主日志。单条日志受大小限制，不能输出敏感配置。
 
-非结果类 HostCall（剪贴板、用户交互、日志和列表类）失败会抛出 `HostCallError`，其 `code` 属性可用于分类处理；返回结果的 API（`workItems.query`、`logItems.create`、`templateLogItems.create`、`trackerInstances.get`）失败时返回 `succeeded=False` 结果对象，不抛异常：
+非结果类 HostCall（剪贴板、用户交互、日志和列表类）失败会抛出 `HostCallError`，其 `code` 属性可用于分类处理；返回结果的 API（`workItems.query`、`logItems.create`、`templateLogItems.create`、`trackerInstances.get`、`exports.export`）失败时返回 `succeeded=False` 结果对象，不抛异常：
 
 ```python
 try:
@@ -271,6 +271,10 @@ except HostCallError as error:
 
 Python API 使用全小写/snake_case；交互式能力只允许有人值守的 `Editor+Editor`、`Application+Manual` 和 `Query+Manual` 执行。
 
+完整的共享模型、格式能力矩阵、模板绑定语义、错误详情和 10 分钟令牌生命周期见 [Export.md](Export.md)。调用前可用 `context.exports.list_formats()` 读取 `content_capabilities` 和 `format_options`。
+
+可直接复制的加班明细 Editor 脚本见 [Examples/OvertimeExport.py](Examples/OvertimeExport.py)。
+
 ```python
 directory = context.diary.ui.pick_directory({"title": "选择导出目录"})
 if directory is None:
@@ -280,16 +284,35 @@ result = context.exports.export({
     "format_id": "xlsx",
     "directory_selection_id": directory["selection_id"],
     "file_name": "report.xlsx",
+    "format_options": {
+        "format_id": "xlsx",
+        "values": {"sheet_name": "加班明细"},
+    },
     "content": {
         "kind": "table",
-        "columns": [{"name": "时长", "type": "duration"}],
-        "rows": [["25:30:00"]],
-        "aggregates": [{"column_name": "时长", "aggregation": "sum"}],
+        "columns": [
+            {"name": "项目", "type": "text"},
+            {"name": "时长", "type": "duration"},
+        ],
+        "rows": [["加班", "25:30:00"]],
+        "aggregates": [{"column_name": "时长", "aggregation": "sum", "label": "总时长"}],
+        "style": "report",
     },
 })
 if result["succeeded"]:
     context.diary.ui.ask_to_open_exported_file(result["file_id"])
+else:
+    export_error = result["error"]
+    print(export_error["code"], export_error["message"])
+    if export_error["code"] == "EXPORT_VALUE_INVALID":
+        print("行=", export_error["details"]["row"], "列=", export_error["details"]["column"])
+    for diagnostic in (export_error.get("details") or {}).get("diagnostics", []):
+        print(diagnostic["code"], diagnostic.get("binding_key"), diagnostic["message"])
+    if export_error["retryable"]:
+        print("宿主故障可能稍后恢复；验证错误必须先修改输入。")
 ```
+
+模板导出先调用 `context.exports.list_templates("xlsx")`，再按 descriptor 的精确 `template_id`、`template_version` 和 `bindings` 构造 `template={"values": ..., "tables": ..., "documents": ...}`。XLSX 的 table binding 从锚点写入表头和二维数据，不复制模板行样式、公式或合并关系。
 
 `context.diary.ui.select_option()` 的 `require_choice` 策略禁止用户关闭对话框，但 Worker 终止、取消或宿主退出时会安全结束等待。`Time` 不参与合计；`Duration` 使用 `[h]:mm:ss`。CSV 的基础工具会对 RFC 4180 字段进行转义，并对以 `=`, `+`, `-`, `@` 开头的文本增加前置单引号。
 
@@ -325,6 +348,8 @@ Python Worker 禁止导入模块、文件访问、动态代码执行、运行时
 ## 8. 错误、取消、超时和 Worker 终止
 
 查询、创建等返回结果的 API 使用 `apiError["code"]` 提供稳定的大写错误码；`error["code"]` 是 Python 可读的领域错误名。
+
+`context.exports.export` 是例外：其失败结果中的 `error` 本身就是稳定的 `ScriptApiError`，直接包含 `code`、`message`、`category`、`retryable`、`details`，没有额外的 `apiError`。
 
 ```python
 result = context.diary.workItems.query({"limit": 0})
@@ -391,7 +416,7 @@ Python 自动化脚本的上下文额外提供 `context.automation` 字典：
 
 ## 附录 A. `apiError` 错误码总表
 
-`apiError` 结构：`code`（str，稳定大写码）、`message`（str）、`category`（`Validation`、`Permission`、`Host`、`Provider` 或 `Cancellation`）、`retryable`（bool）、`details`（可选字典，当前未使用）。
+`apiError`/导出 `error` 的公共结构：`code`（str，稳定大写码）、`message`（str）、`category`（`Validation`、`Permission`、`Host`、`Provider` 或 `Cancellation`）、`retryable`（bool）、`details`（可选结构化字典；导出值错误和模板绑定错误会使用）。
 
 当前 API 实际产生的错误码：
 

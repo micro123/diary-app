@@ -40,4 +40,25 @@ public sealed class ScriptDocumentationContractTests
         StringAssert.Contains(completed, "阶段 9.10：脚本 API 用户体验和功能入口优化");
         Assert.IsFalse(todos.Contains("## 阶段 9.10：脚本 API 用户体验和功能入口优化", StringComparison.Ordinal));
     }
+
+    [TestMethod]
+    public void ExportReferencesShareContractAndLinkRunnableOvertimeExamples()
+    {
+        var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../Docs/ScriptApi"));
+        Assert.IsTrue(File.Exists(Path.Combine(root, "Export.md")));
+
+        var references = new[]
+        {
+            (File: "CSharp.md", Example: "Examples/OvertimeExport.cs"),
+            (File: "Lua.md", Example: "Examples/OvertimeExport.lua"),
+            (File: "Python.md", Example: "Examples/OvertimeExport.py"),
+        };
+        foreach (var reference in references)
+        {
+            var content = File.ReadAllText(Path.Combine(root, reference.File));
+            StringAssert.Contains(content, "Export.md");
+            StringAssert.Contains(content, reference.Example);
+            Assert.IsTrue(File.Exists(Path.Combine(root, reference.Example.Replace('/', Path.DirectorySeparatorChar))));
+        }
+    }
 }

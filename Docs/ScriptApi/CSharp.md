@@ -307,7 +307,11 @@ var confirmed = await system.ConfirmAsync("继续操作", "是否继续？", can
 
 ### 9.1 交互式导出（第一阶段）
 
-第一阶段支持有人值守执行的选项选择、目录选择、XLSX 导出和结果文件打开询问。`Automation`、`Startup`、`Scheduled` 及事件触发脚本调用这些 API 会返回宿主作用域错误。
+当前支持有人值守执行的选项选择、目录选择、XLSX/CSV/DOCX 导出和结果文件打开询问。`Automation`、`Startup`、`Scheduled` 及事件触发脚本调用这些 API 会返回宿主作用域错误。
+
+完整的共享模型、能力矩阵、模板表格绑定语义、错误详情和 10 分钟令牌生命周期见 [Export.md](Export.md)。应先读取 `ListFormatsAsync()` 返回的 capability 和 `FormatOptions`，不要猜测处理器能力。
+
+可直接复制的加班明细 Editor 脚本见 [Examples/OvertimeExport.cs](Examples/OvertimeExport.cs)。
 
 ```csharp
 var directory = await api.System.PickDirectoryAsync(new DirectoryPickerOptions
@@ -322,18 +326,49 @@ var result = await api.Exports.ExportAsync(new ExportRequest
     FormatId = "xlsx",
     DirectorySelectionId = directory.SelectionId,
     FileName = "report.xlsx",
+    FormatOptions = new ExportFormatOptions(
+        "xlsx",
+        new Dictionary<string, object?> { ["sheet_name"] = "加班明细" }),
     Content = new ExportTableContent
     {
-        Columns = [new ExportColumn("时长", ExportColumnType.Duration)],
-        Rows = [["25:30:00"]],
-        Aggregates = [new ExportAggregateColumn("时长")],
+        Columns =
+        [
+            new ExportColumn("项目"),
+            new ExportColumn("时长", ExportColumnType.Duration),
+        ],
+        Rows = [["加班", "25:30:00"]],
+        Aggregates = [new ExportAggregateColumn("时长", Label: "总时长")],
+        Style = ExportTableStyle.Report,
     },
 }, cancellationToken);
 if (result.Succeeded)
+{
     await api.System.AskToOpenExportedFileAsync(result.FileId!, cancellationToken);
+}
+else
+{
+    var error = result.Error!;
+    Console.WriteLine($"{error.Code}: {error.Message}");
+    if (error.Code == "EXPORT_VALUE_INVALID")
+        Console.WriteLine($"行={error.Details?["row"]}，列={error.Details?["column"]}");
+    if (error.Retryable)
+        Console.WriteLine("宿主故障可能稍后恢复；验证错误必须先修改输入。");
+}
 ```
 
-模板导出使用 `ExportTemplateSource`，先调用 `api.Exports.ListTemplatesAsync("xlsx")` 获取已经由插件校验的模板和绑定 schema，再提交 `template_id`、`template_version` 以及 `values`/`tables`/`documents`。省略带 `default_value` 的绑定时由宿主填充；缺少没有默认值的必填绑定会返回 `EXPORT_TEMPLATE_BINDING_INVALID`。
+模板导出使用 `ExportTemplateSource`，先调用 `api.Exports.ListTemplatesAsync("xlsx")` 获取已经由插件校验的模板和绑定 schema，再提交精确的 `template_id`、`template_version` 以及 `values`/`tables`/`documents`。省略带 `default_value` 的绑定时由宿主填充；缺少没有默认值的必填绑定会返回 `EXPORT_TEMPLATE_BINDING_INVALID`，其 `Error.Details["diagnostics"]` 包含所有 `ExportDiagnostic`。XLSX 的 table binding 是从锚点写入表头和二维数据，不复制模板行样式、公式或合并关系。
+
+Worker 往返后，`Details` 中的复合值会表现为 `JsonElement`，可以这样遍历模板诊断：
+
+```csharp
+if (result.Error?.Code == "EXPORT_TEMPLATE_BINDING_INVALID"
+    && result.Error.Details?.TryGetValue("diagnostics", out var value) == true
+    && value is JsonElement json)
+{
+    foreach (var diagnostic in json.Deserialize<ExportDiagnostic[]>(ExportJson.Options) ?? [])
+        Console.WriteLine($"{diagnostic.Code} [{diagnostic.BindingKey}] {diagnostic.Message}");
+}
+```
 
 Wire JSON 使用全小写/snake_case（例如 `format_id`、`directory_selection_id`、`file_id`、`duration`）；C# 模型仍遵循 C# 命名约定。`Time` 表示时分秒，不参与 `SUM`；`Duration` 表示可超过 24 小时的时长，XLSX 使用 `[h]:mm:ss`。文件名含路径分隔符、控制字符、`.`/`..` 或路径穿越片段时直接拒绝，不做替换。
 
@@ -385,7 +420,7 @@ C# 脚本沙箱（构建期检查，违反时构建失败并产生 `CSHARP_API_F
 
 ## 12. 错误、取消、超时和 Worker 终止
 
-返回结果类 API 失败时，优先读取 `ApiError.Code`，它使用稳定的大写错误码；`Error.Code` 是 C# 领域枚举，适合在领域内分支。
+查询、创建等领域结果失败时优先读取 `ApiError.Code`；导出返回独立的 `ExportResult`，失败时读取 `ExportResult.Error.Code`、`Category`、`Retryable` 和 `Details`，不存在额外的 `ApiError` 字段。
 
 ```csharp
 var result = await api.QueryAsync(new ScriptWorkItemQuery { Limit = 0 }, cancellationToken);
@@ -569,7 +604,7 @@ Lua 与 Python 的入口返回值约定不同，见各自语言文档的类型�
 
 ## 附录 A. `ScriptApiErrorCodes` 总表
 
-`ScriptApiError` 字段：`Code`（string，稳定大写码）、`Message`、`Category`（`Validation`、`Permission`、`Host`、`Provider` 或 `Cancellation`）、`Retryable`（bool）、`Details`（可选字典，当前未使用）。
+`ScriptApiError` 字段：`Code`（string，稳定大写码）、`Message`、`Category`（`Validation`、`Permission`、`Host`、`Provider` 或 `Cancellation`）、`Retryable`（bool）、`Details`（可选结构化字典；导出值错误和模板绑定错误会使用）。
 
 | `Code` | 是否由当前 API 产生 | 说明 |
 | --- | --- | --- |

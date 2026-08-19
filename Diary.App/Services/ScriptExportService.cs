@@ -25,10 +25,29 @@ public sealed class ScriptExportService : IContextualExportApi
         var handlers = new Dictionary<string, IExportHandler>(StringComparer.Ordinal);
         foreach (var handler in exportHandlers)
         {
-            if (!handlers.TryAdd(handler.Descriptor.FormatId, handler))
-                throw new InvalidOperationException($"导出格式 ID 冲突：{handler.Descriptor.FormatId}。");
+            var descriptor = handler.Descriptor;
+            if (!handlers.TryAdd(descriptor.FormatId, handler))
+            {
+                _logger.LogError(
+                    "导出格式 ID 冲突：{FormatId}，现有处理器 {ExistingHandlerType}，冲突处理器 {ConflictingHandlerType}",
+                    descriptor.FormatId,
+                    handlers[descriptor.FormatId].GetType().FullName,
+                    handler.GetType().FullName);
+                throw new InvalidOperationException($"导出格式 ID 冲突：{descriptor.FormatId}。");
+            }
+            _logger.LogInformation(
+                "导出格式注册成功：{FormatId}，处理器 {HandlerType}，内容类型 [{ContentKinds}]，支持模板 {SupportsTemplates}，格式选项 [{FormatOptions}]",
+                descriptor.FormatId,
+                handler.GetType().FullName,
+                string.Join(", ", descriptor.ContentCapabilities.Select(capability => capability.ContentKind)),
+                descriptor.SupportsTemplates,
+                string.Join(", ", descriptor.FormatOptions?.Select(option => option.Key) ?? []));
         }
         _exportHandlers = handlers;
+        _logger.LogInformation(
+            "导出格式注册完成：共 {FormatCount} 个格式 [{FormatIds}]",
+            handlers.Count,
+            string.Join(", ", handlers.Keys.Order(StringComparer.Ordinal)));
     }
 
     public void RegisterDirectory(string selectionId, string path, ScriptHostCallContext context)
@@ -137,7 +156,13 @@ public sealed class ScriptExportService : IContextualExportApi
         catch (ExportHandlerException exception)
         {
             TryDelete(outputPath);
-            return Failure(request, exception.Code, exception.Message, ScriptErrorCategory.Validation, exception.Retryable);
+            return Failure(
+                request,
+                exception.Code,
+                exception.Message,
+                ScriptErrorCategory.Validation,
+                exception.Retryable,
+                exception.Details);
         }
         catch (Exception exception)
         {
@@ -168,7 +193,11 @@ public sealed class ScriptExportService : IContextualExportApi
                 request,
                 "EXPORT_TEMPLATE_BINDING_INVALID",
                 string.Join(" ", diagnostics.Select(item => item.Message)),
-                ScriptErrorCategory.Validation);
+                ScriptErrorCategory.Validation,
+                details: new Dictionary<string, object?>
+                {
+                    ["diagnostics"] = diagnostics,
+                });
 
         var finalName = EnsureExtension(request.FileName, registration.Descriptor.TemplateFileExtension);
         var outputPath = GetUniquePath(directory, finalName);
@@ -194,7 +223,13 @@ public sealed class ScriptExportService : IContextualExportApi
         catch (ExportHandlerException exception)
         {
             TryDelete(outputPath);
-            return Failure(request, exception.Code, exception.Message, ScriptErrorCategory.Validation, exception.Retryable);
+            return Failure(
+                request,
+                exception.Code,
+                exception.Message,
+                ScriptErrorCategory.Validation,
+                exception.Retryable,
+                exception.Details);
         }
         catch (Exception exception)
         {
@@ -240,9 +275,10 @@ public sealed class ScriptExportService : IContextualExportApi
         string code,
         string message,
         ScriptErrorCategory category,
-        bool retryable = false) =>
+        bool retryable = false,
+        IReadOnlyDictionary<string, object?>? details = null) =>
         new(false, request.FormatId, ExportRequestValidator.GetContentKind(request), null, null, null,
-            new ScriptApiError(code, message, category, retryable));
+            new ScriptApiError(code, message, category, retryable, details));
 
     private static void TryDelete(string path)
     {

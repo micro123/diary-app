@@ -320,6 +320,10 @@ end
 
 Lua API 使用全小写/snake_case；交互式能力只允许有人值守的 `Editor+Editor`、`Application+Manual` 和 `Query+Manual` 执行。
 
+完整的共享模型、格式能力矩阵、模板绑定语义、错误详情和 10 分钟令牌生命周期见 [Export.md](Export.md)。调用前可用 `diary.exports.list_formats()` 读取 `content_capabilities` 和 `format_options`。
+
+可直接复制的加班明细 Editor 脚本见 [Examples/OvertimeExport.lua](Examples/OvertimeExport.lua)。
+
 ```lua
 local directory = diary.ui.pick_directory({ title = "选择导出目录" })
 if directory == nil then
@@ -330,17 +334,39 @@ local result = diary.exports.export({
     format_id = "xlsx",
     directory_selection_id = directory.selection_id,
     file_name = "report.xlsx",
+    format_options = {
+        format_id = "xlsx",
+        values = { sheet_name = "加班明细" },
+    },
     content = {
         kind = "table",
-        columns = { { name = "时长", type = "duration" } },
-        rows = { { "25:30:00" } },
-        aggregates = { { column_name = "时长", aggregation = "sum" } },
+        columns = {
+            { name = "项目", type = "text" },
+            { name = "时长", type = "duration" },
+        },
+        rows = { { "加班", "25:30:00" } },
+        aggregates = { { column_name = "时长", aggregation = "sum", label = "总时长" } },
+        style = "report",
     },
 })
 if result.succeeded then
     diary.ui.ask_to_open_exported_file(result.file_id)
+else
+    local export_error = result.error
+    print(export_error.code .. ": " .. export_error.message)
+    if export_error.code == "EXPORT_VALUE_INVALID" then
+        print("行=" .. tostring(export_error.details.row) .. "，列=" .. export_error.details.column)
+    end
+    for _, diagnostic in ipairs((export_error.details and export_error.details.diagnostics) or {}) do
+        print(diagnostic.code .. " [" .. tostring(diagnostic.binding_key) .. "] " .. diagnostic.message)
+    end
+    if export_error.retryable then
+        print("宿主故障可能稍后恢复；验证错误必须先修改输入。")
+    end
 end
 ```
+
+模板导出先调用 `diary.exports.list_templates("xlsx")`，再按 descriptor 的精确 `template_id`、`template_version` 和 `bindings` 构造 `template = { values = ..., tables = ..., documents = ... }`。XLSX 的 table binding 从锚点写入表头和二维数据，不复制模板行样式、公式或合并关系。
 
 `diary.ui.select_option()` 的 `require_choice` 策略禁止用户关闭对话框，但 Worker 终止、取消或宿主退出时会安全结束等待。`Time` 不参与合计；`Duration` 使用 `[h]:mm:ss`。CSV 的基础工具会对 RFC 4180 字段进行转义，并对以 `=`, `+`, `-`, `@` 开头的文本增加前置单引号。
 
@@ -387,7 +413,7 @@ if not result.succeeded then
 end
 ```
 
-返回结果的 API（`workItems.query`、`logItems.create`、`templateLogItems.create`、`trackerInstances.get`）即使失败也返回 `{ succeeded = false, error = { code, message }, apiError = { ... } }`，不抛异常。非结果类 HostCall（剪贴板、用户交互、日志和列表类）以及未知方法、宿主未配置等意外场景失败时会抛出错误，错误文本使用 `[ERROR_CODE] message` 格式，可以在 `pcall` 中提取代码：
+返回结果的 API（`workItems.query`、`logItems.create`、`templateLogItems.create`、`trackerInstances.get`）即使失败也返回 `{ succeeded = false, error = { code, message }, apiError = { ... } }`，不抛异常。`diary.exports.export` 同样以结果表达普通失败，但其 `error` 本身就是稳定的 `ScriptApiError`，字段为 `code/message/category/retryable/details`，没有额外的 `apiError`。非结果类 HostCall（剪贴板、用户交互、日志和列表类）以及未知方法、宿主未配置等意外场景失败时会抛出错误，错误文本使用 `[ERROR_CODE] message` 格式，可以在 `pcall` 中提取代码：
 
 ```lua
 local ok, value = pcall(function()
@@ -455,7 +481,7 @@ Lua 自动化脚本的上下文额外提供 `context.automation` 表：
 
 ## 附录 A. `apiError` 错误码总表
 
-`apiError` 结构：`code`（string，稳定大写码）、`message`（string）、`category`（`Validation`、`Permission`、`Host`、`Provider` 或 `Cancellation`）、`retryable`（boolean）、`details`（可选字典，当前未使用）。
+`apiError`/导出 `error` 的公共结构：`code`（string，稳定大写码）、`message`（string）、`category`（`Validation`、`Permission`、`Host`、`Provider` 或 `Cancellation`）、`retryable`（boolean）、`details`（可选结构化字典；导出值错误和模板绑定错误会使用）。
 
 当前 API 实际产生的错误码：
 

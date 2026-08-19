@@ -50,7 +50,8 @@ internal sealed class DocxExportHandler : IExportHandler
                     ExportFeature.GeneratedAggregate,
                 ]),
         ],
-        SupportsTemplates: true);
+        SupportsTemplates: true,
+        FormatOptions: []);
 
     public ValueTask<ExportRenderResult> RenderAsync(
         ExportRequest request,
@@ -83,7 +84,16 @@ internal sealed class DocxExportHandler : IExportHandler
         CancellationToken cancellationToken)
     {
         if (!string.IsNullOrWhiteSpace(document.Title))
-            body.Append(CreateParagraph(document.Title, bold: true, fontSize: 32, center: true));
+            body.Append(CreateParagraph(
+                document.Title,
+                bold: true,
+                fontSize: document.Style switch
+                {
+                    ExportTableStyle.Compact => 26,
+                    ExportTableStyle.Report => 36,
+                    _ => 32,
+                },
+                center: document.Style != ExportTableStyle.Compact));
 
         foreach (var block in document.Blocks)
         {
@@ -94,13 +104,19 @@ internal sealed class DocxExportHandler : IExportHandler
                     body.Append(CreateParagraph(
                         heading.Text,
                         bold: true,
-                        fontSize: heading.Level switch { 1 => 30, 2 => 26, _ => 22 }));
+                        fontSize: HeadingFontSize(heading.Level, document.Style)));
                     break;
                 case ExportParagraphBlock paragraph:
-                    body.Append(CreateParagraph(paragraph.Text));
+                    body.Append(CreateParagraph(
+                        paragraph.Text,
+                        fontSize: document.Style == ExportTableStyle.Compact ? 18 : null));
                     break;
                 case ExportTableBlock table:
-                    body.Append(CreateTable(table.Table, cancellationToken));
+                    var tableContent = table.Table.Style == ExportTableStyle.Default
+                        && document.Style != ExportTableStyle.Default
+                            ? table.Table with { Style = document.Style }
+                            : table.Table;
+                    body.Append(CreateTable(tableContent, cancellationToken));
                     break;
                 default:
                     throw new ExportHandlerException("EXPORT_INVALID_REQUEST", "DOCX 文档包含未知文档块。");
@@ -115,7 +131,11 @@ internal sealed class DocxExportHandler : IExportHandler
         CancellationToken cancellationToken)
     {
         if (!string.IsNullOrWhiteSpace(table.Title))
-            body.Append(CreateParagraph(table.Title, bold: true, fontSize: 30, center: true));
+            body.Append(CreateParagraph(
+                table.Title,
+                bold: true,
+                fontSize: table.Style == ExportTableStyle.Compact ? 24 : 30,
+                center: table.Style != ExportTableStyle.Compact));
         body.Append(CreateTable(table, cancellationToken));
         return table.Rows.Count;
     }
@@ -135,7 +155,7 @@ internal sealed class DocxExportHandler : IExportHandler
 
         var header = new W.TableRow();
         foreach (var column in source.Columns)
-            header.Append(CreateCell(column.Name, bold: true));
+            header.Append(CreateCell(column.Name, bold: true, style: source.Style, header: true));
         table.Append(header);
 
         var covered = BuildMergeMap(source);
@@ -157,7 +177,8 @@ internal sealed class DocxExportHandler : IExportHandler
                 row.Append(CreateCell(
                     FormatValue(normalized, column),
                     gridSpan: merge?.ColumnSpan ?? 1,
-                    verticalMerge: merge?.VerticalMerge));
+                    verticalMerge: merge?.VerticalMerge,
+                    style: source.Style));
             }
             table.Append(row);
         }
@@ -165,7 +186,8 @@ internal sealed class DocxExportHandler : IExportHandler
         if (source.Aggregates.Count > 0)
         {
             var values = new string[source.Columns.Count];
-            values[0] = "合计";
+            var labelColumnIndex = ExportRequestValidator.GetAggregateLabelColumnIndex(source);
+            values[labelColumnIndex] = ExportRequestValidator.GetAggregateLabel(source);
             foreach (var aggregate in source.Aggregates)
             {
                 var columnIndex = source.Columns
@@ -175,7 +197,7 @@ internal sealed class DocxExportHandler : IExportHandler
             }
             var totalRow = new W.TableRow();
             foreach (var value in values)
-                totalRow.Append(CreateCell(value, bold: true));
+                totalRow.Append(CreateCell(value, bold: true, style: source.Style, total: true));
             table.Append(totalRow);
         }
         return table;
@@ -207,27 +229,43 @@ internal sealed class DocxExportHandler : IExportHandler
         string? text,
         bool bold = false,
         int gridSpan = 1,
-        W.MergedCellValues? verticalMerge = null)
+        W.MergedCellValues? verticalMerge = null,
+        ExportTableStyle style = ExportTableStyle.Default,
+        bool header = false,
+        bool total = false)
     {
         var properties = new W.TableCellProperties();
         if (gridSpan > 1)
             properties.Append(new W.GridSpan { Val = gridSpan });
         if (verticalMerge is not null)
             properties.Append(new W.VerticalMerge { Val = verticalMerge });
-        return new W.TableCell(properties, CreateParagraph(text ?? string.Empty, bold));
+        if (style == ExportTableStyle.Report && (header || total))
+            properties.Append(new W.Shading
+            {
+                Val = W.ShadingPatternValues.Clear,
+                Fill = header ? "4472C4" : "D9EAF7",
+            });
+        return new W.TableCell(properties, CreateParagraph(
+            text ?? string.Empty,
+            bold,
+            fontSize: style == ExportTableStyle.Compact ? 18 : null,
+            color: style == ExportTableStyle.Report && header ? "FFFFFF" : null));
     }
 
     private static W.Paragraph CreateParagraph(
         string text,
         bool bold = false,
         int? fontSize = null,
-        bool center = false)
+        bool center = false,
+        string? color = null)
     {
         var runProperties = new W.RunProperties();
         if (bold)
             runProperties.Append(new W.Bold());
         if (fontSize is not null)
             runProperties.Append(new W.FontSize { Val = fontSize.Value.ToString(CultureInfo.InvariantCulture) });
+        if (color is not null)
+            runProperties.Append(new W.Color { Val = color });
         var run = new W.Run(runProperties, new W.Text(text) { Space = SpaceProcessingModeValues.Preserve });
         var paragraphProperties = center
             ? new W.ParagraphProperties(new W.Justification { Val = W.JustificationValues.Center })
@@ -235,6 +273,17 @@ internal sealed class DocxExportHandler : IExportHandler
         return paragraphProperties is null
             ? new W.Paragraph(run)
             : new W.Paragraph(paragraphProperties, run);
+    }
+
+    private static int HeadingFontSize(int level, ExportTableStyle style)
+    {
+        var baseSize = level switch { 1 => 30, 2 => 26, _ => 22 };
+        return style switch
+        {
+            ExportTableStyle.Compact => baseSize - 4,
+            ExportTableStyle.Report => baseSize + 2,
+            _ => baseSize,
+        };
     }
 
     private static TBorder Border<TBorder>() where TBorder : W.BorderType, new() =>

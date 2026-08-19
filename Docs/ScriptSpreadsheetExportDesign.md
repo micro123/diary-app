@@ -948,6 +948,8 @@ public interface IExportTemplateHandler
 2. 兼容插件注册通用处理器和模板处理器，建立按 `format_id`/扩展名/`template_id` 排序的只读目录；
 3. 单个插件加载失败只使其格式或对应扩展名模板不可用，不影响脚本系统、通用导出或核心日记。
 
+宿主必须为插件发现和注册保留可诊断日志：以 `Information` 记录扫描目录、匹配模式、候选程序集数量、每个成功插件的 ID/版本/格式/模板扩展名，以及最终插件和处理器汇总；以 `Debug` 记录单个程序集加载尝试；程序集加载、实例化或处理器枚举失败时以 `Error` 记录程序集和异常。底层类型加载器应把异常连同程序集路径回传给宿主日志，不得只写入控制台。格式注册表还应以 `Information` 记录每个格式的处理器、内容能力、模板支持和选项键，并在重复 `format_id` 时以 `Error` 记录冲突双方后拒绝启动。
+
 与现有 Tracker 插件相比，导出插件不需要实例配置、数据库迁移或 Tracker UI。第一阶段可先使用独立的 `ExportPluginHost`，复用 manifest 兼容性和依赖检查规则；长期再把 Tracker/Export 的公共插件发现、诊断和生命周期抽象为通用 `IPlugin`，避免两套加载器继续分叉。
 
 迁移顺序：
@@ -1392,51 +1394,60 @@ C# 内部可以使用 PascalCase 枚举，但 Worker 序列化器必须统一转
     {
       "format_id": "xlsx",
       "display_name": "Excel 工作簿",
-      "defaultExtension": ".xlsx",
-      "allowedExtensions": [".xlsx"],
-      "contentCapabilities": {
-        "table": [
+      "default_extension": ".xlsx",
+      "allowed_extensions": [".xlsx"],
+      "content_capabilities": [
+        {
+          "content_kind": "table",
+          "features": [
           "unicode_text",
           "typed_values",
+          "number_format",
           "basic_style",
-          "background_color",
           "merge_cells",
           "generated_aggregate"
-        ]
-      }
+          ]
+        }
+      ],
+      "format_options": [
+        { "key": "sheet_name", "type": "text", "default_value": "明细" }
+      ]
     }
   ],
   "error": null
 }
 ```
 
-完整规划中的格式目录能力如下；第一阶段运行时仍只返回实际已注册的 `xlsx`：
+当前运行时格式目录能力如下：
 
 ```json
 [
   {
     "format_id": "xlsx",
-    "contentCapabilities": {
-      "table": ["unicode_text", "typed_values", "basic_style", "background_color", "merge_cells", "generated_aggregate"]
-    }
+    "content_capabilities": {
+      "table": ["unicode_text", "typed_values", "number_format", "basic_style", "merge_cells", "generated_aggregate"]
+    },
+    "format_options": [{ "key": "sheet_name", "type": "text", "default_value": "明细" }]
   },
   {
     "format_id": "csv",
-    "contentCapabilities": {
+    "content_capabilities": {
       "table": ["unicode_text", "typed_values", "generated_aggregate"]
-    }
+    },
+    "format_options": []
   },
   {
     "format_id": "docx",
-    "contentCapabilities": {
+    "content_capabilities": {
       "table": ["unicode_text", "typed_values", "basic_style", "merge_cells", "generated_aggregate"],
-      "document": ["unicode_text", "basic_style", "paragraphs", "document_tables"]
-    }
+      "document": ["unicode_text", "typed_values", "basic_style", "paragraphs", "document_tables", "merge_cells", "generated_aggregate"]
+    },
+    "format_options": []
   }
 ]
 ```
 
-CSV 和 DOCX 完成处理器后才出现在运行时格式目录中。脚本应先检查目标 `content.kind` 对应的能力，再提交导出请求。
+脚本应先检查目标 `content.kind` 对应的能力和 `format_options` schema，再提交导出请求；没有声明的样式、合并、数字格式或格式选项会明确拒绝，不会静默忽略。
 
 通用表格导出请求（XLSX）：
 
@@ -1445,7 +1456,7 @@ CSV 和 DOCX 完成处理器后才出现在运行时格式目录中。脚本应�
   "format_id": "xlsx",
   "directory_selection_id": "dirsel-01J...",
   "file_name": "加班明细-2026-07.xlsx",
-  "formatOptions": {
+  "format_options": {
     "format_id": "xlsx",
     "values": {
       "sheet_name": "加班明细"
@@ -1624,12 +1635,14 @@ exports.export.cancel
 默认创建一个工作表：
 
 ```text
-工作表名称：`formatOptions.sheet_name`，缺省为“明细”
+工作表名称：`format_options.values.sheet_name`，缺省为“明细”
 第一行：标题（如果提供）
 第二行：表头
 第三行开始：明细数据
 最后一行：合计（如果配置 Aggregates）
 ```
+
+工作表名称选项属于 wire 契约，只接受区分大小写的 `sheet_name`；不提供 camelCase 别名。
 
 ### 10.3 标题和合并
 
@@ -1649,7 +1662,7 @@ exports.export.cancel
 - 合计行：浅色强调背景；
 - 普通数据行：不强制交替色。
 
-脚本不需要传输 RGB 结构或字体对象。未来确实需要个性化时，再增加受限的 `ExportTableStyle`，不直接暴露全部 ClosedXML API。
+脚本不需要传输 RGB 结构或字体对象。当前受限的 `ExportTableStyle` 支持 `default`、`compact`、`report`，由 XLSX/DOCX 映射为预设样式；CSV 对非默认样式返回 `EXPORT_UNSUPPORTED_FEATURE`。插件内部使用背景色不代表 capability 允许脚本提交任意颜色，因此 XLSX descriptor 不声明 `background_color`。
 
 ### 10.5 公式
 
@@ -1761,6 +1774,8 @@ public interface IExportApi
 - 插件可以在扩展名之外检查文件签名、容器结构、MIME 和格式版本，防止用户把普通文件改名后绕过识别。
 
 当前 XLSX 插件的第一版模板约定为隐藏/专用工作表 `__diary_template`：`A1` 为 `diary.export.template`，`A2` 为全小写 `snake_case` 模板名，`A3` 为模板版本，`A4/A5` 为显示名称和说明；从第 8 行开始依次声明 `key`、`kind`、`scalar_type`、`required`、`default_value`、`target` 和说明。宿主不直接理解这些地址，只保存插件校验返回的 schema；该约定属于 XLSX 插件实现，不是通用脚本协议。
+
+XLSX `table` binding 的 `target` 是表头左上角锚点：渲染器在锚点行写表头、下一行开始写数据，只覆盖实际写入的二维区域。它不插入行，不复制样板行的样式、公式、行高或合并关系，也不清除写入区域之外的旧内容；绑定数据只允许列名、列类型和 `rows`，`title`、`style`、`merges`、`aggregates`、`number_format` 会明确拒绝。因此该能力不是循环模板行。未来若需要 repeat-row，应新增独立契约，不能改变现有 table binding 语义。
 
 `ValidateAsync` 是模板进入目录前的必要步骤。插件必须检查模板是否“可作为本插件的有效模板”，至少包括：
 

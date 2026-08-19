@@ -97,6 +97,106 @@ public sealed class ScriptExportTests
     }
 
     [TestMethod]
+    public void ExportRequestValidator_RejectsDuplicateColumnNamesIgnoringCase()
+    {
+        var descriptor = new ExportFormatDescriptor(
+            "xlsx", "Excel", ".xlsx", [".xlsx"],
+            [new ExportContentCapabilities(ExportContentKind.Table, [ExportFeature.TypedValues])]);
+        var request = new ExportRequest
+        {
+            FormatId = "xlsx",
+            DirectorySelectionId = "directory",
+            FileName = "report.xlsx",
+            Content = new ExportTableContent
+            {
+                Columns = [new ExportColumn("金额"), new ExportColumn("金额")],
+                Rows = [["1", "2"]],
+            },
+        };
+
+        var error = ExportRequestValidator.Validate(request, descriptor);
+
+        Assert.IsNotNull(error);
+        Assert.AreEqual("EXPORT_COLUMN_NAME_DUPLICATE", error.Code);
+        Assert.AreEqual("金额", error.Details?["column"]);
+    }
+
+    [TestMethod]
+    public void ExportRequestValidator_ReturnsSpecificAggregateErrors()
+    {
+        var descriptor = new ExportFormatDescriptor(
+            "xlsx", "Excel", ".xlsx", [".xlsx"],
+            [new ExportContentCapabilities(
+                ExportContentKind.Table,
+                [ExportFeature.TypedValues, ExportFeature.GeneratedAggregate])]);
+        var missingColumn = new ExportRequest
+        {
+            FormatId = "xlsx",
+            DirectorySelectionId = "directory",
+            FileName = "report.xlsx",
+            Content = new ExportTableContent
+            {
+                Columns = [new ExportColumn("金额", ExportColumnType.Decimal)],
+                Rows = [[1m]],
+                Aggregates = [new ExportAggregateColumn("不存在")],
+            },
+        };
+        var unsupportedType = missingColumn with
+        {
+            Content = new ExportTableContent
+            {
+                Columns = [new ExportColumn("说明")],
+                Rows = [["文本"]],
+                Aggregates = [new ExportAggregateColumn("说明")],
+            },
+        };
+
+        var missingError = ExportRequestValidator.Validate(missingColumn, descriptor);
+        var typeError = ExportRequestValidator.Validate(unsupportedType, descriptor);
+
+        Assert.AreEqual("EXPORT_AGGREGATE_COLUMN_NOT_FOUND", missingError?.Code);
+        Assert.AreEqual("EXPORT_AGGREGATE_TYPE_UNSUPPORTED", typeError?.Code);
+        Assert.AreEqual("text", typeError?.Details?["column_type"]);
+    }
+
+    [TestMethod]
+    public void ExportRequestValidator_RejectsUnsupportedStyleAndNumberFormat()
+    {
+        var descriptor = new ExportFormatDescriptor(
+            "csv", "CSV", ".csv", [".csv"],
+            [new ExportContentCapabilities(
+                ExportContentKind.Table,
+                [ExportFeature.TypedValues, ExportFeature.GeneratedAggregate])]);
+        var styledRequest = new ExportRequest
+        {
+            FormatId = "csv",
+            DirectorySelectionId = "directory",
+            FileName = "report.csv",
+            Content = new ExportTableContent
+            {
+                Columns = [new ExportColumn("金额", ExportColumnType.Decimal)],
+                Rows = [[1m]],
+                Style = ExportTableStyle.Compact,
+            },
+        };
+        var numberFormatRequest = styledRequest with
+        {
+            Content = new ExportTableContent
+            {
+                Columns = [new ExportColumn("金额", ExportColumnType.Decimal, "0.00")],
+                Rows = [[1m]],
+            },
+        };
+
+        var styleError = ExportRequestValidator.Validate(styledRequest, descriptor);
+        var numberFormatError = ExportRequestValidator.Validate(numberFormatRequest, descriptor);
+
+        Assert.AreEqual("EXPORT_UNSUPPORTED_FEATURE", styleError?.Code);
+        Assert.AreEqual("EXPORT_UNSUPPORTED_FEATURE", numberFormatError?.Code);
+        Assert.AreEqual("金额", numberFormatError?.Details?["column"]);
+    }
+
+    [TestMethod]
     public void CsvTextSafety_ProtectsFormulaPrefixesAndEscapesFields()
     {
         Assert.AreEqual("'=1+1", CsvTextSafety.ProtectFormulaText("=1+1"));

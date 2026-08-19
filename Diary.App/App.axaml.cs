@@ -602,15 +602,85 @@ namespace Diary.App
             services.AddSingleton<ScriptLogStore>();
             services.AddSingleton<ScriptProgressTracker>();
             services.AddSingleton<ScriptStartupDiagnosticsStore>();
-            foreach (var exportPlugin in TypeLoader.GetImplementations<IExportPlugin>(
-                         FsTools.GetBinaryDirectory(), "Diary.Export.*.dll"))
+            var exportPluginDirectory = FsTools.GetBinaryDirectory();
+            const string exportPluginPattern = "Diary.Export.*.dll";
+            var exportPluginFiles = Directory.GetFiles(
+                    exportPluginDirectory,
+                    exportPluginPattern,
+                    SearchOption.TopDirectoryOnly)
+                .Order(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            Logger.LogInformation(
+                "开始扫描导出插件：目录 {Directory}，模式 {Pattern}，候选程序集 {CandidateCount} 个",
+                exportPluginDirectory,
+                exportPluginPattern,
+                exportPluginFiles.Length);
+
+            var exportPluginCount = 0;
+            var exportHandlerCount = 0;
+            var exportTemplateHandlerCount = 0;
+            foreach (var exportPluginPath in exportPluginFiles)
             {
+                var assemblyFileName = Path.GetFileName(exportPluginPath);
+                Logger.LogDebug("正在加载导出插件程序集：{AssemblyFile}", assemblyFileName);
+                Exception? loadException = null;
+                var exportPlugin = TypeLoader.LoadAssemblyAndGetInstance<IExportPlugin>(
+                    exportPluginPath,
+                    exception =>
+                    {
+                        loadException = exception;
+                        Logger.LogError(
+                            exception,
+                            "导出插件程序集加载失败：{AssemblyFile}",
+                            assemblyFileName);
+                    });
+                if (exportPlugin is null)
+                {
+                    if (loadException is null)
+                        Logger.LogWarning(
+                            "导出插件程序集未发现可实例化的 IExportPlugin：{AssemblyFile}",
+                            assemblyFileName);
+                    continue;
+                }
+
+                IExportHandler[] exportHandlers;
+                IExportTemplateHandler[] exportTemplateHandlers;
+                try
+                {
+                    exportHandlers = exportPlugin.GetExportHandlers().ToArray();
+                    exportTemplateHandlers = exportPlugin.GetTemplateHandlers().ToArray();
+                }
+                catch (Exception exception)
+                {
+                    Logger.LogError(
+                        exception,
+                        "读取导出插件处理器失败：插件 {PluginId}，程序集 {AssemblyFile}",
+                        exportPlugin.Manifest.Id,
+                        assemblyFileName);
+                    throw;
+                }
+
                 services.AddSingleton(exportPlugin);
-                foreach (var handler in exportPlugin.GetExportHandlers())
+                foreach (var handler in exportHandlers)
                     services.AddSingleton<IExportHandler>(handler);
-                foreach (var handler in exportPlugin.GetTemplateHandlers())
+                foreach (var handler in exportTemplateHandlers)
                     services.AddSingleton<IExportTemplateHandler>(handler);
+                exportPluginCount++;
+                exportHandlerCount += exportHandlers.Length;
+                exportTemplateHandlerCount += exportTemplateHandlers.Length;
+                Logger.LogInformation(
+                    "导出插件加载成功：{PluginId} v{PluginVersion}，程序集 {AssemblyFile}，格式 [{FormatIds}]，模板扩展名 [{TemplateExtensions}]",
+                    exportPlugin.Manifest.Id,
+                    exportPlugin.Manifest.Version,
+                    assemblyFileName,
+                    string.Join(", ", exportHandlers.Select(handler => handler.Descriptor.FormatId)),
+                    string.Join(", ", exportTemplateHandlers.SelectMany(handler => handler.SupportedTemplateExtensions).Distinct(StringComparer.OrdinalIgnoreCase)));
             }
+            Logger.LogInformation(
+                "导出插件扫描完成：插件 {PluginCount} 个，格式处理器 {ExportHandlerCount} 个，模板处理器 {TemplateHandlerCount} 个",
+                exportPluginCount,
+                exportHandlerCount,
+                exportTemplateHandlerCount);
             services.AddSingleton<ExportTemplateCatalog>();
             services.AddSingleton<IExportTemplateCatalog>(services =>
                 services.GetRequiredService<ExportTemplateCatalog>());

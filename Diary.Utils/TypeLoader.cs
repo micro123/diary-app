@@ -4,7 +4,9 @@ namespace Diary.Utils;
 
 public static class TypeLoader
 {
-    public static T? LoadAssemblyAndGetInstance<T>(string assemblyPath)
+    public static T? LoadAssemblyAndGetInstance<T>(
+        string assemblyPath,
+        Action<Exception>? onError = null)
     {
         T? result = default;
         try
@@ -21,12 +23,18 @@ public static class TypeLoader
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
+            if (onError is null)
+                Console.WriteLine(e);
+            else
+                onError(e);
         }
         return result;
     }
 
-    public static IEnumerable<T> GetImplementations<T>(string dir, string pattern)
+    public static IEnumerable<T> GetImplementations<T>(
+        string dir,
+        string pattern,
+        Action<string, Exception>? onError = null)
     {
         var dlls = Directory.GetFiles(dir, pattern, SearchOption.TopDirectoryOnly);
         if (dlls.Length == 0)
@@ -36,7 +44,9 @@ public static class TypeLoader
 
         foreach (var dll in dlls)
         {
-            var obj = LoadAssemblyAndGetInstance<T>(dll);
+            var obj = LoadAssemblyAndGetInstance<T>(
+                dll,
+                onError is null ? null : exception => onError(dll, exception));
             if (obj != null)
                 yield return obj;
         }

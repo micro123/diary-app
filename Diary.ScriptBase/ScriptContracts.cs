@@ -120,7 +120,7 @@ public sealed record ScriptApiError(
     string Message,
     ScriptErrorCategory Category,
     bool Retryable = false,
-    IReadOnlyDictionary<string, string>? Details = null);
+    IReadOnlyDictionary<string, object?>? Details = null);
 
 public static class ScriptApiErrorCodes
 {
