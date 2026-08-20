@@ -174,14 +174,24 @@ public sealed class PythonEngine : IScriptEngineV1
             return diagnostics;
         if (process.ExitCode != 0)
         {
+            var detail = SummarizeProcessOutput(process.StandardError, process.StandardOutput);
             return [new ScriptDiagnostic(
                 "PYTHON_SYNTAX_CHECK_FAILED",
-                "The Python syntax check returned an invalid result.",
+                $"The Python syntax check returned an invalid result (exit code {process.ExitCode}){detail}.",
                 ScriptDiagnosticSeverity.Error,
                 ScriptDiagnosticCategory.Syntax,
                 request.SourcePath)];
         }
         return ImmutableArray<ScriptDiagnostic>.Empty;
+    }
+
+    private static string SummarizeProcessOutput(string standardError, string standardOutput)
+    {
+        var detail = string.IsNullOrWhiteSpace(standardError) ? standardOutput : standardError;
+        detail = detail.Trim().ReplaceLineEndings(" ");
+        if (detail.Length > 512)
+            detail = detail[..512] + "…";
+        return detail.Length == 0 ? string.Empty : $": {detail}";
     }
 
     private static ImmutableArray<ScriptDiagnostic> ParseProbeDiagnostics(
