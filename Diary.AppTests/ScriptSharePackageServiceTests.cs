@@ -118,6 +118,32 @@ public sealed class ScriptSharePackageServiceTests
     }
 
     [TestMethod]
+    public async Task ExportAsync_RejectsLoadFailedScripts()
+    {
+        var sourceRoot = CreateRoot();
+        var packageDirectory = CreateRoot();
+        var packagePath = Path.Combine(packageDirectory, "shared.diaryscripts");
+        try
+        {
+            var source = await CreateScriptAsync(sourceRoot, "application", "failed.cs", "// failed", null);
+            var service = CreateService();
+
+            var exception = await Assert.ThrowsExactlyAsync<InvalidDataException>(() => service.ExportAsync(
+                packagePath,
+                sourceRoot,
+                [new(source, "failed", "Failed", ScriptScope.Application, ScriptEntryKind.Application, "C#",
+                    BuildSucceeded: false)]).AsTask());
+
+            StringAssert.Contains(exception.Message, "加载失败");
+            Assert.IsFalse(File.Exists(packagePath));
+        }
+        finally
+        {
+            DeleteRoots(sourceRoot, packageDirectory);
+        }
+    }
+
+    [TestMethod]
     public async Task ImportAsync_RequiresExplicitReplaceForConflict()
     {
         var sourceRoot = CreateRoot();

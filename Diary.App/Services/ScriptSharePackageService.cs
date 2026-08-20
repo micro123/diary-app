@@ -16,7 +16,8 @@ public sealed record ScriptShareExportItem(
     ScriptScope Scope,
     ScriptEntryKind EntryKind,
     string Language,
-    ScriptFileMetadata? Metadata = null);
+    ScriptFileMetadata? Metadata = null,
+    bool BuildSucceeded = true);
 
 public sealed record ScriptShareExistingItem(string Id, string SourcePath);
 
@@ -84,6 +85,10 @@ public sealed class ScriptSharePackageService(ILogger<ScriptSharePackageService>
             .FirstOrDefault(group => group.Count() > 1);
         if (duplicateId is not null)
             throw new InvalidDataException($"导出列表包含重复脚本 ID：{duplicateId.Key}。");
+
+        var failedScript = scripts.FirstOrDefault(item => !item.BuildSucceeded);
+        if (failedScript is not null)
+            throw new InvalidDataException($"脚本 {failedScript.Id} 加载失败，不能导出。请修复脚本后重新加载。");
 
         var prepared = new List<PreparedExportItem>(scripts.Count);
         var index = 0;

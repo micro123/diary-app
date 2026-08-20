@@ -6,8 +6,8 @@
              Width="720" MinHeight="460" MaxHeight="700" Padding="24">
     <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="14">
         <StackPanel Spacing="4">
-            <TextBlock Text="导入脚本共享包" FontSize="24" FontWeight="Bold" />
-            <TextBlock Text="导入后不会立即执行；脚本会重新加载并显示正式构建诊断。"
+            <TextBlock Text="导入脚本扩展" FontSize="24" FontWeight="Bold" />
+            <TextBlock Text="导入后不会立即执行；扩展会重新加载并按其入口类型提供功能。"
                        Opacity="0.68" TextWrapping="Wrap" />
             <TextBlock Text="共享包只有完整性校验，没有来源签名。请只导入你信任的脚本；自动化脚本导入后会参与后续调度。"
                        Foreground="DarkOrange" TextWrapping="Wrap" />

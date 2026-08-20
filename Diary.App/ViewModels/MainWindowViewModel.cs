@@ -16,6 +16,7 @@ using Diary.Database;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
+using Diary.Script.Runtime;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -27,6 +28,8 @@ using DbMigrationViewModel = Diary.App.ViewModels.Dialogs.DbMigrationViewModel;
 using GenericConfigViewModel = Diary.GUIBase.ViewModels.Dialogs.GenericConfigViewModel;
 using OnboardingAction = Diary.App.ViewModels.Dialogs.OnboardingAction;
 using OnboardingViewModel = Diary.App.ViewModels.Dialogs.OnboardingViewModel;
+using ScriptShareImportDialogViewModel = Diary.App.ViewModels.Dialogs.ScriptShareImportDialogViewModel;
+using ScriptShareImportSelection = Diary.App.ViewModels.Dialogs.ScriptShareImportSelection;
 using StandardMessageView = Diary.App.Views.Dialogs.StandardMessageView;
 using StandardMessageViewModel = Diary.App.ViewModels.Dialogs.StandardMessageViewModel;
 using TagEditorViewModel = Diary.App.ViewModels.Dialogs.TagEditorViewModel;
@@ -598,6 +601,89 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void ShowTemplateSettings()
         => ExecuteSettingCommand(CommandNames.EditWorkTemplates);
+
+    [RelayCommand]
+    private void ImportScriptExtension()
+        => PostUiAsync(ImportScriptExtensionAsync, "导入脚本扩展");
+
+    private async Task ImportScriptExtensionAsync()
+    {
+        var storageProvider = Window?.StorageProvider;
+        if (storageProvider is null)
+        {
+            EventDispatcher.Notify("导入失败", "当前没有可用的文件选择器。");
+            return;
+        }
+
+        var files = await storageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "导入脚本扩展",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("DiaryApp 脚本共享包")
+                {
+                    Patterns = [$"*{ScriptSharePackageService.FileExtension}"],
+                },
+            ],
+        });
+        var file = files.FirstOrDefault();
+        if (file is null)
+            return;
+
+        var scriptRoot = Path.Combine(FsTools.GetApplicationConfigDirectory(), "scripts");
+        try
+        {
+            var loadState = _serviceProvider.GetRequiredService<ScriptDirectoryLoadState>();
+            var current = await loadState.EnsureLoadedAsync(scriptRoot);
+            var existing = current.Entries.Select(ToExistingScript).ToArray();
+            var sharePackageService = _serviceProvider.GetRequiredService<ScriptSharePackageService>();
+            var preview = await sharePackageService.InspectAsync(file.Path.LocalPath, scriptRoot, existing);
+            var dialog = _serviceProvider.GetRequiredService<ScriptShareImportDialogViewModel>();
+            dialog.Initialize(preview);
+            var selection = await OverlayDialog.ShowCustomModal<ScriptShareImportSelection>(
+                dialog,
+                options: new OverlayDialogOptions
+                {
+                    CanDragMove = false,
+                    CanResize = false,
+                    CanLightDismiss = false,
+                    IsCloseButtonVisible = false,
+                });
+            if (selection is null || selection.Decisions.Count == 0)
+                return;
+
+            var result = await sharePackageService.ImportAsync(
+                preview,
+                scriptRoot,
+                selection.Decisions,
+                existing);
+            var reloaded = await loadState.ReloadAsync(scriptRoot);
+            _serviceProvider.GetRequiredService<ScriptAutomationScheduler>().ApplyLoadResult(reloaded);
+
+            var importedIds = selection.Decisions
+                .Select(item => item.Id)
+                .ToHashSet(StringComparer.Ordinal);
+            if (CurrentPageModel is ScriptManagementViewModel scriptManagement)
+                await scriptManagement.RefreshAfterImportAsync(importedIds);
+
+            EventDispatcher.Notify(
+                "脚本扩展导入完成",
+                $"已导入 {result.ImportedCount} 个脚本，跳过 {result.SkippedCount} 个。扩展已重新加载；如需查看源码或诊断，请开启开发者功能。");
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+            or InvalidDataException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            _logger.LogError(exception, "导入脚本扩展失败：{PackagePath}", file.Path.LocalPath);
+            EventDispatcher.Notify("脚本扩展导入失败", exception.Message);
+        }
+    }
+
+    private static ScriptShareExistingItem ToExistingScript(ScriptDirectoryEntry entry) => new(
+        entry.BuildResult?.Program?.Descriptor.Id
+            ?? entry.Metadata?.Id
+            ?? Path.GetFileNameWithoutExtension(entry.SourcePath),
+        entry.SourcePath);
 
     [RelayCommand]
     private void ShowTagSettings()

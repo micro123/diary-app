@@ -27,6 +27,21 @@ public sealed class ScriptShareDialogViewModelTests
     }
 
     [TestMethod]
+    public void ExportDialog_ExcludesLoadFailedScripts()
+    {
+        var viewModel = new ScriptShareExportDialogViewModel();
+        viewModel.Initialize(
+        [
+            CreateScript("loaded", "Loaded"),
+            CreateScript("failed", "Failed", buildSucceeded: false),
+        ]);
+
+        Assert.AreEqual(1, viewModel.Items.Count);
+        Assert.AreEqual("loaded", viewModel.Items[0].Id);
+        Assert.AreEqual(1, viewModel.SelectedCount);
+    }
+
+    [TestMethod]
     public void ImportDialog_DefaultsConflictsToSkippedAndRequiresExplicitSelection()
     {
         var preview = new ScriptSharePackagePreview("shared.diaryscripts",
@@ -51,13 +66,13 @@ public sealed class ScriptShareDialogViewModelTests
         Assert.IsFalse(selection.Decisions.Single(item => item.Id == "safe").ReplaceExisting);
     }
 
-    private static ScriptListItem CreateScript(string id, string name) => new(
+    private static ScriptListItem CreateScript(string id, string name, bool buildSucceeded = true) => new(
         $"{id}.cs",
         id,
         name,
         ScriptScope.Application,
-        true,
-        "已加载",
+        buildSucceeded,
+        buildSucceeded ? "已加载" : "加载失败",
         [],
         []);
 }

@@ -150,6 +150,8 @@
                 <Button.Flyout>
                     <MenuFlyout ShowMode="TransientWithDismissOnPointerMoveAway">
                         <MenuItem Header="程序设置" Command="{Binding ShowSettingsCommand}" />
+                        <MenuItem Header="导入脚本扩展…" Command="{Binding ImportScriptExtensionCommand}" />
+                        <Separator />
                         <MenuItem Header="模板设置" Command="{Binding ShowTemplateSettingsCommand}" />
                         <MenuItem Header="导出模板" Command="{Binding ShowExportTemplateSettingsCommand}" />
                         <MenuItem Header="标签设置" Command="{Binding ShowTagSettingsCommand}" />

@@ -19,8 +19,6 @@
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
                 <Button Content="新建脚本" Command="{Binding CreateScriptCommand}" Classes="Primary" />
-                <Button Content="导入共享包" Command="{Binding ImportScriptsCommand}"
-                        IsEnabled="{Binding CanImportScripts}" />
                 <Button Content="导出共享包" Command="{Binding ExportScriptsCommand}"
                         IsEnabled="{Binding CanExportScripts}" />
                 <Button Content="打开脚本目录" Command="{Binding OpenScriptsFolderCommand}" />

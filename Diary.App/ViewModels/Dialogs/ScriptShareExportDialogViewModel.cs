@@ -37,7 +37,9 @@ public partial class ScriptShareExportDialogViewModel : ViewModelBase, IDialogCo
     public void Initialize(IEnumerable<ScriptListItem> scripts)
     {
         Items.Clear();
-        foreach (var script in scripts.OrderBy(item => item.Name, StringComparer.CurrentCulture))
+        foreach (var script in scripts
+                     .Where(item => item.BuildSucceeded)
+                     .OrderBy(item => item.Name, StringComparer.CurrentCulture))
             Items.Add(new ScriptShareExportItemViewModel(script, SelectionChanged));
         SelectionChanged();
     }

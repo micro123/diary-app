@@ -249,10 +249,10 @@ public partial class ScriptManagementViewModel(
         SelectedScript is { BuildSucceeded: true } && !IsExecuting;
 
     public bool CanReload => !Loading && !IsExecuting;
-    public bool CanImportScripts => !Loading && !IsExecuting;
-    public bool CanExportScripts => !Loading && !IsExecuting && HasScripts;
+    public bool CanExportScripts => !Loading && !IsExecuting && HasExportableScripts;
     public bool CanOpenSelectedScript => SelectedScript is not null;
     public bool HasScripts => Scripts.Count > 0;
+    public bool HasExportableScripts => Scripts.Any(script => script.BuildSucceeded);
     public bool HasVisibleScripts => VisibleScripts.Count > 0;
     public bool ShowEmptyState => !Loading && !HasScripts;
     public bool ShowNoResultsState => !Loading && HasScripts && !HasVisibleScripts;
@@ -264,7 +264,6 @@ public partial class ScriptManagementViewModel(
     partial void OnLoadingChanged(bool value)
     {
         OnPropertyChanged(nameof(CanReload));
-        ImportScriptsCommand.NotifyCanExecuteChanged();
         ExportScriptsCommand.NotifyCanExecuteChanged();
     }
 
@@ -273,7 +272,6 @@ public partial class ScriptManagementViewModel(
         OnPropertyChanged(nameof(CanReload));
         OnPropertyChanged(nameof(HasProgress));
         SaveMetadataSettingsCommand.NotifyCanExecuteChanged();
-        ImportScriptsCommand.NotifyCanExecuteChanged();
         ExportScriptsCommand.NotifyCanExecuteChanged();
     }
 
@@ -413,6 +411,7 @@ public partial class ScriptManagementViewModel(
             SelectedScript = VisibleScripts.FirstOrDefault(script => script.Id == selectedId)
                 ?? VisibleScripts.FirstOrDefault();
             OnPropertyChanged(nameof(HasScripts));
+            OnPropertyChanged(nameof(HasExportableScripts));
             OnPropertyChanged(nameof(ShowEmptyState));
             ExportScriptsCommand.NotifyCanExecuteChanged();
             RefreshHistory();
@@ -676,7 +675,8 @@ public partial class ScriptManagementViewModel(
                     script.Scope,
                     script.EntryKind,
                     script.Language,
-                    script.Metadata)).ToArray());
+                    script.Metadata,
+                    script.BuildSucceeded)).ToArray());
             NotifyShareResult(
                 "脚本导出完成",
                 $"已导出 {selection.Scripts.Count} 个脚本：{packagePath}",
@@ -687,71 +687,6 @@ public partial class ScriptManagementViewModel(
         {
             logger.LogError(exception, "导出脚本共享包失败");
             NotifyShareResult("脚本导出失败", exception.Message, NotificationType.Error);
-        }
-    }
-
-    [RelayCommand(CanExecute = nameof(CanImportScripts))]
-    private async Task ImportScripts()
-    {
-        var storageProvider = GetStorageProvider();
-        if (storageProvider is null)
-        {
-            NotifyShareResult("导入失败", "当前没有可用的文件选择器。", NotificationType.Error);
-            return;
-        }
-        var files = await storageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "导入脚本共享包",
-            AllowMultiple = false,
-            FileTypeFilter =
-            [
-                new FilePickerFileType("DiaryApp 脚本共享包")
-                {
-                    Patterns = [$"*{ScriptSharePackageService.FileExtension}"],
-                },
-            ],
-        });
-        var file = files.FirstOrDefault();
-        if (file is null)
-            return;
-
-        try
-        {
-            var existing = Scripts.Select(script => new ScriptShareExistingItem(script.Id, script.SourcePath)).ToArray();
-            var preview = await sharePackageService.InspectAsync(file.Path.LocalPath, _scriptRoot, existing);
-            var dialog = services.GetRequiredService<ScriptShareImportDialogViewModel>();
-            dialog.Initialize(preview);
-            var selection = await OverlayDialog.ShowCustomModal<ScriptShareImportSelection>(
-                dialog,
-                options: new OverlayDialogOptions
-                {
-                    CanDragMove = false,
-                    CanResize = false,
-                    CanLightDismiss = false,
-                    IsCloseButtonVisible = false,
-                });
-            if (selection is null || selection.Decisions.Count == 0)
-                return;
-
-            var result = await sharePackageService.ImportAsync(
-                preview,
-                _scriptRoot,
-                selection.Decisions,
-                existing);
-            await ReloadAsync(forceReload: true);
-            var importedIds = selection.Decisions.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
-            SelectedScript = VisibleScripts.FirstOrDefault(script => importedIds.Contains(script.Id))
-                ?? SelectedScript;
-            NotifyShareResult(
-                "脚本导入完成",
-                $"已导入 {result.ImportedCount} 个脚本，跳过 {result.SkippedCount} 个。请查看重新加载后的构建诊断。",
-                NotificationType.Success);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
-            or InvalidDataException or InvalidOperationException or JsonException)
-        {
-            logger.LogError(exception, "导入脚本共享包失败：{PackagePath}", file.Path.LocalPath);
-            NotifyShareResult("脚本导入失败", exception.Message, NotificationType.Error);
         }
     }
 
@@ -770,6 +705,13 @@ public partial class ScriptManagementViewModel(
     {
         Status = message;
         NotificationManager?.Show($"{title}：{message}", type);
+    }
+
+    internal async Task RefreshAfterImportAsync(IReadOnlySet<string> importedIds)
+    {
+        await ReloadAsync(forceReload: false);
+        SelectedScript = VisibleScripts.FirstOrDefault(script => importedIds.Contains(script.Id))
+            ?? SelectedScript;
     }
 
     [RelayCommand]
