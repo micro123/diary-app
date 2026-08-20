@@ -7,6 +7,14 @@ namespace Diary.ScriptTests;
 public sealed class PythonEngineTests
 {
     [TestMethod]
+    public void WorkerArguments_EnableUtf8BeforeIsolatedMode()
+    {
+        var arguments = PythonWorkerSource.CreateArguments();
+
+        CollectionAssert.AreEqual(new[] { "-X", "utf8", "-I", "-c" }, arguments.Take(4).ToArray());
+    }
+
+    [TestMethod]
     public void Match_IsCaseInsensitiveAndRejectsOtherExtensions()
     {
         var engine = new PythonEngine();

@@ -141,7 +141,7 @@ public sealed class PythonEngine : IScriptEngineV1
         {
             process = await PythonProcessRunner.RunAsync(
                 executablePath,
-                ["-I", "-c", PythonSyntaxProbe, request.SourcePath],
+                ["-X", "utf8", "-I", "-c", PythonSyntaxProbe, request.SourcePath],
                 request.Source,
                 _syntaxCheckTimeout,
                 cancellationToken);

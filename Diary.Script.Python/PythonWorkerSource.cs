@@ -11,7 +11,7 @@ public static class PythonWorkerSource
     {
         var encoded = Convert.ToBase64String(CompressedSource);
         var bootstrap = $"import base64,gzip;exec(compile(gzip.decompress(base64.b64decode('{encoded}')),'<diary-python-worker>','exec'))";
-        return ["-I", "-c", bootstrap];
+        return ["-X", "utf8", "-I", "-c", bootstrap];
     }
 
     private static string LoadSource()
