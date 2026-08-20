@@ -26,30 +26,25 @@ public sealed class AppFontService(ILogger<AppFontService> logger)
         try
         {
             var resolved = AppFontConfiguration.Resolve(settings);
-            if (!string.IsNullOrWhiteSpace(resolved.Warning))
-                return ApplyFallback(application, resolved.Warning);
-
             if (resolved.Collection is not null)
-                return ApplyUserFont(application, resolved);
+                return ApplyFileFont(application, resolved);
 
             var fontFamily = string.IsNullOrWhiteSpace(resolved.DefaultFamilyName)
                 ? FontManager.Current.DefaultFontFamily
                 : new FontFamily(resolved.DefaultFamilyName);
             SetResource(application, fontFamily);
             RemoveUserFontCollection();
-            logger.LogInformation("界面字体已切换为 {FontFamily}", fontFamily.Name);
-            return new AppFontApplyResult(fontFamily, null);
+            LogApplyResult(fontFamily, resolved.Warning);
+            return new AppFontApplyResult(fontFamily, resolved.Warning);
         }
         catch (Exception exception)
         {
-            logger.LogWarning(exception, "应用界面字体失败，回退到系统默认字体");
-            return ApplyFallback(
-                application,
-                $"应用字体失败，已回退到系统默认字体：{exception.Message}");
+            logger.LogWarning(exception, "应用界面字体失败，尝试应用后备字体");
+            return ApplyBundledFallback(application, $"应用字体失败：{exception.Message}");
         }
     }
 
-    private AppFontApplyResult ApplyUserFont(Application application, ResolvedAppFont resolved)
+    private AppFontApplyResult ApplyFileFont(Application application, ResolvedAppFont resolved)
     {
         var collection = resolved.Collection!;
         try
@@ -66,17 +61,43 @@ public sealed class AppFontService(ILogger<AppFontService> logger)
 
         var fontFamily = new FontFamily(resolved.DefaultFamilyName!);
         SetResource(application, fontFamily);
-        logger.LogInformation("界面字体已从外部文件切换为 {FontFamily}", fontFamily.Name);
-        return new AppFontApplyResult(fontFamily, null);
+        LogApplyResult(fontFamily, resolved.Warning);
+        return new AppFontApplyResult(fontFamily, resolved.Warning);
     }
 
-    private AppFontApplyResult ApplyFallback(Application application, string warning)
+    private AppFontApplyResult ApplyBundledFallback(Application application, string reason)
+    {
+        try
+        {
+            var resolved = AppFontConfiguration.ResolveBundledFallback(reason);
+            if (resolved.Collection is not null)
+                return ApplyFileFont(application, resolved);
+
+            return ApplySystemFallback(application, resolved.Warning!);
+        }
+        catch (Exception exception)
+        {
+            return ApplySystemFallback(
+                application,
+                $"{reason} 应用后备字体失败（{exception.Message}），已回退到系统默认字体。");
+        }
+    }
+
+    private AppFontApplyResult ApplySystemFallback(Application application, string warning)
     {
         var fallback = FontManager.Current.DefaultFontFamily;
         SetResource(application, fallback);
         RemoveUserFontCollection();
         logger.LogWarning("{Warning}", warning);
         return new AppFontApplyResult(fallback, warning);
+    }
+
+    private void LogApplyResult(FontFamily fontFamily, string? warning)
+    {
+        if (string.IsNullOrWhiteSpace(warning))
+            logger.LogInformation("界面字体已切换为 {FontFamily}", fontFamily.Name);
+        else
+            logger.LogWarning("{Warning} 当前字体为 {FontFamily}", warning, fontFamily.Name);
     }
 
     private static void SetResource(Application application, FontFamily fontFamily)

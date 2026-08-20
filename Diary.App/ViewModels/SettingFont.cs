@@ -14,7 +14,7 @@ public sealed partial class SettingFont : SettingItemModel
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsSystemFont))]
     [NotifyPropertyChangedFor(nameof(IsFontFile))]
-    private string _source = AppFontSource.SystemDefault;
+    private string _source = AppFontSource.BundledDefault;
 
     [ObservableProperty]
     private string _systemFontFamily = string.Empty;
@@ -60,7 +60,7 @@ public sealed partial class SettingFont : SettingItemModel
     {
         Source = AppFontSource.Options.Contains(_config.FontSource)
             ? _config.FontSource
-            : AppFontSource.SystemDefault;
+            : AppFontSource.BundledDefault;
         SystemFontFamily = string.IsNullOrWhiteSpace(_config.SystemFontFamily)
             ? FontManager.Current.DefaultFontFamily.Name
             : _config.SystemFontFamily;
@@ -72,6 +72,7 @@ public sealed partial class SettingFont : SettingItemModel
     {
         switch (Source)
         {
+            case AppFontSource.BundledDefault:
             case AppFontSource.SystemDefault:
                 break;
             case AppFontSource.SystemFont:

@@ -349,8 +349,9 @@ public sealed class ScriptEditorWindowTests
     [TestMethod]
     public async Task UserFontCollection_LoadsExternalFontFile()
     {
-        var fontPath = GetSourceFontPath("OpenMoji.ttf");
+        var fontPath = GetSourceFontPath(AppFontConfiguration.BundledFallbackFontFileName);
         Assert.IsTrue(File.Exists(fontPath), $"测试字体不存在：{fontPath}");
+        Assert.IsTrue(AppFontConfiguration.TryInspectFontFile(fontPath, out var familyName, out var error), error);
         var settings = new ViewConfig
         {
             FontSource = AppFontSource.FontFile,
@@ -361,7 +362,7 @@ public sealed class ScriptEditorWindowTests
         Assert.IsNull(resolved.Warning);
         Assert.IsNotNull(resolved.Collection);
         Assert.IsNotNull(resolved.DefaultFamilyName);
-        StringAssert.Contains(resolved.DefaultFamilyName, "#OpenMoji");
+        StringAssert.Contains(resolved.DefaultFamilyName, $"#{familyName}");
 
         await _session.Dispatch(() =>
         {
@@ -370,7 +371,7 @@ public sealed class ScriptEditorWindowTests
             {
                 var typeface = new Typeface(new FontFamily(resolved.DefaultFamilyName));
                 Assert.IsTrue(FontManager.Current.TryGetGlyphTypeface(typeface, out var glyphTypeface));
-                Assert.IsTrue(glyphTypeface.TryGetGlyph(0x1F600, out _));
+                Assert.IsTrue(glyphTypeface.TryGetGlyph(0x4E2D, out _));
             }
             finally
             {
@@ -378,6 +379,7 @@ public sealed class ScriptEditorWindowTests
             }
         }, CancellationToken.None);
     }
+
     [TestMethod]
     public async Task AppFontService_AppliesSystemFontAtRuntime()
     {
@@ -403,8 +405,9 @@ public sealed class ScriptEditorWindowTests
     [TestMethod]
     public async Task AppFontService_AppliesExternalFontAtRuntimeAndFallsBackWhenMissing()
     {
-        var fontPath = GetSourceFontPath("OpenMoji.ttf");
+        var fontPath = GetSourceFontPath(AppFontConfiguration.BundledFallbackFontFileName);
         Assert.IsTrue(File.Exists(fontPath), $"测试字体不存在：{fontPath}");
+        Assert.IsTrue(AppFontConfiguration.TryInspectFontFile(fontPath, out var familyName, out var error), error);
 
         await _session.Dispatch(() =>
         {
@@ -419,11 +422,11 @@ public sealed class ScriptEditorWindowTests
                 });
 
                 Assert.IsFalse(applied.UsedFallback);
-                StringAssert.Contains(applied.FontFamily.ToString(), "#OpenMoji");
+                StringAssert.Contains(applied.FontFamily.ToString(), $"#{familyName}");
                 Assert.AreEqual(applied.FontFamily, application.Resources[AppFontService.ResourceKey]);
                 var typeface = new Typeface(applied.FontFamily);
                 Assert.IsTrue(FontManager.Current.TryGetGlyphTypeface(typeface, out var glyphTypeface));
-                Assert.IsTrue(glyphTypeface.TryGetGlyph(0x1F600, out _));
+                Assert.IsTrue(glyphTypeface.TryGetGlyph(0x4E2D, out _));
 
                 var fallback = service.Apply(application, new ViewConfig
                 {
@@ -432,20 +435,73 @@ public sealed class ScriptEditorWindowTests
                 });
 
                 Assert.IsTrue(fallback.UsedFallback);
-                StringAssert.Contains(fallback.Warning, "回退到系统默认字体");
-                Assert.AreEqual(FontManager.Current.DefaultFontFamily, fallback.FontFamily);
+                StringAssert.Contains(fallback.Warning, "回退到应用后备字体");
+                StringAssert.Contains(fallback.FontFamily.ToString(), $"#{familyName}");
                 Assert.AreEqual(fallback.FontFamily, application.Resources[AppFontService.ResourceKey]);
             }
             finally
             {
-                service.Apply(application, new ViewConfig());
+                service.Apply(application, new ViewConfig
+                {
+                    FontSource = AppFontSource.SystemDefault,
+                });
             }
         }, CancellationToken.None);
     }
 
+    [TestMethod]
+    public void AppFontSource_OptionsIncludeBundledDefault()
+    {
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                AppFontSource.BundledDefault,
+                AppFontSource.SystemDefault,
+                AppFontSource.SystemFont,
+                AppFontSource.FontFile,
+            },
+            AppFontSource.Options.ToArray());
+    }
 
     [TestMethod]
-    public void AppFontConfiguration_InvalidFontFileFallsBackToSystemDefault()
+    public void AppFontConfiguration_BundledDefaultLoadsBundledFont()
+    {
+        var resolved = AppFontConfiguration.Resolve(new ViewConfig());
+
+        Assert.IsNotNull(resolved.DefaultFamilyName);
+        Assert.IsNotNull(resolved.Collection);
+        Assert.IsNull(resolved.Warning);
+        StringAssert.Contains(resolved.DefaultFamilyName, "#Noto Sans Mono CJK SC");
+    }
+
+    [TestMethod]
+    public void AppFontConfiguration_MissingBundledDefaultFallsBackToSystemDefault()
+    {
+        var missingBundledFont = Path.Combine(Path.GetTempPath(), "missing-bundled-default-font.otf");
+
+        var resolved = AppFontConfiguration.Resolve(new ViewConfig(), missingBundledFont);
+
+        Assert.IsNull(resolved.DefaultFamilyName);
+        Assert.IsNull(resolved.Collection);
+        StringAssert.Contains(resolved.Warning, "应用默认字体不可用");
+        StringAssert.Contains(resolved.Warning, "回退到系统默认字体");
+    }
+
+    [TestMethod]
+    public void AppFontConfiguration_SystemDefaultKeepsPlatformDefault()
+    {
+        var resolved = AppFontConfiguration.Resolve(new ViewConfig
+        {
+            FontSource = AppFontSource.SystemDefault,
+        });
+
+        Assert.IsNull(resolved.DefaultFamilyName);
+        Assert.IsNull(resolved.Collection);
+        Assert.IsNull(resolved.Warning);
+    }
+
+    [TestMethod]
+    public void AppFontConfiguration_InvalidFontFileFallsBackToBundledFont()
     {
         var settings = new ViewConfig
         {
@@ -455,13 +511,13 @@ public sealed class ScriptEditorWindowTests
 
         var resolved = AppFontConfiguration.Resolve(settings);
 
-        Assert.IsNull(resolved.DefaultFamilyName);
-        Assert.IsNull(resolved.Collection);
-        StringAssert.Contains(resolved.Warning, "回退到系统默认字体");
+        Assert.IsNotNull(resolved.DefaultFamilyName);
+        Assert.IsNotNull(resolved.Collection);
+        StringAssert.Contains(resolved.Warning, "回退到应用后备字体");
     }
 
     [TestMethod]
-    public void AppFontConfiguration_InvalidSystemFontFallsBackToSystemDefault()
+    public void AppFontConfiguration_InvalidSystemFontFallsBackToBundledFont()
     {
         var settings = new ViewConfig
         {
@@ -471,15 +527,41 @@ public sealed class ScriptEditorWindowTests
 
         var resolved = AppFontConfiguration.Resolve(settings);
 
+        Assert.IsNotNull(resolved.DefaultFamilyName);
+        Assert.IsNotNull(resolved.Collection);
+        StringAssert.Contains(resolved.Warning, "回退到应用后备字体");
+    }
+
+    [TestMethod]
+    public void AppFontConfiguration_MissingBundledFontFallsBackToSystemDefault()
+    {
+        var settings = new ViewConfig
+        {
+            FontSource = AppFontSource.FontFile,
+            FontFilePath = Path.Combine(Path.GetTempPath(), "missing-user-font.ttf"),
+        };
+        var missingBundledFont = Path.Combine(Path.GetTempPath(), "missing-bundled-font.ttf");
+
+        var resolved = AppFontConfiguration.Resolve(settings, missingBundledFont);
+
         Assert.IsNull(resolved.DefaultFamilyName);
         Assert.IsNull(resolved.Collection);
+        StringAssert.Contains(resolved.Warning, "应用后备字体不可用");
         StringAssert.Contains(resolved.Warning, "回退到系统默认字体");
+    }
+
+    [TestMethod]
+    public void AppFontConfiguration_BundledFontIsCopiedToOutputDirectory()
+    {
+        Assert.IsTrue(
+            File.Exists(AppFontConfiguration.BundledFallbackFontPath),
+            $"应用后备字体未复制到输出目录：{AppFontConfiguration.BundledFallbackFontPath}");
     }
 
     [TestMethod]
     public async Task SettingFont_SavesValidatedExternalFontSelection()
     {
-        var fontPath = GetSourceFontPath("OpenMoji.ttf");
+        var fontPath = GetSourceFontPath(AppFontConfiguration.BundledFallbackFontFileName);
         var config = new ViewConfig();
 
         await _session.Dispatch(() =>
@@ -492,7 +574,7 @@ public sealed class ScriptEditorWindowTests
 
             Assert.AreEqual(AppFontSource.FontFile, config.FontSource);
             Assert.AreEqual(Path.GetFullPath(fontPath), config.FontFilePath);
-            StringAssert.Contains(setting.FontFileStatus, "OpenMoji");
+            StringAssert.Contains(setting.FontFileStatus, "Noto Sans Mono CJK SC");
         }, CancellationToken.None);
     }
 

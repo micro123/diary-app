@@ -62,7 +62,7 @@
                                   IsVisible="{Binding IsFontFile}" />
                     <TextBlock Text="{Binding FontFileStatus}" TextWrapping="Wrap" Opacity="0.72"
                                IsVisible="{Binding IsFontFile}" />
-                    <TextBlock Text="保存后立即生效；字体不可用时自动回退到系统默认字体。" Opacity="0.62" />
+                    <TextBlock Text="默认字体为 Noto Sans Mono CJK SC；保存后立即生效，字体不可用时安全回退。" Opacity="0.62" />
                 </StackPanel>
                 <Border Grid.Column="2" VerticalAlignment="Top" Margin="0,7,0,0"
                         IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"

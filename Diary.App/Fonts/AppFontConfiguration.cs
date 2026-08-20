@@ -12,20 +12,54 @@ internal sealed record ResolvedAppFont(
 
 internal static class AppFontConfiguration
 {
-    public static ResolvedAppFont Resolve(ViewConfig settings)
+    public const string BundledFallbackFontFileName = "NotoSansMonoCJKsc-Regular.otf";
+
+    public static string BundledFallbackFontPath => Path.Combine(
+        AppContext.BaseDirectory,
+        "Fonts",
+        BundledFallbackFontFileName);
+
+    public static ResolvedAppFont Resolve(ViewConfig settings, string? bundledFallbackFontPath = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        bundledFallbackFontPath ??= BundledFallbackFontPath;
 
         return settings.FontSource switch
         {
+            AppFontSource.BundledDefault => ResolveBundledDefault(bundledFallbackFontPath),
             AppFontSource.SystemDefault => new ResolvedAppFont(null, null, null),
-            AppFontSource.SystemFont => ResolveSystemFont(settings.SystemFontFamily),
-            AppFontSource.FontFile => ResolveFontFile(settings.FontFilePath),
-            _ => new ResolvedAppFont(
-                null,
-                null,
-                $"未知字体来源“{settings.FontSource}”，已回退到系统默认字体。"),
+            AppFontSource.SystemFont => ResolveSystemFont(settings.SystemFontFamily, bundledFallbackFontPath),
+            AppFontSource.FontFile => ResolveFontFile(settings.FontFilePath, bundledFallbackFontPath),
+            _ => ResolveBundledFallback(
+                $"未知字体来源“{settings.FontSource}”。",
+                bundledFallbackFontPath),
         };
+    }
+
+    public static ResolvedAppFont ResolveBundledDefault(string? bundledFallbackFontPath = null)
+    {
+        bundledFallbackFontPath ??= BundledFallbackFontPath;
+        if (TryCreateFont(bundledFallbackFontPath, out var resolved, out var error))
+            return resolved;
+
+        return new ResolvedAppFont(
+            null,
+            null,
+            $"应用默认字体不可用（{error}），已回退到系统默认字体。");
+    }
+
+    public static ResolvedAppFont ResolveBundledFallback(
+        string reason,
+        string? bundledFallbackFontPath = null)
+    {
+        bundledFallbackFontPath ??= BundledFallbackFontPath;
+        if (TryCreateFont(bundledFallbackFontPath, out var resolved, out var error))
+            return resolved with { Warning = $"{reason} 已回退到应用后备字体。" };
+
+        return new ResolvedAppFont(
+            null,
+            null,
+            $"{reason} 应用后备字体不可用（{error}），已回退到系统默认字体。");
     }
 
     public static bool TryInspectFontFile(
@@ -85,15 +119,12 @@ internal static class AppFontConfiguration
         }
     }
 
-    private static ResolvedAppFont ResolveSystemFont(string? configuredFamilyName)
+    private static ResolvedAppFont ResolveSystemFont(
+        string? configuredFamilyName,
+        string bundledFallbackFontPath)
     {
         if (string.IsNullOrWhiteSpace(configuredFamilyName))
-        {
-            return new ResolvedAppFont(
-                null,
-                null,
-                "未选择系统字体，已回退到系统默认字体。");
-        }
+            return ResolveBundledFallback("未选择系统字体。", bundledFallbackFontPath);
 
         try
         {
@@ -101,41 +132,52 @@ internal static class AppFontConfiguration
                 .Select(family => family.Name)
                 .FirstOrDefault(family => string.Equals(family, configuredFamilyName, StringComparison.OrdinalIgnoreCase));
             return familyName is null
-                ? new ResolvedAppFont(
-                    null,
-                    null,
-                    $"系统字体“{configuredFamilyName}”不可用，已回退到系统默认字体。")
+                ? ResolveBundledFallback(
+                    $"系统字体“{configuredFamilyName}”不可用。",
+                    bundledFallbackFontPath)
                 : new ResolvedAppFont(familyName, null, null);
         }
         catch (Exception exception)
         {
-            return new ResolvedAppFont(
-                null,
-                null,
-                $"枚举系统字体失败，已回退到系统默认字体：{exception.Message}");
+            return ResolveBundledFallback(
+                $"枚举系统字体失败：{exception.Message}",
+                bundledFallbackFontPath);
         }
     }
 
-    private static ResolvedAppFont ResolveFontFile(string? configuredPath)
+    private static ResolvedAppFont ResolveFontFile(
+        string? configuredPath,
+        string bundledFallbackFontPath)
     {
-        if (!TryInspectFontFile(configuredPath, out var familyName, out var error))
-            return new ResolvedAppFont(null, null, $"{error} 已回退到系统默认字体。");
+        if (TryCreateFont(configuredPath, out var resolved, out var error))
+            return resolved;
+
+        return ResolveBundledFallback(error, bundledFallbackFontPath);
+    }
+
+    private static bool TryCreateFont(
+        string? path,
+        out ResolvedAppFont resolved,
+        out string error)
+    {
+        resolved = new ResolvedAppFont(null, null, null);
+        if (!TryInspectFontFile(path, out var familyName, out error))
+            return false;
 
         try
         {
-            var fullPath = Path.GetFullPath(configuredPath!);
+            var fullPath = Path.GetFullPath(path!);
             var collection = new UserFontCollection(File.ReadAllBytes(fullPath), familyName);
-            return new ResolvedAppFont(
+            resolved = new ResolvedAppFont(
                 $"{UserFontCollection.CollectionKey.AbsoluteUri}#{familyName}",
                 collection,
                 null);
+            return true;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            return new ResolvedAppFont(
-                null,
-                null,
-                $"读取字体文件失败，已回退到系统默认字体：{exception.Message}");
+            error = $"读取字体文件失败：{exception.Message}";
+            return false;
         }
     }
 }

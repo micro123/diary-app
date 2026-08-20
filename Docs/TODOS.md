@@ -6,7 +6,7 @@
 
 ## 非 tracker TODO
 
-- [~] 已排除内置字体，视图设置已支持平台默认字体、已安装系统字体和外部 `.ttf`/`.otf` 字体文件，可在保存后运行时切换并在无效配置时安全回退；Windows 启动、系统字体、外部文件加载及运行时切换已验证，仍需完成 Linux 中文、Emoji 与等宽字体回退验证。
+- [~] 字体不再编译进 DLL；发布包将 Noto Sans Mono CJK SC 及其 SIL Open Font License 1.1 授权文本作为 `Fonts/` 下的应用默认字体和 CJK 后备，以中英文 2:1 等宽字形替代 LXGW WenKai Mono，OpenMoji 已移除。视图设置已提供“默认字体”“跟随系统”“系统字体”“字体文件”四种来源，新配置默认选择随包字体，保存后可运行时切换；无效配置优先回退随包字体，随包字体缺失时再回退平台默认字体。Windows 构建、发布复制、系统字体、外部文件加载及运行时切换已验证，仍需完成 Linux 中文、Emoji 与等宽字体回退验证。
 - [x] 已加固 SQLite/PostgreSQL 核心迁移执行、逐步提交、失败回滚、降级和断链校验；业务数据保留与失败恢复由共享 provider 契约测试覆盖
 - [~] SQLite 已支持手动创建、校验和下次启动还原完整数据库，并在启动复检失败时恢复还原前安全副本；PostgreSQL 已接入 Client `bin` 目录配置、Windows/Linux 工具探测、custom-format dump/restore、工具版本检查、最小权限预检、独立目标库还原、启动原貌复检和成功后的配置切换；Tracker 级还原复检及更完整的跨版本门禁仍待补齐。应用包增量更新仍待实现。Windows/Linux 终止性托管异常已通过独立 DiagnosticsClient 进程生成 Triage Dump，并显示最小崩溃提示窗口
 

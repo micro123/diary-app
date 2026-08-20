@@ -273,7 +273,7 @@ Windows 必须配置，Linux 未配置时搜索 `PATH`，必须同时找到 `pg_
 [`DatabaseBackupRestoreDesign.md`](DatabaseBackupRestoreDesign.md)。
 
 当前产品支持范围为 Windows 和 Linux；macOS 暂不纳入产品支持、发布产物和稳定性验证范围。
-主程序不再嵌入 LXGW WenKai Mono 和 OpenMoji。视图设置支持跟随平台默认字体、选择已安装的系统字体，或加载外部 `.ttf`/`.otf` 文件；`AppFontService` 在启动和设置保存时统一校验字体，通过 `FontManager` 动态替换外部字体集合，并更新全局 `AppFontFamily` 动态资源，使现有窗口无需重启即可重新布局和渲染。无效字体名称、文件缺失、文件不可识别或运行时注册失败时回退平台默认字体，避免阻断启动和设置保存；Linux 使用系统字体时仍需提供可用的 CJK 和 Emoji 字体。
+主程序不再把字体编译进 DLL。发布时将 Noto Sans Mono CJK SC 及其 SIL Open Font License 1.1 授权文本作为独立文件复制到 `Fonts/`，以中英文 2:1 等宽字形提供应用默认字体和 CJK 后备；OpenMoji 已删除且不再随包发布。`ViewConfig.FontSource` 的新配置默认值为“默认字体”，视图设置同时提供“跟随系统”、已安装系统字体和外部 `.ttf`/`.otf` 文件；已有用户保存的来源字符串保持原行为。`AppFontService` 在启动和设置保存时统一校验字体，通过 `FontManager` 动态替换文件字体集合，并更新全局 `AppFontFamily` 动态资源，使现有窗口无需重启即可重新布局和渲染。显式选择默认字体但随包文件缺失时回退平台默认字体；无效系统字体、自定义文件缺失、文件不可识别或运行时注册失败时优先回退随包字体，随包字体也不可用时再回退平台默认字体，避免阻断启动和设置保存。Linux 仍需由系统提供 Emoji 字体。
 CI 在 Windows 和 Ubuntu 上执行 Release 构建与全量测试，并固定 Python 3.10；
 `DIARY_REQUIRE_PYTHON_TESTS=1` 要求两端真实执行 C#、Lua、Python Worker 进程测试，运行时不可用即失败。
 Ubuntu 门禁另通过 `DIARY_REQUIRE_POSTGRES_TESTS=1` 强制启动 PostgreSQL Testcontainers，容器不可用即失败；

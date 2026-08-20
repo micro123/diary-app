@@ -28,6 +28,14 @@
 
     <ItemGroup>
         <AvaloniaResource Include="Assets\**" Exclude="Assets\Fonts\**" />
+        <Content Include="Assets\Fonts\NotoSansMonoCJKsc-Regular.otf"
+                 TargetPath="Fonts\NotoSansMonoCJKsc-Regular.otf"
+                 CopyToOutputDirectory="PreserveNewest"
+                 CopyToPublishDirectory="PreserveNewest" />
+        <Content Include="Assets\Fonts\NotoSansMonoCJK-OFL.txt"
+                 TargetPath="Fonts\NotoSansMonoCJK-OFL.txt"
+                 CopyToOutputDirectory="PreserveNewest"
+                 CopyToPublishDirectory="PreserveNewest" />
         <Content Include="..\Docs\SurveyUserGuide.md" Link="Docs\SurveyUserGuide.md"
                  CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
         <Content Include="..\Docs\ScriptApi\*.md" Link="Docs\ScriptApi\%(Filename)%(Extension)"

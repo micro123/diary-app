@@ -5,8 +5,8 @@ namespace Diary.Core.Data.AppConfig;
 
 public class ViewConfig
 {
-    [ConfigureUser("界面字体", "APP_FONT", "可跟随系统、选择已安装字体或加载 .ttf/.otf 字体文件；保存后立即生效，不可用时回退系统默认字体。")]
-    public string FontSource { get; set; } = AppFontSource.SystemDefault;
+    [ConfigureUser("界面字体", "APP_FONT", "默认使用应用自带的 Noto Sans Mono CJK SC，也可跟随系统、选择已安装字体或加载 .ttf/.otf 字体文件；保存后立即生效，字体不可用时安全回退。")]
+    public string FontSource { get; set; } = AppFontSource.BundledDefault;
 
     public string SystemFontFamily { get; set; } = string.Empty;
 
