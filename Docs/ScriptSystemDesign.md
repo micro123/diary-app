@@ -507,7 +507,7 @@ C#、Lua、Python 使用相互独立的 supervisor；某一种语言 worker 故�
 
 - 使用独立的 Python 3 解释器进程和项目内受控 worker 脚本，不嵌入 CPython，也不自动创建或修改虚拟环境。
 - `worker.py` 作为 `Diary.Script.Python.dll` 的嵌入资源，通过 `python -I -c` 启动，不以可替换的松散文件形式进入应用输出目录。
-- Windows 正式发行包优先随应用携带官方 embeddable distribution；该 ZIP 只解压到应用运行时目录，不写入系统 Python 注册表或 PATH。（发行前瞻，当前未实现：尚无随包分发或解压 embeddable distribution 的打包代码；`PythonRuntimeResolver` 目前在 Windows 上只在应用目录（`AppContext.BaseDirectory` 及其 `python` 子目录）和 PATH 中查找 `python3.exe`/`python.exe`/`py.exe` 候选，见 `Diary.Script.Python/PythonRuntimeResolver.cs`。）
+- Windows tag 发布同时提供轻量包和附带官方 Python 3.13.15 embeddable distribution 的包；Linux 开发机也可通过 `Tools/package-win-x64-with-python.sh` 生成同布局的本地验证包。运行时固定解压到应用目录的 `python/` 子目录，不写入系统 Python 注册表或 PATH；`PythonRuntimeResolver` 会优先检查应用目录及其 `python` 子目录，再检查 PATH 中的 `python3.exe`/`python.exe`/`py.exe` 候选。
 - Linux 正式发行包不携带 Python，优先使用发行版提供的 `python3`/`python3.X` 系统包；应用不负责调用 apt、dnf、apk 或其他包管理器安装运行时。
 - macOS 暂不携带官方 Python runtime，沿用显式配置路径或系统/用户提供的 `python3`，后续再单独评估发行策略。
 - `PythonRuntimeResolver` 位于 `Diary.Script.Python`，负责按平台选择 runtime、探测 `--version`、确认 worker 路径和生成环境诊断。

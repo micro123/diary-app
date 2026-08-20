@@ -289,7 +289,31 @@ DIARY_REQUIRE_PYTHON_TESTS=1
 
 本地缺少 PostgreSQL/Docker 或 Python 3.10 时，不得把跳过测试描述为“全部验证通过”。此时至少应确认目标提交在 `main` 的 GitHub Actions Windows/Ubuntu 矩阵已经成功。
 
-### 6.3 工作流 YAML 修改检查
+### 6.3 在 Linux 本地生成带 Python 的 Windows 包
+
+当前开发机可使用仓库脚本交叉发布 `win-x64` 自包含应用，并附带与 tag 发布工作流一致的 Python 3.13.15 embeddable runtime：
+
+```bash
+./Tools/package-win-x64-with-python.sh
+```
+
+默认产物写入 `artifacts/packages/`，包名包含 Git 提交数、短哈希和 `local` 标识；工作区不干净时还会增加 `dirty` 标识。也可以传入只包含字母、数字、点、下划线和连字符的版本标签：
+
+```bash
+./Tools/package-win-x64-with-python.sh v1.0.0-test1
+```
+
+脚本会执行以下检查：
+
+1. 还原并交叉发布 `win-x64` 自包含应用；
+2. 检查应用、脚本 Worker、DiagnosticsClient 和 Tracker 插件程序集；
+3. 从 python.org 下载固定版本的 embeddable ZIP 并校验 SHA-256；
+4. 将运行时解压到发布目录的 `python/` 子目录；
+5. 检查最终 ZIP 完整性及 `python/python.exe` 等关键条目。
+
+Linux 主机不能直接执行 Windows 的 `python.exe` 或桌面应用，因此该脚本只完成内容与压缩包校验。交付前仍应在 Windows x64 环境启动应用并执行至少一个 Python 脚本 Smoke Test。
+
+### 6.4 工作流 YAML 修改检查
 
 如果本次发布同时修改了 `.github/workflows/*.yml`，按仓库规则执行：
 

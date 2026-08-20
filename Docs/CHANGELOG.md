@@ -17,6 +17,7 @@
 - 将面向用户的“导出模板”统一更名为“数据模板”，调整设置入口、模板管理页面、导入校验提示及相关文档表述。
 - 应用控制台和滚动日志统一增加托管线程 ID，便于定位后台任务与 UI 线程之间的执行关系。
 - tag 发布的 Windows x64 包增加带 Python 3.13.15 embedded runtime 的可选 ZIP，同时保留不附带 Python 的轻量 ZIP；带 Python 的包会将运行时放在 `python/` 目录并由脚本运行时自动优先使用。
+- 新增 Linux 本地打包脚本，可交叉发布 `win-x64` 自包含应用、下载并校验 Python 3.13.15 embeddable runtime，并生成与 tag 发布包布局一致的带 Python ZIP。
 - Python 语法检查和正式 Worker 通过 `-X utf8` 在隔离模式前显式启用 UTF-8，并统一使用 UTF-8 无 BOM 标准输入输出，修复 Windows 环境下含中文脚本被本地代码页错误解码的问题；异常退出诊断会保留受限长度的 stderr 和退出码，tag 发布验证改用 Python 3.13。
 
 ## 1.0.0-alpha5 (内部验证版)
