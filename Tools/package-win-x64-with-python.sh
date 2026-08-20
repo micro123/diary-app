@@ -148,6 +148,11 @@ upload_to_filecodebox() {
         's/.*"detail"[[:space:]]*:[[:space:]]*{[^}]*"code"[[:space:]]*:[[:space:]]*"\([^"}]*\)".*/\1/p' \
         "$response_file" | head -n 1)
     if [ -z "$retrieve_code" ]; then
+        retrieve_code=$(sed -n \
+            's/.*"detail"[[:space:]]*:[[:space:]]*{[^}]*"code"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' \
+            "$response_file" | head -n 1)
+    fi
+    if [ -z "$retrieve_code" ]; then
         printf 'FileCodeBox 响应中没有找到取件码；本地压缩包仍保留：%s\n' "$archive" >&2
         sed -n '1,5p' "$response_file" >&2
         exit 1
