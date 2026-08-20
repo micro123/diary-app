@@ -7,7 +7,7 @@
     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="16">
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
             <StackPanel Spacing="4">
-                <TextBlock Text="导出模板" FontSize="22" FontWeight="SemiBold" />
+                <TextBlock Text="数据模板" FontSize="22" FontWeight="SemiBold" />
                 <TextBlock Text="导入模板文件后，由对应插件校验模板结构并声明所需导出数据。"
                            Opacity="0.65" TextWrapping="Wrap" />
             </StackPanel>
@@ -15,7 +15,7 @@
                     Classes="Primary" VerticalAlignment="Center" />
         </Grid>
         <Grid Grid.Row="1">
-            <TextBlock Text="尚未导入导出模板。"
+            <TextBlock Text="尚未导入数据模板。"
                        HorizontalAlignment="Center" VerticalAlignment="Center"
                        Opacity="0.6" IsVisible="{Binding IsEmpty}" />
             <ScrollViewer IsVisible="{Binding !IsEmpty}">

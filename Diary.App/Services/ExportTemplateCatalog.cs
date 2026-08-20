@@ -35,9 +35,9 @@ public sealed class ExportTemplateCatalog : IExportTemplateCatalog
             {
                 var normalized = NormalizeExtension(extension);
                 if (string.IsNullOrWhiteSpace(normalized))
-                    throw new InvalidOperationException($"导出模板扩展名不能为空：{handler.PluginId}。");
+                    throw new InvalidOperationException($"数据模板扩展名不能为空：{handler.PluginId}。");
                 if (!_handlers.TryAdd(normalized, handler))
-                    throw new InvalidOperationException($"导出模板扩展名冲突：{normalized}。");
+                    throw new InvalidOperationException($"数据模板扩展名冲突：{normalized}。");
             }
         }
         _storageDirectory = storageDirectory ?? Path.Combine(FsTools.GetApplicationConfigDirectory(), StorageDirectoryName);
@@ -175,7 +175,7 @@ public sealed class ExportTemplateCatalog : IExportTemplateCatalog
         }
         catch (Exception exception)
         {
-            _logger.LogWarning(exception, "导入导出模板失败：{Path}", sourcePath);
+            _logger.LogWarning(exception, "导入数据模板失败：{Path}", sourcePath);
             return Failure("EXPORT_TEMPLATE_IMPORT_FAILED", "模板导入失败。");
         }
     }
@@ -236,7 +236,7 @@ public sealed class ExportTemplateCatalog : IExportTemplateCatalog
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             SetEnabled(templateId, templateVersion, false);
-            _logger.LogWarning(exception, "重新校验导出模板失败：{TemplateId} {Version}", templateId, templateVersion);
+            _logger.LogWarning(exception, "重新校验数据模板失败：{TemplateId} {Version}", templateId, templateVersion);
             return Failure("EXPORT_TEMPLATE_REVALIDATION_FAILED", "模板重新校验失败。");
         }
     }
@@ -277,7 +277,7 @@ public sealed class ExportTemplateCatalog : IExportTemplateCatalog
         }
         catch (Exception exception)
         {
-            _logger.LogWarning(exception, "加载导出模板目录失败，将使用空目录");
+            _logger.LogWarning(exception, "加载数据模板目录失败，将使用空目录");
             _templates.Clear();
         }
     }

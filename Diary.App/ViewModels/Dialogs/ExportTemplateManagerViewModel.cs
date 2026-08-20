@@ -78,11 +78,11 @@ public partial class ExportTemplateManagerViewModel : ViewModelBase, IDialogCont
 
         var files = await storageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "导入导出模板",
+            Title = "导入数据模板",
             AllowMultiple = false,
             FileTypeFilter =
             [
-                new FilePickerFileType("导出模板") { Patterns = ["*.xlsx", "*.docx", "*.csv"] },
+                new FilePickerFileType("数据模板") { Patterns = ["*.xlsx", "*.docx", "*.csv"] },
                 new FilePickerFileType("所有文件") { Patterns = ["*.*"] },
             ],
         });

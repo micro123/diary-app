@@ -137,7 +137,7 @@ XLSX descriptor 不声明 `background_color`：插件内部预设颜色不等于
 
 脚本必须先调用 `list_templates(format_id)`，再按模板 descriptor 的精确 `template_id`、`template_version` 和 `bindings` 组装请求。不要根据扩展名猜测绑定能力。
 
-普通用户制作 Excel、CSV 和 Word 模板的步骤与示例见 [ExportTemplateGuide.md](../ExportTemplateGuide.md)。
+普通用户制作 Excel、CSV 和 Word 数据模板的步骤与示例见 [ExportTemplateGuide.md](../ExportTemplateGuide.md)。
 Mustache 纯文本模板的语法、数据映射和请求示例见 [MustacheExport.md](MustacheExport.md)。
 
 ```json

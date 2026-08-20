@@ -153,7 +153,7 @@
                         <Separator />
                         <MenuItem Header="标签设置" Command="{Binding ShowTagSettingsCommand}" />
                         <MenuItem Header="模板设置" Command="{Binding ShowTemplateSettingsCommand}" />
-                        <MenuItem Header="导出模板" Command="{Binding ShowExportTemplateSettingsCommand}" />
+                        <MenuItem Header="数据模板" Command="{Binding ShowExportTemplateSettingsCommand}" />
                         <Separator />
                         <MenuItem Header="Tracker 设置" Command="{Binding ShowTrackerSettingsCommand}" />
                         <Separator />

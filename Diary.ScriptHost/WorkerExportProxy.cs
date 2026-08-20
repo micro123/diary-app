@@ -23,7 +23,7 @@ public sealed class WorkerExportProxy(
             "exports.templates.list",
             JsonSerializer.SerializeToElement(new { format_id = formatId }, ExportJson.Options)),
             cancellationToken);
-        EnsureSuccess(result, "读取导出模板失败。");
+        EnsureSuccess(result, "读取数据模板失败。");
         return result.Result?.Deserialize<ExportTemplateDescriptor[]>(ExportJson.Options) ?? [];
     }
 

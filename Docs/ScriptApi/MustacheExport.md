@@ -1,4 +1,4 @@
-# Mustache 文本导出模板
+# Mustache 文本数据模板
 
 Mustache 导出器是独立的纯文本模板插件，不改变 XLSX、CSV、DOCX 的简易标记协议。模板文件扩展名为 `.mustache`，输出默认使用 `.txt`，也可以指定 `.md`、`.html` 或 `.csv`。
 

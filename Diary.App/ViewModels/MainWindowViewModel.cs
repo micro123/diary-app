@@ -718,7 +718,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 CanLightDismiss = false,
                 IsCloseButtonVisible = false,
             });
-        }, "导出模板管理对话框");
+        }, "数据模板管理对话框");
     }
 
     [RelayCommand]
