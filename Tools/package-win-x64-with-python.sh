@@ -7,6 +7,9 @@ readonly CONFIGURATION="Release"
 readonly PYTHON_VERSION="3.13.15"
 readonly PYTHON_SERIES="313"
 readonly PYTHON_SHA256="d1f04d990aee1253d8569e8e5104e30fa9f5fa830899f14843448872d936a2cf"
+readonly FILECODEBOX_URL="http://192.168.1.40:12345"
+readonly FILECODEBOX_EXPIRE_VALUE="3"
+readonly FILECODEBOX_EXPIRE_STYLE="hour"
 
 script_directory=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 repository_root=$(cd -- "$script_directory/.." && pwd)
@@ -29,8 +32,9 @@ require_command() {
 }
 
 print_usage() {
-    printf '用法：%s [版本标签]\n' "$0"
-    printf '示例：%s v1.0.0-test1\n' "$0"
+    printf '用法：%s [--upload-filecodebox] [版本标签]\n' "$0"
+    printf '示例：%s --upload-filecodebox v1.0.0-test1\n' "$0"
+    printf '默认只生成本地 ZIP；指定 --upload-filecodebox 后，打包完成会上传到局域网 FileCodeBox。\n'
 }
 
 default_package_version() {
@@ -117,21 +121,79 @@ verify_archive_has_no_runtimes_directory() {
     fi
 }
 
-if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
-    print_usage
-    exit 0
-fi
+upload_to_filecodebox() {
+    local archive="$1"
+    local response_file="$temporary_directory/filecodebox-response.json"
+    local http_status retrieve_code
 
-if [ "$#" -gt 1 ]; then
-    print_usage >&2
-    exit 1
-fi
+    printf '正在上传到 FileCodeBox：%s\n' "$FILECODEBOX_URL"
+    if ! http_status=$(curl --silent --show-error --location --max-time 300 \
+        --form "file=@$archive;type=application/zip" \
+        --form "expire_value=$FILECODEBOX_EXPIRE_VALUE" \
+        --form "expire_style=$FILECODEBOX_EXPIRE_STYLE" \
+        --output "$response_file" \
+        --write-out '%{http_code}' \
+        "$FILECODEBOX_URL/share/file/"); then
+        printf 'FileCodeBox 上传请求失败；本地压缩包仍保留：%s\n' "$archive" >&2
+        exit 1
+    fi
+
+    if [ "$http_status" != "200" ]; then
+        printf 'FileCodeBox 返回 HTTP %s；本地压缩包仍保留：%s\n' "$http_status" "$archive" >&2
+        sed -n '1,5p' "$response_file" >&2
+        exit 1
+    fi
+
+    retrieve_code=$(sed -n \
+        's/.*"detail"[[:space:]]*:[[:space:]]*{[^}]*"code"[[:space:]]*:[[:space:]]*"\([^"}]*\)".*/\1/p' \
+        "$response_file" | head -n 1)
+    if [ -z "$retrieve_code" ]; then
+        printf 'FileCodeBox 响应中没有找到取件码；本地压缩包仍保留：%s\n' "$archive" >&2
+        sed -n '1,5p' "$response_file" >&2
+        exit 1
+    fi
+
+    printf 'FileCodeBox 上传完成。\n'
+    printf '取件地址：%s\n' "$FILECODEBOX_URL"
+    printf '取件码：%s\n' "$retrieve_code"
+    printf '有效期：%s 小时\n' "$FILECODEBOX_EXPIRE_VALUE"
+}
+
+upload_filecodebox=0
+package_version=""
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -h|--help)
+            print_usage
+            exit 0
+            ;;
+        --upload-filecodebox)
+            upload_filecodebox=1
+            ;;
+        --*)
+            printf '未知参数：%s\n' "$1" >&2
+            print_usage >&2
+            exit 1
+            ;;
+        *)
+            if [ -n "$package_version" ]; then
+                printf '只能指定一个版本标签：%s\n' "$1" >&2
+                print_usage >&2
+                exit 1
+            fi
+            package_version="$1"
+            ;;
+    esac
+    shift
+done
 
 for command_name in dotnet git curl sha256sum unzip zip mktemp; do
     require_command "$command_name"
 done
 
-package_version="${1:-$(default_package_version)}"
+if [ -z "$package_version" ]; then
+    package_version=$(default_package_version)
+fi
 if [[ ! "$package_version" =~ ^[A-Za-z0-9._-]+$ ]]; then
     printf '版本标签只能包含字母、数字、点、下划线和连字符：%s\n' "$package_version" >&2
     exit 1
@@ -200,3 +262,7 @@ mv -f -- "$temporary_archive" "$archive_path"
 printf '\n打包完成：%s\n' "$archive_path"
 printf '文件大小：%s\n' "$(du -h "$archive_path" | cut -f1)"
 printf 'SHA-256：%s\n' "$(sha256sum "$archive_path" | cut -d' ' -f1)"
+
+if [ "$upload_filecodebox" -eq 1 ]; then
+    upload_to_filecodebox "$archive_path"
+fi

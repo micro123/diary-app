@@ -314,6 +314,14 @@ DIARY_REQUIRE_PYTHON_TESTS=1
 
 Linux 主机不能直接执行 Windows 的 `python.exe` 或桌面应用，因此该脚本只完成内容与压缩包校验。交付前仍应在 Windows x64 环境启动应用并执行至少一个 Python 脚本 Smoke Test。
 
+如果局域网已经部署 FileCodeBox，也可以在打包完成后自动上传并输出取件码：
+
+```bash
+./Tools/package-win-x64-with-python.sh --upload-filecodebox v1.0.0-test1
+```
+
+该选项上传到 `http://192.168.1.40:12345/`，有效期固定为 3 小时；不指定该选项时不会访问 FileCodeBox。上传失败不会删除已经生成的本地 ZIP，脚本会以失败状态退出并打印本地文件路径。
+
 ### 6.4 工作流 YAML 修改检查
 
 如果本次发布同时修改了 `.github/workflows/*.yml`，按仓库规则执行：
