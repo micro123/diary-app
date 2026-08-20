@@ -278,7 +278,9 @@ CI 在 Windows 和 Ubuntu 上执行 Release 构建与全量测试，并固定 Py
 `DIARY_REQUIRE_PYTHON_TESTS=1` 要求两端真实执行 C#、Lua、Python Worker 进程测试，运行时不可用即失败。
 Ubuntu 门禁另通过 `DIARY_REQUIRE_POSTGRES_TESTS=1` 强制启动 PostgreSQL Testcontainers，容器不可用即失败；
 Windows 用于覆盖平台构建和 Windows 专用运行路径。标签发布在对应原生 Runner 上分别生成 `win-x64` 和
-`linux-x64` 自包含包，并在压缩前检查 Tracker 插件程序集和脚本 Worker 是否齐全。
+`linux-x64` 自包含包，并在压缩前检查 Tracker 插件程序集和脚本 Worker 是否齐全。当前发布产物仍是供手动下载和解压的完整 ZIP，
+客户端尚未实现应用包检查、下载、替换或回滚。后续更新采用规范化逐文件 SHA-256 清单、抽象更新源和独立更新器，详细设计见
+[`ApplicationUpdateDesign.md`](ApplicationUpdateDesign.md)；服务器协议适配和客户端实现均仍待开发。
 
 ## 7. Redmine schema 迁移
 

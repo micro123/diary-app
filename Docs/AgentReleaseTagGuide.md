@@ -47,26 +47,34 @@ on:
 
 1. **Verify**：Ubuntu 和 Windows 分别执行 Release 构建与全量测试；
 2. **Publish**：生成 `win-x64` 与 `linux-x64` 自包含发布目录；
-3. **Package**：检查应用、脚本 Worker、DiagnosticsClient 依赖和 Jira/RedMine 插件程序集是否齐全；
-4. **Create Release**：下载两个平台的压缩包，从 `Docs/CHANGELOG.md` 提取发布说明并创建 GitHub Release。
+3. **Package**：检查应用、脚本 Worker、DiagnosticsClient 依赖和 Jira/RedMine 插件程序集是否齐全，将 PDB 按原相对路径移入独立调试符号包，并生成普通运行包；
+4. **Create Release**：下载两个平台的运行包、调试符号包及 Windows Python 运行时包，从 `Docs/CHANGELOG.md` 提取发布说明并创建 GitHub Release。
 
 任一 Verify 或 Publish 阶段失败，`create-release` 都不会执行。
 
 ### 2.3 发布产物
 
-成功后应存在两个附件：
+成功后应存在五个附件：
 
 ```text
 DiaryAppNG-<TAG>-win-x64.zip
+DiaryAppNG-<TAG>-win-x64-dbg.zip
+DiaryAppNG-<TAG>-win-x64-python313.zip
 DiaryAppNG-<TAG>-linux-x64.zip
+DiaryAppNG-<TAG>-linux-x64-dbg.zip
 ```
 
 例如：
 
 ```text
 DiaryAppNG-v1.0.0-r438-win-x64.zip
+DiaryAppNG-v1.0.0-r438-win-x64-dbg.zip
+DiaryAppNG-v1.0.0-r438-win-x64-python313.zip
 DiaryAppNG-v1.0.0-r438-linux-x64.zip
+DiaryAppNG-v1.0.0-r438-linux-x64-dbg.zip
 ```
+
+普通运行包和 Windows Python 运行时包不得包含 `.pdb`；每个平台的 `-dbg.zip` 只包含该 RID 发布目录中生成的 PDB，并保留其相对目录结构，便于按对应版本进行崩溃与堆栈分析。
 
 ## 3. 版本号与 Tag 规则
 
@@ -449,8 +457,9 @@ gh release view "$TAG" \
 - Release 不是 draft；
 - prerelease 状态符合当前工作流实际规则；
 - 发布说明来自目标 CHANGELOG 章节；
-- 同时存在 `win-x64` 和 `linux-x64` ZIP；
-- 两个附件文件大小均大于 0。
+- 同时存在 Windows/Linux 普通运行包与对应的 `-dbg.zip`，并存在 Windows `python313` 包；
+- 五个附件文件大小均大于 0；
+- 普通运行包及 Windows `python313` 包不包含 PDB，两个 `-dbg.zip` 非空且只包含 PDB。
 
 ## 10. 失败处理
 
@@ -520,7 +529,10 @@ git tag -d "$TAG"
 ```text
 <TAG> 已发布：
 - Windows: DiaryAppNG-<TAG>-win-x64.zip
+- Windows 调试符号: DiaryAppNG-<TAG>-win-x64-dbg.zip
+- Windows + Python 3.13: DiaryAppNG-<TAG>-win-x64-python313.zip
 - Linux: DiaryAppNG-<TAG>-linux-x64.zip
+- Linux 调试符号: DiaryAppNG-<TAG>-linux-x64-dbg.zip
 - Verify: Windows/Ubuntu 均通过
 - Release Notes: 已从 Docs/CHANGELOG.md 匹配
 - Release: <URL>
@@ -546,5 +558,6 @@ git tag -d "$TAG"
 - [ ] Tag 工作流成功；
 - [ ] GitHub Release 已创建且非 draft；
 - [ ] Release body 为目标版本章节；
-- [ ] Windows/Linux 两个附件均存在；
+- [ ] Windows/Linux 普通包、调试符号包和 Windows Python 包共五个附件均存在；
+- [ ] 普通包不含 PDB，`-dbg.zip` 非空且只包含 PDB；
 - [ ] 最终回复明确区分“Tag 已推送”和“Release 已成功”。

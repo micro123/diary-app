@@ -79,6 +79,8 @@ jobs:
           $rid = '${{ matrix.rid }}'
           $out = Join-Path 'publish' $rid
           $archive = 'DiaryAppNG-${{ steps.version.outputs.version }}-' + $rid + '.zip'
+          $debugOut = Join-Path 'publish' "$rid-dbg"
+          $debugArchive = 'DiaryAppNG-${{ steps.version.outputs.version }}-' + $rid + '-dbg.zip'
           New-Item -ItemType Directory -Path $out -Force | Out-Null
           dotnet publish Diary.App/Diary.App.csproj --configuration Release --runtime $rid --self-contained true --no-restore --output $out
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -130,6 +132,50 @@ jobs:
           if ($null -ne $unexpectedRuntimeDirectory) {
             throw "Failed to remove unrelated runtime directory: $($unexpectedRuntimeDirectory.FullName)"
           }
+          $publishRoot = (Resolve-Path -LiteralPath $out).Path
+          $pdbFiles = @(Get-ChildItem -LiteralPath $out -Recurse -File -Filter '*.pdb')
+          if ($pdbFiles.Count -eq 0) {
+            throw 'Publish output does not contain any PDB files'
+          }
+          foreach ($pdbFile in $pdbFiles) {
+            $relativePath = [System.IO.Path]::GetRelativePath($publishRoot, $pdbFile.FullName)
+            $debugPath = Join-Path $debugOut $relativePath
+            $debugDirectory = Split-Path -Parent $debugPath
+            New-Item -ItemType Directory -Path $debugDirectory -Force | Out-Null
+            Move-Item -LiteralPath $pdbFile.FullName -Destination $debugPath
+          }
+          Compress-Archive -Path (Join-Path $debugOut '*') -DestinationPath $debugArchive -CompressionLevel Optimal
+          function Assert-DebugArchive([string] $archivePath) {
+            $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $archivePath))
+            try {
+              $fileEntries = @($zip.Entries | Where-Object { -not [string]::IsNullOrEmpty($_.Name) })
+              if ($fileEntries.Count -eq 0) {
+                throw 'Debug archive is empty'
+              }
+              $unexpectedEntry = $fileEntries | Where-Object {
+                -not $_.FullName.EndsWith('.pdb', [System.StringComparison]::OrdinalIgnoreCase)
+              } | Select-Object -First 1
+              if ($null -ne $unexpectedEntry) {
+                throw "Debug archive contains non-PDB entry: $($unexpectedEntry.FullName)"
+              }
+            } finally {
+              $zip.Dispose()
+            }
+          }
+          Assert-DebugArchive $debugArchive
+          function Assert-NoPdbEntries([string] $archivePath) {
+            $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $archivePath))
+            try {
+              $pdbEntry = $zip.Entries | Where-Object {
+                $_.FullName.EndsWith('.pdb', [System.StringComparison]::OrdinalIgnoreCase)
+              } | Select-Object -First 1
+              if ($null -ne $pdbEntry) {
+                throw "Application archive contains PDB entry: $($pdbEntry.FullName)"
+              }
+            } finally {
+              $zip.Dispose()
+            }
+          }
           function Assert-RuntimeDirectories([string] $archivePath, [string] $targetRid) {
             $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $archivePath))
             try {
@@ -166,15 +212,18 @@ jobs:
             Pop-Location
             if ($zipExitCode -ne 0) { exit $zipExitCode }
             Assert-RuntimeDirectories $archive $rid
+            Assert-NoPdbEntries $archive
           } else {
             Compress-Archive -Path (Join-Path $out '*') -DestinationPath $archive -CompressionLevel Optimal
             Assert-RuntimeDirectories $archive $rid
+            Assert-NoPdbEntries $archive
           }
+          Get-Item $archive, $debugArchive | Format-List Name, Length
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: DiaryAppNG-${{ steps.version.outputs.version }}-${{ matrix.rid }}
-          path: DiaryAppNG-${{ steps.version.outputs.version }}-${{ matrix.rid }}.zip
+          path: DiaryAppNG-${{ steps.version.outputs.version }}-${{ matrix.rid }}*.zip
           if-no-files-found: error
 
   create-release:
