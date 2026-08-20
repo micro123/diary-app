@@ -75,8 +75,17 @@ public interface ITagRuleEditorContribution
 {
     string PluginId { get; }
     string InstanceId { get; }
+    string InstanceName { get; }
     ViewModelBase View { get; }
     void SelectTag(WorkTag tag);
+    IReadOnlyCollection<TrackerTagRulePackageItem> ExportRules(
+        IReadOnlyDictionary<int, string> tagKeys);
+    IReadOnlyCollection<TrackerTagRuleValidation> ValidateImportRules(
+        IReadOnlyCollection<TrackerTagRulePackageItem> rules,
+        IReadOnlyDictionary<string, int> tagIds);
+    int ImportRules(
+        IReadOnlyCollection<TrackerTagRulePackageItem> rules,
+        IReadOnlyDictionary<string, int> tagIds);
     void Commit();
     void Reload();
 }

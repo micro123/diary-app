@@ -1,0 +1,90 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
+             mc:Ignorable="d"
+             x:Class="Diary.App.Views.Dialogs.TagShareImportDialogView"
+             x:DataType="dialogs:TagShareImportDialogViewModel"
+             Width="760"
+             Height="620">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12" Margin="20">
+        <StackPanel Spacing="4">
+            <TextBlock Text="导入标签" Classes="Header" />
+            <TextBlock Text="选择要导入的标签，并决定导出包中的 Tracker 规则关联到哪个本地实例。无效或无法验证的规则不会导入。"
+                       TextWrapping="Wrap"
+                       Opacity="0.72" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1">
+            <StackPanel Spacing="14">
+                <Border Padding="12" Background="{DynamicResource SemiColorFill1}">
+                    <StackPanel Spacing="8">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="标签" FontWeight="SemiBold" FontSize="16" />
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding SelectedCount, StringFormat='已选择 {0} 个'}"
+                                       Opacity="0.68" />
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding Tags}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="dialogs:TagShareImportTagViewModel">
+                                    <Grid ColumnDefinitions="Auto,160,*" ColumnSpacing="8" Margin="0 3">
+                                        <CheckBox IsChecked="{Binding IsSelected}"
+                                                  IsEnabled="{Binding !HasConflict}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Status}" TextWrapping="Wrap" Opacity="0.72" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border Padding="12"
+                        Background="{DynamicResource SemiColorFill1}"
+                        IsVisible="{Binding HasTrackers}">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Tracker 规则关联" FontWeight="SemiBold" FontSize="16" />
+                        <ItemsControl ItemsSource="{Binding Trackers}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="dialogs:TagShareTrackerMappingViewModel">
+                                    <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="220,*" Margin="0 4">
+                                        <TextBlock Text="{Binding Source}" VerticalAlignment="Center" />
+                                        <ComboBox Grid.Column="1"
+                                                  ItemsSource="{Binding Options}"
+                                                  SelectedItem="{Binding SelectedOption}">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate DataType="dialogs:TagShareTrackerMappingOption">
+                                                    <TextBlock Text="{Binding Label}" />
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                        <TextBlock Grid.Row="1"
+                                                   Grid.ColumnSpan="2"
+                                                   Margin="0 4 0 0"
+                                                   Text="{Binding ValidationSummary}"
+                                                   TextWrapping="Wrap"
+                                                   Opacity="0.68" />
+                                        <TextBlock Grid.Row="2"
+                                                   Grid.ColumnSpan="2"
+                                                   Margin="0 2 0 0"
+                                                   Text="{Binding ValidationDetails}"
+                                                   TextWrapping="Wrap"
+                                                   Classes="Danger" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+            <Button Content="仅选择无冲突标签" Command="{Binding SelectSafeCommand}" />
+            <Button Grid.Column="1" Content="取消" Command="{Binding CancelCommand}" />
+            <Button Grid.Column="2" Content="导入" Command="{Binding ImportCommand}" Classes="Primary" />
+        </Grid>
+    </Grid>
+</UserControl>

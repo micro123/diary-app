@@ -26,7 +26,17 @@
                     Padding="12"
                     Background="{DynamicResource SemiColorFill1}">
                 <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="10">
-                    <TextBlock Text="标签" FontWeight="SemiBold" FontSize="16" />
+                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                        <TextBlock Text="标签" FontWeight="SemiBold" FontSize="16" />
+                        <Button Grid.Column="1"
+                                Content="导入"
+                                Padding="10 4"
+                                Command="{Binding ImportTagsCommand}" />
+                        <Button Grid.Column="2"
+                                Content="导出"
+                                Padding="10 4"
+                                Command="{Binding ExportTagsCommand}" />
+                    </Grid>
                     <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="6">
                         <TextBox Text="{Binding NewTagName}"
                                  Watermark="输入标签名称"

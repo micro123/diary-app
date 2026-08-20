@@ -203,6 +203,7 @@ Jira 失败时核心工作记录仍可保存。
 - [x] 查询工作项标签 DTO 已增加语义化的 `IsPrimary`/`isPrimary` 字段；`Level` 保留用于兼容，C#、Lua、Python 示例均使用语义化字段判断主标签。
 - [x] 标签支持只读字符串键值元数据，编辑器可维护 `projectNumber` 等项目属性，并同步暴露给 C#、Lua、Python 脚本；当前数据库通过初始表结构和本地 SQLite 手工补列保持兼容。
 - [x] 标签附加字段已落地：字段按标签定义多个全局唯一 `FieldKey`，类型创建后固定，字段通过禁用保留历史数据；工作项使用独立对话框按标签编辑可选值，日志界面只显示按钮和 Tooltip 预览；SQLite/PostgreSQL 由核心数据库基类契约和 provider 初始化表支持，脚本通过 `FieldKey` 只读访问且不触发字段脚本；迁移导入的只读工作项不显示附加字段入口。
+- [x] 标签管理页支持 `.diarytags` 导入导出标签、元数据、附加字段定义和可选 Tracker 规则；禁用标签可导出但导入后默认启用，Tracker 只记录类型和名称，导入时可映射到同类型本地实例或不关联，无效、不存在和无法验证的规则不会写入。
 - [~] 脚本交互式通用导出：按 [`ScriptSpreadsheetExportDesign.md`](ScriptSpreadsheetExportDesign.md) 分阶段实现：
   - [x] 已增加仅允许有人值守的 `Editor+Editor`、`Application+Manual` 和 `Query+Manual` 选项选择、目录选择、XLSX 导出和询问打开 HostCall；`RequireChoice` 禁止右上角关闭，并对取消、Worker 终止、通道断开和响应发送失败做一次性清理。
   - [x] 已增加绑定 `ExecutionId`/`WorkerId` 的 `DirectorySelectionId` 和短期 `FileId` 生命周期；非法文件名直接拒绝，不做替换。

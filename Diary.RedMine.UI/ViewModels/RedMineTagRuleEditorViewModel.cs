@@ -156,6 +156,8 @@ public sealed partial class RedMineTagRuleEditorViewModel : ViewModelBase
 
 public sealed class RedMineTagRuleEditorContribution : ITagRuleEditorContribution
 {
+    private static readonly HashSet<string> SupportedValueKeys =
+        ["activityId", "issueId", "enabled"];
     private readonly RedMineInstanceConfigurationEditSession _session;
     private readonly RedMineTagRuleEditorViewModel _view;
 
@@ -167,8 +169,138 @@ public sealed class RedMineTagRuleEditorContribution : ITagRuleEditorContributio
 
     public string PluginId => RedMinePluginConstants.PluginId;
     public string InstanceId => _session.WorkingCopy.InstanceId;
+    public string InstanceName => _session.WorkingCopy.DisplayName;
     public ViewModelBase View => _view;
     public void SelectTag(WorkTag tag) => _view.SelectTag(tag);
+
+    public IReadOnlyCollection<TrackerTagRulePackageItem> ExportRules(
+        IReadOnlyDictionary<int, string> tagKeys)
+        => _session.WorkingCopy.TagRules
+            .Where(rule => tagKeys.ContainsKey(rule.TagId))
+            .Select(rule => new TrackerTagRulePackageItem(
+                tagKeys[rule.TagId],
+                new Dictionary<string, string?>(StringComparer.Ordinal)
+                {
+                    ["activityId"] = rule.ActivityId?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ["issueId"] = rule.IssueId?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ["enabled"] = rule.Enabled.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                }))
+            .ToArray();
+
+    public IReadOnlyCollection<TrackerTagRuleValidation> ValidateImportRules(
+        IReadOnlyCollection<TrackerTagRulePackageItem> rules,
+        IReadOnlyDictionary<string, int> tagIds)
+    {
+        HashSet<int> activityIds;
+        HashSet<int> issueIds;
+        try
+        {
+            var database = BaseApp.Instance.UseDb?.GetExtension<IRedMineDb>(
+                InstanceId,
+                new RedMinePlugin().GetMigrations());
+            if (database is null)
+                return rules.Select(rule => Unavailable(rule, "本地 RedMine 数据不可用，无法验证规则目标。"))
+                    .ToArray();
+            activityIds = database.GetRedMineActivities()
+                .Where(activity => !activity.Invalid)
+                .Select(activity => activity.Id)
+                .ToHashSet();
+            issueIds = database.GetRedMineIssues(null)
+                .Where(issue => !issue.Disabled && !issue.Invalid)
+                .Select(issue => issue.Id)
+                .ToHashSet();
+        }
+        catch (Exception exception)
+        {
+            return rules.Select(rule => Unavailable(rule, $"读取本地 RedMine 数据失败：{exception.Message}"))
+                .ToArray();
+        }
+
+        return rules.Select(rule => ValidateRule(rule, tagIds, activityIds, issueIds)).ToArray();
+    }
+
+    public int ImportRules(
+        IReadOnlyCollection<TrackerTagRulePackageItem> rules,
+        IReadOnlyDictionary<string, int> tagIds)
+    {
+        var imported = 0;
+        foreach (var item in rules)
+        {
+            if (!tagIds.TryGetValue(item.TagKey, out var tagId)
+                || !TryReadOptionalPositiveInt(item.Values, "activityId", out var activityId)
+                || !TryReadOptionalPositiveInt(item.Values, "issueId", out var issueId)
+                || activityId is null && issueId is null)
+                continue;
+            var enabled = !item.Values.TryGetValue("enabled", out var enabledText)
+                || !bool.TryParse(enabledText, out var parsedEnabled)
+                || parsedEnabled;
+            if (_session.WorkingCopy.TagRules.Any(rule => rule.TagId == tagId
+                && rule.ActivityId == activityId
+                && rule.IssueId == issueId))
+                continue;
+            _session.WorkingCopy.TagRules.Add(new RedMineTagRule
+            {
+                RuleId = Guid.NewGuid().ToString("N"),
+                TagId = tagId,
+                ActivityId = activityId,
+                IssueId = issueId,
+                Enabled = enabled,
+            });
+            imported++;
+        }
+        _view.Reset(_session.WorkingCopy);
+        return imported;
+    }
+
+    private static TrackerTagRuleValidation ValidateRule(
+        TrackerTagRulePackageItem rule,
+        IReadOnlyDictionary<string, int> tagIds,
+        IReadOnlySet<int> activityIds,
+        IReadOnlySet<int> issueIds)
+    {
+        if (!tagIds.ContainsKey(rule.TagKey))
+            return Invalid(rule, "规则引用的标签不存在或未选择导入。");
+        var unsupported = rule.Values.Keys.Where(key => !SupportedValueKeys.Contains(key)).ToArray();
+        if (unsupported.Length > 0)
+            return Invalid(rule, $"包含不支持的字段：{string.Join("、", unsupported)}。");
+        if (!TryReadOptionalPositiveInt(rule.Values, "activityId", out var activityId)
+            || !TryReadOptionalPositiveInt(rule.Values, "issueId", out var issueId))
+            return Invalid(rule, "Activity 或 Issue ID 必须是正整数。");
+        if (activityId is null && issueId is null)
+            return Invalid(rule, "规则没有配置 Activity 或 Issue 目标。");
+        if (activityId is not null && !activityIds.Contains(activityId.Value))
+            return Invalid(rule, $"Activity #{activityId} 不存在或已失效。");
+        if (issueId is not null && !issueIds.Contains(issueId.Value))
+            return Invalid(rule, $"Issue #{issueId} 不存在或已失效。");
+        if (rule.Values.TryGetValue("enabled", out var enabled)
+            && enabled is not null
+            && !bool.TryParse(enabled, out _))
+            return Invalid(rule, "enabled 必须是布尔值。");
+        return new TrackerTagRuleValidation(rule, TrackerTagRuleValidationState.Valid, "规则有效");
+    }
+
+    private static bool TryReadOptionalPositiveInt(
+        IReadOnlyDictionary<string, string?> values,
+        string key,
+        out int? value)
+    {
+        value = null;
+        if (!values.TryGetValue(key, out var text) || string.IsNullOrWhiteSpace(text))
+            return true;
+        if (!int.TryParse(text, System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out var parsed)
+            || parsed <= 0)
+            return false;
+        value = parsed;
+        return true;
+    }
+
+    private static TrackerTagRuleValidation Invalid(TrackerTagRulePackageItem rule, string message)
+        => new(rule, TrackerTagRuleValidationState.Invalid, message);
+
+    private static TrackerTagRuleValidation Unavailable(TrackerTagRulePackageItem rule, string message)
+        => new(rule, TrackerTagRuleValidationState.Unavailable, message);
+
     public void Commit()
     {
         _session.Commit();

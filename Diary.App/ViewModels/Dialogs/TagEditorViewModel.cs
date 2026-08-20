@@ -1,8 +1,11 @@
 using System.Collections.ObjectModel;
+using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
+using Diary.App.Services;
 using Diary.Core.Data.Base;
 using Diary.GUIBase.Converters;
 using Diary.GUIBase.Events;
@@ -21,6 +24,7 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
 {
     private readonly ILogger _logger;
     private readonly TrackerPluginLifecycleCoordinator _lifecycleCoordinator;
+    private readonly TagSharePackageService _tagSharePackageService;
     public string Title => "标签编辑器";
 
     [ObservableProperty]
@@ -38,10 +42,12 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
     public TagEditorViewModel(
         ILogger logger,
         TrackerUiContributionRegistry trackerRegistry,
-        TrackerPluginLifecycleCoordinator lifecycleCoordinator)
+        TrackerPluginLifecycleCoordinator lifecycleCoordinator,
+        TagSharePackageService tagSharePackageService)
     {
         _logger = logger;
         _lifecycleCoordinator = lifecycleCoordinator;
+        _tagSharePackageService = tagSharePackageService;
         foreach (var contribution in trackerRegistry.Contributions)
         {
             var ruleContribution = contribution.CreateTagRuleEditorContribution();
@@ -64,12 +70,14 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
     public event EventHandler<object?>? RequestClose;
 
     [RelayCommand]
-    private void Save()
+    private void Save() => SaveChanges(close: true);
+
+    private bool SaveChanges(bool close)
     {
         if (!ValidateExtraFieldKeys(out var fieldError))
         {
             EventDispatcher.Notify("错误", fieldError!);
-            return;
+            return false;
         }
 
         bool changed = _changed;
@@ -79,7 +87,7 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
             if (error is not null)
             {
                 EventDispatcher.Notify("错误", error);
-                return;
+                return false;
             }
 
             changed |= tagChanged;
@@ -93,7 +101,10 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
             if (!_lifecycleCoordinator.SaveConfiguration(pluginId))
                 _logger.LogWarning("保存标签规则配置失败: {PluginId}", pluginId);
         }
-        RequestClose?.Invoke(this, null);
+        _changed = false;
+        if (close)
+            RequestClose?.Invoke(this, null);
+        return true;
     }
 
     [RelayCommand]
@@ -108,6 +119,125 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
         foreach (var contribution in RuleContributions)
             contribution.Reload();
     }
+
+    [RelayCommand]
+    private async Task ExportTags()
+    {
+        if (!SaveChanges(close: false))
+            return;
+        var database = App.Instance.UseDb;
+        var storageProvider = GetStorageProvider();
+        if (database is null || storageProvider is null)
+        {
+            EventDispatcher.Notify("错误", "当前数据库或文件选择器不可用。");
+            return;
+        }
+        var file = await storageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "导出标签",
+            SuggestedFileName = $"DiaryApp-tags-{DateTime.Now:yyyyMMdd-HHmmss}{TagSharePackageService.FileExtension}",
+            DefaultExtension = TagSharePackageService.FileExtension.TrimStart('.'),
+            FileTypeChoices =
+            [
+                new FilePickerFileType("DiaryApp 标签包")
+                {
+                    Patterns = [$"*{TagSharePackageService.FileExtension}"],
+                },
+            ],
+        });
+        if (file is null)
+            return;
+        try
+        {
+            var path = EnsureTagPackageExtension(file.Path.LocalPath);
+            await _tagSharePackageService.ExportAsync(path, database, RuleContributions);
+            EventDispatcher.Notify("标签导出完成", $"已导出 {AllTags.Count} 个标签：{path}");
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+            or InvalidDataException or InvalidOperationException)
+        {
+            _logger.LogError(exception, "导出标签包失败");
+            EventDispatcher.Notify("标签导出失败", exception.Message);
+        }
+    }
+
+    [RelayCommand]
+    private async Task ImportTags()
+    {
+        if (!SaveChanges(close: false))
+            return;
+        var database = App.Instance.UseDb;
+        var storageProvider = GetStorageProvider();
+        if (database is null || storageProvider is null)
+        {
+            EventDispatcher.Notify("错误", "当前数据库或文件选择器不可用。");
+            return;
+        }
+        var files = await storageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "导入标签",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("DiaryApp 标签包")
+                {
+                    Patterns = [$"*{TagSharePackageService.FileExtension}"],
+                },
+            ],
+        });
+        var file = files.FirstOrDefault();
+        if (file is null)
+            return;
+        try
+        {
+            var preview = await _tagSharePackageService.PreviewImportAsync(file.Path.LocalPath, database);
+            var dialog = new TagShareImportDialogViewModel();
+            dialog.Initialize(preview, RuleContributions);
+            var selection = await OverlayDialog.ShowCustomModal<TagShareImportSelection>(
+                dialog,
+                options: new OverlayDialogOptions
+                {
+                    CanDragMove = false,
+                    CanResize = false,
+                    CanLightDismiss = false,
+                    IsCloseButtonVisible = false,
+                });
+            if (selection is null || selection.TagKeys.Count == 0)
+                return;
+            var result = _tagSharePackageService.Import(
+                preview, database, selection.TagKeys, selection.TrackerMappings);
+            foreach (var pluginId in result.ChangedPluginIds)
+            {
+                if (!_lifecycleCoordinator.SaveConfiguration(pluginId))
+                    _logger.LogWarning("保存导入的标签规则配置失败: {PluginId}", pluginId);
+            }
+            LoadTags();
+            ReloadRules();
+            EventDispatcher.DbChanged(DbChangedEvent.WorkTags);
+            EventDispatcher.Notify(
+                "标签导入完成",
+                $"新增 {result.Created}，更新 {result.Updated}，重新启用 {result.Enabled}；" +
+                $"Tracker 规则导入 {result.Trackers.Sum(item => item.Imported)}，" +
+                $"跳过 {result.Trackers.Sum(item => item.Invalid + item.Unavailable + item.Skipped)}。");
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+            or System.Text.Json.JsonException or InvalidDataException or InvalidOperationException)
+        {
+            _logger.LogError(exception, "导入标签包失败");
+            EventDispatcher.Notify("标签导入失败", exception.Message);
+        }
+    }
+
+    private static IStorageProvider? GetStorageProvider()
+        => TopLevel.GetTopLevel(App.Instance.ApplicationLifetime
+            is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+                ? desktop.MainWindow
+                : null)?.StorageProvider;
+
+    private static string EnsureTagPackageExtension(string path)
+        => path.EndsWith(TagSharePackageService.FileExtension, StringComparison.OrdinalIgnoreCase)
+            ? path
+            : path + TagSharePackageService.FileExtension;
 
     [RelayCommand]
     private void DelTag(EditableWorkTag tag)
