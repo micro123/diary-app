@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Text;
 using Diary.Script.Runtime;
 using Diary.ScriptBase;
 
@@ -71,6 +72,8 @@ internal sealed record PythonProcessResult(int ExitCode, string StandardOutput, 
 
 internal static class PythonProcessRunner
 {
+    private static readonly Encoding Utf8WithoutBom = new UTF8Encoding(false);
+
     public static async ValueTask<PythonProcessResult> RunAsync(
         string executablePath,
         IReadOnlyList<string> arguments,
@@ -85,8 +88,14 @@ internal static class PythonProcessRunner
             RedirectStandardInput = standardInput is not null,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
             CreateNoWindow = true,
         };
+        if (standardInput is not null)
+            startInfo.StandardInputEncoding = Utf8WithoutBom;
+        startInfo.Environment["PYTHONIOENCODING"] = "utf-8";
+        startInfo.Environment["PYTHONUTF8"] = "1";
         foreach (var argument in arguments)
             startInfo.ArgumentList.Add(argument);
 

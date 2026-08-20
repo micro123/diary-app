@@ -51,6 +51,26 @@ public sealed class PythonEngineTests
     }
 
     [TestMethod]
+    public async Task BuildAsync_AcceptsUnicodeSourceThroughSyntaxProbe()
+    {
+        var runtime = new PythonRuntimeResolver();
+        var resolved = await runtime.ResolveAsync();
+        if (!resolved.Succeeded)
+            Assert.Inconclusive("A usable Python 3.10+ runtime is required for this test.");
+
+        var engine = new PythonEngine(runtime);
+        var result = await engine.BuildAsync(new ScriptBuildRequest(
+            "unicode.py",
+            "def application_main(context):\n    context.log.info('中文日志')\n    return None",
+            DescriptorHint: new ScriptDescriptorHint(
+                "unicode",
+                "Unicode",
+                ScriptScope.Application)));
+
+        Assert.IsTrue(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics.Select(item => item.Message)));
+    }
+
+    [TestMethod]
     public async Task BuildAsync_PreservesSyntaxLocation()
     {
         var runtime = new PythonRuntimeResolver();

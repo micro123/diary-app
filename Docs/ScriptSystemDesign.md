@@ -291,7 +291,7 @@ assets/
 
 ## 9. 执行模型
 
-脚本默认在后台线程执行，禁止直接阻塞 UI 线程。Windows x64 发布包可选择附带 Python 3.13.15 embedded runtime，运行时位于应用目录的 `python/` 子目录；Python 脚本启动时会优先使用该目录中的 `python.exe`，未附带时再按用户配置和系统环境查找。
+脚本默认在后台线程执行，禁止直接阻塞 UI 线程。Windows x64 发布包可选择附带 Python 3.13.15 embedded runtime，运行时位于应用目录的 `python/` 子目录；Python 脚本启动时会优先使用该目录中的 `python.exe`，未附带时再按用户配置和系统环境查找。Python 版本探针、语法检查和 Worker 通信统一使用 UTF-8 标准输入输出，避免 Windows 本地代码页影响中文脚本。
 
 通过 `IScriptExecutionContextFactory` 为每次执行创建独立的 `ScriptExecutionContext`，包含：
 
