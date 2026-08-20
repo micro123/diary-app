@@ -139,7 +139,7 @@ public static class ProcUtils
     /// 以当前可执行文件路径与命令行参数启动一个新实例。仅启动，不退出当前进程。
     /// </summary>
     /// <returns>是否成功启动新实例。</returns>
-    internal static bool TryStartNewInstance()
+    public static bool TryStartNewInstance()
     {
         var exePath = Environment.ProcessPath
                       ?? Environment.GetCommandLineArgs().FirstOrDefault();
@@ -150,8 +150,34 @@ public static class ProcUtils
             return false;
         }
 
-        // 转发命令行参数（跳过第 0 个，即可执行文件路径本身）
-        return TryStartNewInstance(exePath, Environment.GetCommandLineArgs().Skip(1));
+        var commandLineArgs = Environment.GetCommandLineArgs();
+        return TryStartNewInstance(exePath, GetRestartArguments(exePath, commandLineArgs));
+    }
+
+    internal static IEnumerable<string> GetRestartArguments(
+        string exePath,
+        IReadOnlyList<string> commandLineArgs)
+    {
+        if (commandLineArgs.Count == 0)
+            return [];
+
+        try
+        {
+            var comparison = OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+            if (string.Equals(
+                    Path.GetFullPath(exePath),
+                    Path.GetFullPath(commandLineArgs[0]),
+                    comparison))
+                return commandLineArgs.Skip(1);
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            Debug.WriteLine($"比较重启路径失败，将保留完整参数：{exception.Message}");
+        }
+
+        return commandLineArgs;
     }
 
     /// <summary>

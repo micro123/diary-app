@@ -174,6 +174,7 @@ stop
 插件状态目前使用 `PluginState` 表示兼容、阻塞、迁移失败等结果。插件迁移失败会返回 `MigrationFailed`，不会让 `PluginHost.Migrate()` 报告启用成功；核心启动仍由应用层决定是否继续使用核心功能。
 
 核心模式可通过 `Diary.App --core-only` 启动，不加载任何 tracker 插件或插件 UI，适合验证无 Redmine 程序集时的核心日记、编辑器和模板功能。该选项只影响当前进程，不修改插件配置和数据库数据。
+主窗口左上角应用图标菜单提供“重启程序”。命令先标记重启请求并复用正常退出流程，等待 `PreShutdownAsync` 停止调查服务、脚本 Worker、保存配置并释放 DI；`Program.Main` 在 Avalonia 生命周期返回且 `SingletonApp` 释放文件锁和命名管道后，才以原可执行文件和命令行参数启动新实例，避免新实例被单实例守卫拦截。框架依赖方式通过 `dotnet Diary.App.dll` 启动时会保留托管入口程序集参数。
 
 应用初始化阶段会立即启动脚本目录的后台异步加载。目录发现、元数据读取和脚本构建在后台任务中执行；脚本管理页首次显示时复用正在进行的加载任务或已完成结果，只有手动重新加载、脚本编辑保存或编译检查才会强制重新扫描。
 调查功能的接收循环使用各自的 `CancellationToken`，消息处理器在接收任务中以可等待任务执行；处理器异常会记录并通过 `ReceiveMessageHandlerError` 诊断，不再由未观察的 fire-and-forget 任务承载。`AppSurveyor.StopServerAsync()` 和 `AppRespondent.ShutdownAsync()` 先取消接收，再等待接收循环和消息处理完成后释放 NNG 资源；应用配置重载和退出流程都等待这些异步生命周期任务。保留的无返回值 `StopServer()`/`Shutdown()` 仅用于兼容调用并主动观察后台任务，UI 路径不使用同步等待。
@@ -191,6 +192,7 @@ stop
 `Diary.App` 在正常模式之外提供 `--capture-crash-dump` 和 `--show-crash-report` 两个内部模式。
 终止性托管异常到达 `AppDomain.UnhandledException` 后，正常进程启动独立捕获进程；捕获进程使用
 `Microsoft.Diagnostics.NETCore.Client` 对目标 PID 生成 Triage Dump，再启动不加载数据库、插件和脚本的最小 Avalonia 提示窗口。
+崩溃提示窗口将异常与 Dump 详情放入可滚动区域，底部操作始终可见，长路径可选择复制且窗口允许调整大小。
 Dump 默认位于 LocalApplicationData 下的 `Diary.App/CrashDumps`，只保留最近 5 个且不自动上传。
 详细边界见 [`CrashDumpDesign.md`](CrashDumpDesign.md)。
 
@@ -271,6 +273,7 @@ Windows 必须配置，Linux 未配置时搜索 `PATH`，必须同时找到 `pg_
 [`DatabaseBackupRestoreDesign.md`](DatabaseBackupRestoreDesign.md)。
 
 当前产品支持范围为 Windows 和 Linux；macOS 暂不纳入产品支持、发布产物和稳定性验证范围。
+主程序不再嵌入 LXGW WenKai Mono 和 OpenMoji。视图设置支持跟随平台默认字体、选择已安装的系统字体，或加载外部 `.ttf`/`.otf` 文件；`AppFontService` 在启动和设置保存时统一校验字体，通过 `FontManager` 动态替换外部字体集合，并更新全局 `AppFontFamily` 动态资源，使现有窗口无需重启即可重新布局和渲染。无效字体名称、文件缺失、文件不可识别或运行时注册失败时回退平台默认字体，避免阻断启动和设置保存；Linux 使用系统字体时仍需提供可用的 CJK 和 Emoji 字体。
 CI 在 Windows 和 Ubuntu 上执行 Release 构建与全量测试，并固定 Python 3.10；
 `DIARY_REQUIRE_PYTHON_TESTS=1` 要求两端真实执行 C#、Lua、Python Worker 进程测试，运行时不可用即失败。
 Ubuntu 门禁另通过 `DIARY_REQUIRE_POSTGRES_TESTS=1` 强制启动 PostgreSQL Testcontainers，容器不可用即失败；

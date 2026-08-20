@@ -13,6 +13,7 @@ using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.Models;
+using Diary.App.Fonts;
 using Diary.App.Services;
 using Diary.App.ViewModels;
 using Diary.App.Views;
@@ -82,6 +83,7 @@ namespace Diary.App
 
             ObserveBackgroundTask(LoadScriptsAsync(), "脚本目录加载");
             AvaloniaXamlLoader.Load(this);
+            Services.GetRequiredService<AppFontService>().Apply(this, AppConfig.ViewSettings);
             DataContext = Services.GetRequiredService<AppModel>();
 
             // 调查响应处理不能依赖调查页是否显示；普通受访者也必须注册 v1/v2 请求处理器。
@@ -1131,6 +1133,7 @@ namespace Diary.App
             return key switch
             {
                 "DB_DRIVER" => new SettingChoice(caption, helpTip, _dbFactories.Select(x => x.Name), obj, property),
+                "APP_FONT" => new SettingFont(caption, helpTip, obj),
                 _ => throw new ArgumentOutOfRangeException(nameof(key), key, null),
             };
         }

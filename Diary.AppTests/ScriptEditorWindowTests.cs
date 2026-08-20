@@ -1,14 +1,21 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
+using Avalonia.Media;
 using AvaloniaEdit;
 using CommunityToolkit.Mvvm.Input;
+using Diary.App;
 using Diary.App.Diagnostics;
+using Diary.App.Fonts;
 using Diary.App.ViewModels;
 using Diary.App.Views;
+using Diary.Core.Data.AppConfig;
 using Diary.Script.Runtime;
 using Diary.ScriptBase;
 using Microsoft.Extensions.Logging.Abstractions;
+using Projektanker.Icons.Avalonia;
+using Projektanker.Icons.Avalonia.FontAwesome;
+using Projektanker.Icons.Avalonia.MaterialDesign;
 
 namespace Diary.AppTests;
 
@@ -21,6 +28,10 @@ public sealed class ScriptEditorWindowTests
     [ClassInitialize]
     public static void Initialize(TestContext context)
     {
+        IconProvider.Current
+            .Register<FontAwesomeIconProvider>()
+            .Register<MaterialDesignIconProvider>();
+
         _session = HeadlessUnitTestSession.StartNew(typeof(TestApplication), AvaloniaTestIsolationLevel.PerAssembly);
     }
 
@@ -229,7 +240,7 @@ public sealed class ScriptEditorWindowTests
                 try
                 {
                     var exceptionType = window.FindControl<TextBlock>("ExceptionTypeText");
-                    var message = window.FindControl<TextBlock>("ExceptionMessageText");
+                    var message = window.FindControl<SelectableTextBlock>("ExceptionMessageText");
                     var status = window.FindControl<TextBlock>("DumpStatusText");
                     var openFolder = window.FindControl<Button>("OpenDumpFolderButton");
 
@@ -254,8 +265,251 @@ public sealed class ScriptEditorWindowTests
         }
     }
 
+    [TestMethod]
+    public async Task CrashReporterWindow_KeepsActionsVisibleForLongContent()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), new string('d', 120));
+        var request = new CrashReportRequest(
+            123,
+            "Diary.App",
+            "1.0.0",
+            DateTimeOffset.UtcNow,
+            "System.InvalidOperationException",
+            string.Join(' ', Enumerable.Repeat("Could not create glyphTypeface.", 24)),
+            directory,
+            Path.Combine(directory, new string('f', 120) + ".dmp"),
+            Path.Combine(directory, "sample.json"),
+            true);
+        var result = new CrashReportResult(request, true, 2048, null);
+
+        await _session.Dispatch(() =>
+        {
+            var window = new CrashReporterWindow(result);
+            window.Show();
+            try
+            {
+                var root = window.FindControl<Grid>("RootGrid");
+                var details = window.FindControl<ScrollViewer>("DetailsScrollViewer");
+                var actions = window.FindControl<StackPanel>("ActionsPanel");
+                var dumpPath = window.FindControl<SelectableTextBlock>("DumpPathText");
+
+                Assert.IsNotNull(root);
+                Assert.IsNotNull(details);
+                Assert.IsNotNull(actions);
+                Assert.IsNotNull(dumpPath);
+                Assert.IsTrue(window.CanResize);
+                Assert.IsTrue(details.Bounds.Height > 0);
+                Assert.IsTrue(
+                    actions.Bounds.Bottom <= root.Bounds.Height + 0.5,
+                    $"操作区超出窗口内容：bottom={actions.Bounds.Bottom}, rootHeight={root.Bounds.Height}");
+                Assert.AreEqual(request.DumpPath, dumpPath.Text);
+            }
+            finally
+            {
+                window.Close();
+            }
+        }, CancellationToken.None);
+    }
+
+    [TestMethod]
+    public async Task MainWindow_ApplicationMenuContainsRestartCommand()
+    {
+        await _session.Dispatch(() =>
+        {
+            var window = new MainWindow();
+            try
+            {
+                var menuButton = window.FindControl<Button>("ApplicationMenuButton");
+                Assert.IsNotNull(menuButton);
+                var flyout = Assert.IsInstanceOfType<MenuFlyout>(menuButton.Flyout);
+                var restartItem = flyout.Items
+                    .OfType<Avalonia.Controls.MenuItem>()
+                    .SingleOrDefault(item => string.Equals(item.Header?.ToString(), "重启程序", StringComparison.Ordinal));
+
+                Assert.IsNotNull(restartItem);
+            }
+            finally
+            {
+                window.Close();
+            }
+        }, CancellationToken.None);
+    }
+
+    [TestMethod]
+    public void Program_RestartRequestIsConsumedOnlyOnce()
+    {
+        _ = Program.ConsumeRestartRequest();
+
+        Program.RequestRestart();
+
+        Assert.IsTrue(Program.ConsumeRestartRequest());
+        Assert.IsFalse(Program.ConsumeRestartRequest());
+    }
+
+    [TestMethod]
+    public async Task UserFontCollection_LoadsExternalFontFile()
+    {
+        var fontPath = GetSourceFontPath("OpenMoji.ttf");
+        Assert.IsTrue(File.Exists(fontPath), $"测试字体不存在：{fontPath}");
+        var settings = new ViewConfig
+        {
+            FontSource = AppFontSource.FontFile,
+            FontFilePath = fontPath,
+        };
+        var resolved = AppFontConfiguration.Resolve(settings);
+
+        Assert.IsNull(resolved.Warning);
+        Assert.IsNotNull(resolved.Collection);
+        Assert.IsNotNull(resolved.DefaultFamilyName);
+        StringAssert.Contains(resolved.DefaultFamilyName, "#OpenMoji");
+
+        await _session.Dispatch(() =>
+        {
+            FontManager.Current.AddFontCollection(resolved.Collection);
+            try
+            {
+                var typeface = new Typeface(new FontFamily(resolved.DefaultFamilyName));
+                Assert.IsTrue(FontManager.Current.TryGetGlyphTypeface(typeface, out var glyphTypeface));
+                Assert.IsTrue(glyphTypeface.TryGetGlyph(0x1F600, out _));
+            }
+            finally
+            {
+                FontManager.Current.RemoveFontCollection(UserFontCollection.CollectionKey);
+            }
+        }, CancellationToken.None);
+    }
+    [TestMethod]
+    public async Task AppFontService_AppliesSystemFontAtRuntime()
+    {
+        await _session.Dispatch(() =>
+        {
+            var application = Application.Current!;
+            var service = new AppFontService(NullLogger<AppFontService>.Instance);
+            var systemFamily = FontManager.Current.SystemFonts.First().Name;
+            var settings = new ViewConfig
+            {
+                FontSource = AppFontSource.SystemFont,
+                SystemFontFamily = systemFamily,
+            };
+
+            var result = service.Apply(application, settings);
+
+            Assert.IsFalse(result.UsedFallback);
+            Assert.AreEqual(systemFamily, result.FontFamily.Name);
+            Assert.AreEqual(result.FontFamily, application.Resources[AppFontService.ResourceKey]);
+        }, CancellationToken.None);
+    }
+
+    [TestMethod]
+    public async Task AppFontService_AppliesExternalFontAtRuntimeAndFallsBackWhenMissing()
+    {
+        var fontPath = GetSourceFontPath("OpenMoji.ttf");
+        Assert.IsTrue(File.Exists(fontPath), $"测试字体不存在：{fontPath}");
+
+        await _session.Dispatch(() =>
+        {
+            var application = Application.Current!;
+            var service = new AppFontService(NullLogger<AppFontService>.Instance);
+            try
+            {
+                var applied = service.Apply(application, new ViewConfig
+                {
+                    FontSource = AppFontSource.FontFile,
+                    FontFilePath = fontPath,
+                });
+
+                Assert.IsFalse(applied.UsedFallback);
+                StringAssert.Contains(applied.FontFamily.ToString(), "#OpenMoji");
+                Assert.AreEqual(applied.FontFamily, application.Resources[AppFontService.ResourceKey]);
+                var typeface = new Typeface(applied.FontFamily);
+                Assert.IsTrue(FontManager.Current.TryGetGlyphTypeface(typeface, out var glyphTypeface));
+                Assert.IsTrue(glyphTypeface.TryGetGlyph(0x1F600, out _));
+
+                var fallback = service.Apply(application, new ViewConfig
+                {
+                    FontSource = AppFontSource.FontFile,
+                    FontFilePath = Path.Combine(Path.GetTempPath(), $"missing-font-{Guid.NewGuid():N}.ttf"),
+                });
+
+                Assert.IsTrue(fallback.UsedFallback);
+                StringAssert.Contains(fallback.Warning, "回退到系统默认字体");
+                Assert.AreEqual(FontManager.Current.DefaultFontFamily, fallback.FontFamily);
+                Assert.AreEqual(fallback.FontFamily, application.Resources[AppFontService.ResourceKey]);
+            }
+            finally
+            {
+                service.Apply(application, new ViewConfig());
+            }
+        }, CancellationToken.None);
+    }
+
+
+    [TestMethod]
+    public void AppFontConfiguration_InvalidFontFileFallsBackToSystemDefault()
+    {
+        var settings = new ViewConfig
+        {
+            FontSource = AppFontSource.FontFile,
+            FontFilePath = Path.Combine(Path.GetTempPath(), "missing-font.ttf"),
+        };
+
+        var resolved = AppFontConfiguration.Resolve(settings);
+
+        Assert.IsNull(resolved.DefaultFamilyName);
+        Assert.IsNull(resolved.Collection);
+        StringAssert.Contains(resolved.Warning, "回退到系统默认字体");
+    }
+
+    [TestMethod]
+    public void AppFontConfiguration_InvalidSystemFontFallsBackToSystemDefault()
+    {
+        var settings = new ViewConfig
+        {
+            FontSource = AppFontSource.SystemFont,
+            SystemFontFamily = $"missing-font-{Guid.NewGuid():N}",
+        };
+
+        var resolved = AppFontConfiguration.Resolve(settings);
+
+        Assert.IsNull(resolved.DefaultFamilyName);
+        Assert.IsNull(resolved.Collection);
+        StringAssert.Contains(resolved.Warning, "回退到系统默认字体");
+    }
+
+    [TestMethod]
+    public async Task SettingFont_SavesValidatedExternalFontSelection()
+    {
+        var fontPath = GetSourceFontPath("OpenMoji.ttf");
+        var config = new ViewConfig();
+
+        await _session.Dispatch(() =>
+        {
+            var setting = new SettingFont("界面字体", "", config);
+            setting.Load();
+            setting.Source = AppFontSource.FontFile;
+            setting.FontFilePath = fontPath;
+            setting.Save();
+
+            Assert.AreEqual(AppFontSource.FontFile, config.FontSource);
+            Assert.AreEqual(Path.GetFullPath(fontPath), config.FontFilePath);
+            StringAssert.Contains(setting.FontFileStatus, "OpenMoji");
+        }, CancellationToken.None);
+    }
+
     private static ScriptEditorViewModel CreateViewModel(IScriptDirectoryLoader loader) =>
         new(loader, NullLogger.Instance);
+
+    private static string GetSourceFontPath(string fileName) =>
+        Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..",
+            "..",
+            "..",
+            "..",
+            "Diary.App",
+            "Assets",
+            "Fonts",
+            fileName));
 
     private static string CreateScriptDirectory(out string sourcePath)
     {

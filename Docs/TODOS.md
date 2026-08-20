@@ -6,6 +6,7 @@
 
 ## 非 tracker TODO
 
+- [~] 已排除内置字体，视图设置已支持平台默认字体、已安装系统字体和外部 `.ttf`/`.otf` 字体文件，可在保存后运行时切换并在无效配置时安全回退；Windows 启动、系统字体、外部文件加载及运行时切换已验证，仍需完成 Linux 中文、Emoji 与等宽字体回退验证。
 - [x] 已加固 SQLite/PostgreSQL 核心迁移执行、逐步提交、失败回滚、降级和断链校验；业务数据保留与失败恢复由共享 provider 契约测试覆盖
 - [~] SQLite 已支持手动创建、校验和下次启动还原完整数据库，并在启动复检失败时恢复还原前安全副本；PostgreSQL 已接入 Client `bin` 目录配置、Windows/Linux 工具探测、custom-format dump/restore、工具版本检查、最小权限预检、独立目标库还原、启动原貌复检和成功后的配置切换；Tracker 级还原复检及更完整的跨版本门禁仍待补齐。应用包增量更新仍待实现。Windows/Linux 终止性托管异常已通过独立 DiagnosticsClient 进程生成 Triage Dump，并显示最小崩溃提示窗口
 
@@ -17,14 +18,14 @@
 
 - [x] 梳理 `Diary.Survey` 中接收循环、消息分发和停止流程；接收循环使用取消令牌，消息处理任务可等待且异常可诊断，应用通过异步 `ShutdownAsync`/`StopServerAsync` 完成停止，不在 UI 线程同步阻塞。
 - [x] `WorkEditorViewModel.Upload()` 已通过 UI Dispatcher 统一回写 `UploadResults`、锁定状态和绑定属性，并补充从后台线程调用的 Headless 回归测试。
-- [~] 已收敛 `Diary.App` 的调查配置重载、问题发送和退出清理，以及 `Diary.Survey` 的接收任务；脚本目录加载、脚本管理加载/刷新和脚本编辑器关闭等异步入口已增加统一异常观察，其他 UI fire-and-forget 任务仍需继续审计。
+- [~] 已收敛 `Diary.App` 的调查配置重载、问题发送和退出清理，以及 `Diary.Survey` 的接收任务；左上角菜单重启会复用完整退出清理，并在单实例锁释放后启动新进程；脚本目录加载、脚本管理加载/刷新和脚本编辑器关闭等异步入口已增加统一异常观察，其他 UI fire-and-forget 任务仍需继续审计。
 
 验收：后台任务异常可以进入日志或结构化诊断，应用关闭不会遗留接收任务；工作项上传从后台线程调用时不会跨线程修改 UI 绑定对象。
 
 ### 7.2 CrashDump 与崩溃提示
 
 - [x] `Program.Main` 最早阶段注册终止性托管异常捕获；同一 `Diary.App` 可执行文件以独立命令行模式生成 Triage Dump、写入结果并显示最小 Avalonia 崩溃提示窗口。
-- [x] 崩溃窗口显示异常类型、简要消息、Dump 状态和路径，并提供“打开 Dump 文件夹”；Dump 仅保存在本机、默认保留最近 5 个，不自动上传。
+- [x] 崩溃窗口显示异常类型、简要消息、Dump 状态和可复制路径，详情过长时滚动且底部操作保持可见，并提供“打开 Dump 文件夹”；Dump 仅保存在本机、默认保留最近 5 个，不自动上传。
 - [~] 已覆盖 Windows/Linux DiagnosticsClient 真实进程 Dump；`FailFast`、StackOverflow 和本机代码严重崩溃仍需 Runtime/操作系统级 Dump 兜底。
 
 设计文档：[`CrashDumpDesign.md`](CrashDumpDesign.md)

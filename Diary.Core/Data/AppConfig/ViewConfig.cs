@@ -5,6 +5,13 @@ namespace Diary.Core.Data.AppConfig;
 
 public class ViewConfig
 {
+    [ConfigureUser("界面字体", "APP_FONT", "可跟随系统、选择已安装字体或加载 .ttf/.otf 字体文件；保存后立即生效，不可用时回退系统默认字体。")]
+    public string FontSource { get; set; } = AppFontSource.SystemDefault;
+
+    public string SystemFontFamily { get; set; } = string.Empty;
+
+    public string FontFilePath { get; set; } = string.Empty;
+
     [ConfigureChoice("默认配色主题", "当前只有亮色和暗色两种色调。", "Light", "Dark", "Auto")]
     public string DefaultColorTheme { get; set; } = "Auto";
 

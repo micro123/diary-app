@@ -1,12 +1,15 @@
+using Avalonia;
 using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
+using Diary.App.Fonts;
 using Diary.GUIBase;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
 using Diary.PluginUI;
+using Diary.Core.Utils;
 using Diary.Utils;
 using Microsoft.Extensions.Logging;
 using Irihi.Avalonia.Shared.Contracts;
@@ -18,14 +21,17 @@ public partial class SettingsViewModel : ViewModelBase, IDialogContext
 {
     private readonly ILogger _logger;
     private readonly DiagnosticLogExportService _logExport;
+    private readonly AppFontService _fontService;
     [ObservableProperty] private SettingGroup _settingsTree = new("Root");
     public SettingsViewModel(
         ILogger logger,
         DiagnosticLogExportService logExport,
+        AppFontService fontService,
         IEnumerable<ITrackerConfigurationProvider> configurationProviders)
     {
         _logger = logger;
         _logExport = logExport;
+        _fontService = fontService;
         _logger.LogDebug("Tracker 配置提供者：{Count} 个", configurationProviders.Count());
         BuildTree();
     }
@@ -44,8 +50,26 @@ public partial class SettingsViewModel : ViewModelBase, IDialogContext
     [RelayCommand]
     private void Save()
     {
-        SettingsTree.Save();
-        NotificationManager?.Show("已保存", NotificationType.Success);
+        AppFontApplyResult fontResult;
+        try
+        {
+            SettingsTree.Save();
+            if (!EasySaveLoad.Save(BaseApp.Instance.AppConfig))
+                throw new InvalidOperationException("保存应用配置失败。");
+            var application = Application.Current
+                ?? throw new InvalidOperationException("应用尚未完成初始化，无法应用字体设置。");
+            fontResult = _fontService.Apply(application, BaseApp.Instance.AppConfig.ViewSettings);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "保存设置失败");
+            NotificationManager?.Show(exception.Message, NotificationType.Error);
+            return;
+        }
+
+        NotificationManager?.Show(
+            fontResult.UsedFallback ? $"已保存；{fontResult.Warning}" : "已保存，字体已立即生效",
+            fontResult.UsedFallback ? NotificationType.Warning : NotificationType.Success);
         Messenger.Send(new ConfigUpdateEvent());
         RequestClose?.Invoke(this, true);
     }

@@ -8,6 +8,7 @@
              xmlns:local="using:Diary.App"
              xmlns:guiBase="clr-namespace:Diary.GUIBase;assembly=Diary.GUIBase"
              xmlns:giBaseVm="clr-namespace:Diary.GUIBase.ViewModels;assembly=Diary.GUIBase"
+             xmlns:appVm="clr-namespace:Diary.App.ViewModels"
              Name="Diary Tools NG">
     
     <Design.DataContext>
@@ -39,6 +40,31 @@
                          Grid.Column="1" Text="{Binding Value}"
                          PasswordChar="{Binding MaskChar}" />
                 <Border Grid.Column="2"
+                        IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"
+                        Classes="HelperIcon"/>
+            </Grid>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type appVm:SettingFont}">
+            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,Auto,*" VerticalAlignment="Center">
+                <TextBlock Classes="SettingLineCaption" VerticalAlignment="Top" Margin="0,7,0,0" />
+                <StackPanel Grid.Column="1" Spacing="8">
+                    <ComboBox Classes="SLV" ItemsSource="{Binding SourceOptions}"
+                              SelectedItem="{Binding Source, Mode=TwoWay}" />
+                    <ComboBox Classes="SLV" ItemsSource="{Binding SystemFontFamilies}"
+                              SelectedItem="{Binding SystemFontFamily, Mode=TwoWay}"
+                              IsVisible="{Binding IsSystemFont}" />
+                    <u:PathPicker Classes="SLV" AllowMultiple="False"
+                                  UsePickerType="{Binding PickerType}"
+                                  SelectedPathsText="{Binding FontFilePath, Mode=TwoWay}"
+                                  Title="选择字体文件" IsClearSelectionOnCancel="False"
+                                  SuggestedStartPath="{Binding FontFileDirectory}"
+                                  ToolTip.Tip="{Binding FontFilePath}"
+                                  IsVisible="{Binding IsFontFile}" />
+                    <TextBlock Text="{Binding FontFileStatus}" TextWrapping="Wrap" Opacity="0.72"
+                               IsVisible="{Binding IsFontFile}" />
+                    <TextBlock Text="保存后立即生效；字体不可用时自动回退到系统默认字体。" Opacity="0.62" />
+                </StackPanel>
+                <Border Grid.Column="2" VerticalAlignment="Top" Margin="0,7,0,0"
                         IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"
                         Classes="HelperIcon"/>
             </Grid>
@@ -126,6 +152,12 @@
         <StyleInclude Source="avares://Semi.Avalonia.DataGrid/Index.axaml" />
         <StyleInclude Source="avares://Avalonia.Controls.TreeDataGrid/Themes/Generic.axaml"/>
         <semi:AvaloniaEditSemiTheme />
+        <Style Selector="TemplatedControl">
+            <Setter Property="FontFamily" Value="{DynamicResource AppFontFamily}" />
+        </Style>
+        <Style Selector="TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource AppFontFamily}" />
+        </Style>
     </Application.Styles>
 
     <TrayIcon.Icons>

@@ -519,6 +519,13 @@ public partial class MainWindowViewModel : ViewModelBase
     private Window? Window => View as Window;
 
     [RelayCommand]
+    private void Restart()
+    {
+        Program.RequestRestart();
+        Quit();
+    }
+
+    [RelayCommand]
     private void Quit()
     {
         _quiting = true;

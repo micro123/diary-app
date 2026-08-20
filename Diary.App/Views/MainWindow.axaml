@@ -113,7 +113,7 @@
     <!-- 标题栏 -->
     <u:UrsaWindow.TitleBarContent>
         <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" Height="32" Margin="4 0" ColumnSpacing="0">
-            <Button Grid.Column="0" Margin="0" Padding="0" BorderThickness="0"
+            <Button Name="ApplicationMenuButton" Grid.Column="0" Margin="0" Padding="0" BorderThickness="0"
                     Background="Transparent">
                 <Image Source="/Assets/Icons/diary-app.ico" Width="32" Height="32" />
                 <Button.Flyout>
@@ -123,6 +123,7 @@
                         <MenuItem Header="最大化" Command="{Binding MaximizedCommand}" />
                         <MenuItem Header="最小化" Command="{Binding MinimizedCommand}" />
                         <Separator />
+                        <MenuItem Header="重启程序" Command="{Binding RestartCommand}" />
                         <MenuItem Header="退出" Command="{Binding QuitCommand}" />
                     </MenuFlyout>
                 </Button.Flyout>
