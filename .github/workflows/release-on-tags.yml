@@ -102,13 +102,40 @@ jobs:
             if ($zipExitCode -ne 0) { exit $zipExitCode }
           } else {
             Compress-Archive -Path (Join-Path $out '*') -DestinationPath $archive -CompressionLevel Optimal
+
+            $pythonVersion = '3.13.15'
+            $pythonArchive = Join-Path $env:RUNNER_TEMP "python-$pythonVersion-embed-amd64.zip"
+            $pythonUri = "https://www.python.org/ftp/python/$pythonVersion/python-$pythonVersion-embed-amd64.zip"
+            $pythonSha256 = 'd1f04d990aee1253d8569e8e5104e30fa9f5fa830899f14843448872d936a2cf'
+            Invoke-WebRequest -Uri $pythonUri -OutFile $pythonArchive
+            $actualSha256 = (Get-FileHash -LiteralPath $pythonArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actualSha256 -ne $pythonSha256) {
+              throw "Python embedded package checksum mismatch: expected $pythonSha256, got $actualSha256"
+            }
+
+            $pythonDirectory = Join-Path $out 'python'
+            Expand-Archive -LiteralPath $pythonArchive -DestinationPath $pythonDirectory -Force
+            $bundledPython = Join-Path $pythonDirectory 'python.exe'
+            if (-not (Test-Path -LiteralPath $bundledPython)) {
+              throw 'Python embedded package is missing python/python.exe'
+            }
+            $pythonVersionOutput = & $bundledPython --version 2>&1 | Out-String
+            if ($LASTEXITCODE -ne 0 -or $pythonVersionOutput -notmatch 'Python 3\.13\.') {
+              throw "Unexpected bundled Python version: $pythonVersionOutput"
+            }
+
+            $bundledArchive = 'DiaryAppNG-${{ github.ref_name }}-' + $rid + '-python313.zip'
+            Compress-Archive -Path (Join-Path $out '*') -DestinationPath $bundledArchive -CompressionLevel Optimal
           }
           Get-Item $archive | Format-List Name, Length
+          if ($rid -eq 'win-x64') {
+            Get-Item $bundledArchive | Format-List Name, Length
+          }
       - name: Upload artifact for ${{ matrix.rid }}
         uses: actions/upload-artifact@v4
         with:
           name: DiaryAppNG-${{ github.ref_name }}-${{ matrix.rid }}
-          path: DiaryAppNG-${{ github.ref_name }}-${{ matrix.rid }}.zip
+          path: DiaryAppNG-${{ github.ref_name }}-${{ matrix.rid }}*.zip
           if-no-files-found: error
 
   create-release:
