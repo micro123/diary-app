@@ -65,6 +65,12 @@ verify_publish_output() {
         "Diary.Jira.UI.dll"
         "Diary.Jira.SQLite.dll"
         "Diary.Jira.PostgreSQL.dll"
+        "nng.NET.dll"
+        "nng.NET.Shared.dll"
+        "nng.dll"
+        "mbedcrypto.dll"
+        "mbedtls.dll"
+        "mbedx509.dll"
     )
 
     for required_file in "${required_files[@]}"; do
@@ -75,12 +81,38 @@ verify_publish_output() {
     done
 }
 
+remove_redundant_runtime_assets() {
+    local publish_directory="$1"
+    local runtimes_directory="$publish_directory/runtimes"
+
+    if [ -d "$runtimes_directory" ]; then
+        printf '正在移除 NuGet 额外复制的冗余 runtimes 目录……\n'
+        rm -rf -- "$runtimes_directory"
+    fi
+    if [ -e "$runtimes_directory" ]; then
+        printf '无法移除冗余运行时目录：%s\n' "$runtimes_directory" >&2
+        exit 1
+    fi
+}
+
 verify_archive_entry() {
     local archive="$1"
     local entry="$2"
 
     if ! unzip -Z1 "$archive" | grep -Fx -- "$entry" >/dev/null; then
         printf '最终压缩包缺少必需条目：%s\n' "$entry" >&2
+        exit 1
+    fi
+}
+
+verify_archive_has_no_runtimes_directory() {
+    local archive="$1"
+
+    if unzip -Z1 "$archive" | awk '
+        $0 == "runtimes/" || index($0, "runtimes/") == 1 { found = 1 }
+        END { exit found ? 0 : 1 }
+    '; then
+        printf '最终压缩包不应包含 runtimes 目录。\n' >&2
         exit 1
     fi
 }
@@ -129,6 +161,7 @@ dotnet publish "$repository_root/Diary.App/Diary.App.csproj" \
     --output "$publish_directory"
 
 verify_publish_output "$publish_directory"
+remove_redundant_runtime_assets "$publish_directory"
 
 printf '正在下载 Python %s embeddable runtime……\n' "$PYTHON_VERSION"
 curl --fail --location --retry 3 --output "$python_archive" "$python_uri"
@@ -156,8 +189,11 @@ unzip -tq "$temporary_archive" >/dev/null
 verify_archive_entry "$temporary_archive" "Diary.App.dll"
 verify_archive_entry "$temporary_archive" "Diary.App.exe"
 verify_archive_entry "$temporary_archive" "Diary.Script.Worker.exe"
+verify_archive_entry "$temporary_archive" "nng.dll"
+verify_archive_entry "$temporary_archive" "nng.NET.dll"
 verify_archive_entry "$temporary_archive" "python/python.exe"
 verify_archive_entry "$temporary_archive" "python/python${PYTHON_SERIES}.dll"
+verify_archive_has_no_runtimes_directory "$temporary_archive"
 
 mv -f -- "$temporary_archive" "$archive_path"
 

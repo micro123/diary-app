@@ -72,6 +72,11 @@ jobs:
           dotnet publish Diary.App/Diary.App.csproj --configuration Release --runtime $rid --self-contained true --no-restore --output $out
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $workerExecutable = if ($rid -eq 'win-x64') { 'Diary.Script.Worker.exe' } else { 'Diary.Script.Worker' }
+          $nativeRuntimeFiles = if ($rid -eq 'win-x64') {
+            @('nng.dll', 'mbedcrypto.dll', 'mbedtls.dll', 'mbedx509.dll')
+          } else {
+            @('libnng.so', 'libmbedcrypto.so', 'libmbedtls.so', 'libmbedx509.so')
+          }
           $requiredFiles = @(
             'Diary.App.dll',
             'Diary.Script.Worker.dll',
@@ -86,12 +91,35 @@ jobs:
             'Diary.Jira.dll',
             'Diary.Jira.UI.dll',
             'Diary.Jira.SQLite.dll',
-            'Diary.Jira.PostgreSQL.dll'
-          )
+            'Diary.Jira.PostgreSQL.dll',
+            'nng.NET.dll',
+            'nng.NET.Shared.dll'
+          ) + $nativeRuntimeFiles
           foreach ($requiredFile in $requiredFiles) {
             $requiredPath = Join-Path $out $requiredFile
             if (-not (Test-Path -LiteralPath $requiredPath)) {
               throw "Publish output is missing required file: $requiredFile"
+            }
+          }
+          $runtimesDirectory = Join-Path $out 'runtimes'
+          if (Test-Path -LiteralPath $runtimesDirectory) {
+            Remove-Item -LiteralPath $runtimesDirectory -Recurse -Force
+          }
+          if (Test-Path -LiteralPath $runtimesDirectory) {
+            throw 'Failed to remove redundant runtimes directory from publish output'
+          }
+          function Assert-NoRuntimesDirectory([string] $archivePath) {
+            $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $archivePath))
+            try {
+              $runtimeEntry = $zip.Entries | Where-Object {
+                $_.FullName -eq 'runtimes/' -or
+                $_.FullName.StartsWith('runtimes/', [System.StringComparison]::OrdinalIgnoreCase)
+              } | Select-Object -First 1
+              if ($null -ne $runtimeEntry) {
+                throw "Archive contains redundant runtime entry: $($runtimeEntry.FullName)"
+              }
+            } finally {
+              $zip.Dispose()
             }
           }
           if ($rid -eq 'linux-x64') {
@@ -100,8 +128,10 @@ jobs:
             $zipExitCode = $LASTEXITCODE
             Pop-Location
             if ($zipExitCode -ne 0) { exit $zipExitCode }
+            Assert-NoRuntimesDirectory $archive
           } else {
             Compress-Archive -Path (Join-Path $out '*') -DestinationPath $archive -CompressionLevel Optimal
+            Assert-NoRuntimesDirectory $archive
 
             $pythonVersion = '3.13.15'
             $pythonArchive = Join-Path $env:RUNNER_TEMP "python-$pythonVersion-embed-amd64.zip"
@@ -126,6 +156,7 @@ jobs:
 
             $bundledArchive = 'DiaryAppNG-${{ github.ref_name }}-' + $rid + '-python313.zip'
             Compress-Archive -Path (Join-Path $out '*') -DestinationPath $bundledArchive -CompressionLevel Optimal
+            Assert-NoRuntimesDirectory $bundledArchive
           }
           Get-Item $archive | Format-List Name, Length
           if ($rid -eq 'win-x64') {
