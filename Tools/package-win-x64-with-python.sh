@@ -185,6 +185,32 @@ verify_archive_runtime_directories() {
     exit 1
 }
 
+prepare_python_archive() {
+    local cache_directory="$repository_root/artifacts/cache/python"
+    local cached_archive="$cache_directory/$python_archive_name"
+    local temporary_download
+
+    mkdir -p -- "$cache_directory"
+    if [ -f "$cached_archive" ] && printf '%s  %s\n' "$PYTHON_SHA256" "$cached_archive" | sha256sum --check --status; then
+        printf '使用缓存的 Python %s embeddable runtime：%s\n' "$PYTHON_VERSION" "$cached_archive"
+        python_archive="$cached_archive"
+        return
+    fi
+
+    if [ -f "$cached_archive" ]; then
+        printf 'Python 缓存校验失败，将重新下载：%s\n' "$cached_archive"
+    else
+        printf '缓存中没有 Python %s embeddable runtime。\n' "$PYTHON_VERSION"
+    fi
+
+    temporary_download=$(mktemp "$cache_directory/.${python_archive_name}.download.XXXXXX")
+    curl --fail --location --retry 3 --output "$temporary_download" "$python_uri"
+    printf '%s  %s\n' "$PYTHON_SHA256" "$temporary_download" | sha256sum --check --status
+    mv -f -- "$temporary_download" "$cached_archive"
+    printf 'Python 包已下载并缓存：%s\n' "$cached_archive"
+    python_archive="$cached_archive"
+}
+
 upload_to_filecodebox() {
     local archive="$1"
     local response_file="$temporary_directory/filecodebox-response.json"
@@ -275,7 +301,7 @@ python_uri="https://www.python.org/ftp/python/${PYTHON_VERSION}/${python_archive
 
 temporary_directory=$(mktemp -d -t diaryapp-win-package.XXXXXX)
 publish_directory="$temporary_directory/publish"
-python_archive="$temporary_directory/$python_archive_name"
+python_archive=""
 temporary_archive="$temporary_directory/$archive_name"
 
 mkdir -p -- "$publish_directory" "$output_directory"
@@ -294,9 +320,7 @@ dotnet publish "$repository_root/Diary.App/Diary.App.csproj" \
 verify_publish_output "$publish_directory"
 remove_unrelated_runtime_assets "$publish_directory" "$RID"
 
-printf '正在下载 Python %s embeddable runtime……\n' "$PYTHON_VERSION"
-curl --fail --location --retry 3 --output "$python_archive" "$python_uri"
-
+prepare_python_archive
 printf '%s  %s\n' "$PYTHON_SHA256" "$python_archive" | sha256sum --check --status
 printf 'Python 包 SHA-256 校验通过。\n'
 

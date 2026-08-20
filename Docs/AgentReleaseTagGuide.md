@@ -307,7 +307,7 @@ DIARY_REQUIRE_PYTHON_TESTS=1
 
 1. 还原并交叉发布 `win-x64` 自包含应用；
 2. 检查应用、脚本 Worker、DiagnosticsClient 和 Tracker 插件程序集；
-3. 从 python.org 下载固定版本的 embeddable ZIP 并校验 SHA-256；
+3. 从 python.org 下载固定版本的 embeddable ZIP 并校验 SHA-256；本地脚本会复用 `artifacts/cache/python/` 中的有效缓存，Tag CI 会复用 GitHub Actions 缓存；
 4. 将运行时解压到发布目录的 `python/` 子目录；
 5. 确认目标 RID 的 NNG 托管与原生运行文件已位于发布根目录，保留 `runtimes/win-x64/` 和 RID 无关的 `runtimes/any/`，只移除其他平台的运行时目录；
 6. 检查最终 ZIP 完整性、`python/python.exe` 等关键条目，要求目标 RID 与 `any` 运行时目录存在，并拒绝其他 RID 条目。

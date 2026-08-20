@@ -22,6 +22,7 @@
 - Python 语法检查和正式 Worker 通过 `-X utf8` 在隔离模式前显式启用 UTF-8，并统一使用 UTF-8 无 BOM 标准输入输出，修复 Windows 环境下含中文脚本被本地代码页错误解码的问题；异常退出诊断会保留受限长度的 stderr 和退出码，tag 发布验证改用 Python 3.13。
 - 标签管理页新增版本化 `.diarytags` 导入导出：迁移标签、元数据和附加字段定义，禁用标签导入后默认启用；Tracker 仅记录类型和名称，导入时可映射同类型本地实例并逐条拒绝非法、不存在或无法验证的规则。
 - 本地 Windows x64 带 Python 打包脚本新增 `--upload-filecodebox` 选项，可将生成的 ZIP 上传到局域网 FileCodeBox，以 3 小时有效期输出取件码；默认不上传，上传失败时保留本地产物。
+- 本地和 Tag CI 打包按 Python 版本及 SHA-256 复用 embeddable runtime 缓存，缓存缺失或校验失败时才重新下载。
 
 ## 1.0.0-alpha6 (内部验证版)
 

@@ -257,7 +257,7 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [~] 第一阶段：已允许本地删除并按是否存在已上传 Tracker 绑定给出确认提示，并能识别上传结果不确定状态；待补充状态不确定时的查询/重试和 Tracker 专用后续处理入口。
 - [~] 第一阶段：数据库不可用时已提供重试连接、打开设置和导出诊断日志；程序设置已提供“打开当前日志”，按最后写入时间定位滚动日志并调用系统默认程序；Tracker 诊断页已提供实例级重试和诊断导出；远程失败已接入批量仅重试失败项流程。远程错误分类和一键打开具体 Tracker 配置仍待补充。
 - [x] 应用控制台和滚动日志统一输出托管线程 ID，便于区分 UI 线程、线程池线程和后台任务日志。
-- [x] tag 发布的 Windows x64 自动打包同时产出普通包和附带官方 Python 3.13.15 embedded runtime 的包；内置运行时位于 `python/` 目录，普通包继续使用用户配置或系统 Python；Linux 开发机可通过 `Tools/package-win-x64-with-python.sh` 本地生成同布局的带 Python 验证包。
+- [x] tag 发布的 Windows x64 自动打包同时产出普通包和附带官方 Python 3.13.15 embedded runtime 的包；内置运行时位于 `python/` 目录，普通包继续使用用户配置或系统 Python；Linux 开发机可通过 `Tools/package-win-x64-with-python.sh` 本地生成同布局的带 Python 验证包；本地和 Tag CI 均按版本及 SHA-256 缓存 Python 压缩包。
 - [x] 本地 Windows x64 带 Python 打包脚本支持通过 `--upload-filecodebox` 将生成的 ZIP 上传到局域网 FileCodeBox，并以 3 小时有效期输出取件码；默认不上传，上传失败保留本地产物。
 - [x] 本地、Tag 和手动发布保留 `runtimes/<目标 RID>/` 与 RID 无关的 `runtimes/any/`，只移除其他平台目录；最终 Windows/Linux ZIP 均要求目标 RID 和 `any` 运行时存在并拒绝其他 RID，避免误删依赖清单仍引用的原生及托管资产。
 - [x] Python 语法检查和正式 Worker 在 `-I` 隔离模式前使用 `-X utf8` 显式启用 UTF-8，并统一使用 UTF-8 无 BOM 标准输入输出，避免隔离模式忽略环境变量后由 Windows 本地代码页破坏中文脚本；tag 发布矩阵使用 Python 3.13 验证，主线 CI 继续保留 Python 3.10 最低版本覆盖。
