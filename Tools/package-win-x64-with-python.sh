@@ -85,18 +85,51 @@ verify_publish_output() {
     done
 }
 
-remove_redundant_runtime_assets() {
+remove_unrelated_runtime_assets() {
     local publish_directory="$1"
+    local rid="$2"
     local runtimes_directory="$publish_directory/runtimes"
+    local target_runtime_directory="$runtimes_directory/$rid"
+    local runtime_directory runtime_name
 
-    if [ -d "$runtimes_directory" ]; then
-        printf '正在移除 NuGet 额外复制的冗余 runtimes 目录……\n'
-        rm -rf -- "$runtimes_directory"
-    fi
-    if [ -e "$runtimes_directory" ]; then
-        printf '无法移除冗余运行时目录：%s\n' "$runtimes_directory" >&2
+    if [ ! -d "$target_runtime_directory" ]; then
+        printf '发布目录缺少目标 RID 运行时目录：runtimes/%s\n' "$rid" >&2
         exit 1
     fi
+    if [ ! -d "$runtimes_directory/any" ]; then
+        printf '发布目录缺少 RID 无关运行时目录：runtimes/any\n' >&2
+        exit 1
+    fi
+
+    printf '正在保留 runtimes/%s、runtimes/any 并移除其他运行时目录……\n' "$rid"
+    for runtime_directory in "$runtimes_directory"/*; do
+        if [ ! -d "$runtime_directory" ]; then
+            continue
+        fi
+        runtime_name=$(basename -- "$runtime_directory")
+        if [ "$runtime_name" != "$rid" ] && [ "$runtime_name" != "any" ]; then
+            rm -rf -- "$runtime_directory"
+        fi
+    done
+
+    if [ ! -d "$target_runtime_directory" ]; then
+        printf '清理后缺少目标 RID 运行时目录：runtimes/%s\n' "$rid" >&2
+        exit 1
+    fi
+    if [ ! -d "$runtimes_directory/any" ]; then
+        printf '清理后缺少 RID 无关运行时目录：runtimes/any\n' >&2
+        exit 1
+    fi
+    for runtime_directory in "$runtimes_directory"/*; do
+        if [ ! -d "$runtime_directory" ]; then
+            continue
+        fi
+        runtime_name=$(basename -- "$runtime_directory")
+        if [ "$runtime_name" != "$rid" ] && [ "$runtime_name" != "any" ]; then
+            printf '无法移除非目标运行时目录：%s\n' "$runtime_directory" >&2
+            exit 1
+        fi
+    done
 }
 
 verify_archive_entry() {
@@ -109,16 +142,47 @@ verify_archive_entry() {
     fi
 }
 
-verify_archive_has_no_runtimes_directory() {
+verify_archive_runtime_directories() {
     local archive="$1"
+    local rid="$2"
+    local validation_output validation_status
 
-    if unzip -Z1 "$archive" | awk '
-        $0 == "runtimes/" || index($0, "runtimes/") == 1 { found = 1 }
-        END { exit found ? 0 : 1 }
-    '; then
-        printf '最终压缩包不应包含 runtimes 目录。\n' >&2
-        exit 1
+    if validation_output=$(unzip -Z1 "$archive" | awk -v rid="$rid" '
+        BEGIN {
+            runtimes_prefix = "runtimes/"
+            target_prefix = runtimes_prefix rid "/"
+        }
+        index($0, target_prefix) == 1 {
+            found_target = 1
+            next
+        }
+        index($0, "runtimes/any/") == 1 {
+            found_any = 1
+            next
+        }
+        index($0, runtimes_prefix) == 1 && $0 != runtimes_prefix {
+            print $0
+            found_unexpected = 1
+        }
+        END {
+            if (found_unexpected) exit 2
+            if (!found_target) exit 3
+            if (!found_any) exit 4
+        }
+    '); then
+        return
+    else
+        validation_status=$?
     fi
+
+    if [ "$validation_status" -eq 2 ]; then
+        printf '最终压缩包包含非目标 RID 运行时条目：%s\n' "$validation_output" >&2
+    elif [ "$validation_status" -eq 4 ]; then
+        printf '最终压缩包缺少 RID 无关运行时目录：runtimes/any\n' >&2
+    else
+        printf '最终压缩包缺少目标 RID 运行时目录：runtimes/%s\n' "$rid" >&2
+    fi
+    exit 1
 }
 
 upload_to_filecodebox() {
@@ -228,7 +292,7 @@ dotnet publish "$repository_root/Diary.App/Diary.App.csproj" \
     --output "$publish_directory"
 
 verify_publish_output "$publish_directory"
-remove_redundant_runtime_assets "$publish_directory"
+remove_unrelated_runtime_assets "$publish_directory" "$RID"
 
 printf '正在下载 Python %s embeddable runtime……\n' "$PYTHON_VERSION"
 curl --fail --location --retry 3 --output "$python_archive" "$python_uri"
@@ -260,7 +324,7 @@ verify_archive_entry "$temporary_archive" "nng.dll"
 verify_archive_entry "$temporary_archive" "nng.NET.dll"
 verify_archive_entry "$temporary_archive" "python/python.exe"
 verify_archive_entry "$temporary_archive" "python/python${PYTHON_SERIES}.dll"
-verify_archive_has_no_runtimes_directory "$temporary_archive"
+verify_archive_runtime_directories "$temporary_archive" "$RID"
 
 mv -f -- "$temporary_archive" "$archive_path"
 

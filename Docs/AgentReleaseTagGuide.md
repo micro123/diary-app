@@ -309,8 +309,8 @@ DIARY_REQUIRE_PYTHON_TESTS=1
 2. 检查应用、脚本 Worker、DiagnosticsClient 和 Tracker 插件程序集；
 3. 从 python.org 下载固定版本的 embeddable ZIP 并校验 SHA-256；
 4. 将运行时解压到发布目录的 `python/` 子目录；
-5. 确认目标 RID 的 NNG 托管与原生运行文件已位于发布根目录，并移除 NuGet 额外复制的整个 `runtimes/` 目录；
-6. 检查最终 ZIP 完整性、`python/python.exe` 等关键条目，并拒绝任何残留的 `runtimes/` 条目。
+5. 确认目标 RID 的 NNG 托管与原生运行文件已位于发布根目录，保留 `runtimes/win-x64/` 和 RID 无关的 `runtimes/any/`，只移除其他平台的运行时目录；
+6. 检查最终 ZIP 完整性、`python/python.exe` 等关键条目，要求目标 RID 与 `any` 运行时目录存在，并拒绝其他 RID 条目。
 
 Linux 主机不能直接执行 Windows 的 `python.exe` 或桌面应用，因此该脚本只完成内容与压缩包校验。交付前仍应在 Windows x64 环境启动应用并执行至少一个 Python 脚本 Smoke Test。
 

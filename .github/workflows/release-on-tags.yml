@@ -102,21 +102,47 @@ jobs:
             }
           }
           $runtimesDirectory = Join-Path $out 'runtimes'
-          if (Test-Path -LiteralPath $runtimesDirectory) {
-            Remove-Item -LiteralPath $runtimesDirectory -Recurse -Force
+          $targetRuntimeDirectory = Join-Path $runtimesDirectory $rid
+          $anyRuntimeDirectory = Join-Path $runtimesDirectory 'any'
+          if (-not (Test-Path -LiteralPath $targetRuntimeDirectory -PathType Container)) {
+            throw "Publish output is missing target runtime directory: runtimes/$rid"
           }
-          if (Test-Path -LiteralPath $runtimesDirectory) {
-            throw 'Failed to remove redundant runtimes directory from publish output'
+          if (-not (Test-Path -LiteralPath $anyRuntimeDirectory -PathType Container)) {
+            throw 'Publish output is missing RID-agnostic runtime directory: runtimes/any'
           }
-          function Assert-NoRuntimesDirectory([string] $archivePath) {
+          Get-ChildItem -LiteralPath $runtimesDirectory -Directory -Force |
+            Where-Object { $_.Name -ne $rid -and $_.Name -ne 'any' } |
+            Remove-Item -Recurse -Force
+          $unexpectedRuntimeDirectory = Get-ChildItem -LiteralPath $runtimesDirectory -Directory -Force |
+            Where-Object { $_.Name -ne $rid -and $_.Name -ne 'any' } |
+            Select-Object -First 1
+          if ($null -ne $unexpectedRuntimeDirectory) {
+            throw "Failed to remove unrelated runtime directory: $($unexpectedRuntimeDirectory.FullName)"
+          }
+          function Assert-RuntimeDirectories([string] $archivePath, [string] $targetRid) {
             $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $archivePath))
             try {
-              $runtimeEntry = $zip.Entries | Where-Object {
-                $_.FullName -eq 'runtimes/' -or
-                $_.FullName.StartsWith('runtimes/', [System.StringComparison]::OrdinalIgnoreCase)
+              $targetPrefix = "runtimes/$targetRid/"
+              $targetRuntimeEntry = $zip.Entries | Where-Object {
+                $_.FullName.StartsWith($targetPrefix, [System.StringComparison]::OrdinalIgnoreCase)
               } | Select-Object -First 1
-              if ($null -ne $runtimeEntry) {
-                throw "Archive contains redundant runtime entry: $($runtimeEntry.FullName)"
+              if ($null -eq $targetRuntimeEntry) {
+                throw "Archive is missing target runtime directory: runtimes/$targetRid"
+              }
+              $anyRuntimeEntry = $zip.Entries | Where-Object {
+                $_.FullName.StartsWith('runtimes/any/', [System.StringComparison]::OrdinalIgnoreCase)
+              } | Select-Object -First 1
+              if ($null -eq $anyRuntimeEntry) {
+                throw 'Archive is missing RID-agnostic runtime directory: runtimes/any'
+              }
+              $unexpectedRuntimeEntry = $zip.Entries | Where-Object {
+                $_.FullName.StartsWith('runtimes/', [System.StringComparison]::OrdinalIgnoreCase) -and
+                $_.FullName -ne 'runtimes/' -and
+                -not ($_.FullName.StartsWith($targetPrefix, [System.StringComparison]::OrdinalIgnoreCase)) -and
+                -not ($_.FullName.StartsWith('runtimes/any/', [System.StringComparison]::OrdinalIgnoreCase))
+              } | Select-Object -First 1
+              if ($null -ne $unexpectedRuntimeEntry) {
+                throw "Archive contains unrelated runtime entry: $($unexpectedRuntimeEntry.FullName)"
               }
             } finally {
               $zip.Dispose()
@@ -128,10 +154,10 @@ jobs:
             $zipExitCode = $LASTEXITCODE
             Pop-Location
             if ($zipExitCode -ne 0) { exit $zipExitCode }
-            Assert-NoRuntimesDirectory $archive
+            Assert-RuntimeDirectories $archive $rid
           } else {
             Compress-Archive -Path (Join-Path $out '*') -DestinationPath $archive -CompressionLevel Optimal
-            Assert-NoRuntimesDirectory $archive
+            Assert-RuntimeDirectories $archive $rid
 
             $pythonVersion = '3.13.15'
             $pythonArchive = Join-Path $env:RUNNER_TEMP "python-$pythonVersion-embed-amd64.zip"
@@ -156,7 +182,7 @@ jobs:
 
             $bundledArchive = 'DiaryAppNG-${{ github.ref_name }}-' + $rid + '-python313.zip'
             Compress-Archive -Path (Join-Path $out '*') -DestinationPath $bundledArchive -CompressionLevel Optimal
-            Assert-NoRuntimesDirectory $bundledArchive
+            Assert-RuntimeDirectories $bundledArchive $rid
           }
           Get-Item $archive | Format-List Name, Length
           if ($rid -eq 'win-x64') {

@@ -18,7 +18,7 @@
 - 应用控制台和滚动日志统一增加托管线程 ID，便于定位后台任务与 UI 线程之间的执行关系。
 - tag 发布的 Windows x64 包增加带 Python 3.13.15 embedded runtime 的可选 ZIP，同时保留不附带 Python 的轻量 ZIP；带 Python 的包会将运行时放在 `python/` 目录并由脚本运行时自动优先使用。
 - 新增 Linux 本地打包脚本，可交叉发布 `win-x64` 自包含应用、下载并校验 Python 3.13.15 embeddable runtime，并生成与 tag 发布包布局一致的带 Python ZIP。
-- 本地、Tag 和手动发布包在验证目标 RID 的 NNG 根目录文件后移除冗余 `runtimes/`，避免携带其他平台原生库、重复的当前平台文件和无关目标框架程序集。
+- 修复本地、Tag 和手动发布包误删整个 `runtimes/` 导致运行失败的问题；现在保留目标 RID 和 `runtimes/any/`，只移除其他平台目录，并在压缩后校验保留目录和非法 RID 条目。
 - Python 语法检查和正式 Worker 通过 `-X utf8` 在隔离模式前显式启用 UTF-8，并统一使用 UTF-8 无 BOM 标准输入输出，修复 Windows 环境下含中文脚本被本地代码页错误解码的问题；异常退出诊断会保留受限长度的 stderr 和退出码，tag 发布验证改用 Python 3.13。
 - 标签管理页新增版本化 `.diarytags` 导入导出：迁移标签、元数据和附加字段定义，禁用标签导入后默认启用；Tracker 仅记录类型和名称，导入时可映射同类型本地实例并逐条拒绝非法、不存在或无法验证的规则。
 - 本地 Windows x64 带 Python 打包脚本新增 `--upload-filecodebox` 选项，可将生成的 ZIP 上传到局域网 FileCodeBox，以 3 小时有效期输出取件码；默认不上传，上传失败时保留本地产物。
