@@ -350,7 +350,9 @@ else
 }
 ```
 
-模板导出使用 `ExportTemplateSource`，先调用 `api.Exports.ListTemplatesAsync("xlsx")` 获取已经由插件校验的模板和绑定 schema，再提交精确的 `template_id`、`template_version` 以及 `values`/`tables`/`documents`。省略带 `default_value` 的绑定时由宿主填充；缺少没有默认值的必填绑定会返回 `EXPORT_TEMPLATE_BINDING_INVALID`，其 `Error.Details["diagnostics"]` 包含所有 `ExportDiagnostic`。XLSX 的 table binding 是从锚点写入表头和二维数据，不复制模板行样式、公式或合并关系。
+模板导出使用 `ExportTemplateSource`，先调用 `api.Exports.ListTemplatesAsync("xlsx")` 获取已经由插件校验的模板和绑定 schema，再提交精确的 `template_id`、`template_version` 以及 `values`/`tables`/`documents`。模板正文使用 `{{变量名}}`、`{{items.字段}}`、`{{items.字段|column}}` 和 `{{items|matrix}}` 简单标记；行循环复制模板行，列循环复制模板列，矩阵标记展开完整的 `Rows × Columns` 区域，脚本负责准备数据和其他逻辑。模板名称由文件名推断，版本为 `1.0.0`；缺少绑定或字段不匹配会返回 `EXPORT_TEMPLATE_BINDING_INVALID`，其 `Error.Details["diagnostics"]` 包含所有 `ExportDiagnostic`。
+
+纯文本输出可以选择独立的 `mustache` 格式并导入 `.mustache` 模板，核心语法和上下文映射见 [MustacheExport.md](MustacheExport.md)。
 
 Worker 往返后，`Details` 中的复合值会表现为 `JsonElement`，可以这样遍历模板诊断：
 

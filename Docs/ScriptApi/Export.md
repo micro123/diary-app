@@ -117,17 +117,17 @@ succeeded = false                         → error.code/message/category/retrya
 
 `list_formats` 返回每个格式的 `content_capabilities`、`supports_templates` 和 `format_options`。只有 capability 或格式选项 schema 明确声明的字段才可发送。
 
-| 能力 | XLSX | CSV | DOCX |
-| --- | --- | --- | --- |
-| `table` | 是 | 是 | 是 |
-| `document` | 否 | 否 | 是 |
-| 类型化值 | 是 | 是 | 是 |
-| `number_format` | 是 | 否 | 否 |
-| `compact/report` | 是 | 否，非默认值会拒绝 | 是 |
-| 合并单元格 | 是 | 否 | 是 |
-| `sum` 合计和标签 | 是 | 是 | 是 |
-| 格式选项 | `sheet_name` | 无 | 无 |
-| 模板绑定 | scalar、table | scalar | scalar |
+| 能力 | XLSX | CSV | DOCX | Mustache |
+| --- | --- | --- | --- | --- |
+| `table` | 是 | 是 | 是 | 仅模板上下文 |
+| `document` | 否 | 否 | 是 | 否 |
+| 类型化值 | 是 | 是 | 是 | 转换为文本 |
+| `number_format` | 是 | 否 | 否 | 否 |
+| `compact/report` | 是 | 否，非默认值会拒绝 | 是 | 否 |
+| 合并单元格 | 是 | 否 | 是 | 否 |
+| `sum` 合计和标签 | 是 | 是 | 是 | 由脚本计算 |
+| 格式选项 | `sheet_name` | 无 | 无 | 无 |
+| 模板绑定 | scalar、table | scalar、table | scalar、table | context |
 
 XLSX descriptor 不声明 `background_color`：插件内部预设颜色不等于脚本可以提交任意颜色。
 
@@ -136,6 +136,9 @@ XLSX descriptor 不声明 `background_color`：插件内部预设颜色不等于
 ## 5. 模板发现和绑定
 
 脚本必须先调用 `list_templates(format_id)`，再按模板 descriptor 的精确 `template_id`、`template_version` 和 `bindings` 组装请求。不要根据扩展名猜测绑定能力。
+
+普通用户制作 Excel、CSV 和 Word 模板的步骤与示例见 [ExportTemplateGuide.md](../ExportTemplateGuide.md)。
+Mustache 纯文本模板的语法、数据映射和请求示例见 [MustacheExport.md](MustacheExport.md)。
 
 ```json
 {
@@ -163,23 +166,36 @@ XLSX descriptor 不声明 `background_color`：插件内部预设颜色不等于
 }
 ```
 
-当前模板能力：
+当前 XLSX、CSV、DOCX 简易模板能力：
 
-- XLSX：支持 `scalar` 和 `table`。
-- CSV：支持 `scalar`。
-- DOCX：支持 `scalar`。
+- 三种格式都支持 `scalar` 和 `table`。
+- `{{变量名}}` 是标量替换；`{{items.字段}}` 是按模板行展开；`{{items.字段|column}}` 是按模板列展开；`{{items|matrix}}` 是按表格的 M 行 × N 列展开矩阵。
+- 矩阵标记会占据一个区域，表格的 `Rows` 提供 M，`Columns` 提供 N；矩阵前后可以保留模板中的固定行，因此支持固定表头、矩阵数据、固定表底。
+- 行循环和列循环区域不能混用不同的表格绑定；CSV 同一行不能同时使用两种循环方向，DOCX 同一表格行也不能同时使用两种循环方向。
+- 模板名称由导入文件名推断，模板版本固定为 `1.0.0`；模板正文不再包含元数据头或专用元数据工作表。
 - 当前没有插件声明 `document` 模板绑定。
 
-### 5.1 XLSX table binding 的准确语义
+Mustache 是独立的纯文本模板格式，使用 `.mustache` 模板和标准 Mustache 核心语法。输出默认扩展名为 `.txt`，也允许 `.md`、`.html` 和 `.csv`；区块绑定使用 `context`，可以由 `values` 中的标量、布尔值或对象提供，也可以由 `tables` 中的列表提供。
 
-XLSX 元数据中的 `target` 指向表头左上角锚点。渲染器从该单元格开始写表头，并从下一行开始写数据：
+### 5.1 简易标记模板语义
 
-- 不插入新行，只覆盖实际写入的二维区域；
-- 不复制样板行、样式、公式、行高或合并关系；
-- 不清除写入区域之外的原有内容；
-- 数据变少时，模板中更下方的旧内容不会自动删除；
-- 绑定数据只允许列名、列类型和 `rows`；`title`、`style`、`merges`、`aggregates`、`number_format` 会返回 `EXPORT_UNSUPPORTED_FEATURE`，不会静默忽略；
-- 它不是循环模板行或 repeat-row 功能。
+模板文件只需要在正文中放置标记，脚本负责准备 `values` 和 `tables` 数据。例如：
+
+```text
+{{period}}
+姓名,工时
+{{items.name}},{{items.hours}}
+横向,{{items.name|column}}
+```
+
+- 变量名、集合名和字段名使用小写字母、数字和下划线；未提供的标量替换为空；
+- `{{items.field}}` 会复制所在的 XLSX 行、CSV 行或 DOCX 表格行，并按表格数据逐项替换；
+- `{{items.field|column}}` 会复制所在的 XLSX 列、CSV 字段或 DOCX 表格单元格，并按表格数据逐项替换；
+- `{{items|matrix}}` 必须独占一个 XLSX 单元格、CSV 行或 DOCX 表格行，使用同一个表格绑定的 `Rows × Columns` 一次性展开；矩阵区域前后的固定内容会保留；
+- XLSX/DOCX 会尽量保留复制区域的样式；DOCX 循环标记不能放在合并单元格中；
+- 模板至少要有一个标记；不存在的表格字段、缺失表格绑定和不匹配的循环方向会在导出时返回结构化绑定错误；
+- XLSX 同一工作表暂不同时展开行循环和列循环；可以将两种布局放在不同工作表中。
+- 矩阵可以在独立工作表中使用，也可以和固定内容放在同一工作表；矩阵区域暂不与同一工作表中的行循环/列循环混用。
 
 若未来需要按样板行复制样式和公式，应使用独立的 repeat-row 契约，不能改变现有 table binding 的含义。
 

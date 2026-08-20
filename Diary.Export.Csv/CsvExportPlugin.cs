@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text;
-using System.Text.RegularExpressions;
 using Diary.ScriptHost;
 
 namespace Diary.Export.Csv;
@@ -146,11 +145,6 @@ internal sealed class CsvTableExportHandler : IExportHandler
 
 internal sealed class CsvTemplateHandler : IExportTemplateHandler
 {
-    private static readonly Regex BindingLine = new(
-        "^#\\s*binding\\s*:\\s*(?<key>[a-z][a-z0-9]*(?:_[a-z0-9]+)*)\\s*\\|\\s*scalar\\s*\\|\\s*(?<type>[a-z]+)\\s*\\|\\s*(?<required>true|false)\\s*(?:\\|\\s*(?<default>.*))?$",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex Placeholder = new("\\{\\{(?<key>[a-z][a-z0-9]*(?:_[a-z0-9]+)*)\\}\\}", RegexOptions.Compiled);
-
     public string PluginId => "csv";
     public string FormatId => "csv";
     public IReadOnlyList<string> SupportedTemplateExtensions => [".csv"];
@@ -170,51 +164,7 @@ internal sealed class CsvTemplateHandler : IExportTemplateHandler
             {
                 lines.Add(line);
             }
-            if (lines.Count < 3 || !string.Equals(lines[0].Trim(), "# diary.export.template", StringComparison.Ordinal))
-                return Invalid("EXPORT_TEMPLATE_METADATA_MISSING", "CSV 模板缺少元数据头。");
-            var name = MetadataValue(lines[1], "template_name");
-            var version = MetadataValue(lines[2], "version");
-            var bindings = new List<ExportBindingDescriptor>();
-            var bindingKeys = new HashSet<string>(StringComparer.Ordinal);
-            for (var index = 3; index < lines.Count; index++)
-            {
-                if (!lines[index].StartsWith('#'))
-                    continue;
-                var match = BindingLine.Match(lines[index]);
-                if (!match.Success)
-                {
-                    if (lines[index].StartsWith("# binding", StringComparison.OrdinalIgnoreCase))
-                        return Invalid("EXPORT_TEMPLATE_BINDING_INVALID", "CSV 模板绑定声明格式无效。");
-                    continue;
-                }
-                var key = match.Groups["key"].Value;
-                if (!bindingKeys.Add(key))
-                    return Invalid("EXPORT_TEMPLATE_BINDING_DUPLICATE", $"CSV 模板绑定键重复：{key}。");
-                if (!Enum.TryParse<ExportScalarType>(match.Groups["type"].Value, true, out var scalarType))
-                    return Invalid("EXPORT_TEMPLATE_BINDING_TYPE_INVALID", $"CSV 模板绑定类型无效：{key}。");
-                var hasDefault = match.Groups["default"].Success && !string.IsNullOrWhiteSpace(match.Groups["default"].Value);
-                bindings.Add(new ExportBindingDescriptor(
-                    key,
-                    ExportBindingKind.Scalar,
-                    scalarType,
-                    bool.Parse(match.Groups["required"].Value),
-                    hasDefault,
-                    hasDefault ? ParseDefault(match.Groups["default"].Value, scalarType) : null));
-            }
-            var placeholders = lines.Skip(3).SelectMany(line => Placeholder.Matches(line).Select(match => match.Groups["key"].Value));
-            foreach (var key in placeholders.Distinct(StringComparer.Ordinal))
-            {
-                if (bindings.All(binding => !string.Equals(binding.Key, key, StringComparison.Ordinal)))
-                    bindings.Add(new ExportBindingDescriptor(key, ExportBindingKind.Scalar, ExportScalarType.Text));
-            }
-            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(version))
-                return Invalid("EXPORT_TEMPLATE_METADATA_INVALID", "CSV 模板名和版本不能为空。");
-            var firstDataLine = 0;
-            while (firstDataLine < lines.Count && lines[firstDataLine].StartsWith('#'))
-                firstDataLine++;
-            if (lines.Skip(firstDataLine).Any(line => !TryParseRow(line, out _)))
-                return Invalid("EXPORT_TEMPLATE_STRUCTURE_INVALID", "CSV 模板正文包含无效的引号或字段结构。");
-            return new(true, name, name, null, version, bindings, [ExportFeature.TypedValues, ExportFeature.UnicodeText], []);
+            return ValidateSimple(lines, context.FileName);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -234,28 +184,194 @@ internal sealed class CsvTemplateHandler : IExportTemplateHandler
         var lines = new List<string>();
         while (await reader.ReadLineAsync(cancellationToken) is { } line)
             lines.Add(line);
-        var firstDataLine = 0;
-        while (firstDataLine < lines.Count && lines[firstDataLine].StartsWith('#'))
-            firstDataLine++;
+        return await RenderSimpleAsync(lines, request, context, cancellationToken);
+    }
+
+    private static ExportTemplateValidationResult ValidateSimple(
+        IReadOnlyList<string> lines,
+        string fileName)
+    {
+        var markers = new List<ExportTemplateMarker>();
+        foreach (var line in lines)
+        {
+            if (!TryParseRow(line, out var fields))
+                return Invalid("EXPORT_TEMPLATE_STRUCTURE_INVALID", "CSV 模板正文包含无效的引号或字段结构。");
+            foreach (var field in fields)
+                markers.AddRange(ExportTemplateMarkers.Parse(field));
+        }
+
+        if (markers.Count == 0)
+            return Invalid(
+                "EXPORT_TEMPLATE_MARKER_MISSING",
+                "CSV 模板至少需要包含一个 {{变量}}、{{items.字段}} 或 {{items.字段|column}} 标记。");
+
+        return new(
+            true,
+            ExportTemplateMarkers.CreateTemplateName(fileName),
+            Path.GetFileNameWithoutExtension(fileName),
+            "使用 {{变量}} 和 {{items.字段}} 标记的简易 CSV 模板。",
+            "1.0.0",
+            ExportTemplateMarkers.InferBindings(markers),
+            [ExportFeature.TypedValues, ExportFeature.UnicodeText],
+            []);
+    }
+
+    private static async ValueTask<ExportRenderResult> RenderSimpleAsync(
+        IReadOnlyList<string> lines,
+        ExportRequest request,
+        ExportExecutionContext context,
+        CancellationToken cancellationToken)
+    {
         var body = new List<string>();
-        foreach (var line in lines.Skip(firstDataLine))
+        foreach (var line in lines)
         {
             if (!TryParseRow(line, out var fields))
                 throw new ExportHandlerException(
                     "EXPORT_TEMPLATE_STRUCTURE_INVALID",
                     "CSV 模板正文包含无效的引号或字段结构。");
+            var markers = fields.SelectMany(ExportTemplateMarkers.Parse).ToArray();
+            var matrixMarkers = markers.Where(item => item.Direction == ExportTemplateMarkerDirection.Matrix).ToArray();
+            if (matrixMarkers.Length > 0)
+            {
+                if (matrixMarkers.Length != 1
+                    || fields.Count != 1
+                    || !string.Equals(fields[0], matrixMarkers[0].Raw, StringComparison.Ordinal))
+                    throw new ExportHandlerException(
+                        "EXPORT_TEMPLATE_MARKER_INVALID",
+                        "CSV 矩阵标记必须独占一整行，例如 {{items|matrix}}。");
+                var matrix = GetTable(request, matrixMarkers[0].Collection!);
+                ValidateTable(matrix, matrixMarkers[0].Collection!);
+                foreach (var (row, rowIndex) in matrix.Rows.Select((row, index) => (row, index)))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    body.Add(string.Join(',', row.Select((value, index) => CsvTextSafety.Escape(
+                        ConvertMatrixValue(value, matrix.Columns[index], rowIndex + 1)))));
+                }
+                continue;
+            }
+            var rowMarkers = markers.Where(item => item.Direction == ExportTemplateMarkerDirection.Row).ToArray();
+            var columnMarkers = markers.Where(item => item.Direction == ExportTemplateMarkerDirection.Column).ToArray();
+            if (rowMarkers.Length > 0 && columnMarkers.Length > 0)
+                throw new ExportHandlerException(
+                    "EXPORT_TEMPLATE_MARKER_INVALID",
+                    "同一 CSV 模板行不能同时进行行循环和列循环。");
+
+            if (rowMarkers.Length > 0)
+            {
+                var collection = RequireSingleCollection(rowMarkers);
+                var table = GetTable(request, collection);
+                for (var rowIndex = 0; rowIndex < table.Rows.Count; rowIndex++)
+                    body.Add(string.Join(',', fields.Select(field => CsvTextSafety.Escape(
+                        ReplaceField(field, request, collection, rowIndex, ExportTemplateMarkerDirection.Row)))));
+                continue;
+            }
+
+            if (columnMarkers.Length > 0)
+            {
+                var collection = RequireSingleCollection(columnMarkers);
+                var table = GetTable(request, collection);
+                var output = new List<string>();
+                foreach (var field in fields)
+                {
+                    var fieldMarkers = ExportTemplateMarkers.Parse(field);
+                    if (!fieldMarkers.Any(item => item.Direction == ExportTemplateMarkerDirection.Column))
+                    {
+                        output.Add(CsvTextSafety.Escape(ReplaceField(field, request, null, null, null)));
+                        continue;
+                    }
+
+                    for (var rowIndex = 0; rowIndex < table.Rows.Count; rowIndex++)
+                        output.Add(CsvTextSafety.Escape(
+                            ReplaceField(field, request, collection, rowIndex, ExportTemplateMarkerDirection.Column)));
+                }
+                body.Add(string.Join(',', output));
+                continue;
+            }
+
             body.Add(string.Join(',', fields.Select(field => CsvTextSafety.Escape(
-                Placeholder.Replace(field, match =>
-                    Convert.ToString(
-                        request.Template.Values.GetValueOrDefault(match.Groups["key"].Value),
-                        CultureInfo.InvariantCulture) ?? string.Empty)))));
+                ReplaceField(field, request, null, null, null)))));
         }
+
         await File.WriteAllTextAsync(
             context.OutputPath,
             string.Join("\r\n", body) + (body.Count > 0 ? "\r\n" : string.Empty),
             new UTF8Encoding(true),
             cancellationToken);
         return new ExportRenderResult(body.Count);
+    }
+
+    private static string ReplaceField(
+        string field,
+        ExportRequest request,
+        string? collection,
+        int? rowIndex,
+        ExportTemplateMarkerDirection? direction)
+    {
+        return ExportTemplateMarkers.Replace(field, marker =>
+        {
+            if (marker.Collection is null)
+                return Convert.ToString(
+                    request.Template!.Values.GetValueOrDefault(marker.Field),
+                    CultureInfo.InvariantCulture);
+            if (!string.Equals(marker.Collection, collection, StringComparison.Ordinal))
+                throw new ExportHandlerException(
+                    "EXPORT_TEMPLATE_MARKER_INVALID",
+                    $"模板标记使用了多个循环集合：{marker.Collection}。");
+            if (rowIndex is null || marker.Direction != direction)
+                throw new ExportHandlerException(
+                    "EXPORT_TEMPLATE_MARKER_INVALID",
+                    $"模板标记 {marker.Raw} 的循环方向与所在区域不匹配。");
+            var table = GetTable(request, marker.Collection);
+            if (!ExportTemplateMarkers.TryGetTableValue(table, marker.Field, rowIndex.Value, out var value, out var type))
+                throw new ExportHandlerException(
+                    "EXPORT_TEMPLATE_BINDING_INVALID",
+                    $"模板标记引用了不存在的表格字段：{marker.Collection}.{marker.Field}。");
+            var normalized = ExportRequestValidator.NormalizeValue(value, type, marker.Field, rowIndex.Value + 1);
+            return Convert.ToString(normalized, CultureInfo.InvariantCulture);
+        });
+    }
+
+    private static string RequireSingleCollection(IEnumerable<ExportTemplateMarker> markers)
+    {
+        var collections = markers.Select(item => item.Collection).Distinct(StringComparer.Ordinal).ToArray();
+        if (collections.Length != 1 || collections[0] is null)
+            throw new ExportHandlerException(
+                "EXPORT_TEMPLATE_MARKER_INVALID",
+                "一个循环区域只能使用一个表格绑定。");
+        return collections[0]!;
+    }
+
+    private static string ConvertMatrixValue(
+        object? value,
+        ExportColumn column,
+        int rowNumber)
+    {
+        var normalized = ExportRequestValidator.NormalizeValue(value, column.Type, column.Name, rowNumber);
+        return Convert.ToString(normalized, CultureInfo.InvariantCulture) ?? string.Empty;
+    }
+
+    private static void ValidateTable(ExportTableContent table, string key)
+    {
+        var validation = ExportRequestValidator.ValidateTableContent(
+            table,
+            new ExportContentCapabilities(ExportContentKind.Table, [ExportFeature.TypedValues]));
+        if (validation is not null)
+            throw new ExportHandlerException(
+                validation.Code,
+                $"CSV 模板表格绑定“{key}”无效：{validation.Message}",
+                details: new Dictionary<string, object?>
+                {
+                    ["binding_key"] = key,
+                });
+    }
+
+    private static ExportTableContent GetTable(ExportRequest request, string key)
+    {
+        if (request.Template!.Tables.TryGetValue(key, out var table))
+            return table;
+        throw new ExportHandlerException(
+            "EXPORT_TEMPLATE_REQUIRED_BINDING_MISSING",
+            $"缺少模板循环数据：{key}。");
     }
 
     private static bool TryParseRow(string line, out IReadOnlyList<string> fields)
@@ -319,20 +435,6 @@ internal sealed class CsvTemplateHandler : IExportTemplateHandler
         fields = result;
         return true;
     }
-
-    private static string? MetadataValue(string line, string key) =>
-        line.StartsWith("# " + key + ":", StringComparison.OrdinalIgnoreCase)
-            ? line[(key.Length + 3)..].Trim()
-            : null;
-
-    private static object ParseDefault(string value, ExportScalarType type) => type switch
-    {
-        ExportScalarType.Integer when int.TryParse(value, out var integer) => integer,
-        ExportScalarType.Decimal when decimal.TryParse(value, out var decimalValue) => decimalValue,
-        ExportScalarType.Boolean when bool.TryParse(value, out var boolean) => boolean,
-        ExportScalarType.Duration when TimeSpan.TryParse(value, out var duration) => duration,
-        _ => value,
-    };
 
     private static ExportTemplateValidationResult Invalid(string code, string message) =>
         new(false, null, null, null, null, [], [], [new ExportDiagnostic(code, message)]);

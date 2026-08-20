@@ -20,5 +20,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Diary.App\Diary.App.csproj" />
+    <ProjectReference Include="..\Diary.Export.Mustache\Diary.Export.Mustache.csproj" />
   </ItemGroup>
 </Project>

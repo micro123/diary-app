@@ -237,6 +237,7 @@ public enum ExportBindingKind
     Scalar,
     Table,
     Document,
+    Context,
 }
 
 public enum ExportScalarType
@@ -353,10 +354,12 @@ public static class ExportTemplateBindingValidator
         var documents = new Dictionary<string, ExportContent>(source.Documents, StringComparer.Ordinal);
 
         foreach (var key in values.Keys)
-            if (!bindings.TryGetValue(key, out var binding) || binding.Kind != ExportBindingKind.Scalar)
+            if (!bindings.TryGetValue(key, out var binding)
+                || binding.Kind is not (ExportBindingKind.Scalar or ExportBindingKind.Context))
                 errors.Add(new("EXPORT_TEMPLATE_UNKNOWN_BINDING", $"未知或类型不匹配的标量绑定：{key}。", key));
         foreach (var key in tables.Keys)
-            if (!bindings.TryGetValue(key, out var binding) || binding.Kind != ExportBindingKind.Table)
+            if (!bindings.TryGetValue(key, out var binding)
+                || binding.Kind is not (ExportBindingKind.Table or ExportBindingKind.Context))
                 errors.Add(new("EXPORT_TEMPLATE_UNKNOWN_BINDING", $"未知或类型不匹配的表格绑定：{key}。", key));
         foreach (var key in documents.Keys)
             if (!bindings.TryGetValue(key, out var binding) || binding.Kind != ExportBindingKind.Document)
@@ -369,8 +372,16 @@ public static class ExportTemplateBindingValidator
                 ExportBindingKind.Scalar => values.ContainsKey(binding.Key),
                 ExportBindingKind.Table => tables.ContainsKey(binding.Key),
                 ExportBindingKind.Document => documents.ContainsKey(binding.Key),
+                ExportBindingKind.Context => values.ContainsKey(binding.Key) || tables.ContainsKey(binding.Key),
                 _ => false,
             };
+            if (binding.Kind == ExportBindingKind.Context
+                && values.ContainsKey(binding.Key)
+                && tables.ContainsKey(binding.Key))
+                errors.Add(new(
+                    "EXPORT_TEMPLATE_BINDING_DUPLICATE",
+                    "上下文绑定不能同时提供标量值和表格值。",
+                    binding.Key));
             if (!exists && binding.HasDefaultValue)
             {
                 if (binding.Kind != ExportBindingKind.Scalar)

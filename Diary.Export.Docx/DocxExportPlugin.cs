@@ -326,9 +326,6 @@ internal sealed class DocxExportHandler : IExportHandler
 internal sealed class DocxTemplateHandler : IExportTemplateHandler
 {
     private const string WordprocessingNamespace = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
-    private static readonly System.Text.RegularExpressions.Regex Placeholder = new(
-        "\\{\\{(?<key>[a-z][a-z0-9]*(?:_[a-z0-9]+)*)\\}\\}",
-        System.Text.RegularExpressions.RegexOptions.Compiled);
     private static readonly Regex DangerousFieldInstruction = new(
         "\\b(?:DDEAUTO|DDE|INCLUDETEXT|INCLUDEPICTURE|LINK|DATABASE)\\b",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -342,11 +339,12 @@ internal sealed class DocxTemplateHandler : IExportTemplateHandler
         ExportTemplateValidationContext context,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (!string.Equals(context.FileExtension, ".docx", StringComparison.OrdinalIgnoreCase))
             return ValueTask.FromResult(Invalid("EXPORT_TEMPLATE_EXTENSION_INVALID", "DOCX 模板扩展名必须为 .docx。"));
         try
         {
-            var diagnostics = OpenXmlTemplateSafety.ValidatePackage(templateStream);
+            var diagnostics = OpenXmlTemplateSafety.ValidatePackage(templateStream).ToList();
             if (diagnostics.Count > 0)
                 return ValueTask.FromResult(new ExportTemplateValidationResult(
                     false,
@@ -369,27 +367,34 @@ internal sealed class DocxTemplateHandler : IExportTemplateHandler
                 ?? throw new InvalidDataException("DOCX 缺少主文档部件。");
             var documentRoot = mainPart.Document
                 ?? throw new InvalidDataException("DOCX 主文档为空。");
-            var text = string.Join("\n", documentRoot.Descendants<W.Text>().Select(item => item.Text));
-            var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            if (lines.Length < 3 || !string.Equals(lines[0], "[[diary.export.template]]", StringComparison.Ordinal))
-                return ValueTask.FromResult(Invalid("EXPORT_TEMPLATE_METADATA_MISSING", "DOCX 模板缺少元数据头。"));
-            var name = MetadataValue(lines, "template_name");
-            var version = MetadataValue(lines, "version");
-            var bindings = Placeholder.Matches(text)
-                .Select(match => match.Groups["key"].Value)
-                .Distinct(StringComparer.Ordinal)
-                .Select(key => new ExportBindingDescriptor(key, ExportBindingKind.Scalar, ExportScalarType.Text))
-                .ToArray();
-            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(version))
-                return ValueTask.FromResult(Invalid("EXPORT_TEMPLATE_METADATA_INVALID", "DOCX 模板名和版本不能为空。"));
+            var markers = GetMarkers(documentRoot).ToArray();
+            if (markers.Length == 0)
+                return ValueTask.FromResult(Invalid(
+                    "EXPORT_TEMPLATE_MARKER_MISSING",
+                    "DOCX 模板至少需要包含一个 {{变量}}、{{items.字段}} 或 {{items.字段|column}} 标记。"));
+
+            ValidateLoopRegions(documentRoot, diagnostics);
+            var name = ExportTemplateMarkers.CreateTemplateName(context.FileName);
+            var displayName = Path.GetFileNameWithoutExtension(context.FileName);
+            if (diagnostics.Count > 0)
+                return ValueTask.FromResult(new ExportTemplateValidationResult(
+                    false,
+                    name,
+                    displayName,
+                    "使用简易标记的 DOCX 模板。",
+                    "1.0.0",
+                    ExportTemplateMarkers.InferBindings(markers),
+                    [],
+                    diagnostics));
+
             return ValueTask.FromResult(new ExportTemplateValidationResult(
                 true,
                 name,
-                name,
-                null,
-                version,
-                bindings,
-                [ExportFeature.UnicodeText, ExportFeature.BasicStyle, ExportFeature.Paragraphs],
+                displayName,
+                "使用简易标记的 DOCX 模板。",
+                "1.0.0",
+                ExportTemplateMarkers.InferBindings(markers),
+                [ExportFeature.UnicodeText, ExportFeature.BasicStyle, ExportFeature.Paragraphs, ExportFeature.DocumentTables],
                 []));
         }
         catch (Exception exception)
@@ -403,6 +408,7 @@ internal sealed class DocxTemplateHandler : IExportTemplateHandler
         ExportExecutionContext context,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (request.Template is null)
             throw new InvalidOperationException("DOCX 模板导出请求缺少 template。");
         await using var input = await context.OpenTemplateAsync(cancellationToken);
@@ -413,30 +419,357 @@ internal sealed class DocxTemplateHandler : IExportTemplateHandler
             ?? throw new InvalidDataException("DOCX 缺少主文档部件。");
         var documentRoot = mainPart.Document
             ?? throw new InvalidDataException("DOCX 主文档为空。");
-        var values = request.Template.Values.ToDictionary(
-            item => item.Key,
-            item => Convert.ToString(item.Value, CultureInfo.InvariantCulture) ?? string.Empty,
-            StringComparer.Ordinal);
-        var count = 0;
+
+        var count = ExpandMatrices(documentRoot, request, cancellationToken);
+        count = Math.Max(count, ExpandRows(documentRoot, request, cancellationToken));
+        count = Math.Max(count, ExpandColumns(documentRoot, request, cancellationToken));
         foreach (var text in documentRoot.Descendants<W.Text>())
         {
             cancellationToken.ThrowIfCancellationRequested();
             var original = text.Text ?? string.Empty;
-            var replaced = Placeholder.Replace(original, match => values.GetValueOrDefault(match.Groups["key"].Value, string.Empty));
-            if (!string.Equals(replaced, original, StringComparison.Ordinal))
-            {
-                text.Text = replaced;
-                count++;
-            }
+            var markers = ExportTemplateMarkers.Parse(original);
+            if (markers.Any(marker => marker.Collection is not null))
+                throw new ExportHandlerException(
+                    "EXPORT_TEMPLATE_MARKER_INVALID",
+                    "DOCX 模板中存在未展开的循环标记。");
+            text.Text = ExportTemplateMarkers.Replace(original, marker => ResolveScalar(request, marker));
         }
         mainPart.Document.Save();
         return new ExportRenderResult(count);
     }
 
-    private static string? MetadataValue(IEnumerable<string> lines, string key) =>
-        lines.FirstOrDefault(line => line.StartsWith(key + ":", StringComparison.OrdinalIgnoreCase)) is { } line
-            ? line[(key.Length + 1)..].Trim()
-            : null;
+    private static int ExpandRows(
+        W.Document document,
+        ExportRequest request,
+        CancellationToken cancellationToken)
+    {
+        var itemCount = 0;
+        var rows = document.Descendants<W.TableRow>()
+            .Where(row => GetMarkers(row).Any(marker => marker.Direction == ExportTemplateMarkerDirection.Row))
+            .ToArray();
+        foreach (var row in rows)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var markers = GetMarkers(row)
+                .Where(marker => marker.Direction == ExportTemplateMarkerDirection.Row)
+                .ToArray();
+            var collection = RequireSingleCollection(markers);
+            var table = GetTable(request, collection);
+            ValidateTable(table, collection);
+            itemCount = Math.Max(itemCount, table.Rows.Count);
+            var template = (W.TableRow)row.CloneNode(true);
+            if (table.Rows.Count == 0)
+            {
+                row.Remove();
+                continue;
+            }
+
+            ReplaceLoopText(row, request, collection, 0, ExportTemplateMarkerDirection.Row);
+            OpenXmlElement last = row;
+            for (var rowIndex = 1; rowIndex < table.Rows.Count; rowIndex++)
+            {
+                var clone = (W.TableRow)template.CloneNode(true);
+                ReplaceLoopText(clone, request, collection, rowIndex, ExportTemplateMarkerDirection.Row);
+                last.InsertAfterSelf(clone);
+                last = clone;
+            }
+        }
+        return itemCount;
+    }
+
+    private static int ExpandMatrices(
+        W.Document document,
+        ExportRequest request,
+        CancellationToken cancellationToken)
+    {
+        var itemCount = 0;
+        var cells = document.Descendants<W.TableCell>()
+            .Where(cell => GetMarkers(cell).Any(marker => marker.Direction == ExportTemplateMarkerDirection.Matrix))
+            .ToArray();
+        foreach (var cell in cells)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var markers = GetMarkers(cell).ToArray();
+            if (markers.Length != 1 || markers[0].Direction != ExportTemplateMarkerDirection.Matrix)
+                throw new ExportHandlerException(
+                    "EXPORT_TEMPLATE_MARKER_INVALID",
+                    "DOCX 矩阵标记必须独占一个单元格，例如 {{items|matrix}}。");
+            var row = cell.Ancestors<W.TableRow>().FirstOrDefault()
+                ?? throw new ExportHandlerException(
+                    "EXPORT_TEMPLATE_MARKER_INVALID",
+                    "DOCX 矩阵标记必须放在表格行中。");
+            if (row.Elements<W.TableCell>().Count() != 1)
+                throw new ExportHandlerException(
+                    "EXPORT_TEMPLATE_MARKER_INVALID",
+                    "DOCX 矩阵标记所在的表格行必须只包含一个单元格。");
+
+            var collection = markers[0].Collection!;
+            var table = GetTable(request, collection);
+            ValidateTable(table, collection);
+            itemCount = Math.Max(itemCount, table.Rows.Count);
+            var templateRow = (W.TableRow)row.CloneNode(true);
+            var templateCell = (W.TableCell)cell.CloneNode(true);
+            if (table.Rows.Count == 0)
+            {
+                row.Remove();
+                continue;
+            }
+
+            ReplaceMatrixRow(row, templateCell, table, 0, cancellationToken);
+            OpenXmlElement last = row;
+            for (var rowIndex = 1; rowIndex < table.Rows.Count; rowIndex++)
+            {
+                var clone = (W.TableRow)templateRow.CloneNode(true);
+                ReplaceMatrixRow(clone, templateCell, table, rowIndex, cancellationToken);
+                last.InsertAfterSelf(clone);
+                last = clone;
+            }
+        }
+        return itemCount;
+    }
+
+    private static void ReplaceMatrixRow(
+        W.TableRow row,
+        W.TableCell templateCell,
+        ExportTableContent table,
+        int rowIndex,
+        CancellationToken cancellationToken)
+    {
+        var firstCell = row.Elements<W.TableCell>().Single();
+        ReplaceMatrixCell(firstCell, table, rowIndex, 0);
+        OpenXmlElement last = firstCell;
+        for (var columnIndex = 1; columnIndex < table.Columns.Count; columnIndex++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var clone = (W.TableCell)templateCell.CloneNode(true);
+            ReplaceMatrixCell(clone, table, rowIndex, columnIndex);
+            last.InsertAfterSelf(clone);
+            last = clone;
+        }
+    }
+
+    private static void ReplaceMatrixCell(
+        W.TableCell cell,
+        ExportTableContent table,
+        int rowIndex,
+        int columnIndex)
+    {
+        var column = table.Columns[columnIndex];
+        var normalized = ExportRequestValidator.NormalizeValue(
+            table.Rows[rowIndex][columnIndex],
+            column.Type,
+            column.Name,
+            rowIndex + 1);
+        var replacement = Convert.ToString(normalized, CultureInfo.InvariantCulture) ?? string.Empty;
+        var textNodes = cell.Descendants<W.Text>().ToArray();
+        var replaced = false;
+        foreach (var text in textNodes)
+        {
+            var original = text.Text ?? string.Empty;
+            if (!ExportTemplateMarkers.Parse(original).Any(marker => marker.Direction == ExportTemplateMarkerDirection.Matrix))
+                continue;
+            text.Text = replacement;
+            replaced = true;
+        }
+        if (!replaced)
+            throw new ExportHandlerException(
+                "EXPORT_TEMPLATE_MARKER_INVALID",
+                "DOCX 矩阵模板单元格缺少矩阵标记。");
+    }
+
+    private static int ExpandColumns(
+        W.Document document,
+        ExportRequest request,
+        CancellationToken cancellationToken)
+    {
+        var itemCount = 0;
+        var cells = document.Descendants<W.TableCell>()
+            .Where(cell => GetMarkers(cell).Any(marker => marker.Direction == ExportTemplateMarkerDirection.Column))
+            .ToArray();
+        foreach (var cell in cells)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var markers = GetMarkers(cell)
+                .Where(marker => marker.Direction == ExportTemplateMarkerDirection.Column)
+                .ToArray();
+            var collection = RequireSingleCollection(markers);
+            var table = GetTable(request, collection);
+            ValidateTable(table, collection);
+            itemCount = Math.Max(itemCount, table.Rows.Count);
+            var template = (W.TableCell)cell.CloneNode(true);
+            if (table.Rows.Count == 0)
+            {
+                cell.Remove();
+                continue;
+            }
+
+            ReplaceLoopText(cell, request, collection, 0, ExportTemplateMarkerDirection.Column);
+            OpenXmlElement last = cell;
+            for (var rowIndex = 1; rowIndex < table.Rows.Count; rowIndex++)
+            {
+                var clone = (W.TableCell)template.CloneNode(true);
+                ReplaceLoopText(clone, request, collection, rowIndex, ExportTemplateMarkerDirection.Column);
+                last.InsertAfterSelf(clone);
+                last = clone;
+            }
+        }
+        return itemCount;
+    }
+
+    private static void ReplaceLoopText(
+        OpenXmlElement element,
+        ExportRequest request,
+        string collection,
+        int rowIndex,
+        ExportTemplateMarkerDirection direction)
+    {
+        foreach (var text in element.Descendants<W.Text>())
+        {
+            var original = text.Text ?? string.Empty;
+            text.Text = ExportTemplateMarkers.Replace(original, marker =>
+            {
+                if (marker.Collection is null)
+                    return ResolveScalar(request, marker);
+                if (!string.Equals(marker.Collection, collection, StringComparison.Ordinal)
+                    || marker.Direction != direction)
+                    throw new ExportHandlerException(
+                        "EXPORT_TEMPLATE_MARKER_INVALID",
+                        $"模板标记 {marker.Raw} 的循环方向或集合与所在区域不匹配。");
+                var table = GetTable(request, collection);
+                if (!ExportTemplateMarkers.TryGetTableValue(table, marker.Field, rowIndex, out var value, out var type))
+                    throw new ExportHandlerException(
+                        "EXPORT_TEMPLATE_BINDING_INVALID",
+                        $"模板标记引用了不存在的表格字段：{collection}.{marker.Field}。");
+                var normalized = ExportRequestValidator.NormalizeValue(value, type, marker.Field, rowIndex + 1);
+                return Convert.ToString(normalized, CultureInfo.InvariantCulture);
+            });
+        }
+    }
+
+    private static string? ResolveScalar(ExportRequest request, ExportTemplateMarker marker)
+    {
+        if (marker.Collection is not null)
+            throw new ExportHandlerException(
+                "EXPORT_TEMPLATE_MARKER_INVALID",
+                $"模板中存在未展开的循环标记：{marker.Raw}。");
+        return Convert.ToString(
+            request.Template!.Values.GetValueOrDefault(marker.Field),
+            CultureInfo.InvariantCulture);
+    }
+
+    private static IEnumerable<ExportTemplateMarker> GetMarkers(OpenXmlElement element) =>
+        element.Descendants<W.Text>()
+            .SelectMany(text => ExportTemplateMarkers.Parse(text.Text ?? string.Empty));
+
+    private static void ValidateLoopRegions(
+        W.Document document,
+        ICollection<ExportDiagnostic> diagnostics)
+    {
+        foreach (var text in document.Descendants<W.Text>())
+        {
+            foreach (var marker in ExportTemplateMarkers.Parse(text.Text ?? string.Empty)
+                         .Where(marker => marker.Collection is not null))
+            {
+                var cell = text.Ancestors<W.TableCell>().FirstOrDefault();
+                var row = text.Ancestors<W.TableRow>().FirstOrDefault();
+                if (cell is null || row is null)
+                {
+                    diagnostics.Add(new(
+                        "EXPORT_TEMPLATE_MARKER_INVALID",
+                        $"DOCX 循环标记必须放在表格中：{marker.Raw}。"));
+                    continue;
+                }
+                if (HasMerge(cell))
+                    diagnostics.Add(new(
+                        "EXPORT_TEMPLATE_UNSUPPORTED",
+                        $"DOCX 循环标记不能放在合并单元格中：{marker.Raw}。"));
+            }
+        }
+
+        foreach (var row in document.Descendants<W.TableRow>())
+        {
+            var markers = GetMarkers(row).Where(marker => marker.Collection is not null).ToArray();
+            var hasRows = markers.Any(marker => marker.Direction == ExportTemplateMarkerDirection.Row);
+            var hasColumns = markers.Any(marker => marker.Direction == ExportTemplateMarkerDirection.Column);
+            var hasMatrix = markers.Any(marker => marker.Direction == ExportTemplateMarkerDirection.Matrix);
+            if (hasMatrix && (hasRows || hasColumns))
+                diagnostics.Add(new(
+                    "EXPORT_TEMPLATE_MARKER_INVALID",
+                    "同一个 DOCX 表格行不能同时进行矩阵展开和行/列循环。"));
+            if (hasRows && hasColumns)
+                diagnostics.Add(new(
+                    "EXPORT_TEMPLATE_MARKER_INVALID",
+                    "同一个 DOCX 表格行不能同时进行行循环和列循环。"));
+            if (hasRows)
+                ValidateSingleCollection(markers.Where(marker => marker.Direction == ExportTemplateMarkerDirection.Row), diagnostics);
+        }
+
+        foreach (var cell in document.Descendants<W.TableCell>())
+        {
+            var matrixMarkers = GetMarkers(cell)
+                .Where(marker => marker.Direction == ExportTemplateMarkerDirection.Matrix)
+                .ToArray();
+            if (matrixMarkers.Length > 0
+                && (matrixMarkers.Length != 1 || cell.Ancestors<W.TableRow>().FirstOrDefault()?.Elements<W.TableCell>().Count() != 1))
+                diagnostics.Add(new(
+                    "EXPORT_TEMPLATE_MARKER_INVALID",
+                    "DOCX 矩阵标记必须独占一个仅含该单元格的表格行。"));
+            var markers = GetMarkers(cell)
+                .Where(marker => marker.Direction == ExportTemplateMarkerDirection.Column)
+                .ToArray();
+            if (markers.Length > 0)
+                ValidateSingleCollection(markers, diagnostics);
+        }
+    }
+
+    private static void ValidateSingleCollection(
+        IEnumerable<ExportTemplateMarker> markers,
+        ICollection<ExportDiagnostic> diagnostics)
+    {
+        if (markers.Select(marker => marker.Collection).Distinct(StringComparer.Ordinal).Count() > 1)
+            diagnostics.Add(new(
+                "EXPORT_TEMPLATE_MARKER_INVALID",
+                "一个循环区域只能使用一个表格绑定。"));
+    }
+
+    private static bool HasMerge(W.TableCell cell)
+    {
+        var properties = cell.TableCellProperties;
+        return properties?.GetFirstChild<W.GridSpan>()?.Val?.Value > 1
+            || properties?.GetFirstChild<W.VerticalMerge>() is not null
+            || properties?.GetFirstChild<W.HorizontalMerge>() is not null;
+    }
+
+    private static string RequireSingleCollection(IEnumerable<ExportTemplateMarker> markers)
+    {
+        var collections = markers.Select(marker => marker.Collection).Distinct(StringComparer.Ordinal).ToArray();
+        if (collections.Length != 1 || collections[0] is null)
+            throw new ExportHandlerException(
+                "EXPORT_TEMPLATE_MARKER_INVALID",
+                "一个循环区域只能使用一个表格绑定。");
+        return collections[0]!;
+    }
+
+    private static ExportTableContent GetTable(ExportRequest request, string key)
+    {
+        if (request.Template!.Tables.TryGetValue(key, out var table))
+            return table;
+        throw new ExportHandlerException(
+            "EXPORT_TEMPLATE_REQUIRED_BINDING_MISSING",
+            $"缺少模板循环数据：{key}。");
+    }
+
+    private static void ValidateTable(ExportTableContent table, string key)
+    {
+        var validation = ExportRequestValidator.ValidateTableContent(
+            table,
+            new ExportContentCapabilities(ExportContentKind.Table, [ExportFeature.TypedValues]));
+        if (validation is not null)
+            throw new ExportHandlerException(
+                validation.Code,
+                $"DOCX 模板表格绑定“{key}”无效：{validation.Message}",
+                details: validation.Details);
+    }
 
     private static bool ContainsDangerousFieldInstruction(Stream templateStream)
     {

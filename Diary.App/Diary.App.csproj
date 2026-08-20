@@ -59,6 +59,7 @@
         <ProjectReference Include="..\Diary.Export.Csv\Diary.Export.Csv.csproj" />
         <ProjectReference Include="..\Diary.Export.Docx\Diary.Export.Docx.csproj" />
         <ProjectReference Include="..\Diary.Export.Xlsx\Diary.Export.Xlsx.csproj" />
+        <ProjectReference Include="..\Diary.Export.Mustache\Diary.Export.Mustache.csproj" />
         <ProjectReference Include="..\Diary.Script.CSharp\Diary.Script.CSharp.csproj" />
         <ProjectReference Include="..\Diary.Script.Lua\Diary.Script.Lua.csproj" />
         <ProjectReference Include="..\Diary.Script.Python\Diary.Script.Python.csproj" />

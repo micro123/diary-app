@@ -18,17 +18,12 @@ public sealed class XlsxExportPlugin : IExportPlugin
 
 internal sealed class XlsxTemplateHandler : IExportTemplateHandler
 {
-    private const string MetadataSheetName = "__diary_template";
-    private const string Marker = "diary.export.template";
     private static readonly Regex DangerousFormula = new(
         "(?:^|[^A-Z])(?:WEBSERVICE|FILTERXML|HYPERLINK|RTD|DDE)\\s*\\(",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex ExternalWorkbookReference = new(
         "\\[[^\\]]+\\][^!]+!",
         RegexOptions.Compiled);
-    private static readonly HashSet<string> ScalarTypes = Enum.GetNames<ExportScalarType>()
-        .Select(value => value.ToLowerInvariant())
-        .ToHashSet(StringComparer.Ordinal);
 
     public string PluginId => "xlsx";
     public string FormatId => "xlsx";
@@ -40,66 +35,53 @@ internal sealed class XlsxTemplateHandler : IExportTemplateHandler
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var diagnostics = new List<ExportDiagnostic>();
         if (!string.Equals(context.FileExtension, ".xlsx", StringComparison.OrdinalIgnoreCase))
-        {
-            diagnostics.Add(new("EXPORT_TEMPLATE_EXTENSION_INVALID", "XLSX 模板扩展名必须为 .xlsx。"));
-            return ValueTask.FromResult(Invalid(diagnostics));
-        }
+            return ValueTask.FromResult(Invalid("EXPORT_TEMPLATE_EXTENSION_INVALID", "XLSX 模板扩展名必须为 .xlsx。"));
 
         try
         {
-            diagnostics.AddRange(OpenXmlTemplateSafety.ValidatePackage(templateStream));
+            var diagnostics = OpenXmlTemplateSafety.ValidatePackage(templateStream).ToList();
             if (diagnostics.Count > 0)
-                return ValueTask.FromResult(Invalid(diagnostics));
+                return ValueTask.FromResult(new ExportTemplateValidationResult(
+                    false, null, null, null, null, [], [], diagnostics));
 
             templateStream.Position = 0;
             using var workbook = new XLWorkbook(templateStream);
-            if (!workbook.Worksheets.TryGetWorksheet(MetadataSheetName, out var metadata))
-            {
-                diagnostics.Add(new("EXPORT_TEMPLATE_METADATA_MISSING", $"缺少模板元数据工作表“{MetadataSheetName}”。"));
-                return ValueTask.FromResult(Invalid(diagnostics));
-            }
+            var markerCells = FindMarkerCells(workbook).ToArray();
+            var markers = markerCells.SelectMany(item => item.Markers).ToArray();
+            if (markers.Length == 0)
+                return ValueTask.FromResult(Invalid(
+                    "EXPORT_TEMPLATE_MARKER_MISSING",
+                    "XLSX 模板至少需要包含一个 {{变量}} 或 {{items.字段}} 标记。"));
 
-            if (!string.Equals(metadata.Cell("A1").GetString(), Marker, StringComparison.Ordinal))
-                diagnostics.Add(new("EXPORT_TEMPLATE_MARKER_INVALID", "模板元数据标记无效。"));
-
-            var templateName = metadata.Cell("A2").GetString().Trim();
-            var version = metadata.Cell("A3").GetString().Trim();
-            var displayName = metadata.Cell("A4").GetString().Trim();
-            var description = metadata.Cell("A5").GetString().Trim();
-            if (string.IsNullOrWhiteSpace(templateName))
-                diagnostics.Add(new("EXPORT_TEMPLATE_NAME_MISSING", "模板名不能为空。"));
-            if (string.IsNullOrWhiteSpace(version))
-                diagnostics.Add(new("EXPORT_TEMPLATE_VERSION_MISSING", "模板版本不能为空。"));
-
-            var bindings = ReadBindings(metadata, diagnostics);
+            ValidateLoopDirections(markerCells, diagnostics);
             ValidateFormulaSafety(workbook, diagnostics);
             if (diagnostics.Count > 0)
                 return ValueTask.FromResult(new ExportTemplateValidationResult(
                     false,
-                    templateName,
-                    displayName,
-                    description,
-                    version,
-                    bindings,
+                    ExportTemplateMarkers.CreateTemplateName(context.FileName),
+                    Path.GetFileNameWithoutExtension(context.FileName),
+                    "使用简易标记的 XLSX 模板。",
+                    "1.0.0",
+                    ExportTemplateMarkers.InferBindings(markers),
                     [],
                     diagnostics));
 
             return ValueTask.FromResult(new ExportTemplateValidationResult(
                 true,
-                templateName,
-                string.IsNullOrWhiteSpace(displayName) ? templateName : displayName,
-                description,
-                version,
-                bindings,
-                [ExportFeature.TypedValues],
+                ExportTemplateMarkers.CreateTemplateName(context.FileName),
+                Path.GetFileNameWithoutExtension(context.FileName),
+                "使用简易标记的 XLSX 模板。",
+                "1.0.0",
+                ExportTemplateMarkers.InferBindings(markers),
+                [ExportFeature.TypedValues, ExportFeature.BasicStyle],
                 []));
         }
         catch (Exception exception)
         {
-            diagnostics.Add(new("EXPORT_TEMPLATE_STRUCTURE_INVALID", $"无法读取 XLSX 模板：{exception.Message}"));
-            return ValueTask.FromResult(Invalid(diagnostics));
+            return ValueTask.FromResult(Invalid(
+                "EXPORT_TEMPLATE_STRUCTURE_INVALID",
+                $"无法读取 XLSX 模板：{exception.Message}"));
         }
     }
 
@@ -114,70 +96,53 @@ internal sealed class XlsxTemplateHandler : IExportTemplateHandler
 
         await using var templateStream = await context.OpenTemplateAsync(cancellationToken);
         using var workbook = new XLWorkbook(templateStream);
-        var metadata = workbook.Worksheet(MetadataSheetName);
-        var bindings = ReadBindingTargets(metadata, cancellationToken);
         var itemCount = 0;
-
-        foreach (var (key, value) in request.Template.Values)
+        foreach (var worksheet in workbook.Worksheets)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!bindings.TryGetValue(key, out var binding) || binding.Kind != ExportBindingKind.Scalar)
-                continue;
-            var cell = ResolveCell(workbook, binding.Target);
-            SetCellValue(cell, value, binding.ScalarType);
-        }
+            var markerCells = FindMarkerCells(worksheet).ToArray();
+            var matrixCells = markerCells
+                .Where(item => item.Markers.Any(marker => marker.Direction == ExportTemplateMarkerDirection.Matrix))
+                .OrderByDescending(item => item.Cell.Address.RowNumber)
+                .ThenByDescending(item => item.Cell.Address.ColumnNumber)
+                .ToArray();
+            var rowNumbers = markerCells
+                .Where(item => item.Markers.Any(marker => marker.Direction == ExportTemplateMarkerDirection.Row))
+                .Select(item => item.Cell.Address.RowNumber)
+                .Distinct()
+                .OrderDescending()
+                .ToArray();
+            var columnNumbers = markerCells
+                .Where(item => item.Markers.Any(marker => marker.Direction == ExportTemplateMarkerDirection.Column))
+                .Select(item => item.Cell.Address.ColumnNumber)
+                .Distinct()
+                .OrderDescending()
+                .ToArray();
+            if (matrixCells.Length > 0 && (rowNumbers.Length > 0 || columnNumbers.Length > 0))
+                throw new ExportHandlerException(
+                    "EXPORT_TEMPLATE_MARKER_INVALID",
+                    $"工作表“{worksheet.Name}”中的矩阵区域不能与行循环或列循环混用。");
+            if (rowNumbers.Length > 0 && columnNumbers.Length > 0)
+                throw new ExportHandlerException(
+                    "EXPORT_TEMPLATE_MARKER_INVALID",
+                    $"工作表“{worksheet.Name}”不能同时进行行循环和列循环。");
 
-        foreach (var (key, table) in request.Template.Tables)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (!bindings.TryGetValue(key, out var binding) || binding.Kind != ExportBindingKind.Table)
-                continue;
-            if (!string.IsNullOrWhiteSpace(table.Title))
-                throw new ExportHandlerException(
-                    "EXPORT_UNSUPPORTED_FEATURE",
-                    $"XLSX 模板表格绑定“{key}”不支持 title。",
-                    details: new Dictionary<string, object?> { ["binding_key"] = key });
-            var validation = ExportRequestValidator.ValidateTableContent(
-                table,
-                new ExportContentCapabilities(ExportContentKind.Table, [ExportFeature.TypedValues]));
-            if (validation is not null)
-                throw new ExportHandlerException(
-                    validation.Code,
-                    $"XLSX 模板表格绑定“{key}”无效：{validation.Message}",
-                    details: MergeDetails(validation.Details, key));
-            var start = ResolveCell(workbook, binding.Target);
-            for (var columnIndex = 0; columnIndex < table.Columns.Count; columnIndex++)
-                start.Worksheet.Cell(start.Address.RowNumber, start.Address.ColumnNumber + columnIndex)
-                    .SetValue(table.Columns[columnIndex].Name);
-            for (var rowIndex = 0; rowIndex < table.Rows.Count; rowIndex++)
+            foreach (var matrixCell in matrixCells)
+                itemCount = Math.Max(itemCount, ExpandMatrix(worksheet, matrixCell.Cell, request, cancellationToken));
+            foreach (var rowNumber in rowNumbers)
+                itemCount = Math.Max(itemCount, ExpandRow(worksheet, rowNumber, request, cancellationToken));
+            foreach (var columnNumber in columnNumbers)
+                itemCount = Math.Max(itemCount, ExpandColumn(worksheet, columnNumber, request, cancellationToken));
+
+            foreach (var item in FindMarkerCells(worksheet).ToArray())
             {
-                for (var columnIndex = 0; columnIndex < table.Columns.Count; columnIndex++)
-                {
-                    var cell = start.Worksheet.Cell(
-                        start.Address.RowNumber + rowIndex + 1,
-                        start.Address.ColumnNumber + columnIndex);
-                    var column = table.Columns[columnIndex];
-                    object? normalized;
-                    try
-                    {
-                        normalized = ExportRequestValidator.NormalizeValue(
-                            table.Rows[rowIndex][columnIndex],
-                            column.Type,
-                            column.Name,
-                            rowIndex + 1);
-                    }
-                    catch (ExportHandlerException exception)
-                    {
-                        throw new ExportHandlerException(
-                            exception.Code,
-                            exception.Message,
-                            exception.Retryable,
-                            MergeDetails(exception.Details, key),
-                            exception);
-                    }
-                    SetCellValue(cell, normalized, ToScalarType(column.Type));
-                }
-                itemCount++;
+                cancellationToken.ThrowIfCancellationRequested();
+                var markers = ExportTemplateMarkers.Parse(item.Cell.GetString());
+                if (markers.Any(marker => marker.Collection is not null))
+                    throw new ExportHandlerException(
+                        "EXPORT_TEMPLATE_MARKER_INVALID",
+                        $"工作表“{worksheet.Name}”中存在未展开的循环标记。");
+                ReplaceScalarMarkers(item.Cell, request);
             }
         }
 
@@ -188,6 +153,268 @@ internal sealed class XlsxTemplateHandler : IExportTemplateHandler
         return new ExportRenderResult(itemCount);
     }
 
+    private static int ExpandRow(
+        IXLWorksheet worksheet,
+        int rowNumber,
+        ExportRequest request,
+        CancellationToken cancellationToken)
+    {
+        var row = worksheet.Row(rowNumber);
+        var markers = row.CellsUsed()
+            .SelectMany(cell => ExportTemplateMarkers.Parse(cell.GetString()))
+            .Where(marker => marker.Collection is not null)
+            .ToArray();
+        var collection = RequireSingleCollection(markers);
+        var table = GetTable(request, collection);
+        ValidateTable(table, collection);
+        if (table.Rows.Count == 0)
+        {
+            row.Delete();
+            return 0;
+        }
+
+        if (table.Rows.Count > 1)
+            row.InsertRowsBelow(table.Rows.Count - 1);
+        for (var rowIndex = 1; rowIndex < table.Rows.Count; rowIndex++)
+            row.CopyTo(worksheet.Row(rowNumber + rowIndex));
+        for (var rowIndex = 0; rowIndex < table.Rows.Count; rowIndex++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ReplaceLoopCells(
+                worksheet.Row(rowNumber + rowIndex).CellsUsed(),
+                request,
+                collection,
+                rowIndex,
+                ExportTemplateMarkerDirection.Row);
+        }
+        return table.Rows.Count;
+    }
+
+    private static int ExpandMatrix(
+        IXLWorksheet worksheet,
+        IXLCell anchor,
+        ExportRequest request,
+        CancellationToken cancellationToken)
+    {
+        var markers = ExportTemplateMarkers.Parse(anchor.GetString());
+        if (markers.Count != 1 || markers[0].Direction != ExportTemplateMarkerDirection.Matrix)
+            throw new ExportHandlerException(
+                "EXPORT_TEMPLATE_MARKER_INVALID",
+                "XLSX 矩阵标记必须独占一个单元格，例如 {{items|matrix}}。");
+        var collection = markers[0].Collection!;
+        var table = GetTable(request, collection);
+        ValidateTable(table, collection);
+        if (table.Rows.Count == 0)
+        {
+            anchor.Clear();
+            return 0;
+        }
+
+        var rowNumber = anchor.Address.RowNumber;
+        var columnNumber = anchor.Address.ColumnNumber;
+        var templateRow = worksheet.Row(rowNumber);
+        if (table.Rows.Count > 1)
+            templateRow.InsertRowsBelow(table.Rows.Count - 1);
+        for (var rowIndex = 1; rowIndex < table.Rows.Count; rowIndex++)
+            templateRow.CopyTo(worksheet.Row(rowNumber + rowIndex));
+
+        if (table.Columns.Count > 1)
+            worksheet.Column(columnNumber).InsertColumnsAfter(table.Columns.Count - 1);
+        for (var rowIndex = 0; rowIndex < table.Rows.Count; rowIndex++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            for (var columnIndex = 0; columnIndex < table.Columns.Count; columnIndex++)
+            {
+                var cell = worksheet.Cell(rowNumber + rowIndex, columnNumber + columnIndex);
+                if (columnIndex > 0)
+                    anchor.CopyTo(cell);
+                var value = table.Rows[rowIndex][columnIndex];
+                var type = table.Columns[columnIndex].Type;
+                SetCellValue(
+                    cell,
+                    ExportRequestValidator.NormalizeValue(
+                        value,
+                        type,
+                        table.Columns[columnIndex].Name,
+                        rowIndex + 1),
+                    ToScalarType(type));
+            }
+        }
+        return table.Rows.Count;
+    }
+
+    private static int ExpandColumn(
+        IXLWorksheet worksheet,
+        int columnNumber,
+        ExportRequest request,
+        CancellationToken cancellationToken)
+    {
+        var column = worksheet.Column(columnNumber);
+        var markers = column.CellsUsed()
+            .SelectMany(cell => ExportTemplateMarkers.Parse(cell.GetString()))
+            .Where(marker => marker.Collection is not null)
+            .ToArray();
+        var collection = RequireSingleCollection(markers);
+        var table = GetTable(request, collection);
+        ValidateTable(table, collection);
+        if (table.Rows.Count == 0)
+        {
+            column.Delete();
+            return 0;
+        }
+
+        if (table.Rows.Count > 1)
+            column.InsertColumnsAfter(table.Rows.Count - 1);
+        for (var columnIndex = 1; columnIndex < table.Rows.Count; columnIndex++)
+            column.CopyTo(worksheet.Column(columnNumber + columnIndex));
+        for (var rowIndex = 0; rowIndex < table.Rows.Count; rowIndex++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ReplaceLoopCells(
+                worksheet.Column(columnNumber + rowIndex).CellsUsed(),
+                request,
+                collection,
+                rowIndex,
+                ExportTemplateMarkerDirection.Column);
+        }
+        return table.Rows.Count;
+    }
+
+    private static void ReplaceLoopCells(
+        IEnumerable<IXLCell> cells,
+        ExportRequest request,
+        string collection,
+        int rowIndex,
+        ExportTemplateMarkerDirection direction)
+    {
+        foreach (var cell in cells.ToArray())
+        {
+            var text = cell.GetString();
+            var markers = ExportTemplateMarkers.Parse(text);
+            if (markers.Count == 0)
+                continue;
+            if (markers.Any(marker => marker.Collection is not null && marker.Direction != direction))
+                throw new ExportTemplateMarkerException("循环标记方向与样板区域不匹配。");
+            var tableMarkers = markers.Where(marker => marker.Collection is not null).ToArray();
+            if (tableMarkers.Any(marker => !string.Equals(marker.Collection, collection, StringComparison.Ordinal)))
+                throw new ExportTemplateMarkerException("一个循环区域只能使用一个表格绑定。");
+            if (tableMarkers.Length == 1 && string.Equals(tableMarkers[0].Raw, text, StringComparison.Ordinal))
+            {
+                var marker = tableMarkers[0];
+                var table = GetTable(request, collection);
+                if (!ExportTemplateMarkers.TryGetTableValue(table, marker.Field, rowIndex, out var value, out var type))
+                    throw new ExportTemplateMarkerException($"模板标记引用了不存在的表格字段：{collection}.{marker.Field}。");
+                try
+                {
+                    SetCellValue(cell, ExportRequestValidator.NormalizeValue(value, type, marker.Field, rowIndex + 1), ToScalarType(type));
+                }
+                catch (ExportHandlerException exception) when (exception.Code == "EXPORT_VALUE_INVALID")
+                {
+                    throw new ExportHandlerException(
+                        exception.Code,
+                        exception.Message,
+                        exception.Retryable,
+                        MergeDetails(exception.Details, collection),
+                        exception);
+                }
+                continue;
+            }
+
+            cell.SetValue(ExportTemplateMarkers.Replace(text, marker => ResolveMarkerText(
+                marker,
+                request,
+                collection,
+                rowIndex,
+                direction)));
+        }
+    }
+
+    private static void ReplaceScalarMarkers(IXLCell cell, ExportRequest request)
+    {
+        var text = cell.GetString();
+        if (ExportTemplateMarkers.Parse(text).Count == 0)
+            return;
+        cell.SetValue(ExportTemplateMarkers.Replace(text, marker =>
+        {
+            if (marker.Collection is not null)
+                throw new ExportTemplateMarkerException("模板中存在未展开的循环标记。");
+            return Convert.ToString(request.Template!.Values.GetValueOrDefault(marker.Field), System.Globalization.CultureInfo.InvariantCulture);
+        }));
+    }
+
+    private static string ResolveMarkerText(
+        ExportTemplateMarker marker,
+        ExportRequest request,
+        string collection,
+        int rowIndex,
+        ExportTemplateMarkerDirection direction)
+    {
+        if (marker.Collection is null)
+            return Convert.ToString(request.Template!.Values.GetValueOrDefault(marker.Field), System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+        if (!string.Equals(marker.Collection, collection, StringComparison.Ordinal) || marker.Direction != direction)
+            throw new ExportTemplateMarkerException("循环标记方向或集合与样板区域不匹配。");
+        var table = GetTable(request, collection);
+        if (!ExportTemplateMarkers.TryGetTableValue(table, marker.Field, rowIndex, out var value, out var type))
+            throw new ExportTemplateMarkerException($"模板标记引用了不存在的表格字段：{collection}.{marker.Field}。");
+        return Convert.ToString(ExportRequestValidator.NormalizeValue(value, type, marker.Field, rowIndex + 1), System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+    }
+
+    private static IReadOnlyList<MarkerCell> FindMarkerCells(XLWorkbook workbook) =>
+        workbook.Worksheets.SelectMany(FindMarkerCells).ToArray();
+
+    private static IReadOnlyList<MarkerCell> FindMarkerCells(IXLWorksheet worksheet) =>
+        worksheet.CellsUsed()
+            .Select(cell => new MarkerCell(cell, ExportTemplateMarkers.Parse(cell.GetString())))
+            .Where(item => item.Markers.Count > 0)
+            .ToArray();
+
+    private static void ValidateLoopDirections(
+        IEnumerable<MarkerCell> markerCells,
+        ICollection<ExportDiagnostic> diagnostics)
+    {
+        foreach (var group in markerCells.GroupBy(item => item.Cell.Worksheet.Name, StringComparer.Ordinal))
+        {
+            var hasRow = group.Any(item => item.Markers.Any(marker => marker.Direction == ExportTemplateMarkerDirection.Row));
+            var hasColumn = group.Any(item => item.Markers.Any(marker => marker.Direction == ExportTemplateMarkerDirection.Column));
+            var hasMatrix = group.Any(item => item.Markers.Any(marker => marker.Direction == ExportTemplateMarkerDirection.Matrix));
+            if (hasMatrix && (hasRow || hasColumn))
+                diagnostics.Add(new(
+                    "EXPORT_TEMPLATE_MARKER_INVALID",
+                    $"工作表“{group.Key}”不能同时进行矩阵展开和行/列循环。"));
+            if (hasRow && hasColumn)
+                diagnostics.Add(new(
+                    "EXPORT_TEMPLATE_MARKER_INVALID",
+                    $"工作表“{group.Key}”不能同时进行行循环和列循环。"));
+        }
+    }
+
+    private static string RequireSingleCollection(IEnumerable<ExportTemplateMarker> markers)
+    {
+        var collections = markers.Select(marker => marker.Collection).Distinct(StringComparer.Ordinal).ToArray();
+        if (collections.Length != 1 || collections[0] is null)
+            throw new ExportTemplateMarkerException("一个循环区域只能使用一个表格绑定。");
+        return collections[0]!;
+    }
+
+    private static ExportTableContent GetTable(ExportRequest request, string key)
+    {
+        if (request.Template!.Tables.TryGetValue(key, out var table))
+            return table;
+        throw new ExportTemplateMarkerException($"缺少模板循环数据：{key}。");
+    }
+
+    private static void ValidateTable(ExportTableContent table, string key)
+    {
+        var validation = ExportRequestValidator.ValidateTableContent(
+            table,
+            new ExportContentCapabilities(ExportContentKind.Table, [ExportFeature.TypedValues]));
+        if (validation is not null)
+            throw new ExportHandlerException(
+                validation.Code,
+                $"XLSX 模板表格绑定“{key}”无效：{validation.Message}",
+                details: MergeDetails(validation.Details, key));
+    }
+
     private static IReadOnlyDictionary<string, object?> MergeDetails(
         IReadOnlyDictionary<string, object?>? details,
         string bindingKey)
@@ -196,56 +423,6 @@ internal sealed class XlsxTemplateHandler : IExportTemplateHandler
             ? new Dictionary<string, object?>()
             : new Dictionary<string, object?>(details, StringComparer.Ordinal);
         result["binding_key"] = bindingKey;
-        return result;
-    }
-
-    private static IReadOnlyList<ExportBindingDescriptor> ReadBindings(
-        IXLWorksheet metadata,
-        ICollection<ExportDiagnostic> diagnostics)
-    {
-        var result = new List<ExportBindingDescriptor>();
-        var keys = new HashSet<string>(StringComparer.Ordinal);
-        var lastRow = metadata.LastRowUsed()?.RowNumber() ?? 7;
-        for (var row = 8; row <= lastRow; row++)
-        {
-            var key = metadata.Cell(row, 1).GetString().Trim();
-            if (string.IsNullOrWhiteSpace(key))
-                continue;
-            if (!keys.Add(key))
-            {
-                diagnostics.Add(new("EXPORT_TEMPLATE_BINDING_DUPLICATE", "模板绑定键重复。", key));
-                continue;
-            }
-
-            var kindText = metadata.Cell(row, 2).GetString().Trim().ToLowerInvariant();
-            var scalarText = metadata.Cell(row, 3).GetString().Trim().ToLowerInvariant();
-            var requiredText = metadata.Cell(row, 4).GetString().Trim();
-            var defaultText = metadata.Cell(row, 5).GetString();
-            var target = metadata.Cell(row, 6).GetString().Trim();
-            var description = metadata.Cell(row, 7).GetString().Trim();
-            if (!Enum.TryParse<ExportBindingKind>(kindText, true, out var kind)
-                || string.IsNullOrWhiteSpace(target))
-            {
-                diagnostics.Add(new("EXPORT_TEMPLATE_BINDING_INVALID", "模板绑定类型或目标地址无效。", key));
-                continue;
-            }
-            ExportScalarType? scalarType = null;
-            if (kind == ExportBindingKind.Scalar)
-            {
-                if (!ScalarTypes.Contains(scalarText)
-                    || !Enum.TryParse<ExportScalarType>(scalarText, true, out var parsed))
-                {
-                    diagnostics.Add(new("EXPORT_TEMPLATE_BINDING_TYPE_INVALID", "标量绑定类型无效。", key));
-                    continue;
-                }
-                scalarType = parsed;
-            }
-
-            var required = !bool.TryParse(requiredText, out var parsedRequired) || parsedRequired;
-            var hasDefault = !string.IsNullOrWhiteSpace(defaultText);
-            object? defaultValue = hasDefault ? ParseScalar(defaultText, scalarType) : null;
-            result.Add(new ExportBindingDescriptor(key, kind, scalarType, required, hasDefault, defaultValue, description));
-        }
         return result;
     }
 
@@ -271,25 +448,6 @@ internal sealed class XlsxTemplateHandler : IExportTemplateHandler
         }
     }
 
-    private static Dictionary<string, BindingTarget> ReadBindingTargets(IXLWorksheet metadata, CancellationToken cancellationToken)
-    {
-        var result = new Dictionary<string, BindingTarget>(StringComparer.Ordinal);
-        var lastRow = metadata.LastRowUsed()?.RowNumber() ?? 7;
-        for (var row = 8; row <= lastRow; row++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var key = metadata.Cell(row, 1).GetString().Trim();
-            if (string.IsNullOrWhiteSpace(key))
-                continue;
-            var kind = Enum.Parse<ExportBindingKind>(metadata.Cell(row, 2).GetString().Trim(), true);
-            var scalar = Enum.TryParse<ExportScalarType>(metadata.Cell(row, 3).GetString().Trim(), true, out var parsed)
-                ? parsed
-                : (ExportScalarType?)null;
-            result[key] = new(kind, scalar, metadata.Cell(row, 6).GetString().Trim());
-        }
-        return result;
-    }
-
     private static ExportScalarType ToScalarType(ExportColumnType type) => type switch
     {
         ExportColumnType.Text => ExportScalarType.Text,
@@ -301,28 +459,6 @@ internal sealed class XlsxTemplateHandler : IExportTemplateHandler
         ExportColumnType.DateTime => ExportScalarType.DateTime,
         ExportColumnType.Boolean => ExportScalarType.Boolean,
         _ => ExportScalarType.Text,
-    };
-
-    private static IXLCell ResolveCell(XLWorkbook workbook, string target)
-    {
-        var separator = target.IndexOf('!', StringComparison.Ordinal);
-        if (separator < 0)
-            return workbook.Worksheet("明细").Cell(target);
-        var sheetName = target[..separator];
-        var address = target[(separator + 1)..];
-        return workbook.Worksheet(sheetName).Cell(address);
-    }
-
-    private static object? ParseScalar(string value, ExportScalarType? type) => type switch
-    {
-        ExportScalarType.Integer when int.TryParse(value, out var integer) => integer,
-        ExportScalarType.Decimal when decimal.TryParse(value, out var decimalValue) => decimalValue,
-        ExportScalarType.Boolean when bool.TryParse(value, out var boolean) => boolean,
-        ExportScalarType.Date when DateOnly.TryParse(value, out var date) => date,
-        ExportScalarType.Time when TimeOnly.TryParse(value, out var time) => time,
-        ExportScalarType.Duration when TimeSpan.TryParse(value, out var duration) => duration,
-        ExportScalarType.DateTime when DateTimeOffset.TryParse(value, out var dateTime) => dateTime,
-        _ => value,
     };
 
     private static void SetCellValue(IXLCell cell, object? value, ExportScalarType? type)
@@ -350,19 +486,15 @@ internal sealed class XlsxTemplateHandler : IExportTemplateHandler
                 break;
             case ExportScalarType.Date:
                 cell.Value = value is DateOnly date ? date.ToDateTime(TimeOnly.MinValue) : DateTime.Parse(text);
-                cell.Style.DateFormat.Format = "yyyy-mm-dd";
                 break;
             case ExportScalarType.Time:
                 cell.Value = value is TimeOnly time ? time.ToTimeSpan() : TimeSpan.Parse(text);
-                cell.Style.DateFormat.Format = "hh:mm:ss";
                 break;
             case ExportScalarType.Duration:
                 cell.Value = value is TimeSpan duration ? duration : TimeSpan.Parse(text);
-                cell.Style.NumberFormat.Format = "[h]:mm:ss";
                 break;
             case ExportScalarType.DateTime:
                 cell.Value = value is DateTimeOffset dateTime ? dateTime.LocalDateTime : DateTime.Parse(text);
-                cell.Style.DateFormat.Format = "yyyy-mm-dd hh:mm:ss";
                 break;
             default:
                 cell.SetValue(text);
@@ -370,11 +502,12 @@ internal sealed class XlsxTemplateHandler : IExportTemplateHandler
         }
     }
 
-    private static ExportTemplateValidationResult Invalid(IReadOnlyList<ExportDiagnostic> diagnostics) =>
-        new(false, null, null, null, null, [], [], diagnostics);
+    private static ExportTemplateValidationResult Invalid(
+        string code,
+        string message) =>
+        new(false, null, null, null, null, [], [], [new ExportDiagnostic(code, message)]);
 
-    private sealed record BindingTarget(
-        ExportBindingKind Kind,
-        ExportScalarType? ScalarType,
-        string Target);
+    private sealed record MarkerCell(IXLCell Cell, IReadOnlyList<ExportTemplateMarker> Markers);
+
+    private sealed class ExportTemplateMarkerException(string message) : InvalidOperationException(message);
 }

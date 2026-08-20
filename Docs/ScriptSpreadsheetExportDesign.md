@@ -503,6 +503,7 @@ public enum ExportBindingKind
     Scalar,
     Table,
     Document,
+    Context,
 }
 
 public enum ExportScalarType
@@ -810,9 +811,9 @@ CSV 处理器的第一版约定：
 - 第一版不开放 CSV `FormatOptions`，固定为 UTF-8 BOM、逗号分隔、CRLF 和 RFC 4180 转义；非空 `FormatOptions` 返回 `EXPORT_INVALID_REQUEST`；
 - 不支持背景色、字体、冻结窗格和合并，视觉样式或 `Merges` 请求返回 `EXPORT_UNSUPPORTED_FEATURE`。
 
-DOCX 模板使用专用元数据段：正文文本中前三个非空行依次为 `[[diary.export.template]]`、`template_name: <snake_case>` 和 `version: <version>`；其余正文中的 `{{binding_key}}` 作为标量绑定，宿主导出时替换占位符并保留其余 Word 结构和样式。
+三种模板格式统一使用轻量标记，不再使用元数据头、隐藏元数据工作表或额外绑定声明。`{{variable}}` 表示标量替换，`{{items.field}}` 表示按模板行循环，`{{items.field|column}}` 表示按模板列循环，`{{items|matrix}}` 表示展开完整的 M×N 表格区域。模板名称由导入文件名推断，版本固定为 `1.0.0`；绑定类型由标记自动推断，其他数据处理逻辑由脚本完成。
 
-CSV 模板使用 UTF-8 文本头：前三行依次为 `# diary.export.template`、`# template_name: <snake_case>` 和 `# version: <version>`；其余行中的 `{{binding_key}}` 作为标量绑定，`# binding: key|scalar|type|required|default` 可声明类型和默认值。
+行循环复制所在的 XLSX 行、CSV 行或 DOCX 表格行；列循环复制所在的 XLSX 列、CSV 字段或 DOCX 表格单元格。矩阵标记必须独占一个 XLSX 单元格、CSV 行或 DOCX 表格行，使用表格的全部列和行展开 M×N 区域，标记前后的固定内容保持不变。一个循环区域只能使用一个表格绑定，CSV 同一行和 DOCX 同一表格行不能同时混用两种循环方向，XLSX 同一工作表暂不同时展开矩阵和行/列循环。DOCX 循环标记不能放在合并单元格中。
 
 DOCX 处理器的第一版约定：
 
@@ -1775,9 +1776,7 @@ public interface IExportApi
 - 扩展名只用于选择校验/渲染插件，不代表模板已经有效；不能仅凭 `.xlsx` 或 `.docx` 判断文件是可用模板；
 - 插件可以在扩展名之外检查文件签名、容器结构、MIME 和格式版本，防止用户把普通文件改名后绕过识别。
 
-当前 XLSX 插件的第一版模板约定为隐藏/专用工作表 `__diary_template`：`A1` 为 `diary.export.template`，`A2` 为全小写 `snake_case` 模板名，`A3` 为模板版本，`A4/A5` 为显示名称和说明；从第 8 行开始依次声明 `key`、`kind`、`scalar_type`、`required`、`default_value`、`target` 和说明。宿主不直接理解这些地址，只保存插件校验返回的 schema；该约定属于 XLSX 插件实现，不是通用脚本协议。
-
-XLSX `table` binding 的 `target` 是表头左上角锚点：渲染器在锚点行写表头、下一行开始写数据，只覆盖实际写入的二维区域。它不插入行，不复制样板行的样式、公式、行高或合并关系，也不清除写入区域之外的旧内容；绑定数据只允许列名、列类型和 `rows`，`title`、`style`、`merges`、`aggregates`、`number_format` 会明确拒绝。因此该能力不是循环模板行。未来若需要 repeat-row，应新增独立契约，不能改变现有 table binding 语义。
+当前三种插件都从模板正文解析轻量标记，不要求用户维护元数据区域。XLSX 会复制包含循环标记的行、列或矩阵区域并保留样式；CSV 先解析字段再执行循环、矩阵展开和 RFC 4180 转义；DOCX 会复制表格行、单元格或矩阵行并保留 Word 结构。模板只暴露脚本真正需要的 `values` 和 `tables`，不提供高级表达式、默认值声明或模板内计算逻辑。
 
 `ValidateAsync` 是模板进入目录前的必要步骤。插件必须检查模板是否“可作为本插件的有效模板”，至少包括：
 
@@ -1840,7 +1839,7 @@ documents.summary          -> document, optional
 每个绑定至少声明：
 
 - `key`：全小写 `snake_case` 语义键；
-- `kind`：`scalar`、`table` 或 `document`；
+- `kind`：`scalar`、`table`、`document` 或 `context`；`context` 用于 Mustache 等动态上下文模板，可由标量/对象值或表格列表提供，但同一个键不能同时从两处提供；
 - 标量类型、表格列定义或文档块定义；
 - `required`：没有提供值且没有默认值时，是否必须存在；
 - `default_value`：省略该绑定时由宿主填充的默认值，必须与绑定类型匹配；默认值属于 schema，不由脚本请求覆盖；
@@ -2086,6 +2085,8 @@ C# Worker 的静态限制不是完整安全沙箱，因此本设计不把文件�
 6. [x] 增加 DOCX 文件结构、模板渲染和危险外部字段拒绝测试；更完整的跨 Word 版本兼容矩阵仍作为后续增强。
 
 ### 阶段五：批量和大数据导出
+
+Mustache 纯文本导出作为独立插件在本阶段前完成：支持 `.mustache` 模板、核心变量与区块语法、`values`/`tables` 上下文映射、TXT/Markdown/HTML/CSV 输出扩展名和结构校验；局部模板、Lambda 与自定义分隔符暂不支持。
 
 1. 增加分块导出 HostCall；
 2. 增加分块导出、跨阶段取消和大文件临时文件清理；

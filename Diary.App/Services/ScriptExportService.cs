@@ -210,7 +210,7 @@ public sealed class ScriptExportService : IContextualExportApi
         if (!TryGetDirectory(request.DirectorySelectionId, context, out var directory))
             return Failure(request, "DIRECTORY_SELECTION_INVALID", "目录选择令牌无效或已过期。", ScriptErrorCategory.Permission);
 
-        var finalName = EnsureExtension(request.FileName, registration.Descriptor.TemplateFileExtension);
+        var finalName = EnsureExtension(request.FileName, format.DefaultExtension);
         var outputPath = GetUniquePath(directory, finalName);
         try
         {

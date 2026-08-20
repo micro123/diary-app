@@ -2,6 +2,7 @@ using ClosedXML.Excel;
 using Diary.App.Services;
 using Diary.Export.Csv;
 using Diary.Export.Docx;
+using Diary.Export.Mustache;
 using Diary.Export.Xlsx;
 using Diary.ScriptHost;
 using Diary.Script.Runtime;
@@ -275,12 +276,9 @@ public sealed class ExportTemplateTests
         {
             using (var workbook = new XLWorkbook())
             {
-                var metadata = workbook.Worksheets.Add("__diary_template");
-                metadata.Cell("A1").Value = "diary.export.template";
-                metadata.Cell("A2").Value = "unsafe_report";
-                metadata.Cell("A3").Value = "1.0.0";
                 var worksheet = workbook.Worksheets.Add("明细");
                 worksheet.Cell("A1").FormulaA1 = "WEBSERVICE(\"https://example.test/data\")";
+                worksheet.Cell("A2").Value = "{{title}}";
                 workbook.SaveAs(sourcePath);
             }
 
@@ -353,7 +351,7 @@ public sealed class ExportPluginIntegrationTests
             .ToArray();
 
         CollectionAssert.AreEquivalent(
-            new[] { "csv", "docx", "xlsx" },
+            new[] { "csv", "docx", "mustache", "xlsx" },
             plugins.Select(plugin => plugin.Manifest.Id).ToArray());
     }
 
@@ -366,7 +364,7 @@ public sealed class ExportPluginIntegrationTests
             var service = CreateService(directory);
             var formats = await service.ListFormatsAsync();
             CollectionAssert.AreEquivalent(
-                new[] { "csv", "docx", "xlsx" },
+                new[] { "csv", "docx", "mustache", "xlsx" },
                 formats.Select(format => format.FormatId).ToArray());
             var xlsx = formats.Single(format => format.FormatId == "xlsx");
             var sheetNameOption = xlsx.FormatOptions?.Single();
@@ -462,17 +460,13 @@ public sealed class ExportPluginIntegrationTests
     }
 
     [TestMethod]
-    public async Task CsvTemplate_CanBeImportedAndRenderedWithDefaultValue()
+    public async Task CsvTemplate_CanBeImportedAndRendered()
     {
         var directory = CreateTemporaryDirectory();
         try
         {
             var templatePath = Path.Combine(directory, "report.csv");
             await File.WriteAllTextAsync(templatePath,
-                "# diary.export.template\n" +
-                "# template_name: work_report\n" +
-                "# version: 1.0.0\n" +
-                "# binding: period|scalar|text|true|current_month\n" +
                 "周期,{{period}}\n",
                 new System.Text.UTF8Encoding(true));
             var service = CreateService(directory, out var catalog);
@@ -488,15 +482,15 @@ public sealed class ExportPluginIntegrationTests
                 FileName = "rendered.csv",
                 Template = new ExportTemplateSource
                 {
-                    TemplateId = "csv.work_report",
+                    TemplateId = "csv.report",
                     TemplateVersion = "1.0.0",
+                    Values = new Dictionary<string, object?> { ["period"] = "current_month" },
                 },
             }, context);
 
             Assert.IsTrue(result.Succeeded, result.Error?.Message);
             var text = await File.ReadAllTextAsync(Path.Combine(directory, result.FileName!));
             StringAssert.Contains(text, "周期,current_month");
-            Assert.IsFalse(text.Contains("diary.export.template", StringComparison.Ordinal));
         }
         finally
         {
@@ -512,10 +506,6 @@ public sealed class ExportPluginIntegrationTests
         {
             var templatePath = Path.Combine(directory, "report.csv");
             await File.WriteAllTextAsync(templatePath,
-                "# diary.export.template\n" +
-                "# template_name: work_report\n" +
-                "# version: 1.0.0\n" +
-                "# binding: value|scalar|text|true\n" +
                 "周期,{{value}}\n",
                 new System.Text.UTF8Encoding(true));
             var service = CreateService(directory, out var catalog);
@@ -531,7 +521,7 @@ public sealed class ExportPluginIntegrationTests
                 FileName = "rendered.csv",
                 Template = new ExportTemplateSource
                 {
-                    TemplateId = "csv.work_report",
+                    TemplateId = "csv.report",
                     TemplateVersion = "1.0.0",
                     Values = new Dictionary<string, object?>
                     {
@@ -543,6 +533,100 @@ public sealed class ExportPluginIntegrationTests
             Assert.IsTrue(result.Succeeded, result.Error?.Message);
             var text = await File.ReadAllTextAsync(Path.Combine(directory, result.FileName!));
             Assert.AreEqual("周期,\"'=1+1,\"\"引用\"\"\r\n下一行\"\r\n", text);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [TestMethod]
+    public async Task CsvTemplate_ExpandsRowAndColumnLoops()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var templatePath = Path.Combine(directory, "loop.csv");
+            await File.WriteAllTextAsync(
+                templatePath,
+                "姓名,工时\n{{items.name}},{{items.hours}}\n横向,{{items.name|column}}\n",
+                new System.Text.UTF8Encoding(true));
+            var service = CreateService(directory, out var catalog);
+            var imported = await catalog.ImportAsync(templatePath);
+            Assert.IsTrue(imported.Succeeded, imported.ErrorMessage);
+
+            var context = CreateContext();
+            service.RegisterDirectory("directory", directory, context);
+            var result = await service.ExportAsync(new ExportRequest
+            {
+                FormatId = "csv",
+                DirectorySelectionId = "directory",
+                FileName = "loop-output.csv",
+                Template = new ExportTemplateSource
+                {
+                    TemplateId = "csv.loop",
+                    TemplateVersion = "1.0.0",
+                    Tables = new Dictionary<string, ExportTableContent>
+                    {
+                        ["items"] = new()
+                        {
+                            Columns = [new ExportColumn("name"), new ExportColumn("hours", ExportColumnType.Integer)],
+                            Rows = [["唐国利", 2], ["李明", 3]],
+                        },
+                    },
+                },
+            }, context);
+
+            Assert.IsTrue(result.Succeeded, result.Error?.Message);
+            var text = await File.ReadAllTextAsync(Path.Combine(directory, result.FileName!));
+            Assert.AreEqual("姓名,工时\r\n唐国利,2\r\n李明,3\r\n横向,唐国利,李明\r\n", text);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [TestMethod]
+    public async Task CsvTemplate_ExpandsMatrixBetweenFixedRows()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var templatePath = Path.Combine(directory, "matrix.csv");
+            await File.WriteAllTextAsync(
+                templatePath,
+                "固定表头\n{{items|matrix}}\n固定表底\n",
+                new System.Text.UTF8Encoding(true));
+            var service = CreateService(directory, out var catalog);
+            var imported = await catalog.ImportAsync(templatePath);
+            Assert.IsTrue(imported.Succeeded, imported.ErrorMessage);
+
+            var context = CreateContext();
+            service.RegisterDirectory("directory", directory, context);
+            var result = await service.ExportAsync(new ExportRequest
+            {
+                FormatId = "csv",
+                DirectorySelectionId = "directory",
+                FileName = "matrix-output.csv",
+                Template = new ExportTemplateSource
+                {
+                    TemplateId = "csv.matrix",
+                    TemplateVersion = "1.0.0",
+                    Tables = new Dictionary<string, ExportTableContent>
+                    {
+                        ["items"] = new()
+                        {
+                            Columns = [new ExportColumn("姓名"), new ExportColumn("工时", ExportColumnType.Integer)],
+                            Rows = [["唐国利", 2], ["李明", 3]],
+                        },
+                    },
+                },
+            }, context);
+
+            Assert.IsTrue(result.Succeeded, result.Error?.Message);
+            var text = await File.ReadAllTextAsync(Path.Combine(directory, result.FileName!));
+            Assert.AreEqual("固定表头\r\n唐国利,2\r\n李明,3\r\n固定表底\r\n", text);
         }
         finally
         {
@@ -595,10 +679,6 @@ public sealed class ExportPluginIntegrationTests
         {
             var templatePath = Path.Combine(directory, "required.csv");
             await File.WriteAllTextAsync(templatePath,
-                "# diary.export.template\n" +
-                "# template_name: required_report\n" +
-                "# version: 1.0.0\n" +
-                "# binding: customer_name|scalar|text|true\n" +
                 "客户,{{customer_name}}\n",
                 new System.Text.UTF8Encoding(true));
             var service = CreateService(directory, out var catalog);
@@ -614,7 +694,7 @@ public sealed class ExportPluginIntegrationTests
                 FileName = "required-output.csv",
                 Template = new ExportTemplateSource
                 {
-                    TemplateId = "csv.required_report",
+                    TemplateId = "csv.required",
                     TemplateVersion = "1.0.0",
                 },
             }, context);
@@ -644,15 +724,8 @@ public sealed class ExportPluginIntegrationTests
             var templatePath = Path.Combine(directory, "table-template.xlsx");
             using (var workbook = new XLWorkbook())
             {
-                var metadata = workbook.Worksheets.Add("__diary_template");
-                metadata.Cell("A1").Value = "diary.export.template";
-                metadata.Cell("A2").Value = "table_report";
-                metadata.Cell("A3").Value = "1.0.0";
-                metadata.Cell("A8").Value = "items";
-                metadata.Cell("B8").Value = "table";
-                metadata.Cell("D8").Value = "true";
-                metadata.Cell("F8").Value = "明细!A1";
-                workbook.Worksheets.Add("明细");
+                var worksheet = workbook.Worksheets.Add("明细");
+                worksheet.Cell("A1").Value = "{{items.quantity}}";
                 workbook.SaveAs(templatePath);
             }
             var service = CreateService(directory, out var catalog);
@@ -668,7 +741,7 @@ public sealed class ExportPluginIntegrationTests
                 FileName = "invalid-value.xlsx",
                 Template = CreateTableTemplateSource(new ExportTableContent
                 {
-                    Columns = [new ExportColumn("数量", ExportColumnType.Integer)],
+                    Columns = [new ExportColumn("quantity", ExportColumnType.Integer)],
                     Rows = [["abc"]],
                 }),
             }, context);
@@ -679,7 +752,7 @@ public sealed class ExportPluginIntegrationTests
                 FileName = "unsupported-style.xlsx",
                 Template = CreateTableTemplateSource(new ExportTableContent
                 {
-                    Columns = [new ExportColumn("内容")],
+                    Columns = [new ExportColumn("quantity")],
                     Rows = [["测试"]],
                     Style = ExportTableStyle.Report,
                 }),
@@ -698,9 +771,137 @@ public sealed class ExportPluginIntegrationTests
     }
 
     [TestMethod]
-    public async Task ExportAsync_ValidateOnlySkipsDirectoryAndFileCreation()
+    public async Task XlsxTemplate_ExpandsRowsAndColumnsAndPreservesDateTimeFormat()
     {
         var directory = CreateTemporaryDirectory();
+        try
+        {
+            var templatePath = Path.Combine(directory, "overtime.xlsx");
+            using (var workbook = new XLWorkbook())
+            {
+                var rows = workbook.Worksheets.Add("明细");
+                rows.Cell("A1").Value = "姓名";
+                rows.Cell("B1").Value = "开始时间";
+                rows.Cell("A2").Value = "{{items.name}}";
+                rows.Cell("B2").Value = "{{items.start_time}}";
+                rows.Cell("B2").Style.DateFormat.Format = "yyyy/mm/dd-hh:mm:ss";
+                var columns = workbook.Worksheets.Add("横向");
+                columns.Cell("A1").Value = "说明";
+                columns.Cell("B1").Value = "{{items.description|column}}";
+                workbook.SaveAs(templatePath);
+            }
+            var service = CreateService(directory, out var catalog);
+            var imported = await catalog.ImportAsync(templatePath);
+            Assert.IsTrue(imported.Succeeded, imported.ErrorMessage);
+
+            var context = CreateContext();
+            service.RegisterDirectory("directory", directory, context);
+            var result = await service.ExportAsync(new ExportRequest
+            {
+                FormatId = "xlsx",
+                DirectorySelectionId = "directory",
+                FileName = "overtime-output.xlsx",
+                Template = new ExportTemplateSource
+                {
+                    TemplateId = "xlsx.overtime",
+                    TemplateVersion = "1.0.0",
+                    Tables = new Dictionary<string, ExportTableContent>
+                    {
+                        ["items"] = new()
+                        {
+                            Columns =
+                            [
+                                new ExportColumn("name"),
+                                new ExportColumn("start_time", ExportColumnType.DateTime),
+                                new ExportColumn("description"),
+                            ],
+                            Rows =
+                            [
+                                ["唐国利", new DateTime(2026, 7, 6, 13, 0, 0), "项目支持"],
+                                ["李明", new DateTime(2026, 7, 7, 18, 30, 0), "故障处理"],
+                            ],
+                        },
+                    },
+                },
+            }, context);
+
+            Assert.IsTrue(result.Succeeded, result.Error?.Message);
+            using var output = new XLWorkbook(Path.Combine(directory, result.FileName!));
+            Assert.AreEqual("唐国利", output.Worksheet("明细").Cell("A2").GetString());
+            Assert.AreEqual("李明", output.Worksheet("明细").Cell("A3").GetString());
+            Assert.AreEqual(new DateTime(2026, 7, 6, 13, 0, 0), output.Worksheet("明细").Cell("B2").GetDateTime());
+            Assert.AreEqual("yyyy/mm/dd-hh:mm:ss", output.Worksheet("明细").Cell("B3").Style.DateFormat.Format);
+            Assert.AreEqual("项目支持", output.Worksheet("横向").Cell("B1").GetString());
+            Assert.AreEqual("故障处理", output.Worksheet("横向").Cell("C1").GetString());
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [TestMethod]
+    public async Task XlsxTemplate_ExpandsMatrixBetweenFixedRowsAndColumns()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var templatePath = Path.Combine(directory, "matrix.xlsx");
+            using (var workbook = new XLWorkbook())
+            {
+                var matrixSheet = workbook.Worksheets.Add("明细");
+                matrixSheet.Cell("A1").Value = "固定表头";
+                matrixSheet.Cell("A2").Value = "{{items|matrix}}";
+                matrixSheet.Cell("A3").Value = "固定表底";
+                workbook.SaveAs(templatePath);
+            }
+            var service = CreateService(directory, out var catalog);
+            var imported = await catalog.ImportAsync(templatePath);
+            Assert.IsTrue(imported.Succeeded, imported.ErrorMessage);
+
+            var context = CreateContext();
+            service.RegisterDirectory("directory", directory, context);
+            var result = await service.ExportAsync(new ExportRequest
+            {
+                FormatId = "xlsx",
+                DirectorySelectionId = "directory",
+                FileName = "matrix-output.xlsx",
+                Template = new ExportTemplateSource
+                {
+                    TemplateId = "xlsx.matrix",
+                    TemplateVersion = "1.0.0",
+                    Tables = new Dictionary<string, ExportTableContent>
+                    {
+                        ["items"] = new()
+                        {
+                            Columns = [new ExportColumn("姓名"), new ExportColumn("工时", ExportColumnType.Integer)],
+                            Rows = [["唐国利", 2], ["李明", 3]],
+                        },
+                    },
+                },
+            }, context);
+
+            Assert.IsTrue(result.Succeeded, result.Error?.Message);
+            using var output = new XLWorkbook(Path.Combine(directory, result.FileName!));
+            var worksheet = output.Worksheet("明细");
+            Assert.AreEqual("固定表头", worksheet.Cell("A1").GetString());
+            Assert.AreEqual("唐国利", worksheet.Cell("A2").GetString());
+            Assert.AreEqual(2, worksheet.Cell("B2").GetValue<int>());
+            Assert.AreEqual("李明", worksheet.Cell("A3").GetString());
+            Assert.AreEqual(3, worksheet.Cell("B3").GetValue<int>());
+            Assert.AreEqual("固定表底", worksheet.Cell("A4").GetString());
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [TestMethod]
+    public async Task ExportAsync_ValidateOnlySkipsDirectoryAndFileCreation()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "DiaryApp-docx-matrix-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
         try
         {
             var service = CreateService(directory);
@@ -736,7 +937,7 @@ public sealed class ExportPluginIntegrationTests
 
     private static ExportTemplateSource CreateTableTemplateSource(ExportTableContent table) => new()
     {
-        TemplateId = "xlsx.table_report",
+        TemplateId = "xlsx.table_template",
         TemplateVersion = "1.0.0",
         Tables = new Dictionary<string, ExportTableContent> { ["items"] = table },
     };
@@ -745,7 +946,8 @@ public sealed class ExportPluginIntegrationTests
 
     private static ScriptExportService CreateService(string directory, out ExportTemplateCatalog catalog)
     {
-        IExportPlugin[] plugins = [new XlsxExportPlugin(), new CsvExportPlugin(), new DocxExportPlugin()];
+        IExportPlugin[] plugins =
+            [new XlsxExportPlugin(), new CsvExportPlugin(), new DocxExportPlugin(), new MustacheExportPlugin()];
         catalog = new ExportTemplateCatalog(
             NullLogger<ExportTemplateCatalog>.Instance,
             plugins.SelectMany(plugin => plugin.GetTemplateHandlers()),
@@ -791,13 +993,7 @@ public sealed class DocxTemplateIntegrationTests
                     new DocumentFormat.OpenXml.Wordprocessing.Body(
                         new DocumentFormat.OpenXml.Wordprocessing.Paragraph(
                             new DocumentFormat.OpenXml.Wordprocessing.Run(
-                                new DocumentFormat.OpenXml.Wordprocessing.Text("[[diary.export.template]]"))),
-                        new DocumentFormat.OpenXml.Wordprocessing.Paragraph(
-                            new DocumentFormat.OpenXml.Wordprocessing.Run(
-                                new DocumentFormat.OpenXml.Wordprocessing.Text("template_name: unsafe_report"))),
-                        new DocumentFormat.OpenXml.Wordprocessing.Paragraph(
-                            new DocumentFormat.OpenXml.Wordprocessing.Run(
-                                new DocumentFormat.OpenXml.Wordprocessing.Text("version: 1.0.0"))),
+                                new DocumentFormat.OpenXml.Wordprocessing.Text("{{title}}"))),
                         new DocumentFormat.OpenXml.Wordprocessing.SimpleField(
                             new DocumentFormat.OpenXml.Wordprocessing.Run(
                                 new DocumentFormat.OpenXml.Wordprocessing.Text("外部内容")))
@@ -842,16 +1038,26 @@ public sealed class DocxTemplateIntegrationTests
                     new DocumentFormat.OpenXml.Wordprocessing.Body(
                         new DocumentFormat.OpenXml.Wordprocessing.Paragraph(
                             new DocumentFormat.OpenXml.Wordprocessing.Run(
-                                new DocumentFormat.OpenXml.Wordprocessing.Text("[[diary.export.template]]"))),
-                        new DocumentFormat.OpenXml.Wordprocessing.Paragraph(
-                            new DocumentFormat.OpenXml.Wordprocessing.Run(
-                                new DocumentFormat.OpenXml.Wordprocessing.Text("template_name: work_report"))),
-                        new DocumentFormat.OpenXml.Wordprocessing.Paragraph(
-                            new DocumentFormat.OpenXml.Wordprocessing.Run(
-                                new DocumentFormat.OpenXml.Wordprocessing.Text("version: 1.0.0"))),
-                        new DocumentFormat.OpenXml.Wordprocessing.Paragraph(
-                            new DocumentFormat.OpenXml.Wordprocessing.Run(
-                                new DocumentFormat.OpenXml.Wordprocessing.Text("标题：{{title}}")))));
+                                new DocumentFormat.OpenXml.Wordprocessing.Text("标题：{{title}}"))),
+                        new DocumentFormat.OpenXml.Wordprocessing.Table(
+                            new DocumentFormat.OpenXml.Wordprocessing.TableRow(
+                                new DocumentFormat.OpenXml.Wordprocessing.TableCell(
+                                    new DocumentFormat.OpenXml.Wordprocessing.Paragraph(
+                                        new DocumentFormat.OpenXml.Wordprocessing.Run(
+                                            new DocumentFormat.OpenXml.Wordprocessing.Text("{{items.name}}")))),
+                                new DocumentFormat.OpenXml.Wordprocessing.TableCell(
+                                    new DocumentFormat.OpenXml.Wordprocessing.Paragraph(
+                                        new DocumentFormat.OpenXml.Wordprocessing.Run(
+                                            new DocumentFormat.OpenXml.Wordprocessing.Text("{{items.hours}}"))))),
+                            new DocumentFormat.OpenXml.Wordprocessing.TableRow(
+                                new DocumentFormat.OpenXml.Wordprocessing.TableCell(
+                                    new DocumentFormat.OpenXml.Wordprocessing.Paragraph(
+                                        new DocumentFormat.OpenXml.Wordprocessing.Run(
+                                            new DocumentFormat.OpenXml.Wordprocessing.Text("横向")))),
+                                new DocumentFormat.OpenXml.Wordprocessing.TableCell(
+                                    new DocumentFormat.OpenXml.Wordprocessing.Paragraph(
+                                        new DocumentFormat.OpenXml.Wordprocessing.Run(
+                                            new DocumentFormat.OpenXml.Wordprocessing.Text("{{items.name|column}}"))))))));
                 main.Document.Save();
             }
 
@@ -862,7 +1068,7 @@ public sealed class DocxTemplateIntegrationTests
                 Path.Combine(directory, "templates"));
             var imported = await catalog.ImportAsync(templatePath);
             Assert.IsTrue(imported.Succeeded, imported.ErrorMessage);
-            Assert.AreEqual("docx.work_report", imported.Descriptor!.TemplateId);
+            Assert.AreEqual("docx.report", imported.Descriptor!.TemplateId);
 
             var service = new ScriptExportService(
                 NullLogger<ScriptExportService>.Instance,
@@ -877,9 +1083,17 @@ public sealed class DocxTemplateIntegrationTests
                 FileName = "rendered.docx",
                 Template = new ExportTemplateSource
                 {
-                    TemplateId = "docx.work_report",
+                    TemplateId = "docx.report",
                     TemplateVersion = "1.0.0",
                     Values = new Dictionary<string, object?> { ["title"] = "完成报告" },
+                    Tables = new Dictionary<string, ExportTableContent>
+                    {
+                        ["items"] = new()
+                        {
+                            Columns = [new ExportColumn("name"), new ExportColumn("hours", ExportColumnType.Integer)],
+                            Rows = [["唐国利", 2], ["李明", 3]],
+                        },
+                    },
                 },
             }, context);
 
@@ -888,12 +1102,93 @@ public sealed class DocxTemplateIntegrationTests
             var entry = archive.GetEntry("word/document.xml");
             Assert.IsNotNull(entry);
             using var reader = new StreamReader(entry.Open());
-            StringAssert.Contains(await reader.ReadToEndAsync(), "完成报告");
+            var xml = await reader.ReadToEndAsync();
+            StringAssert.Contains(xml, "完成报告");
+            StringAssert.Contains(xml, "唐国利");
+            StringAssert.Contains(xml, "李明");
         }
         finally
         {
             if (Directory.Exists(directory))
                 Directory.Delete(directory, true);
+        }
+    }
+
+    [TestMethod]
+    public async Task DocxTemplate_ExpandsMatrixBetweenFixedRows()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "DiaryApp-docx-matrix-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var templatePath = Path.Combine(directory, "matrix.docx");
+            using (var document = DocumentFormat.OpenXml.Packaging.WordprocessingDocument.Create(
+                       templatePath,
+                       DocumentFormat.OpenXml.WordprocessingDocumentType.Document))
+            {
+                var main = document.AddMainDocumentPart();
+                static DocumentFormat.OpenXml.Wordprocessing.TableCell Cell(string text) =>
+                    new(
+                        new DocumentFormat.OpenXml.Wordprocessing.Paragraph(
+                            new DocumentFormat.OpenXml.Wordprocessing.Run(
+                                new DocumentFormat.OpenXml.Wordprocessing.Text(text))));
+                main.Document = new DocumentFormat.OpenXml.Wordprocessing.Document(
+                    new DocumentFormat.OpenXml.Wordprocessing.Body(
+                        new DocumentFormat.OpenXml.Wordprocessing.Table(
+                            new DocumentFormat.OpenXml.Wordprocessing.TableRow(Cell("固定表头")),
+                            new DocumentFormat.OpenXml.Wordprocessing.TableRow(Cell("{{items|matrix}}")),
+                            new DocumentFormat.OpenXml.Wordprocessing.TableRow(Cell("固定表底")))));
+                main.Document.Save();
+            }
+
+            IExportPlugin[] plugins = [new XlsxExportPlugin(), new CsvExportPlugin(), new DocxExportPlugin()];
+            var catalog = new ExportTemplateCatalog(
+                NullLogger<ExportTemplateCatalog>.Instance,
+                plugins.SelectMany(plugin => plugin.GetTemplateHandlers()),
+                Path.Combine(directory, "templates"));
+            var service = new ScriptExportService(
+                NullLogger<ScriptExportService>.Instance,
+                catalog,
+                plugins.SelectMany(plugin => plugin.GetExportHandlers()));
+            var imported = await catalog.ImportAsync(templatePath);
+            Assert.IsTrue(imported.Succeeded, imported.ErrorMessage);
+            var context = new ScriptHostCallContext(
+                "execution", "worker", "script", ScriptEntryKind.Application, ScriptExecutionSource.Manual);
+            service.RegisterDirectory("directory", directory, context);
+            var result = await service.ExportAsync(new ExportRequest
+            {
+                FormatId = "docx",
+                DirectorySelectionId = "directory",
+                FileName = "matrix-output.docx",
+                Template = new ExportTemplateSource
+                {
+                    TemplateId = "docx.matrix",
+                    TemplateVersion = "1.0.0",
+                    Tables = new Dictionary<string, ExportTableContent>
+                    {
+                        ["items"] = new()
+                        {
+                            Columns = [new ExportColumn("姓名"), new ExportColumn("工时", ExportColumnType.Integer)],
+                            Rows = [["唐国利", 2], ["李明", 3]],
+                        },
+                    },
+                },
+            }, context);
+
+            Assert.IsTrue(result.Succeeded, result.Error?.Message);
+            using var archive = System.IO.Compression.ZipFile.OpenRead(Path.Combine(directory, result.FileName!));
+            var entry = archive.GetEntry("word/document.xml");
+            Assert.IsNotNull(entry);
+            using var reader = new StreamReader(entry.Open());
+            var xml = await reader.ReadToEndAsync();
+            StringAssert.Contains(xml, "固定表头");
+            StringAssert.Contains(xml, "唐国利");
+            StringAssert.Contains(xml, "李明");
+            StringAssert.Contains(xml, "固定表底");
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
         }
     }
 }

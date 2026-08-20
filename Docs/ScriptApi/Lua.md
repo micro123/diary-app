@@ -366,7 +366,9 @@ else
 end
 ```
 
-模板导出先调用 `diary.exports.list_templates("xlsx")`，再按 descriptor 的精确 `template_id`、`template_version` 和 `bindings` 构造 `template = { values = ..., tables = ..., documents = ... }`。XLSX 的 table binding 从锚点写入表头和二维数据，不复制模板行样式、公式或合并关系。
+模板导出先调用 `diary.exports.list_templates("xlsx")`，再按 descriptor 的精确 `template_id`、`template_version` 和 `bindings` 构造 `template = { values = ..., tables = ..., documents = ... }`。模板正文使用 `{{变量名}}`、`{{items.字段}}`、`{{items.字段|column}}` 和 `{{items|matrix}}` 简单标记；行循环复制模板行，列循环复制模板列，矩阵标记展开完整的 `Rows × Columns` 区域，脚本负责准备数据和其他逻辑。模板名称由文件名推断，版本为 `1.0.0`。
+
+纯文本输出可以选择独立的 `mustache` 格式并导入 `.mustache` 模板，核心语法和上下文映射见 [MustacheExport.md](MustacheExport.md)。
 
 `diary.ui.select_option()` 的 `require_choice` 策略禁止用户关闭对话框，但 Worker 终止、取消或宿主退出时会安全结束等待。`Time` 不参与合计；`Duration` 使用 `[h]:mm:ss`。CSV 的基础工具会对 RFC 4180 字段进行转义，并对以 `=`, `+`, `-`, `@` 开头的文本增加前置单引号。
 
