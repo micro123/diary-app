@@ -21,7 +21,7 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Setup .NET
@@ -55,7 +55,7 @@ jobs:
             rid: linux-x64
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Setup .NET
@@ -220,7 +220,7 @@ jobs:
           }
           Get-Item $archive, $debugArchive | Format-List Name, Length
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: DiaryAppNG-${{ steps.version.outputs.version }}-${{ matrix.rid }}
           path: DiaryAppNG-${{ steps.version.outputs.version }}-${{ matrix.rid }}*.zip
@@ -231,7 +231,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Generate version string
@@ -244,7 +244,7 @@ jobs:
           $version = "r$commitCount-$shortHash-$suffix"
           "version=$version" >> $env:GITHUB_OUTPUT
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: DiaryAppNG-*
           merge-multiple: true
@@ -261,7 +261,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         continue-on-error: true
       - name: Create release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: Manual Build ${{ steps.version.outputs.version }}
           tag_name: manual-${{ steps.version.outputs.version }}
