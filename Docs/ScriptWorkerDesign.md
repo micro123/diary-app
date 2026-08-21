@@ -108,7 +108,8 @@ supervisor 启动 worker 时必须：
 3. 不通过命令行传递 Token、密码或完整配置内容。
 4. 使用环境变量白名单；不把主进程全部环境变量复制给 worker。Windows 进程白名单必须保留系统启动所需的 `SYSTEMROOT`，调用方显式变量在此基础上覆盖；这避免 Python 3.10 因无法初始化系统随机源而在握手前退出。
 5. 设置启动超时，默认 10 秒。（已实现：`WorkerSupervisor.HandshakeTimeout` 默认 10 秒（`WorkerProtocol.DefaultHandshakeTimeoutSeconds`）；等待 `hello` 超时后 worker 置为 `Failed`、产生 `WORKER_HANDSHAKE_TIMED_OUT` 诊断并停止 transport。App 的三个 supervisor 构造已显式传入 10 秒。）
-6. 读取第一条 `hello` 消息并完成协议协商后，才把状态设置为 `Ready`。
+6. Windows apphost 与主程序采用相同的兼容策略，发布时设置 `CETCompat=false`；避免 .NET 9+ 默认 CET 标记导致尚未完整支持 CET 的内部 Windows 环境在发送 `hello` 前终止 Worker。
+7. 读取第一条 `hello` 消息并完成协议协商后，才把状态设置为 `Ready`。握手前进程退出时产生 `WORKER_HANDSHAKE_PROCESS_EXITED`，并附带退出码和最多 16 KiB 的受限 stderr 尾部。
 
 ### 5.3 常驻和回收
 
@@ -660,7 +661,7 @@ worker 重启后不会自动重复未确认的副作用操作。
 - [x] 按语言维护独立 supervisor 和故障状态，复用同一协议与 HostCall。
 - [x] 目录加载和构建结果保留所选 `EngineName`，确保 Lua/Python 执行不会回退到 C# Worker。
 - [~] 已实现多语言路由、运行时发现和版本诊断；核心真实进程用例已共用 Windows/Linux 路径解析，CI 固定 Python 3.10 并禁止关键 Python 用例静默跳过。Windows/Linux 发布包运行时 Smoke Test 待补，macOS 不纳入验证矩阵。
-- [x] 实现 worker 强制终止和忽略取消脚本的超时回收；stderr 仅保留超限状态，不保留文本摘要。
+- [x] 实现 worker 强制终止和忽略取消脚本的超时回收；stderr 保留超限状态和最多 16 KiB 的尾部摘要，用于握手及执行阶段的异常退出诊断。
 
 ### 第四阶段：资源和副作用
 

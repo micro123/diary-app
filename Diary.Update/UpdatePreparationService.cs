@@ -63,25 +63,42 @@ public sealed class UpdatePreparationService(IUpdatePackageSource packageSource)
             var targetAppFile = RequireFile(manifest, appName, "app");
             var installedAppPath = UpdatePathPolicy.ResolveInside(installDirectory, targetAppFile.Path, targetAppFile.Path);
             var previousAppSha256 = File.Exists(installedAppPath)
-                ? await UpdateHash.ComputeSha256Async(installedAppPath, cancellationToken)
+                ? await ComputeInstalledFileSha256Async(
+                    installedAppPath,
+                    targetAppFile.Path,
+                    cancellationToken)
                 : null;
             var targetUpdaterPath = UpdatePathPolicy.ResolveInside(
                 stagingDirectory,
                 targetUpdaterFile.Path,
                 targetUpdaterFile.Path);
-            var targetVersion = await UpdateProcessServices.ProbeUpdaterAsync(targetUpdaterPath, cancellationToken);
+            var targetVersion = await ProbeTargetUpdaterAsync(
+                targetUpdaterPath,
+                targetUpdaterFile.Path,
+                cancellationToken);
             if (targetVersion.Rid != manifest.Rid || targetVersion.ProtocolVersion < manifest.MinUpdaterVersion)
                 throw new InvalidDataException("目标更新器的 RID 或协议版本不满足目标清单。");
 
             var bootstrapUpdaterPath = Path.Combine(bootstrapDirectory, updaterName);
-            File.Copy(targetUpdaterPath, bootstrapUpdaterPath, overwrite: false);
+            await CopyBootstrapUpdaterAsync(
+                targetUpdaterPath,
+                bootstrapUpdaterPath,
+                targetUpdaterFile.Path,
+                cancellationToken);
             if (targetUpdaterFile.Executable && !OperatingSystem.IsWindows())
                 File.SetUnixFileMode(bootstrapUpdaterPath, ExecutableMode);
-            await UpdateHash.VerifyFileAsync(
-                bootstrapUpdaterPath,
-                targetUpdaterFile.Size,
-                targetUpdaterFile.Sha256,
-                cancellationToken);
+            try
+            {
+                await UpdateHash.VerifyFileAsync(
+                    bootstrapUpdaterPath,
+                    targetUpdaterFile.Size,
+                    targetUpdaterFile.Sha256,
+                    cancellationToken);
+            }
+            catch (IOException exception)
+            {
+                throw CreateFileInUseException("验证更新引导程序", targetUpdaterFile.Path, exception);
+            }
 
             var preservedConflicts = new List<string>();
             var operations = await BuildOperationsAsync(
@@ -180,7 +197,10 @@ public sealed class UpdatePreparationService(IUpdatePackageSource packageSource)
             var unchanged = false;
             if (info.Exists)
             {
-                existingSha256 = await UpdateHash.ComputeSha256Async(targetPath, cancellationToken);
+                existingSha256 = await ComputeInstalledFileSha256Async(
+                    targetPath,
+                    file.Path,
+                    cancellationToken);
                 unchanged = info.Length == file.Size
                     && string.Equals(existingSha256, file.Sha256, StringComparison.Ordinal);
             }
@@ -209,7 +229,10 @@ public sealed class UpdatePreparationService(IUpdatePackageSource packageSource)
             UpdatePathPolicy.RejectExistingLinks(installDirectory, targetPath, previous.Path);
             if (!File.Exists(targetPath))
                 continue;
-            var actualSha256 = await UpdateHash.ComputeSha256Async(targetPath, cancellationToken);
+            var actualSha256 = await ComputeInstalledFileSha256Async(
+                targetPath,
+                previous.Path,
+                cancellationToken);
             if (!string.Equals(actualSha256, previous.Sha256, StringComparison.Ordinal))
             {
                 preservedConflicts.Add(previous.Path);
@@ -224,6 +247,66 @@ public sealed class UpdatePreparationService(IUpdatePackageSource packageSource)
         }
         return operations;
     }
+
+    private static async ValueTask<string> ComputeInstalledFileSha256Async(
+        string path,
+        string relativePath,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await UpdateHash.ComputeSha256Async(path, cancellationToken);
+        }
+        catch (IOException exception)
+        {
+            throw CreateFileInUseException("读取已安装文件", relativePath, exception);
+        }
+    }
+
+    private static async ValueTask<UpdateMachineVersion> ProbeTargetUpdaterAsync(
+        string path,
+        string relativePath,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await UpdateFileAccess.ExecuteWithSharingRetryAsync(
+                () => UpdateProcessServices.ProbeUpdaterAsync(path, cancellationToken),
+                cancellationToken);
+        }
+        catch (Exception exception) when (UpdateFileAccess.IsSharingViolation(exception))
+        {
+            throw CreateFileInUseException("启动目标更新器探针", relativePath, exception);
+        }
+    }
+
+    private static async ValueTask CopyBootstrapUpdaterAsync(
+        string sourcePath,
+        string targetPath,
+        string relativePath,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await UpdateFileAccess.ExecuteWithSharingRetryAsync(
+                () =>
+                {
+                    File.Copy(sourcePath, targetPath, overwrite: false);
+                    return ValueTask.FromResult(true);
+                },
+                cancellationToken);
+        }
+        catch (IOException exception)
+        {
+            throw CreateFileInUseException("复制更新引导程序", relativePath, exception);
+        }
+    }
+
+    private static IOException CreateFileInUseException(
+        string operation,
+        string relativePath,
+        Exception innerException) =>
+        new($"{operation}失败：{relativePath}。文件可能被其他进程或安全软件占用，请稍后重试。", innerException);
 
     private static async ValueTask<UpdateManifest?> TryLoadInstalledManifestAsync(
         string installDirectory,

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import logging
 import threading
+from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import TypeVar
 from typing import Protocol
 
 from .config import ServerConfig
@@ -11,6 +13,7 @@ from .sync import ReleaseSynchronizer
 
 
 LOGGER = logging.getLogger(__name__)
+T = TypeVar("T")
 
 
 class Synchronizer(Protocol):
@@ -61,6 +64,14 @@ class SyncCoordinator:
     def status(self) -> dict[str, object]:
         with self._status_lock:
             return dict(self._status)
+
+    def execute_exclusive(self, operation: Callable[[], T]) -> tuple[bool, T | None]:
+        if not self._sync_lock.acquire(blocking=False):
+            return False, None
+        try:
+            return True, operation()
+        finally:
+            self._sync_lock.release()
 
     def _run_locked(self, trigger: str) -> None:
         started_at = datetime.now(UTC).isoformat()

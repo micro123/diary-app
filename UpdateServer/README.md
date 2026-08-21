@@ -1,8 +1,35 @@
 # DiaryApp Python 更新服务器
 
-该服务仅使用 Python 3.11+ 标准库，从指定 GitHub Releases 同步 DiaryApp 发布包，校验 release metadata、ZIP 安全规则、包大小和 SHA-256，然后原子发布局域网更新快照。
+该服务仅使用 Python 3.11+ 标准库，支持两种发布来源：从指定 GitHub Releases 自动同步 `stable`/`preview`，以及由本机工具将已打包并校验的 Windows 包直接发布到 `local`。两种来源共用 ZIP 安全规则、逐文件 Blob 索引、manifest 和原子 latest 快照。
 
-服务启动后立即同步一次，之后按 `pollIntervalSeconds` 定时重新查询 GitHub，默认周期为 6 小时。每个 `channel/rid/flavor` 只保留当前 latest 快照；新版本完整发布后会删除该维度的旧快照，并清理不再被任何 latest 引用的内容 Blob。`stable` 和 `preview` 是独立频道，因此可以各自保留一个最新版本。
+服务启动后立即同步一次，之后按 `pollIntervalSeconds` 定时重新查询 GitHub，默认周期为 6 小时。每个 `channel/rid/flavor` 只保留当前 latest 快照；新版本完整发布后会删除该维度的旧快照，并清理不再被任何 latest 引用的内容 Blob。`stable`、`preview` 和 `local` 相互独立；本机直传不会重置 GitHub 自动检查周期。
+
+## 本机构建并发布到 local
+
+推荐使用仓库根目录的统一工具：
+
+```bash
+# 第一次：构建/启动本机 Docker 服务，打包并发布
+./Tools/local-update.sh all
+
+# 服务已经运行时：只打包并发布下一个 local 版本
+./Tools/local-update.sh publish
+
+# 查看服务和 local latest
+./Tools/local-update.sh status
+```
+
+`all` 会在 `UpdateServer/publish_token.txt` 生成仅限本机使用的随机发布 Token（文件已加入 `.gitignore`），把 Token 注入 Docker Compose，然后调用现有 Windows Python 打包脚本。工具在构建时注入单调递增的 UTC 时间序号和 `BuildChannel=local`，使包内 `AppSequence`、显示版本和服务器 manifest 保持一致；上传后还会回读 latest 并核对 sequence 与完整包 SHA-256。local 的 sequence 使用较大的时间值，但客户端记录构建频道；用户主动切回 `stable`/`preview` 时会按目标频道重新比较，不会被 local sequence 锁定。
+
+上传到另一台局域网服务器时，复制该服务器配置的发布 Token，并指定地址：
+
+```bash
+./Tools/local-update.sh publish \
+  --server http://192.168.1.40:18080 \
+  --token-file /path/to/publish_token.txt
+```
+
+Windows 客户端设置为对应服务器地址、频道 `local`、包类型 `Auto` 或 `python313`。旧客户端没有 `local` 选项，第一次需要手工解压并运行一份已经包含本功能的新包；之后即可连续使用 local 在线更新。
 
 ## 启动
 
@@ -52,6 +79,13 @@ export DIARY_UPDATE_SYNC_TOKEN="<long-random-token>"
 docker compose up -d --build
 ```
 
+本机直传接口必须配置独立发布 Token；Token 为空时接口保持禁用：
+
+```bash
+export DIARY_UPDATE_PUBLISH_TOKEN="<long-random-token>"
+docker compose up -d --build
+```
+
 监听端口默认是 `18080`，可以通过环境变量调整宿主机端口，不改变容器内配置：
 
 ```bash
@@ -91,8 +125,9 @@ curl -X POST \
 - `GET /api/v1/updates/packages/{channel}/{sequence}/{rid}/{flavor}`
 - `GET /downloads`
 - `POST /api/v1/internal/sync`（不会出现在下载页面）
+- `POST /api/v1/internal/publish/local`（运维工具使用，原始 ZIP 请求体）
 - `GET /health/live`
 - `GET /health/ready`
 - `GET /health/status`
 
-第一版适用于受控局域网。若经 Nginx 暴露到其他网络，应增加 HTTPS、访问控制和请求限流；当前 manifest 没有数字签名，不能把单纯反向代理视为公网安全方案。
+`publish/local` 要求 `DIARY_UPDATE_PUBLISH_TOKEN` Bearer Token，限制最大上传体积，并在切换 latest 前完成完整包哈希、ZIP 路径、文件数量、压缩比、运行时布局和 flavor 校验。第一版适用于受控局域网。若经 Nginx 暴露到其他网络，应增加 HTTPS、访问控制、请求体限制和请求限流；当前 manifest 没有数字签名，不能把单纯反向代理视为公网安全方案。

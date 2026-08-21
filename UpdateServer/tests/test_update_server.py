@@ -328,6 +328,82 @@ class HttpApiTests(unittest.TestCase):
                 server.server_close()
                 thread.join(timeout=5)
 
+    def test_local_publish_uploads_package_and_exposes_latest(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = UpdateRepository(root / "data")
+            package = root / "local.zip"
+            create_package(package, flavor="python313", marker="local")
+            package_bytes = package.read_bytes()
+            package_sha256 = hashlib.sha256(package_bytes).hexdigest()
+            config = ServerConfig(
+                repository="owner/repo",
+                storage_directory=repository.root,
+                listen_port=0,
+                publish_token_environment="TEST_DIARY_PUBLISH_TOKEN",
+            )
+            server = create_server(config, repository)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                base = f"http://127.0.0.1:{server.server_address[1]}"
+                headers = {
+                    "Authorization": "Bearer publish-secret",
+                    "Content-Type": "application/zip",
+                    "X-Diary-Channel": "local",
+                    "X-Diary-Sequence": "202608210001",
+                    "X-Diary-Version-Id": "1.0.0-r202608210001",
+                    "X-Diary-Data-Version": "1.0.0",
+                    "X-Diary-Rid": "win-x64",
+                    "X-Diary-Flavor": "python313",
+                    "X-Diary-Sha256": package_sha256,
+                }
+                with patch.dict("os.environ", {"TEST_DIARY_PUBLISH_TOKEN": "publish-secret"}):
+                    unauthorized = urllib.request.Request(
+                        base + "/api/v1/internal/publish/local",
+                        data=package_bytes,
+                        method="POST",
+                        headers={**headers, "Authorization": "Bearer wrong"},
+                    )
+                    with self.assertRaises(urllib.error.HTTPError) as unauthorized_error:
+                        urllib.request.urlopen(unauthorized)
+                    self.assertEqual(401, unauthorized_error.exception.code)
+                    unauthorized_error.exception.close()
+
+                    publish = urllib.request.Request(
+                        base + "/api/v1/internal/publish/local",
+                        data=package_bytes,
+                        method="POST",
+                        headers=headers,
+                    )
+                    with urllib.request.urlopen(publish) as response:
+                        self.assertEqual(201, response.status)
+                        published = json.load(response)
+                    self.assertEqual("published", published["status"])
+                    self.assertEqual(202608210001, published["release"]["sequence"])
+                    self.assertNotIn("files", published["release"])
+
+                    with urllib.request.urlopen(
+                        base + "/api/v1/updates/latest?channel=local&rid=win-x64&flavor=python313"
+                    ) as response:
+                        latest = json.load(response)
+                    self.assertEqual(package_sha256, latest["fullPackage"]["sha256"])
+
+                    retry = urllib.request.Request(
+                        base + "/api/v1/internal/publish/local",
+                        data=package_bytes,
+                        method="POST",
+                        headers=headers,
+                    )
+                    with urllib.request.urlopen(retry) as response:
+                        self.assertEqual(200, response.status)
+                        unchanged = json.load(response)
+                    self.assertEqual("unchanged", unchanged["status"])
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=5)
+
 
 class SchedulingTests(unittest.TestCase):
     def test_manual_sync_does_not_reset_scheduled_deadline(self) -> None:

@@ -109,6 +109,20 @@ if ($repo_dir -ne "") {
     Pop-Location
 }
 
+$build_sequence = $commit_count
+if (-not [string]::IsNullOrWhiteSpace($env:DIARY_BUILD_SEQUENCE)) {
+    if ($env:DIARY_BUILD_SEQUENCE -notmatch '^[0-9]+$') {
+        Write-Error "DIARY_BUILD_SEQUENCE must be a non-negative integer."
+        exit 1
+    }
+    $build_sequence = $env:DIARY_BUILD_SEQUENCE
+}
+$build_channel = if ([string]::IsNullOrWhiteSpace($env:DIARY_BUILD_CHANNEL)) { "release" } else { $env:DIARY_BUILD_CHANNEL }
+if ($build_channel -notmatch '^[a-z0-9][a-z0-9-]{0,31}$') {
+    Write-Error "DIARY_BUILD_CHANNEL must use lowercase letters, digits, or hyphens."
+    exit 1
+}
+
 New-Item -Path $output_dir -ItemType Directory -Force | Out-Null
 
 $content = @"
@@ -121,6 +135,8 @@ internal static partial class VersionInfo
     private const string GitVersionFull = "${hash_full}";
     private const string GitVersionShort = "${hash_short}";
     private const string CommitCount = "${commit_count}";
+    private const string BuildSequence = "${build_sequence}";
+    private const string BuildChannel = "${build_channel}";
     private const string Branch = "${branch}";
     private const string LastCommitMessage = "${commit_message}";
     private const string LastCommitDate = "${commit_date}";
@@ -128,12 +144,17 @@ internal static partial class VersionInfo
     
     static partial void GetVersionStringImpl(ref string versionString)
     {
-        versionString = $"{DataVersion.VersionString}-r{CommitCount}";
+        versionString = $"{DataVersion.VersionString}-r{BuildSequence}";
     }
 
     static partial void GetSequenceImpl(ref long sequence)
     {
-        sequence = long.Parse(CommitCount, System.Globalization.CultureInfo.InvariantCulture);
+        sequence = long.Parse(BuildSequence, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    static partial void GetBuildChannelImpl(ref string buildChannel)
+    {
+        buildChannel = BuildChannel;
     }
 
     static partial void GetVersionDetailImpl(ref string versionString)
@@ -142,6 +163,8 @@ internal static partial class VersionInfo
               $"""
                数据版本：{DataVersion.VersionString} (0x{DataVersion.VersionCode:X8})
                编译增量：{CommitCount}
+               更新序号：{BuildSequence}
+               构建频道：{BuildChannel}
                Git分支：{Branch}
                Git提交：{GitVersionShort}
                提交消息：{LastCommitMessage}

@@ -5,6 +5,7 @@ internal static partial class VersionInfo
     static partial void GetVersionStringImpl(ref string versionString);
     static partial void GetVersionDetailImpl(ref string versionString);
     static partial void GetSequenceImpl(ref long sequence);
+    static partial void GetBuildChannelImpl(ref string buildChannel);
 
     public static string AppVersionString()
     {
@@ -24,6 +25,13 @@ internal static partial class VersionInfo
     {
         long result = 0;
         GetSequenceImpl(ref result);
+        return result;
+    }
+
+    public static string AppBuildChannel()
+    {
+        string result = "release";
+        GetBuildChannelImpl(ref result);
         return result;
     }
 }

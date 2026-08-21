@@ -23,9 +23,10 @@ class ServerConfig:
     api_base_url: str = "https://api.github.com"
     github_token_environment: str = "DIARY_GITHUB_TOKEN"
     sync_token_environment: str = "DIARY_UPDATE_SYNC_TOKEN"
+    publish_token_environment: str = "DIARY_UPDATE_PUBLISH_TOKEN"
     poll_interval_seconds: int = 21_600
     request_timeout_seconds: int = 60
-    allowed_channels: tuple[str, ...] = ("stable", "preview")
+    allowed_channels: tuple[str, ...] = ("stable", "preview", "local")
 
     @property
     def github_token(self) -> str:
@@ -34,6 +35,10 @@ class ServerConfig:
     @property
     def sync_token(self) -> str:
         return os.environ.get(self.sync_token_environment, "")
+
+    @property
+    def publish_token(self) -> str:
+        return os.environ.get(self.publish_token_environment, "")
 
     @classmethod
     def load(cls, path: str | Path) -> "ServerConfig":
@@ -49,7 +54,7 @@ class ServerConfig:
         storage = Path(raw["storageDirectory"])
         if not storage.is_absolute():
             storage = config_path.parent / storage
-        channels = tuple(str(item) for item in raw.get("allowedChannels", ["stable", "preview"]))
+        channels = tuple(str(item) for item in raw.get("allowedChannels", ["stable", "preview", "local"]))
         if not channels or any(re.fullmatch(r"[a-z0-9][a-z0-9-]{0,31}", item) is None for item in channels):
             raise ValueError("allowedChannels 包含非法频道。")
         port = int(raw.get("listenPort", 18080))
@@ -69,6 +74,7 @@ class ServerConfig:
             api_base_url=str(raw.get("apiBaseUrl", "https://api.github.com")).rstrip("/"),
             github_token_environment=str(raw.get("githubTokenEnvironment", "DIARY_GITHUB_TOKEN")),
             sync_token_environment=str(raw.get("syncTokenEnvironment", "DIARY_UPDATE_SYNC_TOKEN")),
+            publish_token_environment=str(raw.get("publishTokenEnvironment", "DIARY_UPDATE_PUBLISH_TOKEN")),
             poll_interval_seconds=interval,
             request_timeout_seconds=timeout,
             allowed_channels=channels,

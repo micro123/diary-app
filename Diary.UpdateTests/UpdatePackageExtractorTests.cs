@@ -26,6 +26,9 @@ public sealed class UpdatePackageExtractorTests
             Path.Combine(fixture.StagingPath, "Diary.App")));
         CollectionAssert.AreEqual(files["sub/config.json"], await File.ReadAllBytesAsync(
             Path.Combine(fixture.StagingPath, "sub", "config.json")));
+        Assert.IsFalse(
+            Directory.EnumerateFiles(fixture.StagingPath, "*.tmp", SearchOption.AllDirectories).Any(),
+            "解压成功后不应残留仍被写入流占用的临时文件。");
     }
 
     [TestMethod]

@@ -6,6 +6,8 @@ import html
 import json
 import logging
 import re
+import shutil
+import tempfile
 import threading
 import time
 import urllib.parse
@@ -16,12 +18,20 @@ from pathlib import Path
 
 from .config import SUPPORTED_VARIANTS, ServerConfig
 from .coordinator import SyncCoordinator
+from .publisher import (
+    PackagePublishResult,
+    PackagePublishRequest,
+    PublishConflictError,
+    publish_archive,
+    validate_publish_request,
+)
 from .repository import UpdateRepository
 
 
 LOGGER = logging.getLogger(__name__)
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 SEQUENCE_PATTERN = re.compile(r"^(0|[1-9][0-9]*)$")
+MAX_PACKAGE_UPLOAD_BYTES = 1024 * 1024 * 1024
 
 
 class UpdateRequestHandler(BaseHTTPRequestHandler):
@@ -74,51 +84,179 @@ class UpdateRequestHandler(BaseHTTPRequestHandler):
         request_id = uuid.uuid4().hex
         try:
             parsed = urllib.parse.urlparse(self.path)
-            if parsed.path != "/api/v1/internal/sync":
-                self._error(HTTPStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "resource not found", False, request_id)
+            if parsed.path == "/api/v1/internal/sync":
+                self._trigger_sync(request_id)
                 return
-            if not self._authorized_for_sync():
-                self.send_response(HTTPStatus.UNAUTHORIZED)
-                self.send_header("WWW-Authenticate", 'Bearer realm="diary-update-sync"')
-                body = _json_bytes(
-                    {"error": {"code": "UNAUTHORIZED", "message": "unauthorized", "retryable": False, "requestId": request_id}}
+            if parsed.path == "/api/v1/internal/publish/local":
+                self._publish_local(request_id)
+                return
+            self._error(HTTPStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "resource not found", False, request_id)
+        except (BrokenPipeError, ConnectionResetError):
+            LOGGER.debug("客户端中断请求：%s", request_id)
+        except PublishConflictError as exception:
+            self._error(HTTPStatus.CONFLICT, "PUBLISH_CONFLICT", str(exception), False, request_id)
+        except ValueError as exception:
+            self._error(HTTPStatus.BAD_REQUEST, "INVALID_PUBLISH_REQUEST", str(exception), False, request_id)
+        except Exception:
+            LOGGER.exception("处理内部写入请求失败：%s", request_id)
+            self._error(HTTPStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "internal server error", True, request_id)
+
+    def _trigger_sync(self, request_id: str) -> None:
+        if not self._authorized(self.config.sync_token):
+            self._unauthorized("diary-update-sync", request_id)
+            return
+        if not self.coordinator.trigger_background("manual-api"):
+            self._error(
+                HTTPStatus.CONFLICT,
+                "SYNC_IN_PROGRESS",
+                "an update synchronization is already running",
+                True,
+                request_id,
+            )
+            return
+        self._json(
+            HTTPStatus.ACCEPTED,
+            {
+                "status": "accepted",
+                "message": "synchronization started without changing the automatic schedule",
+                "requestId": request_id,
+            },
+        )
+
+    def _publish_local(self, request_id: str) -> None:
+        if not self.config.publish_token:
+            self._error(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                "LOCAL_PUBLISH_DISABLED",
+                "local publish token is not configured",
+                False,
+                request_id,
+            )
+            return
+        if not self._authorized(self.config.publish_token):
+            self._unauthorized("diary-update-publish", request_id)
+            return
+
+        content_length_value = self.headers.get("Content-Length", "")
+        if not content_length_value.isdigit():
+            raise ValueError("必须提供合法的 Content-Length。")
+        content_length = int(content_length_value)
+        if content_length <= 0 or content_length > MAX_PACKAGE_UPLOAD_BYTES:
+            raise ValueError("上传包大小超出允许范围。")
+        request = PackagePublishRequest(
+            channel=self.headers.get("X-Diary-Channel", ""),
+            sequence=_required_int_header(self.headers.get("X-Diary-Sequence"), "X-Diary-Sequence"),
+            version_id=self.headers.get("X-Diary-Version-Id", ""),
+            data_version=self.headers.get("X-Diary-Data-Version", ""),
+            rid=self.headers.get("X-Diary-Rid", ""),
+            flavor=self.headers.get("X-Diary-Flavor", ""),
+            package_size=content_length,
+            package_sha256=self.headers.get("X-Diary-Sha256", ""),
+            min_updater_version=_optional_int_header(
+                self.headers.get("X-Diary-Min-Updater-Version"), 1, "X-Diary-Min-Updater-Version"
+            ),
+            min_incremental_sequence=_optional_int_header(
+                self.headers.get("X-Diary-Min-Incremental-Sequence"), 0, "X-Diary-Min-Incremental-Sequence"
+            ),
+        )
+        validate_publish_request(request)
+        if request.channel != "local" or request.channel not in self.config.allowed_channels:
+            raise ValueError("直传接口只允许配置中启用的 local 频道。")
+        if request.version_id != f"{request.data_version}-r{request.sequence}":
+            raise ValueError("local versionId 必须与 dataVersion 和 sequence 一致。")
+
+        transaction = Path(tempfile.mkdtemp(prefix="local-upload-", dir=self.repository.transactions))
+        try:
+            archive_path = transaction / "package.zip"
+            digest = hashlib.sha256()
+            remaining = content_length
+            with archive_path.open("wb") as stream:
+                while remaining > 0:
+                    block = self.rfile.read(min(1024 * 1024, remaining))
+                    if not block:
+                        raise ValueError("上传连接在完整包接收完成前关闭。")
+                    stream.write(block)
+                    digest.update(block)
+                    remaining -= len(block)
+            if digest.hexdigest() != request.package_sha256:
+                raise ValueError("上传内容 SHA-256 与声明不一致。")
+
+            def publish_operation() -> tuple[PackagePublishResult, tuple[int, int]]:
+                publish_result = publish_archive(
+                    self.repository,
+                    archive_path,
+                    transaction / "blobs",
+                    request,
                 )
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.send_header("Content-Length", str(len(body)))
-                self.send_header("Cache-Control", "no-store")
-                self.end_headers()
-                self.wfile.write(body)
-                return
-            if not self.coordinator.trigger_background("manual-api"):
+                removed = self.repository.prune_to_latest() if publish_result.published else (0, 0)
+                return publish_result, removed
+
+            acquired, operation_result = self.coordinator.execute_exclusive(publish_operation)
+            if not acquired or operation_result is None:
                 self._error(
                     HTTPStatus.CONFLICT,
-                    "SYNC_IN_PROGRESS",
-                    "an update synchronization is already running",
+                    "PUBLISH_IN_PROGRESS",
+                    "another synchronization or publish operation is running",
                     True,
                     request_id,
                 )
                 return
+            result, (removed_snapshots, removed_blobs) = operation_result
+            if result.published:
+                LOGGER.info(
+                    "已发布 local 更新：sequence=%d, rid=%s, flavor=%s, removedSnapshots=%d, removedBlobs=%d",
+                    request.sequence,
+                    request.rid,
+                    request.flavor,
+                    removed_snapshots,
+                    removed_blobs,
+                )
             self._json(
-                HTTPStatus.ACCEPTED,
+                HTTPStatus.CREATED if result.published else HTTPStatus.OK,
                 {
-                    "status": "accepted",
-                    "message": "synchronization started without changing the automatic schedule",
+                    "status": "published" if result.published else "unchanged",
+                    "release": {
+                        key: result.envelope["manifest"][key]
+                        for key in (
+                            "versionId",
+                            "sequence",
+                            "dataVersion",
+                            "channel",
+                            "rid",
+                            "flavor",
+                            "manifestContentId",
+                        )
+                    },
+                    "fullPackage": result.envelope["fullPackage"],
+                    "latestUrl": (
+                        "/api/v1/updates/latest"
+                        f"?channel=local&rid={urllib.parse.quote(request.rid)}"
+                        f"&flavor={urllib.parse.quote(request.flavor)}"
+                    ),
                     "requestId": request_id,
                 },
             )
-        except (BrokenPipeError, ConnectionResetError):
-            LOGGER.debug("客户端中断请求：%s", request_id)
-        except Exception:
-            LOGGER.exception("处理立即同步请求失败：%s", request_id)
-            self._error(HTTPStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "internal server error", True, request_id)
+        finally:
+            shutil.rmtree(transaction, ignore_errors=True)
 
-    def _authorized_for_sync(self) -> bool:
-        expected = self.config.sync_token
+    def _authorized(self, expected: str) -> bool:
         if not expected:
             return True
         provided = self.headers.get("Authorization", "")
         prefix = "Bearer "
         return provided.startswith(prefix) and hmac.compare_digest(provided[len(prefix):], expected)
+
+    def _unauthorized(self, realm: str, request_id: str) -> None:
+        self.send_response(HTTPStatus.UNAUTHORIZED)
+        self.send_header("WWW-Authenticate", f'Bearer realm="{realm}"')
+        body = _json_bytes(
+            {"error": {"code": "UNAUTHORIZED", "message": "unauthorized", "retryable": False, "requestId": request_id}}
+        )
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
 
     def _downloads_page(self) -> None:
         latest = self.repository.list_latest()
@@ -170,6 +308,7 @@ class UpdateRequestHandler(BaseHTTPRequestHandler):
     code {{ font-size:12px; }}
     .channel {{ display:inline-block; padding:4px 9px; border-radius:999px; background:#e8eefc; color:#2457b8; }}
     .channel.preview {{ background:#fff0d9; color:#9a5b00; }}
+    .channel.local {{ background:#e4f7eb; color:#18713c; }}
     .download {{ display:inline-block; padding:9px 14px; border-radius:9px; background:#2457d6; color:#fff; text-decoration:none; white-space:nowrap; }}
     .download:hover {{ background:#1746bd; }}
     .empty {{ padding:42px; text-align:center; color:#7a8497; }}
@@ -286,6 +425,18 @@ class UpdateRequestHandler(BaseHTTPRequestHandler):
 
 def _json_bytes(value: object) -> bytes:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+
+
+def _required_int_header(value: str | None, name: str) -> int:
+    if value is None or not SEQUENCE_PATTERN.fullmatch(value):
+        raise ValueError(f"{name} 非法。")
+    return int(value)
+
+
+def _optional_int_header(value: str | None, default: int, name: str) -> int:
+    if value is None or value == "":
+        return default
+    return _required_int_header(value, name)
 
 
 def _file_sha256(path: Path) -> str:

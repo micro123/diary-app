@@ -6,7 +6,7 @@
 
 本文是 [`ApplicationUpdateDesign.md`](ApplicationUpdateDesign.md) 的服务端专项设计。总设计定义客户端 `IUpdateSource`、逐文件清单、事务式更新器和 `Diary.Updater` 自举流程；本文定义负责实现 `IUpdateSource` 的独立服务程序。
 
-当前 `UpdateServer/` 已实现第一版 Python 服务，使用 Python 3.11+ 标准库从 GitHub Release 同步源包，在服务本地生成清单、完整包快照和内容缓存，并向 DiaryApp 客户端提供升级数据；客户端已消费 latest 与完整包接口，完成下载、校验、安全解压和事务安装闭环。本文仍保留完整目标需求；未实现的管理 API、持久化事务数据库、下载租约、限流、指标、断点续传和客户端逐 Blob 增量属于后续增强，不能把目标设计中的全部条目理解为第一版已经完成。
+当前 `UpdateServer/` 已实现第一版 Python 服务，使用 Python 3.11+ 标准库从 GitHub Release 同步源包，或接收受认证运维工具直传的 `local` 包，在服务本地生成清单、完整包快照和内容缓存，并向 DiaryApp 客户端提供升级数据；客户端已消费 latest 与完整包接口，完成下载、校验、安全解压和事务安装闭环。本文仍保留完整目标需求；未实现的通用管理 API、持久化事务数据库、下载租约、限流、指标、断点续传和客户端逐 Blob 增量属于后续增强，不能把目标设计中的全部条目理解为第一版已经完成。
 
 GitHub Release 源端契约和第一版消费链路均已落地：Tag CI 生成三个运行维度及两个按 RID 标识的调试资产，运行包携带目标 RID 的裁剪后 `Diary.Updater` 自包含单文件 CLI；release metadata 的 `debugAssets` 显式记录 `rid`，打包阶段和同步服务都会检查 ZIP 路径、链接、大小、压缩比、PDB、嵌套归档、运行时目录和 Python flavor 内容。同步服务还会校验 metadata 身份、完整发布矩阵、资产大小/SHA-256，并只在完整包、manifest 和 Blob 全部就绪后切换 latest。
 
@@ -16,10 +16,10 @@ GitHub Release 源端契约和第一版消费链路均已落地：Tag CI 生成�
 - 配置：JSON 文件指定仓库、存储目录、监听地址、轮询周期、允许频道和 GitHub Token 环境变量名；
 - 存储：文件系统保存不可变快照、latest JSON、完整 ZIP 和 SHA-256 内容对象，临时同步目录与已发布目录隔离；
 - 保留：每个 `channel/rid/flavor` 只保留当前 latest；成功同步后删除旧快照和不再被任何 latest 引用的 Blob；
-- API：已实现 latest、内容 Blob、完整包、下载页面、隐藏的立即同步接口和三类健康接口；
+- API：已实现 latest、内容 Blob、完整包、下载页面、隐藏的立即同步接口、受认证的 `local` 原始 ZIP 直传接口和三类健康接口；
 - 调度：启动后立即检查，之后按固定时间轴每 6 小时检查一次；手动同步不重置下一次自动检查时间；
 - 失败语义：同步失败保留旧 latest；客户端将 `404` 映射为无精确快照，将超时、`429` 和 `5xx` 映射为暂时不可用；
-- 安全边界：只接受固定仓库 Releases 和 metadata 声明的资产，不执行包内程序或脚本，不支持客户端上传。
+- 安全边界：`stable`/`preview` 只接受固定仓库 Releases 和 metadata 声明的资产；`local` 只接受持有独立发布 Token 的运维工具上传，不向普通客户端开放写入；所有来源都不执行包内程序或脚本。
 
 部署与配置示例见 `UpdateServer/README.md`。仓库已提供非 root、只读根文件系统、持久化数据卷和健康检查配置的 Dockerfile 与 `docker-compose.yml`。第一版没有独立管理端口，立即同步接口与下载 API 共用端口并支持 Bearer Token；只能部署在受控局域网，跨网络使用时必须配置 Token，并由 Nginx 等入口补充 HTTPS、访问控制和限流。
 
@@ -40,7 +40,7 @@ GitHub Release 源端契约和第一版消费链路均已落地：Tag CI 生成�
 
 ### 2.2 服务非目标
 
-- 不替代 GitHub Release 的构建和发布流程；
+- 不替代 `stable`/`preview` 的 GitHub Release 构建和发布流程；`local` 仅用于同一受控局域网内的开发测试；
 - 不在服务端执行 DiaryApp 程序、更新器或包内脚本；
 - 不修改应用数据库、配置、日志、备份或用户脚本；
 - 第一阶段不实现 DLL 二进制差分、分块差分或服务端智能合并；
@@ -81,7 +81,7 @@ GitHub Release 源端契约和第一版消费链路均已落地：Tag CI 生成�
 - `versionId`：人类可读版本，例如 `1.0.0-r438`；
 - `sequence`：单调递增的发布序号，用于客户端判断新旧；
 - `dataVersion`：数据库兼容版本，只用于展示和风险提示；
-- `channel`：`stable`、`preview` 或部署配置允许的其他频道；
+- `channel`：`stable`、`preview`、`local` 或部署配置允许的其他频道；其中 `local` 由本机构建直传，不从 GitHub 自动发现；
 - `rid`：目标运行时标识；
 - `flavor`：包 flavor；
 - `minUpdaterVersion`：应用该清单所需的最低更新器协议版本；
@@ -699,7 +699,7 @@ GET /downloads
 
 管理 API 必须与客户端 API 使用不同端口、不同监听地址或至少不同访问控制策略。推荐只监听 `localhost`，由管理员通过本机 CLI 或受保护的管理 UI 调用。
 
-第一版只实现一个不在下载页面公开的受限操作：
+第一版实现两个不在下载页面公开的受限操作。GitHub 立即同步：
 
 ```http
 POST /api/v1/internal/sync
@@ -707,6 +707,25 @@ Authorization: Bearer <DIARY_UPDATE_SYNC_TOKEN>
 ```
 
 该接口只触发配置范围内的一次同步，不接受请求体中的仓库、URL、Tag、命令或路径；成功排队返回 `202`，已有同步运行时返回 `409`。它与自动调度共享互斥锁，但不会改变自动调度的固定下一次执行时间。配置了 `DIARY_UPDATE_SYNC_TOKEN` 时必须使用常量时间比较 Bearer Token；Token 为空只适用于由防火墙或反向代理隔离的可信局域网，“隐藏路径”本身不作为安全边界。
+
+本机构建直传：
+
+```http
+POST /api/v1/internal/publish/local
+Authorization: Bearer <DIARY_UPDATE_PUBLISH_TOKEN>
+Content-Type: application/zip
+X-Diary-Channel: local
+X-Diary-Sequence: 20260821091701
+X-Diary-Version-Id: 1.0.0-r20260821091701
+X-Diary-Data-Version: 1.0.0
+X-Diary-Rid: win-x64
+X-Diary-Flavor: python313
+X-Diary-Sha256: <sha256>
+
+<原始 ZIP 字节>
+```
+
+发布 Token 未配置时接口返回 `503` 并保持禁用；Token 错误返回 `401`。接口要求 `Content-Length`，限制上传体积，流式写入事务目录并核对 SHA-256，再复用 GitHub 同步路径的 ZIP、运行时、flavor、逐文件 Blob 和 manifest 校验。上传完成与 GitHub 同步共享写锁；同一发布维度只允许更高 sequence，相同 sequence 仅允许同一包幂等重试，其他覆盖返回 `409`。发布成功返回摘要，不返回完整逐文件清单；工具随后通过 latest 接口回读核验。
 
 允许的管理操作：
 
@@ -1017,6 +1036,7 @@ GitHub 查询、下载或校验失败时不执行清理，继续提供上一份�
 - API 不接受任意 URL、路径、命令或脚本；
 - 下载页面不展示立即同步入口；配置 Token 时，未授权客户端不能触发内部同步接口；所有客户端都不能访问源目录和数据库；
 - 立即同步返回 `202`，重复触发返回 `409`，且不会重置固定的自动检查周期；
+- `local` 直传在无 Token、错误 Token、哈希不匹配、非法 ZIP、低 sequence 和同 sequence 不同内容时拒绝；成功后 latest、完整包和逐文件 Blob 同时可读；
 - 错误响应不泄露 Token、凭据、堆栈和本地敏感路径；
 - 并发读取、取消、重复请求和限流行为符合配置。
 
@@ -1111,7 +1131,7 @@ Blob 和完整包可以从 GitHub 源 ZIP 重建；当前策略只保留各发�
 
 ## 20. 第一版决策与后续事项
 
-第一版已经确定：使用文件系统保存索引和快照；客户端 API 使用可配置的 HTTP/HTTPS 根地址；Release metadata 由 CI 作为额外资产上传；完整包复用校验后的 GitHub 源 ZIP；每份 metadata 必须包含完整三维运行资产矩阵。以下事项仍需后续确定或实现：
+第一版已经确定：使用文件系统保存索引和快照；客户端 API 使用可配置的 HTTP/HTTPS 根地址；Release metadata 由 CI 作为额外资产上传；完整包复用校验后的 GitHub 源 ZIP；每份 metadata 必须包含完整三维运行资产矩阵；本机工具可用独立 Token 将单个 `win-x64/python313` 包发布到 `local`，并复用相同验证与存储模型。以下事项仍需后续确定或实现：
 
 - 局域网客户端是否需要 IP allowlist、反向代理认证或应用级 Token；
 - 元数据规模和审计要求增长后是否引入 SQLite 或 PostgreSQL；

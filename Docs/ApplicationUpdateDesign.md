@@ -146,7 +146,7 @@ public interface IUpdatePackageSource
 - `versionId`：人类可读版本，例如 `1.0.0-r479`；
 - `sequence`：服务端分配或由正式提交计数派生的单调递增整数；
 - `dataVersion`：数据库数据版本，仅用于展示和升级风险提示；
-- `channel`：例如 `stable`、`preview`；
+- `channel`：`stable`、`preview` 或仅用于局域网开发验证的 `local`；
 - `rid`：`win-x64` 或 `linux-x64`；
 - `flavor`：`standard` 或 `python313`；
 - `manifestFormatVersion`：更新协议版本；
@@ -254,7 +254,7 @@ public interface IUpdatePackageSource
 5. 缺少本地安装清单或不满足增量条件时选择完整包；
 6. 满足条件时进入逐文件计划生成。
 
-当前主程序已完成步骤 1 至 5：设置页可配置服务器地址、`stable`/`preview` 频道和 `Auto`/`standard`/`python313` flavor；`Auto` 在 Windows 安装目录存在 `python/` 时选择 `python313`，Linux 固定选择 `standard`。启动 15 秒后可以后台检查，只有发现新版本才主动提示；手动检查会反馈已是最新、没有精确发布维度、服务暂时不可用、清单无效或更新器协议过低。第一阶段统一选择完整包并生成逐文件事务计划；步骤 6 的逐 Blob 增量下载仍未接入。
+当前主程序已完成步骤 1 至 5：设置页可配置服务器地址、`stable`/`preview`/`local` 频道和 `Auto`/`standard`/`python313` flavor；`Auto` 在 Windows 安装目录存在 `python/` 时选择 `python313`，Linux 固定选择 `standard`。`local` 包由本机工具注入独立、单调递增且与包内 `AppSequence` 一致的构建序号及 `BuildChannel=local`，再通过受认证接口直接发布到局域网服务器，不经过 GitHub Tag/Release。由于时间型 local sequence 大于正常提交计数，客户端在用户主动从 local 切回 `stable`/`preview` 时按目标频道重新比较，避免测试包把安装永久锁定在 local。启动 15 秒后可以后台检查，只有发现新版本才主动提示；手动检查会反馈已是最新、没有精确发布维度、服务暂时不可用、清单无效或更新器协议过低。第一阶段统一选择完整包并生成逐文件事务计划；步骤 6 的逐 Blob 增量下载仍未接入。
 
 ### 8.2 文件比较
 
@@ -290,7 +290,8 @@ public interface IUpdatePackageSource
 - 同一哈希文件只保存一份并跨版本复用属于逐文件增量阶段；当前完整包仅复用同一事务内已经通过验证的目标文件；
 - 暂存完成后再次验证整个更新计划；
 - 磁盘空间不足时在退出主程序前失败，不进入替换阶段；
-- 完整包必须先验证包哈希，再按文件数、单文件大小、总大小、压缩比、路径、大小写冲突和链接规则安全解压，并逐文件验证长度和 SHA-256；ZIP 文件集合必须与 manifest 完全一致。
+- 完整包必须先验证包哈希，再按文件数、单文件大小、总大小、压缩比、路径、大小写冲突和链接规则安全解压，并逐文件验证长度和 SHA-256；ZIP 文件集合必须与 manifest 完全一致。每个条目写入事务临时文件并刷新后，必须先释放独占写入流，再设置权限并原子移动到暂存目标；Windows 移动阶段的短暂共享冲突沿用有限退避策略。
+- 准备阶段扫描已安装文件及验证目标更新器时，读句柄允许与现有读写/删除句柄共存；Windows 共享冲突或锁冲突采用总计约 4 秒的有限退避重试。重试耗尽后必须报告操作名称和清单相对路径，不能只显示“文件被占用”；应用阶段仍会重新验证旧文件哈希，避免扫描期间内容变化被静默接受。
 
 ## 10. 应用更新事务
 
@@ -471,7 +472,7 @@ Diary.Updater/
 Diary.Update.ManifestTool
 ```
 
-`Diary.Updater` 必须按目标 RID 发布为裁剪后的自包含单文件 CLI，并作为普通应用文件进入 GitHub Release 源 ZIP。更新协议使用 `System.Text.Json` 源生成上下文，更新器发布不得依赖裁剪不安全的反射式 JSON 序列化；发布阶段出现 trim analysis 警告应视为失败风险并完成处理。事务级引导副本仍由客户端在运行时复制到用户更新目录，CI 不需要为每个事务预生成引导副本。
+`Diary.Updater` 必须按目标 RID 发布为裁剪后的自包含单文件 CLI，并作为普通应用文件进入 GitHub Release 源 ZIP。Windows apphost 设置 `CETCompat=false`，与主程序、迁移工具和脚本 Worker 的内部 Windows 兼容策略一致，避免更新器在尚未完整支持 CET 的系统上启动即终止。更新协议使用 `System.Text.Json` 源生成上下文，更新器发布不得依赖裁剪不安全的反射式 JSON 序列化；发布阶段出现 trim analysis 警告应视为失败风险并完成处理。事务级引导副本仍由客户端在运行时复制到用户更新目录，CI 不需要为每个事务预生成引导副本。
 
 CI 的 Tag 发布流程只负责生成 GitHub Release 源资产：
 
@@ -482,6 +483,8 @@ CI 的 Tag 发布流程只负责生成 GitHub Release 源资产：
 5. 校验每个源 ZIP 的文件集合完整、路径安全且不含 PDB；
 6. 生成供同步服务核对的源资产元数据，至少包含 Tag、资产名称、RID、flavor、源 ZIP 大小和 SHA-256；
 7. 将普通源 ZIP、Windows Python 源 ZIP、独立调试符号包和源资产元数据上传到 GitHub Release。
+
+本机 `local` 流程不执行第 6、7 步。`Tools/local-update.sh` 为构建注入时间型 sequence 和 local 构建频道，调用与正式发布相同的 Windows Python 打包和 ZIP 校验，再把原始 ZIP、版本维度和 SHA-256 发送到服务器；服务端复用正式同步的 manifest/Blob 生成器并原子切换 `local` latest。旧客户端不认识 `local`，第一次测试前必须手工部署一份已经包含该频道选项的新包，后续版本才能验证在线更新。
 
 同步服务从源 ZIP 最终目录生成逐文件 `manifest`、`manifestContentId`、内容缓存和服务端完整包。若服务端完整包携带 `.update/installed-manifest.json`，该文件只包含本地生成的 `manifest`，不包含 `fullPackage`，且自身不列入受管理文件；服务端必须对重新打包后的归档重新计算 `fullPackage.size` 和 `fullPackage.sha256`。
 
@@ -559,7 +562,7 @@ CI 的 Tag 发布流程只负责生成 GitHub Release 源资产：
 
 - [x] 清单模型、规范化内容身份校验、HTTP latest 更新源、客户端检查、完整包流式下载、包与逐文件校验、安全解压和计划生成已接入；
 - [x] 已完成自包含独立更新器、事务日志、引导交接协议、文件替换、回滚和异常恢复基础实现；
-- [x] Python 局域网服务已完成 GitHub Release metadata、三维发布矩阵、源 ZIP、逐文件 Blob、完整包、下载页面和原子 latest 的第一版同步及读取接口，并在成功同步后只保留各发布维度 latest；默认每 6 小时按固定时间轴检查，隐藏的立即同步 REST 不重置自动周期；Dockerfile/Compose 提供非 root、只读根文件系统、健康检查和持久化数据卷部署；
+- [x] Python 局域网服务已完成 GitHub Release metadata、三维发布矩阵、`local` 受认证直传、源 ZIP、逐文件 Blob、完整包、下载页面和原子 latest 的第一版同步及读取接口，并在成功同步后只保留各发布维度 latest；默认每 6 小时按固定时间轴检查，隐藏的立即同步 REST 和 local 发布均不重置自动周期；Dockerfile/Compose 提供非 root、只读根文件系统、健康检查和持久化数据卷部署；
 - [x] Tag 和手动发布包携带目标 RID 的独立更新器；客户端已完成用户确认、目标更新器引导副本、正常退出、按最终文件清单安装、新版本重启、稳定性确认和事务清理；
 - [~] 仍需使用上一发布版本产物完成 Windows/Linux 真实更新、初始化失败回滚和 Python flavor 更新门禁。
 

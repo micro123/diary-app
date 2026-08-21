@@ -12,15 +12,20 @@ public static class UpdateHash
         string path,
         CancellationToken cancellationToken = default)
     {
-        await using var stream = new FileStream(
-            path,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            1024 * 1024,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
-        var digest = await SHA256.HashDataAsync(stream, cancellationToken);
-        return Convert.ToHexStringLower(digest);
+        return await UpdateFileAccess.ExecuteWithSharingRetryAsync(
+            async () =>
+            {
+                await using var stream = new FileStream(
+                    path,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete,
+                    1024 * 1024,
+                    FileOptions.Asynchronous | FileOptions.SequentialScan);
+                var digest = await SHA256.HashDataAsync(stream, cancellationToken);
+                return Convert.ToHexStringLower(digest);
+            },
+            cancellationToken);
     }
 
     public static string ComputeSha256(string value) =>

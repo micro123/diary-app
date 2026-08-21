@@ -78,6 +78,10 @@ public sealed class WorkerScriptExecutor(
         {
             return Failed(scriptId, request.Source, exception.Diagnostic.Code, exception.Diagnostic.Message);
         }
+        catch (WorkerProtocolException exception)
+        {
+            return Failed(scriptId, request.Source, exception.Diagnostic.Code, exception.Diagnostic.Message);
+        }
         catch (Exception exception)
         {
             return Failed(scriptId, request.Source, "WORKER_EXECUTION_FAILED", exception.Message);

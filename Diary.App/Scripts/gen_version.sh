@@ -52,6 +52,20 @@ if [ -n "$repo_dir" ]; then
     popd
 fi
 
+build_sequence="$commit_count"
+if [ -n "${DIARY_BUILD_SEQUENCE:-}" ]; then
+	if [[ ! "$DIARY_BUILD_SEQUENCE" =~ ^[0-9]+$ ]]; then
+		echo "DIARY_BUILD_SEQUENCE must be a non-negative integer." >&2
+		exit 1
+	fi
+	build_sequence="$DIARY_BUILD_SEQUENCE"
+fi
+build_channel="${DIARY_BUILD_CHANNEL:-release}"
+if [[ ! "$build_channel" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]]; then
+	echo "DIARY_BUILD_CHANNEL must use lowercase letters, digits, or hyphens." >&2
+	exit 1
+fi
+
 # Escape commit message for embedding in a C# string literal.
 # 已只取 subject 首行，不含换行，故仅需转义反斜杠与双引号。
 escape_cs_string() {
@@ -74,6 +88,8 @@ internal static partial class VersionInfo
 	  private const string GitVersionFull = "${hash_full}";
 	  private const string GitVersionShort = "${hash_short}";
 	  private const string CommitCount = "${commit_count}";
+	  private const string BuildSequence = "${build_sequence}";
+	  private const string BuildChannel = "${build_channel}";
 	  private const string Branch = "${branch}";
 	  private const string LastCommitMessage = "${commit_message_escaped}";
 	  private const string LastCommitDate = "${commit_date}";
@@ -81,12 +97,17 @@ internal static partial class VersionInfo
 
 	  static partial void GetVersionStringImpl(ref string versionString)
 	  {
-		    versionString = $"{DataVersion.VersionString}-r{CommitCount}";
+		    versionString = $"{DataVersion.VersionString}-r{BuildSequence}";
 	  }
 
     static partial void GetSequenceImpl(ref long sequence)
     {
-        sequence = long.Parse(CommitCount, System.Globalization.CultureInfo.InvariantCulture);
+        sequence = long.Parse(BuildSequence, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    static partial void GetBuildChannelImpl(ref string buildChannel)
+    {
+        buildChannel = BuildChannel;
     }
 
     static partial void GetVersionDetailImpl(ref string versionString)
@@ -95,6 +116,8 @@ internal static partial class VersionInfo
               $"""
                数据版本：{DataVersion.VersionString} (0x{DataVersion.VersionCode:X8})
                编译增量：{CommitCount}
+               更新序号：{BuildSequence}
+               构建频道：{BuildChannel}
                Git分支：{Branch}
                Git提交：{GitVersionShort}
                提交消息：{LastCommitMessage}

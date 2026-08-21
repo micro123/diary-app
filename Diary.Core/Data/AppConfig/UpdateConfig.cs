@@ -11,7 +11,7 @@ public sealed class UpdateConfig
     [ConfigureText("更新服务器地址", helpTip: "局域网 Python 更新服务的 HTTP/HTTPS 根地址，例如 http://192.168.1.40:18080。")]
     public string ServerUrl { get; set; } = "http://127.0.0.1:18080";
 
-    [ConfigureChoice("更新频道", "正式版本使用 stable，alpha/beta/rc/preview 使用 preview。", "stable", "preview")]
+    [ConfigureChoice("更新频道", "正式版本使用 stable，alpha/beta/rc/preview 使用 preview；本机构建直传服务器时使用 local。", "stable", "preview", "local")]
     public string Channel { get; set; } = "preview";
 
     [ConfigureChoice("安装包类型", "Auto 会在 Windows 安装目录包含 python/ 时选择 python313，否则选择 standard。", "Auto", "standard", "python313")]

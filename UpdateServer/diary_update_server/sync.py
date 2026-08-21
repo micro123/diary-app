@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import re
@@ -8,22 +7,14 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from .archive import validate_and_index
 from .config import SUPPORTED_VARIANTS, ServerConfig
 from .github import GitHubReleaseClient
-from .repository import UpdateRepository, compact_json
+from .publisher import PackagePublishRequest, file_sha256, publish_archive
+from .repository import UpdateRepository
 
 
 LOGGER = logging.getLogger(__name__)
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
-
-
-def file_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        while block := stream.read(1024 * 1024):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def validate_metadata(metadata: dict[str, object], repository: str, tag: str) -> None:
@@ -169,29 +160,26 @@ class ReleaseSynchronizer:
             expected_sha256 = str(package["sha256"])
             if archive_path.stat().st_size != expected_size or file_sha256(archive_path) != expected_sha256:
                 raise ValueError(f"Release 资产大小或 SHA-256 不匹配：{package['name']}")
-            files = validate_and_index(archive_path, rid, flavor, staged_blobs)
-            content_value = {"rid": rid, "flavor": flavor, "files": files}
-            content_id = f"sha256:{hashlib.sha256(compact_json(content_value)).hexdigest()}"
-            manifest = {
-                "manifestFormatVersion": int(metadata["manifestFormatVersion"]),
-                "versionId": str(metadata["versionId"]),
-                "sequence": sequence,
-                "dataVersion": str(metadata["dataVersion"]),
-                "channel": channel,
-                "rid": rid,
-                "flavor": flavor,
-                "minUpdaterVersion": int(metadata["minUpdaterVersion"]),
-                "minIncrementalSequence": int(metadata["minIncrementalSequence"]),
-                "manifestContentId": content_id,
-                "files": files,
-            }
-            envelope = {
-                "manifest": manifest,
-                "fullPackage": {"size": expected_size, "sha256": expected_sha256},
-            }
-            published = self._repository.publish(envelope, archive_path, staged_blobs)
-            if published:
+            result = publish_archive(
+                self._repository,
+                archive_path,
+                staged_blobs,
+                PackagePublishRequest(
+                    channel=channel,
+                    sequence=sequence,
+                    version_id=str(metadata["versionId"]),
+                    data_version=str(metadata["dataVersion"]),
+                    rid=rid,
+                    flavor=flavor,
+                    package_size=expected_size,
+                    package_sha256=expected_sha256,
+                    min_updater_version=int(metadata["minUpdaterVersion"]),
+                    min_incremental_sequence=int(metadata["minIncrementalSequence"]),
+                    manifest_format_version=int(metadata["manifestFormatVersion"]),
+                ),
+            )
+            if result.published:
                 LOGGER.info("已发布更新快照：%s/%s/%s/%s", channel, sequence, rid, flavor)
-            return published
+            return result.published
         finally:
             shutil.rmtree(transaction, ignore_errors=True)

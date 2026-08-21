@@ -42,9 +42,10 @@ public sealed class AppUpdateService(
                     UpdateCheckStatus.InvalidResponse,
                     Error: $"当前平台暂不支持应用更新：{rid}");
             }
-            var channel = config.Channel is "stable" or "preview" ? config.Channel : "preview";
+            var channel = config.Channel is "stable" or "preview" or "local" ? config.Channel : "preview";
             var flavor = ResolveFlavor(config.Flavor ?? "Auto", rid);
-            var request = new UpdateCheckRequest(serverUri, channel, rid, flavor, AppInfo.AppSequence);
+            var currentSequence = ResolveCurrentSequence(channel, AppInfo.AppBuildChannel, AppInfo.AppSequence);
+            var request = new UpdateCheckRequest(serverUri, channel, rid, flavor, currentSequence);
             logger.LogInformation(
                 "检查应用更新：Server={Server}, Channel={Channel}, Rid={Rid}, Flavor={Flavor}, Sequence={Sequence}",
                 serverUri,
@@ -163,4 +164,10 @@ public sealed class AppUpdateService(
             ? configuredFlavor
             : "standard";
     }
+
+    internal static long ResolveCurrentSequence(string targetChannel, string buildChannel, long appSequence) =>
+        string.Equals(buildChannel, "local", StringComparison.Ordinal)
+        && !string.Equals(targetChannel, "local", StringComparison.Ordinal)
+            ? 0
+            : appSequence;
 }

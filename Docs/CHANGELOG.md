@@ -6,10 +6,13 @@
 
 日期：2026-08-21
 
+- 更新服务器新增独立 `local` 通道和受 Bearer Token 保护的原始 ZIP 直传接口；本机工具可一条命令启动 Docker 服务、注入单调递增的包内更新序号和 local 构建频道、打包 `win-x64-python313`、上传并回读 latest 校验，不经过 GitHub Tag/Release；客户端设置同步增加 `local` 频道，并允许 local 测试包主动切回正常 sequence 的 `stable`/`preview`。
+
 - 主程序补全局域网完整包更新闭环：用户确认后流式下载完整包，校验 Content-Length、实际长度和 SHA-256，按 manifest 安全解压并逐文件复检，生成新增/替换/删除事务计划后由独立 Updater 等待主程序正常退出并应用更新。
 - 更新包拒绝路径穿越、链接/重解析点、异常文件数、大小、压缩比、清单外文件、缺失文件和 Windows 大小写冲突；旧清单中被本地修改的文件不会静默删除。
 - 新版本通过 `--update-transaction` 完成启动稳定性确认，成功后清理事务和引导副本；更新后业务初始化失败时可由用户确认回滚程序文件并验证旧入口哈希后重启，数据库不会自动降级。
 - 更新检查使用独立 20 秒超时，完整包下载不再受短 `HttpClient.Timeout` 限制；GitHub Actions 的 MTP 测试命令改为 `dotnet test --solution`。
+- 修复 Windows 更新准备阶段的文件占用问题：解压器不再于独占临时文件流释放前执行 `MoveFile`；文件哈希、解压移动、更新器探针和引导副本复制会有限退避重试，最终失败提示包含具体操作及包内相对路径。
 
 - GitHub Actions 的 checkout、缓存、工件上传/下载和 Release 创建步骤升级到 Node.js 24 运行时版本，消除 GitHub-hosted Runner 的 Node.js 20 弃用警告。
 - 新增面向普通用户和测试人员的调查功能使用指南，覆盖角色配置、网络拓扑、页面字段、查询场景、新旧版本兼容、排障和隐私边界；README 与协议设计增加分层入口。
@@ -25,7 +28,7 @@
 - tag 发布的 Windows x64 包增加带 Python 3.13.15 embedded runtime 的可选 ZIP，同时保留不附带 Python 的轻量 ZIP；带 Python 的包会将运行时放在 `python/` 目录并由脚本运行时自动优先使用。
 - 新增 Linux 本地打包脚本，可交叉发布 `win-x64` 自包含应用、下载并校验 Python 3.13.15 embeddable runtime，并生成与 tag 发布包布局一致的带 Python ZIP。
 - 修复本地、Tag 和手动发布包误删整个 `runtimes/` 导致运行失败的问题；现在保留目标 RID 和 `runtimes/any/`，只移除其他平台目录，并在压缩后校验保留目录和非法 RID 条目。
-- Python 语法检查和正式 Worker 通过 `-X utf8` 在隔离模式前显式启用 UTF-8，并统一使用 UTF-8 无 BOM 标准输入输出，修复 Windows 环境下含中文脚本被本地代码页错误解码的问题；异常退出诊断会保留受限长度的 stderr 和退出码，tag 发布验证改用 Python 3.13。
+- Python 语法检查和正式 Worker 通过 `-X utf8` 在隔离模式前显式启用 UTF-8，并统一使用 UTF-8 无 BOM 标准输入输出，修复 Windows 环境下含中文脚本被本地代码页错误解码的问题；异常退出诊断会保留受限长度的 stderr 和退出码，握手前退出使用独立错误码；Worker 与 Updater 的 Windows apphost 禁用 CET 标记以匹配主程序的内部 Windows 兼容策略，tag 发布验证改用 Python 3.13。
 - 标签管理页新增版本化 `.diarytags` 导入导出：迁移标签、元数据和附加字段定义，禁用标签导入后默认启用；Tracker 仅记录类型和名称，导入时可映射同类型本地实例并逐条拒绝非法、不存在或无法验证的规则。
 - 本地 Windows x64 带 Python 打包脚本新增 `--upload-filecodebox` 选项，可将生成的 ZIP 上传到局域网 FileCodeBox，以 3 小时有效期输出取件码；默认不上传，上传失败时保留本地产物。
 - 本地和 Tag CI 打包按 Python 版本及 SHA-256 复用 embeddable runtime 缓存，缓存缺失或校验失败时才重新下载。

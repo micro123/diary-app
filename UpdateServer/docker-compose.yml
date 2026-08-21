@@ -13,6 +13,7 @@ services:
     environment:
       DIARY_GITHUB_TOKEN: "${DIARY_GITHUB_TOKEN:-}"
       DIARY_UPDATE_SYNC_TOKEN: "${DIARY_UPDATE_SYNC_TOKEN:-}"
+      DIARY_UPDATE_PUBLISH_TOKEN: "${DIARY_UPDATE_PUBLISH_TOKEN:-}"
     volumes:
       - diary-update-data:/data
       - ./config.docker.json:/app/config.json:ro

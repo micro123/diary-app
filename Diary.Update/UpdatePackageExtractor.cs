@@ -69,28 +69,30 @@ public static class UpdatePackageExtractor
         try
         {
             await using var source = entry.Open();
-            await using var target = new FileStream(
+            using var digest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            var buffer = new byte[1024 * 1024];
+            long received = 0;
+            await using (var target = new FileStream(
                 temporaryPath,
                 FileMode.CreateNew,
                 FileAccess.Write,
                 FileShare.None,
                 1024 * 1024,
-                FileOptions.Asynchronous | FileOptions.SequentialScan);
-            using var digest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            var buffer = new byte[1024 * 1024];
-            long received = 0;
-            while (true)
+                FileOptions.Asynchronous | FileOptions.SequentialScan))
             {
-                var read = await source.ReadAsync(buffer, cancellationToken);
-                if (read == 0)
-                    break;
-                received += read;
-                if (received > expected.Size)
-                    throw new InvalidDataException($"解压文件大小超过清单声明：{expected.Path}");
-                digest.AppendData(buffer, 0, read);
-                await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                while (true)
+                {
+                    var read = await source.ReadAsync(buffer, cancellationToken);
+                    if (read == 0)
+                        break;
+                    received += read;
+                    if (received > expected.Size)
+                        throw new InvalidDataException($"解压文件大小超过清单声明：{expected.Path}");
+                    digest.AppendData(buffer, 0, read);
+                    await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                }
+                await target.FlushAsync(cancellationToken);
             }
-            await target.FlushAsync(cancellationToken);
             if (received != expected.Size)
                 throw new InvalidDataException($"解压文件大小与清单不匹配：{expected.Path}");
             var actualSha256 = Convert.ToHexStringLower(digest.GetHashAndReset());
@@ -104,7 +106,13 @@ public static class UpdatePackageExtractor
                     | UnixFileMode.GroupRead | UnixFileMode.GroupExecute
                     | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
             }
-            File.Move(temporaryPath, targetPath, overwrite: false);
+            await UpdateFileAccess.ExecuteWithSharingRetryAsync(
+                () =>
+                {
+                    File.Move(temporaryPath, targetPath, overwrite: false);
+                    return ValueTask.FromResult(true);
+                },
+                cancellationToken);
         }
         finally
         {

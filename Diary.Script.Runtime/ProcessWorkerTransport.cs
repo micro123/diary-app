@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 
 namespace Diary.Script.Runtime;
 
@@ -58,17 +59,34 @@ public sealed class ProcessWorkerTransportFactory(WorkerProcessOptions options) 
 
 public sealed class ProcessWorkerTransport : IWorkerTransport, IWorkerTerminationNotification, IWorkerBoundedTransport, IWorkerResourceUsage
 {
+    private const int StderrSummaryCapacity = 16 * 1024;
     private readonly Process _process;
     private readonly Stream _input;
     private readonly Stream _output;
     private readonly SemaphoreSlim _sendGate = new(1, 1);
     private readonly Task _stderrDrain;
     private readonly TimeSpan _shutdownGracePeriod;
+    private readonly object _stderrSync = new();
+    private readonly byte[] _stderrTail = new byte[StderrSummaryCapacity];
+    private int _stderrTailLength;
+    private bool _stderrLimitExceeded;
 
     public event EventHandler<WorkerTerminatedEventArgs>? Terminated;
     public int MaxMessageBytes { get; }
     public int? ExitCode => _process.HasExited ? _process.ExitCode : null;
-    public bool StderrLimitExceeded { get; private set; }
+    public bool StderrLimitExceeded => Volatile.Read(ref _stderrLimitExceeded);
+    public string? StderrSummary
+    {
+        get
+        {
+            lock (_stderrSync)
+            {
+                if (_stderrTailLength == 0)
+                    return null;
+                return SanitizeStderr(Encoding.UTF8.GetString(_stderrTail, 0, _stderrTailLength));
+            }
+        }
+    }
     public long? WorkingSetBytes => _process.HasExited ? null : _process.WorkingSet64;
 
     public ProcessWorkerTransport(
@@ -105,6 +123,9 @@ public sealed class ProcessWorkerTransport : IWorkerTransport, IWorkerTerminatio
         CancellationToken cancellationToken = default,
         int maxMessageBytes = WorkerProtocol.DefaultMaxMessageBytes) =>
         WorkerMessageCodec.ReadAsync<TPayload>(_output, maxMessageBytes, cancellationToken);
+
+    public async ValueTask WaitForTerminationDiagnosticsAsync(CancellationToken cancellationToken = default) =>
+        await _stderrDrain.WaitAsync(cancellationToken);
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
@@ -157,10 +178,11 @@ public sealed class ProcessWorkerTransport : IWorkerTransport, IWorkerTerminatio
                 var read = await stderr.ReadAsync(buffer);
                 if (read == 0)
                     return;
+                AppendStderr(buffer.AsSpan(0, read));
                 total += read;
                 if (total > maxBytes)
                 {
-                    StderrLimitExceeded = true;
+                    Volatile.Write(ref _stderrLimitExceeded, true);
                     return;
                 }
             }
@@ -171,5 +193,39 @@ public sealed class ProcessWorkerTransport : IWorkerTransport, IWorkerTerminatio
         catch (ObjectDisposedException)
         {
         }
+    }
+
+    private void AppendStderr(ReadOnlySpan<byte> bytes)
+    {
+        lock (_stderrSync)
+        {
+            if (bytes.Length >= _stderrTail.Length)
+            {
+                bytes[^_stderrTail.Length..].CopyTo(_stderrTail);
+                _stderrTailLength = _stderrTail.Length;
+                return;
+            }
+
+            var retainedLength = Math.Min(_stderrTailLength, _stderrTail.Length - bytes.Length);
+            if (retainedLength > 0)
+                _stderrTail.AsSpan(_stderrTailLength - retainedLength, retainedLength).CopyTo(_stderrTail);
+            bytes.CopyTo(_stderrTail.AsSpan(retainedLength));
+            _stderrTailLength = retainedLength + bytes.Length;
+        }
+    }
+
+    private static string? SanitizeStderr(string value)
+    {
+        var trimmed = value.Trim();
+        if (trimmed.Length == 0)
+            return null;
+
+        var characters = trimmed.ToCharArray();
+        for (var index = 0; index < characters.Length; index++)
+        {
+            if (char.IsControl(characters[index]) && characters[index] is not '\r' and not '\n' and not '\t')
+                characters[index] = '�';
+        }
+        return new string(characters);
     }
 }

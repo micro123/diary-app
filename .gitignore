@@ -371,5 +371,6 @@ FodyWeavers.xsd
 
 # 本地 GitHub API 凭据
 /github_token.txt
+/UpdateServer/publish_token.txt
 
 /*/Generated/*

@@ -26,6 +26,9 @@ public interface IWorkerTerminationNotification
     event EventHandler<WorkerTerminatedEventArgs>? Terminated;
     int? ExitCode { get; }
     bool StderrLimitExceeded { get; }
+    string? StderrSummary => null;
+    ValueTask WaitForTerminationDiagnosticsAsync(CancellationToken cancellationToken = default) =>
+        ValueTask.CompletedTask;
 }
 
 public sealed class WorkerTerminatedEventArgs(int? exitCode) : EventArgs
@@ -203,6 +206,18 @@ public sealed class WorkerSupervisor(
                 "WORKER_HANDSHAKE_TIMED_OUT", $"Worker 握手超时（{HandshakeTimeout}）。",
                 ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Runtime));
         }
+        catch (Exception exception) when (exception is EndOfStreamException or IOException or ObjectDisposedException)
+        {
+            State = WorkerState.Failed;
+            _restartAttempts++;
+            var diagnostic = await TerminationDiagnosticAsync(
+                "WORKER_HANDSHAKE_PROCESS_EXITED",
+                exception is EndOfStreamException
+                    ? "Worker 在握手前意外退出。"
+                    : "Worker 握手通道意外断开。");
+            await StopTransportAsync(CancellationToken.None);
+            throw new WorkerProtocolException(diagnostic);
+        }
         catch
         {
             State = WorkerState.Failed;
@@ -371,13 +386,13 @@ public sealed class WorkerSupervisor(
             {
                 State = WorkerState.Failed;
                 return Result(requestId, executionId, ScriptExecutionStatus.Failed,
-                    TerminationDiagnostic("Worker 进程意外退出。"));
+                    await TerminationDiagnosticAsync("WORKER_TERMINATED", "Worker 进程意外退出。"));
             }
             catch (IOException)
             {
                 State = WorkerState.Failed;
                 return Result(requestId, executionId, ScriptExecutionStatus.Failed,
-                    TerminationDiagnostic("Worker 通道意外断开。"));
+                    await TerminationDiagnosticAsync("WORKER_TERMINATED", "Worker 通道意外断开。"));
             }
             catch (WorkerMessageTooLargeException exception)
             {
@@ -468,12 +483,35 @@ public sealed class WorkerSupervisor(
         }
     }
 
-    private ScriptDiagnostic TerminationDiagnostic(string message) =>
-        _transport is IWorkerTerminationNotification notification && notification.ExitCode is { } exitCode
-            ? new ScriptDiagnostic("WORKER_TERMINATED", $"{message}（退出码：{exitCode}）。",
-                ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Runtime)
-            : new ScriptDiagnostic("WORKER_TERMINATED", message,
+    private async ValueTask<ScriptDiagnostic> TerminationDiagnosticAsync(string code, string message)
+    {
+        if (_transport is not IWorkerTerminationNotification notification)
+            return new ScriptDiagnostic(code, message,
                 ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Runtime);
+
+        using var diagnosticCancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+        try
+        {
+            await notification.WaitForTerminationDiagnosticsAsync(diagnosticCancellation.Token);
+        }
+        catch (OperationCanceledException) when (diagnosticCancellation.IsCancellationRequested)
+        {
+        }
+
+        var details = new List<string>();
+        if (notification.ExitCode is { } exitCode)
+            details.Add($"退出码：{exitCode}");
+        if (!string.IsNullOrWhiteSpace(notification.StderrSummary))
+            details.Add($"stderr 摘要：{notification.StderrSummary}");
+        if (notification.StderrLimitExceeded)
+            details.Add("stderr 输出超过限制");
+
+        var diagnosticMessage = details.Count == 0
+            ? message
+            : $"{message}（{string.Join("；", details)}）。";
+        return new ScriptDiagnostic(code, diagnosticMessage,
+            ScriptDiagnosticSeverity.Error, ScriptDiagnosticCategory.Runtime);
+    }
 
     private void StartIdleMonitor()
     {

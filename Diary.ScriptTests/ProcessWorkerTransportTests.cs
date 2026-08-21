@@ -400,6 +400,41 @@ public sealed class ProcessWorkerTransportTests
     }
 
     [TestMethod]
+    public async Task Supervisor_ReportsExitCodeAndStderrWhenWorkerExitsBeforeHandshake()
+    {
+        var supervisor = CreateEarlyExitSupervisor();
+
+        var exception = await Assert.ThrowsExactlyAsync<WorkerProtocolException>(() =>
+            supervisor.StartAsync(new("csharp", [ScriptApiVersion.V1], [])).AsTask());
+
+        Assert.AreEqual("WORKER_HANDSHAKE_PROCESS_EXITED", exception.Diagnostic.Code);
+        StringAssert.Contains(exception.Diagnostic.Message, "退出码：7");
+        StringAssert.Contains(exception.Diagnostic.Message, "CET startup failed");
+        Assert.AreEqual(WorkerState.Failed, supervisor.State);
+    }
+
+    [TestMethod]
+    public async Task WorkerScriptExecutor_PreservesHandshakeExitDiagnostic()
+    {
+        var catalog = new ScriptCatalog();
+        RegisterSource(catalog, "csharp-fail", "csharp", "fail.cs", "// Worker exits before compiling this source.");
+        var supervisor = CreateEarlyExitSupervisor();
+        var executor = new WorkerScriptExecutor(catalog, new Dictionary<string, WorkerRuntime>
+        {
+            ["csharp"] = new("csharp", supervisor,
+                new("csharp", [ScriptApiVersion.V1], []), WorkerRuntimePolicy.Shared),
+        });
+
+        var outcome = await executor.ExecuteAsync(
+            "csharp-fail", new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual));
+
+        Assert.AreEqual(ScriptExecutionStatus.Failed, outcome.Result.Status);
+        Assert.AreEqual("WORKER_HANDSHAKE_PROCESS_EXITED", outcome.Result.Diagnostics.Single().Code);
+        StringAssert.Contains(outcome.Result.Diagnostics.Single().Message, "CET startup failed");
+        await executor.StopAllAsync();
+    }
+
+    [TestMethod]
     public async Task ProcessTransport_StopKillsProcessAfterGracePeriod()
     {
         using var process = StartTestProcess("trap '' TERM; sleep 30", "timeout /t 30 /nobreak > nul");
@@ -444,6 +479,18 @@ public sealed class ProcessWorkerTransportTests
         var process = new System.Diagnostics.Process { StartInfo = startInfo, EnableRaisingEvents = true };
         Assert.IsTrue(process.Start());
         return process;
+    }
+
+    private static WorkerSupervisor CreateEarlyExitSupervisor()
+    {
+        var executable = OperatingSystem.IsWindows()
+            ? Environment.GetEnvironmentVariable("ComSpec") ?? "C:\\Windows\\System32\\cmd.exe"
+            : "/bin/sh";
+        var arguments = OperatingSystem.IsWindows()
+            ? new[] { "/c", "echo CET startup failed 1>&2 & exit /b 7" }
+            : new[] { "-c", "echo 'CET startup failed' >&2; exit 7" };
+        return new WorkerSupervisor(new ProcessWorkerTransportFactory(new(
+            Path.GetFullPath(executable), arguments, AppContext.BaseDirectory)));
     }
 
     [TestMethod]

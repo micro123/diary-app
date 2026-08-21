@@ -6,10 +6,12 @@
   "apiBaseUrl": "https://api.github.com",
   "githubTokenEnvironment": "DIARY_GITHUB_TOKEN",
   "syncTokenEnvironment": "DIARY_UPDATE_SYNC_TOKEN",
+  "publishTokenEnvironment": "DIARY_UPDATE_PUBLISH_TOKEN",
   "pollIntervalSeconds": 21600,
   "requestTimeoutSeconds": 60,
   "allowedChannels": [
     "stable",
-    "preview"
+    "preview",
+    "local"
   ]
 }

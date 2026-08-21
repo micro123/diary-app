@@ -9,4 +9,6 @@ public static class AppInfo
     public static readonly string AppVersionDetails = VersionInfo.AppVersionDetail();
 
     public static readonly long AppSequence = VersionInfo.AppSequence();
+
+    public static readonly string AppBuildChannel = VersionInfo.AppBuildChannel();
 }
