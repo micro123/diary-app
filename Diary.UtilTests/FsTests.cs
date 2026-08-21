@@ -17,5 +17,21 @@ namespace Diary.UtilTests
             Console.WriteLine($"{bin} {appdata} {appcfg} {temp} {module}");
             // Assert.IsTrue(true);
         }
+
+        [TestMethod]
+        public void SetApplicationRootForCurrentProcess_RejectsRelativePath()
+        {
+            Assert.ThrowsExactly<ArgumentException>(
+                () => FsTools.SetApplicationRootForCurrentProcess("relative-profile"));
+        }
+
+        [TestMethod]
+        public void SetApplicationRootForCurrentProcess_RejectsVolumeRoot()
+        {
+            var volumeRoot = Path.GetPathRoot(Path.GetFullPath(Environment.CurrentDirectory))!;
+
+            Assert.ThrowsExactly<ArgumentException>(
+                () => FsTools.SetApplicationRootForCurrentProcess(volumeRoot));
+        }
     }
 }

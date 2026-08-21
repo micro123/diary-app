@@ -38,10 +38,12 @@
                                 Command="{Binding ExportTagsCommand}" />
                     </Grid>
                     <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                        <TextBox Text="{Binding NewTagName}"
+                        <TextBox Name="TagNameInput"
+                                 Text="{Binding NewTagName}"
                                  Watermark="输入标签名称"
                                  Classes="ClearButton" />
-                        <Button Grid.Column="1"
+                        <Button Name="AddTagButton"
+                                Grid.Column="1"
                                 Content="添加"
                                 Command="{Binding NewTagCommand}" />
                     </Grid>
@@ -62,7 +64,8 @@
                             </ColorPicker.Palette>
                         </ColorPicker>
                     </Grid>
-                    <ListBox Grid.Row="3"
+                    <ListBox Name="TagList"
+                             Grid.Row="3"
                              ItemsSource="{Binding AllTags}"
                              SelectedItem="{Binding SelectedTag}">
                         <ListBox.ItemTemplate>
@@ -223,7 +226,7 @@
                         </Grid>
                     </TabItem>
 
-                    <TabItem Header="自动化操作">
+                    <TabItem Name="TagAutomationTab" Header="自动化操作">
                         <ScrollViewer>
                             <StackPanel Margin="16" Spacing="10">
                                 <StackPanel Spacing="3">
@@ -319,7 +322,8 @@
                     HorizontalAlignment="Right"
                     Spacing="8">
             <Button Content="取消" Command="{Binding CancelCommand}" />
-            <Button Content="保存更改" Classes="Primary" Command="{Binding SaveCommand}" />
+            <Button Name="SaveTagSettingsButton" Content="保存更改" Classes="Primary"
+                    Command="{Binding SaveCommand}" />
         </StackPanel>
     </Grid>
 </UserControl>

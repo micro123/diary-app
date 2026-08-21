@@ -143,17 +143,20 @@
                 </Button.Flyout>
             </Button>
             <u:ThemeToggleButton Grid.Column="3" IsThreeState="False" Mode="Indicator" />
-            <Button Grid.Column="4" Classes="Success ActionButton"
+            <Button Grid.Column="4" Name="SettingsMenuButton" Classes="Success ActionButton"
                     Theme="{DynamicResource BorderlessButton}"
                     ToolTip.Tip="设置菜单" ToolTip.ShowDelay="250" Width="32" Height="32" Padding="0" BorderThickness="0"
                     Background="Transparent">
                 <i:Icon Value="mdi-cog-outline" />
                 <Button.Flyout>
                     <MenuFlyout ShowMode="TransientWithDismissOnPointerMoveAway">
-                        <MenuItem Header="程序设置" Command="{Binding ShowSettingsCommand}" />
+                        <MenuItem Name="ProgramSettingsMenuItem" Header="程序设置"
+                                  Command="{Binding ShowSettingsCommand}" />
                         <Separator />
-                        <MenuItem Header="标签设置" Command="{Binding ShowTagSettingsCommand}" />
-                        <MenuItem Header="模板设置" Command="{Binding ShowTemplateSettingsCommand}" />
+                        <MenuItem Name="TagSettingsMenuItem" Header="标签设置"
+                                  Command="{Binding ShowTagSettingsCommand}" />
+                        <MenuItem Name="TemplateSettingsMenuItem" Header="模板设置"
+                                  Command="{Binding ShowTemplateSettingsCommand}" />
                         <MenuItem Header="数据模板" Command="{Binding ShowExportTemplateSettingsCommand}" />
                         <Separator />
                         <MenuItem Header="Tracker 设置" Command="{Binding ShowTrackerSettingsCommand}" />

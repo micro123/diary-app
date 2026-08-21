@@ -186,10 +186,11 @@
             <!-- 右侧是编辑区 -->
             <DockPanel Grid.Column="2" VerticalSpacing="8">
                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0">
-                    <Button Classes="ActionButton" Content="新建事项" HotKey="Ctrl+N"
+                    <Button Name="NewWorkItemButton" Classes="ActionButton" Content="新建事项" HotKey="Ctrl+N"
                             Command="{Binding NewWorkItemCommand}" />
                     <!-- TODO: add flyout for next button -->
-                    <Button Classes="ActionButton" Content="从模板新建" HotKey="Ctrl+Shift+N"
+                    <Button Name="NewFromTemplateButton" Classes="ActionButton"
+                            Content="从模板新建" HotKey="Ctrl+Shift+N"
                             IsEnabled="{Binding CanUseTemplates}">
                         <Button.Flyout>
                             <MenuFlyout ShowMode="Transient" ItemsSource="{Binding Templates}">

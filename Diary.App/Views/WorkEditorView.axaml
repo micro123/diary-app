@@ -31,9 +31,9 @@
               IsEnabled="{Binding !IsLocked}">
             <TextBlock Grid.Row="0" Grid.Column="0" Text="日期：" VerticalAlignment="Center" />
             <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="240,Auto" ColumnSpacing="12">
-                <CalendarDatePicker Grid.Column="0" Width="240" HorizontalAlignment="Left"
+                <CalendarDatePicker Name="WorkDatePicker" Grid.Column="0" Width="240" HorizontalAlignment="Left"
                                     SelectedDate="{Binding Date, Converter={StaticResource DateConvert}}" />
-                <SplitButton Grid.Column="1" Content="使用今天"
+                <SplitButton Name="UseTodayButton" Grid.Column="1" Content="使用今天"
                              Command="{Binding QuickDateCommand}" CommandParameter="0">
                     <SplitButton.Flyout>
                         <MenuFlyout>
@@ -45,13 +45,13 @@
             </Grid>
 
             <TextBlock Grid.Row="1" Grid.Column="0" Text="标题：" VerticalAlignment="Center" />
-            <TextBox Grid.Row="1" Grid.Column="1" MinHeight="40"
+            <TextBox Name="WorkTitleInput" Grid.Row="1" Grid.Column="1" MinHeight="40"
                      Text="{Binding Comment}" Classes="ClearButton" />
 
             <TextBlock Grid.Row="2" Grid.Column="0" Text="耗时：" VerticalAlignment="Center" />
             <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="156,Auto,Auto,96,*" ColumnSpacing="12">
-                <u:NumericDoubleUpDown Grid.Column="0" Width="156" HorizontalAlignment="Left"
-                                       Value="{Binding Time}" InnerRightContent="小时"
+                <u:NumericDoubleUpDown Name="WorkTimeInput" Grid.Column="0" Width="156"
+                                       HorizontalAlignment="Left" Value="{Binding Time}" InnerRightContent="小时"
                                        HorizontalContentAlignment="Right"
                                        ShowButtonSpinner="False" Maximum="24" Minimum="0" />
                 <SplitButton Grid.Column="1" Content="快捷"

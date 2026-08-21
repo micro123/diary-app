@@ -28,9 +28,13 @@ namespace Diary.App
                 return;
             CrashReporterProcess.InstallUnhandledExceptionCapture();
             App.StartupOptions = AppStartupOptions.Parse(args);
+            var appId = AppInfo.AppName;
+#if DEBUG
+            appId = DebugUiAutomation.ConfigureProcess(appId);
+#endif
             var restartRequested = false;
             // 新实例必须等当前实例释放单实例文件锁和命名管道后再启动。
-            using (var single = new SingletonApp(AppInfo.AppName))
+            using (var single = new SingletonApp(appId))
             {
                 if (!single.IsSelfInstance())
                 {

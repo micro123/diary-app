@@ -54,6 +54,17 @@
             <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
             <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
         </PackageReference>
+        <PackageReference Include="Chrome.DevTools.Avalonia.v11" Version="0.1.0-preview.30"
+                          Condition="'$(Configuration)' == 'Debug'" />
+        <!-- CDP preview.30 targets Roslyn 4.12; align its open ranges with Diary.Script.CSharp 5.6 in Debug. -->
+        <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="5.6.0" Condition="'$(Configuration)' == 'Debug'" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.6.0" Condition="'$(Configuration)' == 'Debug'" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Features" Version="5.6.0" Condition="'$(Configuration)' == 'Debug'" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="5.6.0" Condition="'$(Configuration)' == 'Debug'" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.6.0" Condition="'$(Configuration)' == 'Debug'" />
+        <PackageReference Include="Microsoft.CodeAnalysis.Features" Version="5.6.0" Condition="'$(Configuration)' == 'Debug'" />
+        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="5.6.0" Condition="'$(Configuration)' == 'Debug'" />
+        <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.13" Condition="'$(Configuration)' == 'Debug'" />
     </ItemGroup>
 
     <ItemGroup>

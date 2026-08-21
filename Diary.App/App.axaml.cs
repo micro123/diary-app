@@ -920,6 +920,9 @@ namespace Diary.App
                 var vm = Services.GetRequiredService<MainWindowViewModel>();
                 vm.SetView(desktop.MainWindow);
                 desktop.MainWindow.DataContext = vm;
+#if DEBUG
+                DebugUiAutomation.Start();
+#endif
                 desktop.ShutdownRequested += OnShutdownRequested;
             }
 
@@ -1090,6 +1093,9 @@ namespace Diary.App
 
         private async Task PreShutdownAsync()
         {
+#if DEBUG
+            DebugUiAutomation.Stop();
+#endif
             await _surveyor.StopServerAsync();
             await _respondent.ShutdownAsync();
             await _extendedSurveyor.StopServerAsync();
