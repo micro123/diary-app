@@ -4,6 +4,28 @@
 
 本文件只记录完成结果，不作为当前待办列表。
 
+## 2026-08-21 TODO 清理归档
+
+- [x] 应用完整包更新闭环：主程序完成检查、用户确认、流式下载、长度与 SHA-256 校验、安全解压、逐文件复检、事务计划、外部 Updater 应用、正常退出、新版本重启、稳定性确认、用户确认式程序文件回滚和事务清理；Python 局域网服务、发布资产契约及双 RID Updater 发布验证同步完成。
+- [x] 核心数据库迁移加固：SQLite/PostgreSQL 支持逐步提交、失败回滚、降级和断链校验；provider 能力、结构指纹、迁移状态/历史、基础数据完整性和迁移登记测试已经建立。
+- [x] 数据库维护基础：SQLite 支持手动备份、校验、下次启动还原及失败回滚；PostgreSQL 接入 `pg_dump`/`pg_restore`、跨平台工具探测、版本与权限预检、独立目标库还原、启动复检和配置切换。
+- [x] 异步生命周期：Survey 接收与停止流程、应用退出清理、菜单重启、脚本目录和编辑器异步入口已收敛；`WorkEditorViewModel.Upload()` 的 UI 回写和 Headless 回归测试完成。
+- [x] CrashDump 基础：终止性托管异常由独立 DiagnosticsClient 进程生成 Triage Dump，并由最小 Avalonia 窗口显示摘要、路径和打开目录操作；本地保留最近 5 个。
+- [x] Jira 最小工时闭环：插件 manifest、多实例配置、项目/Issue 查询、连接测试、Worklog 追加、SQLite/PostgreSQL 本地绑定和编辑器扩展已完成。
+- [x] PLM 被确认为必须保留的目标后端，并已预留插件边界和最小工时契约。
+- [x] 脚本配置模型已移除遗留 `Enabled` 字段；可用性统一由目录加载和构建结果决定。
+- [x] 脚本日志项创建支持普通/模板 Preview、provider 事务、失败回滚、幂等重放和成功后编辑器刷新；Query 与 Preview 的副作用由宿主强制限制。
+- [x] 三语言脚本 API 已统一日期快捷值、C# `context.Api()` 推荐入口、Python/Lua snake_case 门面、运行参数、幂等键、超时和 Preview 对话框。
+- [x] `.diaryscripts` 共享包支持脚本源码和运行配置的安全导入导出、冲突处理、批量失败恢复和目录重载。
+- [x] Week 编辑器目标、主标签语义字段、标签元数据、标签附加字段及 `.diarytags` 导入导出已经完成。
+- [x] 脚本导出体系已完成 XLSX、CSV、DOCX、Mustache 插件、格式注册表、目录/FileId 生命周期、数据模板管理、简易标记协议、安全校验、三语言门面和基础测试。
+- [x] Worker 心跳、握手/宿主调用超时、取消、日志、Effects、进度跟踪、自动化 Scheduled/Startup/WorkItemCreated/WorkItemSaved/TagAdded 触发及 Query 入口已经落地。
+- [x] Windows/Linux 真实 Worker 测试已统一工件、dotnet 和 Python 定位；CI 固定 Python 最低版本并禁止必需测试静默跳过。
+- [x] 用户体验基础已完成：同步摘要和批量预览/重试、数据库与 Tracker 诊断入口、复制记录、快捷工时、自然时间表达式、最近标签/项目、查询汇总导出、首次引导和开发者功能开关。
+- [x] Survey 已保留 v1/9721 兼容并增加 v2/9722 扩展查询、能力发现、分组、结果明细、角色区分、页面重排和用户指南。
+- [x] 发布与打包已完成 Python 3.13 Windows 可选包、本地交叉打包、FileCodeBox 上传、Python 缓存、目标 RID 与 `runtimes/any` 保留、Node.js 24 Actions、PDB 独立调试包和 Release CHANGELOG 提取。
+- [x] 维护清单已完成遗留脚本接口删除、Worker 协议大小协商和诊断收紧、三语言 print/Effects 统一、Lua bootstrap 外置及持续发布流程建立。
+
 ## 当前基线
 
 - [x] `Diary.PluginBase` 插件契约、manifest、兼容性检查
