@@ -6,10 +6,38 @@
 
 ## 本机构建并发布到 local
 
-推荐使用仓库根目录的统一工具：
+### Windows 原生方式
+
+Windows 10/11 推荐使用 PowerShell 7 和 Python 3.11+ 直接运行，不要求安装 Docker、Git Bash、`curl`、`zip` 或 `unzip`：
+
+```powershell
+# 第一次：后台启动 Python 服务，构建 standard 包并发布
+.\Tools\local-update.ps1 all
+
+# 服务已经运行时：只构建并发布下一个 local 版本
+.\Tools\local-update.ps1 publish
+
+# 查看服务和 local latest
+.\Tools\local-update.ps1 status
+
+# 停止服务；发布数据仍保留
+.\Tools\local-update.ps1 server-stop
+```
+
+PowerShell 工具默认发布 `win-x64/standard`，也可使用 `-Flavor python313` 构建带 Python 3.13 embeddable runtime 的包。后者会首次下载并校验 Python 官方 ZIP，缓存到 `artifacts/cache/python`：
+
+```powershell
+.\Tools\local-update.ps1 all -Flavor python313
+```
+
+服务配置、PID、日志和数据保存在 `UpdateServer/.local-windows/`，发布 Token 仍保存在 `UpdateServer/publish_token.txt`，这些本机文件都已忽略。服务进程以隐藏窗口启动；若启动失败，可查看 `server.stderr.log`。默认只监听 `127.0.0.1:18080`，用于同一台 Windows 机器上的升级测试。 PowerShell 工具使用 `serve-local` 模式，不启动 GitHub 定时同步，因此本地验证不依赖 GitHub 网络或 API 配额。
+
+### Bash/Docker 方式
+
+Linux、WSL 或已经安装 Docker/Git Bash 的环境可以继续使用原有工具：
 
 ```bash
-# 第一次：构建/启动本机 Docker 服务，打包并发布
+# 第一次：构建/启动本机 Docker 服务，打包并发布 python313 包
 ./Tools/local-update.sh all
 
 # 服务已经运行时：只打包并发布下一个 local 版本
@@ -19,7 +47,9 @@
 ./Tools/local-update.sh status
 ```
 
-`all` 会在 `UpdateServer/publish_token.txt` 生成仅限本机使用的随机发布 Token（文件已加入 `.gitignore`），把 Token 注入 Docker Compose，然后调用现有 Windows Python 打包脚本。工具在构建时注入单调递增的 UTC 时间序号和 `BuildChannel=local`，使包内 `AppSequence`、显示版本和服务器 manifest 保持一致；上传后还会回读 latest 并核对 sequence 与完整包 SHA-256。local 的 sequence 使用较大的时间值，但客户端记录构建频道；用户主动切回 `stable`/`preview` 时会按目标频道重新比较，不会被 local sequence 锁定。
+两种工具都会生成仅限本机使用的随机发布 Token，在构建时注入单调递增的 UTC 时间序号和 `BuildChannel=local`，使包内 `AppSequence`、显示版本和服务器 manifest 保持一致；上传后还会回读 latest 并核对 sequence 与完整包 SHA-256。local 的 sequence 使用较大的时间值，但客户端记录构建频道；用户主动切回 `stable`/`preview` 时会按目标频道重新比较，不会被 local sequence 锁定。
+
+在 Windows 应用中测试时，将“更新服务器”设为 `http://127.0.0.1:18080`，“更新频道”设为 `local`，包类型与发布包保持一致（默认 `standard`，也可使用 `Auto`）。先运行一个 sequence 较低的旧包，再执行一次 `publish` 生成更高 sequence 的包，随后在应用中点击“检查更新”。更新准备完成后应用会退出，由 `Diary.Updater.exe` 完成替换并重启；更新确认和失败回滚逻辑与 stable/preview 共用。
 
 上传到另一台局域网服务器时，复制该服务器配置的发布 Token，并指定地址：
 
@@ -39,6 +69,8 @@ Windows 客户端设置为对应服务器地址、频道 `local`、包类型 `Au
 cd UpdateServer
 python3 -m diary_update_server --config config.json sync
 python3 -m diary_update_server --config config.json serve
+# 仅提供 local 发布/下载，不启动 GitHub 定时同步
+python3 -m diary_update_server --config config.json serve-local
 ```
 
 同步一次后启动并持续轮询：

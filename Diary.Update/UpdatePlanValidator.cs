@@ -109,7 +109,7 @@ public static class UpdatePlanValidator
             || !string.Equals(Path.GetFullPath(updaterOperation.SourcePath), targetUpdaterPath,
                 pathComparison)
             || updaterOperation.Operation.SourceSha256 != plan.TargetUpdater.Sha256
-            || !updaterOperation.Operation.Executable)
+            || (plan.Rid != "win-x64" && !updaterOperation.Operation.Executable))
             throw new InvalidDataException("更新计划必须将已验证的目标 Diary.Updater 作为可执行受管理文件安装。");
 
         var manifestSource = UpdatePathPolicy.ResolveInside(

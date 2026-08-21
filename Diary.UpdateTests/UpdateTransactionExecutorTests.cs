@@ -151,9 +151,23 @@ public sealed class UpdateTransactionExecutorTests
     }
 
     [TestMethod]
-    public async Task Validate_WhenUpdaterIsNotManagedExecutable_RejectsPlan()
+    public async Task Validate_WhenWindowsUpdaterIsNotMarkedUnixExecutable_AcceptsPlan()
     {
-        using var fixture = await UpdateFixture.CreateAsync();
+        using var fixture = await UpdateFixture.CreateAsync("win-x64");
+        var plan = await fixture.CreatePlanAsync([]);
+        var updaterOperation = plan.Operations.Single(operation => operation.TargetPath == fixture.UpdaterTargetName);
+        var windowsPlan = plan with
+        {
+            Operations = [updaterOperation with { Executable = false }],
+        };
+
+        Assert.IsNotNull(UpdatePlanValidator.Validate(windowsPlan, fixture.PlanPath));
+    }
+
+    [TestMethod]
+    public async Task Validate_WhenLinuxUpdaterIsNotExecutable_RejectsPlan()
+    {
+        using var fixture = await UpdateFixture.CreateAsync("linux-x64");
         var plan = await fixture.CreatePlanAsync([]);
         var updaterOperation = plan.Operations.Single(operation => operation.TargetPath == fixture.UpdaterTargetName);
         var invalidPlan = plan with

@@ -354,7 +354,7 @@ Cancelled
 - 不允许重复路径、仅大小写不同的 Windows 冲突路径和规范化后相同的路径；
 - 不允许 ZIP 中包含第二个未知应用包、嵌套 Release 包或服务配置文件。
 
-服务不得直接把 ZIP 条目的 Unix 权限、时间戳或外部属性当作可信业务数据。Linux 可执行属性由最终解压文件和服务规则共同确定，Windows 使用目标文件类型和已知入口规则确定。
+服务不得直接把 ZIP 条目的 Unix 权限、时间戳或外部属性当作可信业务数据。Linux 可执行属性由最终解压文件和服务规则共同确定，并写入 `executable`；Windows 清单不声明 Unix executable，应用和更新器入口由 `.exe` 路径及已知入口规则识别。
 
 ### 7.2 最终目录检查
 
@@ -1076,6 +1076,8 @@ GitHub 查询、下载或校验失败时不执行清理，继续提供上一份�
 
 当前 Docker 部署使用 Python 3.13 slim 镜像、UID 10001 非 root 用户、只读根文件系统、`/data` 命名卷、`/tmp` tmpfs、移除全部 Linux capabilities，并通过 `/health/ready` 执行容器健康检查。容器启动时同步一次，之后按 `pollIntervalSeconds` 定时轮询 GitHub。
 
+Windows 本地测试另提供 `Tools/local-update.ps1`：使用本机 Python 3.11+ 以隐藏后台进程和 `serve-local` 模式直接运行同一服务，不依赖 Docker，也不启动 GitHub 定时同步；本地配置、PID、日志和发布数据隔离在 `UpdateServer/.local-windows/`。该工具可构建并发布 `win-x64/standard` 或 `win-x64/python313`，上传后回读 latest 并校验 sequence 与完整包 SHA-256。它定位为开发机单机升级验证入口，不注册 Windows Service，也不替代生产部署的访问控制、服务守护和备份策略。
+
 ### 18.2 备份
 
 至少备份：
@@ -1131,7 +1133,7 @@ Blob 和完整包可以从 GitHub 源 ZIP 重建；当前策略只保留各发�
 
 ## 20. 第一版决策与后续事项
 
-第一版已经确定：使用文件系统保存索引和快照；客户端 API 使用可配置的 HTTP/HTTPS 根地址；Release metadata 由 CI 作为额外资产上传；完整包复用校验后的 GitHub 源 ZIP；每份 metadata 必须包含完整三维运行资产矩阵；本机工具可用独立 Token 将单个 `win-x64/python313` 包发布到 `local`，并复用相同验证与存储模型。以下事项仍需后续确定或实现：
+第一版已经确定：使用文件系统保存索引和快照；客户端 API 使用可配置的 HTTP/HTTPS 根地址；Release metadata 由 CI 作为额外资产上传；完整包复用校验后的 GitHub 源 ZIP；每份 metadata 必须包含完整三维运行资产矩阵；本机工具可用独立 Token 将 `win-x64/standard` 或 `win-x64/python313` 包发布到 `local`，并复用相同验证与存储模型。Windows 开发机可直接使用 PowerShell + Python 原生运行服务，Linux/WSL 仍可使用 Bash + Docker。以下事项仍需后续确定或实现：
 
 - 局域网客户端是否需要 IP allowlist、反向代理认证或应用级 Token；
 - 元数据规模和审计要求增长后是否引入 SQLite 或 PostgreSQL；

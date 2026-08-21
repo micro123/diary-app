@@ -129,6 +129,11 @@ class ArchiveTests(unittest.TestCase):
             create_package(package)
             files = validate_and_index(package, "win-x64", "standard", root / "blobs")
             self.assertEqual([item["path"] for item in files], sorted(item["path"] for item in files))
+            files_by_path = {item["path"]: item for item in files}
+            self.assertFalse(files_by_path["Diary.App.exe"]["executable"])
+            self.assertFalse(files_by_path["Diary.Script.Worker.exe"]["executable"])
+            self.assertFalse(files_by_path["Diary.Updater.exe"]["executable"])
+            self.assertFalse(files_by_path["Diary.App.dll"]["executable"])
             content = {"rid": "win-x64", "flavor": "standard", "files": files}
             first = hashlib.sha256(compact_json(content)).hexdigest()
             second = hashlib.sha256(compact_json(content)).hexdigest()

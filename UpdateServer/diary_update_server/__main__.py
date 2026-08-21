@@ -15,7 +15,7 @@ from .sync import ReleaseSynchronizer
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="DiaryApp 局域网更新服务器")
     parser.add_argument("--config", required=True, help="JSON 配置文件路径")
-    parser.add_argument("command", choices=("sync", "serve", "sync-and-serve"))
+    parser.add_argument("command", choices=("sync", "serve", "serve-local", "sync-and-serve"))
     return parser.parse_args()
 
 
@@ -35,7 +35,9 @@ def main() -> int:
         synchronized_before_serving = coordinator.status()["lastResult"] == "success"
     server = create_server(config, repository, coordinator)
     stop = threading.Event()
-    polling = start_polling(config, coordinator, stop, delay_first_sync=synchronized_before_serving)
+    polling = None
+    if args.command != "serve-local":
+        polling = start_polling(config, coordinator, stop, delay_first_sync=synchronized_before_serving)
 
     def shutdown(_signum: int, _frame: object) -> None:
         stop.set()
@@ -49,7 +51,8 @@ def main() -> int:
     finally:
         stop.set()
         server.server_close()
-        polling.join(timeout=5)
+        if polling is not None:
+            polling.join(timeout=5)
     return 0
 
 
