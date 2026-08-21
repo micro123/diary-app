@@ -21,5 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Diary.App\Diary.App.csproj" />
     <ProjectReference Include="..\Diary.Export.Mustache\Diary.Export.Mustache.csproj" />
+    <ProjectReference Include="..\Diary.Jira.UI\Diary.Jira.UI.csproj" />
+    <ProjectReference Include="..\Diary.RedMine.UI\Diary.RedMine.UI.csproj" />
   </ItemGroup>
 </Project>

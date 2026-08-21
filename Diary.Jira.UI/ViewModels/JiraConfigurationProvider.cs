@@ -17,7 +17,7 @@ public sealed class JiraConfigurationProvider(
     public bool Validate(object configuration, out string? error)
     {
         if (configuration is JiraPluginConfig config
-            && config.Instances.Any(instance => instance.Enabled && instance.Valid()))
+            && config.Instances.Where(instance => instance.Enabled).All(instance => instance.Valid()))
         {
             error = null;
             return true;

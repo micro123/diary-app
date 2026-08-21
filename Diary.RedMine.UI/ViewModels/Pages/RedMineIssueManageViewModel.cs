@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
 using Diary.RedMine.Response;
 using Diary.Utils;
@@ -56,5 +57,6 @@ public partial class RedMineIssueManageViewModel : PaginatedSearchViewModel<Issu
             _database.AddRedMineProject(project!.Id, project.Name, project.Description);
             _database.AddRedMineIssue(issue.Id, issue.Subject, issue.AssignedTo.Name, issue.Project.Id, issue.Status.IsClosed);
         });
+        EventDispatcher.DbChanged(RedMineUiEvents.IssueChanged);
     }
 }
