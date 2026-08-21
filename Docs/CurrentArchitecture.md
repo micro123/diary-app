@@ -4,6 +4,7 @@
 
 本文描述当前代码已经实现的架构，不等同于 `TrackerPluginArchitecture.md` 中的目标方案。
 代码基线：当前工作区源码。tracker 插件实例和 UI 贡献已具备通用注册链路，Redmine 已开启多实例支持。
+完整的当前 UI 页面、操作入口、条件可见状态和自动化覆盖清单见 [`UiFeatureInventory.md`](UiFeatureInventory.md)。
 
 当前架构的核心目标是：核心日记功能不依赖 Redmine；Redmine 通过插件契约、可选 UI 和数据库扩展接入；插件数据库可以独立迁移。
 
