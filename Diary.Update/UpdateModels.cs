@@ -18,6 +18,7 @@ public enum UpdateTransactionState
     Applying,
     Applied,
     Restarted,
+    Confirmed,
     RollingBack,
     RolledBack,
     Failed,
@@ -52,6 +53,7 @@ public sealed record UpdateRestartOptions
 {
     public required string ExecutablePath { get; init; }
     public required string Sha256 { get; init; }
+    public string? PreviousSha256 { get; init; }
     public IReadOnlyList<string> Arguments { get; init; } = [];
 }
 

@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Data.Common;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Notifications;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input.Platform;
 using Avalonia.Data.Core.Plugins;
@@ -472,12 +473,16 @@ namespace Diary.App
             services.AddSingleton<DatabaseRestoreCoordinator>();
             services.AddSingleton(_ =>
             {
-                var client = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+                var client = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
                 client.DefaultRequestHeaders.UserAgent.ParseAdd("DiaryApp-UpdateClient/1");
                 return client;
             });
-            services.AddSingleton<IUpdateSource, HttpUpdateSource>();
+            services.AddSingleton<HttpUpdateSource>();
+            services.AddSingleton<IUpdateSource>(provider => provider.GetRequiredService<HttpUpdateSource>());
+            services.AddSingleton<IUpdatePackageSource>(provider => provider.GetRequiredService<HttpUpdateSource>());
             services.AddSingleton<UpdateChecker>();
+            services.AddSingleton<UpdatePreparationService>();
+            services.AddSingleton<UpdateStartupManager>();
             services.AddSingleton<IWorkItemPersistenceCoordinator, WorkItemPersistenceCoordinator>();
             services.AddSingleton<ITrackerUploadCoordinator, TrackerUploadCoordinator>();
             services.AddSingleton(_ => new CSharpEngine(
@@ -952,6 +957,83 @@ namespace Diary.App
 
             // start keep-alive thread
             StartKeepAliveTimer();
+            ObserveBackgroundTask(HandleUpdateStartupAsync(success), "更新后启动确认");
+        }
+
+        private async Task HandleUpdateStartupAsync(bool startupSucceeded)
+        {
+            var planPath = StartupOptions.UpdateTransactionPath;
+            if (string.IsNullOrWhiteSpace(planPath))
+                return;
+
+            var updateService = Services.GetRequiredService<AppUpdateService>();
+            try
+            {
+                if (await updateService.HandleRolledBackStartupAsync(planPath, startupSucceeded))
+                {
+                    if (startupSucceeded)
+                    {
+                        Logger.LogInformation("回滚后启动确认完成：PlanPath={PlanPath}", planPath);
+                        EventDispatcher.ShowToast("已回滚到上一版本", NotificationType.Warning);
+                    }
+                    else
+                    {
+                        Logger.LogError("回滚后的旧版本仍未完成初始化：PlanPath={PlanPath}", planPath);
+                        EventDispatcher.Notify(
+                            "回滚后仍无法启动",
+                            "程序文件已经回滚，但旧版本仍未完成数据库或配置初始化。事务现场已保留，请联系管理员处理。");
+                    }
+                    return;
+                }
+            }
+            catch (Exception exception)
+            {
+                Logger.LogError(exception, "处理回滚后启动状态失败：PlanPath={PlanPath}", planPath);
+                EventDispatcher.Notify("回滚确认失败", exception.Message);
+                return;
+            }
+
+            if (startupSucceeded)
+            {
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(5));
+                    await updateService.ConfirmStartupAsync(planPath);
+                    Logger.LogInformation("更新后启动确认完成：PlanPath={PlanPath}", planPath);
+                    EventDispatcher.ShowToast("应用更新完成", NotificationType.Success);
+                }
+                catch (Exception exception)
+                {
+                    Logger.LogError(exception, "无法确认更新后启动状态：PlanPath={PlanPath}", planPath);
+                    EventDispatcher.Notify(
+                        "更新确认失败",
+                        "新版本已经启动，但更新事务未能清理。请保留日志并联系管理员。\n\n"
+                        + exception.Message);
+                }
+                return;
+            }
+
+            var rollback = await EventDispatcher.Confirm(
+                "更新后启动失败",
+                "新版本未能完成数据库或配置初始化。是否回滚程序文件并重启上一版本？\n\n"
+                + "数据库内容不会自动降级；如本次更新包含数据库迁移，请先确认备份可用。");
+            if (!rollback)
+            {
+                Logger.LogWarning("用户取消更新后回滚：PlanPath={PlanPath}", planPath);
+                return;
+            }
+            try
+            {
+                await updateService.StartRollbackAsync(planPath);
+                Logger.LogWarning("已启动更新回滚程序：PlanPath={PlanPath}", planPath);
+                if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+                    desktop.Shutdown();
+            }
+            catch (Exception exception)
+            {
+                Logger.LogError(exception, "启动更新回滚失败：PlanPath={PlanPath}", planPath);
+                EventDispatcher.Notify("无法启动回滚", exception.Message);
+            }
         }
 
         private async Task HandleConfigUpdateAsync()

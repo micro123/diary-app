@@ -402,13 +402,40 @@ public partial class MainWindowViewModel : ViewModelBase
                 {
                     var manifest = result.Envelope!.Manifest;
                     var package = result.Envelope.FullPackage;
-                    EventDispatcher.Notify(
+                    var confirmed = await EventDispatcher.Confirm(
                         "发现新版本",
                         $"当前版本：{AppInfo.AppVersionString}\n"
                         + $"最新版本：{manifest.VersionId}（序号 {manifest.Sequence}）\n"
                         + $"完整包：{FormatSize(package.Size)}\n\n"
-                        + "当前阶段只检查和展示更新，不会自动替换程序文件。\n"
-                        + $"下载地址：{result.FullPackageUri}");
+                        + "是否立即下载并安装？准备完成后应用会自动退出并重启。");
+                    if (!confirmed)
+                        return;
+
+                    EventDispatcher.ShowToast("正在下载并校验更新完整包，请勿退出应用…");
+                    try
+                    {
+                        var updateService = _serviceProvider.GetRequiredService<AppUpdateService>();
+                        var prepared = await updateService.PrepareAsync(result);
+                        if (prepared.PreservedConflicts.Count > 0)
+                        {
+                            EventDispatcher.Notify(
+                                "已保留本地修改文件",
+                                "以下旧版本文件有本地修改，更新不会删除它们：\n"
+                                + string.Join('\n', prepared.PreservedConflicts));
+                        }
+                        EventDispatcher.ShowToast("更新准备完成，应用即将重启…", NotificationType.Success);
+                        updateService.StartPreparedUpdate(prepared);
+                        Quit();
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        EventDispatcher.ShowToast("更新已取消", NotificationType.Warning);
+                    }
+                    catch (Exception exception)
+                    {
+                        _logger.LogError(exception, "下载或准备应用更新失败");
+                        EventDispatcher.Notify("更新准备失败", exception.Message);
+                    }
                     return;
                 }
             case UpdateCheckStatus.UpToDate:

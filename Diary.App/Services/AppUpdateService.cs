@@ -6,9 +6,14 @@ using Microsoft.Extensions.Logging;
 namespace Diary.App.Services;
 
 [DiAutoRegister(singleton: true)]
-public sealed class AppUpdateService(UpdateChecker checker, ILogger<AppUpdateService> logger)
+public sealed class AppUpdateService(
+    UpdateChecker checker,
+    UpdatePreparationService preparationService,
+    UpdateStartupManager startupManager,
+    ILogger<AppUpdateService> logger)
 {
     private readonly SemaphoreSlim _checkLock = new(1, 1);
+    private readonly SemaphoreSlim _prepareLock = new(1, 1);
 
     public async ValueTask<UpdateCheckResult> CheckAsync(
         UpdateConfig config,
@@ -47,7 +52,20 @@ public sealed class AppUpdateService(UpdateChecker checker, ILogger<AppUpdateSer
                 request.Rid,
                 request.Flavor,
                 request.CurrentSequence);
-            var result = await checker.CheckAsync(request, cancellationToken);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(20));
+            UpdateCheckResult result;
+            try
+            {
+                result = await checker.CheckAsync(request, timeout.Token);
+            }
+            catch (OperationCanceledException) when (
+                timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+            {
+                result = new UpdateCheckResult(
+                    UpdateCheckStatus.TemporarilyUnavailable,
+                    Error: "连接更新服务器超时。");
+            }
             logger.LogInformation(
                 "应用更新检查完成：Status={Status}, TargetSequence={TargetSequence}",
                 result.Status,
@@ -59,6 +77,79 @@ public sealed class AppUpdateService(UpdateChecker checker, ILogger<AppUpdateSer
             _checkLock.Release();
         }
     }
+
+    public async ValueTask<PreparedUpdate> PrepareAsync(
+        UpdateCheckResult result,
+        IProgress<UpdateDownloadProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (result.Status != UpdateCheckStatus.UpdateAvailable
+            || result.Envelope is null
+            || result.FullPackageUri is null)
+        {
+            throw new ArgumentException("更新检查结果不包含可下载的完整包。", nameof(result));
+        }
+        if (!await _prepareLock.WaitAsync(0, cancellationToken))
+            throw new InvalidOperationException("已有更新正在下载或准备。请稍后重试。");
+        try
+        {
+            var restartArguments = App.StartupOptions.CoreOnly
+                ? new[] { AppStartupOptions.CoreOnlyArgument }
+                : [];
+            var request = new UpdatePreparationRequest
+            {
+                PackageUri = result.FullPackageUri,
+                Envelope = result.Envelope,
+                CurrentVersion = AppInfo.AppVersionString,
+                InstallDirectory = FsTools.GetBinaryDirectory(),
+                UpdatesRootDirectory = Path.Combine(FsTools.GetApplicationDataDirectory(), "updates"),
+                RestartArguments = restartArguments,
+            };
+            logger.LogInformation(
+                "开始下载并准备应用更新：TargetVersion={TargetVersion}, PackageSize={PackageSize}",
+                result.Envelope.Manifest.VersionId,
+                result.Envelope.FullPackage.Size);
+            var prepared = await preparationService.PrepareAsync(request, progress, cancellationToken);
+            logger.LogInformation(
+                "应用更新准备完成：TransactionId={TransactionId}, Add={Add}, Replace={Replace}, Delete={Delete}, Conflicts={Conflicts}",
+                prepared.TransactionId,
+                prepared.AddCount,
+                prepared.ReplaceCount,
+                prepared.DeleteCount,
+                prepared.PreservedConflicts.Count);
+            return prepared;
+        }
+        finally
+        {
+            _prepareLock.Release();
+        }
+    }
+
+    public void StartPreparedUpdate(PreparedUpdate prepared)
+    {
+        ArgumentNullException.ThrowIfNull(prepared);
+        _ = UpdateProcessServices.StartApply(
+            prepared.BootstrapUpdaterPath,
+            prepared.PlanPath,
+            Environment.ProcessId);
+        logger.LogInformation("已启动应用更新引导程序：TransactionId={TransactionId}", prepared.TransactionId);
+    }
+
+    public ValueTask ConfirmStartupAsync(
+        string planPath,
+        CancellationToken cancellationToken = default)
+        => startupManager.ConfirmAsync(planPath, AppInfo.AppSequence, cancellationToken);
+
+    public ValueTask<bool> HandleRolledBackStartupAsync(
+        string planPath,
+        bool startupSucceeded,
+        CancellationToken cancellationToken = default)
+        => startupManager.HandleRolledBackStartupAsync(planPath, startupSucceeded, cancellationToken);
+
+    public ValueTask StartRollbackAsync(
+        string planPath,
+        CancellationToken cancellationToken = default)
+        => startupManager.StartRollbackAsync(planPath, Environment.ProcessId, cancellationToken);
 
     private static string ResolveFlavor(string configuredFlavor, string rid)
     {

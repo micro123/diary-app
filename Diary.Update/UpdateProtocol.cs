@@ -6,6 +6,7 @@ public static class UpdateProtocol
 {
     public const int PlanSchemaVersion = 1;
     public const int UpdaterProtocolVersion = 1;
+    public const string StartupTransactionArgument = "--update-transaction";
 
     public static string CurrentRid => (RuntimeInformation.IsOSPlatform(OSPlatform.Windows), RuntimeInformation.ProcessArchitecture) switch
     {

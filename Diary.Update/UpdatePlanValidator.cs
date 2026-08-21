@@ -127,6 +127,8 @@ public static class UpdatePlanValidator
             _ = UpdatePathPolicy.ResolveInside(install, plan.Restart.ExecutablePath, nameof(plan.Restart.ExecutablePath));
             if (!UpdateHash.IsSha256(plan.Restart.Sha256))
                 throw new InvalidDataException("重启入口哈希无效。");
+            if (plan.Restart.PreviousSha256 is not null && !UpdateHash.IsSha256(plan.Restart.PreviousSha256))
+                throw new InvalidDataException("回滚重启入口哈希无效。");
         }
 
         return new(plan, install, updatesRoot, transaction, staging, backup, manifestSource,

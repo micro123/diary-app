@@ -58,3 +58,27 @@ public sealed record UpdateCheckResult(
     UpdateManifestEnvelope? Envelope = null,
     Uri? FullPackageUri = null,
     string? Error = null);
+
+public sealed record UpdateDownloadProgress(long BytesReceived, long TotalBytes);
+
+public sealed record UpdatePreparationRequest
+{
+    public required Uri PackageUri { get; init; }
+    public required UpdateManifestEnvelope Envelope { get; init; }
+    public required string CurrentVersion { get; init; }
+    public required string InstallDirectory { get; init; }
+    public required string UpdatesRootDirectory { get; init; }
+    public IReadOnlyList<string> RestartArguments { get; init; } = [];
+}
+
+public sealed record PreparedUpdate(
+    string TransactionId,
+    string PlanPath,
+    string BootstrapUpdaterPath,
+    string TargetVersion,
+    long TargetSequence,
+    long PackageSize,
+    int AddCount,
+    int ReplaceCount,
+    int DeleteCount,
+    IReadOnlyList<string> PreservedConflicts);

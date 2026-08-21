@@ -34,7 +34,7 @@ jobs:
       - name: Release build
         run: dotnet build DiaryApp.sln --configuration Release --no-restore
       - name: Run all tests
-        run: dotnet test DiaryApp.sln --configuration Release --no-build --no-restore --verbosity minimal
+        run: dotnet test --solution DiaryApp.sln --configuration Release --no-build --no-restore --verbosity minimal
         env:
           DIARY_REQUIRE_POSTGRES_TESTS: ${{ runner.os == 'Linux' && '1' || '0' }}
           DIARY_REQUIRE_PYTHON_TESTS: '1'

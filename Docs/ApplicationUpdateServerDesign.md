@@ -6,7 +6,7 @@
 
 本文是 [`ApplicationUpdateDesign.md`](ApplicationUpdateDesign.md) 的服务端专项设计。总设计定义客户端 `IUpdateSource`、逐文件清单、事务式更新器和 `Diary.Updater` 自举流程；本文定义负责实现 `IUpdateSource` 的独立服务程序。
 
-当前 `UpdateServer/` 已实现第一版 Python 服务，使用 Python 3.11+ 标准库从 GitHub Release 同步源包，在服务本地生成清单、完整包快照和内容缓存，并向 DiaryApp 客户端提供升级数据。本文仍保留完整目标需求；未实现的管理 API、持久化事务数据库、下载租约、限流、指标和断点续传属于后续增强，不能把目标设计中的全部条目理解为第一版已经完成。
+当前 `UpdateServer/` 已实现第一版 Python 服务，使用 Python 3.11+ 标准库从 GitHub Release 同步源包，在服务本地生成清单、完整包快照和内容缓存，并向 DiaryApp 客户端提供升级数据；客户端已消费 latest 与完整包接口，完成下载、校验、安全解压和事务安装闭环。本文仍保留完整目标需求；未实现的管理 API、持久化事务数据库、下载租约、限流、指标、断点续传和客户端逐 Blob 增量属于后续增强，不能把目标设计中的全部条目理解为第一版已经完成。
 
 GitHub Release 源端契约和第一版消费链路均已落地：Tag CI 生成三个运行维度及两个按 RID 标识的调试资产，运行包携带目标 RID 的裁剪后 `Diary.Updater` 自包含单文件 CLI；release metadata 的 `debugAssets` 显式记录 `rid`，打包阶段和同步服务都会检查 ZIP 路径、链接、大小、压缩比、PDB、嵌套归档、运行时目录和 Python flavor 内容。同步服务还会校验 metadata 身份、完整发布矩阵、资产大小/SHA-256，并只在完整包、manifest 和 Blob 全部就绪后切换 latest。
 
@@ -603,7 +603,7 @@ GET /api/v1/updates/latest?channel=stable&rid=win-x64&flavor=standard
 }
 ```
 
-服务必须保证返回的 manifest、fullPackage 和 snapshot 是同一快照。当前部署采用“只保留 latest”策略：新快照完整发布后，同一发布维度的旧 snapshot 和不再被其他 latest 引用的 Blob 会被清理。客户端不应长期缓存旧 manifest 后再请求旧完整包；旧 snapshot 清理后对应完整包接口返回 `410 Gone`。
+服务必须保证返回的 manifest、fullPackage 和 snapshot 是同一快照。当前部署采用“只保留 latest”策略：新快照完整发布后，同一发布维度的旧 snapshot 和不再被其他 latest 引用的 Blob 会被清理。客户端在用户确认后立即下载完整包，不长期缓存旧 manifest；若同步切换恰好导致旧完整包返回 `410 Gone`，本次准备失败并保留当前安装，用户重新检查后使用新的 latest。下载租约或旧快照宽限窗口仍是后续增强。
 
 ### 10.3 内容 Blob
 
@@ -1123,4 +1123,4 @@ Blob 和完整包可以从 GitHub 源 ZIP 重建；当前策略只保留各发�
 
 DiaryApp 升级同步服务应是一个受控局域网内的 Release 镜像和内容索引服务，而不是 GitHub API 代理或远程命令执行器。CI 负责生成可验证的 GitHub Release 源资产，服务负责下载、隔离、校验、生成清单、缓存内容、维护不可变快照并提供客户端 API。
 
-第一版已经实现完整包同步、逐文件 Blob、原子 latest、失败保留旧版本和安全归档处理。下一阶段重点是补齐客户端实际下载与更新计划，以及服务端事务恢复、保留清理、管理能力和访问控制。只要同步服务没有把未完成数据暴露给客户端，即使 GitHub 暂时不可用、服务进程重启或某次发布损坏，也不会破坏已有安装和已发布更新。
+第一版已经实现完整包同步、逐文件 Blob、原子 latest、失败保留旧版本和安全归档处理，客户端也已完成完整包下载与事务更新闭环。下一阶段重点是客户端逐文件增量、上一版本真实更新门禁，以及服务端事务恢复、下载租约、管理能力和访问控制。只要同步服务没有把未完成数据暴露给客户端，即使 GitHub 暂时不可用、服务进程重启或某次发布损坏，也不会破坏已有安装和已发布更新。

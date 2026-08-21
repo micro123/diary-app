@@ -240,6 +240,53 @@ public sealed class UpdateTransactionExecutorTests
         Assert.AreEqual(originalMode, File.GetUnixFileMode(original));
     }
 
+    [TestMethod]
+    public async Task HandleRolledBackStartupAsync_WhenOldAppStarts_CleansTransactionAndBootstrap()
+    {
+        using var fixture = await UpdateFixture.CreateAsync();
+        var appName = OperatingSystem.IsWindows() ? "Diary.App.exe" : "Diary.App";
+        var appPath = fixture.InstallPath(appName);
+        await File.WriteAllTextAsync(appPath, "old-app");
+        var appSha256 = await UpdateHash.ComputeSha256Async(appPath);
+        var plan = await fixture.CreatePlanAsync([]) with
+        {
+            Restart = new UpdateRestartOptions
+            {
+                ExecutablePath = appName,
+                Sha256 = appSha256,
+                PreviousSha256 = appSha256,
+            },
+        };
+        await UpdateTransactionStore.WritePlanAsync(fixture.PlanPath, plan);
+        var store = new UpdateTransactionStore(UpdatePlanValidator.Validate(plan, fixture.PlanPath));
+        await store.WriteStatusAsync(UpdateTransactionState.RolledBack);
+
+        var handled = await new UpdateStartupManager().HandleRolledBackStartupAsync(
+            fixture.PlanPath,
+            startupSucceeded: true);
+
+        Assert.IsTrue(handled);
+        Assert.IsFalse(Directory.Exists(plan.TransactionDirectory));
+        Assert.IsFalse(Directory.Exists(Path.GetDirectoryName(plan.BootstrapUpdater.Path)!));
+    }
+
+    [TestMethod]
+    public async Task HandleRolledBackStartupAsync_WhenOldAppStillFails_PreservesTransaction()
+    {
+        using var fixture = await UpdateFixture.CreateAsync();
+        var plan = await fixture.CreatePlanAsync([]);
+        var store = new UpdateTransactionStore(UpdatePlanValidator.Validate(plan, fixture.PlanPath));
+        await store.WriteStatusAsync(UpdateTransactionState.RolledBack);
+
+        var handled = await new UpdateStartupManager().HandleRolledBackStartupAsync(
+            fixture.PlanPath,
+            startupSucceeded: false);
+
+        Assert.IsTrue(handled);
+        Assert.IsTrue(Directory.Exists(plan.TransactionDirectory));
+        Assert.IsTrue(File.Exists(plan.BootstrapUpdater.Path));
+    }
+
     private sealed class UpdateFixture : IDisposable
     {
         private readonly string _root;

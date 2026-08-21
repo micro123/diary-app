@@ -22,24 +22,32 @@ internal static class UpdaterProgram
             var validated = UpdatePlanValidator.Validate(plan, command.PlanPath);
             ValidateRuntime(validated);
             await ValidateCurrentUpdaterAsync(validated, command.HandoffToken is not null);
-            await ValidateTargetUpdaterAsync(validated);
+            if (command.Mode == UpdaterMode.Apply)
+                await ValidateTargetUpdaterAsync(validated);
 
-            if (command.Mode == UpdaterMode.Recover)
-            {
-                var state = await new UpdateTransactionExecutor().RecoverAsync(validated);
-                Console.WriteLine($"更新事务已恢复到状态：{state}");
-                return 0;
-            }
-
-            var store = new UpdateTransactionStore(validated);
             if (command.WaitProcessId is { } waitProcessId)
             {
-                await store.WriteStatusAsync(UpdateTransactionState.WaitingForExit);
+                if (command.Mode == UpdaterMode.Apply)
+                {
+                    var waitingStore = new UpdateTransactionStore(validated);
+                    await waitingStore.WriteStatusAsync(UpdateTransactionState.WaitingForExit);
+                }
                 await UpdateProcessServices.WaitForExitAsync(
                     waitProcessId,
                     TimeSpan.FromSeconds(plan.WaitForExitTimeoutSeconds));
             }
 
+            if (command.Mode == UpdaterMode.Recover)
+            {
+                var executor = new UpdateTransactionExecutor();
+                var state = await executor.RecoverAsync(validated, rollbackApplied: true);
+                if (state == UpdateTransactionState.RolledBack && plan.Restart?.PreviousSha256 is not null)
+                    executor.StartRecoveredApplication(validated);
+                Console.WriteLine($"更新事务已恢复到状态：{state}");
+                return 0;
+            }
+
+            var store = new UpdateTransactionStore(validated);
             if (command.HandoffToken is not null)
             {
                 if (!FixedTimeEquals(command.HandoffToken, plan.HandoffToken))
@@ -95,8 +103,8 @@ internal static class UpdaterProgram
                     throw new ArgumentException($"未知参数：{args[index]}");
             }
         }
-        if (mode == UpdaterMode.Recover && (waitProcessId is not null || handoffToken is not null))
-            throw new ArgumentException("--recover 不接受等待 PID 或交接令牌。");
+        if (mode == UpdaterMode.Recover && handoffToken is not null)
+            throw new ArgumentException("--recover 不接受交接令牌。");
         return new(mode, planPath, waitProcessId, handoffToken);
     }
 

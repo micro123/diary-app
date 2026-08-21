@@ -93,4 +93,42 @@ public static class UpdateProcessServices
         return Process.Start(startInfo)
             ?? throw new InvalidOperationException("无法启动目标更新器。");
     }
+
+    public static Process StartApply(string executablePath, string planPath, int waitProcessId)
+    {
+        if (waitProcessId <= 0)
+            throw new ArgumentOutOfRangeException(nameof(waitProcessId));
+        var startInfo = CreateUpdaterStartInfo(executablePath, "--apply", planPath);
+        startInfo.ArgumentList.Add("--wait-pid");
+        startInfo.ArgumentList.Add(waitProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        return Process.Start(startInfo)
+            ?? throw new InvalidOperationException("无法启动更新器。");
+    }
+
+    public static Process StartRecovery(string executablePath, string planPath, int waitProcessId)
+    {
+        if (waitProcessId <= 0)
+            throw new ArgumentOutOfRangeException(nameof(waitProcessId));
+        var startInfo = CreateUpdaterStartInfo(executablePath, "--recover", planPath);
+        startInfo.ArgumentList.Add("--wait-pid");
+        startInfo.ArgumentList.Add(waitProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        return Process.Start(startInfo)
+            ?? throw new InvalidOperationException("无法启动更新恢复程序。");
+    }
+
+    private static ProcessStartInfo CreateUpdaterStartInfo(
+        string executablePath,
+        string command,
+        string planPath)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = executablePath,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        startInfo.ArgumentList.Add(command);
+        startInfo.ArgumentList.Add(planPath);
+        return startInfo;
+    }
 }

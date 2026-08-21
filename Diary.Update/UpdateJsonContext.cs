@@ -5,6 +5,7 @@ namespace Diary.Update;
 [JsonSourceGenerationOptions(GenerationMode = JsonSourceGenerationMode.Metadata)]
 [JsonSerializable(typeof(UpdateJournalEntry))]
 [JsonSerializable(typeof(UpdateMachineVersion))]
+[JsonSerializable(typeof(UpdateManifest))]
 [JsonSerializable(typeof(UpdateManifestEnvelope))]
 [JsonSerializable(typeof(UpdateTransactionPlan))]
 [JsonSerializable(typeof(UpdateTransactionStatus))]

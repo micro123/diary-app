@@ -18,6 +18,18 @@ public static class UpdateManifestValidator
         ArgumentNullException.ThrowIfNull(envelope);
         var manifest = envelope.Manifest ?? throw new InvalidDataException("更新响应缺少 manifest。");
         var package = envelope.FullPackage ?? throw new InvalidDataException("更新响应缺少 fullPackage。");
+        ValidateManifest(manifest, channel, rid, flavor);
+        if (package.Size <= 0 || !UpdateHash.IsSha256(package.Sha256))
+            throw new InvalidDataException("完整包描述非法。");
+    }
+
+    public static void ValidateManifest(
+        UpdateManifest manifest,
+        string? channel = null,
+        string? rid = null,
+        string? flavor = null)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
         if (manifest.ManifestFormatVersion != 1)
             throw new InvalidDataException($"不支持的更新清单版本：{manifest.ManifestFormatVersion}");
         if (manifest.Sequence < 0 || manifest.MinIncrementalSequence < 0)
@@ -26,9 +38,9 @@ public static class UpdateManifestValidator
             || string.IsNullOrWhiteSpace(manifest.DataVersion)
             || string.IsNullOrWhiteSpace(manifest.ManifestContentId))
             throw new InvalidDataException("更新清单版本信息为空。");
-        if (!string.Equals(manifest.Channel, channel, StringComparison.Ordinal)
-            || !string.Equals(manifest.Rid, rid, StringComparison.Ordinal)
-            || !string.Equals(manifest.Flavor, flavor, StringComparison.Ordinal))
+        if ((channel is not null && !string.Equals(manifest.Channel, channel, StringComparison.Ordinal))
+            || (rid is not null && !string.Equals(manifest.Rid, rid, StringComparison.Ordinal))
+            || (flavor is not null && !string.Equals(manifest.Flavor, flavor, StringComparison.Ordinal)))
         {
             throw new InvalidDataException("更新清单维度与请求不匹配。");
         }
@@ -37,8 +49,6 @@ public static class UpdateManifestValidator
         {
             throw new InvalidDataException("manifestContentId 非法。");
         }
-        if (package.Size <= 0 || !UpdateHash.IsSha256(package.Sha256))
-            throw new InvalidDataException("完整包描述非法。");
         if (manifest.Files is null || manifest.Files.Count == 0)
             throw new InvalidDataException("更新清单不能是空文件集合。");
 
@@ -50,7 +60,7 @@ public static class UpdateManifestValidator
             if (file is null)
                 throw new InvalidDataException("更新清单包含空文件项。");
             var path = UpdatePathPolicy.NormalizeRelative(file.Path, nameof(file.Path));
-            if (!paths.Add(path) || rid == "win-x64" && !windowsPaths.Add(path))
+            if (!paths.Add(path) || (manifest.Rid == "win-x64" && !windowsPaths.Add(path)))
                 throw new InvalidDataException($"更新清单包含重复路径：{path}");
             if (previousPath is not null && string.CompareOrdinal(previousPath, path) >= 0)
                 throw new InvalidDataException("更新清单文件必须按 path 严格升序排列。");
@@ -59,7 +69,7 @@ public static class UpdateManifestValidator
                 throw new InvalidDataException($"更新文件大小或 SHA-256 非法：{path}");
             if (!SupportedComponents.Contains(file.Component))
                 throw new InvalidDataException($"更新文件 component 非法：{path}");
-            if (rid == "win-x64" && file.Executable)
+            if (manifest.Rid == "win-x64" && file.Executable)
                 throw new InvalidDataException($"Windows 更新文件不能声明 Unix executable：{path}");
         }
         if (!string.Equals(manifest.ManifestContentId, ComputeContentId(manifest), StringComparison.Ordinal))

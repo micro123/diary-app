@@ -14,7 +14,9 @@ public sealed class UpdateTransactionExecutor
         var currentStatus = await store.ReadStatusAsync(cancellationToken);
         if (currentStatus?.State is UpdateTransactionState.Applying or UpdateTransactionState.RollingBack)
             throw new InvalidOperationException("事务处于未恢复状态，请先执行 --recover。");
-        if (currentStatus?.State is UpdateTransactionState.Applied or UpdateTransactionState.Restarted)
+        if (currentStatus?.State is UpdateTransactionState.Applied
+            or UpdateTransactionState.Restarted
+            or UpdateTransactionState.Confirmed)
             return new(currentStatus.State, currentStatus.State == UpdateTransactionState.Restarted);
 
         Directory.CreateDirectory(plan.BackupDirectory);
@@ -54,7 +56,7 @@ public sealed class UpdateTransactionExecutor
             return new(UpdateTransactionState.Applied, false);
         try
         {
-            StartApplication(plan);
+            StartApplication(plan, plan.Plan.Restart.Sha256);
             await store.WriteStatusAsync(UpdateTransactionState.Restarted, cancellationToken: cancellationToken);
             return new(UpdateTransactionState.Restarted, true);
         }
@@ -70,6 +72,7 @@ public sealed class UpdateTransactionExecutor
 
     public async ValueTask<UpdateTransactionState> RecoverAsync(
         ValidatedUpdatePlan plan,
+        bool rollbackApplied = false,
         CancellationToken cancellationToken = default)
     {
         var store = new UpdateTransactionStore(plan);
@@ -77,7 +80,10 @@ public sealed class UpdateTransactionExecutor
         var status = await store.ReadStatusAsync(cancellationToken);
         if (status is null)
             throw new InvalidOperationException("事务没有可恢复状态。");
-        if (status.State is UpdateTransactionState.Applied or UpdateTransactionState.Restarted or UpdateTransactionState.RolledBack)
+        if (status.State is UpdateTransactionState.Confirmed or UpdateTransactionState.RolledBack)
+            return status.State;
+        if (!rollbackApplied
+            && status.State is (UpdateTransactionState.Applied or UpdateTransactionState.Restarted))
             return status.State;
         if (status.State is UpdateTransactionState.HandoffPrepared or UpdateTransactionState.HandingOff)
         {
@@ -85,7 +91,11 @@ public sealed class UpdateTransactionExecutor
             await store.WriteStatusAsync(UpdateTransactionState.RolledBack, cancellationToken: cancellationToken);
             return UpdateTransactionState.RolledBack;
         }
-        if (status.State is not (UpdateTransactionState.Applying or UpdateTransactionState.RollingBack or UpdateTransactionState.Failed))
+        if (status.State is not (UpdateTransactionState.Applying
+            or UpdateTransactionState.RollingBack
+            or UpdateTransactionState.Failed
+            or UpdateTransactionState.Applied
+            or UpdateTransactionState.Restarted))
             throw new InvalidOperationException($"事务状态 {status.State} 不需要恢复。");
 
         await store.WriteStatusAsync(UpdateTransactionState.RollingBack, cancellationToken: cancellationToken);
@@ -100,6 +110,15 @@ public sealed class UpdateTransactionExecutor
             await store.WriteStatusAsync(UpdateTransactionState.Failed, exception.Message, CancellationToken.None);
             throw;
         }
+    }
+
+    public void StartRecoveredApplication(ValidatedUpdatePlan plan)
+    {
+        var restart = plan.Plan.Restart
+            ?? throw new InvalidOperationException("更新计划没有应用重启描述。");
+        var previousSha256 = restart.PreviousSha256
+            ?? throw new InvalidOperationException("更新计划没有回滚后的应用入口哈希。");
+        StartApplication(plan, previousSha256);
     }
 
     private static async ValueTask PreflightAsync(ValidatedUpdatePlan plan, CancellationToken cancellationToken)
@@ -323,7 +342,7 @@ public sealed class UpdateTransactionExecutor
             cancellationToken);
     }
 
-    private static void StartApplication(ValidatedUpdatePlan plan)
+    private static void StartApplication(ValidatedUpdatePlan plan, string expectedSha256)
     {
         var restart = plan.Plan.Restart!;
         var executable = UpdatePathPolicy.ResolveInside(
@@ -331,7 +350,7 @@ public sealed class UpdateTransactionExecutor
             restart.ExecutablePath,
             nameof(restart.ExecutablePath));
         var actualHash = UpdateHash.ComputeSha256Async(executable).AsTask().GetAwaiter().GetResult();
-        if (!string.Equals(actualHash, restart.Sha256, StringComparison.Ordinal))
+        if (!string.Equals(actualHash, expectedSha256, StringComparison.Ordinal))
             throw new InvalidDataException("重启入口哈希不匹配。");
         var startInfo = new ProcessStartInfo
         {
