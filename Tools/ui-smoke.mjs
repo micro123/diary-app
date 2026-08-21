@@ -339,8 +339,15 @@ async function main() {
         await waitForTree(current => textOf(findByName(current, 'TemplateNameInput')) === templateName);
         tree = await getTree();
         await clickNode(findByName(tree, 'AddTemplateButton'));
-        const templateItem = await waitForTree(current => findByName(current, 'TemplateItemExpander'));
-        await clickNode(templateItem.value);
+        await waitForTree(current => findByName(current, 'TemplateItemExpander'));
+        await new Promise(resolve => setTimeout(resolve, 120));
+        const templateItemTree = await getTree();
+        const templateItem = findByName(templateItemTree, 'TemplateItemExpander');
+        const templateHeader = templateItemTree.entries.find(entry => nameOf(entry) === 'ExpanderHeader'
+            && ancestor(templateItemTree, entry, current => current.nodeId === templateItem.nodeId));
+        if (!templateHeader)
+            throw new Error('找不到模板展开按钮');
+        await clickNode(templateHeader);
         const expandedTemplate = await waitForTree(current => findByName(current, 'TemplateDefaultTitleInput'));
         tree = expandedTemplate.tree;
         await replaceText(findByName(tree, 'TemplateDefaultTitleInput'), templateTitle);
@@ -550,7 +557,8 @@ async function main() {
         };
         const reportDirectory = path.join(repositoryRoot, '.build-tmp', 'ui-test', 'reports');
         await fs.mkdir(reportDirectory, { recursive: true });
-        const reportPath = path.join(reportDirectory, new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-') + '.json');
+        const reportPath = path.join(reportDirectory, 'ui-smoke-'
+            + new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-') + '.json');
         await fs.writeFile(reportPath, JSON.stringify(report, null, 2) + '\n', 'utf8');
         console.log(JSON.stringify({ ...report, reportPath }, null, 2));
     }

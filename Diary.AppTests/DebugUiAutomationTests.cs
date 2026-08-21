@@ -30,6 +30,24 @@ public sealed class DebugUiAutomationTests
     }
 
     [TestMethod]
+    [DataRow(null, "default")]
+    [DataRow("", "default")]
+    [DataRow(" EXTENDED ", "extended")]
+    [DataRow("survey", "survey")]
+    [DataRow("database-error", "database-error")]
+    [DataRow("plugins", "plugins")]
+    public void NormalizeScenario_AcceptsSupportedValues(string? value, string expected)
+    {
+        Assert.AreEqual(expected, DebugUiAutomation.NormalizeScenario(value));
+    }
+
+    [TestMethod]
+    public void NormalizeScenario_RejectsUnknownValue()
+    {
+        Assert.ThrowsExactly<ArgumentException>(() => DebugUiAutomation.NormalizeScenario("unknown"));
+    }
+
+    [TestMethod]
     public void CreateIsolatedAppId_IsStableAndSeparatesProfiles()
     {
         var first = DebugUiAutomation.CreateIsolatedAppId("Diary.App", @"C:\ui-test\profile-a");

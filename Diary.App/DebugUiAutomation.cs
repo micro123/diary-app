@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using Avalonia.Diagnostics.Cdp;
+using Diary.Core.Data.AppConfig;
+using Diary.Core.Utils;
 using Diary.Utils;
 
 namespace Diary.App;
@@ -11,6 +13,7 @@ internal static class DebugUiAutomation
 {
     internal const string PortEnvironmentVariable = "DIARY_CDP_PORT";
     internal const string RootEnvironmentVariable = "DIARY_UI_TEST_ROOT";
+    internal const string ScenarioEnvironmentVariable = "DIARY_UI_TEST_SCENARIO";
     private static bool _started;
 
     public static string ConfigureProcess(string appId)
@@ -24,8 +27,54 @@ internal static class DebugUiAutomation
 
         var root = Path.GetFullPath(configuredRoot);
         FsTools.SetApplicationRootForCurrentProcess(root);
+        ApplyScenario(Environment.GetEnvironmentVariable(ScenarioEnvironmentVariable));
         Trace.WriteLine($"UI 测试数据已隔离到：{root}");
         return CreateIsolatedAppId(appId, root);
+    }
+
+    internal static string NormalizeScenario(string? value)
+    {
+        var scenario = value?.Trim().ToLowerInvariant();
+        return scenario switch
+        {
+            null or "" or "default" => "default",
+            "extended" => "extended",
+            "survey" => "survey",
+            "database-error" => "database-error",
+            "plugins" => "plugins",
+            _ => throw new ArgumentException($"未知 UI 测试场景：{value}", ScenarioEnvironmentVariable),
+        };
+    }
+
+    private static void ApplyScenario(string? value)
+    {
+        var scenario = NormalizeScenario(value);
+        if (scenario == "default")
+            return;
+
+        var config = AllConfig.Instance;
+        config.ViewSettings.HasCompletedOnboarding = true;
+        config.UpdateSettings.AutoCheck = false;
+        switch (scenario)
+        {
+            case "extended":
+                config.ViewSettings.ShowDeveloperFeatures = true;
+                break;
+            case "survey":
+                config.SurveySettings.Enabled = true;
+                config.SurveySettings.AsServer = true;
+                config.SurveySettings.ServerAddress = string.Empty;
+                break;
+            case "database-error":
+                config.DbSettings.DatabaseDriver = "Diary.UiTest.MissingDatabase";
+                break;
+            case "plugins":
+                break;
+        }
+
+        if (!EasySaveLoad.Save(config))
+            throw new InvalidOperationException($"无法保存 UI 测试场景配置：{scenario}");
+        Trace.WriteLine($"UI 测试场景已配置：{scenario}");
     }
 
     public static void Start()

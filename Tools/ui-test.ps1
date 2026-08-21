@@ -8,7 +8,10 @@ param(
     [ValidateRange(1024, 65535)]
     [int] $Port = 9222,
     [switch] $NoBuild,
-    [switch] $WithPlugins
+    [switch] $WithPlugins,
+    [ValidateSet('default', 'extended', 'survey', 'database-error', 'plugins')]
+    [string] $Scenario = 'default',
+    [string] $SeedProfile = ''
 )
 
 Set-StrictMode -Version Latest
@@ -79,11 +82,29 @@ function Start-UiTest {
     $profile = Join-Path $stateDirectory "profiles\$runId"
     New-Item -ItemType Directory -Path $profile -Force | Out-Null
 
+    if (-not [string]::IsNullOrWhiteSpace($SeedProfile)) {
+        $seedRoot = [IO.Path]::GetFullPath($SeedProfile)
+        if (-not (Test-Path -LiteralPath $seedRoot -PathType Container)) {
+            throw "UI 测试种子 profile 不存在：$seedRoot"
+        }
+        $seedConfig = Join-Path $seedRoot 'config'
+        if (-not (Test-Path -LiteralPath $seedConfig -PathType Container)) {
+            throw "UI 测试种子 profile 缺少 config 目录：$seedRoot"
+        }
+        $targetConfig = Join-Path $profile 'config'
+        New-Item -ItemType Directory -Path $targetConfig -Force | Out-Null
+        Get-ChildItem -LiteralPath $seedConfig -File | ForEach-Object {
+            Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $targetConfig $_.Name) -Force
+        }
+    }
+
     $previousPort = $env:DIARY_CDP_PORT
     $previousRoot = $env:DIARY_UI_TEST_ROOT
+    $previousScenario = $env:DIARY_UI_TEST_SCENARIO
     try {
         $env:DIARY_CDP_PORT = "$Port"
         $env:DIARY_UI_TEST_ROOT = $profile
+        $env:DIARY_UI_TEST_SCENARIO = $(if ($Scenario -eq 'default') { $null } else { $Scenario })
         $stopwatch = [Diagnostics.Stopwatch]::StartNew()
         $startParameters = @{
             FilePath = $appPath
@@ -99,6 +120,7 @@ function Start-UiTest {
     finally {
         $env:DIARY_CDP_PORT = $previousPort
         $env:DIARY_UI_TEST_ROOT = $previousRoot
+        $env:DIARY_UI_TEST_SCENARIO = $previousScenario
     }
 
     try {
@@ -112,6 +134,8 @@ function Start-UiTest {
             startedAt = [DateTimeOffset]::Now.ToString('O')
             startupReadyMs = $stopwatch.ElapsedMilliseconds
             withPlugins = [bool] $WithPlugins
+            scenario = $Scenario
+            seeded = -not [string]::IsNullOrWhiteSpace($SeedProfile)
         }
         $state | ConvertTo-Json | Set-Content -LiteralPath $statePath -Encoding utf8NoBOM
         [ordered]@{
@@ -120,6 +144,8 @@ function Start-UiTest {
             port = $Port
             startupReadyMs = $stopwatch.ElapsedMilliseconds
             withPlugins = [bool] $WithPlugins
+            scenario = $Scenario
+            seeded = -not [string]::IsNullOrWhiteSpace($SeedProfile)
             targetCount = @($targets).Count
             title = $targets[0].title
             webSocketDebuggerUrl = $targets[0].webSocketDebuggerUrl
