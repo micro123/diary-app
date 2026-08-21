@@ -1,0 +1,27 @@
+services:
+  diary-update-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: diary-update-server:local
+    container_name: diary-update-server
+    restart: unless-stopped
+    init: true
+    read_only: true
+    ports:
+      - "${DIARY_UPDATE_PORT:-18080}:18080"
+    environment:
+      DIARY_GITHUB_TOKEN: "${DIARY_GITHUB_TOKEN:-}"
+      DIARY_UPDATE_SYNC_TOKEN: "${DIARY_UPDATE_SYNC_TOKEN:-}"
+    volumes:
+      - diary-update-data:/data
+      - ./config.docker.json:/app/config.json:ro
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  diary-update-data:

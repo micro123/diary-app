@@ -28,4 +28,7 @@ public class AllConfig : SingletonBase<AllConfig>
 
     [ConfigureGroup("调查统计功能设置", "”调查 - 回应“功能设置")]
     public SurveyConfig SurveySettings { get; } = new();
+
+    [ConfigureGroup("应用更新", "配置局域网更新服务和检查策略。")]
+    public UpdateConfig UpdateSettings { get; } = new();
 }

@@ -6,9 +6,22 @@
 
 本文是 [`ApplicationUpdateDesign.md`](ApplicationUpdateDesign.md) 的服务端专项设计。总设计定义客户端 `IUpdateSource`、逐文件清单、事务式更新器和 `Diary.Updater` 自举流程；本文定义负责实现 `IUpdateSource` 的独立服务程序。
 
-当前代码尚未实现该服务。本文假定服务部署在受控局域网中，从 GitHub Release 同步源包，在服务本地生成清单和内容缓存，再向 DiaryApp 客户端提供升级数据。
+当前 `UpdateServer/` 已实现第一版 Python 服务，使用 Python 3.11+ 标准库从 GitHub Release 同步源包，在服务本地生成清单、完整包快照和内容缓存，并向 DiaryApp 客户端提供升级数据。本文仍保留完整目标需求；未实现的管理 API、持久化事务数据库、下载租约、限流、指标和断点续传属于后续增强，不能把目标设计中的全部条目理解为第一版已经完成。
 
-GitHub Release 源端契约已经部分落地：Tag CI 生成三个运行维度及两个按 RID 标识的调试资产，运行包携带目标 RID 的 `Diary.Updater` 自包含单文件；release metadata 的 `debugAssets` 显式记录 `rid`，打包阶段会检查 ZIP 路径、链接、大小、压缩比、PDB、嵌套归档、运行时目录和 Python flavor 内容。同步服务对 metadata、源包和更新快照的消费与校验仍待实现。
+GitHub Release 源端契约和第一版消费链路均已落地：Tag CI 生成三个运行维度及两个按 RID 标识的调试资产，运行包携带目标 RID 的 `Diary.Updater` 自包含单文件；release metadata 的 `debugAssets` 显式记录 `rid`，打包阶段和同步服务都会检查 ZIP 路径、链接、大小、压缩比、PDB、嵌套归档、运行时目录和 Python flavor 内容。同步服务还会校验 metadata 身份、完整发布矩阵、资产大小/SHA-256，并只在完整包、manifest 和 Blob 全部就绪后切换 latest。
+
+### 1.1 第一版实现范围
+
+- 入口：`python3 -m diary_update_server --config <path> sync|serve|sync-and-serve`；
+- 配置：JSON 文件指定仓库、存储目录、监听地址、轮询周期、允许频道和 GitHub Token 环境变量名；
+- 存储：文件系统保存不可变快照、latest JSON、完整 ZIP 和 SHA-256 内容对象，临时同步目录与已发布目录隔离；
+- 保留：每个 `channel/rid/flavor` 只保留当前 latest；成功同步后删除旧快照和不再被任何 latest 引用的 Blob；
+- API：已实现 latest、内容 Blob、完整包、下载页面、隐藏的立即同步接口和三类健康接口；
+- 调度：启动后立即检查，之后按固定时间轴每 6 小时检查一次；手动同步不重置下一次自动检查时间；
+- 失败语义：同步失败保留旧 latest；客户端将 `404` 映射为无精确快照，将超时、`429` 和 `5xx` 映射为暂时不可用；
+- 安全边界：只接受固定仓库 Releases 和 metadata 声明的资产，不执行包内程序或脚本，不支持客户端上传。
+
+部署与配置示例见 `UpdateServer/README.md`。仓库已提供非 root、只读根文件系统、持久化数据卷和健康检查配置的 Dockerfile 与 `docker-compose.yml`。第一版没有独立管理端口，立即同步接口与下载 API 共用端口并支持 Bearer Token；只能部署在受控局域网，跨网络使用时必须配置 Token，并由 Nginx 等入口补充 HTTPS、访问控制和限流。
 
 ## 2. 目标与范围
 
@@ -590,7 +603,7 @@ GET /api/v1/updates/latest?channel=stable&rid=win-x64&flavor=standard
 }
 ```
 
-服务必须保证返回的 manifest、fullPackage 和 snapshot 是同一快照。latest 指针切换后，旧快照在保留期内仍可以通过其完整包和内容哈希读取。
+服务必须保证返回的 manifest、fullPackage 和 snapshot 是同一快照。当前部署采用“只保留 latest”策略：新快照完整发布后，同一发布维度的旧 snapshot 和不再被其他 latest 引用的 Blob 会被清理。客户端不应长期缓存旧 manifest 后再请求旧完整包；旧 snapshot 清理后对应完整包接口返回 `410 Gone`。
 
 ### 10.3 内容 Blob
 
@@ -616,7 +629,7 @@ GET /api/v1/updates/packages/{channel}/{sequence}/{rid}/{flavor}
 
 要求：
 
-- 只返回已发布且仍在保留期内的快照；
+- 只返回当前仍被 latest 保留的已发布快照；旧快照清理后返回 `410 Gone`；
 - 路径中的发布维度必须与快照 manifest 完全匹配；
 - 只允许 `GET`，不允许客户端上传、替换或请求服务重打包；
 - `200 OK` 返回服务端 `fullPackage` 对应的原始归档字节；
@@ -666,11 +679,34 @@ GET /health/status
 - `ready` 还必须确认数据库、索引和至少一个可配置存储路径可用；
 - `status` 可以返回最近同步时间、当前同步状态、latest 数量和存储使用率，但不得返回 GitHub Token 或管理凭据。
 
+### 10.7 用户下载页面
+
+```http
+GET /
+GET /downloads
+```
+
+- `/` 重定向到 `/downloads`；
+- 页面只读取已经发布的 latest，不直接查询 GitHub，也不接受用户提交的仓库、URL 或文件路径；
+- 页面展示频道、RID、flavor、版本、sequence、完整包大小和 SHA-256，并提供完整包下载按钮；
+- 下载响应使用安全规范化的 `Content-Disposition` 文件名；
+- 页面不显示立即同步入口，响应使用严格 CSP、`nosniff` 和 `no-store`；
+- 所有动态字段在输出 HTML 前必须转义。
+
 ## 11. 管理 API 与配置
 
 ### 11.1 管理接口边界
 
 管理 API 必须与客户端 API 使用不同端口、不同监听地址或至少不同访问控制策略。推荐只监听 `localhost`，由管理员通过本机 CLI 或受保护的管理 UI 调用。
+
+第一版只实现一个不在下载页面公开的受限操作：
+
+```http
+POST /api/v1/internal/sync
+Authorization: Bearer <DIARY_UPDATE_SYNC_TOKEN>
+```
+
+该接口只触发配置范围内的一次同步，不接受请求体中的仓库、URL、Tag、命令或路径；成功排队返回 `202`，已有同步运行时返回 `409`。它与自动调度共享互斥锁，但不会改变自动调度的固定下一次执行时间。配置了 `DIARY_UPDATE_SYNC_TOKEN` 时必须使用常量时间比较 Bearer Token；Token 为空只适用于由防火墙或反向代理隔离的可信局域网，“隐藏路径”本身不作为安全边界。
 
 允许的管理操作：
 
@@ -694,7 +730,7 @@ github:
   repository: owner/DiaryApp
   apiBaseUrl: https://api.github.com
   token: ${DIARY_GITHUB_TOKEN}
-  pollIntervalMinutes: 15
+  pollIntervalMinutes: 360
   requestTimeoutSeconds: 60
 
 releases:
@@ -717,13 +753,14 @@ storage:
   maxSourceArchiveBytes: 1073741824
   maxExtractedBytes: 5368709120
   maxFileCount: 100000
-  retainPublishedSequences: 2
+  retainPublishedSequences: 1
 
 server:
   clientListenAddress: 192.168.1.10
   clientPort: 8090
   adminListenAddress: 127.0.0.1
   adminPort: 8091
+  syncToken: ${DIARY_UPDATE_SYNC_TOKEN}
 ```
 
 实际配置格式可以是 JSON、YAML 或环境变量，但必须将机密与普通配置分离。GitHub Token 不得写入普通 Git 仓库、Release 资产、日志或错误响应。
@@ -781,16 +818,16 @@ server:
 ### 12.4 降级与撤回
 
 - stable 默认禁止自动降级；
-- preview 可以按配置允许降级，但必须由管理员显式固定；
+- 第一版不提供旧 snapshot pin 或自动降级，因为旧版本在新 latest 发布后会被清理；
 - 被撤回的 Release 不得成为新的 latest；
-- 撤回不应立即删除已有客户端正在下载的快照，先标记不可继续发布并等待事务完成或过期；
+- 后续如果需要撤回、降级或长时间下载，必须先引入下载租约或短期保留窗口，再开放管理能力；
 - 破坏性回滚必须记录操作人、时间、目标 snapshot 和理由。
 
 ## 13. 失败处理与恢复
 
 ### 13.1 GitHub 不可用
 
-- 保留现有 latest 和所有仍在保留期内的 Blob；
+- 保留现有 latest 和其引用的全部 Blob；
 - health 状态显示 `upstream_degraded`，但客户端仍可以读取已发布快照；
 - 按指数退避重试，不重复创建发布快照；
 - 管理状态中记录最近成功同步和最近失败原因；
@@ -845,27 +882,27 @@ server:
 
 ### 14.1 保留对象
 
-以下对象默认不可回收：
+当前只保留：
 
 - 每个频道、RID、flavor 的当前 latest；
-- 配置要求保留的最近若干正式版本；
-- 管理员固定的 snapshot；
-- 正在被客户端下载或服务事务引用的 package 和 Blob；
-- 诊断或审计策略要求保留的源资产元数据。
+- current latest 对应的 manifest 和完整包；
+- 被任一 current latest 文件清单引用的 Blob；
+- 正在执行的同步事务临时文件。
+
+`stable` 和 `preview` 是独立频道，可以分别保留各自最新版本；同一频道下三个受支持的 RID/flavor 也各自保留一个精确 latest。
 
 ### 14.2 回收算法
 
-采用标记再清理：
+每次 GitHub 查询和候选包同步全部成功后执行标记清理：
 
-1. 从 latest、pins、保留序号和活动事务开始标记 snapshot；
-2. 从标记 snapshot 的 `snapshot_files` 标记所有 Blob；
-3. 标记对应的完整包和源资产；
-4. 再次确认没有活动读取或写入租约；
-5. 删除未标记对象的文件；
-6. 删除成功后再删除数据库记录；
-7. 任一步失败保留对象并记录日志，下次继续。
+1. 读取所有 latest JSON，校验路径维度与 manifest 一致；
+2. 标记 latest 指向的 snapshot；
+3. 从 latest manifest 标记仍被引用的 Blob SHA-256；
+4. 删除未被标记的受管理 snapshot 目录；
+5. 删除名称为合法 SHA-256 且未被标记的 Blob；
+6. 保留未知文件和非受管理路径，避免误删运维文件。
 
-垃圾回收不能通过路径模式直接删除未知文件，必须以数据库引用和受控目录为依据。服务数据根目录中的未知文件默认保留并报警，防止误删运维文件或外部备份。
+GitHub 查询、下载或校验失败时不执行清理，继续提供上一份有效 latest。第一版没有下载租约，因此新 latest 发布与客户端请求旧 snapshot 恰好并发时，旧请求可能收到 `410`；客户端实际下载接入前应决定是否需要增加短期宽限窗口。
 
 ## 15. 可观测性与审计
 
@@ -978,7 +1015,8 @@ server:
 - 内容 Blob 缺失、损坏和 package 缺失返回稳定错误码；
 - 完整包路径与 manifest 维度不匹配时拒绝；
 - API 不接受任意 URL、路径、命令或脚本；
-- 客户端 API 无法访问管理接口、源目录和数据库；
+- 下载页面不展示立即同步入口；配置 Token 时，未授权客户端不能触发内部同步接口；所有客户端都不能访问源目录和数据库；
+- 立即同步返回 `202`，重复触发返回 `409`，且不会重置固定的自动检查周期；
 - 错误响应不泄露 Token、凭据、堆栈和本地敏感路径；
 - 并发读取、取消、重复请求和限流行为符合配置。
 
@@ -1000,7 +1038,7 @@ server:
 - 从服务下载的每个文件与服务 manifest 一致；
 - 完整包和增量内容均能触发客户端 `Diary.Updater` 的回滚测试；
 - 同步服务不可用时客户端仍保留当前版本并显示可重试错误；
-- 旧 snapshot 在保留期内可继续完成更新；
+- 新 latest 发布后旧 snapshot 被清理，旧完整包请求返回 `410`；
 - 测试服务和正式服务的源数据根目录、GitHub 仓库和频道配置不会交叉使用。
 
 ## 18. 部署与运维要求
@@ -1016,6 +1054,8 @@ server:
 - 服务自身升级不会使用 DiaryApp 客户端的安装目录更新事务；
 - 运行账户不是管理员或 root，除非宿主平台确实需要并有额外隔离。
 
+当前 Docker 部署使用 Python 3.13 slim 镜像、UID 10001 非 root 用户、只读根文件系统、`/data` 命名卷、`/tmp` tmpfs、移除全部 Linux capabilities，并通过 `/health/ready` 执行容器健康检查。容器启动时同步一次，之后按 `pollIntervalSeconds` 定时轮询 GitHub。
+
 ### 18.2 备份
 
 至少备份：
@@ -1023,9 +1063,9 @@ server:
 - 发布元数据数据库；
 - latest 指针和管理员 pin；
 - 服务配置中不含机密的版本策略；
-- 仍在保留期内的 manifest 和 source 元数据。
+- 当前 latest 的 manifest。
 
-Blob 和完整包可以按容量策略从源 ZIP 重建，但正式环境应保留当前和上一正式版本的可直接服务内容，减少 GitHub 不可用时的恢复时间。
+Blob 和完整包可以从 GitHub 源 ZIP 重建；当前策略只保留各发布维度的 latest，不备份上一版本。若以后要求离线回滚或 GitHub 长期不可用时恢复旧版本，需要改变保留策略。
 
 恢复后必须执行：
 
@@ -1060,7 +1100,7 @@ Blob 和完整包可以按容量策略从源 ZIP 重建，但正式环境应保�
 - 实现逐文件内容 API；
 - 实现客户端增量更新所需的完整快照验证；
 - 增加并发下载、缓存、限流和进度统计；
-- 增加内容损坏重建和旧快照保留。
+- 增加内容损坏重建；如果客户端下载需要跨同步周期，再评估下载租约或短期旧快照宽限窗口。
 
 ### 阶段三：运维与传输优化
 
@@ -1069,20 +1109,18 @@ Blob 和完整包可以按容量策略从源 ZIP 重建，但正式环境应保�
 - 增加高可用或只读副本时，保持 latest 和 snapshot 不变性；
 - 根据真实容量决定是否引入分块或差分，不提前引入复杂协议。
 
-## 20. 待确认决策
+## 20. 第一版决策与后续事项
 
-以下项目不阻塞第一阶段设计，但在服务实现前必须确定：
+第一版已经确定：使用文件系统保存索引和快照；客户端 API 使用可配置的 HTTP/HTTPS 根地址；Release metadata 由 CI 作为额外资产上传；完整包复用校验后的 GitHub 源 ZIP；每份 metadata 必须包含完整三维运行资产矩阵。以下事项仍需后续确定或实现：
 
-- 服务使用 SQLite 还是 PostgreSQL 保存元数据；
-- 客户端 API 是否只使用明文局域网 HTTP，还是使用内部 HTTPS；
 - 局域网客户端是否需要 IP allowlist、反向代理认证或应用级 Token；
-- Release 元数据由 CI 作为额外资产上传，还是由服务从受控 Tag 规则生成；推荐前者；
-- 服务端完整包第一阶段是否始终复用 GitHub 源 ZIP；推荐复用，避免不必要的重新打包；
-- stable/preview 是否要求全矩阵资产齐全后才整体发布；推荐要求齐全；
+- 元数据规模和审计要求增长后是否引入 SQLite 或 PostgreSQL；
+- 是否增加管理 API、下载租约、旧 snapshot 宽限窗口或手动 pin；
+- 是否为客户端请求增加服务内限流、Range 和断点续传；
 - 服务自身是否需要独立的发布和回滚机制。
 
 ## 21. 结论
 
 DiaryApp 升级同步服务应是一个受控局域网内的 Release 镜像和内容索引服务，而不是 GitHub API 代理或远程命令执行器。CI 负责生成可验证的 GitHub Release 源资产，服务负责下载、隔离、校验、生成清单、缓存内容、维护不可变快照并提供客户端 API。
 
-第一阶段优先保证完整包同步、原子 latest、失败保留旧版本和安全归档处理；第二阶段再启用逐文件 Blob 服务。只要同步服务没有把未完成数据暴露给客户端，即使 GitHub 暂时不可用、服务进程重启或某次发布损坏，也不会破坏已有安装和已发布更新。
+第一版已经实现完整包同步、逐文件 Blob、原子 latest、失败保留旧版本和安全归档处理。下一阶段重点是补齐客户端实际下载与更新计划，以及服务端事务恢复、保留清理、管理能力和访问控制。只要同步服务没有把未完成数据暴露给客户端，即使 GitHub 暂时不可用、服务进程重启或某次发布损坏，也不会破坏已有安装和已发布更新。

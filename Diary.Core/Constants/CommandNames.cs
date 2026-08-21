@@ -12,4 +12,5 @@ public static class CommandNames
     public const string QuitApp = "EXIT_APPLICATION";
     public const string ShowAboutDialog = "SHOW_ABOUT_DIALOG";
     public const string ShowOnboarding = "SHOW_ONBOARDING";
+    public const string CheckForUpdates = "CHECK_FOR_UPDATES";
 }

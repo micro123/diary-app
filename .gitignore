@@ -369,4 +369,7 @@ FodyWeavers.xsd
 # 本地 MCP 客户端配置（端口随会话变化，不进仓库）
 .mcp.json
 
+# 本地 GitHub API 凭据
+/github_token.txt
+
 /*/Generated/*

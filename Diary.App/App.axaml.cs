@@ -34,6 +34,7 @@ using Diary.Script.Runtime;
 using Diary.ScriptBase;
 using Diary.ScriptHost;
 using Diary.Survey;
+using Diary.Update;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -469,6 +470,14 @@ namespace Diary.App
             services.AddSingleton<TrackerPluginDiagnosticsService>();
             services.AddSingleton<TrackerUiContributionRegistry>();
             services.AddSingleton<DatabaseRestoreCoordinator>();
+            services.AddSingleton(_ =>
+            {
+                var client = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("DiaryApp-UpdateClient/1");
+                return client;
+            });
+            services.AddSingleton<IUpdateSource, HttpUpdateSource>();
+            services.AddSingleton<UpdateChecker>();
             services.AddSingleton<IWorkItemPersistenceCoordinator, WorkItemPersistenceCoordinator>();
             services.AddSingleton<ITrackerUploadCoordinator, TrackerUploadCoordinator>();
             services.AddSingleton(_ => new CSharpEngine(

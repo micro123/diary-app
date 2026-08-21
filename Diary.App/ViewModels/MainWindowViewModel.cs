@@ -17,6 +17,7 @@ using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
 using Diary.Script.Runtime;
+using Diary.Update;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -159,6 +160,9 @@ public partial class MainWindowViewModel : ViewModelBase
         if (App.Instance.DatabaseOk && !App.Instance.AppConfig.ViewSettings.HasCompletedOnboarding)
             ShowOnboarding(automatic: true);
 
+        if (App.Instance.AppConfig.UpdateSettings.AutoCheck)
+            PostUiAsync(() => CheckForUpdatesAsync(automatic: true), "自动检查更新");
+
     }
 
     private void ShowOnboarding(bool automatic = false)
@@ -238,6 +242,9 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         switch (cmd)
         {
+            case CommandNames.CheckForUpdates:
+                PostUiAsync(() => CheckForUpdatesAsync(automatic: false), "检查更新");
+                return;
             case CommandNames.ShowOnboarding:
                 ShowOnboarding();
                 return;
@@ -378,6 +385,62 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         throw new ArgumentOutOfRangeException(nameof(cmd));
+    }
+
+    private async Task CheckForUpdatesAsync(bool automatic)
+    {
+        if (automatic)
+            await Task.Delay(TimeSpan.FromSeconds(15));
+        else
+            EventDispatcher.ShowToast("正在检查更新…");
+
+        var result = await _serviceProvider.GetRequiredService<AppUpdateService>()
+            .CheckAsync(App.Instance.AppConfig.UpdateSettings);
+        switch (result.Status)
+        {
+            case UpdateCheckStatus.UpdateAvailable:
+                {
+                    var manifest = result.Envelope!.Manifest;
+                    var package = result.Envelope.FullPackage;
+                    EventDispatcher.Notify(
+                        "发现新版本",
+                        $"当前版本：{AppInfo.AppVersionString}\n"
+                        + $"最新版本：{manifest.VersionId}（序号 {manifest.Sequence}）\n"
+                        + $"完整包：{FormatSize(package.Size)}\n\n"
+                        + "当前阶段只检查和展示更新，不会自动替换程序文件。\n"
+                        + $"下载地址：{result.FullPackageUri}");
+                    return;
+                }
+            case UpdateCheckStatus.UpToDate:
+                if (!automatic)
+                    EventDispatcher.ShowToast("当前已是最新版本", NotificationType.Success);
+                return;
+            case UpdateCheckStatus.NoPublishedVersion:
+                if (!automatic)
+                    EventDispatcher.ShowToast("更新服务器没有当前平台和包类型的发布快照", NotificationType.Warning);
+                return;
+            case UpdateCheckStatus.UnsupportedUpdater:
+                EventDispatcher.Notify("暂时无法更新", result.Error ?? "当前更新器协议版本过低。");
+                return;
+            case UpdateCheckStatus.TemporarilyUnavailable:
+                if (!automatic)
+                    EventDispatcher.ShowToast(result.Error ?? "更新服务器暂时不可用", NotificationType.Warning);
+                return;
+            case UpdateCheckStatus.InvalidResponse:
+                if (!automatic)
+                    EventDispatcher.Notify("检查更新失败", result.Error ?? "更新服务器响应无效。");
+                return;
+            default:
+                throw new ArgumentOutOfRangeException();
+        }
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        const double megabyte = 1024 * 1024;
+        return bytes >= megabyte
+            ? $"{bytes / megabyte:F1} MiB"
+            : $"{bytes / 1024d:F1} KiB";
     }
 
     private async Task BackupDatabaseAsync()

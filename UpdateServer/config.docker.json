@@ -1,0 +1,15 @@
+{
+  "repository": "micro123/diary-app",
+  "storageDirectory": "/data",
+  "listenHost": "0.0.0.0",
+  "listenPort": 18080,
+  "apiBaseUrl": "https://api.github.com",
+  "githubTokenEnvironment": "DIARY_GITHUB_TOKEN",
+  "syncTokenEnvironment": "DIARY_UPDATE_SYNC_TOKEN",
+  "pollIntervalSeconds": 21600,
+  "requestTimeoutSeconds": 60,
+  "allowedChannels": [
+    "stable",
+    "preview"
+  ]
+}

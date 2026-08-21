@@ -4,6 +4,7 @@ internal static partial class VersionInfo
 {
     static partial void GetVersionStringImpl(ref string versionString);
     static partial void GetVersionDetailImpl(ref string versionString);
+    static partial void GetSequenceImpl(ref long sequence);
 
     public static string AppVersionString()
     {
@@ -16,6 +17,13 @@ internal static partial class VersionInfo
     {
         string result = string.Empty;
         GetVersionDetailImpl(ref result);
+        return result;
+    }
+
+    public static long AppSequence()
+    {
+        long result = 0;
+        GetSequenceImpl(ref result);
         return result;
     }
 }

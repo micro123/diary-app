@@ -7,4 +7,6 @@ public static class AppInfo
     public static readonly string AppVersionString = VersionInfo.AppVersionString();
 
     public static readonly string AppVersionDetails = VersionInfo.AppVersionDetail();
+
+    public static readonly long AppSequence = VersionInfo.AppSequence();
 }

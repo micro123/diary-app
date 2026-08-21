@@ -84,6 +84,11 @@ internal static partial class VersionInfo
 		    versionString = $"{DataVersion.VersionString}-r{CommitCount}";
 	  }
 
+    static partial void GetSequenceImpl(ref long sequence)
+    {
+        sequence = long.Parse(CommitCount, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
     static partial void GetVersionDetailImpl(ref string versionString)
     {
         versionString =
@@ -102,4 +107,3 @@ internal static partial class VersionInfo
 EOF
 
 exit 0
-

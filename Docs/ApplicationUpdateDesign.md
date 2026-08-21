@@ -2,7 +2,7 @@
 
 ## 1. 文档状态与范围
 
-本文定义 DiaryApp 客户端应用包更新的目标架构、清单协议和安全应用流程。当前已实现 `Diary.Update` 共享事务协议和 `Diary.Updater` 自包含单文件更新器，覆盖计划校验、更新器身份校验、文件替换、事务日志、失败回滚、异常恢复、更新器交接和应用重启基础能力。客户端更新检查、下载、计划生成、引导副本启动和稳定性确认尚未接入主程序；独立的局域网同步服务也将在后续开发，从 GitHub Release 获取源包，在本地生成更新数据并通过抽象更新源向客户端提供服务。
+本文定义 DiaryApp 客户端应用包更新的目标架构、清单协议和安全应用流程。当前已实现 `Diary.Update` 共享事务协议和 `Diary.Updater` 自包含单文件更新器，覆盖计划校验、更新器身份校验、文件替换、事务日志、失败回滚、异常恢复、更新器交接和应用重启基础能力；`UpdateServer/` 已提供仅依赖 Python 标准库的局域网同步服务，从 GitHub Release 校验并同步三个发布维度，生成完整包快照、逐文件内容缓存和规范化清单。主程序已接入启动后台检查和设置页手动检查，按 `sequence` 判断新旧并区分无快照与临时服务故障。客户端下载、计划生成、用户确认、引导副本启动和稳定性确认仍待接入。
 
 同步服务的详细需求、GitHub Release 源资产契约、存储模型和 API 设计见 [ApplicationUpdateServerDesign.md](ApplicationUpdateServerDesign.md)。
 
@@ -72,28 +72,21 @@
 
 ### 4.3 服务端通过抽象更新源接入
 
-客户端逻辑只依赖以下能力：
+当前检查阶段的客户端逻辑只依赖以下能力：
 
 ```csharp
 public interface IUpdateSource
 {
-    Task<UpdateManifestEnvelope?> GetLatestAsync(
+    ValueTask<UpdateManifestEnvelope?> GetLatestAsync(
+        Uri serverUri,
         string channel,
-        string runtimeIdentifier,
-        string packageFlavor,
-        CancellationToken cancellationToken);
-
-    Task<Stream> OpenContentAsync(
-        string sha256,
-        CancellationToken cancellationToken);
-
-    Task<Stream?> OpenFullPackageAsync(
-        UpdateManifest manifest,
+        string rid,
+        string flavor,
         CancellationToken cancellationToken);
 }
 ```
 
-`OpenContentAsync()` 的底层以后可以是：
+下载阶段接入时再扩展独立的内容和完整包读取能力。服务端已经提供对应 HTTP 接口，客户端尚未消费：
 
 - `blobs/sha256/<hash>` 内容寻址接口；
 - 服务端动态生成的批量文件包；
@@ -127,7 +120,7 @@ public interface IUpdateSource
 - stable 和允许自动更新的 preview 清单都有可用的服务端完整包；
 - 完整包、逐文件内容和清单来自同一个同步快照，不能让客户端看到只生成了一半的数据；
 - 同一个 `channel/sequence/rid/flavor` 在服务端一经暴露即不可变；如果源包或生成数据发生变化必须生成新的 `sequence`，仅恢复完全相同的快照可以重建原数据；
-- 当前 latest 和其引用的内容至少保留到该版本不再允许增量升级。
+- 当前实现只保留每个 `channel/rid/flavor` 的 latest 及其引用内容；新 latest 完整发布后清理旧 snapshot 和无引用 Blob，旧完整包请求返回 `410`。如果客户端下载阶段需要跨同步周期长期持有 manifest，应先增加短期保留窗口或下载租约。
 
 服务端和传输适配器应保留以下错误语义：
 
@@ -253,6 +246,8 @@ public interface IUpdateSource
 4. 检查 `minUpdaterVersion` 和 `minIncrementalSequence`；
 5. 缺少本地安装清单或不满足增量条件时选择完整包；
 6. 满足条件时进入逐文件计划生成。
+
+当前主程序已完成步骤 1 至 4：设置页可配置服务器地址、`stable`/`preview` 频道和 `Auto`/`standard`/`python313` flavor；`Auto` 在 Windows 安装目录存在 `python/` 时选择 `python313`，Linux 固定选择 `standard`。启动 15 秒后可以后台检查，只有发现新版本才主动提示；手动检查会反馈已是最新、没有精确发布维度、服务暂时不可用、清单无效或更新器协议过低。步骤 5、6 和实际下载仍未接入。
 
 ### 8.2 文件比较
 
@@ -430,22 +425,19 @@ Failed
 ## 13. 客户端模块建议
 
 ```text
-Diary.App/Updates/
-├─ UpdateCheckService
-├─ UpdateCoordinator
-├─ UpdateSettings
-└─ UpdateViewModel
+Diary.App/Services/
+├─ AppUpdateService
+└─ 后续 UpdateCoordinator
+
+Diary.Core/Data/AppConfig/
+└─ UpdateConfig
 
 Diary.Update/
-├─ Models/
-│  ├─ UpdateManifest
-│  ├─ UpdateFileEntry
-│  ├─ UpdatePlan
-│  └─ UpdateTransaction
+├─ UpdateManifestModels
 ├─ IUpdateSource
-├─ UpdateManifestVerifier
-├─ UpdatePlanner
-├─ UpdateDownloader
+├─ HttpUpdateSource
+├─ UpdateChecker
+├─ UpdateManifestValidator
 └─ UpdatePathPolicy
 
 Diary.Updater/
@@ -557,14 +549,15 @@ CI 的 Tag 发布流程只负责生成 GitHub Release 源资产：
 
 ### 阶段一：可信完整更新基础
 
-- [~] 清单模型、规范化和客户端计划生成仍待接入；路径约束、文件大小/SHA-256 校验以及发布源 ZIP 安全门禁已经实现；
+- [~] 清单模型、规范化内容身份校验、HTTP latest 更新源和客户端检查已接入；客户端完整包下载和计划生成仍待实现；
 - [x] 已完成自包含独立更新器、事务日志、引导交接协议、文件替换、回滚和异常恢复基础实现；
-- [~] Tag 和手动发布包已携带目标 RID 的独立更新器；客户端完整包下载、引导副本启动和按最终文件清单安装仍待实现。
+- [x] Python 局域网服务已完成 GitHub Release metadata、三维发布矩阵、源 ZIP、逐文件 Blob、完整包、下载页面和原子 latest 的第一版同步及读取接口，并在成功同步后只保留各发布维度 latest；默认每 6 小时按固定时间轴检查，隐藏的立即同步 REST 不重置自动周期；Dockerfile/Compose 提供非 root、只读根文件系统、健康检查和持久化数据卷部署；
+- [~] Tag 和手动发布包已携带目标 RID 的独立更新器；客户端完整包下载、用户确认、引导副本启动和按最终文件清单安装仍待实现。
 
 ### 阶段二：逐文件增量
 
 - 实现实际文件哈希比较和更新计划；
-- 实现 `IUpdateSource.OpenContentAsync()`；
+- 为客户端实现内容 Blob 下载适配器；
 - 只下载变化内容，保留完整包兜底；
 - 增加缓存、并发限制和进度统计。
 

@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+.git/
+.gitignore
+data/
+config.json
+tests/
+README.md
+docker-compose.yml

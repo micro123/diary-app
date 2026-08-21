@@ -77,6 +77,7 @@
         <ProjectReference Include="..\Diary.ScriptHost\Diary.ScriptHost.csproj" />
         <ProjectReference Include="..\Diary.ScriptBase\Diary.ScriptBase.csproj" />
         <ProjectReference Include="..\Diary.Survey\Diary.Survey.csproj" />
+        <ProjectReference Include="..\Diary.Update\Diary.Update.csproj" />
         <ProjectReference Include="..\Diary.Utils\Diary.Utils.csproj" />
     </ItemGroup>
 
