@@ -18,7 +18,7 @@
 
 - [x] 梳理 `Diary.Survey` 中接收循环、消息分发和停止流程；接收循环使用取消令牌，消息处理任务可等待且异常可诊断，应用通过异步 `ShutdownAsync`/`StopServerAsync` 完成停止，不在 UI 线程同步阻塞。
 - [x] `WorkEditorViewModel.Upload()` 已通过 UI Dispatcher 统一回写 `UploadResults`、锁定状态和绑定属性，并补充从后台线程调用的 Headless 回归测试。
-- [~] 已收敛 `Diary.App` 的调查配置重载、问题发送和退出清理，以及 `Diary.Survey` 的接收任务；左上角菜单重启会复用完整退出清理，并在单实例锁释放后启动新进程；脚本目录加载、脚本管理加载/刷新和脚本编辑器关闭等异步入口已增加统一异常观察，其他 UI fire-and-forget 任务仍需继续审计。
+- [~] 已收敛 `Diary.App` 的调查配置重载、问题发送和退出清理，以及 `Diary.Survey` 的接收任务；左上角菜单重启会复用完整退出清理，并在单实例锁释放后启动新进程；Windows/Linux 重启子进程真实探针已覆盖参数转发，Windows 探针允许 PowerShell 在 CI 中冷启动；脚本目录加载、脚本管理加载/刷新和脚本编辑器关闭等异步入口已增加统一异常观察，其他 UI fire-and-forget 任务仍需继续审计。
 
 验收：后台任务异常可以进入日志或结构化诊断，应用关闭不会遗留接收任务；工作项上传从后台线程调用时不会跨线程修改 UI 绑定对象。
 

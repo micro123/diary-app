@@ -8,7 +8,7 @@ public class ProcUtilsTests
 {
     /// <summary>
     /// 验证 TryStartNewInstance 真的能拉起子进程并正确转发参数。
-    /// Windows 使用 cmd.exe、Linux 使用 /bin/sh 写标记文件，再断言文件内容。
+    /// Windows 使用 Windows PowerShell、Linux 使用 /bin/sh 写标记文件，再断言文件内容。
     /// 这里测的是 Restart() 所依赖的"启动新实例"机制（不含 Environment.Exit）。
     /// </summary>
     [TestMethod]
@@ -48,11 +48,11 @@ public class ProcUtilsTests
             var ok = ProcUtils.TryStartNewInstance(executable, arguments);
             Assert.IsTrue(ok, "TryStartNewInstance 应返回 true");
 
-            // 等待子进程写出标记文件（最多 2 秒）
-            for (var i = 0; i < 40 && !File.Exists(marker); i++)
-                Thread.Sleep(50);
-
-            Assert.IsTrue(File.Exists(marker), "子进程应已创建标记文件");
+            var probeTimeout = TimeSpan.FromSeconds(15);
+            var markerCreated = SpinWait.SpinUntil(() => File.Exists(marker), probeTimeout);
+            Assert.IsTrue(
+                markerCreated,
+                $"子进程应在 {probeTimeout.TotalSeconds:0} 秒内创建标记文件；executable={executable}");
             Assert.AreEqual(content, File.ReadAllText(marker).Trim());
         }
         finally
