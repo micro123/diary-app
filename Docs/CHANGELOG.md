@@ -54,7 +54,7 @@
 
 在 alpha1 基础上修复调查功能与诊断体验：调查结果区支持滚动；普通受访者启动时独立初始化 v1/v2 请求处理器，并记录连接、收包和成功回包日志；程序设置可直接打开当前滚动日志文件。同时补充面向 Agent 的新 Tag 发布指南。
 
-已知限制：执行历史与进度仍为会话内存态（重启即失）；Python 脚本需要本机安装 Python 3.10+；macOS 不在支持范围；当前 `release-on-tags.yml` 会把所有包含连字符的 Tag 标记为 prerelease。
+已知限制：执行历史与进度仍为会话内存态（重启即失）；Python 脚本需要本机安装 Python 3.10+；macOS 不在支持范围；当时的 `release-on-tags.yml` 会把所有包含连字符的 Tag 标记为 prerelease，当前工作流已改为只识别 alpha/beta/rc/preview 后缀。
 
 ## 1.0.0-alpha1 (内部验证版)
 

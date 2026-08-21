@@ -291,11 +291,124 @@ jobs:
           if [ ! -s release-body.md ]; then
             echo "Automated release created by CI for ${GITHUB_REF_NAME}." > release-body.md
           fi
+      - name: Generate release metadata
+        env:
+          TAG: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          python3 <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          tag = os.environ["TAG"]
+          repository = os.environ["REPOSITORY"]
+          commit = os.environ["COMMIT"]
+          version_id = tag[1:] if tag.startswith("v") else tag
+          version_match = re.fullmatch(
+              r"(?P<data>\d+\.\d+\.\d+)(?P<suffix>-(?:r\d+|alpha\d*|beta\d*|rc\d*|preview\d*))?",
+              version_id,
+              re.IGNORECASE,
+          )
+          if version_match is None:
+              raise SystemExit(f"Unsupported release tag format: {tag}")
+
+          suffix = version_match.group("suffix") or ""
+          sequence_match = re.fullmatch(r"-r(?P<sequence>\d+)", suffix, re.IGNORECASE)
+          if sequence_match is not None:
+              sequence = int(sequence_match.group("sequence"))
+              channel = "stable"
+          elif not suffix:
+              sequence = int(
+                  subprocess.check_output(["git", "rev-list", "--count", "HEAD"], text=True).strip()
+              )
+              channel = "stable"
+          else:
+              sequence = int(
+                  subprocess.check_output(["git", "rev-list", "--count", "HEAD"], text=True).strip()
+              )
+              channel = "preview"
+
+          tag_prefix = f"DiaryAppNG-{tag}-"
+          package_specs = [
+              ("win-x64", "standard", f"{tag_prefix}win-x64.zip"),
+              ("win-x64", "python313", f"{tag_prefix}win-x64-python313.zip"),
+              ("linux-x64", "standard", f"{tag_prefix}linux-x64.zip"),
+          ]
+          debug_names = [
+              f"{tag_prefix}win-x64-dbg.zip",
+              f"{tag_prefix}linux-x64-dbg.zip",
+          ]
+          artifact_root = Path("artifacts")
+
+          def find_asset(name: str) -> Path:
+              matches = [path for path in artifact_root.rglob(name) if path.is_file()]
+              if len(matches) != 1:
+                  raise SystemExit(
+                      f"Expected exactly one downloaded asset named {name}, found {len(matches)}"
+                  )
+              return matches[0]
+
+          def sha256(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(block)
+              return digest.hexdigest()
+
+          assets = []
+          for rid, flavor, name in package_specs:
+              path = find_asset(name)
+              assets.append(
+                  {
+                      "rid": rid,
+                      "flavor": flavor,
+                      "kind": "package",
+                      "name": name,
+                      "size": path.stat().st_size,
+                      "sha256": sha256(path),
+                  }
+              )
+
+          debug_assets = []
+          for name in debug_names:
+              find_asset(name)
+              debug_assets.append({"name": name})
+
+          metadata = {
+              "schemaVersion": 1,
+              "repository": repository,
+              "tag": tag,
+              "commit": commit,
+              "versionId": version_id,
+              "sequence": sequence,
+              "dataVersion": version_match.group("data"),
+              "channel": channel,
+              "manifestFormatVersion": 1,
+              "minUpdaterVersion": 1,
+              "minIncrementalSequence": 0,
+              "assets": assets,
+              "debugAssets": debug_assets,
+          }
+          metadata_path = Path(f"{tag_prefix}release-metadata.json")
+          metadata_path.write_text(
+              json.dumps(metadata, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          print(metadata_path)
+          print(json.dumps(metadata, ensure_ascii=False, indent=2))
+          PY
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
           body_path: release-body.md
-          prerelease: ${{ contains(github.ref_name, '-') }}
-          files: artifacts/**/*.zip
+          prerelease: ${{ contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') || contains(github.ref_name, '-preview') }}
+          files: |
+            artifacts/**/*.zip
+            DiaryAppNG-${{ github.ref_name }}-release-metadata.json
