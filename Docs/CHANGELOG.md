@@ -31,7 +31,7 @@
 本轮内部验证覆盖字体定制、发布资产和应用更新基础设计，并修复 Alpha 发布的 Windows 测试门禁：
 
 - 视图设置支持应用默认字体、跟随系统、选择系统字体和外部字体文件；发布包携带 Noto Sans Mono CJK SC 作为默认等宽字体，不再把大型字体和 OpenMoji 编译进主程序 DLL。
-- 程序设置保存后可以安全重启并保留命令行参数；Windows 重启子进程测试允许 PowerShell 在 CI 中冷启动，避免固定 2 秒等待导致误判失败。
+- 程序设置保存后可以安全重启并保留命令行参数；Windows 重启子进程测试使用编码命令规避 PowerShell 参数解析差异，并为 CI 冷启动保留等待窗口；真实 Python Worker 测试单独放宽握手等待，不改变应用默认超时策略。
 - Tag 发布将 PDB 拆分到独立调试符号包，并生成记录发布矩阵、频道、资产大小和 SHA-256 的机器可读 release metadata；GitHub Release body 继续承载 CHANGELOG。
 - 发布包保留目标 RID 和 `runtimes/any/`，只移除其他平台目录；本地打包支持缓存 Python runtime，并可选上传到局域网 FileCodeBox。
 - 完成应用逐文件更新、事务替换、自举更新器和 GitHub Release 同步服务的协议与服务端设计，具体服务、客户端检查和回滚实现仍待开发。

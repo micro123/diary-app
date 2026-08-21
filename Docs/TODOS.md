@@ -18,7 +18,7 @@
 
 - [x] 梳理 `Diary.Survey` 中接收循环、消息分发和停止流程；接收循环使用取消令牌，消息处理任务可等待且异常可诊断，应用通过异步 `ShutdownAsync`/`StopServerAsync` 完成停止，不在 UI 线程同步阻塞。
 - [x] `WorkEditorViewModel.Upload()` 已通过 UI Dispatcher 统一回写 `UploadResults`、锁定状态和绑定属性，并补充从后台线程调用的 Headless 回归测试。
-- [~] 已收敛 `Diary.App` 的调查配置重载、问题发送和退出清理，以及 `Diary.Survey` 的接收任务；左上角菜单重启会复用完整退出清理，并在单实例锁释放后启动新进程；Windows/Linux 重启子进程真实探针已覆盖参数转发，Windows 探针允许 PowerShell 在 CI 中冷启动；脚本目录加载、脚本管理加载/刷新和脚本编辑器关闭等异步入口已增加统一异常观察，其他 UI fire-and-forget 任务仍需继续审计。
+- [~] 已收敛 `Diary.App` 的调查配置重载、问题发送和退出清理，以及 `Diary.Survey` 的接收任务；左上角菜单重启会复用完整退出清理，并在单实例锁释放后启动新进程；Windows/Linux 重启子进程真实探针已覆盖参数转发，Windows 探针使用编码命令规避 PowerShell 参数解析差异并允许 CI 冷启动；脚本目录加载、脚本管理加载/刷新和脚本编辑器关闭等异步入口已增加统一异常观察，其他 UI fire-and-forget 任务仍需继续审计。
 
 验收：后台任务异常可以进入日志或结构化诊断，应用关闭不会遗留接收任务；工作项上传从后台线程调用时不会跨线程修改 UI 绑定对象。
 
@@ -243,7 +243,7 @@ Worker 契约设计：[`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)
 - [x] 已实现显式 Worker 隔离策略：C#、Lua 使用共享 worker，Python 使用每请求独立 worker；高风险脚本可在运行时注册层选择 `Dedicated`。
 - [x] 已评估查询流架构：当前保留分页式 Worker HostCall；reader/chunk 仅在跨 provider 异步契约和性能基准证明分页物化为瓶颈后再引入新协议。
 - [x] 已接线 Worker 心跳与超时：App 为三个 supervisor 显式开启心跳（30s 间隔/15s 超时，默认关闭；仅 `Ready` 且抢到执行门时 ping）；启动/握手超时（默认 10s）→`Failed`+`WORKER_HANDSHAKE_TIMED_OUT`；宿主调用响应超时（默认 30s）→`Failed`+停止进程+`WORKER_HOST_CALL_TIMED_OUT`（视为 worker 故障不重试）；应用退出通过 `StopAllAsync` 优雅停 worker，修复孤儿进程。
-- [~] `ProcessWorkerTransportTests` 的 15 个核心真实进程用例已在 Windows/Linux 共用实现，CI 通过 `DIARY_REQUIRE_PYTHON_TESTS=1` 禁止 Python 测试静默跳过；工作集/输出超限真实进程集成测试及 Windows/Linux 发布包运行时 Smoke Test 仍待完成。macOS 不纳入本阶段验证。
+- [~] `ProcessWorkerTransportTests` 的 15 个核心真实进程用例已在 Windows/Linux 共用实现，CI 通过 `DIARY_REQUIRE_PYTHON_TESTS=1` 禁止 Python 测试静默跳过；真实 Python 进程测试使用独立的 30 秒握手窗口吸收 Windows Runner 冷启动波动，应用默认 10 秒握手策略保持不变；工作集/输出超限真实进程集成测试及 Windows/Linux 发布包运行时 Smoke Test 仍待完成。macOS 不纳入本阶段验证。
 
 验收：脚本 worker 崩溃、协议失步、超时或被强制终止时，主程序和其他语言 worker 继续运行；
 脚本执行历史可以关联 worker ID、请求 ID 和执行 ID；只读宿主调用跨 C#、Lua、Python 使用一致协议。

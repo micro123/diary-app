@@ -93,15 +93,17 @@ public sealed class ProcessWorkerTransportTests
     {
         var runtime = await GetRequiredPythonRuntimeAsync();
 
-        var supervisor = new WorkerSupervisor(new ProcessWorkerTransportFactory(new WorkerProcessOptions(
-            runtime.ExecutablePath!,
-            Diary.Script.Py.PythonWorkerSource.CreateArguments(),
-            AppContext.BaseDirectory,
-            new Dictionary<string, string>
-            {
-                ["PYTHONIOENCODING"] = "utf-8",
-                ["PYTHONUNBUFFERED"] = "1",
-            })));
+        var supervisor = new WorkerSupervisor(
+            new ProcessWorkerTransportFactory(new WorkerProcessOptions(
+                runtime.ExecutablePath!,
+                Diary.Script.Py.PythonWorkerSource.CreateArguments(),
+                AppContext.BaseDirectory,
+                new Dictionary<string, string>
+                {
+                    ["PYTHONIOENCODING"] = "utf-8",
+                    ["PYTHONUNBUFFERED"] = "1",
+                })),
+            handshakeTimeout: TimeSpan.FromSeconds(30));
         try
         {
             await supervisor.StartAsync(new("python", [ScriptApiVersion.V1], ["workItems.query"]));

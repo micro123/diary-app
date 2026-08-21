@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text;
 using Diary.Utils;
 
 namespace Diary.UtilTests;
@@ -32,7 +33,9 @@ public class ProcUtilsTests
                     "v1.0",
                     "powershell.exe");
                 var escapedMarker = marker.Replace("'", "''", StringComparison.Ordinal);
-                arguments = ["-NoProfile", "-NonInteractive", "-Command", $"[IO.File]::WriteAllText('{escapedMarker}', '{content}')"];
+                var script = $"[IO.File]::WriteAllText('{escapedMarker}', '{content}')";
+                var encodedCommand = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
+                arguments = ["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", encodedCommand];
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
