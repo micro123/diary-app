@@ -8,6 +8,8 @@
 
 当前代码尚未实现该服务。本文假定服务部署在受控局域网中，从 GitHub Release 同步源包，在服务本地生成清单和内容缓存，再向 DiaryApp 客户端提供升级数据。
 
+GitHub Release 源端契约已经部分落地：Tag CI 生成三个运行维度及两个按 RID 标识的调试资产，运行包携带目标 RID 的 `Diary.Updater` 自包含单文件；release metadata 的 `debugAssets` 显式记录 `rid`，打包阶段会检查 ZIP 路径、链接、大小、压缩比、PDB、嵌套归档、运行时目录和 Python flavor 内容。同步服务对 metadata、源包和更新快照的消费与校验仍待实现。
+
 ## 2. 目标与范围
 
 ### 2.1 服务目标

@@ -25,6 +25,18 @@
 - 本地 Windows x64 带 Python 打包脚本新增 `--upload-filecodebox` 选项，可将生成的 ZIP 上传到局域网 FileCodeBox，以 3 小时有效期输出取件码；默认不上传，上传失败时保留本地产物。
 - 本地和 Tag CI 打包按 Python 版本及 SHA-256 复用 embeddable runtime 缓存，缓存缺失或校验失败时才重新下载。
 
+## 1.0.0-alpha9 (内部验证版)
+
+日期：2026-08-21
+
+本轮内部验证落实应用更新器和 Release 源资产契约：
+
+- 新增 `Diary.Update` 共享事务库和 `Diary.Updater` 自包含单文件程序，支持计划、路径、RID、文件大小与 SHA-256 校验，以及更新器协议版本和身份探针。
+- 更新事务支持新增、替换、删除、安装清单写入、单行 JSONL 日志、独占锁、失败逆序回滚、异常恢复、Linux 可执行权限恢复和目标更新器交接；文件已提交后应用重启失败不会回滚成功更新。
+- Windows/Linux Tag 和手动发布包携带对应 RID 的独立更新器，并在打包时运行 `--machine-version` 验证协议版本和 RID。
+- release metadata 的 `debugAssets` 增加明确的 `rid`；新增 Release ZIP 门禁，拒绝路径穿越、重复或大小写冲突路径、链接、异常大小或压缩比、PDB、嵌套归档、错误 runtime 集合及 flavor 内容不一致。
+- 本地 Windows Python 打包脚本同步包含并验证独立更新器，移除运行包 PDB，同时继续只保留 `runtimes/win-x64` 和 `runtimes/any`。
+
 ## 1.0.0-alpha8 (内部验证版)
 
 日期：2026-08-21

@@ -62,6 +62,10 @@ jobs:
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
       - name: Generate version string
         id: version
         shell: pwsh
@@ -81,10 +85,27 @@ jobs:
           $archive = 'DiaryAppNG-${{ steps.version.outputs.version }}-' + $rid + '.zip'
           $debugOut = Join-Path 'publish' "$rid-dbg"
           $debugArchive = 'DiaryAppNG-${{ steps.version.outputs.version }}-' + $rid + '-dbg.zip'
+          $updaterOut = Join-Path 'publish' "$rid-updater"
           New-Item -ItemType Directory -Path $out -Force | Out-Null
           dotnet publish Diary.App/Diary.App.csproj --configuration Release --runtime $rid --self-contained true --no-restore --output $out
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $workerExecutable = if ($rid -eq 'win-x64') { 'Diary.Script.Worker.exe' } else { 'Diary.Script.Worker' }
+          $updaterExecutable = if ($rid -eq 'win-x64') { 'Diary.Updater.exe' } else { 'Diary.Updater' }
+          dotnet publish Diary.Updater/Diary.Updater.csproj --configuration Release --runtime $rid --self-contained true --no-restore --output $updaterOut
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $publishedUpdater = Join-Path $updaterOut $updaterExecutable
+          if (-not (Test-Path -LiteralPath $publishedUpdater -PathType Leaf)) {
+            throw "Updater publish output is missing single-file executable: $updaterExecutable"
+          }
+          Copy-Item -LiteralPath $publishedUpdater -Destination (Join-Path $out $updaterExecutable) -Force
+          if ($rid -eq 'linux-x64') {
+            & chmod +x (Join-Path $out $updaterExecutable)
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          $updaterVersion = & (Join-Path $out $updaterExecutable) --machine-version | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $updaterVersion.protocolVersion -ne 1 -or $updaterVersion.rid -ne $rid) {
+            throw "Unexpected updater identity: $($updaterVersion | ConvertTo-Json -Compress)"
+          }
           $nativeRuntimeFiles = if ($rid -eq 'win-x64') {
             @('nng.dll', 'mbedcrypto.dll', 'mbedtls.dll', 'mbedx509.dll')
           } else {
@@ -96,6 +117,7 @@ jobs:
             $workerExecutable,
             'Diary.Script.Worker.deps.json',
             'Diary.Script.Worker.runtimeconfig.json',
+            $updaterExecutable,
             'Microsoft.Diagnostics.NETCore.Client.dll',
             'Diary.RedMine.dll',
             'Diary.RedMine.UI.dll',
@@ -213,10 +235,14 @@ jobs:
             if ($zipExitCode -ne 0) { exit $zipExitCode }
             Assert-RuntimeDirectories $archive $rid
             Assert-NoPdbEntries $archive
+            python Tools/validate-release-package.py --archive $archive --rid $rid --flavor standard
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           } else {
             Compress-Archive -Path (Join-Path $out '*') -DestinationPath $archive -CompressionLevel Optimal
             Assert-RuntimeDirectories $archive $rid
             Assert-NoPdbEntries $archive
+            python Tools/validate-release-package.py --archive $archive --rid $rid --flavor standard
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
           Get-Item $archive, $debugArchive | Format-List Name, Length
       - name: Upload artifact

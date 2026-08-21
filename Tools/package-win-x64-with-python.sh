@@ -60,6 +60,7 @@ verify_publish_output() {
         "Diary.Script.Worker.exe"
         "Diary.Script.Worker.deps.json"
         "Diary.Script.Worker.runtimeconfig.json"
+        "Diary.Updater.exe"
         "Microsoft.Diagnostics.NETCore.Client.dll"
         "Diary.RedMine.dll"
         "Diary.RedMine.UI.dll"
@@ -282,7 +283,7 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 
-for command_name in dotnet git curl sha256sum unzip zip mktemp; do
+for command_name in dotnet git curl sha256sum unzip zip mktemp python3; do
     require_command "$command_name"
 done
 
@@ -301,10 +302,11 @@ python_uri="https://www.python.org/ftp/python/${PYTHON_VERSION}/${python_archive
 
 temporary_directory=$(mktemp -d -t diaryapp-win-package.XXXXXX)
 publish_directory="$temporary_directory/publish"
+updater_publish_directory="$temporary_directory/updater"
 python_archive=""
 temporary_archive="$temporary_directory/$archive_name"
 
-mkdir -p -- "$publish_directory" "$output_directory"
+mkdir -p -- "$publish_directory" "$updater_publish_directory" "$output_directory"
 
 printf '正在还原 %s 依赖……\n' "$RID"
 dotnet restore "$repository_root/DiaryApp.sln" --runtime "$RID"
@@ -316,6 +318,17 @@ dotnet publish "$repository_root/Diary.App/Diary.App.csproj" \
     --self-contained true \
     --no-restore \
     --output "$publish_directory"
+
+printf '正在发布 %s 自包含单文件更新器……\n' "$RID"
+dotnet publish "$repository_root/Diary.Updater/Diary.Updater.csproj" \
+    --configuration "$CONFIGURATION" \
+    --runtime "$RID" \
+    --self-contained true \
+    --no-restore \
+    --output "$updater_publish_directory"
+cp -- "$updater_publish_directory/Diary.Updater.exe" "$publish_directory/Diary.Updater.exe"
+
+find "$publish_directory" -type f -iname '*.pdb' -delete
 
 verify_publish_output "$publish_directory"
 remove_unrelated_runtime_assets "$publish_directory" "$RID"
@@ -344,11 +357,16 @@ unzip -tq "$temporary_archive" >/dev/null
 verify_archive_entry "$temporary_archive" "Diary.App.dll"
 verify_archive_entry "$temporary_archive" "Diary.App.exe"
 verify_archive_entry "$temporary_archive" "Diary.Script.Worker.exe"
+verify_archive_entry "$temporary_archive" "Diary.Updater.exe"
 verify_archive_entry "$temporary_archive" "nng.dll"
 verify_archive_entry "$temporary_archive" "nng.NET.dll"
 verify_archive_entry "$temporary_archive" "python/python.exe"
 verify_archive_entry "$temporary_archive" "python/python${PYTHON_SERIES}.dll"
 verify_archive_runtime_directories "$temporary_archive" "$RID"
+python3 "$repository_root/Tools/validate-release-package.py" \
+    --archive "$temporary_archive" \
+    --rid "$RID" \
+    --flavor python313
 
 mv -f -- "$temporary_archive" "$archive_path"
 
