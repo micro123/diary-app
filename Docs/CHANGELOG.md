@@ -25,6 +25,13 @@
 - 本地 Windows x64 带 Python 打包脚本新增 `--upload-filecodebox` 选项，可将生成的 ZIP 上传到局域网 FileCodeBox，以 3 小时有效期输出取件码；默认不上传，上传失败时保留本地产物。
 - 本地和 Tag CI 打包按 Python 版本及 SHA-256 复用 embeddable runtime 缓存，缓存缺失或校验失败时才重新下载。
 
+## 1.0.0-alpha10 (内部验证版)
+
+日期：2026-08-21
+
+- 延续 Alpha9 的独立事务更新器、更新器交接、回滚恢复、Release metadata RID 和 ZIP 安全门禁变更。
+- 修复 Release ZIP 校验器在 Windows GitHub Runner 默认代码页下输出中文结果时触发编码异常，统一将标准输出和错误输出配置为 UTF-8；Alpha9 因该问题在 Windows 打包阶段停止，未创建 GitHub Release。
+
 ## 1.0.0-alpha9 (内部验证版)
 
 日期：2026-08-21

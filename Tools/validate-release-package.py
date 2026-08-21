@@ -16,6 +16,13 @@ MAX_TOTAL_SIZE = 4 * 1024 * 1024 * 1024
 MAX_COMPRESSION_RATIO = 1000
 
 
+def configure_standard_streams() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="backslashreplace")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="校验 DiaryApp Release ZIP 的安全性和发布契约。")
     parser.add_argument("--archive", required=True)
@@ -142,6 +149,7 @@ def validate() -> None:
 
 
 if __name__ == "__main__":
+    configure_standard_streams()
     try:
         validate()
     except (OSError, ValueError, zipfile.BadZipFile) as exception:
