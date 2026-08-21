@@ -47,9 +47,10 @@
                        TextWrapping="Wrap" IsVisible="{Binding HasError}" />
         </Grid>
 
-        <Grid Grid.Row="2" RowDefinitions="Auto,*" MaxHeight="180" IsVisible="{Binding HasDiagnostics}">
-            <TextBlock Text="编译诊断" FontWeight="SemiBold" />
-            <ScrollViewer Grid.Row="1">
+        <Grid Grid.Row="2" RowDefinitions="Auto,Auto,*" MaxHeight="180" IsVisible="{Binding HasDiagnostics}">
+            <TextBlock Text="{Binding Status}" Opacity="0.68" />
+            <TextBlock Grid.Row="1" Text="编译诊断" FontWeight="SemiBold" />
+            <ScrollViewer Grid.Row="2">
                 <ItemsControl ItemsSource="{Binding Diagnostics}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>

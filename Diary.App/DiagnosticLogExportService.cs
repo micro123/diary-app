@@ -46,7 +46,16 @@ public sealed class DiagnosticLogExportService
 
         using var archive = ZipFile.Open(exportPath, ZipArchiveMode.Create);
         foreach (var file in files)
-            archive.CreateEntryFromFile(file, Path.GetFileName(file), CompressionLevel.Fastest);
+        {
+            var entry = archive.CreateEntry(Path.GetFileName(file), CompressionLevel.Fastest);
+            using var source = new FileStream(
+                file,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            using var target = entry.Open();
+            source.CopyTo(target);
+        }
         return exportPath;
     }
 }

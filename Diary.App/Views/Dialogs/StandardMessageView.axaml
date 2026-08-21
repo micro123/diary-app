@@ -11,7 +11,8 @@
     <Design.DataContext>
         <dialogs1:StandardMessageViewModel />
     </Design.DataContext>
-    <TextBox Text="{Binding Body}" IsReadOnly="True"
+    <TextBox Text="{Binding Body}" IsReadOnly="True" TextWrapping="Wrap"
              HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Left"
-             VerticalContentAlignment="Top" Classes="TextArea Bordered"/>
+             VerticalContentAlignment="Top" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+             ScrollViewer.VerticalScrollBarVisibility="Auto" Classes="TextArea Bordered"/>
 </UserControl>
