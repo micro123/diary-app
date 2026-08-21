@@ -7,6 +7,8 @@ public static class UpdateJson
 {
     public static JsonSerializerOptions Options { get; } = CreateOptions();
     public static JsonSerializerOptions CompactOptions { get; } = CreateOptions(writeIndented: false);
+    public static UpdateJsonContext Context { get; } = new(Options);
+    public static UpdateJsonContext CompactContext { get; } = new(CompactOptions);
 
     private static JsonSerializerOptions CreateOptions(bool writeIndented = true)
     {
@@ -18,7 +20,9 @@ public static class UpdateJson
             UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
             WriteIndented = writeIndented,
         };
-        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+        options.Converters.Add(new JsonStringEnumConverter<UpdateFileOperationKind>(JsonNamingPolicy.CamelCase));
+        options.Converters.Add(new JsonStringEnumConverter<UpdateTransactionState>(JsonNamingPolicy.CamelCase));
+        options.Converters.Add(new JsonStringEnumConverter<UpdateJournalPhase>(JsonNamingPolicy.CamelCase));
         return options;
     }
 }

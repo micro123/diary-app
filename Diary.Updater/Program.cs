@@ -13,7 +13,7 @@ internal static class UpdaterProgram
             {
                 Console.Write(JsonSerializer.Serialize(
                     new UpdateMachineVersion(UpdateProtocol.UpdaterProtocolVersion, UpdateProtocol.CurrentRid),
-                    UpdateJson.Options));
+                    UpdateJson.CompactContext.UpdateMachineVersion));
                 return 0;
             }
 

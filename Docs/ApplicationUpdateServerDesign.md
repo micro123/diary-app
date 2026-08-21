@@ -8,7 +8,7 @@
 
 当前 `UpdateServer/` 已实现第一版 Python 服务，使用 Python 3.11+ 标准库从 GitHub Release 同步源包，在服务本地生成清单、完整包快照和内容缓存，并向 DiaryApp 客户端提供升级数据。本文仍保留完整目标需求；未实现的管理 API、持久化事务数据库、下载租约、限流、指标和断点续传属于后续增强，不能把目标设计中的全部条目理解为第一版已经完成。
 
-GitHub Release 源端契约和第一版消费链路均已落地：Tag CI 生成三个运行维度及两个按 RID 标识的调试资产，运行包携带目标 RID 的 `Diary.Updater` 自包含单文件；release metadata 的 `debugAssets` 显式记录 `rid`，打包阶段和同步服务都会检查 ZIP 路径、链接、大小、压缩比、PDB、嵌套归档、运行时目录和 Python flavor 内容。同步服务还会校验 metadata 身份、完整发布矩阵、资产大小/SHA-256，并只在完整包、manifest 和 Blob 全部就绪后切换 latest。
+GitHub Release 源端契约和第一版消费链路均已落地：Tag CI 生成三个运行维度及两个按 RID 标识的调试资产，运行包携带目标 RID 的裁剪后 `Diary.Updater` 自包含单文件 CLI；release metadata 的 `debugAssets` 显式记录 `rid`，打包阶段和同步服务都会检查 ZIP 路径、链接、大小、压缩比、PDB、嵌套归档、运行时目录和 Python flavor 内容。同步服务还会校验 metadata 身份、完整发布矩阵、资产大小/SHA-256，并只在完整包、manifest 和 Blob 全部就绪后切换 latest。
 
 ### 1.1 第一版实现范围
 
@@ -173,7 +173,7 @@ DiaryAppNG-<TAG>-linux-x64-dbg.zip
 运行包要求：
 
 - Windows 和 Linux 应用包均为自包含包；
-- 每个应用包都包含目标 RID 的 `Diary.Updater` 自包含单文件；
+- 每个应用包都包含目标 RID 的裁剪后 `Diary.Updater` 自包含单文件 CLI；
 - 普通运行包不包含 PDB；
 - Windows Python 包只用于 `win-x64/python313`；
 - 包内不能包含指向外部路径的符号链接、重解析点或硬链接；

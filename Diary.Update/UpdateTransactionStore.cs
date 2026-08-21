@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace Diary.Update;
 
@@ -43,7 +44,10 @@ public sealed class UpdateTransactionStore(ValidatedUpdatePlan validatedPlan)
             FileShare.Read,
             16 * 1024,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
-        var status = await JsonSerializer.DeserializeAsync<UpdateTransactionStatus>(stream, UpdateJson.Options, cancellationToken)
+        var status = await JsonSerializer.DeserializeAsync(
+                stream,
+                UpdateJson.Context.UpdateTransactionStatus,
+                cancellationToken)
             ?? throw new InvalidDataException("更新事务状态文件为空。");
         if (!string.Equals(status.TransactionId, validatedPlan.Plan.TransactionId, StringComparison.Ordinal)
             || !string.Equals(
@@ -68,6 +72,7 @@ public sealed class UpdateTransactionStore(ValidatedUpdatePlan validatedPlan)
                 UpdatedAt = DateTimeOffset.UtcNow,
                 Message = message,
             },
+            UpdateJson.Context.UpdateTransactionStatus,
             cancellationToken);
 
     public async ValueTask AppendJournalAsync(
@@ -75,7 +80,7 @@ public sealed class UpdateTransactionStore(ValidatedUpdatePlan validatedPlan)
         CancellationToken cancellationToken = default)
     {
         Directory.CreateDirectory(validatedPlan.TransactionDirectory);
-        var line = JsonSerializer.Serialize(entry, UpdateJson.CompactOptions) + "\n";
+        var line = JsonSerializer.Serialize(entry, UpdateJson.CompactContext.UpdateJournalEntry) + "\n";
         var bytes = Encoding.UTF8.GetBytes(line);
         await using var stream = new FileStream(
             _journalPath,
@@ -106,7 +111,7 @@ public sealed class UpdateTransactionStore(ValidatedUpdatePlan validatedPlan)
         {
             if (string.IsNullOrWhiteSpace(line))
                 continue;
-            entries.Add(JsonSerializer.Deserialize<UpdateJournalEntry>(line, UpdateJson.Options)
+            entries.Add(JsonSerializer.Deserialize(line, UpdateJson.Context.UpdateJournalEntry)
                 ?? throw new InvalidDataException("更新事务日志包含空记录。"));
         }
         return entries;
@@ -130,7 +135,10 @@ public sealed class UpdateTransactionStore(ValidatedUpdatePlan validatedPlan)
             FileShare.Read,
             64 * 1024,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
-        return await JsonSerializer.DeserializeAsync<UpdateTransactionPlan>(stream, UpdateJson.Options, cancellationToken)
+        return await JsonSerializer.DeserializeAsync(
+                stream,
+                UpdateJson.Context.UpdateTransactionPlan,
+                cancellationToken)
             ?? throw new InvalidDataException("更新事务计划为空。");
     }
 
@@ -138,11 +146,12 @@ public sealed class UpdateTransactionStore(ValidatedUpdatePlan validatedPlan)
         string planPath,
         UpdateTransactionPlan plan,
         CancellationToken cancellationToken = default) =>
-        WriteAtomicJsonAsync(planPath, plan, cancellationToken);
+        WriteAtomicJsonAsync(planPath, plan, UpdateJson.Context.UpdateTransactionPlan, cancellationToken);
 
     private static async ValueTask WriteAtomicJsonAsync<T>(
         string path,
         T value,
+        JsonTypeInfo<T> typeInfo,
         CancellationToken cancellationToken)
     {
         var directory = Path.GetDirectoryName(path)
@@ -159,7 +168,7 @@ public sealed class UpdateTransactionStore(ValidatedUpdatePlan validatedPlan)
                 64 * 1024,
                 FileOptions.Asynchronous | FileOptions.WriteThrough))
             {
-                await JsonSerializer.SerializeAsync(stream, value, UpdateJson.Options, cancellationToken);
+                await JsonSerializer.SerializeAsync(stream, value, typeInfo, cancellationToken);
                 await stream.FlushAsync(cancellationToken);
             }
             File.Move(temporaryPath, path, overwrite: true);

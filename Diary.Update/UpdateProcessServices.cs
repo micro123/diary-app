@@ -71,7 +71,7 @@ public static class UpdateProcessServices
         }
         if (process.ExitCode != 0)
             throw new InvalidOperationException($"目标更新器版本探针失败：{await stderr}");
-        return JsonSerializer.Deserialize<UpdateMachineVersion>(await stdout, UpdateJson.Options)
+        return JsonSerializer.Deserialize(await stdout, UpdateJson.Context.UpdateMachineVersion)
             ?? throw new InvalidDataException("目标更新器版本探针没有返回有效 JSON。");
     }
 

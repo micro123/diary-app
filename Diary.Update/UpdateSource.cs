@@ -69,9 +69,9 @@ public sealed class HttpUpdateSource(HttpClient httpClient) : IUpdateSource
             try
             {
                 await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-                return await JsonSerializer.DeserializeAsync<UpdateManifestEnvelope>(
+                return await JsonSerializer.DeserializeAsync(
                            stream,
-                           UpdateJson.CompactOptions,
+                           UpdateJson.CompactContext.UpdateManifestEnvelope,
                            cancellationToken)
                        ?? throw new InvalidDataException("更新服务器返回空响应。");
             }
