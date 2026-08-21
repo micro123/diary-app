@@ -61,25 +61,37 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private bool IsSurveyorEnabled => App.Instance.AppConfig.SurveySettings.IsServerEnabled;
 
     [RelayCommand]
-    private void NewWorkItem()
+    private void NewWorkItem() => TryCreateNewWorkItem();
+
+    private bool TryCreateNewWorkItem()
     {
+        if (!PrepareSelectedWorkForReplacement())
+            return false;
+
         _creating = true;
-        SelectedWork = null; // hack: clear selection
-        SelectedWork = new WorkEditorViewModel(_serviceProvider.GetRequiredService<DbShareData>())
+        try
         {
-            Date = CurrentDateString,
-        };
-        SelectedWork.SetRecentTagIds(GetRecentTagIds());
-        ConfigureEditorScriptActions(SelectedWork);
-        _creating = false;
-        SelectedWork.SyncAll();
+            SelectedWork = null;
+            var newWork = new WorkEditorViewModel(_serviceProvider.GetRequiredService<DbShareData>())
+            {
+                Date = CurrentDateString,
+            };
+            newWork.SetRecentTagIds(GetRecentTagIds());
+            ConfigureEditorScriptActions(newWork);
+            SelectedWork = newWork;
+            newWork.SyncAll();
+            return true;
+        }
+        finally
+        {
+            _creating = false;
+        }
     }
 
     [RelayCommand]
     private void NewWithTemplate(Template template)
     {
-        NewWorkItem();
-        if (SelectedWork is null)
+        if (!TryCreateNewWorkItem() || SelectedWork is null)
             return;
         // apply template
         if (!string.IsNullOrWhiteSpace(template.DefaultTitle))
@@ -94,32 +106,56 @@ public partial class DiaryEditorViewModel : ViewModelBase
     }
 
     [RelayCommand(CanExecute = nameof(CanSave))]
-    private void SaveWorkItem()
+    private void SaveWorkItem() => TrySaveWorkItem();
+
+    private bool TrySaveWorkItem()
     {
-        var newDate = SelectedWork!.IsDateChanged;
-        SelectedWork.Save(out var created);
-        ConfigureEditorScriptActions(SelectedWork);
-        RememberRecentPrimaryTags(SelectedWork.WorkTags);
-        if (created)
+        var selected = SelectedWork;
+        if (selected is null)
+            return true;
+
+        var newDate = selected.IsDateChanged;
+        if (!selected.Save(out var created))
+            return false;
+
+        ConfigureEditorScriptActions(selected);
+        RememberRecentPrimaryTags(selected.WorkTags);
+        if (created && CurrentDateString == selected.Date)
         {
-            if (CurrentDateString == SelectedWork.Date)
-            {
-                // 新创建的事项在其他的日期，需要切换
-                DailyWorks.Add(SelectedWork);
-            }
+            DailyWorks.Add(selected);
         }
 
         if (newDate || created)
         {
-            var date = SelectedWork.Date;
-            var id = SelectedWork.WorkId;
-            GoDate(TimeTools.FromFormatedDate(date)); // 这里会修改选中的对象
+            var date = selected.Date;
+            var id = selected.WorkId;
+            GoDate(TimeTools.FromFormatedDate(date));
             SelectWorkById(id);
         }
         SortDailyWorks();
 
         UpdateTimeInfos();
         DuplicateWorkItemCommand.NotifyCanExecuteChanged();
+        return true;
+    }
+
+    private bool PrepareSelectedWorkForReplacement()
+    {
+        if (SelectedWork is not { } selected)
+            return true;
+        if (selected.ShouldPersistBeforeReplacement)
+            return TrySaveWorkItem();
+
+        _creating = true;
+        try
+        {
+            SelectedWork = null;
+            return true;
+        }
+        finally
+        {
+            _creating = false;
+        }
     }
 
     private void SelectWorkById(int id)
@@ -152,6 +188,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private async Task CopyPreviousDay()
     {
         if (App.Instance.UseDb is not { } db)
+            return;
+        if (!PrepareSelectedWorkForReplacement())
             return;
 
         var previousDate = TimeTools.FormatDateTime(CurrentDate.AddDays(-1));
@@ -188,6 +226,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private async Task CopyRecentWorkItem()
     {
         if (App.Instance.UseDb is not { } db)
+            return;
+        if (!PrepareSelectedWorkForReplacement())
             return;
 
         var endDate = CurrentDate.Date.AddDays(-1);
@@ -228,6 +268,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private async Task CopyWholeDay()
     {
         if (App.Instance.UseDb is not { } db)
+            return;
+        if (!PrepareSelectedWorkForReplacement())
             return;
 
         var selection = await OverlayDialog.ShowCustomModal<CopyDaySelection>(

@@ -80,6 +80,45 @@ public sealed class WorkEditorViewModelTests
     }
 
     [TestMethod]
+    public void PristineNewItemDoesNotNeedPersistenceBeforeReplacement()
+    {
+        var viewModel = CreateViewModel();
+
+        Assert.IsFalse(viewModel.ShouldPersistBeforeReplacement);
+    }
+
+    [TestMethod]
+    public void EditedNewItemNeedsPersistenceBeforeReplacement()
+    {
+        var title = CreateViewModel();
+        title.Comment = "新建后输入标题";
+        var note = CreateViewModel();
+        note.Note = "备注";
+        var time = CreateViewModel();
+        time.Time = 0.25;
+        var priority = CreateViewModel();
+        priority.Priority = WorkPriorities.P1;
+
+        Assert.IsTrue(title.ShouldPersistBeforeReplacement);
+        Assert.IsTrue(note.ShouldPersistBeforeReplacement);
+        Assert.IsTrue(time.ShouldPersistBeforeReplacement);
+        Assert.IsTrue(priority.ShouldPersistBeforeReplacement);
+    }
+
+    [TestMethod]
+    public void ExistingItemNeedsPersistenceBeforeReplacement()
+    {
+        var viewModel = CreateViewModel();
+        SetWorkItem(viewModel, new WorkItem
+        {
+            Id = 7,
+            CreateDate = "2026-08-21",
+            Comment = string.Empty,
+        });
+
+        Assert.IsTrue(viewModel.ShouldPersistBeforeReplacement);
+    }
+    [TestMethod]
     public void TrackerUploadResultIncludesRecoveryDetails()
     {
         var attemptedAt = new DateTimeOffset(2026, 8, 11, 14, 0, 0, TimeSpan.FromHours(8));
@@ -96,6 +135,14 @@ public sealed class WorkEditorViewModelTests
         StringAssert.Contains(result.ResultSummary, $"尝试时间：{expectedAttemptedAt}");
     }
 
+    private static WorkEditorViewModel CreateViewModel()
+        => new(
+            new DbShareData(NullLogger<DbShareData>.Instance),
+            new NoopPersistenceCoordinator(),
+            new RecordingUploadCoordinator(),
+            new TrackerUiContributionRegistry(),
+            string.Empty,
+            new NoopTagAutomationCoordinator());
     private static void SetWorkItem(WorkEditorViewModel viewModel, WorkItem item)
     {
         var property = typeof(WorkEditorViewModel).GetProperty(

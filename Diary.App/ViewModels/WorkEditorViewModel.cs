@@ -230,6 +230,14 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     public bool IsNewItem => WorkItem is null;
 
+    public bool ShouldPersistBeforeReplacement => !IsNewItem
+        || !string.IsNullOrWhiteSpace(Comment)
+        || !string.IsNullOrWhiteSpace(Note)
+        || Time != 0
+        || Priority != WorkPriorities.P0
+        || WorkTags.Count != 0
+        || _extraFieldValues.Any(value => !string.IsNullOrWhiteSpace(value.Value));
+
     // public int WorkId => WorkItem?.Id ?? 0;
     [ObservableProperty] private int _workId;
 
@@ -240,7 +248,7 @@ public partial class WorkEditorViewModel : ViewModelBase
             EditorScriptActions.Add(action);
     }
 
-    public void Save(out bool created)
+    public bool Save(out bool created)
     {
         var db = Db!;
         var result = _persistence.Save(db, new WorkItemSaveRequest(
@@ -250,7 +258,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         if (!result.Success || result.WorkItem is null)
         {
             EventDispatcher.ShowToast(result.Error ?? "保存失败了！");
-            return;
+            return false;
         }
 
         WorkItem = result.WorkItem;
@@ -267,6 +275,7 @@ public partial class WorkEditorViewModel : ViewModelBase
             TriggerScriptAutomation(ScriptAutomationTriggerKind.WorkItemSaved, WorkItem);
         }
         NotifyStatusChanged();
+        return true;
     }
 
     private void TriggerScriptAutomation(
