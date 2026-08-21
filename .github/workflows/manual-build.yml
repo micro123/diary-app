@@ -33,7 +33,7 @@ jobs:
         with:
           python-version: '3.10'
       - name: Restore packages
-        run: dotnet restore DiaryApp.sln
+        run: dotnet restore DiaryApp.sln -p:Configuration=Release
       - name: Release build
         run: dotnet build DiaryApp.sln --configuration Release --no-restore
       - name: Run all tests
@@ -76,7 +76,7 @@ jobs:
           $version = "r$commitCount-$shortHash-$suffix"
           "version=$version" >> $env:GITHUB_OUTPUT
       - name: Restore solution for ${{ matrix.rid }}
-        run: dotnet restore DiaryApp.sln --runtime ${{ matrix.rid }}
+        run: dotnet restore DiaryApp.sln --runtime ${{ matrix.rid }} -p:Configuration=Release
       - name: Publish ${{ matrix.rid }}
         shell: pwsh
         run: |

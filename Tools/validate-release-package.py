@@ -108,6 +108,15 @@ def validate() -> None:
     pdb_entries = sorted(name for name in names if name.casefold().endswith(".pdb"))
     if pdb_entries:
         fail(f"运行包包含 PDB：{pdb_entries[0]}")
+    debug_ui_entries = sorted(
+        name
+        for name in names
+        if PurePosixPath(name).name.casefold().startswith(
+            ("avalonia.diagnostics", "cdp.integration.", "chrome.devtools.", "xaml.compiler")
+        )
+    )
+    if debug_ui_entries:
+        fail(f"运行包包含 Debug UI 自动化组件：{debug_ui_entries[0]}")
     if ".update/installed-manifest.json" in name_set:
         fail("源 ZIP 不能包含 .update/installed-manifest.json。")
     nested_archives = sorted(
