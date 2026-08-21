@@ -176,7 +176,7 @@ stop
 
 核心模式可通过 `Diary.App --core-only` 启动，不加载任何 tracker 插件或插件 UI，适合验证无 Redmine 程序集时的核心日记、编辑器和模板功能。该选项只影响当前进程，不修改插件配置和数据库数据。
 
-Debug 构建还提供显式启用的本地 UI 自动化入口：设置 `DIARY_CDP_PORT` 后由 `DebugUiAutomation` 在主窗口创建完成时启动 Avalonia CDP；设置 `DIARY_UI_TEST_ROOT` 时，`FsTools` 会在任何应用目录初始化前把配置、数据和临时目录切换到独立 profile，并按 profile 路径生成独立单实例 ID。相关包引用、启动和停止代码均受 Debug 条件限制，Release 构建不携带该调试入口。测试生命周期、覆盖范围和性能基线见 [`UiAutomationTesting.md`](UiAutomationTesting.md)。
+Debug 构建还提供显式启用的本地 UI 自动化入口：设置 `DIARY_CDP_PORT` 后由 `DebugUiAutomation` 在主窗口创建完成时启动 Avalonia CDP；设置 `DIARY_UI_TEST_ROOT` 时，`FsTools` 会在任何应用目录初始化前把配置、数据、日志和临时目录切换到独立 profile，并按 profile 路径生成独立单实例 ID。`DIARY_UI_TEST_SCENARIO` 支持 `default`、`extended`、`survey`、`database-error` 和 `plugins` 五种隔离场景，只在测试 profile 中预置开发者、调查或数据库异常配置；`Tools/ui-full-test.ps1` 按场景编排 8 个 UI 套件，外部 Redmine 配置仅从加密 seed profile 复制。相关包引用、启动和停止代码均受 Debug 条件限制，Release 构建不携带该调试入口。测试生命周期和性能基线见 [`UiAutomationTesting.md`](UiAutomationTesting.md)，功能级状态见 [`UiAutomationCoverage.md`](UiAutomationCoverage.md)。
 主窗口左上角应用图标菜单提供“重启程序”。命令先标记重启请求并复用正常退出流程，等待 `PreShutdownAsync` 停止调查服务、脚本 Worker、保存配置并释放 DI；`Program.Main` 在 Avalonia 生命周期返回且 `SingletonApp` 释放文件锁和命名管道后，才以原可执行文件和命令行参数启动新实例，避免新实例被单实例守卫拦截。框架依赖方式通过 `dotnet Diary.App.dll` 启动时会保留托管入口程序集参数。
 
 应用初始化阶段会立即启动脚本目录的后台异步加载。目录发现、元数据读取和脚本构建在后台任务中执行；脚本管理页首次显示时复用正在进行的加载任务或已完成结果，只有手动重新加载、脚本编辑保存或编译检查才会强制重新扫描。

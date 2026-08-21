@@ -1,0 +1,164 @@
+# DiaryApp UI 自动化覆盖矩阵
+
+## 1. 范围与状态
+
+本矩阵以 2026-08-21 的 [`UiFeatureInventory.md`](UiFeatureInventory.md) 为功能基准，记录 Windows UI 自动化、单元/集成验证和必须保留的人工边界。它描述的是可重复验证证据，不表示每个页面的每条异常分支都已通过 UI 自动化穷举。
+
+状态统一为：
+
+| 状态 | 含义 |
+| --- | --- |
+| `Automated` | 通过 CDP 执行真实交互，并验证可见状态、持久化结果或远程结果 |
+| `Automated-ReadOnly` | 自动读取页面结构、字段、状态或明细，不执行该功能的主要写入副作用 |
+| `Unit/Integration` | 主要由 ViewModel、服务、数据库契约、真实进程或构建集成测试验证 |
+| `Manual-Native` | 依赖 Windows 原生托盘、文件/目录选择器、窗口管理或真实灾备环境 |
+| `Blocked-External` | 缺少可纳入当前门禁的外部服务、权限或版本矩阵 |
+| `Not-Implemented` | 功能清单明确记录为尚未实现 |
+
+最近全量证据为 `ui-full-test-2026-08-21T17-34-10-152Z.json`：8/8 套件、64/64 结构化步骤通过，另有 smoke 断言集通过。运行方法和性能数据见 [`UiAutomationTesting.md`](UiAutomationTesting.md)。
+
+## 2. 套件到功能映射
+
+| 套件 | 步骤 | 功能域 |
+| --- | ---: | --- |
+| `ui-settings-full` | 9 | 引导、程序设置、数据库/迁移入口、日志导出、更新 |
+| `ui-smoke` | 断言集 | 标签、模板、主题、草稿保存和模板替换 |
+| `ui-core-full` | 14 | 主外壳、日记、查询、统计、快捷键 |
+| `ui-extended-full` | 9 | 脚本管理、创建、运行、历史、日志和删除 |
+| `ui-script-editor` | 4 | 独立脚本编辑器和编译检查 |
+| `ui-database-error` | 8 | 数据库异常和恢复入口 |
+| `ui-survey-full` | 8 | Survey v1/v2、能力、分组、明细和错误 |
+| `ui-redmine-full` | 12 | 多 Tracker、Redmine 管理、标签规则、工时和安全 |
+
+## 3. 功能级覆盖
+
+### 3.1 主窗口、导航和全局外壳
+
+| 清单 | 功能 | 状态 | 证据或边界 |
+| --- | --- | --- | --- |
+| 2.1 | 固定页、动态 Tracker 页、导航折叠、`Alt+1..9` | `Automated` | core 验证页面切换、折叠和数字快捷键；Redmine 验证动态导航 |
+| 2.2 | 应用菜单、关于、版本、主题 | `Automated` | core 验证菜单和关于；smoke 验证主题截图差异；复制版本明细仅结构检查 |
+| 2.2 | 最大化、最小化、重启、退出 | `Manual-Native` | 涉及原生窗口/进程生命周期，未纳入连续套件 |
+| 2.3 | 托盘显示、恢复和退出 | `Manual-Native` | Avalonia CDP 不控制系统托盘 |
+| 2.4 | 状态栏日期、机器、用户和入口 | `Automated-ReadOnly` | core 读取状态栏结构和版本；不打开外部浏览器 |
+| 2.4 | 后台任务进度预览 | `Not-Implemented` | 当前只有状态占位和入口 |
+| 2.5 | 首次引导、关闭、从设置重新打开 | `Automated` | settings 覆盖启动引导和设置内重开 |
+
+### 3.2 日记记录和工作项编辑
+
+| 清单 | 功能 | 状态 | 证据或边界 |
+| --- | --- | --- | --- |
+| 3.1 | 数据库异常提示、重试、设置和诊断导出 | `Automated` | database-error 8 步覆盖日记、查询、统计和导出 |
+| 3.2 | 新建、使用今天、草稿跨导航保存 | `Automated` | smoke 验证日期修正、本地保存和跨导航保留 |
+| 3.2 | `新建 -> 修改 -> 新建` | `Automated` | smoke 验证第一条有内容草稿自动持久化 |
+| 3.2 | 复制昨天/最近入口、复制整天对话框 | `Automated` | core 验证三入口和复制整天安全取消 |
+| 3.2 | 复制内容、标签、附加字段和远程绑定排除语义 | `Unit/Integration` | 数据复制和编辑状态收敛由服务/ViewModel 回归承担；当前全量 UI 不制造跨日数据集 |
+| 3.3 | 日历上下文菜单和日期/周/月/季度/年动作 | `Unit/Integration` | 命令路由和脚本目标由 ViewModel/脚本测试验证，未逐项 UI 点击 |
+| 3.4 | 当日汇总、事项列表、优先级排序 | `Automated-ReadOnly` | smoke/core 读取列表和保存状态；排序语义由单元/集成测试承担 |
+| 3.5 | 标题、日期、工时、优先级、备注等通用字段 | `Automated` | smoke 覆盖标题、日期、模板工时和保存；完整格式组合由单元测试承担 |
+| 3.6 | 标签创建、选择、模板应用和最近标签 | `Automated` | smoke 创建标签并验证模板应用；Redmine 验证标签默认值 |
+| 3.7 | 9 类附加字段编辑器、空值、格式和只读 | `Unit/Integration` | 类型映射与转换已有定向测试；尚无逐控件 CDP 矩阵 |
+| 3.8 | Tracker 编辑区和同步状态 | `Automated` | Redmine 覆盖默认填充、同步、锁定和防重复；Jira 另列外部边界 |
+| 3.9 | 新建、保存、重复、删除取消和同步快捷键 | `Automated` | core 覆盖 `Ctrl+N/S/D/Shift+D`；Redmine 覆盖按钮和 `Ctrl+U` 防重复 |
+| 3.10 | 已同步事项锁定、本地删除警告和取消 | `Automated` | Redmine 验证有效禁用状态和仅影响本地警告 |
+| 3.11 | 标签自动化填充 Tracker Issue/活动 | `Automated` | Redmine 创建规则并验证新事项默认值 |
+
+### 3.3 查询和统计
+
+| 清单 | 功能 | 状态 | 证据或边界 |
+| --- | --- | --- | --- |
+| 4.1 | 查询条件、执行和条件折叠 | `Automated` | core 执行查询并等待结果 |
+| 4.2 | 结果列表、打开事项、摘要 | `Automated` | core 从结果打开日记事项；摘要结构可见 |
+| 4.2 | CSV/Markdown 导出和系统剪贴板 | `Manual-Native` | 依赖文件选择器/系统剪贴板；数据生成由单元测试承担 |
+| 4.3 | 保存、重命名、应用、删除取消 | `Automated` | core 覆盖保存查询完整维护链 |
+| 5.1 | 周/月/季度/年/自定义 Tab | `Automated-ReadOnly` | core 验证 Tab 和自定义范围激活 |
+| 5.2 | 范围计算和重新统计 | `Automated` | core 触发刷新并等待总工时结果；精确计算由数据库契约测试承担 |
+| 5.3 | 工时分布、标签明细和树操作 | `Automated-ReadOnly` | core 验证结构、展开和刷新，不穷举所有数值组合 |
+
+### 3.4 调查工具
+
+| 清单 | 功能 | 状态 | 证据或边界 |
+| --- | --- | --- | --- |
+| 6.1 | 条件可见、页面结构和本机节点 | `Automated` | survey 场景自动开启调查者/受访节点 |
+| 6.2 | v1 兼容查询 | `Automated` | 本机回环查询并等待结果 |
+| 6.2 | v2 关键词、标签、标签模式、优先级和明细开关 | `Automated` | 验证控件和明细状态 |
+| 6.3 | 能力发现、能力详情 | `Automated` | 验证新版节点能力和详情对话框 |
+| 6.3 | 标签/日期/优先级分组 | `Automated` | 三种分组均执行真实本机查询 |
+| 6.3 | 无效日期范围和节点错误状态 | `Automated` | 验证校验错误；多远程节点部分失败由协议集成测试承担 |
+
+### 3.5 脚本管理和编辑器
+
+| 清单 | 功能 | 状态 | 证据或边界 |
+| --- | --- | --- | --- |
+| 7.1–7.3 | 工作台、列表、详情、搜索、筛选和重载 | `Automated` | extended 覆盖导航、结构和刷新 |
+| 7.4 | 执行历史、运行日志和 API Reference | `Automated` | extended 打开并验证内容 |
+| 7.5 | C#/Lua/Python 新建脚本 | `Automated` | extended 创建三种脚本 |
+| 7.6 | 手动运行和 Preview | `Automated` | extended 运行 C# Preview 并验证结果 |
+| 7.7 | 独立编辑器、代码区和编译检查 | `Automated` | script-editor 验证成功状态与诊断区共存 |
+| 7.7 | 补全、悬停、重构和外部 LSP | `Unit/Integration` | 语言服务有定向测试；部分能力仍在 TODO |
+| 7.8 | `.diaryscripts` 导入/导出 | `Manual-Native` | 依赖文件选择器；包安全和回滚由集成测试验证 |
+| 7.8 / TODO 9.3 | XLSX/CSV/DOCX/Mustache 交互式导出 | `Unit/Integration` | 导出器和脚本 API 已测试，真实 UI 端到端仍待补齐 |
+
+### 3.6 程序设置、标签和模板
+
+| 清单 | 功能 | 状态 | 证据或边界 |
+| --- | --- | --- | --- |
+| 8.1–8.3 | 设置分组、编辑、保存、丢弃和动态导航 | `Automated` | settings 覆盖 5 组设置和开发者导航重建 |
+| 8.4 | 数据库配置入口 | `Automated` | settings/database-error 验证对话框和无效驱动安全失败 |
+| 8.4 | SQLite/PostgreSQL 真实备份与还原 | `Manual-Native` | 依赖原生目录/文件、外部工具和灾备环境；底层由集成测试覆盖 |
+| 8.5 | 数据迁移向导打开和安全取消 | `Automated` | settings 覆盖向导边界 |
+| 8.6 | 调查设置字段 | `Automated-ReadOnly` | settings 读取字段；Survey 套件验证实际页面能力 |
+| 8.7 | 更新配置和手动检查 | `Automated` | settings 验证检查中和无匹配发布结果；真实安装升级由独立更新门禁承担 |
+| 8.x | 当前运行日志导出 | `Automated` | settings 验证占用中的日志可导出为非空 ZIP |
+| 9.1–9.3 | 标签基础信息和 Tracker 自动化页 | `Automated` | smoke 创建标签；Redmine 配置自动规则 |
+| 9.2 / 9.4 | 标签元数据和附加字段定义 | `Unit/Integration` | 模型、类型和转换测试；未逐字段执行 CDP |
+| 9.5 | `.diarytags` 导入/导出 | `Manual-Native` | 依赖文件选择器 |
+| 10.1 | 工作项模板创建、字段、标签、应用和草稿保留 | `Automated` | smoke 完整验证 |
+| 10.2 | 数据模板空状态和入口 | `Automated-ReadOnly` | core 验证管理页空状态 |
+| 10.2 | 数据模板导入、预览和删除文件 | `Manual-Native` | 依赖文件选择器和真实文件 |
+
+### 3.7 Tracker、Redmine 和 Jira
+
+| 清单 | 功能 | 状态 | 证据或边界 |
+| --- | --- | --- | --- |
+| 11.1 | Tracker 设置、多提供者和临时第二实例增删 | `Automated` | Redmine 套件验证提供者数和实例往返 |
+| 11.2 | 插件状态、启停和动态 UI | `Automated` | 验证运行状态和管理页动态导航；低层生命周期有集成测试 |
+| 11.3 | 通用批量同步预览和逐项结果 | `Unit/Integration` | 当前 UI 套件覆盖单事项真实同步；通用批量协调由 ViewModel/服务测试承担 |
+| 12.1 | Redmine 配置、敏感编辑器和连接状态 | `Automated` | 验证控件类型、配置保存和插件运行状态 |
+| 12.2 | Redmine 标签规则 | `Automated` | 创建规则并验证 Issue/活动默认填充 |
+| 12.3 | Issue 选择、活动、工时同步、锁定和防重复 | `Automated` | 真实测试服务写入并回读 UI 状态 |
+| 12.4 | 用户信息和活动同步 | `Automated` | 管理页真实同步 |
+| 12.5 | Issue 关键词/ID 搜索、导入、同步、启停和删除 | `Automated` | 完整维护链通过 |
+| 12.6 | 项目搜索、说明和创建 Issue | `Automated` | 真实测试服务创建测试数据 |
+| 12.x | 配置加密和日志脱敏 | `Automated` | 验证配置文件加密标记和日志无敏感标记；报告不保存凭据 |
+| 13.1–13.2 | Jira 配置、Issue、worklog 和锁定 | `Blocked-External` | 缺少可用于自动门禁的 Jira Cloud/自托管服务与权限矩阵；低层已有单元/集成测试 |
+
+### 3.8 对话框、快捷键和安全边界
+
+| 清单 | 功能 | 状态 | 证据或边界 |
+| --- | --- | --- | --- |
+| 14 | 关于、标准消息、确认和 Toast | `Automated` | 多套件验证打开、长消息可滚动、确认取消和通知结果 |
+| 14 | 文件/目录选择器 | `Manual-Native` | 不属于 Avalonia CDP 视觉树 |
+| 14 | Survey 节点能力对话框 | `Automated` | survey 验证详情打开和关闭 |
+| 15 | `Alt+数字` 主导航 | `Automated` | core 覆盖主键区和应用代码同时支持数字键盘区 |
+| 15 | 日记 `Ctrl+T/N/S/D/Shift+D` | `Automated` | smoke/core 覆盖主要路径；模板快捷键和批量同步由命令测试承担 |
+| 15 | Redmine `Enter/Ctrl+Enter` 搜索 | `Automated` | Redmine 覆盖关键词和 ID 搜索 |
+| 16 | 数据库异常不表现为空数据 | `Automated` | database-error 覆盖查询结果保留和恢复入口 |
+| 16 | 远程写入锁定、防重复和删除警告 | `Automated` | Redmine 覆盖 |
+| 16 | 敏感配置加密和日志脱敏 | `Automated` | Redmine 安全步骤覆盖 |
+| 16 | Release 不包含 CDP | `Unit/Integration` | 由 Release restore、构建和发布包内容校验承担，不在 Release 运行 CDP |
+
+## 4. 仍需保留的发布前人工检查
+
+即使全量 CDP 套件通过，发布前仍需按风险执行以下检查：
+
+1. Windows 托盘显示、隐藏、恢复和退出。
+2. 最大化、最小化、重启和多显示器窗口行为。
+3. 文件/目录选择器、剪贴板和系统默认程序打开。
+4. SQLite/PostgreSQL 真实备份、还原、工具发现和取消。
+5. Release 包内容检查，确认没有 CDP 调试程序集和监听入口。
+6. 有可用环境时执行 Jira Cloud/自托管权限与版本矩阵。
+
+## 5. 日期说明
+
+本轮基准日期固定为 2026-08-21。测试机系统时钟错误显示 2026-08-22，因此隔离 profile 目录名可能包含 `20260822`，App 的“今天”也会显示该错误日期；测试未修改系统时钟，报告和文档均按 2026-08-21 基准归档。

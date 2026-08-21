@@ -2,107 +2,160 @@
 
 ## 1. 目标与边界
 
-DiaryApp 在 Windows Debug 构建中提供基于 Chrome DevTools Protocol（CDP）的本地 UI 自动化入口，用于像真实用户一样读取视觉树、点击、输入、切换页面和截图，并采样常见交互的响应时间。
+DiaryApp 在 Windows Debug 构建中提供基于 Chrome DevTools Protocol（CDP）的本地 UI 自动化入口，用于读取 Avalonia 视觉树、聚焦和触发控件、输入文本、发送快捷键、切换页面、截图并采样交互响应时间。
 
 该入口只用于本地开发和验证：
 
 - `Chrome.DevTools.Avalonia.v11` 只在 Debug 配置引用，Release 包不应包含 CDP 程序集。
-- CI 的 Release restore 必须显式传入 `-p:Configuration=Release`；发布包校验会拒绝 `Avalonia.Diagnostics`、`CDP.Integration.*`、`Chrome.DevTools.*` 和 `Xaml.Compiler` 调试组件。
 - 只有显式设置 `DIARY_CDP_PORT` 时才启动监听，默认构建和正常启动不会开放端口。
-- `DIARY_UI_TEST_ROOT` 将配置、数据库和临时文件映射到独立测试 profile。
+- `DIARY_UI_TEST_ROOT` 将配置、数据库、日志和临时文件映射到独立测试 profile。
 - 测试 profile 使用独立单实例 ID，可以与正常 DiaryApp 并行运行。
+- `DIARY_UI_TEST_SCENARIO` 只在隔离 profile 中预置测试场景，不修改用户配置。
 - CDP 具备输入模拟、截图和运行时检查能力，不得在正式包或不可信网络中开放。
+- Release restore 必须显式传入 `-p:Configuration=Release`；发布包校验会拒绝 `Avalonia.Diagnostics`、`CDP.Integration.*`、`Chrome.DevTools.*` 和 `Xaml.Compiler` 调试组件。
 
 当前使用兼容 Avalonia 11 和 SkiaSharp 2.88.9 的 `Chrome.DevTools.Avalonia.v11 0.1.0-preview.30`。升级 SkiaSharp 3.x 后应重新评估更新版本。
 
-## 2. 使用方法
+完整功能级状态见 [`UiAutomationCoverage.md`](UiAutomationCoverage.md)，UI 功能入口见 [`UiFeatureInventory.md`](UiFeatureInventory.md)。
 
-环境要求：Windows、PowerShell 7、.NET SDK，以及提供全局 `WebSocket` 的 Node.js 22 或更高版本。
+## 2. 生命周期和测试场景
 
-`Tools/ui-test.ps1` 提供完整生命周期：
+`Tools/ui-test.ps1` 管理单个隔离 App 生命周期：
 
 ```powershell
 .\Tools\ui-test.ps1 start
-.\Tools\ui-test.ps1 smoke
 .\Tools\ui-test.ps1 status
+.\Tools\ui-test.ps1 smoke
 .\Tools\ui-test.ps1 stop
 ```
 
-如果 Debug App 已经构建，可跳过重复构建：
+如果 Debug App 已构建，可跳过重复构建：
 
 ```powershell
 .\Tools\ui-test.ps1 start -NoBuild
 ```
 
-需要测试 Jira、Redmine 等 Tracker 插件时显式启用插件模式：
+脚本支持以下场景：
+
+| 场景 | 启动参数 | 用途 |
+| --- | --- | --- |
+| `default` | 默认 | 核心、设置、标签和模板 |
+| `extended` | `-Scenario extended` | 开启开发者功能，显示脚本管理 |
+| `survey` | `-Scenario survey` | 开启调查者和本机受访节点 |
+| `database-error` | `-Scenario database-error` | 注入不存在的数据库驱动，验证恢复 UI |
+| `plugins` | `-Scenario plugins -WithPlugins` | 加载 Tracker 插件和动态管理页 |
+
+`start` 会创建 `.build-tmp/ui-test/profiles/<runId>`，等待 CDP ready，并将 PID、端口、profile、场景和冷启动时间写入 `.build-tmp/ui-test/current.json`。`stop` 会校验 PID 对应的可执行文件后再终止进程，避免误杀其他 DiaryApp 实例。
+
+需要复用外部 Tracker 测试配置时，使用已有加密 profile 作为 seed：
 
 ```powershell
-.\Tools\ui-test.ps1 start -WithPlugins
+.\Tools\ui-test.ps1 start -NoBuild -Scenario plugins -WithPlugins -SeedProfile '<encrypted-profile>'
 ```
 
-默认仍使用 `--core-only`，避免普通 smoke 受外部 Tracker 配置或网络影响；`-WithPlugins` 仅用于隔离 profile 下的插件配置、管理页和同步联调。
+seed 只复制加密配置文件，不应提交到 Git，也不得写入报告和文档。未提供 Redmine seed 时，全量编排将该套件标记为 `blocked-external`，而不是伪造通过。
 
-`start` 会创建 `.build-tmp/ui-test/profiles/<runId>`，以 `--core-only` 启动应用，等待 CDP ready，并将 PID、端口、profile 和冷启动时间写入 `.build-tmp/ui-test/current.json`。`stop` 会校验 PID 对应的可执行文件后再终止进程，避免误杀其他 DiaryApp 实例。
+## 3. 全量编排
 
-## 3. Smoke 覆盖范围
+一次运行全部可重复套件：
 
-`Tools/ui-smoke.mjs` 直接使用原始 CDP WebSocket，不依赖浏览器 DOM 或 Playwright 页面模型。当前覆盖：
+```powershell
+.\Tools\ui-full-test.ps1 -NoBuild -RedmineSeedProfile '<encrypted-profile>'
+```
 
-1. 首次使用引导关闭。
-2. “事项查询”“统计工具”“日记记录”主导航切换。
-3. 设置菜单打开、程序设置对话框打开和关闭。
-4. 主题切换及截图差异确认。
-5. 新建事项、标题输入、“使用今天”和主导航切换后的本地保存结果。
-6. `新建 -> 修改 -> 新建` 回归：不手动保存时，第一条有内容事项必须自动持久化，第二个编辑器保持空白。
-7. 标签设置：通过真实设置对话框创建标签、打开“自动化操作”页签并保存，确认模板编辑器能立即读取新标签。
-8. 模板设置：创建模板并配置默认标题、工时和标签；从模板替换未保存草稿时先保存旧草稿，并验证模板字段、标签和导航后的持久化结果。
-9. 视觉树读取、`#ViewList` 查询和全窗口截图的预热后性能采样。
+不需要外部服务时可以省略 `-RedmineSeedProfile`；其余套件仍执行，Redmine 结果记录为 `blocked-external`。编排器按场景创建隔离 profile，并在套件组结束后停止 App。
 
-脚本会在隔离 SQLite 中创建一条名为“UI自动化响应测试”的事项，这是预期测试数据，不会进入用户正式数据库。
+当前 8 个套件如下：
 
-关键控件使用稳定 `Name` 定位；主导航项由可见文字向上定位到 `SelectionListItem`，不依赖每次运行变化的 CDP 节点编号。
+| 套件 | 结构化步骤 | 主要覆盖 |
+| --- | ---: | --- |
+| `ui-settings-full` | 9 | 首次引导、设置分组、保存/丢弃、导航动态重建、数据库/迁移对话框、运行日志导出、更新检查、设置性能 |
+| `ui-smoke` | 单独断言集 | 标签、模板、主题、新建草稿、`新建 -> 修改 -> 新建`、模板替换前草稿保留、视觉树和截图性能 |
+| `ui-core-full` | 14 | 主外壳、应用菜单、`Alt+数字`、关于、复制入口、日记快捷键、查询、保存查询、统计、核心性能 |
+| `ui-extended-full` | 9 | C#/Lua/Python 脚本创建、筛选、重新加载、预览运行、执行历史、日志、API Reference、删除、性能 |
+| `ui-script-editor` | 4 | 独立脚本编辑器、命令区、编译检查和安全关闭 |
+| `ui-database-error` | 8 | 日记/查询/统计数据库异常状态、重试、设置入口、诊断导出和异常状态性能 |
+| `ui-survey-full` | 8 | v1 查询、v2 能力发现、详情、筛选、三种分组、明细开关、校验错误和性能 |
+| `ui-redmine-full` | 12 | 多 Tracker 设置、Redmine 管理、项目/Issue、标签规则、工时同步、防重复、删除边界、安全和性能 |
 
-## 4. 输出
+7 个带结构化摘要的套件合计 64 个步骤；`ui-smoke` 另含标签、模板、主题、草稿、本地持久化和性能断言。
 
-测试报告写入：
+## 4. 单套件调试
+
+启动匹配场景后可直接运行 Node 脚本：
+
+```powershell
+.\Tools\ui-test.ps1 start -NoBuild -Scenario default
+node .\Tools\ui-core-full.mjs
+.\Tools\ui-test.ps1 stop
+```
+
+脚本管理和编辑器共享同一个 `extended` profile：
+
+```powershell
+.\Tools\ui-test.ps1 start -NoBuild -Scenario extended
+node .\Tools\ui-extended-full.mjs
+node .\Tools\ui-script-editor.mjs
+.\Tools\ui-test.ps1 stop
+```
+
+测试脚本使用 `Tools/ui-cdp.mjs` 的原始 WebSocket 客户端和稳定 `Name`/控件类型/可见文字定位。关键操作优先使用 `DOM.focus` 配合键盘触发，减少坐标点击在动画、弹层和布局变化时丢失。导航完成条件是目标 View 已可见，不以点击命令返回作为完成信号。
+
+## 5. 报告和判定
+
+输出目录：
 
 - `.build-tmp/ui-test/reports/*.json`
 - `.build-tmp/ui-test/screenshots/*.png`
+- `.build-tmp/ui-test/profiles/*`
 
-报告包含：
+单套件报告包含场景、profile、冷启动时间、步骤耗时、断言结果、性能样本和 finding。全量报告汇总每个套件的 `passed`、`failed` 或 `blocked-external` 状态。
 
-- 冷启动到 CDP ready 时间。
-- 页面切换、设置、主题、新建、聚焦和输入耗时。
-- `DOM.getDocument` 30 次、`DOM.querySelector` 100 次、截图 10 次的 min/P50/P95/max/average。
-- 功能断言、截图路径和非阻断发现。
-- 标签创建、自动化页签打开、模板配置与应用耗时，以及模板替换前草稿保留状态。
+判定规则：
 
-性能值用于同一机器、同一构建方式下的趋势比较，不应直接作为跨机器的发布阈值。首次页面创建包含视图构造和数据加载，应与预热后的 CDP 查询耗时分开观察。
+- 功能断言失败、对话框未关闭、目标页面未出现或状态未持久化均为 `failed`。
+- 外部服务配置未提供时为 `blocked-external`，不计作功能通过。
+- 性能值用于同一机器、同一构建方式下的趋势比较，不作为跨机器固定发布阈值。
+- 首次页面创建包含视图构造和数据加载，应与预热后的视觉树/动作耗时分开观察。
+- 原生文件选择器、目录选择器、系统托盘和真实备份/还原不由 Avalonia CDP 控制，保留 Windows 原生人工或专用驱动验证。
 
-## 5. 最近一次本机基线
+## 6. 2026-08-21 本机基线
 
-2026-08-21 在 Windows Debug、`--core-only`、全新隔离 profile 下执行通过：
+最终全量报告：`.build-tmp/ui-test/reports/ui-full-test-2026-08-21T17-34-10-152Z.json`。
 
 | 项目 | 结果 |
 | --- | ---: |
-| 冷启动到 CDP ready | 1554 ms |
-| 事项查询首次切换 | 369 ms |
-| 统计工具首次切换 | 288 ms |
-| 日记记录切换 | 83 ms |
-| 程序设置对话框打开 | 190 ms |
-| 新建事项表单打开 | 215 ms |
-| 标题输入反映到视觉树 | 26 ms |
-| 标签创建并打开自动化页签 | 632 ms |
-| 模板配置并保存 | 483 ms |
-| 模板应用并保留旧草稿 | 142 ms |
-| `DOM.getDocument` P50 / P95 | 5.23 / 8.16 ms |
-| `DOM.querySelector` P50 / P95 | 0.44 / 0.59 ms |
-| 全窗口截图 P50 / P95 | 109 / 134 ms |
+| 全量套件 | 8 / 8 passed |
+| 结构化步骤 | 64 / 64 passed |
+| smoke | passed，含 1 个日期环境 warning |
+| 全量耗时 | 64,825 ms |
+| Debug 冷启动到 CDP ready | 1,419–1,660 ms |
+| core 视觉树 P50 / P95 | 4.50 / 9.40 ms |
+| core 全窗口截图 P50 / P95 | 109.89 / 135.08 ms |
+| smoke `DOM.getDocument` P50 / P95 | 5.83 / 16.17 ms |
+| smoke `DOM.querySelector` P50 / P95 | 0.53 / 0.73 ms |
+| smoke 截图 P50 / P95 | 110.42 / 138.53 ms |
+| 设置对话框三次打开 P95 | 200.13 ms |
+| 脚本页刷新最大值 | 45.28 ms |
+| Survey 视觉树 P95 / 动作 P95 | 16.08 / 4.26 ms |
+| Redmine 工时同步 | 232.35 ms |
+| Redmine 管理页导航 P95 | 105.00 ms |
 
-本次功能断言全部通过，未产生 smoke finding。自动化结果显示新建日期为 2026-08-21，导航后事项仍存在并显示“本地已保存”；`新建 -> 修改 -> 新建` 的第一条记录保留断言也已固化，最近一次耗时约 91 ms。
+稳定性收口还使用两个全新 profile 连续执行 `ui-core-full`，两次均为 14/14 passed，用于确认删除取消对话框和保存查询删除取消不会遮挡后续页面。
 
-同日在 Windows Debug、`-WithPlugins`、隔离 profile 下完成 Redmine 真实联调：配置保存约 255 ms，管理页首次进入约 277 ms，活动同步约 134 ms，Issue 搜索约 387 ms，项目搜索约 483 ms，创建测试 Issue 约 516 ms，工时同步约 950 ms。远程回读确认工时 ID `22` 的 Issue、活动、日期、用户、备注和 `0.25` 小时均正确；重复触发后远程仍只有一条匹配记录。测试还验证了插件配置文件整体加密、日志不记录响应正文或 API Key，以及 Issue 导入后共享列表即时刷新。
+测试机系统时钟错误显示为 2026-08-22，导致 profile 目录名包含 `20260822`，且 App 中“今天”显示为 2026-08-22；本项目基准日期按 2026-08-21 记录，测试没有修改系统时钟。smoke 的日期 warning 仅反映该环境差异，不影响“使用今天”、草稿保留和本地保存断言。
 
-## 6. 已知兼容性
+Redmine 套件使用隔离测试服务并产生可清理测试数据；报告只记录耗时、数量和远程 ID 摘要，不包含服务器地址、账号或凭据。
 
-CDP 的 `DOM.getDocument`、`DOM.querySelector`、`DOM.getBoxModel`、`Input.dispatchMouseEvent`、`Input.insertText` 和 `Page.captureScreenshot` 已验证可用。Playwright 的 `connectOverCDP()` 可以建立连接，但其高层截图调用在当前预览版 CDP 上可能等待超时，因此项目脚本使用原始 CDP 命令。
+## 7. 当前覆盖边界
+
+- Jira 真实服务、权限矩阵和自托管版本差异为 `Blocked-External`。
+- 原生文件/目录选择器、托盘、真实备份与还原为 `Manual-Native`。
+- 查询/统计计算、附加字段转换、Tracker 数据契约等低层语义继续由单元和集成测试承担。
+- 后台任务进度预览 UI 尚未实现，状态为 `Not-Implemented`。
+- Release 不运行 CDP；“Release 包不含 CDP”由构建和发布包集成校验负责。
+- 脚本交互式 XLSX/CSV/DOCX/Mustache 导出仍缺少真实 UI 端到端门禁。
+
+## 8. CDP 兼容性
+
+已验证 `DOM.getDocument`、`DOM.querySelector`、`DOM.getBoxModel`、`DOM.focus`、`Input.dispatchMouseEvent`、`Input.dispatchKeyEvent`、`Input.insertText` 和 `Page.captureScreenshot`。Playwright 的 `connectOverCDP()` 可以建立连接，但高层截图调用在当前预览版 CDP 上可能等待超时，因此项目脚本使用原始 CDP 命令。

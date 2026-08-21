@@ -591,20 +591,22 @@
 
 ## 17. 当前 UI 自动化覆盖
 
-Windows Debug 构建提供基于 `Chrome.DevTools.Avalonia.v11` 的本地 CDP 测试入口。当前自动化已覆盖：
+Windows Debug 构建提供基于 `Chrome.DevTools.Avalonia.v11` 的本地 CDP 测试入口。当前全量编排包含 8 个套件：程序设置、smoke、核心页面、脚本管理、脚本编辑器、数据库异常、Survey 和 Redmine。
 
-- 首次使用引导关闭。
-- 日记、查询、统计页面导航。
-- 设置菜单和程序设置对话框打开/关闭。
-- 主题切换和截图差异。
-- 新建事项、标题输入、日期修正和导航后的本地持久化。
-- `新建 -> 修改 -> 新建` 时第一条草稿自动保存。
-- 标签创建、自动化操作 Tab 和保存。
-- 模板创建、标题/工时/标签配置、模板应用和旧草稿保留。
-- Redmine 插件配置、管理页、活动同步、Issue/项目搜索、Issue 创建/导入、工时同步和防重复提交的真实联调。
-- 视觉树读取、控件查询、截图及常见交互响应时间采样。
+2026-08-21 本机最终基线为：
 
-当前自动化尚未覆盖全部查询导出、统计明细、Survey、多 Tracker 组合、Jira 真实服务、脚本交互导出以及所有错误/回滚分支；这些仍需要单元测试、集成测试和人工回归共同验证。详细运行方法和最近基线见 [`UiAutomationTesting.md`](UiAutomationTesting.md)。
+- 8/8 套件通过。
+- 64/64 个结构化步骤通过，另有 smoke 的标签、模板、主题、草稿、本地持久化和性能断言通过。
+- core 使用两个全新 profile 连续运行两次，均为 14/14 通过。
+- 已覆盖 Survey v1/v2、多 Tracker 设置、Redmine 管理与真实工时同步、数据库异常、设置维护、更新检查、脚本管理和编辑器、查询、统计、标签和模板。
+- 已验证 `Alt+1..9` 主导航、`新建 -> 修改 -> 新建`、删除取消、保存查询删除取消、运行中日志导出和 Redmine 防重复同步等回归路径。
+- Release 不运行 CDP；Release 包不含 CDP 的要求继续由构建和发布包集成校验负责。
+
+覆盖状态按 `Automated`、`Automated-ReadOnly`、`Unit/Integration`、`Manual-Native`、`Blocked-External` 和 `Not-Implemented` 分类。原生文件/目录选择器、托盘和真实备份/还原保留 Windows 原生验证；Jira 真实服务为外部阻塞；后台任务进度预览仍未实现。
+
+详细功能级矩阵见 [`UiAutomationCoverage.md`](UiAutomationCoverage.md)，运行方法、场景和最近性能基线见 [`UiAutomationTesting.md`](UiAutomationTesting.md)。测试报告和文档不记录 Tracker 服务地址、账号或凭据。
+
+测试机系统时钟错误显示为 2026-08-22，profile 目录名可能包含 `20260822`；本项目基准日期仍固定为 2026-08-21，测试未修改系统时钟。
 
 ## 18. 主要源码入口
 
@@ -619,4 +621,4 @@ Windows Debug 构建提供基于 `Chrome.DevTools.Avalonia.v11` 的本地 CDP �
 | 设置和对话框 | `Diary.App/Views/SettingsView.axaml`、`Diary.App/Views/Dialogs/` |
 | Redmine UI | `Diary.RedMine.UI/Views/` |
 | Jira UI | `Diary.Jira.UI/Views/` |
-| UI 自动化 | `Tools/ui-test.ps1`、`Tools/ui-smoke.mjs`、`Docs/UiAutomationTesting.md` |
+| UI 自动化 | `Tools/ui-test.ps1`、`Tools/ui-full-test.ps1`、`Tools/ui-*.mjs`、`Docs/UiAutomationTesting.md`、`Docs/UiAutomationCoverage.md` |

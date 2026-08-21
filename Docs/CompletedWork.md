@@ -6,6 +6,8 @@
 
 ## 2026-08-21 TODO 清理归档
 
+- [x] Windows 全量 UI 自动化：按 default/extended/survey/database-error/plugins 隔离场景建立 8 套件编排，覆盖主外壳、日记、查询、统计、设置、标签模板、脚本、数据库异常、Survey 和 Redmine；最终 8/8 套件、64/64 结构化步骤及 smoke 断言通过，并形成运行指南和功能级覆盖矩阵。
+
 - [x] 日志编辑可靠性与 Redmine 真实联调：修复 `新建 -> 修改 -> 新建`、复制最近/整日复制前的自动持久化，修复未启用 Tracker 阻断配置保存、Redmine Issue 导入后不刷新和响应正文泄露凭据；在隔离 profile 中完成 admin 用户、项目/Issue/活动管理、创建测试 Issue、0.25 小时同步、远程回读和防重复提交验证。
 
 - [x] Windows Debug UI 自动化基础：集成显式启用的 Avalonia CDP、独立配置/数据库/profile 和单实例身份，提供 `start/smoke/status/stop` 工具，真实覆盖首次引导、主导航、程序设置、主题、新建事项、输入、本地保存、截图和响应时间采样；Release 保持不含 CDP。
