@@ -7,7 +7,7 @@
              mc:Ignorable="d"
              x:Class="Diary.App.Views.Dialogs.WorkItemExtraFieldsView"
              x:DataType="dialogs:WorkItemExtraFieldsViewModel"
-             Width="620" Height="520" Margin="12">
+             Width="680" Height="560" Margin="12">
     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
         <TextBlock Text="{Binding Title}" Classes="Header" />
         <ScrollViewer Grid.Row="1">
@@ -21,12 +21,71 @@
                                 <ItemsControl ItemsSource="{Binding Fields}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate DataType="models:EditableWorkItemExtraField">
-                                            <Grid ColumnDefinitions="130,*" ColumnSpacing="8" Margin="0 2">
+                                            <Grid ColumnDefinitions="150,*" ColumnSpacing="8" Margin="0 3">
                                                 <TextBlock Text="{Binding Label}" VerticalAlignment="Center"
                                                            ToolTip.Tip="{Binding Description}" />
-                                                <TextBox Grid.Column="1" Text="{Binding Value}" AcceptsReturn="True"
-                                                         IsReadOnly="{Binding IsReadOnly}"
-                                                         MinHeight="30" Watermark="{Binding FieldKey}" />
+                                                <Grid Grid.Column="1">
+                                                    <TextBox IsVisible="{Binding UsesTextEditor}"
+                                                             Text="{Binding Value, Mode=TwoWay}"
+                                                             IsReadOnly="{Binding IsReadOnly}"
+                                                             Watermark="{Binding FieldKey}" />
+                                                    <TextBox IsVisible="{Binding UsesMultilineTextEditor}"
+                                                             Text="{Binding Value, Mode=TwoWay}"
+                                                             AcceptsReturn="True" TextWrapping="Wrap"
+                                                             IsReadOnly="{Binding IsReadOnly}"
+                                                             MinHeight="72" Watermark="{Binding FieldKey}" />
+                                                    <NumericUpDown IsVisible="{Binding UsesIntegerEditor}"
+                                                                   Value="{Binding NumericValue, Mode=TwoWay}"
+                                                                   Minimum="-2147483648" Maximum="2147483647"
+                                                                   Increment="1" FormatString="0" ParsingNumberStyle="Integer"
+                                                                   IsReadOnly="{Binding IsReadOnly}"
+                                                                   Watermark="未填写" />
+                                                    <NumericUpDown IsVisible="{Binding UsesDecimalEditor}"
+                                                                   Value="{Binding NumericValue, Mode=TwoWay}"
+                                                                   Increment="0.1"
+                                                                   IsReadOnly="{Binding IsReadOnly}"
+                                                                   Watermark="未填写" />
+                                                    <CheckBox IsVisible="{Binding UsesBooleanEditor}"
+                                                              IsChecked="{Binding BooleanValue, Mode=TwoWay}"
+                                                              IsThreeState="True"
+                                                              IsEnabled="{Binding !IsReadOnly}"
+                                                              Content="{Binding BooleanDisplay}"
+                                                              VerticalAlignment="Center" />
+                                                    <CalendarDatePicker IsVisible="{Binding UsesDateEditor}"
+                                                                        SelectedDate="{Binding DateValue, Mode=TwoWay}"
+                                                                        IsEnabled="{Binding !IsReadOnly}"
+                                                                        Watermark="未填写" />
+                                                    <Grid IsVisible="{Binding UsesTimeEditor}"
+                                                          ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                                        <TimePicker SelectedTime="{Binding TimeValue, Mode=TwoWay}"
+                                                                    ClockIdentifier="24HourClock" MinuteIncrement="1"
+                                                                    IsEnabled="{Binding !IsReadOnly}" />
+                                                        <Button Grid.Column="1" Content="清空"
+                                                                Command="{Binding ClearValueCommand}" />
+                                                    </Grid>
+                                                    <Grid IsVisible="{Binding UsesDateTimeEditor}"
+                                                          ColumnDefinitions="*,Auto,*,Auto" ColumnSpacing="6">
+                                                        <CalendarDatePicker SelectedDate="{Binding DateTimeDateValue, Mode=TwoWay}"
+                                                                            IsEnabled="{Binding !IsReadOnly}"
+                                                                            Watermark="日期" />
+                                                        <TextBlock Grid.Column="1" Text="·" VerticalAlignment="Center" />
+                                                        <TimePicker Grid.Column="2"
+                                                                    SelectedTime="{Binding DateTimeTimeValue, Mode=TwoWay}"
+                                                                    ClockIdentifier="24HourClock" MinuteIncrement="1"
+                                                                    IsEnabled="{Binding !IsReadOnly}" />
+                                                        <Button Grid.Column="3" Content="清空"
+                                                                Command="{Binding ClearValueCommand}" />
+                                                    </Grid>
+                                                    <Grid IsVisible="{Binding UsesChoiceEditor}"
+                                                          ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                                        <ComboBox ItemsSource="{Binding Options}"
+                                                                  SelectedItem="{Binding SelectedChoice, Mode=TwoWay}"
+                                                                  PlaceholderText="未选择"
+                                                                  IsEnabled="{Binding !IsReadOnly}" />
+                                                        <Button Grid.Column="1" Content="清空"
+                                                                Command="{Binding ClearValueCommand}" />
+                                                    </Grid>
+                                                </Grid>
                                             </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>

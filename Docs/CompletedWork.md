@@ -6,6 +6,8 @@
 
 ## 2026-08-21 TODO 清理归档
 
+- [x] 工作项附加字段编辑体验：9 种字段类型分别使用单行/多行文本、数值、三态布尔、日期、时间、日期时间和选项控件；保留空值、规范字符串格式、日期时间偏移和只读边界，并补充类型映射与转换测试。
+
 - [x] Windows standard local 真实升级门禁：新增 PowerShell 原生服务/打包/发布入口和无 GitHub 轮询的 `serve-local` 模式；修复 Windows `Diary.Updater.exe` 被错误要求 Unix executable 标记的事务校验矛盾；使用两个独立 local sequence 完成 `UpdateAvailable -> ReadyToApply -> Restarted -> Confirmed`，并校验 installed manifest 与目标 `Diary.App.dll` SHA-256。
 - [x] 应用完整包更新闭环：主程序完成检查、用户确认、流式下载、长度与 SHA-256 校验、安全解压、逐文件复检、事务计划、外部 Updater 应用、正常退出、新版本重启、稳定性确认、用户确认式程序文件回滚和事务清理；Python 局域网服务、发布资产契约及双 RID Updater 发布验证同步完成。
 - [x] 核心数据库迁移加固：SQLite/PostgreSQL 支持逐步提交、失败回滚、降级和断链校验；provider 能力、结构指纹、迁移状态/历史、基础数据完整性和迁移登记测试已经建立。
