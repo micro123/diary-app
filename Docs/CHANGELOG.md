@@ -6,6 +6,11 @@
 
 日期：2026-08-21
 
+- 新增 Windows Debug-only UI 自动化入口：显式环境变量启用 Avalonia CDP，使用独立 profile 隔离配置、SQLite 和临时文件，并提供 `start/smoke/status/stop` 工具；支持 `-WithPlugins` 联调 Tracker，smoke 可真实点击主导航和设置、切换主题、新建并输入事项、验证本地保存、截图及采样 P50/P95 响应时间，Release 不包含该调试入口。
+- 修复日志编辑器在 `新建 -> 修改 -> 新建`、复制最近和整日复制前未收敛当前编辑状态而可能丢失未保存内容的问题；有内容的新事项会先持久化，完全空白事项仍可直接丢弃，并增加真实 CDP 回归。
+- 修复未启用的 Jira/Redmine 默认实例仍会阻断其他 Tracker 配置保存的问题；仅校验已启用实例，且任一已启用实例无效时仍拒绝保存。
+- 修复 Redmine Issue 导入后日志编辑器不即时刷新的问题；Redmine API 日志改为仅记录数量和远程 ID 等结构化摘要，不再记录可能包含 API Key 的响应正文。
+
 - 工作项附加字段根据类型显示对应编辑器：文本、多行文本、整数、小数、三态布尔、日期、时间、日期时间和选项不再共用多行文本框；空值、只读状态及既有存储格式保持兼容。
 
 - 更新服务器新增独立 `local` 通道和受 Bearer Token 保护的原始 ZIP 直传接口；本机工具可一条命令启动 Docker 服务、注入单调递增的包内更新序号和 local 构建频道、打包 `win-x64-python313`、上传并回读 latest 校验，不经过 GitHub Tag/Release；客户端设置同步增加 `local` 频道，并允许 local 测试包主动切回正常 sequence 的 `stable`/`preview`。

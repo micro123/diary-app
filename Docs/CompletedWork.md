@@ -6,6 +6,10 @@
 
 ## 2026-08-21 TODO 清理归档
 
+- [x] 日志编辑可靠性与 Redmine 真实联调：修复 `新建 -> 修改 -> 新建`、复制最近/整日复制前的自动持久化，修复未启用 Tracker 阻断配置保存、Redmine Issue 导入后不刷新和响应正文泄露凭据；在隔离 profile 中完成 admin 用户、项目/Issue/活动管理、创建测试 Issue、0.25 小时同步、远程回读和防重复提交验证。
+
+- [x] Windows Debug UI 自动化基础：集成显式启用的 Avalonia CDP、独立配置/数据库/profile 和单实例身份，提供 `start/smoke/status/stop` 工具，真实覆盖首次引导、主导航、程序设置、主题、新建事项、输入、本地保存、截图和响应时间采样；Release 保持不含 CDP。
+
 - [x] 工作项附加字段编辑体验：9 种字段类型分别使用单行/多行文本、数值、三态布尔、日期、时间、日期时间和选项控件；保留空值、规范字符串格式、日期时间偏移和只读边界，并补充类型映射与转换测试。
 
 - [x] Windows standard local 真实升级门禁：新增 PowerShell 原生服务/打包/发布入口和无 GitHub 轮询的 `serve-local` 模式；修复 Windows `Diary.Updater.exe` 被错误要求 Unix executable 标记的事务校验矛盾；使用两个独立 local sequence 完成 `UpdateAvailable -> ReadyToApply -> Restarted -> Confirmed`，并校验 installed manifest 与目标 `Diary.App.dll` SHA-256。

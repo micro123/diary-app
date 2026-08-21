@@ -629,7 +629,9 @@ public interface ITrackerConfigurationProvider
 ```
 
 宿主将每个配置提供者作为 Tracker 配置页中的独立 Tab 展示；`DisplayName` 用于用户可见的 Tab 标题，
-`PluginId` 继续作为稳定身份。提供者内部的多实例管理由插件自己的配置页负责。
+`PluginId` 继续作为稳定身份。提供者内部的多实例管理由插件自己的配置页负责。配置校验只检查已启用实例：插件允许全部实例保持禁用并保存草稿配置，但任一已启用实例无效时必须拒绝保存，避免一个未启用的默认实例阻断其他 Tracker。
+
+敏感配置由 `PluginConfigurationLoader` 整体加密保存，UI 仅显示遮罩；Tracker API 日志不得记录响应正文、请求头、API Key 或 Token，只允许记录状态、数量、实例身份和远程对象 ID 等结构化摘要。管理页导入或修改本地 Tracker 数据后必须发送对应 `DbChangedEvent`，让编辑器选项和共享数据源即时刷新。
 
 主程序负责：
 

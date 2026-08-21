@@ -116,7 +116,7 @@ Jira --> JiraApi
 | `Diary.Survey` | 调查协议（v1/v2）、调查者和受访者收发实现 | 不依赖 UI；App 层负责端口与页面装配 |
 | `Diary.MigrationTool` | 从旧 DiaryToolpp 数据库导入核心数据 | 导入的工作项持久化为只读，不迁移 Tracker 信息 |
 | `Diary.RedMine` | Redmine API、模型、配置、插件迁移和插件入口 | 当前仍是 Redmine 专用插件实现 |
-| `Diary.RedMine.UI` | Redmine 设置、管理页、编辑器区域和缓存数据 | 通过工厂按实例注册 UI 贡献 |
+| `Diary.RedMine.UI` | Redmine 设置、管理页、编辑器区域和缓存数据 | 通过工厂按实例注册 UI 贡献；管理页导入 Issue/活动后通过 `DbChangedEvent` 刷新共享数据，编辑器扩展在加载工作项时复制当前可选项 |
 | `Diary.RedMine.SQLite` | SQLite Redmine 数据访问实现 | 通过 `IDbExtensionFactory` 按 provider 加载 |
 | `Diary.RedMine.PostgreSQL` | PostgreSQL Redmine 数据访问实现 | 与 SQLite 共享数据库契约 |
 | `Diary.Jira` | Jira API、模型、配置、插件迁移和插件入口 | 与 Redmine 平行的独立插件实现 |
@@ -139,7 +139,7 @@ Diary.PluginBase <- Diary.RedMine <- Diary.RedMine.UI -> Diary.PluginUI
 
 `App.ConfigureServices()` 默认扫描二进制目录中的 `Diary.*.dll`，发现 `ITrackerPlugin` 实现后调用 `PluginHost.Register()`。使用 `--core-only` 启动参数时跳过 tracker 和 tracker UI 程序集扫描，只保留核心服务、数据库和主窗口启动链路。
 兼容性检查通过才会注册服务并加入宿主插件列表；所有 `Diary.*.UI.dll` 都按可选程序集扫描，加载失败不会阻断核心启动。
-兼容插件由宿主创建并加载配置，实例注册时通过 `PluginHostContext` 同时接收数据库、插件配置和通用实例配置项。`TrackerPluginLifecycleCoordinator` 统一枚举实例配置、调用插件实例注册、收集失败状态，并按已启用实例注册 UI/模板贡献；实例卸载默认只禁用并保留配置/数据，显式删除数据时才调用插件清理契约。插件注册前，宿主会把本次发现的 manifest 集合放入兼容性上下文，校验必选依赖的存在性和版本范围；必选依赖形成环的插件不会进入服务注册。
+兼容插件由宿主创建并加载配置，实例注册时通过 `PluginHostContext` 同时接收数据库、插件配置和通用实例配置项。Tracker 配置保存时只校验已启用实例，禁用实例可保留未完成配置；敏感配置整体加密，API 层仅记录不含响应正文和凭据的结构化摘要。`TrackerPluginLifecycleCoordinator` 统一枚举实例配置、调用插件实例注册、收集失败状态，并按已启用实例注册 UI/模板贡献；实例卸载默认只禁用并保留配置/数据，显式删除数据时才调用插件清理契约。插件注册前，宿主会把本次发现的 manifest 集合放入兼容性上下文，校验必选依赖的存在性和版本范围；必选依赖形成环的插件不会进入服务注册。
 
 ```plantuml
 @startuml
@@ -175,6 +175,8 @@ stop
 插件状态目前使用 `PluginState` 表示兼容、阻塞、迁移失败等结果。插件迁移失败会返回 `MigrationFailed`，不会让 `PluginHost.Migrate()` 报告启用成功；核心启动仍由应用层决定是否继续使用核心功能。
 
 核心模式可通过 `Diary.App --core-only` 启动，不加载任何 tracker 插件或插件 UI，适合验证无 Redmine 程序集时的核心日记、编辑器和模板功能。该选项只影响当前进程，不修改插件配置和数据库数据。
+
+Debug 构建还提供显式启用的本地 UI 自动化入口：设置 `DIARY_CDP_PORT` 后由 `DebugUiAutomation` 在主窗口创建完成时启动 Avalonia CDP；设置 `DIARY_UI_TEST_ROOT` 时，`FsTools` 会在任何应用目录初始化前把配置、数据和临时目录切换到独立 profile，并按 profile 路径生成独立单实例 ID。相关包引用、启动和停止代码均受 Debug 条件限制，Release 构建不携带该调试入口。测试生命周期、覆盖范围和性能基线见 [`UiAutomationTesting.md`](UiAutomationTesting.md)。
 主窗口左上角应用图标菜单提供“重启程序”。命令先标记重启请求并复用正常退出流程，等待 `PreShutdownAsync` 停止调查服务、脚本 Worker、保存配置并释放 DI；`Program.Main` 在 Avalonia 生命周期返回且 `SingletonApp` 释放文件锁和命名管道后，才以原可执行文件和命令行参数启动新实例，避免新实例被单实例守卫拦截。框架依赖方式通过 `dotnet Diary.App.dll` 启动时会保留托管入口程序集参数。
 
 应用初始化阶段会立即启动脚本目录的后台异步加载。目录发现、元数据读取和脚本构建在后台任务中执行；脚本管理页首次显示时复用正在进行的加载任务或已完成结果，只有手动重新加载、脚本编辑保存或编译检查才会强制重新扫描。
