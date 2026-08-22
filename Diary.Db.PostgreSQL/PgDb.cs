@@ -400,6 +400,48 @@ public sealed partial class PgDb(IDbFactory factory) : DbInterfaceBase(factory),
         return Query(sql, MapWorkItemExtraField, ("$1", item.Id));
     }
 
+    public override Dictionary<int, ICollection<WorkItemExtraField>> GetWorkItemExtraFieldsByWorkItemIds(
+        IReadOnlyCollection<int> workItemIds)
+    {
+        ArgumentNullException.ThrowIfNull(workItemIds);
+        var result = new Dictionary<int, ICollection<WorkItemExtraField>>();
+        foreach (var batch in workItemIds.Where(id => id > 0).Distinct().Chunk(WorkTagQueryBatchSize))
+        {
+            var placeholders = new string[batch.Length];
+            var args = new (string Name, object? Value)[batch.Length];
+            for (var i = 0; i < batch.Length; i++)
+            {
+                placeholders[i] = $"${i + 1}";
+                args[i] = (placeholders[i], batch[i]);
+            }
+
+            var sql = $"""
+                       SELECT wit.work_id, d.field_id, d.field_key, d.tag_id, t.tag_name, d.label,
+                              d.field_type, d.description, d.sort_order, d.options_json,
+                              d.enabled, v.value_json
+                       FROM work_item_tags wit
+                       INNER JOIN tag_extra_field_definitions d ON d.tag_id=wit.tag_id
+                       INNER JOIN work_tags t ON t.id=d.tag_id
+                       LEFT JOIN work_item_extra_field_values v
+                          ON v.work_id=wit.work_id AND v.field_id=d.field_id
+                       WHERE wit.work_id IN ({string.Join(", ", placeholders)})
+                         AND (d.enabled=TRUE OR v.value_json IS NOT NULL)
+                       ORDER BY wit.work_id, t.tag_level, t.id, d.sort_order, d.field_key;
+                       """;
+            foreach (var (workId, field) in Query<(int WorkId, WorkItemExtraField Field)>(
+                         sql, reader => (reader.GetInt32(0), MapWorkItemExtraField(reader, 1)), args))
+            {
+                if (!result.TryGetValue(workId, out var fields))
+                {
+                    fields = [];
+                    result[workId] = fields;
+                }
+                fields.Add(field);
+            }
+        }
+        return result;
+    }
+
     public override bool SaveWorkItemExtraFieldValues(
         int workItemId, IReadOnlyCollection<WorkItemExtraFieldValue> values)
     {

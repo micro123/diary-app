@@ -624,6 +624,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
             {
                 var notesById = db.GetWorkNotesByDate(CurrentDateString);
                 var tagsById = db.GetWorkTagsByDate(CurrentDateString);
+                var extraFieldsById = db.GetWorkItemExtraFieldsByWorkItemIds(
+                    dbItems.Select(item => item.Id).ToArray());
                 var trackers = App.Instance.Services
                     .GetRequiredService<TrackerUiContributionRegistry>().Contributions;
                 var bindingsByTracker = new Dictionary<TrackerKey, IDictionary<int, object?>?>();
@@ -637,7 +639,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
                 {
                     var x = WorkEditorViewModel.FromWorkItem(item);
                     ConfigureEditorScriptActions(x);
-                    x.SyncFromBatch(notesById, tagsById, bindingsByTracker);
+                    x.SyncFromBatch(notesById, tagsById, bindingsByTracker, extraFieldsById);
                     DailyWorks.Add(x);
                 }
                 SortDailyWorks();

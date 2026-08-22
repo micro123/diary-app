@@ -226,6 +226,46 @@ public abstract class DbContractTests
         Assert.AreEqual(string.Empty, db.GetWorkItemExtraFields(item).Single().Value);
     }
 
+    [TestMethod]
+    public void WorkItemExtraFieldValues_BatchLoadMatchesIndividualResults()
+    {
+        using var db = CreateDb();
+        var tag = db.CreateWorkTag("批量字段", true, 0);
+        var definition = new TagExtraFieldDefinition
+        {
+            FieldKey = "batch.value",
+            TagId = tag.Id,
+            Label = "批量值",
+            Type = TagExtraFieldType.Text,
+        };
+        Assert.IsTrue(db.CreateTagExtraFieldDefinition(definition));
+
+        var first = db.CreateWorkItem("2026-08-22", "批量一");
+        var second = db.CreateWorkItem("2026-08-22", "批量二");
+        var withoutTag = db.CreateWorkItem("2026-08-22", "无标签");
+        Assert.IsTrue(db.WorkItemAddTag(first, tag));
+        Assert.IsTrue(db.WorkItemAddTag(second, tag));
+        Assert.IsTrue(db.SaveWorkItemExtraFieldValues(first.Id,
+        [
+            new WorkItemExtraFieldValue
+            {
+                WorkItemId = first.Id,
+                FieldId = definition.FieldId,
+                Value = "已填写",
+            },
+        ]));
+
+        var batch = db.GetWorkItemExtraFieldsByWorkItemIds(
+            [first.Id, second.Id, withoutTag.Id, first.Id, 0]);
+
+        Assert.AreEqual("已填写", batch[first.Id].Single().Value);
+        Assert.AreEqual(string.Empty, batch[second.Id].Single().Value);
+        Assert.IsFalse(batch.ContainsKey(withoutTag.Id));
+        CollectionAssert.AreEqual(
+            db.GetWorkItemExtraFields(first).Select(field => field.FieldId).ToArray(),
+            batch[first.Id].Select(field => field.FieldId).ToArray());
+    }
+
     // ---------- WorkItem + WorkNote ----------
 
     [TestMethod]

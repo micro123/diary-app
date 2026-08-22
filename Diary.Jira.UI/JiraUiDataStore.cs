@@ -6,13 +6,20 @@ public sealed class JiraUiDataStore
 {
     private readonly IJiraDb _database;
     public ObservableCollection<JiraIssueDisplay> Issues { get; } = new();
+    public ObservableCollection<JiraIssueDisplay> IssuesOpen { get; } = new();
 
     public JiraUiDataStore(IJiraDb database) => _database = database;
 
     public void InitLoad()
     {
         Issues.Clear();
-        foreach (var issue in _database.GetIssues()) Issues.Add(issue);
+        IssuesOpen.Clear();
+        foreach (var issue in _database.GetIssues())
+        {
+            Issues.Add(issue);
+            if (!issue.Disabled)
+                IssuesOpen.Add(issue);
+        }
     }
 
     public async Task RefreshAsync(IJiraApi api, string? projectKey = null, string? query = null, CancellationToken cancellationToken = default)
@@ -23,14 +30,20 @@ public sealed class JiraUiDataStore
         foreach (var issue in result.Value)
         {
             _database.UpsertIssue(issue);
-            if (Issues.All(item => item.Key != issue.Key)) Issues.Add(new JiraIssueDisplay
+            if (Issues.All(item => item.Key != issue.Key))
             {
-                Key = issue.Key,
-                Summary = issue.Summary,
-                Project = issue.ProjectName,
-                Status = issue.Status,
-                Disabled = issue.Closed,
-            });
+                var display = new JiraIssueDisplay
+                {
+                    Key = issue.Key,
+                    Summary = issue.Summary,
+                    Project = issue.ProjectName,
+                    Status = issue.Status,
+                    Disabled = issue.Closed,
+                };
+                Issues.Add(display);
+                if (!display.Disabled)
+                    IssuesOpen.Add(display);
+            }
         }
     }
 }

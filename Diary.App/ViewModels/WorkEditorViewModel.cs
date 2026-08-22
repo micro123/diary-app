@@ -403,13 +403,13 @@ public partial class WorkEditorViewModel : ViewModelBase
             .ToList();
     }
 
-    private void SyncExtraFields()
+    private void SyncExtraFields(IEnumerable<WorkItemExtraField>? prefetchedFields = null)
     {
         _extraFieldValues.Clear();
         if (WorkItem is { Id: > 0 } item && Db is not null)
         {
-            foreach (var field in Db.GetWorkItemExtraFields(item)
-                         .Where(field => !string.IsNullOrWhiteSpace(field.Value)))
+            var fields = prefetchedFields?.ToArray() ?? Db.GetWorkItemExtraFields(item).ToArray();
+            foreach (var field in fields.Where(field => !string.IsNullOrWhiteSpace(field.Value)))
             {
                 _extraFieldValues.Add(new WorkItemExtraFieldValue
                 {
@@ -418,13 +418,18 @@ public partial class WorkEditorViewModel : ViewModelBase
                     Value = field.Value,
                 });
             }
+            SetExtraFieldsSnapshot(fields);
+            return;
         }
         RefreshExtraFieldsSnapshot();
     }
 
     private void RefreshExtraFieldsSnapshot()
+        => SetExtraFieldsSnapshot(BuildExtraFields());
+
+    private void SetExtraFieldsSnapshot(IEnumerable<WorkItemExtraField> fields)
     {
-        _extraFields = BuildExtraFields();
+        _extraFields = fields.ToArray();
         OnPropertyChanged(nameof(HasExtraFields));
         OnPropertyChanged(nameof(CanOpenExtraFields));
         OnPropertyChanged(nameof(ExtraFieldsSummary));
@@ -444,7 +449,8 @@ public partial class WorkEditorViewModel : ViewModelBase
     public void SyncFromBatch(
         Dictionary<int, string> notesById,
         Dictionary<int, ICollection<WorkTag>> tagsById,
-        IReadOnlyDictionary<TrackerKey, IDictionary<int, object?>?>? bindingsByTracker)
+        IReadOnlyDictionary<TrackerKey, IDictionary<int, object?>?>? bindingsByTracker,
+        IReadOnlyDictionary<int, ICollection<WorkItemExtraField>>? extraFieldsByWorkItemId = null)
     {
         if (WorkItem is not { Id: > 0 })
             return;
@@ -467,7 +473,9 @@ public partial class WorkEditorViewModel : ViewModelBase
         }
         _syncing_tags = false;
         UpdateAvailableTags();
-        SyncExtraFields();
+        SyncExtraFields(extraFieldsByWorkItemId is null
+            ? null
+            : extraFieldsByWorkItemId.GetValueOrDefault(id, Array.Empty<WorkItemExtraField>()));
 
         // 每个 tracker 扩展从 map 中按 InstanceId 取自己的 per-work 绑定
         foreach (var ext in Extensions)

@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Diary.Core.Data.Base;
 using Diary.GUIBase.ViewModels;
@@ -14,8 +13,10 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
     private readonly IRedMineApi _api;
     private WorkTimeEntry? TimeEntry { get; set; }
 
-    public ObservableCollection<RedMineIssueDisplay> RedMineIssues { get; } = new();
-    public ObservableCollection<RedMineActivity> RedMineActivities { get; } = new();
+    [ObservableProperty]
+    private IReadOnlyList<RedMineIssueDisplay> _redMineIssues = Array.Empty<RedMineIssueDisplay>();
+    [ObservableProperty]
+    private IReadOnlyList<RedMineActivity> _redMineActivities = Array.Empty<RedMineActivity>();
 
     [ObservableProperty] private int _issueIndex = -1;
     [ObservableProperty] private int _activityIndex = -1;
@@ -190,45 +191,51 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
 
     private void RefreshOptions()
     {
-        RedMineActivities.Clear();
-        foreach (var activity in _data.RedMineActivities)
-            RedMineActivities.Add(activity);
-        RedMineIssues.Clear();
-        foreach (var issue in _data.RedMineIssuesOpen)
-            RedMineIssues.Add(issue);
-
-        if (TimeEntry is null)
-            return;
-        if (RedMineActivities.All(activity => activity.Id != TimeEntry.ActivityId))
+        IReadOnlyList<RedMineActivity> activities = _data.RedMineActivities;
+        IReadOnlyList<RedMineIssueDisplay> issues = _data.RedMineIssuesOpen;
+        if (TimeEntry is not null)
         {
-            RedMineActivities.Add(new RedMineActivity
+            if (activities.All(activity => activity.Id != TimeEntry.ActivityId))
             {
-                Id = TimeEntry.ActivityId,
-                Title = $"活动 #{TimeEntry.ActivityId}",
-                Invalid = true,
-            });
+                activities =
+                [
+                    .. activities,
+                    new RedMineActivity
+                    {
+                        Id = TimeEntry.ActivityId,
+                        Title = $"活动 #{TimeEntry.ActivityId}",
+                        Invalid = true,
+                    },
+                ];
+            }
+            if (issues.All(issue => issue.Id != TimeEntry.IssueId))
+            {
+                var stored = _data.RedMineIssues.FirstOrDefault(issue => issue.Id == TimeEntry.IssueId);
+                issues =
+                [
+                    .. issues,
+                    stored is null
+                        ? new RedMineIssueDisplay
+                        {
+                            Id = TimeEntry.IssueId,
+                            Title = $"问题 #{TimeEntry.IssueId}",
+                            AssignedTo = string.Empty,
+                            Project = string.Empty,
+                            Invalid = true,
+                        }
+                        : new RedMineIssueDisplay
+                        {
+                            Id = stored.Id,
+                            Title = stored.Title,
+                            AssignedTo = stored.AssignedTo,
+                            Project = stored.Project,
+                            Disabled = stored.Disabled,
+                            Invalid = true,
+                        },
+                ];
+            }
         }
-        if (RedMineIssues.All(issue => issue.Id != TimeEntry.IssueId))
-        {
-            var stored = _data.RedMineIssues.FirstOrDefault(issue => issue.Id == TimeEntry.IssueId);
-            RedMineIssues.Add(stored is null
-                ? new RedMineIssueDisplay
-                {
-                    Id = TimeEntry.IssueId,
-                    Title = $"问题 #{TimeEntry.IssueId}",
-                    AssignedTo = string.Empty,
-                    Project = string.Empty,
-                    Invalid = true,
-                }
-                : new RedMineIssueDisplay
-                {
-                    Id = stored.Id,
-                    Title = stored.Title,
-                    AssignedTo = stored.AssignedTo,
-                    Project = stored.Project,
-                    Disabled = stored.Disabled,
-                    Invalid = true,
-                });
-        }
+        RedMineActivities = activities;
+        RedMineIssues = issues;
     }
 }

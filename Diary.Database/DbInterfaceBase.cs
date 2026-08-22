@@ -401,19 +401,22 @@ public abstract partial class DbInterfaceBase : IDisposable, IDbExtensionHost
         Enabled = Convert.ToBoolean(r.GetValue(8)),
     };
 
-    protected WorkItemExtraField MapWorkItemExtraField(DbDataReader r) => new()
+    protected WorkItemExtraField MapWorkItemExtraField(DbDataReader r)
+        => MapWorkItemExtraField(r, 0);
+
+    protected WorkItemExtraField MapWorkItemExtraField(DbDataReader r, int offset) => new()
     {
-        FieldId = ReadString(r, 0),
-        FieldKey = ReadString(r, 1),
-        TagId = r.GetInt32(2),
-        TagName = ReadString(r, 3),
-        Label = ReadString(r, 4),
-        Type = (TagExtraFieldType)r.GetInt32(5),
-        Description = ReadString(r, 6),
-        SortOrder = r.GetInt32(7),
-        Options = ParseTagExtraFieldOptions(ReadString(r, 8)),
-        Enabled = Convert.ToBoolean(r.GetValue(9)),
-        Value = r.IsDBNull(10) ? string.Empty : ReadString(r, 10),
+        FieldId = ReadString(r, offset),
+        FieldKey = ReadString(r, offset + 1),
+        TagId = r.GetInt32(offset + 2),
+        TagName = ReadString(r, offset + 3),
+        Label = ReadString(r, offset + 4),
+        Type = (TagExtraFieldType)r.GetInt32(offset + 5),
+        Description = ReadString(r, offset + 6),
+        SortOrder = r.GetInt32(offset + 7),
+        Options = ParseTagExtraFieldOptions(ReadString(r, offset + 8)),
+        Enabled = Convert.ToBoolean(r.GetValue(offset + 9)),
+        Value = r.IsDBNull(offset + 10) ? string.Empty : ReadString(r, offset + 10),
     };
 
     protected WorkItem MapWorkItem(DbDataReader r) => new()

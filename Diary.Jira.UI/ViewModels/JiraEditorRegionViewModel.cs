@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.Core.Data.Base;
@@ -16,7 +15,8 @@ public partial class JiraEditorRegionViewModel : ViewModelBase, ITrackerEditorEx
     private JiraWorkTimeEntry? _timeEntry;
     private JiraInstanceSettings _settings;
 
-    public ObservableCollection<JiraIssueDisplay> Issues { get; } = new();
+    [ObservableProperty]
+    private IReadOnlyList<JiraIssueDisplay> _issues = Array.Empty<JiraIssueDisplay>();
     [ObservableProperty] private int _issueIndex = -1;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsLocked))]
@@ -123,11 +123,7 @@ public partial class JiraEditorRegionViewModel : ViewModelBase, ITrackerEditorEx
     }
 
     private void ReloadIssues()
-    {
-        Issues.Clear();
-        foreach (var issue in _data.Issues.Where(issue => !issue.Disabled))
-            Issues.Add(issue);
-    }
+        => Issues = _data.IssuesOpen;
 
     private void SyncFromEntry()
     {

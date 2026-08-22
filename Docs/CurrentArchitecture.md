@@ -176,7 +176,7 @@ stop
 
 核心模式可通过 `Diary.App --core-only` 启动，不加载任何 tracker 插件或插件 UI，适合验证无 Redmine 程序集时的核心日记、编辑器和模板功能。该选项只影响当前进程，不修改插件配置和数据库数据。
 
-Debug 构建还提供显式启用的本地 UI 自动化入口：设置 `DIARY_CDP_PORT` 后由 `DebugUiAutomation` 在主窗口创建完成时启动 Avalonia CDP；设置 `DIARY_UI_TEST_ROOT` 时，`FsTools` 会在任何应用目录初始化前把配置、数据、日志和临时目录切换到独立 profile，并按 profile 路径生成独立单实例 ID。`DIARY_UI_TEST_SCENARIO` 支持 `default`、`extended`、`survey`、`database-error` 和 `plugins` 五种隔离场景，只在测试 profile 中预置开发者、调查或数据库异常配置；`Tools/ui-full-test.ps1` 按场景编排 8 个 UI 套件，外部 Redmine 配置仅从加密 seed profile 复制。相关包引用、启动和停止代码均受 Debug 条件限制，Release 构建不携带该调试入口。测试生命周期和性能基线见 [`UiAutomationTesting.md`](UiAutomationTesting.md)，功能级状态见 [`UiAutomationCoverage.md`](UiAutomationCoverage.md)。
+Debug 构建还提供显式启用的本地 UI 自动化入口：设置 `DIARY_CDP_PORT` 后由 `DebugUiAutomation` 在主窗口创建完成时启动 Avalonia CDP；设置 `DIARY_UI_TEST_ROOT` 时，`FsTools` 会在任何应用目录初始化前把配置、数据、日志和临时目录切换到独立 profile，并按 profile 路径生成独立单实例 ID。`DIARY_UI_TEST_SCENARIO` 支持 `default`、`extended`、`survey`、`database-error`、`extra-fields` 和 `plugins` 六种隔离场景，只在测试 profile 中预置开发者、调查、附加字段或数据库异常配置；`Tools/ui-full-test.ps1` 按场景编排 9 个 UI 套件，外部 Redmine 配置仅从加密 seed profile 复制。相关包引用、启动和停止代码均受 Debug 条件限制，Release 构建不携带该调试入口。测试生命周期和性能基线见 [`UiAutomationTesting.md`](UiAutomationTesting.md)，功能级状态见 [`UiAutomationCoverage.md`](UiAutomationCoverage.md)。
 主窗口左上角应用图标菜单提供“重启程序”。命令先标记重启请求并复用正常退出流程，等待 `PreShutdownAsync` 停止调查服务、脚本 Worker、保存配置并释放 DI；`Program.Main` 在 Avalonia 生命周期返回且 `SingletonApp` 释放文件锁和命名管道后，才以原可执行文件和命令行参数启动新实例，避免新实例被单实例守卫拦截。框架依赖方式通过 `dotnet Diary.App.dll` 启动时会保留托管入口程序集参数。
 
 应用初始化阶段会立即启动脚本目录的后台异步加载。目录发现、元数据读取和脚本构建在后台任务中执行；脚本管理页首次显示时复用正在进行的加载任务或已完成结果，只有手动重新加载、脚本编辑保存或编译检查才会强制重新扫描。
@@ -186,7 +186,7 @@ Debug 构建还提供显式启用的本地 UI 自动化入口：设置 `DIARY_CD
 
 工作项上传的远程协调可以从后台线程执行，但 `WorkEditorViewModel.Upload()` 完成后统一通过 Avalonia UI Dispatcher 更新 `UploadResults`、锁定状态和状态绑定，避免后台线程直接修改绑定集合。
 
-事件记录页的 `DailyWorks` 使用统一的优先级、ID 排序规则：`WorkPriorities` 升序后按持久化工作项 ID 升序。日期加载、复制新增和每次工作项保存后都会重排；重排使用 `ObservableCollection.Move()`，避免通过清空集合破坏当前选中项，并在移动期间抑制由选择变化触发的重复保存。
+事件记录页的 `DailyWorks` 使用统一的优先级、ID 排序规则：`WorkPriorities` 升序后按持久化工作项 ID 升序。日期加载、复制新增和每次工作项保存后都会重排；重排使用 `ObservableCollection.Move()`，避免通过清空集合破坏当前选中项，并在移动期间抑制由选择变化触发的重复保存。日期加载会按当日工作项 ID 批量读取附加字段，并把结果随备注、标签和 Tracker 绑定一起注入编辑器，避免每条事项重复执行附加字段查询。Redmine/Jira 编辑器直接复用数据仓库维护的开放 Issue/活动只读列表；只有历史绑定指向已关闭或缺失项时，才为该编辑器创建带失效占位项的局部列表，避免富数据日期切换时为每条事项重复复制全部 Tracker 选项。
 
 脚本宿主的普通日志项和模板日志项创建 API 接收应用层提供的数据库变更回调。只有 provider 事务真实提交成功后才调用该回调；应用内执行和 Worker HostCall 均将其映射为 `DbChangedEvent.ShareData`，事件记录页随后在 UI Dispatcher 上重新读取当前日期。Preview、幂等重放和失败回滚不会发送变更通知，通知回调自身失败也不改变已经提交的脚本结果。
 
