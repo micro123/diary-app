@@ -129,10 +129,14 @@ public sealed class WorkEditorViewModelTests
         Assert.AreEqual(0.5, viewModel.Time, 0.0001);
         Assert.AreEqual("0.5", viewModel.TimeInput);
 
+        viewModel.QuickTimeCommand.Execute("8h");
+        Assert.AreEqual(8.0, viewModel.Time, 0.0001);
+        Assert.AreEqual("8", viewModel.TimeInput);
+
         viewModel.TimeInput = "尚未应用";
         viewModel.ResetTimeInputCommand.Execute(null);
 
-        Assert.AreEqual("0.5", viewModel.TimeInput);
+        Assert.AreEqual("8", viewModel.TimeInput);
     }
 
     [TestMethod]

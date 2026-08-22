@@ -595,6 +595,7 @@ public partial class WorkEditorViewModel : ViewModelBase
             "1h" => 1.0,
             "2h" => 2.0,
             "4h" => 4.0,
+            "8h" => 8.0,
             "clear" => 0.0,
             _ => Time,
         };

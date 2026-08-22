@@ -70,6 +70,7 @@
                             <MenuItem Header="1 小时" Command="{Binding QuickTimeCommand}" CommandParameter="1h" />
                             <MenuItem Header="2 小时" Command="{Binding QuickTimeCommand}" CommandParameter="2h" />
                             <MenuItem Header="4 小时" Command="{Binding QuickTimeCommand}" CommandParameter="4h" />
+                            <MenuItem Header="8 小时" Command="{Binding QuickTimeCommand}" CommandParameter="8h" />
                             <MenuItem Header="清零" Command="{Binding QuickTimeCommand}" CommandParameter="clear" />
                         </MenuFlyout>
                     </SplitButton.Flyout>
