@@ -32,6 +32,8 @@ public partial class EditableWorkItemExtraField : ObservableObject
     public TagExtraFieldType Type { get; }
     public IReadOnlyList<string> Options { get; }
     public string Description { get; }
+    public bool Enabled { get; }
+    public bool IsDisabled => !Enabled;
     public bool IsReadOnly { get; }
     public bool UsesTextEditor => Type == TagExtraFieldType.Text;
     public bool UsesMultilineTextEditor => Type == TagExtraFieldType.MultilineText;
@@ -135,7 +137,8 @@ public partial class EditableWorkItemExtraField : ObservableObject
         Type = field.Type;
         Options = field.Options;
         Description = field.Description;
-        IsReadOnly = isReadOnly;
+        Enabled = field.Enabled;
+        IsReadOnly = isReadOnly || !field.Enabled;
         _value = field.Value;
     }
 

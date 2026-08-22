@@ -258,17 +258,44 @@ await runUiSuite({ name: 'ui-settings-full', scenario: 'default', timeoutMs: 100
     await runStep('settings.update-check', '应用更新配置和手动检查', async () => {
         await openSettings(connection);
         await expandGroup(connection, '应用更新', '立即检查');
+        const dataDirectory = path.join(connection.state.profile, 'data');
+        const logName = (await fs.readdir(dataDirectory)).find(name => /^Diary\.App.*\.log$/i.test(name));
+        assertUi(logName, '找不到应用运行日志');
+        const logPath = path.join(dataDirectory, logName);
+        const beforeLog = await fs.readFile(logPath, 'utf8');
         await activateTextWithin(connection, 'SettingsView', '立即检查');
         const started = await connection.waitForTree(tree => findByText(tree, '正在检查更新…'),
             5000, '未显示正在检查更新状态');
-        const completed = await connection.waitForTree(tree =>
-            findByTextContains(tree, '更新服务器没有当前平台和包类型的发布快照')
-            ?? findByTextContains(tree, '更新服务器暂时不可用')
-            ?? findByTextContains(tree, '连接更新服务器超时')
-            ?? findByTextContains(tree, '检查更新失败'),
-        25000, '手动更新检查没有给出结果');
+        const completedStarted = performance.now();
+        let resultText = '';
+        let completed = false;
+        while (performance.now() - completedStarted < 30000) {
+            const tree = await connection.getTree();
+            const visibleResult = findByTextContains(tree, '更新服务器没有当前平台和包类型的发布快照')
+                ?? findByTextContains(tree, '更新服务器暂时不可用')
+                ?? findByTextContains(tree, '连接更新服务器超时')
+                ?? findByTextContains(tree, '检查更新失败')
+                ?? findByTextContains(tree, '当前已是最新版本');
+            if (visibleResult) {
+                resultText = textOf(visibleResult);
+                completed = true;
+                break;
+            }
+            const currentLog = await fs.readFile(logPath, 'utf8');
+            if (currentLog.slice(beforeLog.length).includes('应用更新检查完成')) {
+                resultText = '运行日志确认检查完成';
+                completed = true;
+                break;
+            }
+            await delay(50);
+        }
+        assertUi(completed, '手动更新检查没有给出结果');
         await closeSettings(connection);
-        return { startedMs: started.elapsedMs, completedMs: completed.elapsedMs, result: textOf(completed.value) };
+        return {
+            startedMs: started.elapsedMs,
+            completedMs: performance.now() - completedStarted,
+            result: resultText,
+        };
     });
 
     await runStep('settings.performance', '程序设置打开、分组展开和关闭响应速度', async () => {

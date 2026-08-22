@@ -44,6 +44,10 @@ $groups = @(
         Suites = @([ordered]@{ Name = 'ui-survey-full'; Script = 'ui-survey-full.mjs' })
     },
     [ordered]@{
+        Scenario = 'extra-fields'; Plugins = $false; Seed = ''
+        Suites = @([ordered]@{ Name = 'ui-extra-fields-full'; Script = 'ui-extra-fields-full.mjs' })
+    },
+    [ordered]@{
         Scenario = 'plugins'; Plugins = $true; Seed = $RedmineSeedProfile
         Suites = @([ordered]@{ Name = 'ui-redmine-full'; Script = 'ui-redmine-full.mjs' })
     }

@@ -86,14 +86,48 @@ try {
     });
 
     await step('editor.compile-check', 'C# 编译检查', async () => {
-        const tree = await editor.getTree();
-        const button = findByName(tree, 'CheckButton');
         const started = performance.now();
-        await editor.client.send('DOM.focus', { nodeId: button.nodeId });
-        await editor.pressKey('Enter', 'Enter', 13);
-        const result = await editor.waitForTree(current => findByText(current, '编译检查通过'), 30000,
-            '编译检查没有通过');
-        return { compileMs: performance.now() - started, observedMs: result.elapsedMs };
+        let activation;
+        let lastError;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            const tree = await editor.getTree();
+            const button = findByName(tree, 'CheckButton');
+            assert(button && isEnabled(button), '编译检查按钮不可用');
+            if (attempt === 0)
+                await editor.clickNode(button);
+            else {
+                await editor.client.send('DOM.focus', { nodeId: button.nodeId });
+                await editor.pressKey('Enter', 'Enter', 13);
+            }
+            try {
+                activation = await editor.waitForTree(current => {
+                    const checkButton = findByName(current, 'CheckButton');
+                    const passed = findByText(current, '编译检查通过');
+                    const failed = findByText(current, '编译检查失败')
+                        ?? findByText(current, '编译检查失败，请查看诊断');
+                    return passed ?? failed ?? (checkButton && !isEnabled(checkButton) ? checkButton : null);
+                }, 1800, '未观察到编译检查启动');
+                break;
+            }
+            catch (error) {
+                lastError = error;
+                await delay(80);
+            }
+        }
+        if (!activation)
+            throw lastError;
+        const result = await editor.waitForTree(current => {
+            const passed = findByText(current, '编译检查通过');
+            const failed = findByText(current, '编译检查失败')
+                ?? findByText(current, '编译检查失败，请查看诊断');
+            return passed ? { passed: true } : failed ? { passed: false, status: textOf(failed) } : null;
+        }, 30000, '编译检查没有完成');
+        assert(result.value.passed, result.value.status ?? '编译检查失败');
+        return {
+            compileMs: performance.now() - started,
+            activationMs: activation.elapsedMs,
+            observedMs: result.elapsedMs,
+        };
     });
 
     await step('editor.close', '安全关闭编辑器窗口', async () => {

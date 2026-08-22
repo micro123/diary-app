@@ -70,13 +70,33 @@ async function activateTextWithin(connection, typeName, text, contains = false) 
 }
 
 async function openSettingsText(connection, text, expectedType) {
-    const tree = await connection.getTree();
-    await activateControl(connection, findByName(tree, 'SettingsMenuButton'));
-    const menu = await connection.waitForTree(current => {
-        const label = findByText(current, text, entry => hasAncestorType(current, entry, 'MenuItem'));
-        return label && ancestor(current, label, entry => typeOf(entry).includes('MenuItem'));
-    }, 5000, '设置菜单项未出现：' + text);
-    await activateControl(connection, menu.value);
+    let menu;
+    let lastError;
+    for (let attempt = 0; attempt < 3; attempt++) {
+        const tree = await connection.getTree();
+        const button = findByName(tree, 'SettingsMenuButton');
+        assertUi(button, '设置按钮不存在');
+        if (attempt === 0)
+            await connection.clickNode(button);
+        else
+            await activateControl(connection, button);
+        try {
+            menu = await connection.waitForTree(current => {
+                const label = findByText(current, text, entry => hasAncestorType(current, entry, 'MenuItem'));
+                const item = label && ancestor(current, label, entry => typeOf(entry).includes('MenuItem'));
+                return label && item ? { label, item } : null;
+            }, 1800, '设置菜单项未出现：' + text);
+            break;
+        }
+        catch (error) {
+            lastError = error;
+            await connection.pressKey('Escape', 'Escape', 27);
+            await delay(80);
+        }
+    }
+    if (!menu)
+        throw lastError;
+    await connection.clickNode(menu.value.label);
     return connection.waitForTree(current => rootOf(current, expectedType), 10000,
         '设置对话框未出现：' + expectedType);
 }

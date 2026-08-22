@@ -5,6 +5,7 @@ import {
     controlForText,
     delay,
     descendants,
+    findByName,
     findByText,
     findByTextContains,
     hasAncestorType,
@@ -18,6 +19,19 @@ import { assertUi, runUiSuite } from './ui-suite.mjs';
 
 function rootOf(tree, typeName) {
     return tree.entries.find(entry => isVisible(entry) && typeOf(entry).includes(typeName));
+}
+
+function named(tree, name) {
+    return findByName(tree, name);
+}
+
+function editableText(tree, controlName) {
+    const control = named(tree, controlName);
+    if (!control)
+        return null;
+    if (typeOf(control).includes('TextBox'))
+        return control;
+    return descendants(tree, control).find(entry => isVisible(entry) && typeOf(entry).includes('TextBox'));
 }
 
 function textWithin(tree, root, text, contains = false) {
@@ -240,28 +254,29 @@ await runUiSuite({ name: 'ui-survey-full', scenario: 'survey', timeoutMs: 10000 
         return { samples };
     });
 
-    await runStep('survey.validation-error', '扩展查询无效日期范围错误状态', async () => {
+    await runStep('survey.validation-error', '无效日期范围在发送前被阻止', async () => {
         let tree = await connection.getTree();
-        const root = rootOf(tree, 'SurveyView');
-        const dateInputs = descendants(tree, root).filter(entry => isVisible(entry)
-            && typeOf(entry).includes('TextBox')
-            && ancestor(tree, entry, item => typeOf(item).includes('CalendarDatePicker')));
-        assertUi(dateInputs.length >= 2, '调查页日期输入框不足两个');
-        await connection.replaceText(dateInputs[0], '2026-08-21');
+        const previousStatus = textOf(named(tree, 'SurveyQueryStatus'));
+        await connection.replaceText(editableText(tree, 'SurveyStartDateInput'), '2026-08-21');
         await connection.pressKey('Enter', 'Enter', 13);
         tree = await connection.getTree();
-        const currentRoot = rootOf(tree, 'SurveyView');
-        const currentDateInputs = descendants(tree, currentRoot).filter(entry => isVisible(entry)
-            && typeOf(entry).includes('TextBox')
-            && ancestor(tree, entry, item => typeOf(item).includes('CalendarDatePicker')));
-        await connection.replaceText(currentDateInputs[1], '2026-08-20');
+        await connection.replaceText(editableText(tree, 'SurveyEndDateInput'), '2026-08-20');
         await connection.pressKey('Enter', 'Enter', 13);
-        await activateTextWithin(connection, 'SurveyView', '发起调查');
-        const errorResult = await waitForSurveyComplete(connection,
-            '正在调查：已收到 0 个节点结果；节点错误：开始日期不能晚于结束日期');
-        const completed = await waitForSurveyComplete(connection,
-            '调查结束：已收到 0 个节点结果；节点错误：开始日期不能晚于结束日期');
-        return { errorObservedMs: errorResult.elapsedMs, completionObservedMs: completed.elapsedMs };
+        const invalid = await connection.waitForTree(current => {
+            const error = named(current, 'SurveyDateRangeError');
+            const sendButton = named(current, 'SendSurveyButton');
+            return error && textOf(error).includes('开始日期不能晚于结束日期')
+                && sendButton && !isEnabled(sendButton) ? { error, sendButton } : null;
+        }, 3000, '无效日期范围未在发送前被阻止');
+        assertUi(!textWithin(invalid.tree, rootOf(invalid.tree, 'SurveyView'), '正在调查中…'),
+            '无效日期范围错误进入调查状态');
+        await delay(250);
+        tree = await connection.getTree();
+        assertUi(textOf(named(tree, 'SurveyQueryStatus')) === previousStatus,
+            '无效日期范围改写了上一轮调查结果');
+        assertUi(!textWithin(tree, rootOf(tree, 'SurveyView'), '正在调查中…'),
+            '无效日期范围发起了调查请求');
+        return { blockedBeforeDispatch: true, previousResultPreserved: true };
     });
 
     await runStep('survey.performance', '调查页视觉树与交互响应速度', async () => {

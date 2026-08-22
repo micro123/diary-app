@@ -5,6 +5,7 @@
              xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
              mc:Ignorable="d"
              x:Class="Diary.App.Views.Dialogs.TagExtraFieldEditorView"
+             x:Name="TagExtraFieldEditorRoot"
              x:DataType="dialogs:TagExtraFieldEditorViewModel"
              Width="520"
              MinHeight="460"
@@ -20,12 +21,14 @@
         <ScrollViewer Grid.Row="1">
             <StackPanel Spacing="10">
                 <TextBlock Text="显示名称" />
-                <TextBox Text="{Binding Field.Label}"
+                <TextBox Name="ExtraFieldLabelInput"
+                         Text="{Binding Field.Label}"
                          Watermark="例如：参与人"
                          Classes="ClearButton" />
 
                 <TextBlock Text="FieldKey" />
-                <TextBox Text="{Binding Field.FieldKey}"
+                <TextBox Name="ExtraFieldKeyInput"
+                         Text="{Binding Field.FieldKey}"
                          IsEnabled="{Binding Field.IsNew}"
                          Watermark="例如：meeting.participants"
                          Classes="ClearButton" />
@@ -36,13 +39,15 @@
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <StackPanel Spacing="4">
                         <TextBlock Text="类型" />
-                        <ComboBox ItemsSource="{Binding Field.AvailableTypes}"
+                        <ComboBox Name="ExtraFieldTypeInput"
+                                  ItemsSource="{Binding Field.AvailableTypes}"
                                   SelectedItem="{Binding Field.Type}"
                                   IsEnabled="{Binding Field.IsNew}" />
                     </StackPanel>
                     <StackPanel Grid.Column="1" Spacing="4" MinWidth="90">
                         <TextBlock Text="状态" />
-                        <ToggleSwitch IsChecked="{Binding Field.Enabled}"
+                        <ToggleSwitch Name="ExtraFieldEnabledInput"
+                                      IsChecked="{Binding Field.Enabled}"
                                       OnContent="启用"
                                       OffContent="停用" />
                     </StackPanel>
@@ -50,7 +55,8 @@
 
                 <StackPanel Spacing="4">
                     <TextBlock Text="说明" />
-                    <TextBox Text="{Binding Field.Description}"
+                    <TextBox Name="ExtraFieldDescriptionInput"
+                             Text="{Binding Field.Description}"
                              Watermark="可选，用于 Tooltip 提示"
                              AcceptsReturn="True"
                              TextWrapping="Wrap"
@@ -59,7 +65,8 @@
 
                 <StackPanel Spacing="4" IsVisible="{Binding Field.IsChoice}">
                     <TextBlock Text="选项" />
-                    <TextBox Text="{Binding Field.OptionsText}"
+                    <TextBox Name="ExtraFieldOptionsInput"
+                             Text="{Binding Field.OptionsText}"
                              Watermark="每行填写一个选项"
                              AcceptsReturn="True"
                              TextWrapping="Wrap"
@@ -68,7 +75,8 @@
 
                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
                     <TextBlock Text="排序" VerticalAlignment="Center" />
-                    <NumericUpDown Grid.Column="1"
+                    <NumericUpDown Name="ExtraFieldSortOrderInput"
+                                   Grid.Column="1"
                                    Value="{Binding Field.SortOrder}"
                                    Minimum="0"
                                    FormatString="0" />
@@ -85,8 +93,9 @@
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Spacing="8">
-            <Button Content="取消" Command="{Binding CancelCommand}" />
-            <Button Content="确定" Classes="Primary" Command="{Binding SaveCommand}" />
+            <Button Name="CancelExtraFieldButton" Content="取消" Command="{Binding CancelCommand}" />
+            <Button Name="SaveExtraFieldButton" Content="确定" Classes="Primary"
+                    Command="{Binding SaveCommand}" />
         </StackPanel>
     </Grid>
 </UserControl>

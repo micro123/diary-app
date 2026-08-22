@@ -118,6 +118,22 @@ public sealed class WorkEditorViewModelTests
 
         Assert.IsTrue(viewModel.ShouldPersistBeforeReplacement);
     }
+
+    [TestMethod]
+    public void ImportedReadOnlyItemDoesNotNeedPersistenceBeforeReplacement()
+    {
+        var viewModel = CreateViewModel();
+        SetWorkItem(viewModel, new WorkItem
+        {
+            Id = 8,
+            CreateDate = "2026-08-22",
+            Comment = "迁移记录",
+            IsReadOnly = true,
+        });
+
+        Assert.IsFalse(viewModel.ShouldPersistBeforeReplacement);
+    }
+
     [TestMethod]
     public void TrackerUploadResultIncludesRecoveryDetails()
     {

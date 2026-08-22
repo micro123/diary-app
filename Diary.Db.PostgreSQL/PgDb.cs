@@ -389,11 +389,12 @@ public sealed partial class PgDb(IDbFactory factory) : DbInterfaceBase(factory),
                                   d.enabled, v.value_json
                            FROM work_item_tags wit
                            INNER JOIN tag_extra_field_definitions d
-                              ON d.tag_id=wit.tag_id AND d.enabled=TRUE
+                              ON d.tag_id=wit.tag_id
                            INNER JOIN work_tags t ON t.id=d.tag_id
                            LEFT JOIN work_item_extra_field_values v
                               ON v.work_id=wit.work_id AND v.field_id=d.field_id
                            WHERE wit.work_id=$1
+                             AND (d.enabled=TRUE OR v.value_json IS NOT NULL)
                            ORDER BY t.tag_level, t.id, d.sort_order, d.field_key;
                            """;
         return Query(sql, MapWorkItemExtraField, ("$1", item.Id));

@@ -265,10 +265,31 @@ export async function connectUiTest(options = {}) {
         return performance.now() - started;
     };
     const openSettingsMenuItem = async name => {
-        await clickByName('SettingsMenuButton');
-        const result = await waitForTree(tree => findByName(tree, name), 5000, '设置菜单项未出现：' + name);
-        await clickNode(result.value);
-        return result.elapsedMs;
+        let lastError;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            const tree = await getTree();
+            const button = findByName(tree, 'SettingsMenuButton');
+            if (!button)
+                throw new Error('找不到 SettingsMenuButton');
+            if (attempt === 0)
+                await clickNode(button);
+            else {
+                await client.send('DOM.focus', { nodeId: button.nodeId });
+                await pressKey('Enter', 'Enter', 13);
+            }
+            try {
+                const result = await waitForTree(current => findByName(current, name), 1800,
+                    '设置菜单项未出现：' + name);
+                await clickNode(result.value);
+                return result.elapsedMs;
+            }
+            catch (error) {
+                lastError = error;
+                await pressKey('Escape', 'Escape', 27);
+                await delay(80);
+            }
+        }
+        throw lastError;
     };
     const screenshot = async fileName => {
         const started = performance.now();

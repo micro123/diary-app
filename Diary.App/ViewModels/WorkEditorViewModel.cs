@@ -75,8 +75,8 @@ public partial class WorkEditorViewModel : ViewModelBase
     private IReadOnlyList<WorkItemExtraField> _extraFields = Array.Empty<WorkItemExtraField>();
 
     public bool HasAvailableTags => !IsLocked && AvailableTags.Count > 0;
-    public bool HasExtraFields => !IsImportedReadOnly && _extraFields.Count > 0;
-    public bool CanOpenExtraFields => HasExtraFields && !IsLocked;
+    public bool HasExtraFields => _extraFields.Count > 0;
+    public bool CanOpenExtraFields => HasExtraFields && (!IsLocked || IsImportedReadOnly);
     public string ExtraFieldsButtonText => IsImportedReadOnly ? "查看附加信息" : "附加信息";
     public string ExtraFieldsSummary => _extraFields.Count == 0
         ? "暂无附加信息"
@@ -230,13 +230,14 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     public bool IsNewItem => WorkItem is null;
 
-    public bool ShouldPersistBeforeReplacement => !IsNewItem
+    public bool ShouldPersistBeforeReplacement => !IsImportedReadOnly
+        && (!IsNewItem
         || !string.IsNullOrWhiteSpace(Comment)
         || !string.IsNullOrWhiteSpace(Note)
         || Time != 0
         || Priority != WorkPriorities.P0
         || WorkTags.Count != 0
-        || _extraFieldValues.Any(value => !string.IsNullOrWhiteSpace(value.Value));
+        || _extraFieldValues.Any(value => !string.IsNullOrWhiteSpace(value.Value)));
 
     // public int WorkId => WorkItem?.Id ?? 0;
     [ObservableProperty] private int _workId;

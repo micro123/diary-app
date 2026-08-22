@@ -119,10 +119,12 @@
                         <ComboBox Grid.Column="1" ItemsSource="{Binding QueryModes}"
                                   SelectedIndex="{Binding QueryModeIndex}" />
                         <TextBlock Grid.Column="3" Text="时间范围" Classes="SurveyLabel" />
-                        <CalendarDatePicker Grid.Column="4" SelectedDate="{Binding StartDate}"
+                        <CalendarDatePicker Name="SurveyStartDateInput"
+                                            Grid.Column="4" SelectedDate="{Binding StartDate}"
                                             IsTodayHighlighted="True" />
                         <TextBlock Grid.Column="5" Text="至" />
-                        <CalendarDatePicker Grid.Column="6" SelectedDate="{Binding EndDate}"
+                        <CalendarDatePicker Name="SurveyEndDateInput"
+                                            Grid.Column="6" SelectedDate="{Binding EndDate}"
                                             IsTodayHighlighted="True" />
                         <views:QuickDateSelectButton Grid.Column="7" />
                     </Grid>
@@ -138,10 +140,17 @@
                                 <TextBlock Text="重新计算" />
                             </StackPanel>
                         </Button>
+                        <TextBlock Name="SurveyDateRangeError"
+                                   Grid.Column="3" Text="{Binding QueryValidationMessage}"
+                                   IsVisible="{Binding !IsDateRangeValid}"
+                                   Foreground="{DynamicResource SystemControlErrorTextForeground}"
+                                   TextWrapping="Wrap" VerticalAlignment="Center" />
                         <TextBlock Grid.Column="4" Text="正在调查中…"
                                    IsVisible="{Binding Surveying}"
                                    Foreground="{DynamicResource ButtonDefaultSuccessForeground}" />
-                        <Button Grid.Column="5" Command="{Binding SendQueryCommand}"
+                        <Button Name="SendSurveyButton"
+                                Grid.Column="5" Command="{Binding SendQueryCommand}"
+                                IsEnabled="{Binding IsDateRangeValid}"
                                 Classes="Primary" MinWidth="112">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <i:Icon Value="mdi-account-voice" />
@@ -189,7 +198,7 @@
                             Background="{DynamicResource SemiColorFill2}">
                         <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
                             <TextBlock Text="调查结果" Classes="SurveySectionTitle" />
-                            <TextBlock Grid.Column="1" Text="{Binding QueryStatus}"
+                            <TextBlock Name="SurveyQueryStatus" Grid.Column="1" Text="{Binding QueryStatus}"
                                        TextWrapping="Wrap" Opacity="0.72"
                                        Classes.Danger="{Binding HasQueryErrors}" />
                             <TextBlock Grid.Column="2" Text="结果区域支持纵向和横向滚动"

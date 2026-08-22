@@ -175,11 +175,24 @@ public partial class SurveyViewModel : ViewModelBase
     private readonly ILogger _logger;
     private readonly IServiceProvider _serviceProvider;
 
-    [ObservableProperty] private DateTime _startDate = DateTime.Now.Date;
-    [ObservableProperty] private DateTime _endDate = DateTime.Now.Date;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDateRangeValid))]
+    [NotifyPropertyChangedFor(nameof(QueryValidationMessage))]
+    [NotifyCanExecuteChangedFor(nameof(SendQueryCommand))]
+    private DateTime _startDate = DateTime.Now.Date;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDateRangeValid))]
+    [NotifyPropertyChangedFor(nameof(QueryValidationMessage))]
+    [NotifyCanExecuteChangedFor(nameof(SendQueryCommand))]
+    private DateTime _endDate = DateTime.Now.Date;
+
     [ObservableProperty] private double _customTotal = 0;
     [ObservableProperty] private ObservableCollection<SurveyResult> _surveyResults = new();
-    [ObservableProperty] private bool _surveying = false;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SendQueryCommand))]
+    private bool _surveying = false;
     [ObservableProperty] private string _extendedText = string.Empty;
     [ObservableProperty] private string _extendedTagNames = string.Empty;
     [ObservableProperty] private int _extendedTagFilterIndex;
@@ -203,6 +216,9 @@ public partial class SurveyViewModel : ViewModelBase
     public IReadOnlyList<string> ExtendedGroupDimensions { get; } = ["标签", "日期", "优先级"];
     public bool IsExtendedQuery => QueryModeIndex == 1;
     public bool CanViewCapabilities => PeerCapabilities.Count > 0;
+    public bool IsDateRangeValid => StartDate.Date <= EndDate.Date;
+    public string QueryValidationMessage => IsDateRangeValid ? string.Empty : "开始日期不能晚于结束日期";
+    private bool CanSendQuery => !Surveying && IsDateRangeValid;
     public bool HasQueryErrors
     {
         get
@@ -490,9 +506,15 @@ public partial class SurveyViewModel : ViewModelBase
         });
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanSendQuery))]
     private async Task SendQuery()
     {
+        if (!IsDateRangeValid)
+        {
+            QueryStatus = $"查询条件无效：{QueryValidationMessage}";
+            return;
+        }
+
         Surveying = true;
         lock (_lock)
         {

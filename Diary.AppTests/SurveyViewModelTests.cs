@@ -1,5 +1,7 @@
+using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.ViewModels;
 using Diary.App.ViewModels.Dialogs;
+using Diary.GUIBase.Events;
 using Diary.Survey;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -22,6 +24,39 @@ public sealed class SurveyViewModelTests
         Assert.IsTrue(viewModel.IsExtendedQuery);
         StringAssert.Contains(viewModel.QueryModeDescription, "9722");
         StringAssert.Contains(viewModel.QueryModes[1], "扩展查询");
+    }
+
+    [TestMethod]
+    public async Task InvalidDateRange_DisablesCommandAndDoesNotDispatchSurvey()
+    {
+        var viewModel = new SurveyViewModel(NullLogger.Instance, EmptyServiceProvider.Instance)
+        {
+            QueryModeIndex = 1,
+            StartDate = new DateTime(2026, 8, 21),
+            EndDate = new DateTime(2026, 8, 20),
+        };
+        var recipient = new object();
+        var compatibleQueries = 0;
+        var extendedQueries = 0;
+        WeakReferenceMessenger.Default.Register<SurveyQueryEvent>(recipient, (_, _) => compatibleQueries++);
+        WeakReferenceMessenger.Default.Register<ExtendedSurveyQueryEvent>(recipient, (_, _) => extendedQueries++);
+
+        try
+        {
+            Assert.IsFalse(viewModel.IsDateRangeValid);
+            Assert.AreEqual("开始日期不能晚于结束日期", viewModel.QueryValidationMessage);
+            Assert.IsFalse(viewModel.SendQueryCommand.CanExecute(null));
+
+            await viewModel.SendQueryCommand.ExecuteAsync(null);
+
+            Assert.IsFalse(viewModel.Surveying);
+            Assert.AreEqual(0, compatibleQueries);
+            Assert.AreEqual(0, extendedQueries);
+        }
+        finally
+        {
+            WeakReferenceMessenger.Default.UnregisterAll(recipient);
+        }
     }
 
     [TestMethod]

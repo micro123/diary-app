@@ -899,6 +899,10 @@ namespace Diary.App
             try
             {
                 success = ConfigureCheck(out message);
+#if DEBUG
+                if (success && UseDb is not null && DebugUiAutomation.ApplyDatabaseScenario(UseDb))
+                    Services.GetRequiredService<DbShareData>().InitLoad();
+#endif
                 if (success)
                     RegisterTrackerInstances();
             }

@@ -101,11 +101,24 @@ public sealed class EditableWorkItemExtraFieldTests
         Assert.AreEqual("开发", field.Value);
     }
 
+    [TestMethod]
+    public void DisabledFieldIsReadOnlyAndKeepsValue()
+    {
+        var field = Create(TagExtraFieldType.Text, "历史值", enabled: false);
+
+        Assert.IsFalse(field.Enabled);
+        Assert.IsTrue(field.IsDisabled);
+        Assert.IsTrue(field.IsReadOnly);
+        Assert.IsFalse(field.ClearValueCommand.CanExecute(null));
+        Assert.AreEqual("历史值", field.Value);
+    }
+
     private static EditableWorkItemExtraField Create(
         TagExtraFieldType type,
         string value = "",
         IReadOnlyList<string>? options = null,
-        bool isReadOnly = false) =>
+        bool isReadOnly = false,
+        bool enabled = true) =>
         new(new WorkItemExtraField
         {
             FieldId = "field-id",
@@ -115,6 +128,7 @@ public sealed class EditableWorkItemExtraFieldTests
             Label = "测试字段",
             Type = type,
             Options = options ?? [],
+            Enabled = enabled,
             Value = value,
         }, isReadOnly);
 }

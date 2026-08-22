@@ -187,6 +187,27 @@ public abstract class DbContractTests
         Assert.AreEqual("meeting.participants", field.FieldKey);
         Assert.AreEqual("张三、李四", field.Value);
 
+        definition.Enabled = false;
+        Assert.IsTrue(db.UpdateTagExtraFieldDefinition(definition));
+        field = db.GetWorkItemExtraFields(item).Single();
+        Assert.IsFalse(field.Enabled);
+        Assert.AreEqual("张三、李四", field.Value);
+
+        var disabledWithoutValue = new TagExtraFieldDefinition
+        {
+            FieldKey = "meeting.disabled-empty",
+            TagId = tag.Id,
+            Label = "停用空字段",
+            Type = TagExtraFieldType.Text,
+        };
+        Assert.IsTrue(db.CreateTagExtraFieldDefinition(disabledWithoutValue));
+        disabledWithoutValue.Enabled = false;
+        Assert.IsTrue(db.UpdateTagExtraFieldDefinition(disabledWithoutValue));
+        Assert.AreEqual(1, db.GetWorkItemExtraFields(item).Count);
+
+        definition.Enabled = true;
+        Assert.IsTrue(db.UpdateTagExtraFieldDefinition(definition));
+
         Assert.IsTrue(db.SaveWorkItemExtraFieldValues(item.Id, [new WorkItemExtraFieldValue
         {
             WorkItemId = item.Id,
