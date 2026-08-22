@@ -66,8 +66,9 @@ public partial class WorkEditorViewModel : ViewModelBase
     [ObservableProperty] private string _date;
     [ObservableProperty] private string _comment;
     [ObservableProperty] private string _note;
-    [ObservableProperty] private string _timeExpression = string.Empty;
+    [ObservableProperty] private string _timeInput = "0";
     [ObservableProperty] private double _time;
+    private string _committedTimeInput = "0";
     [ObservableProperty] private WorkPriorities _priority;
     [ObservableProperty] private ObservableCollection<WorkTag> _workTags = new();
     [ObservableProperty] private ObservableCollection<WorkTag> _availableTags = new();
@@ -587,7 +588,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     [RelayCommand]
     private void QuickTime(string value)
     {
-        Time = value switch
+        var hours = value switch
         {
             "15m" => 0.25,
             "30m" => 0.5,
@@ -597,19 +598,38 @@ public partial class WorkEditorViewModel : ViewModelBase
             "clear" => 0.0,
             _ => Time,
         };
+        Time = hours;
+        SynchronizeTimeInput(hours);
     }
 
     [RelayCommand]
-    private void ApplyTimeExpression()
+    private void ApplyTimeInput()
     {
-        if (!TimeExpressionParser.TryParse(TimeExpression, out var hours, out var error))
+        if (string.Equals(TimeInput, _committedTimeInput, StringComparison.Ordinal))
+            return;
+
+        if (!TimeExpressionParser.TryParse(TimeInput, out var hours, out var error))
         {
             EventDispatcher.ShowToast(error);
             return;
         }
 
         Time = hours;
-        TimeExpression = string.Empty;
+        SynchronizeTimeInput(hours);
+    }
+
+    [RelayCommand]
+    private void ResetTimeInput()
+        => SynchronizeTimeInput(Time);
+
+    partial void OnTimeChanged(double value)
+        => SynchronizeTimeInput(value);
+
+    private void SynchronizeTimeInput(double value)
+    {
+        var formatted = value.ToString("0.######", CultureInfo.InvariantCulture);
+        _committedTimeInput = formatted;
+        TimeInput = formatted;
     }
 
     [RelayCommand]

@@ -420,16 +420,56 @@ async function main() {
         functional.titleInputMs = performance.now() - started;
 
         tree = await getTree();
+        const timeInput = findByName(tree, 'WorkTimeInput');
+        if (!timeInput)
+            throw new Error('找不到统一耗时输入框 WorkTimeInput');
+        if (findByName(tree, 'WorkTimeExpressionInput') || findByText(tree, '时间输入：') || findByText(tree, '应用'))
+            throw new Error('耗时仍使用两个输入框或保留了旧应用入口');
+        started = performance.now();
+        await replaceText(timeInput, '1h30m');
+        await client.send('Input.dispatchKeyEvent', {
+            type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+        });
+        await client.send('Input.dispatchKeyEvent', {
+            type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+        });
+        await waitForTree(current => {
+            const input = findByName(current, 'WorkTimeInput');
+            return input && textOf(input) === '1.5';
+        });
+        functional.unifiedTimeInputEnterMs = performance.now() - started;
+        functional.unifiedTimeInputEnterApplied = true;
+
+        tree = await getTree();
+        const resetTimeInput = findByName(tree, 'WorkTimeInput');
+        await replaceText(resetTimeInput, '2h');
+        await client.send('Input.dispatchKeyEvent', {
+            type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27,
+        });
+        await client.send('Input.dispatchKeyEvent', {
+            type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27,
+        });
+        await waitForTree(current => textOf(findByName(current, 'WorkTimeInput')) === '1.5');
+        functional.unifiedTimeInputEscapeRestored = true;
+
+        tree = await getTree();
+        await replaceText(findByName(tree, 'WorkTimeInput'), '30m');
+        tree = await getTree();
         const todayButton = findByName(tree, 'UseTodayButton');
         if (!todayButton)
             throw new Error('找不到 UseTodayButton');
         started = performance.now();
         await clickNode(todayButton);
         const expectedToday = localDateText();
-        await waitForTree(current => current.entries.find(entry => nameOf(entry) === 'PART_TextBox'
-            && textOf(entry) === expectedToday && hasAncestorType(current, entry, 'CalendarDatePicker')));
+        await waitForTree(current => {
+            const dateApplied = current.entries.find(entry => nameOf(entry) === 'PART_TextBox'
+                && textOf(entry) === expectedToday && hasAncestorType(current, entry, 'CalendarDatePicker'));
+            const timeApplied = textOf(findByName(current, 'WorkTimeInput')) === '0.5';
+            return dateApplied && timeApplied;
+        });
         functional.useTodayMs = performance.now() - started;
         functional.today = expectedToday;
+        functional.unifiedTimeInputLostFocusApplied = true;
         if (functional.newWorkItemInitialDate && functional.newWorkItemInitialDate !== expectedToday) {
             findings.push({
                 severity: 'warning',

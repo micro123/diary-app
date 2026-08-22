@@ -107,6 +107,48 @@ public sealed class WorkEditorViewModelTests
     }
 
     [TestMethod]
+    public void UnifiedTimeInputParsesExpressionsAndNormalizesSameValue()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.Time = 1.5;
+        viewModel.TimeInput = "90m";
+
+        viewModel.ApplyTimeInputCommand.Execute(null);
+
+        Assert.AreEqual(1.5, viewModel.Time, 0.0001);
+        Assert.AreEqual("1.5", viewModel.TimeInput);
+    }
+
+    [TestMethod]
+    public void UnifiedTimeInputSynchronizesQuickValuesAndCanResetEdits()
+    {
+        var viewModel = CreateViewModel();
+
+        viewModel.QuickTimeCommand.Execute("30m");
+
+        Assert.AreEqual(0.5, viewModel.Time, 0.0001);
+        Assert.AreEqual("0.5", viewModel.TimeInput);
+
+        viewModel.TimeInput = "尚未应用";
+        viewModel.ResetTimeInputCommand.Execute(null);
+
+        Assert.AreEqual("0.5", viewModel.TimeInput);
+    }
+
+    [TestMethod]
+    public void InvalidUnifiedTimeInputDoesNotOverwriteCommittedTime()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.Time = 2;
+        viewModel.TimeInput = "invalid";
+
+        viewModel.ApplyTimeInputCommand.Execute(null);
+
+        Assert.AreEqual(2, viewModel.Time, 0.0001);
+        Assert.AreEqual("invalid", viewModel.TimeInput);
+    }
+
+    [TestMethod]
     public void ExistingItemNeedsPersistenceBeforeReplacement()
     {
         var viewModel = CreateViewModel();
