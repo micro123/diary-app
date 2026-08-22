@@ -23,7 +23,7 @@ public sealed class RedMineTrackerIntegrationFactory(IServiceProvider services) 
     }
 }
 
-public sealed class RedMineTrackerIntegration : ITrackerUiContribution
+public sealed class RedMineTrackerIntegration : ITrackerUiContribution, IDisposable
 {
     private readonly IServiceProvider _services;
     private readonly ITrackerInstance _instance;
@@ -61,4 +61,10 @@ public sealed class RedMineTrackerIntegration : ITrackerUiContribution
     public ITagRuleEditorContribution CreateTagRuleEditorContribution()
         => new RedMineTagRuleEditorContribution(
             _services.GetRequiredService<IRedMineConfigurationEditService>().Open(_settings));
+
+    public void Dispose()
+    {
+        if (_api is IDisposable disposable)
+            disposable.Dispose();
+    }
 }

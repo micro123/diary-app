@@ -13,7 +13,8 @@ namespace Diary.App.Services;
 public sealed class ScriptAutomationScheduler(
     IScriptManager scriptManager,
     ILogger<ScriptAutomationScheduler> logger,
-    TimeProvider? timeProvider = null) : IDisposable
+    TimeProvider? timeProvider = null,
+    int eventRunCacheCapacity = 4096) : IDisposable
 {
     private static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(30);
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
@@ -23,6 +24,8 @@ public sealed class ScriptAutomationScheduler(
     private readonly Dictionary<string, AutomationPlan> _plans = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DateTimeOffset> _lastRun = new(StringComparer.Ordinal);
     private readonly HashSet<string> _eventRuns = new(StringComparer.Ordinal);
+    private readonly Queue<string> _eventRunOrder = new();
+    private readonly int _eventRunCacheCapacity = Math.Max(1, eventRunCacheCapacity);
     private bool _startupCatchUpDone;
     private bool _timerStarted;
 
@@ -174,8 +177,12 @@ public sealed class ScriptAutomationScheduler(
             {
                 if (eventData is not null)
                 {
-                    if (!_eventRuns.Add($"{plan.ScriptId}:{idempotencyKey}"))
+                    var eventRunKey = $"{plan.ScriptId}:{idempotencyKey}";
+                    if (!_eventRuns.Add(eventRunKey))
                         return;
+                    _eventRunOrder.Enqueue(eventRunKey);
+                    while (_eventRunOrder.Count > _eventRunCacheCapacity)
+                        _eventRuns.Remove(_eventRunOrder.Dequeue());
                 }
                 else
                 {

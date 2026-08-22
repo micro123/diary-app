@@ -22,14 +22,11 @@ run_command() {
 	printf '%s' "$out" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
 }
 
-timestamp=$(date +"%Y/%m/%d %H:%M:%S")
 hash_full="unknown"
 hash_short="unknown"
 branch="unknown"
 commit_count="0"
 commit_message="unknown"
-commit_date="unknown"
-hostname=$(run_command hostnamectl hostname)
 
 repo_dir=$(run_command git rev-parse --show-toplevel)
 
@@ -42,7 +39,6 @@ if [ -n "$repo_dir" ]; then
 	branch=$(run_command git rev-parse --abbrev-ref HEAD)
 	commit_count=$(run_command git rev-list --count HEAD)
 	commit_message=$(run_command git log -1 --pretty=%s)
-	commit_date=$(run_command git log -1 --pretty=%cd --date=format:'%Y/%m/%d %H:%M:%S')
 
 	if [ -n "$dirty_check" ]; then
 		hash_full+="-dirty"
@@ -84,7 +80,6 @@ namespace ${project};
 
 internal static partial class VersionInfo
 {
-	  private const string BuildTime = "${timestamp}";
 	  private const string GitVersionFull = "${hash_full}";
 	  private const string GitVersionShort = "${hash_short}";
 	  private const string CommitCount = "${commit_count}";
@@ -92,8 +87,6 @@ internal static partial class VersionInfo
 	  private const string BuildChannel = "${build_channel}";
 	  private const string Branch = "${branch}";
 	  private const string LastCommitMessage = "${commit_message_escaped}";
-	  private const string LastCommitDate = "${commit_date}";
-	  private const string HostName = "${hostname}";
 
 	  static partial void GetVersionStringImpl(ref string versionString)
 	  {
@@ -121,9 +114,6 @@ internal static partial class VersionInfo
                Git分支：{Branch}
                Git提交：{GitVersionShort}
                提交消息：{LastCommitMessage}
-               提交时间：{LastCommitDate}
-               编译时间：{BuildTime}
-               编译主机：{HostName}
                """;
     }
 }

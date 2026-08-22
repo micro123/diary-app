@@ -237,22 +237,30 @@ public sealed partial class PgDb(IDbFactory factory) : DbInterfaceBase(factory),
             ?? new WorkTag();
     }
 
-    // $1=level $2=color $3=disabled $4=metadata $5=id
+    // $1=name $2=level $3=color $4=disabled $5=metadata $6=id
     public override bool UpdateWorkTag(WorkTag tag)
     {
         if (tag.Id == 0)
             return false;
         var sql = """
                   UPDATE work_tags
-                  SET tag_level=$1, tag_color=$2, is_disabled=$3, tag_metadata=$4
-                  WHERE id=$5;
+                  SET tag_name=$1, tag_level=$2, tag_color=$3, is_disabled=$4, tag_metadata=$5
+                  WHERE id=$6;
                   """;
-        return Execute(sql,
-            ("$1", (int)tag.Level),
-            ("$2", tag.Color),
-            ("$3", tag.Disabled ? 1 : 0),
-            ("$4", SerializeWorkTagMetadata(tag.Metadata)),
-            ("$5", tag.Id)) > 0;
+        try
+        {
+            return Execute(sql,
+                ("$1", tag.Name),
+                ("$2", (int)tag.Level),
+                ("$3", tag.Color),
+                ("$4", tag.Disabled ? 1 : 0),
+                ("$5", SerializeWorkTagMetadata(tag.Metadata)),
+                ("$6", tag.Id)) > 0;
+        }
+        catch (PostgresException)
+        {
+            return false;
+        }
     }
 
     // $1=id

@@ -70,7 +70,8 @@ public partial class JiraConfigurationViewModel : ViewModelBase, ITrackerSetting
         try
         {
             TestingConnection = true;
-            var result = await new JiraApi(SelectedInstance).SearchProjectsAsync(maxResults: 1);
+            using var api = new JiraApi(SelectedInstance);
+            var result = await api.SearchProjectsAsync(maxResults: 1);
             ConnectionMessage = result.Success ? "Jira 连接成功。" : result.Error ?? "Jira 连接失败。";
         }
         catch (Exception exception)

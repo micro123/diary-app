@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Reflection;
-using System.Data.Common;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
@@ -1113,7 +1112,7 @@ namespace Diary.App
             Logging.Shutdown();
         }
 
-        private Task? _preShutdownTask;
+        private readonly RetryableAsyncOperation _preShutdown = new();
         private bool _shutdownCompleted;
 
         private async void OnShutdownRequested(object? sender, ShutdownRequestedEventArgs e)
@@ -1122,10 +1121,9 @@ namespace Diary.App
                 return;
 
             e.Cancel = true;
-            _preShutdownTask ??= PreShutdownAsync();
             try
             {
-                await _preShutdownTask;
+                await _preShutdown.RunAsync(PreShutdownAsync);
             }
             catch (Exception ex)
             {
@@ -1158,13 +1156,12 @@ namespace Diary.App
             // UI 线程未处理异常（DispatcherTimer、绑定命令、async void 等均在 UI 线程分发）
             Dispatcher.UIThread.UnhandledException += (_, e) =>
             {
-                e.Handled = true;
                 var ex = e.Exception;
                 Logger.LogError(ex, "未处理的 UI 线程异常");
-                var msg = ex is DbException
-                    ? "数据库连接异常，请检查网络或数据库设置"
-                    : $"未处理异常：{ex.GetType().Name}";
-                try { EventDispatcher.Notify("发生错误", msg); }
+                e.Handled = GlobalExceptionPolicy.CanContinue(ex);
+                if (!e.Handled)
+                    return;
+                try { EventDispatcher.Notify("发生错误", "数据库连接异常，请检查网络或数据库设置"); }
                 catch { /* handler 自身不得再抛 */ }
             };
             // 后台 Task 未观察异常：.NET Core 默认不崩，仍记日志

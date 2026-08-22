@@ -48,6 +48,19 @@ public sealed class TrackerUiContributionRegistryTests
         Assert.AreEqual(0, registry.Contributions.Count);
     }
 
+    [TestMethod]
+    public void RegisterDisposesContributionsFromPreviousRegistration()
+    {
+        var factory = new DisposableContributionFactory();
+        using var registry = new TrackerUiContributionRegistry();
+        registry.Register([factory], [new MemoryInstance("one")]);
+
+        registry.Register([factory], [new MemoryInstance("two")]);
+
+        Assert.IsTrue(factory.Created.Single(item => item.Instance.InstanceId == "one").Disposed);
+        Assert.IsFalse(factory.Created.Single(item => item.Instance.InstanceId == "two").Disposed);
+    }
+
     private sealed class MemoryContributionFactory : ITrackerUiContributionFactory
     {
         public string PluginId => "tracker.memory";
@@ -62,6 +75,31 @@ public sealed class TrackerUiContributionRegistryTests
         public ViewModelBase? CreateSettingsPage(object configuration) => null;
         public ViewModelBase? CreateManagementPage(string instanceId) => null;
         public ITrackerEditorExtension? CreateEditorExtension(string instanceId) => null;
+    }
+
+    private sealed class DisposableContributionFactory : ITrackerUiContributionFactory
+    {
+        public string PluginId => "tracker.memory";
+        public List<DisposableContribution> Created { get; } = [];
+
+        public ITrackerUiContribution Create(ITrackerInstance instance)
+        {
+            var contribution = new DisposableContribution(instance);
+            Created.Add(contribution);
+            return contribution;
+        }
+    }
+
+    private sealed class DisposableContribution(ITrackerInstance instance)
+        : ITrackerUiContribution, IDisposable
+    {
+        public bool Disposed { get; private set; }
+        public string PluginId => instance.PluginId;
+        public ITrackerInstance Instance => instance;
+        public ViewModelBase? CreateSettingsPage(object configuration) => null;
+        public ViewModelBase? CreateManagementPage(string instanceId) => null;
+        public ITrackerEditorExtension? CreateEditorExtension(string instanceId) => null;
+        public void Dispose() => Disposed = true;
     }
 
     private sealed class MemoryInstance(string instanceId) : ITrackerInstance

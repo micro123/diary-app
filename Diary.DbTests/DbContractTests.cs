@@ -57,6 +57,7 @@ public abstract class DbContractTests
     {
         using var db = CreateDb();
         var tag = db.CreateWorkTag("t", true, 1);
+        tag.Name = "renamed";
         tag.Color = 99;
         tag.Level = TagLevels.Secondary;
         tag.Disabled = true;
@@ -64,10 +65,23 @@ public abstract class DbContractTests
         Assert.IsTrue(db.UpdateWorkTag(tag));
         var all = db.AllWorkTags();
         var got = all.Single(x => x.Id == tag.Id);
+        Assert.AreEqual("renamed", got.Name);
         Assert.AreEqual(99, got.Color);
         Assert.AreEqual(TagLevels.Secondary, got.Level);
         Assert.IsTrue(got.Disabled);
         Assert.AreEqual("客户 A", got.Metadata["customer"]);
+    }
+
+    [TestMethod]
+    public void UpdateWorkTag_DuplicateName_ReturnsFalseWithoutChangingTag()
+    {
+        using var db = CreateDb();
+        var first = db.CreateWorkTag("first", true, 1);
+        db.CreateWorkTag("second", false, 2);
+        first.Name = "second";
+
+        Assert.IsFalse(db.UpdateWorkTag(first));
+        Assert.AreEqual("first", db.AllWorkTags().Single(tag => tag.Id == first.Id).Name);
     }
 
     [TestMethod]

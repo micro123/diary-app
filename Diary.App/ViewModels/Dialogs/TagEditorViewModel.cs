@@ -380,7 +380,7 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
             return;
         AllTags.Clear();
         foreach (var tag in all)
-            AllTags.Add(new EditableWorkTag(tag));
+            AllTags.Add(new EditableWorkTag(tag, App.Instance.UseDb));
         SelectedTag = AllTags.FirstOrDefault();
     }
 }

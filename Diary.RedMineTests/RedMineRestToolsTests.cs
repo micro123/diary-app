@@ -22,8 +22,8 @@ public sealed class RedMineRestToolsTests
             RedMineApiKey = "second-key",
         };
 
-        var firstClient = RestTools.BasicClient(first);
-        var secondClient = RestTools.BasicClient(second);
+        using var firstClient = RestTools.BasicClient(first);
+        using var secondClient = RestTools.BasicClient(second);
         var request = RestTools.HttpGet(second, "/users/current.json");
 
         Assert.IsNotNull(firstClient);

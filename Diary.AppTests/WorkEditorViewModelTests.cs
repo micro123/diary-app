@@ -7,6 +7,7 @@ using Diary.App.ViewModels;
 using Diary.App.ViewModels.Dialogs;
 using Diary.Core.Data.Base;
 using Diary.Database;
+using Diary.Db.SQLite;
 using Diary.GUIBase.ViewModels;
 using Diary.PluginBase;
 using Diary.PluginUI;
@@ -153,6 +154,66 @@ public sealed class WorkEditorViewModelTests
     }
 
     [TestMethod]
+    public void DeleteFailureKeepsPersistedWorkItemInEditor()
+    {
+        using var database = CreateDatabase();
+        var item = database.CreateWorkItem("2026-08-22", "待删除");
+        var viewModel = CreateViewModel(database: database);
+        SetWorkItem(viewModel, item);
+        Assert.IsTrue(database.DeleteWorkItem(item));
+
+        Assert.IsFalse(viewModel.Delete());
+        Assert.AreSame(item, GetWorkItem(viewModel));
+        Assert.IsTrue(viewModel.ShouldPersistBeforeReplacement);
+    }
+
+    [TestMethod]
+    public void RemoveTagFailureKeepsTagInEditor()
+    {
+        using var database = CreateDatabase();
+        var item = database.CreateWorkItem("2026-08-22", "只读记录");
+        var tag = database.CreateWorkTag("保留标签", false, 1);
+        Assert.IsTrue(database.WorkItemAddTag(item, tag));
+        Assert.IsTrue(database.MarkWorkItemReadOnly(item));
+        item.IsReadOnly = true;
+
+        var viewModel = CreateViewModel(database: database);
+        SetWorkItem(viewModel, item);
+        viewModel.WorkTags.Add(tag);
+
+        viewModel.DelTagCommand.Execute(tag);
+
+        CollectionAssert.Contains(viewModel.WorkTags, tag);
+        Assert.IsTrue(database.GetWorkItemTags(item).Any(persisted => persisted.Id == tag.Id));
+    }
+
+    [TestMethod]
+    public void EditableWorkTagRenamePersistsToDatabase()
+    {
+        using var database = CreateDatabase();
+        var tag = database.CreateWorkTag("旧名称", true, 1);
+        var editable = new EditableWorkTag(tag, database) { Name = "新名称" };
+
+        Assert.IsTrue(editable.ApplyChanges(out var error), error);
+        Assert.AreEqual("新名称", tag.Name);
+        Assert.AreEqual("新名称", database.AllWorkTags().Single().Name);
+    }
+
+    [TestMethod]
+    public void EditableWorkTagDuplicateNameFailureKeepsOriginalModel()
+    {
+        using var database = CreateDatabase();
+        var tag = database.CreateWorkTag("原名称", true, 1);
+        database.CreateWorkTag("已存在", false, 2);
+        var editable = new EditableWorkTag(tag, database) { Name = "已存在" };
+
+        Assert.IsFalse(editable.ApplyChanges(out var error));
+        StringAssert.Contains(error, "重复");
+        Assert.AreEqual("原名称", tag.Name);
+        Assert.AreEqual("原名称", database.AllWorkTags().Single(item => item.Id == tag.Id).Name);
+    }
+
+    [TestMethod]
     public void ExistingItemNeedsPersistenceBeforeReplacement()
     {
         var viewModel = CreateViewModel();
@@ -231,14 +292,25 @@ public sealed class WorkEditorViewModelTests
         StringAssert.Contains(result.ResultSummary, $"尝试时间：{expectedAttemptedAt}");
     }
 
-    private static WorkEditorViewModel CreateViewModel(TrackerUiContributionRegistry? trackerRegistry = null)
+    private static WorkEditorViewModel CreateViewModel(
+        TrackerUiContributionRegistry? trackerRegistry = null,
+        DbInterfaceBase? database = null)
         => new(
             new DbShareData(NullLogger<DbShareData>.Instance),
             new NoopPersistenceCoordinator(),
             new RecordingUploadCoordinator(),
             trackerRegistry ?? new TrackerUiContributionRegistry(),
             string.Empty,
-            new NoopTagAutomationCoordinator());
+            new NoopTagAutomationCoordinator(),
+            database: database);
+
+    private static SQLiteDb CreateDatabase()
+    {
+        var database = new SQLiteDb(new TestSqliteFactory());
+        Assert.IsTrue(database.Connect());
+        Assert.IsTrue(database.Initialized());
+        return database;
+    }
 
     private static TrackerUiContributionRegistry CreateCloneTrackerRegistry()
     {
@@ -253,6 +325,15 @@ public sealed class WorkEditorViewModelTests
             BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.IsNotNull(property);
         property.SetValue(viewModel, item);
+    }
+
+    private static WorkItem? GetWorkItem(WorkEditorViewModel viewModel)
+    {
+        var property = typeof(WorkEditorViewModel).GetProperty(
+            "WorkItem",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.IsNotNull(property);
+        return property.GetValue(viewModel) as WorkItem;
     }
 
     private sealed class CloneTrackerInstance : ITrackerInstance
@@ -345,6 +426,17 @@ public sealed class WorkEditorViewModelTests
             TagAutomationContext context,
             IReadOnlyCollection<ITrackerEditorExtension> extensions)
             => new(Array.Empty<TagAutomationInstanceResult>());
+    }
+
+    private sealed class TestSqliteFactory : IDbFactory
+    {
+        private readonly Config _config = new() { FilePath = ":memory:" };
+
+        public string Name => "SQLite";
+        public bool Usable => true;
+        public DbInterfaceBase Create() => new SQLiteDb(this);
+        public Migration? GetMigration(uint version) => null;
+        public object GetConfig() => _config;
     }
 
     private sealed class TestApplication : Application

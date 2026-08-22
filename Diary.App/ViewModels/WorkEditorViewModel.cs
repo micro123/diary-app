@@ -48,6 +48,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     private readonly ITagAutomationCoordinator _tagAutomation;
     private readonly ScriptAutomationScheduler? _scriptAutomationScheduler;
     private readonly TrackerUiContributionRegistry _trackerRegistry;
+    private readonly DbInterfaceBase? _database;
     private readonly List<(WorkTag Tag, TagAddSource Source, int Sequence)> _pendingTagAutomation = [];
     private IReadOnlyList<int> _recentTagIds = Array.Empty<int>();
 
@@ -129,7 +130,7 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     // todo: plm?
 
-    private DbInterfaceBase? Db => (BaseApp.Instance as App)?.UseDb;
+    private DbInterfaceBase? Db => _database ?? (BaseApp.Instance as App)?.UseDb;
 
     public static WorkEditorViewModel FromWorkItem(WorkItem workItem)
     {
@@ -154,7 +155,8 @@ public partial class WorkEditorViewModel : ViewModelBase
         TrackerUiContributionRegistry? trackerRegistry = null,
         string? defaultTaskTitle = null,
         ITagAutomationCoordinator? tagAutomation = null,
-        ScriptAutomationScheduler? scriptAutomationScheduler = null)
+        ScriptAutomationScheduler? scriptAutomationScheduler = null,
+        DbInterfaceBase? database = null)
     {
         _shareData = shareData;
         _persistence = persistence
@@ -167,6 +169,7 @@ public partial class WorkEditorViewModel : ViewModelBase
             ?? (Application.Current as App)?.Services.GetService<ScriptAutomationScheduler>();
         _trackerRegistry = trackerRegistry ?? App.Instance.Services
             .GetRequiredService<TrackerUiContributionRegistry>();
+        _database = database;
         Date = TimeTools.Today();
         Comment = defaultTaskTitle ?? App.Instance.AppConfig.WorkSettings.DefaultTaskTitle;
         Note = string.Empty;
@@ -306,13 +309,20 @@ public partial class WorkEditorViewModel : ViewModelBase
         _ = _scriptAutomationScheduler?.TriggerAsync(trigger, eventData);
     }
 
-    public void Delete()
+    public bool Delete()
     {
-        // remove from db
-        if (WorkItem is { Id: > 0 })
-            Db!.DeleteWorkItem(WorkItem!);
+        if (WorkItem is { Id: > 0 } item)
+        {
+            if (Db is null || !Db.DeleteWorkItem(item))
+            {
+                EventDispatcher.ShowToast("删除工作记录失败，请刷新后重试。");
+                return false;
+            }
+        }
+
         _pendingTagAutomation.Clear();
         WorkItem = null;
+        return true;
     }
 
     public bool CanDelete()
@@ -687,27 +697,30 @@ public partial class WorkEditorViewModel : ViewModelBase
         if (IsLocked)
             return;
         _syncing_tags = true;
-        if (WorkItem is { Id: > 0 })
+        try
         {
+            if (WorkItem is { Id: > 0 } item)
+            {
+                var succeeded = tag.Level == TagLevels.Primary
+                    ? Db?.WorkItemCleanTags(item) == true
+                    : Db?.WorkItemRemoveTag(item, tag) == true;
+                if (!succeeded)
+                {
+                    EventDispatcher.ShowToast("移除标签失败，请刷新后重试。");
+                    return;
+                }
+            }
+
             if (tag.Level == TagLevels.Primary)
-            {
-                Db!.WorkItemCleanTags(WorkItem);
                 WorkTags.Clear();
-            }
             else
-            {
-                Db!.WorkItemRemoveTag(WorkItem, tag);
                 WorkTags.Remove(tag);
-            }
         }
-        else
+        finally
         {
-            if (tag.Level == TagLevels.Primary)
-                WorkTags.Clear();
-            else
-                WorkTags.Remove(tag);
+            _syncing_tags = false;
         }
-        _syncing_tags = false;
+
         UpdateAvailableTags();
         RefreshExtraFieldsSnapshot();
     }

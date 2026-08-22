@@ -363,7 +363,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
         _deleting = true;
         try
         {
-            selected.Delete();
+            if (!selected.Delete())
+                return;
             DailyWorks.Remove(selected);
             SelectedWork = DailyWorks.FirstOrDefault();
         }
@@ -877,11 +878,11 @@ public partial class DiaryEditorViewModel : ViewModelBase
         QuickMenuItems.Clear();
         AddMenuHeader(date.ToString("yyyy年"));
         AddMenuSeparator();
-        AddMenuAction("统计此年工时", CreateStatisticsCommand(date, AdjustPart.Week));
+        AddMenuAction("统计此年工时", CreateStatisticsCommand(date, AdjustPart.Year));
         if (IsSurveyorEnabled)
         {
             AddMenuSeparator();
-            AddMenuAction("调查此年工时情况", CreateSurveyCommand(date, AdjustPart.Week));
+            AddMenuAction("调查此年工时情况", CreateSurveyCommand(date, AdjustPart.Year));
         }
         AddEditorScriptActions(new DateTime(date.Year, 1, 1), new DateTime(date.Year, 12, 31));
     }

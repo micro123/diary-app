@@ -267,14 +267,22 @@ public sealed partial class SQLiteDb(IDbFactory factory) : DbInterfaceBase(facto
             return false;
         const string sql =
             @"UPDATE OR FAIL work_tags
-              SET tag_color=$color, tag_level=$level, is_disabled=$disabled, tag_metadata=$metadata
+              SET tag_name=$name, tag_color=$color, tag_level=$level, is_disabled=$disabled, tag_metadata=$metadata
               WHERE id=$id;";
-        return Execute(sql,
-            ("$color", tag.Color),
-            ("$level", tag.Level),
-            ("$disabled", tag.Disabled ? 1 : 0),
-            ("$metadata", SerializeWorkTagMetadata(tag.Metadata)),
-            ("$id", tag.Id)) > 0;
+        try
+        {
+            return Execute(sql,
+                ("$name", tag.Name),
+                ("$color", tag.Color),
+                ("$level", tag.Level),
+                ("$disabled", tag.Disabled ? 1 : 0),
+                ("$metadata", SerializeWorkTagMetadata(tag.Metadata)),
+                ("$id", tag.Id)) > 0;
+        }
+        catch (SQLiteException)
+        {
+            return false;
+        }
     }
 
     public override bool DeleteWorkTag(WorkTag tag)

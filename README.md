@@ -35,7 +35,7 @@ dotnet run --project Diary.App
 运行全部测试：
 
 ```bash
-dotnet test DiaryApp.sln --configuration Release
+dotnet test --solution DiaryApp.sln --configuration Release
 ```
 
 > RedMine 外部 API 测试默认跳过，设置 `DIARY_RUN_REDMINE_EXTERNAL_TESTS=1` 后运行。PostgreSQL 契约测试依赖 Docker；CI 的 Linux 门禁设置 `DIARY_REQUIRE_POSTGRES_TESTS=1`，容器不可用时直接失败，本地未安装 Docker 时显示为 Inconclusive。
@@ -55,29 +55,10 @@ dotnet test DiaryApp.sln --configuration Release
 
 ## 配置文件加密
 
-加密配置文件（如 `DiaryApp.config`）可以无需程序、仅通过 OpenSSL 命令行解密：
+包含数据库密码、API Key 或 Token 的配置文件由程序自动使用 AES-256-GCM 加密并校验完整性。实际文件密钥由安装时随机生成的主密钥派生，代码中的 `StorageFileAttribute` 字符串仅作为用途标识，不是解密密码。
 
-```bash
-# 解密
-openssl enc -aes-256-cbc -md sha256 -pbkdf2 -iter 100000 -d \
-    -in DiaryApp.config -pass pass:你的密码
+- Windows：主密钥使用当前登录用户的 DPAPI 保护。
+- Linux：主密钥文件权限限制为当前用户读写。
+- 旧版 `Salted__` AES-CBC/PBKDF2 配置仍可读取，下一次保存会自动迁移为新格式。
 
-# 加密（如需手动生成）
-openssl enc -aes-256-cbc -md sha256 -pbkdf2 -iter 100000 \
-    -in 明文.json -out DiaryApp.config -pass pass:你的密码
-```
-
-**参数说明**
-
-| 参数 | 含义 |
-|------|------|
-| `enc` | 对称加密子命令 |
-| `-aes-256-cbc` | 算法 AES-256，CBC 模式 |
-| `-md sha256` | 指定与程序一致的 PBKDF2 摘要算法 |
-| `-pbkdf2` | 使用 PBKDF2 派生密钥 |
-| `-iter 100000` | PBKDF2 迭代次数（与程序一致） |
-| `-d` | 解密模式，不加为加密模式 |
-| `-in <文件>` | 输入文件 |
-| `-pass pass:<密码>` | 指定密码（也可用 `-pass file:<路径>` 从文件读取） |
-
-> 迭代次数 100,000 遵循 OWASP/NIST 建议。可在程序中调整，但需与 `-iter` 保持一致。
+主密钥保存在应用配置目录的 `.diary-master-key`。备份或迁移加密配置时必须同时保留该文件；Windows 下主密钥还绑定原用户，不能只复制密文到其他用户或机器后直接解密。新格式不再支持仅凭硬编码口令使用 OpenSSL 手工解密。

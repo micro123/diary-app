@@ -25,7 +25,7 @@ public sealed class JiraTrackerIntegration(
     JiraUiDataStore data,
     IJiraApi api,
     IJiraDb database,
-    JiraInstanceSettings settings) : ITrackerUiContribution
+    JiraInstanceSettings settings) : ITrackerUiContribution, IDisposable
 {
     public string PluginId => JiraPluginConstants.PluginId;
     public ITrackerInstance Instance => instance;
@@ -35,4 +35,10 @@ public sealed class JiraTrackerIntegration(
         => instanceId == settings.InstanceId
             ? new JiraEditorRegionViewModel(data, api, database, settings)
             : null;
+
+    public void Dispose()
+    {
+        if (api is IDisposable disposable)
+            disposable.Dispose();
+    }
 }

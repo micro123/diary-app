@@ -50,14 +50,11 @@ function RunCommand {
 }
 
 # values
-$timestamp = Get-Date -UFormat "%Y/%m/%d %H:%M:%S"
 $hash_full = "unknown"
 $hash_short = "unknown"
 $branch = "unknown"
 $commit_count = "0"
 $commit_message = "unknown"
-$commit_date = "unknown"
-$hostname = $([System.Environment]::MachineName)
 
 
 $repo_dir = RunCommand git rev-parse --show-toplevel
@@ -94,7 +91,6 @@ if ($repo_dir -ne "") {
     $branch = RunCommand git rev-parse --abbrev-ref HEAD
     $commit_count = RunCommand git rev-list --count HEAD
     $commit_message = RunCommand git log -1 --pretty=%s
-    $commit_date = RunCommand git log -1 --pretty=%cd  --date=format:'%Y/%m/%d %H:%M:%S'
     if ($dirty_check -ne "") {
         $hash_full += "-dirty"
         $hash_short += "-dirty"
@@ -131,7 +127,6 @@ namespace ${project};
 
 internal static partial class VersionInfo
 {
-    private const string BuildTime = "$timestamp";
     private const string GitVersionFull = "${hash_full}";
     private const string GitVersionShort = "${hash_short}";
     private const string CommitCount = "${commit_count}";
@@ -139,8 +134,6 @@ internal static partial class VersionInfo
     private const string BuildChannel = "${build_channel}";
     private const string Branch = "${branch}";
     private const string LastCommitMessage = "${commit_message}";
-    private const string LastCommitDate = "${commit_date}";
-    private const string HostName = "${hostname}";
     
     static partial void GetVersionStringImpl(ref string versionString)
     {
@@ -168,9 +161,6 @@ internal static partial class VersionInfo
                Git分支：{Branch}
                Git提交：{GitVersionShort}
                提交消息：{LastCommitMessage}
-               提交时间：{LastCommitDate}
-               编译时间：{BuildTime}
-               编译主机：{HostName}
                """;
     }
 }

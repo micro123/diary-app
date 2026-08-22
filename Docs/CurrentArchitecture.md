@@ -179,12 +179,16 @@ stop
 Debug 构建还提供显式启用的本地 UI 自动化入口：设置 `DIARY_CDP_PORT` 后由 `DebugUiAutomation` 在主窗口创建完成时启动 Avalonia CDP；设置 `DIARY_UI_TEST_ROOT` 时，`FsTools` 会在任何应用目录初始化前把配置、数据、日志和临时目录切换到独立 profile，并按 profile 路径生成独立单实例 ID。`DIARY_UI_TEST_SCENARIO` 支持 `default`、`extended`、`survey`、`database-error`、`extra-fields` 和 `plugins` 六种隔离场景，只在测试 profile 中预置开发者、调查、附加字段或数据库异常配置；`Tools/ui-full-test.ps1` 按场景编排 9 个 UI 套件，外部 Redmine 配置仅从加密 seed profile 复制。相关包引用、启动和停止代码均受 Debug 条件限制，Release 构建不携带该调试入口。测试生命周期和性能基线见 [`UiAutomationTesting.md`](UiAutomationTesting.md)，功能级状态见 [`UiAutomationCoverage.md`](UiAutomationCoverage.md)。
 主窗口左上角应用图标菜单提供“重启程序”。命令先标记重启请求并复用正常退出流程，等待 `PreShutdownAsync` 停止调查服务、脚本 Worker、保存配置并释放 DI；`Program.Main` 在 Avalonia 生命周期返回且 `SingletonApp` 释放文件锁和命名管道后，才以原可执行文件和命令行参数启动新实例，避免新实例被单实例守卫拦截。框架依赖方式通过 `dotnet Diary.App.dll` 启动时会保留托管入口程序集参数。
 
+退出清理由 `RetryableAsyncOperation` 合并并发请求；清理失败时会释放失败任务，用户再次退出可重新执行，不会被永久 faulted 的任务锁住。UI Dispatcher 的全局异常处理只将 `DbException` 视为可恢复连接错误并继续运行；其他未处理异常仅记录后交回框架终止路径，由 CrashDump 流程保留诊断，避免把未知状态下的程序强行维持运行。
+
 应用初始化阶段会立即启动脚本目录的后台异步加载。目录发现、元数据读取和脚本构建在后台任务中执行；脚本管理页首次显示时复用正在进行的加载任务或已完成结果，只有手动重新加载、脚本编辑保存或编译检查才会强制重新扫描。
 调查功能的接收循环使用各自的 `CancellationToken`，消息处理器在接收任务中以可等待任务执行；处理器异常会记录并通过 `ReceiveMessageHandlerError` 诊断，不再由未观察的 fire-and-forget 任务承载。`AppSurveyor.StopServerAsync()` 和 `AppRespondent.ShutdownAsync()` 先取消接收，再等待接收循环和消息处理完成后释放 NNG 资源；应用配置重载和退出流程都等待这些异步生命周期任务。保留的无返回值 `StopServer()`/`Shutdown()` 仅用于兼容调用并主动观察后台任务，UI 路径不使用同步等待。
 
 调查页默认选择兼容查询，兼容查询 v1 会完全隐藏扩展条件卡片，用户显式切换到扩展查询 v2 后才显示并配置筛选、分组和明细，避免由字段内容隐式改变协议。页面布局以全宽查询配置为主，查询卡将标题与节点摘要、模式与日期、计算与执行压缩为三行，节点探测只在查询卡标题区显示状态和操作入口，完整节点能力通过独立 `OverlayDialog` 查看；扩展条件和结果区分层占满可用宽度，结果区独立滚动；查询状态会显示已收到的节点数量和节点错误，能力结果统一调度到 UI 线程更新。设置模型生成的 `Expander` 显式使用 `.Settings` 类，模板标题字号、颜色和内容边框样式仅匹配 `Expander.Settings`，不会泄漏到调查结果等普通折叠控件。`SurveyUserGuide.md` 作为用户文档复制到构建和发布目录，页面可调用系统默认程序直接打开。
 
 工作项上传的远程协调可以从后台线程执行，但 `WorkEditorViewModel.Upload()` 完成后统一通过 Avalonia UI Dispatcher 更新 `UploadResults`、锁定状态和状态绑定，避免后台线程直接修改绑定集合。
+
+统计页刷新先在 UI 线程捕获日期和“占比计算基准”，后台只查询并构造不可变快照，最后回到 UI Dispatcher 原子更新总计、图表和树表。刷新请求使用递增 generation 且数据库查询串行化；旧请求即使较晚完成也不会覆盖较新的筛选结果。
 
 事件记录页的 `DailyWorks` 使用统一的优先级、ID 排序规则：`WorkPriorities` 升序后按持久化工作项 ID 升序。日期加载、复制新增和每次工作项保存后都会重排；重排使用 `ObservableCollection.Move()`，避免通过清空集合破坏当前选中项，并在移动期间抑制由选择变化触发的重复保存。日期加载会按当日工作项 ID 批量读取附加字段，并把结果随备注、标签和 Tracker 绑定一起注入编辑器，避免每条事项重复执行附加字段查询。Redmine/Jira 编辑器直接复用数据仓库维护的开放 Issue/活动只读列表；只有历史绑定指向已关闭或缺失项时，才为该编辑器创建带失效占位项的局部列表，避免富数据日期切换时为每条事项重复复制全部 Tracker 选项。工作项克隆会先以空事项加载目标 Tracker 扩展的选项，再按用途决定是否复制选择：普通“重复当前事项”保留 Tracker 设置；跨日期复制仅复制本地字段、标签和附加字段，并绕过标签默认值自动化，确保不会创建 Tracker 本地绑定。
 
@@ -207,6 +211,8 @@ Dump 默认位于 LocalApplicationData 下的 `Diary.App/CrashDumps`，只保留
 2. 找到支持当前 provider 和 `IRedMineDb` 的 `IDbExtensionFactory`。
 3. `DbInterfaceBase.GetExtension<IRedMineDb>(instanceId)` 延迟创建扩展并按类型、实例 ID 缓存。
 4. SQLite 或 PostgreSQL 扩展使用 `IDbExtensionHost` 执行 provider 无关的查询和迁移 SQL。
+
+可选扩展损坏仍不会阻断核心数据库启动；程序集加载、部分类型加载和工厂构造失败会携带程序集路径、异常类型与消息写入 `Trace` 诊断，部分可加载类型仍继续参与发现。
 
 ```plantuml
 @startuml
@@ -361,8 +367,9 @@ Redmine 和 Jira UI 通过 `Diary.PluginUI` 的契约接入：
 核心日记和其他插件继续启动；诊断页显示错误详情。Redmine 当前提供 0 -> 1 -> 2 迁移：
 先将旧的单实例根字段转换为 `redmine.default` 实例，再为实例补充导航图标，同时保留未知字段。
 
-敏感配置使用 `StorageFileAttribute` 的加密键保存，API Key 等字段通过 `ConfigureTextAttribute`
-标记为密码输入。编辑器只在用户显式修改后更新字段，配置迁移和日志导出均不输出明文密钥。
+敏感配置使用带版本头的 AES-256-GCM 保存，密文完整性由认证标签校验。每次安装首次保存时生成随机 256 位主密钥，再结合 `StorageFileAttribute` 中的用途字符串派生文件密钥；Windows 使用当前用户 DPAPI 保护主密钥，Unix 将主密钥文件限制为仅当前用户读写。旧 `Salted__` AES-CBC/PBKDF2 文件保持只读兼容，后续保存会自动写成新格式。API Key 等字段通过 `ConfigureTextAttribute` 标记为密码输入；编辑器只在用户显式修改后更新字段，配置迁移和日志导出均不输出明文密钥。
+
+Jira API 明确区分自有和外部注入的 `HttpClient`，Redmine API 每个实例持有单一 `RestClient`；Tracker UI 贡献重新注册或应用退出时由 `TrackerUiContributionRegistry` 统一释放贡献及其自有客户端，避免静态客户端缓存和临时连接测试泄漏。
 
 ## 12. 当前已知缺口
 
@@ -433,7 +440,7 @@ Worker 握手通过 `supportedHostApis` 协商实际可用的 HostCall，宿主 
 进度上报通过 `ScriptProgressTracker`（内存，最近 20 次执行、每次最多 50 条时间线）接入管理页底部
 运行栏（进度条+文本）与执行历史条目日志（「进度：」时间线）。自动化脚本已支持 Scheduled
 （metadata `Schedule`="daily HH:mm"）与 RunOnStartup：`ScriptAutomationScheduler` 以 30 秒 tick 调度、
-内存 last-run 表防重、启动补跑一轮到期脚本，并生成请求级幂等键；Startup/Scheduled、
+内存 last-run 表防重、启动补跑一轮到期脚本，并生成请求级幂等键；事件触发幂等缓存按先进先出限制为 4096 项，避免长时间运行时无限增长；Startup/Scheduled、
 WorkItemCreated/WorkItemSaved/TagAdded 触发器均已接线。Query 入口已落地（`IQueryScriptV1`/`QueryScript`
 基类与三语言创建模板，管理页可运行）。普通和模板日志项创建使用 provider 事务，支持 `Preview` 投影且预览不写入数据库；工作项相关自动化失败会通过全局 Toast 非阻塞提示，Startup/Scheduled 失败仍通过日志和执行历史追踪；C# 脚本编辑器已使用复用正式编译引用的进程内 Roslyn 语言服务，支持防抖实时诊断、语义补全和悬停信息，关键字补全作为降级；执行历史与进度均为会话内存态，持久化经决策明确延期；
 脚本包管理、Windows/Linux 运行时打包和更强的操作系统级资源限制仍需继续扩展；macOS 不在当前支持范围内。

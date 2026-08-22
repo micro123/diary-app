@@ -8,11 +8,12 @@ using System.Text.Json.Serialization;
 
 namespace Diary.Jira;
 
-public sealed class JiraApi : IJiraApi
+public sealed class JiraApi : IJiraApi, IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly JiraConfig _configuration;
     private readonly HttpClient _httpClient;
+    private readonly bool _ownsHttpClient;
 
     public JiraApi(JiraConfig? configuration = null, HttpClient? httpClient = null)
     {
@@ -20,6 +21,13 @@ public sealed class JiraApi : IJiraApi
             ?? JiraConfigurationStore.Current.Instances.FirstOrDefault()
             ?? new JiraInstanceSettings();
         _httpClient = httpClient ?? new HttpClient();
+        _ownsHttpClient = httpClient is null;
+    }
+
+    public void Dispose()
+    {
+        if (_ownsHttpClient)
+            _httpClient.Dispose();
     }
 
     public Task<JiraApiResult<IReadOnlyList<JiraProject>>> SearchProjectsAsync(

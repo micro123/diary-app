@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Utils;
 using Diary.Core.Data.Base;
+using Diary.Core.Data.Statistics;
 using Diary.Database;
 using Diary.GUIBase.Utils;
 using Diary.Utils;
@@ -32,6 +33,16 @@ public enum StatisticsType
 
 public partial class StatisticsTabData : ObservableObject
 {
+    private sealed record StatisticsSnapshot(
+        double Total,
+        IReadOnlyList<double> Times,
+        IList<string> Labels,
+        IReadOnlyList<StatisticsTimeNode> Details);
+
+    private readonly Func<string, string, StatisticsResult>? _statisticsProvider;
+    private readonly SemaphoreSlim _refreshLock = new(1, 1);
+    private int _refreshGeneration;
+
     public StatisticsType Type { get; private set; }
 
     private static readonly string[] Names =
@@ -65,10 +76,19 @@ public partial class StatisticsTabData : ObservableObject
 
     /// <inheritdoc/>
     public StatisticsTabData(StatisticsType type)
+        : this(type, null, loadImmediately: true)
+    {
+    }
+
+    internal StatisticsTabData(
+        StatisticsType type,
+        Func<string, string, StatisticsResult>? statisticsProvider,
+        bool loadImmediately)
     {
         Type = type;
         Name = GetTypeName(Type);
         IsCustom = type == StatisticsType.Custom;
+        _statisticsProvider = statisticsProvider;
 
         _timeDetails = new HierarchicalTreeDataGridSource<StatisticsTimeNode>([])
         {
@@ -110,7 +130,8 @@ public partial class StatisticsTabData : ObservableObject
         };
 
         InitChart();
-        FetchData();
+        if (loadImmediately)
+            LoadInitialData();
     }
 
     private void InitChart()
@@ -130,32 +151,77 @@ public partial class StatisticsTabData : ObservableObject
     private Axis XAxis = new() { Name = "项目" };
 
     [RelayCommand]
-    private async Task Refresh()
+    private Task Refresh()
     {
-        await Task.Run(FetchData);
+        return RefreshSafelyAsync();
     }
 
-    private void FetchData()
+    internal async Task RefreshAsync()
+    {
+        var generation = Interlocked.Increment(ref _refreshGeneration);
+        var (begin, end, customTotal) = PrepareRefreshRequest();
+        StatisticsSnapshot? snapshot;
+        await _refreshLock.WaitAsync();
+        try
+        {
+            snapshot = await Task.Run(() => FetchSnapshot(begin, end, customTotal));
+        }
+        finally
+        {
+            _refreshLock.Release();
+        }
+
+        if (snapshot is null || generation != Volatile.Read(ref _refreshGeneration))
+            return;
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            if (generation == Volatile.Read(ref _refreshGeneration))
+                ApplySnapshot(snapshot);
+        });
+    }
+
+    private async Task RefreshSafelyAsync()
+    {
+        try
+        {
+            await RefreshAsync();
+        }
+        catch (Exception exception)
+        {
+            EventDispatcher.ShowToast($"刷新统计失败：{exception.Message}");
+        }
+    }
+
+    private void LoadInitialData()
+    {
+        var (begin, end, customTotal) = PrepareRefreshRequest();
+        var snapshot = FetchSnapshot(begin, end, customTotal);
+        if (snapshot is not null)
+            ApplySnapshot(snapshot);
+    }
+
+    private (DateTime Begin, DateTime End, double? CustomTotal) PrepareRefreshRequest()
     {
         if (!IsCustom)
         {
-            GetDateRange(out var s, out var e, Type);
-            DateBegin = s;
-            DateEnd = e;
+            GetDateRange(out var begin, out var end, Type);
+            DateBegin = begin;
+            DateEnd = end;
         }
+        double? customTotal = UseCustomTime && CustomTotal > 0.0 ? CustomTotal : null;
+        return (DateBegin, DateEnd, customTotal);
+    }
 
-        if (Db is null)
-            return;
+    private StatisticsSnapshot? FetchSnapshot(DateTime begin, DateTime end, double? customTotal)
+    {
+        var beginText = TimeTools.FormatDateTime(begin);
+        var endText = TimeTools.FormatDateTime(end);
+        var statistics = _statisticsProvider?.Invoke(beginText, endText)
+            ?? Db?.GetStatistics(beginText, endText);
+        if (statistics is null)
+            return null;
 
-        var statistics = Db.GetStatistics(TimeTools.FormatDateTime(DateBegin), TimeTools.FormatDateTime(DateEnd));
-
-        double total = statistics.Total;
-        StatisticsTotal = total;
-        if (UseCustomTime && CustomTotal > 0.0)
-        {
-            total = CustomTotal;
-        }
-
+        var total = customTotal ?? statistics.Total;
         var detail = new List<StatisticsTimeNode>();
         var times = new List<double>();
         var labels = new List<string>();
@@ -169,7 +235,7 @@ public partial class StatisticsTabData : ObservableObject
             {
                 Name = x.TagName,
                 Time = x.Time,
-                Percent = 100.0 * x.Time / total,
+                Percent = GetPercent(x.Time, total),
                 Id = x.TagId,
             };
             if (x.Nested.Count > 0)
@@ -182,7 +248,7 @@ public partial class StatisticsTabData : ObservableObject
                     nested.Add(new StatisticsTimeNode()
                     {
                         Name = sub.TagName,
-                        Percent = 100.0 * sub.Time / total,
+                        Percent = GetPercent(sub.Time, total),
                         Time = sub.Time,
                         Id = sub.TagId,
                         Parent = node,
@@ -195,7 +261,7 @@ public partial class StatisticsTabData : ObservableObject
                     {
                         Id = 0,
                         Time = x.Time - sum2,
-                        Percent = 100.0 * (x.Time - sum2) / total,
+                        Percent = GetPercent(x.Time - sum2, total),
                         Parent = node,
                     });
                 }
@@ -211,18 +277,24 @@ public partial class StatisticsTabData : ObservableObject
             {
                 Id = 0,
                 Time = statistics.Total - sum1,
-                Percent = 100.0 * (statistics.Total - sum1) / total,
+                Percent = GetPercent(statistics.Total - sum1, total),
             });
         }
 
-        Dispatcher.UIThread.Post(() =>
-        {
-            Bar.Values = times;
-            XAxis.Labels = labels;
-            _timeDetails.Items = detail;
-            TimeDetails.ExpandAll();
-        });
+        return new StatisticsSnapshot(statistics.Total, times, labels, detail);
     }
+
+    private void ApplySnapshot(StatisticsSnapshot snapshot)
+    {
+        StatisticsTotal = snapshot.Total;
+        Bar.Values = snapshot.Times;
+        XAxis.Labels = snapshot.Labels;
+        _timeDetails.Items = snapshot.Details;
+        TimeDetails.ExpandAll();
+    }
+
+    private static double GetPercent(double value, double total)
+        => total > 0.0 ? 100.0 * value / total : 0.0;
 
     private static void GetDateRange(out DateTime begin, out DateTime end, StatisticsType type)
     {
@@ -307,7 +379,7 @@ public partial class StatisticsTabData : ObservableObject
         DateBegin = startDate;
         DateEnd = endDate;
 
-        Dispatcher.UIThread.Invoke(FetchData);
+        _ = RefreshSafelyAsync();
     }
 
     [RelayCommand]

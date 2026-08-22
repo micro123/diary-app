@@ -286,7 +286,7 @@ dotnet format DiaryApp.sln --no-restore --verify-no-changes
 
 ```bash
 dotnet build DiaryApp.sln --configuration Release --no-restore
-dotnet test DiaryApp.sln \
+dotnet test --solution DiaryApp.sln \
   --configuration Release \
   --no-build \
   --no-restore \

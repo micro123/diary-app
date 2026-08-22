@@ -102,6 +102,28 @@ public sealed class ScriptAutomationSchedulerTests
     }
 
     [TestMethod]
+    public async Task TriggerAsync_EventRunCacheIsBoundedAndEvictsOldestKey()
+    {
+        var manager = new RecordingScriptManager();
+        var scheduler = new ScriptAutomationScheduler(
+            manager,
+            NullLogger<ScriptAutomationScheduler>.Instance,
+            new FixedTimeProvider(FixedNow),
+            eventRunCacheCapacity: 2);
+        scheduler.ApplyLoadResult(BuildEventResult(
+            ("created-script", new[] { ScriptAutomationTriggerKind.WorkItemCreated })));
+
+        foreach (var eventId in new[] { "event-1", "event-2", "event-3", "event-1" })
+        {
+            await scheduler.TriggerAsync(
+                ScriptAutomationTriggerKind.WorkItemCreated,
+                new Dictionary<string, string> { ["eventId"] = eventId });
+        }
+
+        Assert.AreEqual(4, manager.Executions.Count);
+    }
+
+    [TestMethod]
     public async Task ApplyLoadResult_DropsRemovedScripts()
     {
         var manager = new RecordingScriptManager();

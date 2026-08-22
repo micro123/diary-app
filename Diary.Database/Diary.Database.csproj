@@ -9,4 +9,7 @@
     <ProjectReference Include="..\Diary.Core\Diary.Core.csproj" />
     <ProjectReference Include="..\Diary.PluginBase\Diary.PluginBase.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Diary.DbTests" />
+  </ItemGroup>
 </Project>

@@ -12,11 +12,12 @@ namespace Diary.RedMine;
 /// 仍走 <see cref="RestTools"/>（同程序集 internal 静态），日志仅记录结构化摘要，不记录响应正文。
 /// 无状态，注册为 DI 单例。
 /// </summary>
-public class RedMineApi : IRedMineApi
+public class RedMineApi : IRedMineApi, IDisposable
 {
     private const int ClosedStatusId = 5;
     private readonly RedMineConfig _configuration;
     private readonly ILogger _logger;
+    private readonly RestClient? _client;
 
     public RedMineApi(RedMineConfig? configuration = null, ILogger<RedMineApi>? logger = null)
     {
@@ -24,6 +25,7 @@ public class RedMineApi : IRedMineApi
             ?? RedMineConfigurationStore.Current.Instances.FirstOrDefault()
             ?? new RedMineInstanceSettings();
         _logger = logger ?? Logging.Factory.CreateLogger<RedMineApi>();
+        _client = RestTools.BasicClient(_configuration);
     }
     public int PageSize => 50;
 
@@ -36,7 +38,7 @@ public class RedMineApi : IRedMineApi
         total = 0;
         string url;
         url = !string.IsNullOrEmpty(keyword) ? ProjectInfo.Search() : ProjectInfo.All();
-        var client = RestTools.BasicClient(_configuration);
+        var client = _client;
         if (client != null)
         {
             var request = RestTools.HttpGet(_configuration, url);
@@ -66,7 +68,7 @@ public class RedMineApi : IRedMineApi
     {
         project = null;
         var url = ProjectInfo.Fetch(id);
-        var client = RestTools.BasicClient(_configuration);
+        var client = _client;
         if (client != null)
         {
             var request = RestTools.HttpGet(_configuration, url);
@@ -108,7 +110,7 @@ public class RedMineApi : IRedMineApi
         total = 0;
 
         var url = IssueInfo.Query();
-        var client = RestTools.BasicClient(_configuration);
+        var client = _client;
         if (client != null)
         {
             var request = RestTools.HttpGet(_configuration, url);
@@ -141,7 +143,7 @@ public class RedMineApi : IRedMineApi
     {
         issues = null;
         var url = IssueInfo.Fetch(id);
-        var client = RestTools.BasicClient(_configuration);
+        var client = _client;
         if (client != null)
         {
             var request = RestTools.HttpGet(_configuration, url);
@@ -167,7 +169,7 @@ public class RedMineApi : IRedMineApi
         issue = null;
 
         var url = IssueInfo.Query();
-        var client = RestTools.BasicClient(_configuration);
+        var client = _client;
         if (client != null)
         {
             var request = RestTools.HttpPost(_configuration, url);
@@ -203,7 +205,7 @@ public class RedMineApi : IRedMineApi
         if (id <= 0)
             return false;
 
-        var client = RestTools.BasicClient(_configuration);
+        var client = _client;
         if (client is null)
             return false;
 
@@ -226,7 +228,7 @@ public class RedMineApi : IRedMineApi
         timeInfo = null;
 
         var url = TimeInfo.Query();
-        var client = RestTools.BasicClient(_configuration);
+        var client = _client;
         if (client != null)
         {
             var request = RestTools.HttpPost(_configuration, url);
@@ -256,7 +258,7 @@ public class RedMineApi : IRedMineApi
         total = 0;
 
         var url = TimeInfo.Query();
-        var client = RestTools.BasicClient(_configuration);
+        var client = _client;
         if (client != null)
         {
             var request = RestTools.HttpGet(_configuration, url);
@@ -289,7 +291,7 @@ public class RedMineApi : IRedMineApi
     {
         activities = null;
         var url = ActivityInfo.Query();
-        var client = RestTools.BasicClient(_configuration);
+        var client = _client;
         if (client != null)
         {
             var request = RestTools.HttpGet(_configuration, url);
@@ -313,7 +315,7 @@ public class RedMineApi : IRedMineApi
     {
         userInfo = null;
         var url = UserInfo.Query();
-        var client = RestTools.BasicClient(_configuration);
+        var client = _client;
         if (client != null)
         {
             var request = RestTools.HttpGet(_configuration, url);
@@ -331,4 +333,6 @@ public class RedMineApi : IRedMineApi
 
         return userInfo != null;
     }
+
+    public void Dispose() => _client?.Dispose();
 }
