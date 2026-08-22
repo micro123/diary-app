@@ -7,6 +7,7 @@ using Diary.App.ViewModels;
 using Diary.App.ViewModels.Dialogs;
 using Diary.Core.Data.Base;
 using Diary.Database;
+using Diary.GUIBase.ViewModels;
 using Diary.PluginBase;
 using Diary.PluginUI;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -135,6 +136,39 @@ public sealed class WorkEditorViewModelTests
     }
 
     [TestMethod]
+    public void CloneWithoutTrackerBindingsInitializesOptionsAndSkipsSelection()
+    {
+        var viewModel = CreateViewModel(CreateCloneTrackerRegistry());
+        var source = (CloneTrackerExtension)viewModel.Extensions.Single();
+        source.Load(null);
+        source.Selection = "ISSUE-1";
+
+        var clone = viewModel.Clone(includeTrackerBindings: false);
+        var target = (CloneTrackerExtension)clone.Extensions.Single();
+
+        Assert.IsTrue(target.OptionsLoaded);
+        Assert.IsNull(target.Selection);
+        Assert.AreEqual(0, source.CloneCallCount);
+    }
+
+    [TestMethod]
+    public void CloneWithTrackerBindingsInitializesTargetBeforeCopyingSelection()
+    {
+        var viewModel = CreateViewModel(CreateCloneTrackerRegistry());
+        var source = (CloneTrackerExtension)viewModel.Extensions.Single();
+        source.Load(null);
+        source.Selection = "ISSUE-1";
+
+        var clone = viewModel.Clone();
+        var target = (CloneTrackerExtension)clone.Extensions.Single();
+
+        Assert.IsTrue(target.OptionsLoaded);
+        Assert.IsTrue(target.OptionsLoadedWhenCloned);
+        Assert.AreEqual("ISSUE-1", target.Selection);
+        Assert.AreEqual(1, source.CloneCallCount);
+    }
+
+    [TestMethod]
     public void TrackerUploadResultIncludesRecoveryDetails()
     {
         var attemptedAt = new DateTimeOffset(2026, 8, 11, 14, 0, 0, TimeSpan.FromHours(8));
@@ -151,14 +185,21 @@ public sealed class WorkEditorViewModelTests
         StringAssert.Contains(result.ResultSummary, $"尝试时间：{expectedAttemptedAt}");
     }
 
-    private static WorkEditorViewModel CreateViewModel()
+    private static WorkEditorViewModel CreateViewModel(TrackerUiContributionRegistry? trackerRegistry = null)
         => new(
             new DbShareData(NullLogger<DbShareData>.Instance),
             new NoopPersistenceCoordinator(),
             new RecordingUploadCoordinator(),
-            new TrackerUiContributionRegistry(),
+            trackerRegistry ?? new TrackerUiContributionRegistry(),
             string.Empty,
             new NoopTagAutomationCoordinator());
+
+    private static TrackerUiContributionRegistry CreateCloneTrackerRegistry()
+    {
+        var registry = new TrackerUiContributionRegistry();
+        registry.Register([new CloneTrackerContributionFactory()], [new CloneTrackerInstance()]);
+        return registry;
+    }
     private static void SetWorkItem(WorkEditorViewModel viewModel, WorkItem item)
     {
         var property = typeof(WorkEditorViewModel).GetProperty(
@@ -166,6 +207,63 @@ public sealed class WorkEditorViewModelTests
             BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.IsNotNull(property);
         property.SetValue(viewModel, item);
+    }
+
+    private sealed class CloneTrackerInstance : ITrackerInstance
+    {
+        public string PluginId => "test.clone";
+        public string InstanceId => "local";
+        public string DisplayName => "克隆测试";
+        public string Icon => string.Empty;
+        public bool IsConfigured => true;
+        public IDictionary<int, object?>? LoadBindingsByDate(string date) => null;
+    }
+
+    private sealed class CloneTrackerContributionFactory : ITrackerUiContributionFactory
+    {
+        public string PluginId => "test.clone";
+        public ITrackerUiContribution Create(ITrackerInstance instance)
+            => new CloneTrackerContribution(instance);
+    }
+
+    private sealed class CloneTrackerContribution(ITrackerInstance instance) : ITrackerUiContribution
+    {
+        public string PluginId => instance.PluginId;
+        public ITrackerInstance Instance => instance;
+        public ViewModelBase? CreateSettingsPage(object configuration) => null;
+        public ViewModelBase? CreateManagementPage(string instanceId) => null;
+        public ITrackerEditorExtension? CreateEditorExtension(string instanceId)
+            => new CloneTrackerExtension();
+    }
+
+    private sealed class CloneTrackerExtension : ViewModelBase, ITrackerEditorExtension
+    {
+        public TrackerKey Key => new("test.clone", "local");
+        public string InstanceId => Key.InstanceId;
+        ViewModelBase ITrackerEditorExtension.View => this;
+        public bool IsLocked => false;
+        public bool CanDelete => true;
+        public bool OptionsLoaded { get; private set; }
+        public bool OptionsLoadedWhenCloned { get; private set; }
+        public string? Selection { get; set; }
+        public int CloneCallCount { get; private set; }
+
+        public void Load(WorkItem? item, object? binding = null)
+            => OptionsLoaded = true;
+
+        public bool Save(WorkItem item) => OptionsLoaded;
+
+        public void CloneTo(ITrackerEditorExtension? target)
+        {
+            CloneCallCount++;
+            if (target is not CloneTrackerExtension clone)
+                return;
+            clone.OptionsLoadedWhenCloned = clone.OptionsLoaded;
+            clone.Selection = Selection;
+        }
+
+        public Task<TrackerOperationResult> UploadAsync(WorkItem item)
+            => Task.FromResult(new TrackerOperationResult(true));
     }
 
     private sealed class RecordingUploadCoordinator : ITrackerUploadCoordinator

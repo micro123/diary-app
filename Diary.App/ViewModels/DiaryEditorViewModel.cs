@@ -321,7 +321,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
     {
         var source = WorkEditorViewModel.FromWorkItem(sourceItem);
         source.SyncFromBatch(notesById, tagsById, null);
-        var copy = source.Clone();
+        var copy = source.Clone(includeTrackerBindings: false);
         copy.Date = CurrentDateString;
         copy.Save(out var created);
         if (!created)

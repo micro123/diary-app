@@ -368,6 +368,8 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     private List<WorkItemExtraField> BuildExtraFields()
     {
+        if (WorkItem is null && WorkTags.Count == 0)
+            return [];
         var db = Db;
         if (db is null)
             return [];
@@ -521,7 +523,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         _syncing_tags = false;
     }
 
-    public WorkEditorViewModel Clone()
+    public WorkEditorViewModel Clone(bool includeTrackerBindings = true)
     {
         var result = new WorkEditorViewModel(
             _shareData,
@@ -539,12 +541,28 @@ public partial class WorkEditorViewModel : ViewModelBase
             Priority = Priority,
         };
         var targetExtensions = result.Extensions.ToDictionary(extension => extension.Key);
-        foreach (var extension in Extensions)
+        foreach (var target in targetExtensions.Values)
+            target.Load(null);
+        if (includeTrackerBindings)
         {
-            if (targetExtensions.TryGetValue(extension.Key, out var target))
-                extension.CloneTo(target);
+            foreach (var extension in Extensions)
+            {
+                if (targetExtensions.TryGetValue(extension.Key, out var target))
+                    extension.CloneTo(target);
+            }
         }
-        result.AddTags(WorkTags, TagAddSource.Duplicate);
+        if (includeTrackerBindings)
+        {
+            result.AddTags(WorkTags, TagAddSource.Duplicate);
+        }
+        else
+        {
+            result._syncing_tags = true;
+            foreach (var tag in WorkTags)
+                result.WorkTags.Add(tag);
+            result._syncing_tags = false;
+            result.UpdateAvailableTags();
+        }
         foreach (var value in _extraFieldValues)
             result._extraFieldValues.Add(value with { WorkItemId = 0 });
         result.RefreshExtraFieldsSnapshot();
