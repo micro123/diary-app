@@ -90,13 +90,34 @@ public sealed class TagSharePackageService
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
     };
 
-    public async Task ExportAsync(
+    public Task ExportAsync(
         string path,
         DbInterfaceBase database,
         IReadOnlyCollection<ITagRuleEditorContribution> contributions,
         CancellationToken cancellationToken = default)
+        => ExportAsync(
+            path,
+            database,
+            database.AllWorkTags().Select(tag => tag.Id).ToHashSet(),
+            contributions,
+            cancellationToken);
+
+    public async Task ExportAsync(
+        string path,
+        DbInterfaceBase database,
+        IReadOnlySet<int> selectedTagIds,
+        IReadOnlyCollection<ITagRuleEditorContribution> contributions,
+        CancellationToken cancellationToken = default)
     {
-        var tags = database.AllWorkTags().OrderBy(tag => tag.Level).ThenBy(tag => tag.Name).ToArray();
+        if (selectedTagIds.Count == 0)
+            throw new InvalidOperationException("至少选择一个要导出的标签。");
+        var tags = database.AllWorkTags()
+            .Where(tag => selectedTagIds.Contains(tag.Id))
+            .OrderBy(tag => tag.Level)
+            .ThenBy(tag => tag.Name)
+            .ToArray();
+        if (tags.Length != selectedTagIds.Count)
+            throw new InvalidOperationException("部分所选标签已不存在，请重新打开导出选择窗口。");
         var tagKeys = tags.Select((tag, index) => (tag.Id, Key: $"tag-{index + 1}"))
             .ToDictionary(item => item.Id, item => item.Key);
         var document = new TagSharePackageDocument
@@ -125,8 +146,10 @@ public sealed class TagSharePackageService
         var trackerIndex = 0;
         foreach (var contribution in contributions)
         {
-            var rules = contribution.ExportRules(tagKeys);
-            if (rules.Count == 0)
+            var selectedTagKeys = tagKeys.Values.ToHashSet(StringComparer.Ordinal);
+            var rules = contribution.ExportRules(tagKeys)
+                .Where(rule => selectedTagKeys.Contains(rule.TagKey)).ToArray();
+            if (rules.Length == 0)
                 continue;
             document.Trackers.Add(new TagSharePackageTracker
             {

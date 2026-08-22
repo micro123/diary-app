@@ -113,7 +113,7 @@
 | 8.x | 当前运行日志导出 | `Automated` | settings 验证占用中的日志可导出为非空 ZIP |
 | 9.1–9.3 | 标签基础信息和 Tracker 自动化页 | `Automated` | smoke 创建标签；Redmine 配置自动规则 |
 | 9.2 / 9.4 | 标签元数据和附加字段定义 | `Automated` | extra-fields 创建并重开 9 类定义，验证非法 FieldKey、FieldKey/类型不可修改、说明更新和停用；元数据低层语义继续由模型测试覆盖 |
-| 9.5 | `.diarytags` 导入/导出 | `Manual-Native` | 依赖文件选择器 |
+| 9.5 | `.diarytags` 导入/导出 | `Unit/Manual-Native` | 导出标签选择、全选/清空和空选择禁用由单元测试覆盖；保存位置依赖文件选择器 |
 | 10.1 | 工作项模板创建、字段、标签、应用和草稿保留 | `Automated` | smoke 完整验证 |
 | 10.2 | 数据模板空状态和入口 | `Automated-ReadOnly` | core 验证管理页空状态 |
 | 10.2 | 数据模板导入、预览和删除文件 | `Manual-Native` | 依赖文件选择器和真实文件 |

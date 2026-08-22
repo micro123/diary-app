@@ -7,6 +7,7 @@
              xmlns:colorPicker="https://irihi.tech/semi"
              xmlns:models="clr-namespace:Diary.App.Models"
              xmlns:dialogs1="clr-namespace:Diary.App.ViewModels.Dialogs"
+             xmlns:dialogViews="clr-namespace:Diary.App.Views.Dialogs"
              mc:Ignorable="d"
              x:Class="Diary.App.Views.Dialogs.TagEditorView"
              x:Name="EditorRoot"
@@ -14,6 +15,18 @@
              Width="1080"
              Height="720"
              Margin="8 24 8 8">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="TagShareExportBackgroundBrush" Color="#FFF7F8FA" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="TagShareExportBackgroundBrush" Color="#FF2F3035" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
         <StackPanel Grid.Row="0" Spacing="3">
             <TextBlock Text="{Binding Title}" Classes="Header" />
@@ -331,5 +344,20 @@
             <Button Name="SaveTagSettingsButton" Content="保存更改" Classes="Primary"
                     Command="{Binding SaveCommand}" />
         </StackPanel>
+        <Border Grid.RowSpan="3"
+                ZIndex="10"
+                Background="#99000000"
+                IsVisible="{Binding IsExportSelectionOpen}">
+            <Border Classes="Card"
+                    CornerRadius="10"
+                    Background="{DynamicResource TagShareExportBackgroundBrush}"
+                    BorderBrush="{DynamicResource SemiColorBorder}"
+                    BorderThickness="1"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <dialogViews:TagShareExportDialogView
+                    DataContext="{Binding ExportSelectionDialog}" />
+            </Border>
+        </Border>
     </Grid>
 </UserControl>

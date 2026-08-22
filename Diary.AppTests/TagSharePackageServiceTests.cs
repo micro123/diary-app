@@ -67,6 +67,58 @@ public sealed class TagSharePackageServiceTests
     }
 
     [TestMethod]
+    public async Task ExportAsync_SelectedTagIds_ExportsOnlySelectedDefinitions()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"diary-tags-{Guid.NewGuid():N}.diarytags");
+        try
+        {
+            using var source = CreateDatabase();
+            var selectedTag = source.CreateWorkTag("导出标签", true, 0x123456);
+            var omittedTag = source.CreateWorkTag("跳过标签", false, 0x654321);
+            Assert.IsTrue(source.CreateTagExtraFieldDefinition(new TagExtraFieldDefinition
+            {
+                FieldId = Guid.NewGuid().ToString("D"),
+                FieldKey = "selected.field",
+                TagId = selectedTag.Id,
+                Label = "所选字段",
+                Type = TagExtraFieldType.Text,
+            }));
+            Assert.IsTrue(source.CreateTagExtraFieldDefinition(new TagExtraFieldDefinition
+            {
+                FieldId = Guid.NewGuid().ToString("D"),
+                FieldKey = "omitted.field",
+                TagId = omittedTag.Id,
+                Label = "跳过字段",
+                Type = TagExtraFieldType.Text,
+            }));
+            var service = new TagSharePackageService();
+            var exporter = new FakeTagRuleContribution(
+                "tracker.redmine", "source-instance", "来源 RedMine",
+                TrackerTagRuleValidationState.Valid);
+
+            await service.ExportAsync(
+                path,
+                source,
+                new HashSet<int> { selectedTag.Id },
+                [exporter]);
+
+            using var target = CreateDatabase();
+            var preview = await service.PreviewImportAsync(path, target);
+            var exportedTag = preview.Package.Tags.Single();
+            Assert.AreEqual("导出标签", exportedTag.Name);
+            Assert.AreEqual("selected.field", exportedTag.ExtraFields.Single().FieldKey);
+            Assert.IsFalse(preview.Package.Tags.Any(tag => tag.Name == "跳过标签"));
+            var exportedRule = preview.Package.Trackers.Single().Rules.Single();
+            Assert.AreEqual(exportedTag.Key, exportedRule.TagKey);
+            Assert.AreEqual(1, exportedRule.Values.Count);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [TestMethod]
     public async Task PreviewImport_FieldOwnedByAnotherTag_IsConflict()
     {
         var path = Path.Combine(Path.GetTempPath(), $"diary-tags-{Guid.NewGuid():N}.diarytags");

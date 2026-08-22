@@ -35,6 +35,11 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
 
     [ObservableProperty] private ObservableCollection<EditableWorkTag> _allTags = new();
     [ObservableProperty] private EditableWorkTag? _selectedTag;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsExportSelectionOpen))]
+    private TagShareExportDialogViewModel? _exportSelectionDialog;
+
+    public bool IsExportSelectionOpen => ExportSelectionDialog is not null;
     public ObservableCollection<ITagRuleEditorContribution> RuleContributions { get; } = new();
 
     private bool _changed;
@@ -65,7 +70,16 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
             contribution.SelectTag(value.Tag);
     }
 
-    public void Close() => Cancel();
+    public void Close()
+    {
+        if (ExportSelectionDialog is not null)
+        {
+            ExportSelectionDialog.Close();
+            return;
+        }
+
+        Cancel();
+    }
 
     public event EventHandler<object?>? RequestClose;
 
@@ -132,6 +146,16 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
             EventDispatcher.Notify("错误", "当前数据库或文件选择器不可用。");
             return;
         }
+
+        var tags = database.AllWorkTags();
+        if (tags.Count == 0)
+        {
+            EventDispatcher.Notify("无法导出标签", "当前没有可导出的标签。");
+            return;
+        }
+        var selection = await ShowExportSelectionAsync(tags);
+        if (selection is null || selection.TagIds.Count == 0)
+            return;
         var file = await storageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "导出标签",
@@ -150,8 +174,12 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
         try
         {
             var path = EnsureTagPackageExtension(file.Path.LocalPath);
-            await _tagSharePackageService.ExportAsync(path, database, RuleContributions);
-            EventDispatcher.Notify("标签导出完成", $"已导出 {AllTags.Count} 个标签：{path}");
+            await _tagSharePackageService.ExportAsync(
+                path,
+                database,
+                selection.TagIds,
+                RuleContributions);
+            EventDispatcher.Notify("标签导出完成", $"已导出 {selection.TagIds.Count} 个标签：{path}");
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
             or InvalidDataException or InvalidOperationException)
@@ -159,6 +187,25 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
             _logger.LogError(exception, "导出标签包失败");
             EventDispatcher.Notify("标签导出失败", exception.Message);
         }
+    }
+
+    private Task<TagShareExportSelection?> ShowExportSelectionAsync(IEnumerable<WorkTag> tags)
+    {
+        var dialog = new TagShareExportDialogViewModel();
+        dialog.Initialize(tags);
+        var completion = new TaskCompletionSource<TagShareExportSelection?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        void OnRequestClose(object? sender, object? result)
+        {
+            dialog.RequestClose -= OnRequestClose;
+            ExportSelectionDialog = null;
+            completion.TrySetResult(result as TagShareExportSelection);
+        }
+
+        dialog.RequestClose += OnRequestClose;
+        ExportSelectionDialog = dialog;
+        return completion.Task;
     }
 
     [RelayCommand]

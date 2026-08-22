@@ -1,0 +1,44 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:dialogs="using:Diary.App.ViewModels.Dialogs"
+             x:Class="Diary.App.Views.Dialogs.TagShareExportDialogView"
+             x:DataType="dialogs:TagShareExportDialogViewModel"
+             Width="720" Height="440" MaxHeight="520" Padding="24"
+             HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+    <Grid RowDefinitions="Auto,Auto,180,Auto" RowSpacing="14">
+        <StackPanel Spacing="4">
+            <TextBlock Text="导出标签共享包" FontSize="24" FontWeight="Bold" />
+            <TextBlock Text="选择要导出的标签；对应的元数据、附加字段和 Tracker 规则会一起导出。"
+                       Opacity="0.68" TextWrapping="Wrap" />
+        </StackPanel>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
+            <Button Content="全选" Command="{Binding SelectAllCommand}" />
+            <Button Content="清空" Command="{Binding ClearSelectionCommand}" />
+            <TextBlock Text="{Binding SelectedCount, StringFormat='已选择 {0} 个标签'}"
+                       VerticalAlignment="Center" Opacity="0.68" />
+        </StackPanel>
+        <Border Grid.Row="2" Classes="Card" Padding="6" ClipToBounds="True">
+            <ListBox ItemsSource="{Binding Items}" SelectionMode="Single"
+                     MinHeight="0"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="dialogs:TagShareExportItemViewModel">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" Margin="2 0">
+                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                      VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" Spacing="0">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding Details}" Opacity="0.68" FontSize="12"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Border>
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="取消" Command="{Binding CancelCommand}" />
+            <Button Content="选择保存位置" Classes="Primary" Command="{Binding ExportCommand}" />
+        </StackPanel>
+    </Grid>
+</UserControl>
