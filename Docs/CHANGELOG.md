@@ -5,6 +5,8 @@
 ## 未发布
 
 日期：2026-08-21
+- 新增面向最终用户的 Quarto 手册，源文件、样式和经 150% DPI 复核的截图纳入版本控制；普通 CI 验证 HTML/PDF 渲染，手动候选发布和正式 Tag 发布自动附加两种格式，生成目录不再提交。
+- 标签共享包导出新增标签选择区，默认全选并支持全选、清空和逐项勾选；未选标签及其元数据、附加字段和 Tracker 规则不会写入 `.diarytags` 文件。选择区直接显示在标签编辑器内部，避免嵌套 overlay 在 150% DPI 下产生缩放和裁切。
 
 - 新增 Windows Debug-only UI 自动化入口：显式环境变量启用 Avalonia CDP，使用独立 profile 隔离配置、SQLite 和临时文件，并提供 `start/smoke/status/stop` 工具；支持 `-WithPlugins` 联调 Tracker，smoke 可真实点击主导航和设置、切换主题、新建并输入事项、验证本地保存、截图及采样 P50/P95 响应时间，Release 不包含该调试入口。
 - UI 自动化扩展为 8 套件全量编排：增加 default/extended/survey/database-error/plugins 场景，覆盖查询统计、脚本管理与编辑器、数据库异常、Survey v1/v2、多 Tracker 和 Redmine 管理/真实工时同步；本机基线 8/8 套件、64/64 结构化步骤通过。

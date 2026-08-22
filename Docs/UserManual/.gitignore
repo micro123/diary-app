@@ -1,0 +1,5 @@
+_output/
+/.quarto/
+index.typ
+index.typst.md
+**/*.quarto_ipynb

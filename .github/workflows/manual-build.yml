@@ -252,8 +252,37 @@ jobs:
           path: DiaryAppNG-${{ steps.version.outputs.version }}-${{ matrix.rid }}*.zip
           if-no-files-found: error
 
+  build-docs:
+    name: Build user manual
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Generate version string
+        id: version
+        shell: pwsh
+        run: |
+          $commitCount = git rev-list --count HEAD
+          $shortHash = git rev-parse --short HEAD
+          $suffix = '${{ inputs.version_suffix }}'
+          $version = "r$commitCount-$shortHash-$suffix"
+          "version=$version" >> $env:GITHUB_OUTPUT
+      - name: Build user manual
+        uses: ./.github/actions/build-user-manual
+        with:
+          output-name: DiaryAppNG-${{ steps.version.outputs.version }}-User-Manual
+      - name: Upload user manual
+        uses: actions/upload-artifact@v7
+        with:
+          name: DiaryAppNG-${{ steps.version.outputs.version }}-user-manual
+          path: artifacts/user-manual/*
+          if-no-files-found: error
+
   create-release:
-    needs: build
+    needs: [build, build-docs]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -292,7 +321,10 @@ jobs:
           name: Manual Build ${{ steps.version.outputs.version }}
           tag_name: manual-${{ steps.version.outputs.version }}
           prerelease: true
-          files: artifacts/*.zip
+          files: |
+            artifacts/*.zip
+            artifacts/*-User-Manual.pdf
+            artifacts/*-User-Manual.html
           body: |
             ## Manual Build ${{ steps.version.outputs.version }}
 
@@ -300,4 +332,5 @@ jobs:
             - **Branch**: ${{ github.ref_name }}
             - **Triggered by**: ${{ github.actor }}
 
+            用户手册 PDF/HTML 已作为 Release 附件生成。
             > 临时手动构建，仅供测试使用。

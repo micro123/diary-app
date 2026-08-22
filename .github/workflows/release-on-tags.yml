@@ -39,6 +39,24 @@ jobs:
           DIARY_REQUIRE_POSTGRES_TESTS: ${{ runner.os == 'Linux' && '1' || '0' }}
           DIARY_REQUIRE_PYTHON_TESTS: '1'
 
+  build-docs:
+    name: Build user manual
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+      - name: Build user manual
+        uses: ./.github/actions/build-user-manual
+        with:
+          output-name: DiaryAppNG-${{ github.ref_name }}-User-Manual
+      - name: Upload user manual
+        uses: actions/upload-artifact@v7
+        with:
+          name: DiaryAppNG-${{ github.ref_name }}-user-manual
+          path: artifacts/user-manual/*
+          if-no-files-found: error
+
   build:
     name: Publish ${{ matrix.rid }}
     needs: verify
@@ -293,7 +311,7 @@ jobs:
           if-no-files-found: error
 
   create-release:
-    needs: build
+    needs: [build, build-docs]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -439,4 +457,6 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') || contains(github.ref_name, '-preview') }}
           files: |
             artifacts/**/*.zip
+            artifacts/**/*-User-Manual.pdf
+            artifacts/**/*-User-Manual.html
             DiaryAppNG-${{ github.ref_name }}-release-metadata.json

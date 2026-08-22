@@ -42,6 +42,7 @@ dotnet test DiaryApp.sln --configuration Release
 
 ## 文档
 
+- 最终用户手册（提交 Quarto 源文件与截图；CI 生成 HTML/PDF 并附加到 Release）：[`Docs/UserManual`](Docs/UserManual/index.qmd)
 - 脚本 API 参考：[C#](Docs/ScriptApi/CSharp.md)、[Lua](Docs/ScriptApi/Lua.md)、[Python](Docs/ScriptApi/Python.md)
 - 架构：[当前架构](Docs/CurrentArchitecture.md)、[数据库备份还原设计](Docs/DatabaseBackupRestoreDesign.md)、[插件目标架构](Docs/TrackerPluginArchitecture.md)、[脚本系统设计](Docs/ScriptSystemDesign.md)
 - 调查功能：[使用指南](Docs/SurveyUserGuide.md)、[协议设计](Docs/SurveyProtocolDesign.md)
@@ -50,7 +51,7 @@ dotnet test DiaryApp.sln --configuration Release
 ## 版本
 
 - 版本号为 `1.0.0-r{CommitCount}`：`1.0.0` 是数据格式版本（`Diary.Core/DataVersion.cs`），`rN` 是发布时的 Git 提交计数，由 Windows/Linux 版本生成脚本自动生成
-- 正式发布：推送 `v*` 标签触发 CI（`.github/workflows/release-on-tags.yml`）；Windows Runner 构建 `win-x64`，Ubuntu Runner 构建 `linux-x64`，全量测试通过且发布包包含 Tracker 插件与脚本 Worker 后才创建 Release
+- 正式发布：推送 `v*` 标签触发 CI（`.github/workflows/release-on-tags.yml`）；Windows Runner 构建 `win-x64`，Ubuntu Runner 构建 `linux-x64`，全量测试和 Quarto 手册渲染通过后，发布应用包、调试符号、更新 metadata 及用户手册 PDF/HTML
 
 ## 配置文件加密
 

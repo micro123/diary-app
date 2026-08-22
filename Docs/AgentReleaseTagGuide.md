@@ -1,6 +1,6 @@
 # Agent 发布新 Tag 操作指南
 
-最后更新：2026-08-21
+最后更新：2026-08-22
 
 本文面向自动化 Agent，说明如何在 DiaryApp 仓库中安全地准备、创建并推送发布 Tag。目标是让 Tag、应用显示版本、CHANGELOG、GitHub Actions 和 GitHub Release 保持一致，并避免误发、移动已有 Tag 或发布未验证提交。
 
@@ -11,7 +11,7 @@
 - 准备正式版本 Tag，例如 `v1.0.0-r438`；
 - 准备内部验证 Tag，例如 `v1.0.0-alpha2`；
 - 推送 Tag 并跟踪 `.github/workflows/release-on-tags.yml`；
-- 验收 GitHub Release 和 Windows/Linux 发布包。
+- 验收 GitHub Release、Windows/Linux 发布包和用户手册附件。
 
 Agent 必须遵守以下边界：
 
@@ -48,13 +48,13 @@ on:
 1. **Verify**：Ubuntu 和 Windows 分别执行 Release 构建与全量测试；
 2. **Publish**：生成 `win-x64` 与 `linux-x64` 自包含发布目录；
 3. **Package**：检查应用、脚本 Worker、DiagnosticsClient 依赖和 Jira/RedMine 插件程序集是否齐全，将 PDB 按原相对路径移入独立调试符号包，并生成普通运行包；
-4. **Create Release**：下载两个平台的运行包、调试符号包及 Windows Python 运行时包，从 `Docs/CHANGELOG.md` 提取发布说明，生成不含发布说明正文的机器可读源资产 metadata，并创建 GitHub Release。
+4. **Build Docs / Create Release**：使用固定版本 Quarto 渲染用户手册 PDF/HTML，下载两个平台的运行包、调试符号包、Windows Python 运行时包和手册，从 `Docs/CHANGELOG.md` 提取发布说明，生成不含发布说明正文的机器可读源资产 metadata，并创建 GitHub Release。
 
-任一 Verify 或 Publish 阶段失败，`create-release` 都不会执行。
+任一 Verify、Publish 或 Build Docs 阶段失败，`create-release` 都不会执行。
 
 ### 2.3 发布产物
 
-成功后应存在六个附件：
+成功后应存在八个附件：
 
 ```text
 DiaryAppNG-<TAG>-win-x64.zip
@@ -63,6 +63,8 @@ DiaryAppNG-<TAG>-win-x64-python313.zip
 DiaryAppNG-<TAG>-linux-x64.zip
 DiaryAppNG-<TAG>-linux-x64-dbg.zip
 DiaryAppNG-<TAG>-release-metadata.json
+DiaryAppNG-<TAG>-User-Manual.pdf
+DiaryAppNG-<TAG>-User-Manual.html
 ```
 
 例如：
@@ -74,6 +76,8 @@ DiaryAppNG-v1.0.0-r438-win-x64-python313.zip
 DiaryAppNG-v1.0.0-r438-linux-x64.zip
 DiaryAppNG-v1.0.0-r438-linux-x64-dbg.zip
 DiaryAppNG-v1.0.0-r438-release-metadata.json
+DiaryAppNG-v1.0.0-r438-User-Manual.pdf
+DiaryAppNG-v1.0.0-r438-User-Manual.html
 ```
 
 普通运行包和 Windows Python 运行时包不得包含 `.pdb`；每个平台的 `-dbg.zip` 只包含该 RID 发布目录中生成的 PDB，并保留其相对目录结构，便于按对应版本进行崩溃与堆栈分析。
@@ -296,7 +300,15 @@ DIARY_REQUIRE_POSTGRES_TESTS=1
 DIARY_REQUIRE_PYTHON_TESTS=1
 ```
 
-本地缺少 PostgreSQL/Docker 或 Python 3.10 时，不得把跳过测试描述为“全部验证通过”。此时至少应确认目标提交在 `main` 的 GitHub Actions Windows/Ubuntu 矩阵已经成功。
+用户手册使用 Quarto 1.11.1 构建。安装 `Noto Sans SC` 与 `Cascadia Mono` 后，可在仓库根目录执行：
+
+```bash
+quarto render Docs/UserManual
+test -s Docs/UserManual/_output/DiaryApp-User-Manual.pdf
+test -s Docs/UserManual/_output/DiaryApp-User-Manual.html
+```
+
+本地缺少 PostgreSQL/Docker、Python 3.10、Quarto 或文档字体时，不得把跳过测试或手册渲染描述为“全部验证通过”。此时至少应确认目标提交在 `main` 的 GitHub Actions Windows/Ubuntu 矩阵和用户手册任务已经成功。
 
 ### 6.3 在 Linux 本地生成带 Python 的 Windows 包
 
@@ -459,7 +471,8 @@ gh release view "$TAG" \
 - prerelease 状态符合当前工作流实际规则；
 - 发布说明来自目标 CHANGELOG 章节；
 - 同时存在 Windows/Linux 普通运行包与对应的 `-dbg.zip`，并存在 Windows `python313` 包；
-- 六个附件文件均存在且大小大于 0；
+- 用户手册 PDF/HTML 均存在且大小大于 0；
+- 八个附件文件均存在且大小大于 0；
 - `release-metadata.json` 不包含 changelog，且其中的 Tag、commit、RID/flavor、文件大小和 SHA-256 与实际发布资产一致；
 - 普通运行包及 Windows `python313` 包不包含 PDB，两个 `-dbg.zip` 非空且只包含 PDB。
 
@@ -536,7 +549,9 @@ git tag -d "$TAG"
 - Linux: DiaryAppNG-<TAG>-linux-x64.zip
 - Linux 调试符号: DiaryAppNG-<TAG>-linux-x64-dbg.zip
 - Release metadata: DiaryAppNG-<TAG>-release-metadata.json
-- Verify: Windows/Ubuntu 均通过
+- 用户手册 PDF: DiaryAppNG-<TAG>-User-Manual.pdf
+- 用户手册 HTML: DiaryAppNG-<TAG>-User-Manual.html
+- Verify: Windows/Ubuntu 与用户手册任务均通过
 - Release Notes: 已从 Docs/CHANGELOG.md 匹配
 - Release: <URL>
 ```
@@ -553,7 +568,7 @@ git tag -d "$TAG"
 - [ ] `DataVersion`、提交计数、Tag 和 CHANGELOG 一致；
 - [ ] CHANGELOG 提取结果正确；
 - [ ] Release metadata 已生成且不包含 changelog，资产哈希和大小已核对；
-- [ ] 格式、构建和测试门禁已通过；
+- [ ] 格式、构建、测试和用户手册渲染门禁已通过；
 - [ ] 本地和远程不存在同名 Tag；
 - [ ] Tag 对应的 stable/preview 与 prerelease 判定符合命名规则。
 
@@ -562,6 +577,6 @@ git tag -d "$TAG"
 - [ ] Tag 工作流成功；
 - [ ] GitHub Release 已创建且非 draft；
 - [ ] Release body 为目标版本章节；
-- [ ] Windows/Linux 普通包、调试符号包、Windows Python 包和 metadata 共六个附件均存在；
+- [ ] Windows/Linux 普通包、调试符号包、Windows Python 包、metadata 和用户手册 PDF/HTML 共八个附件均存在；
 - [ ] 普通包不含 PDB，`-dbg.zip` 非空且只包含 PDB；
 - [ ] 最终回复明确区分“Tag 已推送”和“Release 已成功”。

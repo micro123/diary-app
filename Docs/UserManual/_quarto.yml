@@ -1,0 +1,25 @@
+project:
+  type: default
+  output-dir: _output
+
+lang: zh-CN
+
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    theme: cosmo
+    css: styles.css
+    embed-resources: true
+    code-copy: false
+  typst:
+    toc: true
+    number-sections: true
+    papersize: a4
+    mainfont: Noto Sans SC
+    monofont: Cascadia Mono
+    fontsize: 10pt
+    margin:
+      x: 16mm
+      y: 16mm

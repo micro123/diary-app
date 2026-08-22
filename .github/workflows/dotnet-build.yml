@@ -58,3 +58,21 @@ jobs:
         env:
           DIARY_REQUIRE_POSTGRES_TESTS: ${{ runner.os == 'Linux' && '1' || '0' }}
           DIARY_REQUIRE_PYTHON_TESTS: '1'
+
+  user-manual:
+    name: Build user manual
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Build user manual
+        uses: ./.github/actions/build-user-manual
+        with:
+          output-name: DiaryAppNG-${{ github.sha }}-User-Manual
+      - name: Upload user manual
+        uses: actions/upload-artifact@v7
+        with:
+          name: DiaryAppNG-user-manual-${{ github.sha }}
+          path: artifacts/user-manual/*
+          if-no-files-found: error
+          retention-days: 7

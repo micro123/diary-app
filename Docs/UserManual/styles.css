@@ -1,0 +1,25 @@
+body {
+  line-height: 1.72;
+}
+
+h1,
+h2,
+h3 {
+  color: #213547;
+}
+
+figure img {
+  border: 1px solid #c9d2dc;
+  border-radius: 0.45rem;
+  box-shadow: 0 0.25rem 0.9rem rgb(27 39 51 / 12%);
+}
+
+table {
+  font-size: 0.94rem;
+}
+
+blockquote {
+  border-left-color: #3b82f6;
+  background: #f4f8ff;
+  padding: 0.7rem 1rem;
+}

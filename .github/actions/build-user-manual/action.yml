@@ -1,0 +1,52 @@
+name: Build user manual
+description: Render and validate the DiaryApp Quarto user manual.
+
+inputs:
+  output-name:
+    description: Base filename for the generated PDF and HTML files.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install document fonts
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install --yes --no-install-recommends fonts-cascadia-code fonts-noto-cjk
+
+    - name: Setup Quarto
+      uses: quarto-dev/quarto-actions/setup@v2
+      with:
+        version: 1.11.1
+
+    - name: Render user manual
+      shell: bash
+      run: quarto render Docs/UserManual
+
+    - name: Validate and collect user manual
+      shell: bash
+      env:
+        MANUAL_OUTPUT_NAME: ${{ inputs.output-name }}
+      run: |
+        set -euo pipefail
+
+        source_dir="Docs/UserManual/_output"
+        pdf_source="$source_dir/DiaryApp-User-Manual.pdf"
+        html_source="$source_dir/DiaryApp-User-Manual.html"
+        artifact_dir="artifacts/user-manual"
+
+        if [[ ! "$MANUAL_OUTPUT_NAME" =~ ^[A-Za-z0-9._+-]+$ ]]; then
+          echo "Invalid manual output name: $MANUAL_OUTPUT_NAME" >&2
+          exit 1
+        fi
+
+        test -s "$pdf_source"
+        test -s "$html_source"
+        head -c 5 "$pdf_source" | grep -q '%PDF-'
+        grep -i -m 1 -q '<html' "$html_source"
+
+        mkdir -p "$artifact_dir"
+        cp "$pdf_source" "$artifact_dir/$MANUAL_OUTPUT_NAME.pdf"
+        cp "$html_source" "$artifact_dir/$MANUAL_OUTPUT_NAME.html"
+        ls -lh "$artifact_dir"
