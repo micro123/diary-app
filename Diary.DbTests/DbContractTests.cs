@@ -1406,11 +1406,32 @@ public abstract class DbContractTests
     public void DropData_ClearsAllTables()
     {
         using var db = CreateDb();
-        db.CreateWorkTag("p", true, 0);
-        db.CreateWorkItem("2026-08-01", "x");
+        var tag = db.CreateWorkTag("p", true, 0);
+        var definition = new TagExtraFieldDefinition
+        {
+            FieldKey = "drop-data.value",
+            TagId = tag.Id,
+            Label = "清理值",
+            Type = TagExtraFieldType.Text,
+        };
+        Assert.IsTrue(db.CreateTagExtraFieldDefinition(definition));
+        var item = db.CreateWorkItem("2026-08-01", "x");
+        Assert.IsTrue(db.WorkItemAddTag(item, tag));
+        Assert.IsTrue(db.SaveWorkItemExtraFieldValues(item.Id,
+        [
+            new WorkItemExtraFieldValue
+            {
+                WorkItemId = item.Id,
+                FieldId = definition.FieldId,
+                Value = "待清理",
+            },
+        ]));
+
         Assert.IsTrue(db.DropData());
         Assert.AreEqual(0, db.AllWorkTags().Count);
         Assert.AreEqual(0, db.GetWorkItemByDate("2026-08-01").Count);
+        Assert.AreEqual(0, db.GetTagExtraFieldDefinitions(tag.Id, includeDisabled: true).Count);
+        Assert.AreEqual(0, db.GetWorkItemExtraFields(item).Count);
     }
 
     /// <summary>helper 边界：Query 在空表上返回空列表。</summary>

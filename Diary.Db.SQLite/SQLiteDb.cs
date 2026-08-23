@@ -949,10 +949,12 @@ public sealed partial class SQLiteDb(IDbFactory factory) : DbInterfaceBase(facto
         try
         {
             var sql = """
+                      DELETE FROM work_item_extra_field_values;
                       DELETE FROM work_item_tags;
-                      DELETE FROM work_tags;
                       DELETE FROM work_notes;
+                      DELETE FROM tag_extra_field_definitions;
                       DELETE FROM work_items;
+                      DELETE FROM work_tags;
                       """;
             using var cmd = CreateCommand(sql);
             if (transaction != null)

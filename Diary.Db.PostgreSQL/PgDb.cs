@@ -959,10 +959,12 @@ public sealed partial class PgDb(IDbFactory factory) : DbInterfaceBase(factory),
         try
         {
             const string sql = """
+                               DELETE FROM work_item_extra_field_values;
                                DELETE FROM work_item_tags;
-                               DELETE FROM work_tags;
                                DELETE FROM work_notes;
+                               DELETE FROM tag_extra_field_definitions;
                                DELETE FROM work_items;
+                               DELETE FROM work_tags;
                                """;
             using var cmd = Command(sql);
             cmd.ExecuteNonQuery();
