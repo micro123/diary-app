@@ -239,26 +239,26 @@ await runUiSuite({ name: 'ui-redmine-full', scenario: 'plugins', timeoutMs: 1200
             '导航图标:',
             '启用此实例:',
             '服务地址:',
-            'Api Key:',
+            'API Key:',
             '使用代理服务器:',
             '标签自动规则',
             '添加规则',
         ])
             assertUi(textWithin(tree, redmine, text, true), 'Redmine 配置缺少：' + text);
-        const apiLabel = textWithin(tree, redmine, 'Api Key:');
+        const apiLabel = textWithin(tree, redmine, 'API Key:');
         const apiItem = ancestor(tree, apiLabel, entry => textOf(entry).includes('SettingText'));
         const apiInput = apiItem && descendants(tree, apiItem).find(entry => typeOf(entry).includes('TextBox'));
         assertUi(apiInput, 'API Key 缺少输入控件');
         assertUi(String(apiInput.a.Class ?? '').split(/\s+/).includes('RevealPasswordButton'),
             'API Key 未启用敏感文本编辑器');
         await activateTextWithin(connection, 'RedMineConfigurationView', '添加实例');
-        await connection.waitForTree(current => findByText(current, 'RedMine实例 2'), 5000,
+        await connection.waitForTree(current => findByText(current, 'Redmine 实例 2'), 5000,
             '添加第二个 Redmine 实例失败');
         tree = await connection.getTree();
         const remove = controlForText(tree, textWithin(tree, rootOf(tree, 'RedMineConfigurationView'), '删除实例'));
         assertUi(remove && isEnabled(remove), '新增实例后删除实例按钮未启用');
         await activateControl(connection, remove);
-        await connection.waitForTree(current => !findByText(current, 'RedMine实例 2'), 5000,
+        await connection.waitForTree(current => !findByText(current, 'Redmine 实例 2'), 5000,
             '删除临时 Redmine 实例失败');
         await selectTab(connection, '插件状态', 'TrackerPluginDiagnosticsView');
         tree = await connection.getTree();

@@ -11,7 +11,7 @@
              x:Class="Diary.RedMine.UI.Views.Pages.RedMineInfoView"
              Padding="8">
     <DockPanel VerticalSpacing="6">
-        <Expander IsExpanded="False" HorizontalContentAlignment="Left" Header="用户信息" DockPanel.Dock="Top">
+        <Expander Classes="WorkspaceSection" IsExpanded="False" Header="用户信息" DockPanel.Dock="Top">
             <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="4" ColumnSpacing="4">
                 <TextBlock Grid.Column="0" Grid.Row="0" Text="用户ID：" />
                 <TextBlock Grid.Column="1" Grid.Row="0" Text="{Binding UserId}" />
@@ -21,7 +21,7 @@
                 <TextBlock Grid.Column="1" Grid.Row="2" Text="{Binding UserName}" />
             </Grid>
         </Expander>
-        <Expander IsExpanded="False" HorizontalContentAlignment="Left" Header="活动列表" DockPanel.Dock="Top">
+        <Expander Classes="WorkspaceSection" IsExpanded="False" Header="活动列表" DockPanel.Dock="Top">
             <StackPanel Orientation="Vertical" Spacing="16" HorizontalAlignment="Left">
                 <ItemsControl ItemsSource="{Binding Activities}">
                     <ItemsControl.ItemsPanel>
@@ -39,7 +39,7 @@
                         </DataTemplate>
                     </ItemsControl.DataTemplates>
                 </ItemsControl>
-                <Button Command="{Binding SyncActivitiesCommand}" Classes="Danger">
+                <Button Command="{Binding SyncActivitiesCommand}" Classes="Primary">
                     <StackPanel Orientation="Horizontal" Spacing="4">
                         <i:Icon Value="mdi-sync" FontSize="18" />
                         <TextBlock Text="同步服务器定义" FontSize="18" />
@@ -66,7 +66,7 @@
                                 <Button Content="{Binding !Disabled, Converter={StaticResource IssueOpenClose}}"
                                         Command="{Binding #IssueList.((pages1:RedMineInfoViewModel)DataContext).ToggleIssueCommand}"
                                         CommandParameter="{Binding}" />
-                                <Button Content="删除"
+                                <Button Content="删除" Classes="Danger"
                                         Command="{Binding #IssueList.((pages1:RedMineInfoViewModel)DataContext).DeleteIssueCommand}"
                                         CommandParameter="{Binding}" />
                             </StackPanel>

@@ -10,9 +10,9 @@
         <TextBlock Grid.Row="0" Text="{Binding Title}" Classes="Header" />
         <Separator Grid.Row="1" />
         <ItemsControl Grid.Row="2" Classes="Settings" ItemsSource="{Binding SettingGroup.Children}" />
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="16">
+        <StackPanel Grid.Row="3" Classes="DialogFooter">
+            <Button Content="放弃" Command="{Binding CancelCommand}" />
             <Button Classes="Primary" Content="保存" Command="{Binding SaveCommand}" />
-            <Button Classes="Danger" Content="放弃" Command="{Binding CancelCommand}" />
         </StackPanel>
     </Grid>
 </UserControl>

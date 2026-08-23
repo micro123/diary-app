@@ -11,7 +11,7 @@ public sealed class RedMineConfigurationProvider(
     IRedMineConfigurationEditService editService) : ITrackerConfigurationProvider
 {
     public string PluginId => RedMinePluginConstants.PluginId;
-    public string DisplayName => "RedMine";
+    public string DisplayName => "Redmine";
     public object CreateDefaultConfiguration() => new RedMinePluginConfig();
 
     public bool Validate(object configuration, out string? error)

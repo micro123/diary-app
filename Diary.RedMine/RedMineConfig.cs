@@ -6,7 +6,7 @@ public class RedMineConfig
 {
     [ConfigureText("服务地址")] public string RedMineServerUrl { get; set; } = "";
 
-    [ConfigureText("Api Key", true, "可以在 ”主页 > 我的账号“ 右侧找到 ”API访问键“")]
+    [ConfigureText("API Key", true, "可以在“主页 > 我的账号”右侧找到“API 访问键”")]
     public string RedMineApiKey { get; set; } = "";
 
     [ConfigureSwitch("使用代理服务器", "如果不能直接访问，可以使用代理试试")]

@@ -7,18 +7,22 @@
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="Diary.RedMine.UI.Views.RedMineManageView"
              x:DataType="viewModels:RedMineManageViewModel">
-    <Panel>
-        <TextBlock Text="无法连接服务器，需要检查RedMine设置" IsVisible="{Binding !ServerOk}"
-                   HorizontalAlignment="Center" VerticalAlignment="Center"
-                   Foreground="{DynamicResource ButtonDefaultDisabledForeground}" FontSize="48" />
+    <Panel Margin="8">
+        <StackPanel IsVisible="{Binding !ServerOk}" HorizontalAlignment="Center"
+                    VerticalAlignment="Center" Spacing="6">
+            <TextBlock Text="无法连接 Redmine 服务器" Classes="EmptyStateTitle" />
+            <TextBlock Text="请检查 Redmine 服务地址、API Key 和网络连接。"
+                       Classes="EmptyStateDescription" />
+        </StackPanel>
         <TabControl ItemsSource="{Binding Tabs}" IsVisible="{Binding ServerOk}"
                     TabStripPlacement="Top" Theme="{DynamicResource LineTabControl}">
             <TabControl.ItemTemplate>
                 <DataTemplate>
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <i:Icon Value="{Binding Icon}" FontSize="24" ToolTip.Tip="{Binding Title}" />
-                        <TextBlock Text="{Binding Title}" Classes="H3" VerticalAlignment="Center"
-                                   Theme="{DynamicResource TitleTextBlock}" />
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <i:Icon Value="{Binding Icon}" FontSize="18" ToolTip.Tip="{Binding Title}"
+                                VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold"
+                                   VerticalAlignment="Center" />
                     </StackPanel>
                 </DataTemplate>
             </TabControl.ItemTemplate>

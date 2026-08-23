@@ -86,7 +86,7 @@ public partial class RedMineConfigurationViewModel : ViewModelBase, ITrackerSett
         var instance = new RedMineInstanceSettings
         {
             InstanceId = CreateInstanceId(),
-            DisplayName = $"RedMine实例 {Instances.Count + 1}",
+            DisplayName = $"Redmine 实例 {Instances.Count + 1}",
             Enabled = false,
         };
         Configuration.Instances.Add(instance);

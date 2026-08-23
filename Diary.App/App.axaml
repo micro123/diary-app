@@ -23,7 +23,7 @@
                 <Expander.Header>
                     <Grid ColumnDefinitions="Auto,*,Auto">
                         <TextBlock Classes="SectionHeader" Text="{Binding Title}"
-                                   FontSize="{StaticResource SemiFontSizeHeader1}"
+                                   FontSize="{StaticResource SemiFontSizeHeader3}"
                                    HorizontalAlignment="Stretch" VerticalAlignment="Center"/>
                         <Border Grid.Column="2"
                                 IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"

@@ -12,7 +12,7 @@ public sealed class RedMineInstanceSettings : RedMineConfig
 {
     public string InstanceId { get; set; } = RedMinePluginConstants.DefaultInstanceId;
     [ConfigureText("显示名称")]
-    public string DisplayName { get; set; } = "RedMine工具";
+    public string DisplayName { get; set; } = "Redmine 工具";
     [ConfigureText("导航图标")]
     public string Icon { get; set; } = RedMinePluginConstants.DefaultIcon;
     [ConfigureSwitch("启用此实例")]
@@ -43,7 +43,7 @@ public static class RedMineConfigurationStore
         return new RedMineInstanceSettings
         {
             InstanceId = RedMinePluginConstants.DefaultInstanceId,
-            DisplayName = "RedMine工具",
+            DisplayName = "Redmine 工具",
             Icon = RedMinePluginConstants.DefaultIcon,
             Enabled = false,
         };

@@ -58,7 +58,8 @@
                                     <Button Content="保留数据卸载" Command="{Binding UninstallCommand}"
                                             IsVisible="{Binding CanUninstall}" Padding="12 6" />
                                     <Button Content="删除数据" Command="{Binding DeleteDataCommand}"
-                                            IsVisible="{Binding CanUninstall}" Padding="12 6" />
+                                            IsVisible="{Binding CanUninstall}" Padding="12 6"
+                                            Classes="Danger" />
                                 </StackPanel>
                             </Grid>
                         </Border>

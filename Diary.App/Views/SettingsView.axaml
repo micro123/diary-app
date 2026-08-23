@@ -12,15 +12,17 @@
     </Design.DataContext>
 
     <!-- 内容：DataTemplate 由 Application.DataTemplates 提供 (App.axaml)，与 GenericConfigView 共享 -->
-    <Grid RowDefinitions="*,Auto">
-        <ItemsControl Classes="Settings" ItemsSource="{Binding SettingsTree.Children}"/>
-        <StackPanel Grid.Row="1" Orientation="Horizontal"
-                    HorizontalAlignment="Center" Spacing="16"
-                    Margin="32  8 32 0">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
+        <StackPanel Spacing="2" Margin="8,0,8,4">
+            <TextBlock Text="程序设置" Classes="PageTitle" />
+            <TextBlock Text="管理界面、工作流、数据库、更新以及 AI 集成。" Classes="PageSubtitle" />
+        </StackPanel>
+        <ItemsControl Grid.Row="1" Classes="Settings" ItemsSource="{Binding SettingsTree.Children}"/>
+        <StackPanel Grid.Row="2" Classes="DialogFooter" Margin="32 8 32 0">
             <Button Classes="Large" Content="打开当前日志" Command="{Binding OpenCurrentLogCommand}" />
             <Button Classes="Large" Content="导出日志" Command="{Binding ExportLogsCommand}" />
             <Button Classes="Large Primary" Content="保存" Command="{Binding SaveCommand}" />
-            <Button Classes="Large Danger" Content="关闭" Command="{Binding LoadCommand}" />
+            <Button Classes="Large" Content="关闭" Command="{Binding LoadCommand}" />
         </StackPanel>
     </Grid>
 </UserControl>

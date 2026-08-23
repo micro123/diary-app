@@ -33,9 +33,8 @@
             </Button>
         </Grid>
         <u:Divider Content="现有模板" HorizontalContentAlignment="Left" DockPanel.Dock="Top" />
-        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
-                    HorizontalAlignment="Center" Spacing="16">
-            <Button Classes="Danger" Content="取消" Command="{Binding SaveCommand}"
+        <StackPanel DockPanel.Dock="Bottom" Classes="DialogFooter">
+            <Button Content="取消" Command="{Binding SaveCommand}"
                     CommandParameter="0" />
             <Button Name="SaveTemplateSettingsButton" Classes="Primary" Content="保存"
                     Command="{Binding SaveCommand}" CommandParameter="1" />

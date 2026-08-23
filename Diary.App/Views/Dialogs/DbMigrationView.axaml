@@ -17,10 +17,9 @@
                       ItemsSource="{Binding DbProviders}"
                       SelectedItem="{Binding DbType}" />
         </Grid>
-        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
-                    HorizontalAlignment="Center" Spacing="16">
-            <Button Classes="Primary" Content="取消" Command="{Binding AbortCommand}" />
-            <Button Classes="Danger" Content="迁移" Command="{Binding DoMigrateCommand}" />
+        <StackPanel DockPanel.Dock="Bottom" Classes="DialogFooter" Margin="0,12,16,0">
+            <Button Content="取消" Command="{Binding AbortCommand}" />
+            <Button Classes="Primary" Content="迁移" Command="{Binding DoMigrateCommand}" />
         </StackPanel>
         <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="4" IsVisible="{Binding Working}"
               DockPanel.Dock="Bottom" Margin="32 0">
