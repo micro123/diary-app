@@ -19,8 +19,9 @@
                                     VerticalAlignment="Center" Foreground="White" />
                         </Border>
                         <StackPanel VerticalAlignment="Center" Spacing="2">
-                            <TextBlock Text="工作项查询" FontSize="22" FontWeight="SemiBold" />
-                            <TextBlock Text="按日期、关键词、标签和优先级定位历史记录" Opacity="0.7" />
+                            <TextBlock Text="工作项查询" Classes="PageTitle" />
+                            <TextBlock Text="按日期、关键词、标签和优先级定位历史记录"
+                                       Classes="PageSubtitle" />
                         </StackPanel>
                     </StackPanel>
                     <Button Grid.Column="1" Classes="Primary" Command="{Binding QueryCommand}" MinWidth="104">

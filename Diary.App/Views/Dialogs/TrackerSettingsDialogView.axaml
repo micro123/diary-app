@@ -4,8 +4,13 @@
              x:Class="Diary.App.Views.Dialogs.TrackerSettingsDialogView"
              x:DataType="dialogs:TrackerSettingsDialogViewModel"
              Width="950" Height="650" Padding="12">
-    <Grid RowDefinitions="*,Auto" RowSpacing="12">
-        <TabControl>
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
+        <StackPanel Spacing="2">
+            <TextBlock Text="Tracker 设置" Classes="PageTitle" />
+            <TextBlock Text="配置外部服务实例，并查看插件运行和数据状态。"
+                       Classes="PageSubtitle" />
+        </StackPanel>
+        <TabControl Grid.Row="1">
             <TabItem Header="Tracker 配置">
                 <TabControl ItemsSource="{Binding ProviderPages}">
                     <TabControl.ItemTemplate>
@@ -24,7 +29,7 @@
                 <ContentControl Content="{Binding Diagnostics}" />
             </TabItem>
         </TabControl>
-        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12">
+        <StackPanel Grid.Row="2" Classes="DialogFooter">
             <Button Content="取消" Command="{Binding CancelCommand}" />
             <Button Classes="Primary" Content="保存" Command="{Binding SaveCommand}" />
         </StackPanel>

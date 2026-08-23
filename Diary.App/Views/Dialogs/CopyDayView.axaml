@@ -8,7 +8,7 @@
         <StackPanel Spacing="4">
             <TextBlock Text="复制整天记录" Classes="Header" />
             <TextBlock Text="选择源日期，记录会复制到当前日期；不会复制远程 Tracker 绑定。"
-                       Opacity="0.75" TextWrapping="Wrap" />
+                       Classes="PageSubtitle" />
         </StackPanel>
 
         <Grid Grid.Row="1" ColumnDefinitions="Auto,*" ColumnSpacing="12">

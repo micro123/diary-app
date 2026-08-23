@@ -34,11 +34,11 @@
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14"
                     MaxWidth="560"
                     IsVisible="{Binding !DatabaseOk, Source={x:Static app:App.Instance}}">
-            <TextBlock Text="数据库连接不可用" HorizontalAlignment="Center" FontSize="28" FontWeight="SemiBold" />
+            <TextBlock Text="数据库连接不可用" Classes="EmptyStateTitle" />
             <TextBlock Text="{Binding DatabaseStatusMessage, Source={x:Static app:App.Instance}}"
                        HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" />
             <TextBlock Text="本地记录不会因为连接失败被删除。恢复连接后即可继续查看统计。"
-                       HorizontalAlignment="Center" Opacity="0.7" TextWrapping="Wrap" TextAlignment="Center" />
+                       Classes="EmptyStateDescription" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
                 <Button Content="重试连接" Command="{Binding RetryDatabaseConnectionCommand}" Classes="Primary" />
                 <Button Content="打开数据库设置" Command="{Binding OpenDatabaseSettingsCommand}" />

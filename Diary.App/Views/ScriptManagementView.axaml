@@ -13,9 +13,9 @@
     <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="12">
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
             <StackPanel>
-                <TextBlock Text="脚本工作台" FontSize="30" FontWeight="Bold" />
+                <TextBlock Text="脚本工作台" Classes="PageTitle" />
                 <TextBlock Text="管理本机脚本，支持应用自动化和编辑器操作。"
-                           Opacity="0.68" />
+                           Classes="PageSubtitle" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
                 <Button Content="新建脚本" Command="{Binding CreateScriptCommand}" Classes="Primary" />
@@ -114,19 +114,17 @@
                 </ListBox>
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6"
                             IsVisible="{Binding ShowEmptyState}">
-                    <TextBlock Text="还没有脚本" FontSize="20" FontWeight="SemiBold"
-                               HorizontalAlignment="Center" />
-                    <TextBlock Text="将脚本放入脚本目录后点击重新加载。" Opacity="0.68"
-                               HorizontalAlignment="Center" />
+                    <TextBlock Text="还没有脚本" Classes="EmptyStateTitle" />
+                    <TextBlock Text="将脚本放入脚本目录后点击重新加载。"
+                               Classes="EmptyStateDescription" />
                     <Button Content="打开脚本目录" Command="{Binding OpenScriptsFolderCommand}"
                             HorizontalAlignment="Center" />
                 </StackPanel>
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6"
                             IsVisible="{Binding ShowNoResultsState}">
-                    <TextBlock Text="没有匹配的脚本" FontSize="20" FontWeight="SemiBold"
-                               HorizontalAlignment="Center" />
-                    <TextBlock Text="尝试调整搜索关键词或筛选条件。" Opacity="0.68"
-                               HorizontalAlignment="Center" />
+                    <TextBlock Text="没有匹配的脚本" Classes="EmptyStateTitle" />
+                    <TextBlock Text="尝试调整搜索关键词或筛选条件。"
+                               Classes="EmptyStateDescription" />
                 </StackPanel>
                 <ProgressBar IsIndeterminate="True" Height="3" VerticalAlignment="Top"
                              IsVisible="{Binding Loading}" />

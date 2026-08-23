@@ -89,15 +89,11 @@
             </StackPanel>
         </ScrollViewer>
 
-        <StackPanel Grid.Row="2"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Right"
-                    Spacing="8">
+        <StackPanel Grid.Row="2" Classes="DialogFooter">
             <Button Name="CancelExtraFieldButton" Content="取消" Command="{Binding CancelCommand}" />
             <Button Name="SaveExtraFieldButton" Content="确定" Classes="Primary"
                     Command="{Binding SaveCommand}" />
         </StackPanel>
     </Grid>
 </UserControl>
-
 

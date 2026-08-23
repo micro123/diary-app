@@ -51,18 +51,20 @@
     </UserControl.Styles>
 
     <Panel>
-        <TextBlock Text="没有启用调查功能，此页面不可用"
-                   HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="48"
-                   IsVisible="{Binding !SurveyEnabled, Source={x:Static app:App.Instance}}"
-                   Foreground="{DynamicResource ButtonDefaultDisabledForeground}" />
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6"
+                    IsVisible="{Binding !SurveyEnabled, Source={x:Static app:App.Instance}}">
+            <TextBlock Text="调查功能未启用" Classes="EmptyStateTitle" />
+            <TextBlock Text="请在程序设置中启用调查功能后再使用此页面。"
+                       Classes="EmptyStateDescription" />
+        </StackPanel>
 
         <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,*" RowSpacing="12"
               IsVisible="{Binding SurveyEnabled, Source={x:Static app:App.Instance}}">
             <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="16">
                 <StackPanel Spacing="3">
-                    <TextBlock Text="团队调查" FontSize="24" FontWeight="SemiBold" />
+                    <TextBlock Text="团队调查" Classes="PageTitle" />
                     <TextBlock Text="查询受访节点的工作记录，并按节点能力选择兼容或扩展查询。"
-                               Opacity="0.7" TextWrapping="Wrap" />
+                               Classes="PageSubtitle" />
                 </StackPanel>
                 <Button Grid.Column="1" Command="{Binding OpenSurveyGuideCommand}"
                         VerticalAlignment="Center">

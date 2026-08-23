@@ -7,17 +7,20 @@
     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="16">
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
             <StackPanel Spacing="4">
-                <TextBlock Text="数据模板" FontSize="22" FontWeight="SemiBold" />
+                <TextBlock Text="数据模板" Classes="PageTitle" />
                 <TextBlock Text="导入模板文件后，由对应插件校验模板结构并声明所需导出数据。"
-                           Opacity="0.65" TextWrapping="Wrap" />
+                           Classes="PageSubtitle" />
             </StackPanel>
             <Button Grid.Column="1" Content="导入模板" Command="{Binding ImportCommand}"
                     Classes="Primary" VerticalAlignment="Center" />
         </Grid>
         <Grid Grid.Row="1">
-            <TextBlock Text="尚未导入数据模板。"
-                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                       Opacity="0.6" IsVisible="{Binding IsEmpty}" />
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6"
+                        IsVisible="{Binding IsEmpty}">
+                <TextBlock Text="尚未导入数据模板。" Classes="EmptyStateTitle" />
+                <TextBlock Text="导入模板后可在脚本导出时复用格式和数据绑定。"
+                           Classes="EmptyStateDescription" />
+            </StackPanel>
             <ScrollViewer IsVisible="{Binding !IsEmpty}">
                 <ItemsControl ItemsSource="{Binding Templates}">
                     <ItemsControl.ItemTemplate>

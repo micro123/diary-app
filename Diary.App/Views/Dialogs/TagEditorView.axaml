@@ -336,10 +336,7 @@
             </Grid>
         </Grid>
 
-        <StackPanel Grid.Row="2"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Right"
-                    Spacing="8">
+        <StackPanel Grid.Row="2" Classes="DialogFooter">
             <Button Content="取消" Command="{Binding CancelCommand}" />
             <Button Name="SaveTagSettingsButton" Content="保存更改" Classes="Primary"
                     Command="{Binding SaveCommand}" />

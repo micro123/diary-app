@@ -6,7 +6,7 @@
              MinWidth="560" MinHeight="360" Padding="28">
     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="18">
         <StackPanel Spacing="4">
-            <TextBlock Text="欢迎使用 DiaryApp" FontSize="26" FontWeight="SemiBold" />
+            <TextBlock Text="欢迎使用 DiaryApp" Classes="PageTitle" />
             <TextBlock Text="先完成基础配置，再开始记录每天的工作。" Opacity="0.7" />
         </StackPanel>
         <StackPanel Grid.Row="1" Spacing="14">

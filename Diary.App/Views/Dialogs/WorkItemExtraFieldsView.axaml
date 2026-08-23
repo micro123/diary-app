@@ -124,7 +124,7 @@
         <StackPanel Grid.Row="2" Spacing="6">
             <TextBlock Text="{Binding ValidationMessage}" Foreground="{DynamicResource SystemControlErrorTextForeground}"
                        TextWrapping="Wrap" />
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <StackPanel Classes="DialogFooter">
                 <Button Name="CancelWorkExtraFieldsButton" Content="取消"
                         IsVisible="{Binding !IsReadOnly}" Command="{Binding CancelCommand}" />
                 <Button Name="CloseWorkExtraFieldsButton" Content="关闭"
