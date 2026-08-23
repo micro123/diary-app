@@ -441,7 +441,7 @@ RemoteFailure
 `WORKER_TERMINATED`，若明确超过 deadline 则使用 `SCRIPT_EXECUTION_TIMED_OUT`。
 
 主程序不能因为 worker 不响应而同步等待。读写管道、宿主调用和进程退出监听都必须是
-异步的，并使用独立取消令牌。当前 Worker 主循环可以在脚本执行或等待 HostCall 时接收 `cancel`，并通过 HostResult 路由解除等待；supervisor 会先发送取消消息，并在取消宽限期内等待 Worker 返回结果，只有无法继续通信时才将 Worker 标记为失败并释放；Lua 脚本执行在独立任务中运行，协议主循环不会被脚本轮询阻塞。C# 上下文提供 `IsCancellationRequested`，Lua 上下文提供 `context.isCancelled()`，Python worker 通过执行线程的 trace 检查取消状态。
+异步的，并使用独立取消令牌。当前 Worker 主循环可以在脚本执行或等待 HostCall 时接收 `cancel`，并通过 HostResult 路由解除等待；supervisor 会先发送取消消息，并在取消宽限期内等待 Worker 返回结果。宽限期内完成时 Worker 恢复 `Ready`；受进程调度或管道延迟影响未及时返回时，宿主仍返回 `Cancelled`，同时附带 `WORKER_CANCEL_GRACE_EXPIRED` 警告、将 Worker 标记为 `Failed` 并释放，下一次执行会先重新握手启动新 Worker。真实进程测试必须接受这两种安全结果，但强制回收分支必须验证警告码和重新启动能力，不得把任意失败状态视为成功。Lua 脚本执行在独立任务中运行，协议主循环不会被脚本轮询阻塞。C# 上下文提供 `IsCancellationRequested`，Lua 上下文提供 `context.isCancelled()`，Python worker 通过执行线程的 trace 检查取消状态。
 
 ## 11. Worker 故障和重启
 

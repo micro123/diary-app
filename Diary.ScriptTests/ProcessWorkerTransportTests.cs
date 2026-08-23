@@ -183,7 +183,7 @@ public sealed class ProcessWorkerTransportTests
     }
 
     [TestMethod]
-    public async Task ProcessTransport_CancelledPollingScriptsReturnCancelledAcrossLanguages()
+    public async Task ProcessTransport_CancelledPollingScriptsRemainRecoverableAcrossLanguages()
     {
         var workerPath = GetWorkerPath();
         Assert.IsTrue(File.Exists(workerPath), $"Worker 文件不存在：{workerPath}");
@@ -241,9 +241,13 @@ public sealed class ProcessWorkerTransportTests
 
         foreach (var testCase in cases)
         {
+            var handshake = new WorkerHandshakeOptions(
+                testCase.Language,
+                [ScriptApiVersion.V1],
+                ["script.progress"]);
             try
             {
-                await testCase.Supervisor.StartAsync(new(testCase.Language, [ScriptApiVersion.V1], ["script.progress"]));
+                await testCase.Supervisor.StartAsync(handshake);
                 using var cancellation = new CancellationTokenSource();
                 var execution = testCase.Supervisor.ExecuteAsync(
                     testCase.Payload.ScriptId,
@@ -266,7 +270,22 @@ public sealed class ProcessWorkerTransportTests
                     ScriptExecutionStatus.Cancelled,
                     result.Payload.Status,
                     $"{testCase.Language}: {string.Join("; ", result.Payload.Diagnostics.Select(item => $"{item.Code}: {item.Message}"))}");
-                Assert.AreEqual(WorkerState.Ready, testCase.Supervisor.State, testCase.Language);
+                if (testCase.Supervisor.State == WorkerState.Failed)
+                {
+                    Assert.AreEqual(
+                        "WORKER_CANCEL_GRACE_EXPIRED",
+                        result.Payload.Diagnostics.Single().Code,
+                        testCase.Language);
+                    await testCase.Supervisor.StartAsync(handshake);
+                }
+                else
+                {
+                    Assert.AreEqual(WorkerState.Ready, testCase.Supervisor.State, testCase.Language);
+                    Assert.IsFalse(result.Payload.Diagnostics.Any(item =>
+                        item.Code == "WORKER_CANCEL_GRACE_EXPIRED"), testCase.Language);
+                }
+
+                Assert.AreEqual(WorkerState.Ready, testCase.Supervisor.State, $"{testCase.Language} 取消后不可恢复");
             }
             finally
             {

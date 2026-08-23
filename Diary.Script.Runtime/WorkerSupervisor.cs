@@ -284,7 +284,7 @@ public sealed class WorkerSupervisor(
 
                         State = WorkerState.Failed;
                         await StopTransportAsync(CancellationToken.None);
-                        return Result(requestId, executionId, ScriptExecutionStatus.Cancelled);
+                        return CancellationGraceExpiredResult(requestId, executionId);
                     }
                     var message = await receiveTask;
                     if (message.Type == WorkerMessageType.HostCall)
@@ -380,7 +380,7 @@ public sealed class WorkerSupervisor(
 
                 State = WorkerState.Failed;
                 await StopTransportAsync(CancellationToken.None);
-                return Result(requestId, executionId, ScriptExecutionStatus.Cancelled);
+                return CancellationGraceExpiredResult(requestId, executionId);
             }
             catch (EndOfStreamException)
             {
@@ -718,6 +718,15 @@ public sealed class WorkerSupervisor(
         params ScriptDiagnostic[] diagnostics) =>
         new(WorkerProtocol.Name, WorkerProtocol.Version, WorkerMessageType.ExecuteResult,
             requestId, executionId, new(status, diagnostics));
+
+    private static WorkerMessage<WorkerExecutionResultPayload> CancellationGraceExpiredResult(
+        string requestId,
+        string executionId) =>
+        Result(requestId, executionId, ScriptExecutionStatus.Cancelled, new ScriptDiagnostic(
+            "WORKER_CANCEL_GRACE_EXPIRED",
+            "Worker 未在取消宽限期内返回结果，已强制回收并将在下次执行前重新启动。",
+            ScriptDiagnosticSeverity.Warning,
+            ScriptDiagnosticCategory.Runtime));
 
     private async ValueTask StopTransportAsync(CancellationToken cancellationToken)
     {

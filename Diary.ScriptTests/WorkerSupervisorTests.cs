@@ -262,6 +262,32 @@ public sealed class WorkerSupervisorTests
     }
 
     [TestMethod]
+    public async Task ExecuteAsync_CancelGraceExpiryReturnsObservableCancelledFallback()
+    {
+        var transport = new FakeTransport { DelayExecute = true };
+        var supervisor = new WorkerSupervisor(
+            new FakeFactory(transport),
+            cancellationGracePeriod: TimeSpan.FromMilliseconds(20));
+        await supervisor.StartAsync(new("csharp", [ScriptApiVersion.V1], []));
+        using var cancellation = new CancellationTokenSource();
+
+        var execution = supervisor.ExecuteAsync(
+            "demo",
+            "exec-cancel-expired",
+            new { },
+            cancellationToken: cancellation.Token).AsTask();
+        await transport.ExecuteSent.Task;
+        cancellation.Cancel();
+
+        var result = await execution;
+
+        Assert.AreEqual(ScriptExecutionStatus.Cancelled, result.Payload.Status);
+        Assert.AreEqual(WorkerState.Failed, supervisor.State);
+        Assert.AreEqual("WORKER_CANCEL_GRACE_EXPIRED", result.Payload.Diagnostics.Single().Code);
+        Assert.IsTrue(transport.StopCalled);
+    }
+
+    [TestMethod]
     public async Task ExecuteAsync_TerminatedWorkerReturnsStructuredFailureAndFailsWorker()
     {
         var transport = new FakeTransport { TerminateExecute = true };
