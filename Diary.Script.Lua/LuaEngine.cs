@@ -5,7 +5,7 @@ using LuaState = NLua.Lua;
 
 namespace Diary.Script.Lua;
 
-public sealed class LuaEngine : IScriptEngineV1
+public sealed class LuaEngine : IScriptEngineV1, IScriptValidatorV1
 {
     public string Name => "lua";
     public string StableName => Name;
@@ -25,24 +25,9 @@ public sealed class LuaEngine : IScriptEngineV1
         if (hintDiagnostic is not null)
             return ValueTask.FromResult(ScriptBuildResult.Failure(hintDiagnostic));
 
-        try
-        {
-            using var lua = LuaSandbox.Create();
-            // NLua 的 string 重载按系统 ANSI 编码转换，中文会被替换成 ?；统一用 UTF-8 byte[] 重载。
-            lua.LoadString(Encoding.UTF8.GetBytes(request.Source), request.SourcePath);
-        }
-        catch (Exception exception)
-        {
-            var runtimeDiagnostic = LuaRuntimeDiagnostics.Create(exception, request.SourcePath);
-            return ValueTask.FromResult(ScriptBuildResult.Failure(runtimeDiagnostic ?? new ScriptDiagnostic(
-                "LUA_SYNTAX_ERROR",
-                exception.Message,
-                ScriptDiagnosticSeverity.Error,
-                ScriptDiagnosticCategory.Syntax,
-                request.SourcePath,
-                ParseLine(exception.Message),
-                ParseColumn(exception.Message))));
-        }
+        var validation = ValidateSource(request.SourcePath, request.Source);
+        if (!validation.Succeeded)
+            return ValueTask.FromResult(new ScriptBuildResult(false, null, validation.Diagnostics));
 
         var hint = request.DescriptorHint!;
         var descriptor = new ScriptDescriptor(
@@ -57,6 +42,39 @@ public sealed class LuaEngine : IScriptEngineV1
             descriptor,
             request.SourcePath,
             request.Source)));
+    }
+
+    public ValueTask<ScriptValidationResult> ValidateAsync(
+        ScriptValidationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        cancellationToken.ThrowIfCancellationRequested();
+        var result = ValidateSource(request.SourcePath, request.Source);
+        return ValueTask.FromResult(result with { EngineName = StableName });
+    }
+
+    private static ScriptValidationResult ValidateSource(string sourcePath, string source)
+    {
+        try
+        {
+            using var lua = LuaSandbox.Create();
+            // NLua 的 string 重载按系统 ANSI 编码转换，中文会被替换成 ?；统一用 UTF-8 byte[] 重载。
+            lua.LoadString(Encoding.UTF8.GetBytes(source), sourcePath);
+            return ScriptValidationResult.Success();
+        }
+        catch (Exception exception)
+        {
+            var runtimeDiagnostic = LuaRuntimeDiagnostics.Create(exception, sourcePath);
+            return ScriptValidationResult.Failure(runtimeDiagnostic ?? new ScriptDiagnostic(
+                "LUA_SYNTAX_ERROR",
+                exception.Message,
+                ScriptDiagnosticSeverity.Error,
+                ScriptDiagnosticCategory.Syntax,
+                sourcePath,
+                ParseLine(exception.Message),
+                ParseColumn(exception.Message)));
+        }
     }
 
     private static ScriptDiagnostic? ValidateDescriptorHint(

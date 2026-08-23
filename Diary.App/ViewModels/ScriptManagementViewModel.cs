@@ -181,6 +181,8 @@ public partial class ScriptManagementViewModel(
     ILogger logger,
     IServiceProvider services) : ViewModelBase
 {
+    public const int AiContextTabIndex = 5;
+
     private readonly string _scriptRoot = Path.Combine(FsTools.GetApplicationConfigDirectory(), "scripts");
 
     public ScriptApiReferenceViewModel ApiReference { get; } = new();

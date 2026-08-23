@@ -98,6 +98,15 @@ public partial class MainWindowViewModel : ViewModelBase
                 SelectedPage = page;
         });
 
+        Messenger.Register<OpenAiContextRequest>(this, (r, m) =>
+        {
+            var page = Pages.FirstOrDefault(item => item.Name == PageNames.Scripts);
+            if (page?.ViewModel is not ScriptManagementViewModel scriptManagement)
+                return;
+            scriptManagement.SelectedDetailTabIndex = ScriptManagementViewModel.AiContextTabIndex;
+            SelectedPage = page;
+        });
+
         Messenger.Register<ConfigUpdateEvent>(this, (r, m) =>
         {
             var selectedName = SelectedPage?.Name;

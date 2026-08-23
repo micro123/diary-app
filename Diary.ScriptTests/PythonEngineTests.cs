@@ -7,6 +7,43 @@ namespace Diary.ScriptTests;
 public sealed class PythonEngineTests
 {
     [TestMethod]
+    public async Task ValidateAsync_ParsesWithoutDescriptorHintOrExecution()
+    {
+        var runtime = new PythonRuntimeResolver();
+        var resolved = await runtime.ResolveAsync();
+        if (!resolved.Succeeded)
+            Assert.Inconclusive("A usable Python 3.10+ runtime is required for this test.");
+
+        var engine = new PythonEngine(runtime);
+        var result = await engine.ValidateAsync(new ScriptValidationRequest(
+            "validate.py",
+            "def application_main(context):\n    raise RuntimeError('must not run')"));
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.AreEqual("python", result.EngineName);
+    }
+
+    [TestMethod]
+    public async Task ValidateAsync_ReturnsSyntaxDiagnostics()
+    {
+        var runtime = new PythonRuntimeResolver();
+        var resolved = await runtime.ResolveAsync();
+        if (!resolved.Succeeded)
+            Assert.Inconclusive("A usable Python 3.10+ runtime is required for this test.");
+
+        var engine = new PythonEngine(runtime);
+        var result = await engine.ValidateAsync(new ScriptValidationRequest(
+            "broken.py",
+            "def application_main(context):\n    return ("));
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.IsTrue(result.Diagnostics.Any(diagnostic =>
+            diagnostic.Code == "PYTHON_SYNTAX_ERROR"
+            && diagnostic.Line is > 0
+            && diagnostic.Column is > 0));
+    }
+
+    [TestMethod]
     public void WorkerArguments_EnableUtf8BeforeIsolatedMode()
     {
         var arguments = PythonWorkerSource.CreateArguments();

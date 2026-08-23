@@ -86,6 +86,8 @@ internal static class DebugUiAutomation
 
     public static bool ApplyDatabaseScenario(DbInterfaceBase database)
     {
+        if (_scenario == "extended")
+            return ApplyAiContextScenario(database);
         if (_scenario != ExtraFieldsScenario)
             return false;
 
@@ -138,6 +140,65 @@ internal static class DebugUiAutomation
         }
 
         Trace.WriteLine($"UI 测试场景已创建只读附加字段事项：{workItem.Id}");
+        return true;
+    }
+
+    private static bool ApplyAiContextScenario(DbInterfaceBase database)
+    {
+        const string tagName = "AI上下文示例项目";
+        const string fieldKey = "sample.ticket";
+        const string workTitle = "整理 AI 脚本上下文";
+        var changed = false;
+        var tag = database.AllWorkTags().FirstOrDefault(item => item.Name == tagName);
+        if (tag is null)
+        {
+            tag = database.CreateWorkTag(tagName, true, 0x4F6BED);
+            changed = true;
+        }
+        if (tag.Id <= 0)
+            throw new InvalidOperationException("无法创建 AI 上下文 UI 测试标签。");
+
+        var definition = database.GetTagExtraFieldDefinitions(tag.Id, includeDisabled: true)
+            .FirstOrDefault(item => item.FieldKey == fieldKey);
+        if (definition is null)
+        {
+            definition = new TagExtraFieldDefinition
+            {
+                FieldKey = fieldKey,
+                TagId = tag.Id,
+                Label = "示例工单编号",
+                Type = TagExtraFieldType.Text,
+                Description = "用于 AI 上下文 UI 测试和用户手册截图。",
+                SortOrder = 0,
+                Enabled = true,
+            };
+            if (!database.CreateTagExtraFieldDefinition(definition))
+                throw new InvalidOperationException("无法创建 AI 上下文 UI 测试字段。");
+            changed = true;
+        }
+
+        var date = DateTime.Today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        if (database.GetWorkItemByDate(date).Any(item => item.Comment == workTitle))
+            return changed;
+
+        var workItem = database.CreateWorkItem(date, workTitle);
+        workItem.Time = 1.5;
+        workItem.Priority = WorkPriorities.P1;
+        if (workItem.Id <= 0
+            || !database.UpdateWorkItem(workItem)
+            || !database.WorkItemAddTag(workItem, tag)
+            || !database.SaveWorkItemExtraFieldValues(workItem.Id,
+                [new WorkItemExtraFieldValue
+                {
+                    WorkItemId = workItem.Id,
+                    FieldId = definition.FieldId,
+                    Value = "SAMPLE-42",
+                }]))
+        {
+            throw new InvalidOperationException("无法创建 AI 上下文 UI 测试事项。");
+        }
+        database.WorkUpdateNote(workItem, "示例备注：仅用于隔离 UI 测试，不包含真实用户数据。");
+        Trace.WriteLine($"UI 测试场景已创建 AI 上下文示例事项：{workItem.Id}");
         return true;
     }
 

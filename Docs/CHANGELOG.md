@@ -5,8 +5,8 @@
 ## 未发布
 
 日期：2026-08-23
-- 脚本管理新增 AI 上下文页，可选择并预览标签、附加字段、模板、Tracker 安全摘要、保存查询和只读 Host 能力，导出 Markdown/JSON；事项正文默认关闭并受日期、数量和文本预算限制。新增版本化只读快照与独立 stdio MCP，只在用户授权快照内提供六个查询工具，不连接数据库或暴露写 API、凭据和标签 metadata；MCP 及全部显式 Exe/WinExe 测试 Runner 统一关闭 Windows apphost CET 标记。
-- 新增 Linux Debug UI/CDP 生命周期工具，支持 X11 或自动管理 Xvfb、隔离 profile、场景/插件 seed、`start/status/smoke/run/stop` 和日志定位；统一点击焦点与快捷键字符注入语义，核心套件日期断言不再依赖区域格式，Linux X11 下 core 14/14 与 smoke 已通过。
+- 脚本管理新增 AI 上下文页，可选择并预览标签、附加字段、模板、Tracker 安全摘要、保存查询和只读 Host 能力，导出 Markdown/JSON；事项正文默认关闭并受日期、数量和文本预算限制。新增版本化只读快照与独立 stdio MCP，在用户授权快照内提供六个数据工具，并提供不会加载或执行源码的 `diary_validate_script` C#/Lua/Python 编译校验工具；不连接数据库或暴露写 API、凭据和标签 metadata。程序设置可显示快照状态、复制通用 JSON 或可直接交给 AI 的配置说明，并保存设置后跳转到 AI 上下文。MCP 及全部显式 Exe/WinExe 测试 Runner 统一关闭 Windows apphost CET 标记。补充 Linux CDP 的授权、预览、快照和配置复制回归，并将隔离示例数据截图加入用户手册。
+- 新增 Linux Debug UI/CDP 生命周期工具，支持 X11 或自动管理 Xvfb、隔离 profile、场景/插件 seed、`start/status/smoke/run/stop` 和日志定位；统一点击焦点与快捷键字符注入语义，核心套件日期断言不再依赖区域格式，Linux X11 下 core 14/14、smoke 与 extended 11/11 已通过。
 - 修复年份菜单错误使用周范围、标签重命名不落库，以及数据库删除失败后 UI 仍移除工作项或标签的问题。
 - 退出清理失败后可再次尝试；未知 UI 未处理异常不再被全局吞掉；统计刷新使用后台快照和 generation 防止旧结果覆盖；自动化事件去重缓存改为有界。
 - 敏感配置升级为 AES-256-GCM 与安装级随机主密钥，兼容读取旧 CBC 文件；Jira/Redmine HTTP 客户端随 API 和 Tracker UI 贡献释放。

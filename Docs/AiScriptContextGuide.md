@@ -41,6 +41,17 @@ dotnet run --project Diary.Mcp -- --snapshot "/absolute/path/to/mcp-snapshot.jso
 
 不要为 MCP 进程额外注入数据库密码、Tracker Token 或云服务密钥等环境变量。
 
+## 从程序设置复制配置
+
+刷新快照后，也可以重新打开“程序设置”，使用设置列表末尾的“AI 与 MCP”区域：
+
+- “打开 AI 上下文”：保存当前设置、显示脚本管理页并直接切换到披露页面；它不会自动生成快照。
+- “复制 AI 说明”：复制一段 Markdown，包含 stdio 语义、绝对路径、通用 JSON、工具列表和安全要求，可直接粘贴给 AI，让它转换为当前客户端需要的格式。
+- “复制 MCP JSON”：只复制 `mcpServers.diary.command/args` 配置，适合支持该通用形状的客户端。
+- “打开使用文档”：打开本指南。
+
+两种复制内容都只引用可执行文件和快照路径，不读取或嵌入快照正文，也不会自动修改 Claude、Codex、编辑器或其他 Agent 的配置文件。快照不存在时复制按钮保持禁用，应先进入“AI 上下文”确认披露范围并刷新。
+
 ## 可用工具
 
 - `diary_list_tags`：标签目录，不含 metadata。
@@ -49,8 +60,11 @@ dotnet run --project Diary.Mcp -- --snapshot "/absolute/path/to/mcp-snapshot.jso
 - `diary_list_tracker_instances`：Tracker 实例安全摘要。
 - `diary_query_work_items`：在快照内按日期、标签、文本和优先级筛选。
 - `diary_summarize_work_items`：汇总快照内事项数量、工时和标签分组。
+- `diary_validate_script`：只编译或解析请求中提供的 C#、Lua、Python 源码并返回行列诊断，不读取脚本文件，也不执行脚本。
 
-后两个工具只有在生成快照时显式包含事项才有数据。它们不会回查数据库，也不支持 SQL、路径、脚本或写操作。
+事项查询和汇总只有在生成快照时显式包含事项才有数据；它们不会回查数据库，也不支持 SQL、路径或写操作。
+
+校验脚本时传入 `language`（`csharp`、`lua` 或 `python`）和完整 `source`。返回值中的 `succeeded` 表示相应编译/解析阶段是否通过，`diagnostics` 包含 code、message、severity、category、line 和 column。C# 会执行 Roslyn 编译与宿主安全策略但不加载程序集；Lua 只编译代码块；Python 只做语法树和安全策略检查。因此成功结果不代表脚本入口元数据完整，也不保证实际运行成功。源码上限为 256 KiB，服务不会读取调用方提供的本地路径、安装额外依赖或写入编译缓存。
 
 ## 更新与撤销
 

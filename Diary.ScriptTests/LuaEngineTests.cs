@@ -9,6 +9,28 @@ public sealed class LuaEngineTests
     private readonly LuaEngine _engine = new();
 
     [TestMethod]
+    public async Task ValidateAsync_ParsesWithoutDescriptorHintOrExecution()
+    {
+        var result = await _engine.ValidateAsync(new ScriptValidationRequest(
+            "validate.lua",
+            "function application_main(context) error('must not run') end"));
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.AreEqual("lua", result.EngineName);
+    }
+
+    [TestMethod]
+    public async Task ValidateAsync_ReturnsSyntaxDiagnostics()
+    {
+        var result = await _engine.ValidateAsync(new ScriptValidationRequest(
+            "broken.lua",
+            "function application_main(context) return ( end"));
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual("LUA_SYNTAX_ERROR", result.Diagnostics.Single().Code);
+    }
+
+    [TestMethod]
     public void Match_IsCaseInsensitiveAndRejectsOtherExtensions()
     {
         Assert.IsTrue(_engine.Match(new ScriptMatchRequest("test.LUA")).IsMatch);

@@ -1,5 +1,9 @@
 using Diary.AiContext;
 using Diary.Mcp;
+using Diary.Script.CSharp;
+using Diary.Script.Lua;
+using Diary.Script.Py;
+using Diary.ScriptBase;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -22,9 +26,18 @@ builder.Logging.ClearProviders();
 builder.Logging.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
 builder.Services.AddSingleton(snapshot);
 builder.Services.AddSingleton<AiContextQueryService>();
+builder.Services.AddSingleton<CSharpEngine>();
+builder.Services.AddSingleton<LuaEngine>();
+builder.Services.AddSingleton<PythonRuntimeResolver>();
+builder.Services.AddSingleton<PythonEngine>();
+builder.Services.AddSingleton<IScriptValidatorV1>(services => services.GetRequiredService<CSharpEngine>());
+builder.Services.AddSingleton<IScriptValidatorV1>(services => services.GetRequiredService<LuaEngine>());
+builder.Services.AddSingleton<IScriptValidatorV1>(services => services.GetRequiredService<PythonEngine>());
+builder.Services.AddSingleton<ScriptValidationService>();
 builder.Services.AddMcpServer()
     .WithStdioServerTransport()
-    .WithTools<DiaryContextTools>();
+    .WithTools<DiaryContextTools>()
+    .WithTools<DiaryScriptTools>();
 await builder.Build().RunAsync();
 return 0;
 

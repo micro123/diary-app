@@ -10,6 +10,45 @@ public sealed class CSharpEngineTests
     private readonly CSharpEngine _engine = new();
 
     [TestMethod]
+    public async Task ValidateAsync_CompilesWithoutLoadingOrInstantiatingProgram()
+    {
+        var source = """
+            using System;
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Diary.ScriptBase;
+            public sealed class ExplodingProgram : IScriptProgramV1
+            {
+                static ExplodingProgram() => throw new InvalidOperationException("must not run");
+                public ScriptDescriptor Descriptor => new("test", "Test", ScriptApiVersion.V1, ScriptScope.Application);
+                public ValueTask<ScriptExecutionResult> ExecuteAsync(ScriptExecutionRequest request, IScriptExecutionContext context, CancellationToken cancellationToken = default)
+                    => ValueTask.FromResult(ScriptExecutionResult.Succeeded());
+            }
+            """;
+
+        var result = await _engine.ValidateAsync(new ScriptValidationRequest("validate.cs", source));
+
+        Assert.IsTrue(
+            result.Succeeded,
+            string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.AreEqual("csharp", result.EngineName);
+    }
+
+    [TestMethod]
+    public async Task ValidateAsync_ReturnsCompilerDiagnostics()
+    {
+        var result = await _engine.ValidateAsync(new ScriptValidationRequest(
+            "broken.cs",
+            "public sealed class Broken { public void Run( }"));
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.IsTrue(result.Diagnostics.Any(diagnostic =>
+            diagnostic.Category == ScriptDiagnosticCategory.Syntax
+            && diagnostic.Line is > 0
+            && diagnostic.Column is > 0));
+    }
+
+    [TestMethod]
     public async Task BuildAsync_CompilesAndCreatesV1Program()
     {
         var source = """

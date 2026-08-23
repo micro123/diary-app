@@ -113,7 +113,7 @@ Jira --> JiraApi
 | `Diary.ScriptHost` | 工作项查询、日志项/模板日志项、Tracker 只读目录及系统交互的宿主契约 | 数据访问和副作用均由宿主 API 控制，返回 DTO 或结构化错误 |
 | `Diary.Script.Runtime` | 引擎注册、构建服务、目录加载、执行器和脚本管理器 | 已接入 App DI；应用启动时通过共享加载状态在后台预加载 application/editor 脚本，脚本管理页复用结果 |
 | `Diary.AiContext` | AI 上下文 v1 DTO、JSON/Markdown 序列化、快照校验和内存查询 | 不引用数据库、GUI、插件或完整脚本门面；只处理已经授权的纯 DTO |
-| `Diary.Mcp` | 基于官方 C# SDK 的 stdio MCP 服务 | 启动时只读取指定快照，stdout 仅输出协议，六个工具均不能越过快照范围 |
+| `Diary.Mcp` | 基于官方 C# SDK 的 stdio MCP 服务 | 启动时只读取指定快照；六个数据工具不能越过快照范围，脚本校验工具只编译/解析请求源码且不执行 |
 | `Diary.Script.Worker` | C#、Lua Worker 进程入口、协议适配和受限执行上下文 | 只通过 stdin/stdout 协议与宿主通信；不直接访问 App、DI、数据库或 UI |
 | `Diary.Survey` | 调查协议（v1/v2）、调查者和受访者收发实现 | 不依赖 UI；App 层负责端口与页面装配 |
 | `Diary.MigrationTool` | 从旧 DiaryToolpp 数据库导入核心数据 | 导入的工作项持久化为只读，不迁移 Tracker 信息 |
@@ -453,7 +453,7 @@ WorkItemCreated/WorkItemSaved/TagAdded 触发器均已接线。Query 入口已�
 
 `Diary.AiContext` 定义 `diary.ai_context` v1 纯 DTO、2 MiB 快照上限、100 条事项上限、文本截断、snake_case JSON、Markdown 渲染和快照内查询。App 可以从同一对象生成预览、Markdown/JSON 导出和默认 MCP 快照，Unix 下快照权限尽力限制为当前用户读写。
 
-`Diary.Mcp` 是独立 stdio 进程，使用官方 MCP C# SDK，只依赖 `Diary.AiContext`。它不加载 App DI、数据库 provider、插件或脚本执行器，只开放标签、字段、模板、Tracker 摘要、事项筛选和事项汇总六个工具。详细边界见 [`AiScriptContextDesign.md`](AiScriptContextDesign.md)，使用方式见 [`AiScriptContextGuide.md`](AiScriptContextGuide.md)。
+`Diary.Mcp` 是独立 stdio 进程，使用官方 MCP C# SDK。数据查询只依赖 `Diary.AiContext`；脚本校验另外引用 C#、Lua、Python 内置引擎的无执行校验接口。它不加载 App DI、数据库 provider、插件、脚本目录、Worker、Host API 或脚本执行器，开放六个快照数据工具和一个 `diary_validate_script` 工具。后者只接受语言和源码，C# Emit 到内存但不加载程序集，Lua 只编译代码块，Python 只解析语法树与固定安全策略。详细边界见 [`AiScriptContextDesign.md`](AiScriptContextDesign.md)，使用方式见 [`AiScriptContextGuide.md`](AiScriptContextGuide.md)。
 
 ## 18. 维护约定
 

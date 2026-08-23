@@ -4,7 +4,7 @@ using Diary.ScriptBase;
 
 namespace Diary.Script.Py;
 
-public sealed class PythonEngine : IScriptEngineV1
+public sealed class PythonEngine : IScriptEngineV1, IScriptValidatorV1
 {
     private readonly PythonRuntimeResolver _runtimeResolver;
     private readonly ScriptDescriptorHint? _defaultDescriptorHint;
@@ -46,35 +46,11 @@ public sealed class PythonEngine : IScriptEngineV1
         if (hintDiagnostic is not null)
             return ScriptBuildResult.Failure(hintDiagnostic);
 
-        PythonRuntimeResolution runtime;
-        try
-        {
-            runtime = await _runtimeResolver.ResolveAsync(cancellationToken: cancellationToken);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
-        {
-            return ScriptBuildResult.Failure(new ScriptDiagnostic(
-                "PYTHON_RUNTIME_PROBE_FAILED",
-                $"The Python runtime probe failed: {exception.Message}",
-                ScriptDiagnosticSeverity.Error,
-                ScriptDiagnosticCategory.Runtime,
-                request.SourcePath));
-        }
-
-        if (!runtime.Succeeded || runtime.ExecutablePath is null)
-        {
-            return new ScriptBuildResult(false, null, runtime.Diagnostics
-                .Select(diagnostic => diagnostic with { SourcePath = request.SourcePath })
-                .ToImmutableArray());
-        }
-
-        var syntaxDiagnostics = await CheckSyntaxAsync(runtime.ExecutablePath, request, cancellationToken);
-        if (!syntaxDiagnostics.IsEmpty)
-            return new ScriptBuildResult(false, null, syntaxDiagnostics);
+        var (validation, runtime) = await ValidateCoreAsync(
+            new ScriptValidationRequest(request.SourcePath, request.Source, request.ApiVersion),
+            cancellationToken);
+        if (!validation.Succeeded || runtime is null)
+            return new ScriptBuildResult(false, null, validation.Diagnostics);
 
         var descriptor = new ScriptDescriptor(
             descriptorHint!.Id!,
@@ -90,6 +66,56 @@ public sealed class PythonEngine : IScriptEngineV1
             request.Source,
             runtime));
     }
+
+    public async ValueTask<ScriptValidationResult> ValidateAsync(
+        ScriptValidationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        cancellationToken.ThrowIfCancellationRequested();
+        var (validation, _) = await ValidateCoreAsync(request, cancellationToken);
+        return validation;
+    }
+
+    private async ValueTask<(ScriptValidationResult Validation, PythonRuntimeResolution? Runtime)> ValidateCoreAsync(
+        ScriptValidationRequest request,
+        CancellationToken cancellationToken)
+    {
+        PythonRuntimeResolution runtime;
+        try
+        {
+            runtime = await _runtimeResolver.ResolveAsync(cancellationToken: cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            return (Failure(new ScriptDiagnostic(
+                "PYTHON_RUNTIME_PROBE_FAILED",
+                $"The Python runtime probe failed: {exception.Message}",
+                ScriptDiagnosticSeverity.Error,
+                ScriptDiagnosticCategory.Runtime,
+                request.SourcePath)), null);
+        }
+
+        if (!runtime.Succeeded || runtime.ExecutablePath is null)
+        {
+            var diagnostics = runtime.Diagnostics
+                .Select(diagnostic => diagnostic with { SourcePath = request.SourcePath })
+                .ToImmutableArray();
+            return (new ScriptValidationResult(false, diagnostics) { EngineName = StableName }, null);
+        }
+
+        var syntaxDiagnostics = await CheckSyntaxAsync(runtime.ExecutablePath, request, cancellationToken);
+        if (!syntaxDiagnostics.IsEmpty)
+            return (new ScriptValidationResult(false, syntaxDiagnostics) { EngineName = StableName }, runtime);
+        return (ScriptValidationResult.Success() with { EngineName = StableName }, runtime);
+    }
+
+    private ScriptValidationResult Failure(ScriptDiagnostic diagnostic) =>
+        ScriptValidationResult.Failure(diagnostic) with { EngineName = StableName };
 
     private static ScriptDiagnostic? ValidateDescriptorHint(
         ScriptDescriptorHint? hint,
@@ -133,7 +159,7 @@ public sealed class PythonEngine : IScriptEngineV1
 
     private async ValueTask<ImmutableArray<ScriptDiagnostic>> CheckSyntaxAsync(
         string executablePath,
-        ScriptBuildRequest request,
+        ScriptValidationRequest request,
         CancellationToken cancellationToken)
     {
         PythonProcessResult process;

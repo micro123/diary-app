@@ -59,6 +59,7 @@ public sealed class AiContextMcpStdioTests
                 "diary_list_tracker_instances",
                 "diary_query_work_items",
                 "diary_summarize_work_items",
+                "diary_validate_script",
             }, toolNames);
 
             await SendAsync(process, new
@@ -77,6 +78,58 @@ public sealed class AiContextMcpStdioTests
                 .GetProperty("text").GetString();
             StringAssert.Contains(content!, "second");
             Assert.IsFalse(content!.Contains("first", StringComparison.Ordinal));
+
+            await SendAsync(process, new
+            {
+                jsonrpc = "2.0",
+                id = 4,
+                method = "tools/call",
+                @params = new
+                {
+                    name = "diary_validate_script",
+                    arguments = new
+                    {
+                        language = "csharp",
+                        source = """
+                            using System;
+                            using System.Threading;
+                            using System.Threading.Tasks;
+                            using Diary.ScriptBase;
+                            public sealed class ExplodingProgram : IScriptProgramV1
+                            {
+                                static ExplodingProgram() => throw new InvalidOperationException("must not run");
+                                public ScriptDescriptor Descriptor => new("test", "Test", ScriptApiVersion.V1, ScriptScope.Application);
+                                public ValueTask<ScriptExecutionResult> ExecuteAsync(ScriptExecutionRequest request, IScriptExecutionContext context, CancellationToken cancellationToken = default)
+                                    => ValueTask.FromResult(ScriptExecutionResult.Succeeded());
+                            }
+                            """,
+                    },
+                },
+            });
+            using var validationResponse = await ReadResponseAsync(process, 4);
+            var validationContent = validationResponse.RootElement.GetProperty("result").GetProperty("content")[0]
+                .GetProperty("text").GetString();
+            using var validation = JsonDocument.Parse(validationContent!);
+            Assert.IsTrue(validation.RootElement.GetProperty("succeeded").GetBoolean());
+            Assert.AreEqual("compile-only", validation.RootElement.GetProperty("validation_mode").GetString());
+
+            await SendAsync(process, new
+            {
+                jsonrpc = "2.0",
+                id = 5,
+                method = "tools/call",
+                @params = new
+                {
+                    name = "diary_validate_script",
+                    arguments = new { language = "csharp", source = "public sealed class Broken {" },
+                },
+            });
+            using var invalidResponse = await ReadResponseAsync(process, 5);
+            var invalidContent = invalidResponse.RootElement.GetProperty("result").GetProperty("content")[0]
+                .GetProperty("text").GetString();
+            using var invalid = JsonDocument.Parse(invalidContent!);
+            Assert.IsFalse(invalid.RootElement.GetProperty("succeeded").GetBoolean());
+            Assert.IsTrue(invalid.RootElement.GetProperty("diagnostics").GetArrayLength() > 0);
         }
         finally
         {

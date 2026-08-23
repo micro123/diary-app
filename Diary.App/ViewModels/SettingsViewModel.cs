@@ -4,6 +4,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.Fonts;
+using Diary.App.Models;
+using Diary.App.Services;
 using Diary.GUIBase;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
@@ -22,18 +24,25 @@ public partial class SettingsViewModel : ViewModelBase, IDialogContext
     private readonly ILogger _logger;
     private readonly DiagnosticLogExportService _logExport;
     private readonly AppFontService _fontService;
+    private readonly McpSetupService _mcpSetupService;
     [ObservableProperty] private SettingGroup _settingsTree = new("Root");
+    [ObservableProperty] private bool _hasMcpSnapshot;
+    [ObservableProperty] private string _mcpSnapshotStatus = string.Empty;
+
     public SettingsViewModel(
         ILogger logger,
         DiagnosticLogExportService logExport,
         AppFontService fontService,
+        McpSetupService mcpSetupService,
         IEnumerable<ITrackerConfigurationProvider> configurationProviders)
     {
         _logger = logger;
         _logExport = logExport;
         _fontService = fontService;
+        _mcpSetupService = mcpSetupService;
         _logger.LogDebug("Tracker 配置提供者：{Count} 个", configurationProviders.Count());
         BuildTree();
+        RefreshMcpStatus();
     }
 
     public event EventHandler<object?>? RequestClose;
@@ -50,28 +59,51 @@ public partial class SettingsViewModel : ViewModelBase, IDialogContext
     [RelayCommand]
     private void Save()
     {
-        AppFontApplyResult fontResult;
-        try
-        {
-            SettingsTree.Save();
-            if (!EasySaveLoad.Save(BaseApp.Instance.AppConfig))
-                throw new InvalidOperationException("保存应用配置失败。");
-            var application = Application.Current
-                ?? throw new InvalidOperationException("应用尚未完成初始化，无法应用字体设置。");
-            fontResult = _fontService.Apply(application, BaseApp.Instance.AppConfig.ViewSettings);
-        }
-        catch (Exception exception)
-        {
-            _logger.LogWarning(exception, "保存设置失败");
-            NotificationManager?.Show(exception.Message, NotificationType.Error);
+        if (!TrySaveSettings(out var fontResult))
             return;
-        }
-
-        NotificationManager?.Show(
-            fontResult.UsedFallback ? $"已保存；{fontResult.Warning}" : "已保存，字体已立即生效",
-            fontResult.UsedFallback ? NotificationType.Warning : NotificationType.Success);
+        ShowSavedNotification(fontResult);
         Messenger.Send(new ConfigUpdateEvent());
         RequestClose?.Invoke(this, true);
+    }
+
+    [RelayCommand]
+    private void SaveAndOpenAiContext()
+    {
+        if (!TrySaveSettings(out var fontResult))
+            return;
+        ShowSavedNotification(fontResult);
+        Messenger.Send(new ConfigUpdateEvent());
+        RequestClose?.Invoke(this, true);
+        Messenger.Send(new OpenAiContextRequest());
+    }
+
+    [RelayCommand]
+    private async Task CopyMcpAiInstructions()
+    {
+        if (!EnsureMcpSnapshot())
+            return;
+        if (await CopyStringToClipboardAsync(_mcpSetupService.CreateAiInstructions()))
+            NotificationManager?.Show("给 AI 的 MCP 配置说明已复制", NotificationType.Success);
+    }
+
+    [RelayCommand]
+    private async Task CopyGenericMcpConfiguration()
+    {
+        if (!EnsureMcpSnapshot())
+            return;
+        if (await CopyStringToClipboardAsync(_mcpSetupService.CreateGenericConfiguration()))
+            NotificationManager?.Show("通用 MCP JSON 已复制", NotificationType.Success);
+    }
+
+    [RelayCommand]
+    private void OpenMcpGuide()
+    {
+        if (!File.Exists(_mcpSetupService.GuidePath))
+        {
+            NotificationManager?.Show("安装目录中未找到 MCP 使用文档", NotificationType.Warning);
+            return;
+        }
+        ProcUtils.OpenFileCrossPlatform(_mcpSetupService.GuidePath);
     }
 
     [RelayCommand]
@@ -130,6 +162,50 @@ public partial class SettingsViewModel : ViewModelBase, IDialogContext
     private void ForceLoad()
     {
         SettingsTree.Load();
+    }
+
+    public override void OnShow() => RefreshMcpStatus();
+
+    private bool TrySaveSettings(out AppFontApplyResult fontResult)
+    {
+        fontResult = default!;
+        try
+        {
+            SettingsTree.Save();
+            if (!EasySaveLoad.Save(BaseApp.Instance.AppConfig))
+                throw new InvalidOperationException("保存应用配置失败。");
+            var application = Application.Current
+                ?? throw new InvalidOperationException("应用尚未完成初始化，无法应用字体设置。");
+            fontResult = _fontService.Apply(application, BaseApp.Instance.AppConfig.ViewSettings);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "保存设置失败");
+            NotificationManager?.Show(exception.Message, NotificationType.Error);
+            return false;
+        }
+    }
+
+    private void ShowSavedNotification(AppFontApplyResult fontResult) =>
+        NotificationManager?.Show(
+            fontResult.UsedFallback ? $"已保存；{fontResult.Warning}" : "已保存，字体已立即生效",
+            fontResult.UsedFallback ? NotificationType.Warning : NotificationType.Success);
+
+    private bool EnsureMcpSnapshot()
+    {
+        RefreshMcpStatus();
+        if (HasMcpSnapshot)
+            return true;
+        NotificationManager?.Show("请先打开 AI 上下文，确认披露范围后刷新 MCP 快照",
+            NotificationType.Information);
+        return false;
+    }
+
+    private void RefreshMcpStatus()
+    {
+        HasMcpSnapshot = _mcpSetupService.SnapshotExists;
+        McpSnapshotStatus = _mcpSetupService.SnapshotStatus;
     }
 
 }

@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import {
     ancestor,
     controlForText,
@@ -9,6 +11,7 @@ import {
     findByText,
     findByTextContains,
     hasAncestorType,
+    isChecked,
     isEnabled,
     isVisible,
     nameOf,
@@ -36,6 +39,16 @@ function textWithin(tree, root, text, contains = false) {
     return within(tree, root, entry => contains ? textOf(entry).includes(text) : textOf(entry) === text);
 }
 
+function isEffectivelyVisible(tree, entry) {
+    return !ancestor(tree, entry, current => !isVisible(current));
+}
+
+function aiPreviewText(tree, root) {
+    const preview = descendants(tree, root, entry => isEffectivelyVisible(tree, entry)
+        && typeOf(entry).includes('TextBox') && textOf(entry).includes('diary.ai_context'))[0];
+    return textOf(preview);
+}
+
 async function activate(connection, entry) {
     assertUi(entry, '不能激活空控件');
     await connection.client.send('DOM.focus', { nodeId: entry.nodeId });
@@ -51,6 +64,30 @@ async function activateText(connection, typeName, text) {
     const control = controlForText(tree, label);
     assertUi(control, '找不到可激活控件：' + text);
     await activate(connection, control);
+}
+
+async function openProgramSettings(connection) {
+    let lastError;
+    const started = performance.now();
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            const tree = await connection.getTree();
+            const settingsButton = findByName(tree, 'SettingsMenuButton');
+            assertUi(settingsButton, '找不到设置菜单按钮');
+            await connection.clickNode(settingsButton);
+            const menuItem = await connection.waitForTree(current => findByName(current, 'ProgramSettingsMenuItem'),
+                1800, '程序设置菜单项未出现');
+            await activate(connection, menuItem.value);
+            await connection.waitForTree(current => rootOf(current, 'SettingsView'), 3000, '程序设置未打开');
+            return performance.now() - started;
+        }
+        catch (error) {
+            lastError = error;
+            await connection.pressKey('Escape', 'Escape', 27);
+            await delay(100);
+        }
+    }
+    throw lastError;
 }
 
 async function selectComboValue(connection, dialogType, currentText, value) {
@@ -139,10 +176,139 @@ await runUiSuite({ name: 'ui-extended-full', scenario: 'extended', timeoutMs: 12
         const tree = await connection.getTree();
         const root = rootOf(tree, 'ScriptManagementView');
         for (const text of ['脚本工作台', '新建脚本', '导出共享包', '重新加载', '概览', '诊断详情',
-            '目录诊断', '执行历史', '运行日志', 'API Reference'])
+            '目录诊断', '执行历史', '运行日志', 'AI 上下文', 'API Reference'])
             assertUi(textWithin(tree, root, text), '脚本工作台缺少：' + text);
         assertUi(textWithin(tree, root, '尚未发现脚本'), '全新 profile 的脚本空状态缺失');
         return { navigationMs };
+    });
+
+    await runStep('scripts.ai-context', 'AI 上下文授权、预览、快照与手册截图', async () => {
+        let tree = await connection.getTree();
+        let root = rootOf(tree, 'ScriptManagementView');
+        let pageShown = false;
+        for (let attempt = 0; attempt < 3 && !pageShown; attempt++) {
+            tree = await connection.getTree();
+            root = rootOf(tree, 'ScriptManagementView');
+            const tabText = textWithin(tree, root, 'AI 上下文');
+            const tab = tabText && ancestor(tree, tabText, entry => typeOf(entry).includes('TabItem'));
+            assertUi(tab, 'AI 上下文页签缺失');
+            await connection.clickNode(tab);
+            try {
+                await connection.waitForTree(current => findByText(current, '选择允许外部 AI 看到的本地信息'),
+                    1800, 'AI 上下文页面未显示');
+                pageShown = true;
+            }
+            catch (error) {
+                if (attempt === 2)
+                    throw error;
+                await delay(80);
+            }
+        }
+
+        tree = await connection.getTree();
+        root = rootOf(tree, 'ScriptManagementView');
+        const workItemsText = textWithin(tree, root,
+            '显式包含事项标题、备注和附加字段值（不可信数据）');
+        let workItemsCheckBox = workItemsText && controlForText(tree, workItemsText);
+        assertUi(workItemsCheckBox && !isChecked(workItemsCheckBox), '事项内容必须默认关闭');
+        const defaultStartText = textWithin(tree, root, '开始');
+        assertUi(defaultStartText && !isEffectivelyVisible(tree, defaultStartText),
+            '默认状态不应显示事项日期范围');
+
+        await activateText(connection, 'ScriptManagementView', '生成预览');
+        await connection.waitForTree(current => findByTextContains(current, '预览已生成：标签 1，字段 1'),
+            8000, '默认 AI 上下文预览未生成');
+        tree = await connection.getTree();
+        root = rootOf(tree, 'ScriptManagementView');
+        let previewText = aiPreviewText(tree, root);
+        assertUi(previewText.includes('diary.ai_context'), '预览缺少 schema 标识');
+        assertUi(previewText.includes('AI\\u4E0A\\u4E0B\\u6587\\u793A\\u4F8B\\u9879\\u76EE'),
+            '预览缺少示例标签');
+        assertUi(previewText.includes('"work_item_count": 0'), '默认预览不应包含事项');
+        const defaultScreenshot = await connection.screenshot('manual-ai-context-default.png');
+
+        tree = await connection.getTree();
+        root = rootOf(tree, 'ScriptManagementView');
+        const refreshedWorkItemsText = textWithin(tree, root,
+            '显式包含事项标题、备注和附加字段值（不可信数据）');
+        workItemsCheckBox = refreshedWorkItemsText && controlForText(tree, refreshedWorkItemsText);
+        await connection.clickNode(workItemsCheckBox);
+        await connection.waitForTree(current => {
+            const startText = findByText(current, '开始');
+            const endText = findByText(current, '结束');
+            return startText && endText && isEffectivelyVisible(current, startText)
+                && isEffectivelyVisible(current, endText);
+        }, 5000, '启用事项后日期范围未显示');
+        await activateText(connection, 'ScriptManagementView', '生成预览');
+        await connection.waitForTree(current => findByTextContains(current, '事项 1'),
+            8000, '显式事项预览未生成');
+        tree = await connection.getTree();
+        root = rootOf(tree, 'ScriptManagementView');
+        previewText = aiPreviewText(tree, root);
+        assertUi(previewText.includes('\\u6574\\u7406 AI \\u811A\\u672C\\u4E0A\\u4E0B\\u6587'),
+            '事项预览缺少示例标题');
+        assertUi(previewText.includes('untrusted_user_content'), '事项预览缺少不可信数据标记');
+        const workItemsScreenshot = await connection.screenshot('manual-ai-context-work-items.png');
+
+        await activateText(connection, 'ScriptManagementView', '刷新 MCP 快照');
+        await connection.waitForTree(current => findByTextContains(current, 'MCP 快照已刷新'),
+            8000, 'MCP 快照刷新未完成');
+        const snapshotPath = path.join(connection.state.profile, 'config', 'ai-context', 'mcp-snapshot.json');
+        const snapshot = JSON.parse(await fs.readFile(snapshotPath, 'utf8'));
+        assertUi(snapshot.schema_id === 'diary.ai_context' && snapshot.schema_version === 1,
+            'MCP 快照 schema 无效');
+        assertUi(snapshot.disclosure.work_items === true && snapshot.work_items.length === 1,
+            'MCP 快照事项范围不符合显式授权');
+        assertUi(!JSON.stringify(snapshot.tags).includes('metadata'), 'MCP 快照不得包含标签 metadata');
+        return {
+            defaultScreenshot,
+            workItemsScreenshot,
+            snapshotPath,
+            workItemCount: snapshot.work_items.length,
+        };
+    });
+
+    await runStep('settings.mcp-setup', '程序设置生成 AI 可读 MCP 配置', async () => {
+        const openedMs = await openProgramSettings(connection);
+        let tree = await connection.getTree();
+        let root = rootOf(tree, 'SettingsView');
+        const mcpHeader = textWithin(tree, root, 'AI 与 MCP');
+        const mcpHeaderButton = mcpHeader && ancestor(tree, mcpHeader,
+            entry => typeOf(entry).includes('ToggleButton'));
+        assertUi(mcpHeaderButton, 'AI 与 MCP 设置分组缺少展开按钮');
+        await activate(connection, mcpHeaderButton);
+        await connection.waitForTree(current => findByText(current, '打开 AI 上下文'),
+            5000, 'AI 与 MCP 设置分组未展开');
+        tree = await connection.getTree();
+        root = rootOf(tree, 'SettingsView');
+        for (const text of ['AI 与 MCP', '打开 AI 上下文', '复制 AI 说明',
+            '复制 MCP JSON', '打开使用文档'])
+            assertUi(textWithin(tree, root, text), 'AI 与 MCP 设置缺少：' + text);
+        assertUi(textWithin(tree, root, 'MCP 快照已生成', true), '设置页未识别已生成的 MCP 快照');
+        const settingsScreenshot = await connection.screenshot('manual-mcp-settings.png');
+
+        let copyText = textWithin(tree, root, '复制 AI 说明');
+        let copyButton = copyText && controlForText(tree, copyText);
+        assertUi(copyButton && isEnabled(copyButton), 'AI 配置说明复制按钮未启用');
+        await activate(connection, copyButton);
+        await connection.waitForTree(current => findByText(current, '给 AI 的 MCP 配置说明已复制'),
+            5000, 'AI 配置说明未复制');
+
+        tree = await connection.getTree();
+        root = rootOf(tree, 'SettingsView');
+        copyText = textWithin(tree, root, '复制 MCP JSON');
+        copyButton = copyText && controlForText(tree, copyText);
+        assertUi(copyButton && isEnabled(copyButton), '通用 MCP JSON 复制按钮未启用');
+        await activate(connection, copyButton);
+        await connection.waitForTree(current => findByText(current, '通用 MCP JSON 已复制'),
+            5000, '通用 MCP JSON 未复制');
+
+        await activateText(connection, 'SettingsView', '打开 AI 上下文');
+        await connection.waitForTree(current => !rootOf(current, 'SettingsView')
+            && rootOf(current, 'ScriptManagementView')
+            && findByText(current, '选择允许外部 AI 看到的本地信息'),
+        8000, '未从程序设置打开 AI 上下文');
+        return { openedMs, settingsScreenshot, copiedAiInstructions: true, copiedGenericJson: true };
     });
 
     for (const item of scripts) {

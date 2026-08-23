@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Reflection;
+using System.Reflection.Metadata;
 using System.Runtime.Loader;
 using System.Security.Cryptography;
 using System.Text;
@@ -11,7 +12,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Diary.Script.CSharp;
 
-public sealed class CSharpEngine : IScriptEngineV1
+public sealed class CSharpEngine : IScriptEngineV1, IScriptValidatorV1
 {
     private static readonly string[] ForbiddenNamespacePrefixes =
     [
@@ -121,15 +122,46 @@ public sealed class CSharpEngine : IScriptEngineV1
             }
         }
 
-        var syntaxTree = CSharpSyntaxTree.ParseText(request.Source, path: request.SourcePath);
+        var compilation = Compile(request.SourcePath, request.Source, cancellationToken);
+        if (!compilation.Succeeded)
+            return ValueTask.FromResult(new ScriptBuildResult(false, null, compilation.Diagnostics));
+
+        var assemblyBytes = compilation.AssemblyBytes!;
+        if (cachePath is not null)
+            WriteCache(cachePath, assemblyBytes);
+        return ValueTask.FromResult(LoadProgram(assemblyBytes, request.SourcePath, compilation.Diagnostics));
+    }
+
+    public ValueTask<ScriptValidationResult> ValidateAsync(
+        ScriptValidationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var compilation = Compile(request.SourcePath, request.Source, cancellationToken);
+        return ValueTask.FromResult(new ScriptValidationResult(
+            compilation.Succeeded,
+            compilation.Diagnostics)
+        {
+            EngineName = StableName,
+        });
+    }
+
+    private CSharpCompilationResult Compile(
+        string sourcePath,
+        string source,
+        CancellationToken cancellationToken)
+    {
+        var syntaxTree = CSharpSyntaxTree.ParseText(source, path: sourcePath, cancellationToken: cancellationToken);
         var compilation = CSharpCompilation.Create(
             assemblyName: $"DiaryScript_{Guid.NewGuid():N}",
             syntaxTrees: [syntaxTree],
             references: _references,
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-        var policyDiagnostics = ValidatePolicy(compilation, syntaxTree, request.SourcePath);
+        var policyDiagnostics = ValidatePolicy(compilation, syntaxTree, sourcePath);
         if (!policyDiagnostics.IsEmpty)
-            return ValueTask.FromResult(new ScriptBuildResult(false, null, policyDiagnostics));
+            return new CSharpCompilationResult(false, null, policyDiagnostics);
 
         using var output = new MemoryStream();
         var emit = compilation.Emit(output, cancellationToken: cancellationToken);
@@ -137,13 +169,9 @@ public sealed class CSharpEngine : IScriptEngineV1
             .Where(diagnostic => diagnostic.Severity is DiagnosticSeverity.Warning or DiagnosticSeverity.Error)
             .Select(MapDiagnostic)
             .ToImmutableArray();
-        if (!emit.Success)
-            return ValueTask.FromResult(new ScriptBuildResult(false, null, diagnostics));
-
-        var assemblyBytes = output.ToArray();
-        if (cachePath is not null)
-            WriteCache(cachePath, assemblyBytes);
-        return ValueTask.FromResult(LoadProgram(assemblyBytes, request.SourcePath, diagnostics));
+        return emit.Success
+            ? new CSharpCompilationResult(true, output.ToArray(), diagnostics)
+            : new CSharpCompilationResult(false, null, diagnostics);
     }
 
     private static ScriptBuildResult LoadProgram(
@@ -255,23 +283,55 @@ public sealed class CSharpEngine : IScriptEngineV1
             .Where(item => item.Name is not null)
             .GroupBy(item => item.Name!, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First().Path, StringComparer.OrdinalIgnoreCase);
-        var paths = ReferenceNames
+        var references = ReferenceNames
             .Where(trustedAssemblies.ContainsKey)
             .Select(name => trustedAssemblies[name])
-            .Concat(
-            [
-                typeof(object).Assembly.Location,
-                typeof(CancellationToken).Assembly.Location,
-                typeof(ValueTask).Assembly.Location,
-                typeof(ImmutableArray<>).Assembly.Location,
-                typeof(ScriptDescriptor).Assembly.Location,
-                typeof(IDiaryApi).Assembly.Location,
-            ])
-            .Where(path => !string.IsNullOrWhiteSpace(path))
-            .Distinct(StringComparer.OrdinalIgnoreCase);
-        return paths
             .Select(path => (MetadataReference)MetadataReference.CreateFromFile(path))
-            .ToImmutableArray();
+            .ToList();
+        var referencedNames = references
+            .Select(reference => Path.GetFileName(reference.Display))
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var assembly in LoadReferenceAssemblies())
+        {
+            var fileName = assembly.GetName().Name + ".dll";
+            if (!referencedNames.Add(fileName))
+                continue;
+            var reference = CreateReferenceFromLoadedAssembly(assembly);
+            if (reference is not null)
+                references.Add(reference);
+        }
+        return references.ToImmutableArray();
+    }
+
+    private static IEnumerable<Assembly> LoadReferenceAssemblies()
+    {
+        foreach (var name in ReferenceNames
+                     .Select(Path.GetFileNameWithoutExtension)
+                     .OfType<string>()
+                     .Where(name => !string.IsNullOrWhiteSpace(name)))
+        {
+            Assembly? assembly = null;
+            try
+            {
+                assembly = Assembly.Load(new AssemblyName(name));
+            }
+            catch (Exception exception) when (exception is FileNotFoundException or FileLoadException or BadImageFormatException)
+            {
+            }
+            if (assembly is not null)
+                yield return assembly;
+        }
+        yield return typeof(ScriptDescriptor).Assembly;
+        yield return typeof(IDiaryApi).Assembly;
+    }
+
+    private static unsafe MetadataReference? CreateReferenceFromLoadedAssembly(Assembly assembly)
+    {
+        if (!assembly.TryGetRawMetadata(out var metadata, out var length))
+            return null;
+        var module = ModuleMetadata.CreateFromMetadata((IntPtr)metadata, length);
+        return AssemblyMetadata.Create(module).GetReference(display: assembly.GetName().Name);
     }
 
     private static ScriptDiagnostic MapDiagnostic(Diagnostic diagnostic)
@@ -372,6 +432,11 @@ public sealed class CSharpEngine : IScriptEngineV1
             return null;
         }
     }
+
+    private sealed record CSharpCompilationResult(
+        bool Succeeded,
+        byte[]? AssemblyBytes,
+        ImmutableArray<ScriptDiagnostic> Diagnostics);
 
     private sealed class CollectibleProgram : IScriptProgramV1, IDisposable
     {

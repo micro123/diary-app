@@ -13,6 +13,7 @@ namespace Diary.App.ViewModels;
 [DiAutoRegister(singleton: true)]
 public partial class AiScriptContextViewModel(
     AiContextSnapshotService snapshotService,
+    McpSetupService mcpSetupService,
     ILogger<AiScriptContextViewModel> logger) : ViewModelBase
 {
     private AiContextSnapshot? _snapshot;
@@ -31,9 +32,8 @@ public partial class AiScriptContextViewModel(
     [ObservableProperty] private string _status = "默认不包含事项正文、备注和附加字段值。";
     [ObservableProperty] private bool _busy;
 
-    public string McpSnapshotPath => snapshotService.DefaultMcpSnapshotPath;
-    public string McpExecutablePath => Path.Combine(
-        AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "Diary.Mcp.exe" : "Diary.Mcp");
+    public string McpSnapshotPath => mcpSetupService.SnapshotPath;
+    public string McpExecutablePath => mcpSetupService.ExecutablePath;
     public string McpCommand => $"\"{McpExecutablePath}\" --snapshot \"{McpSnapshotPath}\"";
 
     [RelayCommand]
@@ -75,7 +75,7 @@ public partial class AiScriptContextViewModel(
     [RelayCommand]
     private void OpenGuide()
     {
-        var path = Path.Combine(AppContext.BaseDirectory, "Docs", "AiScriptContextGuide.md");
+        var path = mcpSetupService.GuidePath;
         if (!File.Exists(path))
         {
             Status = "安装目录中未找到 AI 上下文使用文档。";

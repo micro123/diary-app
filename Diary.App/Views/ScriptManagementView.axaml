@@ -40,7 +40,7 @@
                       SelectedItem="{Binding SelectedStatusFilter, Mode=TwoWay}" />
         </Grid>
 
-        <Grid Grid.Row="3" ColumnDefinitions="3*,2*" ColumnSpacing="16">
+        <Grid Grid.Row="3" ColumnDefinitions="2*,3*" ColumnSpacing="16">
             <Grid>
                 <ListBox ItemsSource="{Binding VisibleScripts}" SelectedItem="{Binding SelectedScript}">
                     <ListBox.ItemContainerTheme>

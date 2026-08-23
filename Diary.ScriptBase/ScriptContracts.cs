@@ -164,6 +164,24 @@ public sealed record ScriptBuildResult(
         new(false, null, [.. diagnostics]);
 }
 
+public sealed record ScriptValidationRequest(
+    string SourcePath,
+    string Source,
+    ScriptApiVersion ApiVersion = ScriptApiVersion.V1);
+
+public sealed record ScriptValidationResult(
+    bool Succeeded,
+    ImmutableArray<ScriptDiagnostic> Diagnostics)
+{
+    public string? EngineName { get; init; }
+
+    public static ScriptValidationResult Success(ImmutableArray<ScriptDiagnostic> diagnostics = default) =>
+        new(true, diagnostics.IsDefault ? ImmutableArray<ScriptDiagnostic>.Empty : diagnostics);
+
+    public static ScriptValidationResult Failure(params ScriptDiagnostic[] diagnostics) =>
+        new(false, [.. diagnostics]);
+}
+
 public enum ScriptExecutionStatus
 {
     Succeeded = 1,
@@ -577,5 +595,14 @@ public interface IScriptEngineV1
 
     ValueTask<ScriptBuildResult> BuildAsync(
         ScriptBuildRequest request,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IScriptValidatorV1
+{
+    string StableName { get; }
+
+    ValueTask<ScriptValidationResult> ValidateAsync(
+        ScriptValidationRequest request,
         CancellationToken cancellationToken = default);
 }

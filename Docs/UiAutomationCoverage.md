@@ -15,7 +15,7 @@
 | `Blocked-External` | 缺少可纳入当前门禁的外部服务、权限或版本矩阵 |
 | `Not-Implemented` | 功能清单明确记录为尚未实现 |
 
-最近全量证据为 `ui-full-test-2026-08-22T06-09-21-453Z.json`：9/9 套件、72/72 结构化步骤通过，另有 smoke 断言集通过。运行方法和性能数据见 [`UiAutomationTesting.md`](UiAutomationTesting.md)。
+最近 Windows 全量证据为 `ui-full-test-2026-08-22T06-09-21-453Z.json`：9/9 套件、当时定义的 72/72 结构化步骤通过，另有 smoke 断言集通过。新增 AI 上下文和程序设置 MCP 配置步骤后，当前 8 个结构化套件合计 74 步；Linux X11 已单独验证 `ui-extended-full` 11/11。运行方法和性能数据见 [`UiAutomationTesting.md`](UiAutomationTesting.md)。
 
 ## 2. 套件到功能映射
 
@@ -24,7 +24,7 @@
 | `ui-settings-full` | 9 | 引导、程序设置、数据库/迁移入口、日志导出、更新 |
 | `ui-smoke` | 断言集 | 统一耗时输入、标签、模板、主题、草稿保存和模板替换 |
 | `ui-core-full` | 14 | 主外壳、日记、查询、统计、快捷键 |
-| `ui-extended-full` | 9 | 脚本管理、创建、运行、历史、日志和删除 |
+| `ui-extended-full` | 11 | 脚本管理、AI 上下文授权与 MCP 快照、程序设置配置复制、创建、运行、历史、日志和删除 |
 | `ui-script-editor` | 4 | 独立脚本编辑器和编译检查 |
 | `ui-database-error` | 8 | 数据库异常和恢复入口 |
 | `ui-survey-full` | 8 | Survey v1/v2、能力、分组、明细和错误 |
@@ -93,6 +93,7 @@
 | --- | --- | --- | --- |
 | 7.1–7.3 | 工作台、列表、详情、搜索、筛选和重载 | `Automated` | extended 覆盖导航、结构和刷新 |
 | 7.4 | 执行历史、运行日志和 API Reference | `Automated` | extended 打开并验证内容 |
+| 7.4 | AI 上下文默认授权、显式事项范围、预览和 MCP 快照 | `Automated` | extended 验证事项默认关闭、日期控件按授权显示、结构与事项预览、不可信数据标记、快照 schema/范围及无标签 metadata；Linux CDP 同时生成手册截图 |
 | 7.5 | C#/Lua/Python 新建脚本 | `Automated` | extended 创建三种脚本 |
 | 7.6 | 手动运行和 Preview | `Automated` | extended 运行 C# Preview 并验证结果 |
 | 7.7 | 独立编辑器、代码区和编译检查 | `Automated` | script-editor 验证成功状态与诊断区共存 |
@@ -105,6 +106,7 @@
 | 清单 | 功能 | 状态 | 证据或边界 |
 | --- | --- | --- | --- |
 | 8.1–8.3 | 设置分组、编辑、保存、丢弃和动态导航 | `Automated` | settings 覆盖 5 组设置和开发者导航重建 |
+| 8.1–8.3 | AI 与 MCP 快照状态、配置复制和跳转 | `Automated` | extended 在真实隔离快照上验证 AI 可读 Markdown、通用 JSON 复制，以及保存设置后直接打开 AI 上下文；内容格式另有单元测试 |
 | 8.4 | 数据库配置入口 | `Automated` | settings/database-error 验证对话框和无效驱动安全失败 |
 | 8.4 | SQLite/PostgreSQL 真实备份与还原 | `Manual-Native` | 依赖原生目录/文件、外部工具和灾备环境；底层由集成测试覆盖 |
 | 8.5 | 数据迁移向导打开和安全取消 | `Automated` | settings 覆盖向导边界 |

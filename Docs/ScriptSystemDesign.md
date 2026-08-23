@@ -31,9 +31,9 @@
 
 当前版本化契约位于 `Diary.ScriptBase`：
 
-- `ScriptApiVersion.V1`、`IScriptProgramV1` 和 `IScriptEngineV1`：稳定的执行与引擎边界。
+- `ScriptApiVersion.V1`、`IScriptProgramV1`、`IScriptEngineV1` 和 `IScriptValidatorV1`：稳定的执行、构建与无执行校验边界。
 - `ScriptDescriptor`：稳定 ID、名称、API 版本、应用/编辑器范围、入口类型和描述。
-- `ScriptDiagnostic`、`ScriptBuildResult` 和 `ScriptExecutionResult`：结构化构建与运行诊断。
+- `ScriptDiagnostic`、`ScriptBuildResult`、`ScriptValidationResult` 和 `ScriptExecutionResult`：结构化构建、校验与运行诊断。
 - `ScriptEntryKind`、`ScriptAutomationContext`、`IScriptApplicationContext`、`IScriptEditorContext`、`IScriptAutomationContext` 和 `ScriptExecutionRequest`：按功能入口划分的执行上下文。
 - `ILogApi`：跨进程异步调试日志 API，Worker 通过 `log.write` 转发到宿主。
 - `ScriptProgramAdapter`：将按功能划分的 C# 入口适配到 Worker 使用的 `IScriptProgramV1`。
@@ -57,9 +57,9 @@
 
 - `Diary.Script.CSharp`：已实现基于 Roslyn 的 V1 构建、入口发现和行列诊断，并拒绝动态绑定、
   类型反射入口、线程、脱离生命周期的任务调度及文件、网络、进程、原生调用等危险 API；
-  运行时统一由 C# Worker 承载；Roslyn 策略减少危险引用，但不构成单独的安全沙箱。
-- `Diary.Script.Lua`：使用 `NLua 1.7.9 + KeraLua` 做语法构建和 descriptor 校验，运行时由独立 .NET worker 承载。
-- `Diary.Script.Python`：通过 `PythonRuntimeResolver` 发现本机 Python 3 解释器，使用受控 `worker.py` 做语法检查和独立进程执行。
+  运行时统一由 C# Worker 承载；校验模式只 Emit 到内存，不加载程序集或实例化入口。Roslyn 引用集在普通部署中优先使用 TPA 文件，单文件发布中从已加载程序集的原始 metadata 建立引用。
+- `Diary.Script.Lua`：使用 `NLua 1.7.9 + KeraLua` 做语法构建和 descriptor 校验；校验模式只调用 `LoadString`，运行时由独立 .NET worker 承载。
+- `Diary.Script.Python`：通过 `PythonRuntimeResolver` 发现本机 Python 3 解释器；校验模式只在隔离解释器中执行 `ast.parse` 和固定安全策略，正式运行使用受控 `worker.py` 独立进程。
 
 Worker 进程边界、消息封装、生命周期和重启语义见
 [`ScriptWorkerDesign.md`](ScriptWorkerDesign.md)。
@@ -109,6 +109,17 @@ Worker 协议（HostCall 分发）
        +-- Tracker API
        +-- UI API
        +-- Progress API
+
+AI / MCP
+       |
+       v
+IScriptValidatorV1
+       |
+       +-- C# 内存 Emit
+       +-- Lua LoadString
+       +-- Python ast.parse
+       |
+       x  不进入 ScriptExecutor / Worker / HostCall
 ```
 
 核心程序只依赖 `Diary.ScriptBase` 和运行时抽象，不依赖某一种脚本语言的实现。
@@ -160,7 +171,7 @@ C# 脚本编辑器已接入进程内的 LSP-like 语言服务：复用 `CSharpEn
 
 ## 6. 引擎契约
 
-当前使用 `IScriptEngineV1`，构建请求携带源码和 descriptor hint，构建结果携带 `IScriptProgramV1` 及结构化诊断。不同语言的程序最终都由 Worker 适配层执行。
+当前使用 `IScriptEngineV1` 完整构建可执行程序，并使用 `IScriptValidatorV1` 提供不产生 `IScriptProgramV1` 的独立校验。构建请求携带源码和 descriptor hint，构建结果携带程序及结构化诊断；校验请求只携带虚拟路径、源码和 API 版本，结果只包含成功状态与诊断。不同语言的完整程序最终都由 Worker 适配层执行，校验路径不会进入 Worker。
 
 当前契约模型：
 
@@ -184,6 +195,15 @@ public sealed record ScriptBuildResult(
     bool Succeeded,
     IScriptProgramV1? Program,
     ImmutableArray<ScriptDiagnostic> Diagnostics);
+
+public sealed record ScriptValidationRequest(
+    string SourcePath,
+    string Source,
+    ScriptApiVersion ApiVersion = ScriptApiVersion.V1);
+
+public sealed record ScriptValidationResult(
+    bool Succeeded,
+    ImmutableArray<ScriptDiagnostic> Diagnostics);
 ```
 
 引擎应提供以下能力：
@@ -192,6 +212,7 @@ public sealed record ScriptBuildResult(
 - `Version`：用于缓存失效和诊断。
 - `Match`：根据扩展名或脚本包声明判断是否支持。
 - `Build`：编译或加载脚本并返回结构化诊断。
+- `Validate`：通过独立的 `IScriptValidatorV1` 只执行编译/解析和安全策略，不能加载编译产物、实例化脚本或执行入口。
 - `Cacheable`：说明是否支持编译结果缓存。（注：早期遗留接口 `IScriptEngine`（含 `Cacheable` 成员）已移除，当前契约只有 `IScriptEngineV1`；V1 引擎的缓存行为由各引擎实现内部决定，例如 C# 引擎按引擎名/版本、API 版本、安全策略版本和源码哈希做编译缓存。）
 
 引擎不负责扫描目录、显示 UI 或保存用户权限。上述职责由宿主运行时承担。
@@ -248,7 +269,7 @@ public interface IScriptManager
 
 模板相关校验和应用不属于脚本管理器职责。
 
-ViewModel 不应直接调用 `IScriptEngineV1` 或具体脚本类型。
+ViewModel 不应直接调用 `IScriptEngineV1` 或具体脚本类型。外部 AI 的 MCP 入口只能调用 `IScriptValidatorV1`，不得复用会加载程序的 `BuildAsync` 或进入 `ScriptExecutor`。
 
 ## 8. 脚本元数据和目录
 
