@@ -311,6 +311,7 @@ async function main() {
         await clickNode(menuResult.value);
         await waitForTree(current => current.entries.find(entry => typeOf(entry).includes('SettingsView')));
         functional.settingsDialogOpenMs = performance.now() - started;
+        functional.programSettingsScreenshot = await screenshot('manual-program-settings.png');
         tree = await getTree();
         const closeButton = tree.entries.find(entry => typeOf(entry).endsWith('Button')
             && textOf(entry) === '关闭' && hasAncestorType(tree, entry, 'SettingsView'));
@@ -340,6 +341,8 @@ async function main() {
         await clickNode(findByName(tree, 'AddTagButton'));
         await waitForTree(current => findByText(current, tagName,
             entry => hasAncestorName(current, entry, 'TagList')));
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        functional.tagsAndTemplates.tagSettingsScreenshot = await screenshot('manual-tag-settings.png');
         tree = await getTree();
         const automationTab = findByName(tree, 'TagAutomationTab');
         if (!automationTab)
@@ -391,6 +394,8 @@ async function main() {
         await clickNode(templateTagMenuItem);
         await waitForTree(current => findByText(current, tagName,
             entry => hasAncestorName(current, entry, 'TemplateItemExpander')));
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        functional.tagsAndTemplates.templateSettingsScreenshot = await screenshot('manual-template-settings.png');
         tree = await getTree();
         await clickNode(findByName(tree, 'SaveTemplateSettingsButton'));
         await waitForTree(current => !current.entries.some(entry => typeOf(entry).includes('TemplateEditorView')));

@@ -204,7 +204,7 @@ Linux 的 `run` 会自动传入当前状态文件，不需要手动拼接 `--sta
 
 Redmine 套件使用隔离测试服务并产生可清理测试数据；报告只记录耗时、数量和远程 ID 摘要，不包含服务器地址、账号或凭据。
 
-该 Windows 全量报告生成后，`ui-extended-full` 新增 AI 上下文和程序设置 MCP 配置两个步骤，因此当前套件定义合计为 74 步；历史报告中的 72/72 数字保持不变，避免把未执行的新步骤写入旧报告。
+该 Windows 全量报告生成后，`ui-extended-full` 新增 AI 上下文和程序设置 MCP 配置两个步骤，随后又增加 5 步 `ui-redmine-style`；当前 9 个结构化套件定义合计为 77 步。历史报告中的 72/72 数字保持不变，避免把未执行的新步骤写入旧报告。
 
 富数据日期切换专项使用 10 个日期、每日 14 条事项、250 个 Redmine Issue，并为每条事项设置 Tracker 绑定、2 个标签和 9 类附加字段。相同 CDP 脚本连续切换 12 次日期：优化前中位数约 149 ms、P95/最大约 218 ms；批量预取附加字段并共享 Tracker 选项后，首轮中位数约 127 ms、P95 约 194 ms，热身后的连续切换中位数约 80 ms、P95 约 135 ms。该结果用于本机趋势比较，不作为跨机器固定阈值。
 
@@ -212,11 +212,13 @@ Redmine 套件使用隔离测试服务并产生可清理测试数据；报告只
 
 ### 6.1 2026-08-23 Linux X11 验证
 
-Linux 原生 Debug App 在 `DISPLAY=:0`、1280×800 桌面会话中完成验证：生命周期工具可在命令退出后保持独立 App 会话，并由后续 `status/run/stop` 命令接管；`ui-core-full` 为 14/14 passed，`ui-smoke` passed，`ui-extended-full` 为 11/11 passed。Debug 冷启动到 CDP ready 为 1,438–1,960 ms，core 截图 P50/P95 为 53.45/71.82 ms，smoke `DOM.getDocument` P50/P95 为 8.77/11.01 ms；最新扩展套件耗时 9,023 ms。
+Linux 原生 Debug App 在 `DISPLAY=:0`、1280×800 桌面会话中完成验证：生命周期工具可在命令退出后保持独立 App 会话，并由后续 `status/run/stop` 命令接管。最终视觉复检结果为 `ui-settings-full` 9/9、`ui-smoke` passed、`ui-core-full` 14/14、`ui-extended-full` 11/11、`ui-script-editor` 4/4、`ui-survey-full` 8/8、`ui-database-error` 8/8、`ui-extra-fields-full` 8/8、`ui-redmine-style` 5/5；共 67 个本轮实际执行的结构化步骤和 smoke 通过。会产生远程写入的 `ui-redmine-full` 未纳入本轮只读视觉复检。
+
+本轮 Debug 冷启动到 CDP ready 为 1,318–1,839 ms，core 截图 P50/P95 为 54.37/71.02 ms，smoke `DOM.getDocument` P50/P95 为 6.89/13.13 ms；最新扩展套件耗时 9,152 ms。Redmine 两个筛选 CheckBox 与搜索框中心线偏差均为 0px。
 
 扩展套件使用隔离 profile 预置一个标签、一项附加字段定义和一条示例事项，验证事项披露默认关闭、日期控件仅在显式授权后显示、预览包含版本化 schema 和不可信数据标记，以及刷新后的 MCP 快照只包含授权范围。随后打开程序设置，验证“AI 与 MCP”使用标准设置分组、五个设置行完整可见、复制内容中的可执行文件/快照路径、AI 可读说明和通用 JSON，并通过“打开 AI 上下文”返回正确页签。截图前会将最后一个操作行滚动到可视区域；用户手册版本已裁掉状态栏和 MCP 命令中的本机路径。
 
-smoke 在较矮窗口中只渲染前三个列表项，第 4 个模板事项会被 ListBox 虚拟化。最终持久化断言因此读取隔离 SQLite profile，确认标题、1.5 小时和标签关联已提交；UI 侧仍验证模板应用、保存状态和页面导航。当前机器未安装 Xvfb，因此本轮没有宣称 headless CI 已通过。
+smoke 在较矮窗口中只渲染前三个列表项，第 4 个模板事项会被 ListBox 虚拟化。最终持久化断言因此读取隔离 SQLite profile，确认标题、1.5 小时和标签关联已提交；UI 侧仍验证模板应用、保存状态和页面导航。smoke 还会在通知层消退后生成程序设置、标签和模板手册截图；Redmine 只读套件生成插件状态和管理页截图。当前机器未安装 Xvfb，因此本轮没有宣称 headless CI 已通过。
 
 ## 7. 当前覆盖边界
 
