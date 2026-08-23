@@ -1,6 +1,6 @@
 # Agent 发布新 Tag 操作指南
 
-最后更新：2026-08-22
+最后更新：2026-08-23
 
 本文面向自动化 Agent，说明如何在 DiaryApp 仓库中安全地准备、创建并推送发布 Tag。目标是让 Tag、应用显示版本、CHANGELOG、GitHub Actions 和 GitHub Release 保持一致，并避免误发、移动已有 Tag 或发布未验证提交。
 
@@ -46,9 +46,9 @@ on:
 发布工作流按顺序执行：
 
 1. **Verify**：Ubuntu 和 Windows 分别执行 Release 构建与全量测试；
-2. **Publish**：生成 `win-x64` 与 `linux-x64` 自包含发布目录；
-3. **Package**：检查应用、脚本 Worker、DiagnosticsClient 依赖和 Jira/RedMine 插件程序集是否齐全，将 PDB 按原相对路径移入独立调试符号包，并生成普通运行包；
-4. **Build Docs / Create Release**：使用固定版本 Quarto 渲染用户手册 PDF/HTML，下载两个平台的运行包、调试符号包、Windows Python 运行时包和手册，从 `Docs/CHANGELOG.md` 提取发布说明，生成不含发布说明正文的机器可读源资产 metadata，并创建 GitHub Release。
+2. **Build Docs**：使用固定版本 Quarto 渲染用户手册 PDF/HTML，同时生成 Release 附件名和应用包内稳定路径副本；
+3. **Publish / Package**：等待 Verify 与 Build Docs，通过 artifact 下载手册，生成 `win-x64` 与 `linux-x64` 自包含发布目录，把 HTML/PDF 复制到 `Docs/UserManual/`，检查应用、脚本 Worker、DiagnosticsClient 依赖、Jira/RedMine 插件和手册是否齐全，将 PDB 按原相对路径移入独立调试符号包，再生成普通运行包；
+4. **Create Release**：下载两个平台的运行包、调试符号包、Windows Python 运行时包和版本化手册附件，从 `Docs/CHANGELOG.md` 提取发布说明，生成不含发布说明正文的机器可读源资产 metadata，并创建 GitHub Release。
 
 任一 Verify、Publish 或 Build Docs 阶段失败，`create-release` 都不会执行。
 
@@ -81,6 +81,15 @@ DiaryAppNG-v1.0.0-r438-User-Manual.html
 ```
 
 普通运行包和 Windows Python 运行时包不得包含 `.pdb`；每个平台的 `-dbg.zip` 只包含该 RID 发布目录中生成的 PDB，并保留其相对目录结构，便于按对应版本进行崩溃与堆栈分析。
+
+三个应用运行包都必须包含以下稳定路径，供发布版应用图标菜单直接定位，不受 Tag 文件名影响：
+
+```text
+Docs/UserManual/DiaryApp-User-Manual.html
+Docs/UserManual/DiaryApp-User-Manual.pdf
+```
+
+Debug 符号包不包含手册；普通本地 Debug 输出目录没有手册属于正常行为。
 
 ## 3. 版本号与 Tag 规则
 
@@ -472,6 +481,7 @@ gh release view "$TAG" \
 - 发布说明来自目标 CHANGELOG 章节；
 - 同时存在 Windows/Linux 普通运行包与对应的 `-dbg.zip`，并存在 Windows `python313` 包；
 - 用户手册 PDF/HTML 均存在且大小大于 0；
+- Windows/Linux 普通包及 Windows `python313` 包内均存在 `Docs/UserManual/DiaryApp-User-Manual.html` 和 `.pdf`；
 - 八个附件文件均存在且大小大于 0；
 - `release-metadata.json` 不包含 changelog，且其中的 Tag、commit、RID/flavor、文件大小和 SHA-256 与实际发布资产一致；
 - 普通运行包及 Windows `python313` 包不包含 PDB，两个 `-dbg.zip` 非空且只包含 PDB。
@@ -578,5 +588,5 @@ git tag -d "$TAG"
 - [ ] GitHub Release 已创建且非 draft；
 - [ ] Release body 为目标版本章节；
 - [ ] Windows/Linux 普通包、调试符号包、Windows Python 包、metadata 和用户手册 PDF/HTML 共八个附件均存在；
-- [ ] 普通包不含 PDB，`-dbg.zip` 非空且只包含 PDB；
+- [ ] 三个应用运行包都包含稳定路径的 HTML/PDF 用户手册，普通包不含 PDB，`-dbg.zip` 非空且只包含 PDB；
 - [ ] 最终回复明确区分“Tag 已推送”和“Release 已成功”。

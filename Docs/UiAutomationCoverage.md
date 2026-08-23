@@ -40,6 +40,7 @@
 | --- | --- | --- | --- |
 | 2.1 | 固定页、动态 Tracker 页、导航折叠、`Alt+1..9` | `Automated` | core 验证页面切换、折叠和数字快捷键；Redmine 验证动态导航 |
 | 2.2 | 应用菜单、关于、版本、主题 | `Automated` | core 验证菜单和关于；smoke 验证主题截图差异；复制版本明细仅结构检查 |
+| 2.2 | 发布版用户手册入口 | `Unit/Integration` | 服务测试覆盖 Debug/Release 判定、HTML 优先和 PDF 回退；窗口测试检查命令/可见性绑定；Debug core 确认菜单隐藏；Tag/手动发布包校验强制要求 HTML/PDF。系统默认浏览器或 PDF 阅读器打开行为保留原生人工检查 |
 | 2.2 | 最大化、最小化、重启、退出 | `Manual-Native` | 涉及原生窗口/进程生命周期，未纳入连续套件 |
 | 2.3 | 托盘显示、恢复和退出 | `Manual-Native` | Avalonia CDP 不控制系统托盘 |
 | 2.4 | 状态栏日期、机器、用户和入口 | `Automated-ReadOnly` | core 读取状态栏结构和版本；不打开外部浏览器 |
@@ -151,6 +152,7 @@
 | 16 | 远程写入锁定、防重复和删除警告 | `Automated` | Redmine 覆盖 |
 | 16 | 敏感配置加密和日志脱敏 | `Automated` | Redmine 安全步骤覆盖 |
 | 16 | Release 不包含 CDP | `Unit/Integration` | 由 Release restore、构建和发布包内容校验承担，不在 Release 运行 CDP |
+| 16 | Release 应用 ZIP 携带用户手册 | `Unit/Integration` | Tag/手动发布等待文档构建，复制稳定路径的 HTML/PDF 后再压缩；发布包校验器使用 `--require-user-manual` 拒绝缺失文件的 ZIP |
 
 ## 4. 仍需保留的发布前人工检查
 
@@ -160,7 +162,7 @@
 2. 最大化、最小化、重启和多显示器窗口行为。
 3. 文件/目录选择器、剪贴板和系统默认程序打开。
 4. SQLite/PostgreSQL 真实备份、还原、工具发现和取消。
-5. Release 包内容检查，确认没有 CDP 调试程序集和监听入口。
+5. Release 包内容检查，确认没有 CDP 调试程序集和监听入口，并确认应用菜单可通过系统默认程序打开随包 HTML 用户手册。
 6. 有可用环境时执行 Jira Cloud/自托管权限与版本矩阵。
 
 ## 5. 日期说明
