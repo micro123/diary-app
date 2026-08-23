@@ -109,6 +109,20 @@ function percentile(values, ratio) {
     return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * ratio) - 1)];
 }
 
+function isCurrentDateText(value, date) {
+    const parts = value.match(/\d+/g)?.map(Number);
+    if (parts?.length !== 3)
+        return false;
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    return [
+        [year, month, day],
+        [month, day, year],
+        [day, month, year],
+    ].some(expected => expected.every((part, index) => parts[index] === part));
+}
+
 await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, stopOnFailure: true }, async ({
     connection, runStep, addFinding,
 }) => {
@@ -121,9 +135,11 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         assertUi(findByName(tree, 'StatusBarView'), '状态栏不可见');
         assertUi(findByName(tree, 'Version'), '版本入口不可见');
         const now = new Date();
-        const statusDate = now.getFullYear() + '/' + (now.getMonth() + 1) + '/' + now.getDate();
-        assertUi(findByText(tree, statusDate), '状态栏日期不正确：' + statusDate);
-        return { version: textOf(findByName(tree, 'Version')) };
+        const statusBar = findByName(tree, 'StatusBarView');
+        const statusDate = [statusBar, ...descendants(tree, statusBar)]
+            .find(entry => isVisible(entry) && isCurrentDateText(textOf(entry), now));
+        assertUi(statusDate, '状态栏缺少当前日期');
+        return { version: textOf(findByName(tree, 'Version')), dateText: textOf(statusDate) };
     });
 
     await runStep('shell.application-menu', '应用菜单内容', async () => {

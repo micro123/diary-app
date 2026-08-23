@@ -167,6 +167,29 @@ function localDateText(date = new Date()) {
     return year + '-' + month + '-' + day;
 }
 
+async function readPersistedTemplate(state, title, tagName) {
+    const { DatabaseSync } = await import('node:sqlite');
+    const database = new DatabaseSync(path.join(state.profile, 'data', 'db.sqlite3'), { readOnly: true });
+    try {
+        return database.prepare(`
+            SELECT work.id, work.hours,
+                   EXISTS (
+                       SELECT 1
+                       FROM work_item_tags link
+                       JOIN work_tags tag ON tag.id = link.tag_id
+                       WHERE link.work_id = work.id AND tag.tag_name = ?
+                   ) AS hasTag
+            FROM work_items work
+            WHERE work.comment = ?
+            ORDER BY work.id DESC
+            LIMIT 1
+        `).get(tagName, title);
+    }
+    finally {
+        database.close();
+    }
+}
+
 async function main() {
     const state = JSON.parse(await fs.readFile(statePath, 'utf8'));
     const targets = await fetch('http://127.0.0.1:' + state.port + '/json').then(response => {
@@ -200,6 +223,7 @@ async function main() {
         const quad = box.model.content?.length >= 8 ? box.model.content : box.model.border;
         const x = (quad[0] + quad[2] + quad[4] + quad[6]) / 4;
         const y = (quad[1] + quad[3] + quad[5] + quad[7]) / 4;
+        await client.send('DOM.focus', { nodeId: entry.nodeId });
         await client.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
         await client.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
         await client.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
@@ -240,7 +264,8 @@ async function main() {
             throw new Error('找不到导航容器：' + label);
         const started = performance.now();
         await clickNode(item);
-        await waitForTree(current => current.entries.find(entry => typeOf(entry).includes(viewType)));
+        await waitForTree(current => current.entries.find(entry => isVisible(entry)
+            && typeOf(entry).includes(viewType)));
         return performance.now() - started;
     };
     const screenshot = async fileName => {
@@ -535,18 +560,30 @@ async function main() {
         functional.tagsAndTemplates.titleApplied = true;
         functional.tagsAndTemplates.timeApplied = 1.5;
         functional.tagsAndTemplates.tagApplied = true;
+        const saveTree = await getTree();
+        const saveText = findByText(saveTree, '保存', entry => typeOf(entry).includes('Button'));
+        const saveButton = saveText && ancestor(saveTree, saveText,
+            entry => typeOf(entry).includes('Button'));
+        if (!saveButton)
+            throw new Error('找不到模板事项保存按钮');
+        await clickNode(saveButton);
+        await waitForTree(current => current.entries.find(entry => isVisible(entry)
+            && textOf(entry).includes('本地已保存')
+            && hasAncestorType(current, entry, 'DiaryEditorView')), 8000);
         await screenshot('smoke-template-applied.png');
         functional.navigation.queryAfterTemplateMs = await navigate('事项查询', 'WorkItemQueryView');
         functional.navigation.diaryAfterTemplateMs = await navigate('日记记录', 'DiaryEditorView');
         tree = await getTree();
-        functional.tagsAndTemplates.persistedTitle = Boolean(findByText(tree, templateTitle));
-        functional.tagsAndTemplates.persistedTag = tree.entries.some(
-            entry => textOf(entry).includes(tagName));
-        functional.tagsAndTemplates.persistedLocalSave = tree.entries.some(
-            entry => textOf(entry).includes('本地已保存'));
+        const persistedTemplate = await readPersistedTemplate(state, templateTitle, tagName);
+        functional.tagsAndTemplates.visibleAfterNavigation = Boolean(findByText(tree, templateTitle));
+        functional.tagsAndTemplates.persistedTitle = Boolean(persistedTemplate);
+        functional.tagsAndTemplates.persistedTag = persistedTemplate?.hasTag === 1;
+        functional.tagsAndTemplates.persistedLocalSave = Boolean(persistedTemplate);
+        functional.tagsAndTemplates.persistedHours = persistedTemplate?.hours;
         functional.tagsAndTemplates.persisted = functional.tagsAndTemplates.persistedTitle
             && functional.tagsAndTemplates.persistedTag
-            && functional.tagsAndTemplates.persistedLocalSave;
+            && functional.tagsAndTemplates.persistedLocalSave
+            && functional.tagsAndTemplates.persistedHours === 1.5;
         if (!functional.tagsAndTemplates.persisted)
             throw new Error('模板生成事项在导航后没有完整持久化');
 

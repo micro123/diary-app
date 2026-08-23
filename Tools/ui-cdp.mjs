@@ -203,6 +203,7 @@ export async function connectUiTest(options = {}) {
     };
     const clickNode = async entry => {
         const { x, y } = await boxCenter(entry);
+        await client.send('DOM.focus', { nodeId: entry.nodeId });
         await client.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
         await client.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
         await client.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
@@ -210,7 +211,7 @@ export async function connectUiTest(options = {}) {
     const pressKey = async (key, code, virtualKeyCode, modifiers = 0) => {
         const parameters = { key, code, windowsVirtualKeyCode: virtualKeyCode, modifiers };
         await client.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', ...parameters });
-        if (key.length === 1)
+        if (key.length === 1 && (modifiers & 7) === 0)
             await client.send('Input.dispatchKeyEvent', { type: 'char', ...parameters, text: key });
         await client.send('Input.dispatchKeyEvent', { type: 'keyUp', ...parameters });
     };

@@ -181,7 +181,11 @@ function Invoke-UiSmoke {
     }
     $node = Get-Command node -ErrorAction SilentlyContinue
     if ($null -eq $node) {
-        throw '找不到 Node.js；UI smoke 需要 Node.js 22 或更高版本。'
+        throw '找不到 Node.js；UI smoke 需要 Node.js 22.5 或更高版本。'
+    }
+    $nodeVersion = [version](& $node.Source -p 'process.versions.node')
+    if ($nodeVersion -lt [version]'22.5.0') {
+        throw "UI smoke 需要 Node.js 22.5 或更高版本，当前为 $nodeVersion。"
     }
     & $node.Source (Join-Path $scriptDirectory 'ui-smoke.mjs') --state $statePath
     if ($LASTEXITCODE -ne 0) {
