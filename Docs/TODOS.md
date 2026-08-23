@@ -132,7 +132,7 @@
 
 ## 阶段 10：用户体验后续增强
 
-- [ ] 按 [`UiVisualStyleDesign.md`](UiVisualStyleDesign.md) 完成主页面、程序设置、旧式对话框和 Tracker 工作台的视觉收敛；公共样式、标准功能页、程序设置和主要对话框已经迁移，仍需完成 Redmine 工作台细化、只读 CDP 回归和用户手册截图更新。
+- [ ] 按 [`UiVisualStyleDesign.md`](UiVisualStyleDesign.md) 完成主页面、程序设置、旧式对话框和 Tracker 工作台的视觉收敛；公共样式、标准功能页、程序设置、主要对话框和 Redmine 工作台已经迁移并补充只读 CDP 回归，仍需完成全量视觉复检和用户手册截图更新。
 - [ ] 批量同步预览增加 Tracker 实例筛选，并为上传结果不确定项提供查询、重试和 Tracker 专用后续处理入口。
 - [ ] 细化远程错误分类，并提供一键打开对应 Tracker 实例配置的入口。
 - [ ] 查询与统计增加按项目分组汇总；同步状态快捷筛选暂不纳入当前阶段。

@@ -7,32 +7,36 @@
              x:Class="Diary.RedMine.UI.Views.Pages.RedMineIssueManageView"
              x:DataType="pages1:RedMineIssueManageViewModel"
              Padding="8">
-    <DockPanel VerticalSpacing="4">
-        <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8" DockPanel.Dock="Top">
-            <TextBox Text="{Binding SearchTerm}" Watermark="输入搜索词，Enter键按关键字搜索，Ctrl+Enter按问题ID搜索。">
-                <TextBox.KeyBindings>
-                    <KeyBinding Gesture="Enter" Command="{Binding SearchCommand}"
-                                CommandParameter="{x:Static pages1:RedMineIssueManageViewModel.SearchByKeyword}" />
-                    <KeyBinding Gesture="Ctrl+Enter" Command="{Binding SearchCommand}"
-                                CommandParameter="{x:Static pages1:RedMineIssueManageViewModel.SearchById}" />
-                </TextBox.KeyBindings>
-            </TextBox>
-            <CheckBox Grid.Column="1" Classes="ToolbarCheckBox" Content="打开的问题"
-                      IsChecked="{Binding OnlyOpened}" />
-            <CheckBox Grid.Column="2" Classes="ToolbarCheckBox" Content="分配给我的"
-                      IsChecked="{Binding OnlyMyIssues}" />
-            <Button Grid.Column="3" Content="关键字搜索" Command="{Binding SearchCommand}"
-                    CommandParameter="{x:Static pages1:RedMineIssueManageViewModel.SearchByKeyword}" />
-        </Grid>
-        <StackPanel Orientation="Horizontal" Spacing="8" DockPanel.Dock="Top">
-            <Button Content="首页" Command="{Binding FirstPageCommand}" />
-            <Button Content="上一页" Command="{Binding PrevPageCommand}" />
-            <TextBlock Classes="PaginationText" Text="{Binding CurrentPage, StringFormat='第{0}页'}" />
-            <TextBlock Classes="PaginationText" Text="{Binding TotalPage, StringFormat='共{0}页'}" />
-            <Button Content="下一页" Command="{Binding NextPageCommand}" />
-            <Button Content="尾页" Command="{Binding LastPageCommand}" />
-            <TextBlock Classes="PaginationText" Text="{Binding ResultCount, StringFormat='共检索到{0}个问题'}" />
-        </StackPanel>
+    <DockPanel VerticalSpacing="8">
+        <Border Classes="WorkspaceToolbar" DockPanel.Dock="Top">
+            <Grid RowDefinitions="Auto,Auto" RowSpacing="8">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
+                    <TextBox Text="{Binding SearchTerm}" Watermark="输入搜索词，Enter键按关键字搜索，Ctrl+Enter按问题ID搜索。">
+                        <TextBox.KeyBindings>
+                            <KeyBinding Gesture="Enter" Command="{Binding SearchCommand}"
+                                        CommandParameter="{x:Static pages1:RedMineIssueManageViewModel.SearchByKeyword}" />
+                            <KeyBinding Gesture="Ctrl+Enter" Command="{Binding SearchCommand}"
+                                        CommandParameter="{x:Static pages1:RedMineIssueManageViewModel.SearchById}" />
+                        </TextBox.KeyBindings>
+                    </TextBox>
+                    <CheckBox Grid.Column="1" Classes="ToolbarCheckBox" Content="打开的问题"
+                              IsChecked="{Binding OnlyOpened}" />
+                    <CheckBox Grid.Column="2" Classes="ToolbarCheckBox" Content="分配给我的"
+                              IsChecked="{Binding OnlyMyIssues}" />
+                    <Button Grid.Column="3" Classes="Primary" Content="关键字搜索" Command="{Binding SearchCommand}"
+                            CommandParameter="{x:Static pages1:RedMineIssueManageViewModel.SearchByKeyword}" />
+                </Grid>
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
+                    <Button Content="首页" Command="{Binding FirstPageCommand}" />
+                    <Button Content="上一页" Command="{Binding PrevPageCommand}" />
+                    <TextBlock Classes="PaginationText" Text="{Binding CurrentPage, StringFormat='第{0}页'}" />
+                    <TextBlock Classes="PaginationText" Text="{Binding TotalPage, StringFormat='共{0}页'}" />
+                    <Button Content="下一页" Command="{Binding NextPageCommand}" />
+                    <Button Content="尾页" Command="{Binding LastPageCommand}" />
+                    <TextBlock Classes="PaginationText" Text="{Binding ResultCount, StringFormat='共检索到{0}个问题'}" />
+                </StackPanel>
+            </Grid>
+        </Border>
         <DataGrid ItemsSource="{Binding SearchResults}" IsReadOnly="True" x:Name="ResultList">
             <DataGrid.Columns>
                 <DataGridTextColumn Binding="{Binding Id}" Width="Auto" Header="ID" />

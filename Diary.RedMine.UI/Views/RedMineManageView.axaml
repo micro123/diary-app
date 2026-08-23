@@ -15,7 +15,8 @@
                        Classes="EmptyStateDescription" />
         </StackPanel>
         <TabControl ItemsSource="{Binding Tabs}" IsVisible="{Binding ServerOk}"
-                    TabStripPlacement="Top" Theme="{DynamicResource LineTabControl}">
+                    TabStripPlacement="Top" Theme="{DynamicResource LineTabControl}"
+                    Margin="0,0,0,4">
             <TabControl.ItemTemplate>
                 <DataTemplate>
                     <StackPanel Orientation="Horizontal" Spacing="6">

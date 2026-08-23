@@ -74,7 +74,7 @@ public sealed partial class RedMineTagRuleEditorViewModel : ViewModelBase
     private IReadOnlyList<RedMineTagRuleOption> _availableTags = Array.Empty<RedMineTagRuleOption>();
 
     public ObservableCollection<RedMineTagRuleViewModel> TagRules { get; } = new();
-    public string Title => _tagId is null ? "RedMine 标签自动规则" : _settings.DisplayName;
+    public string Title => _tagId is null ? "Redmine 标签自动规则" : _settings.DisplayName;
     public bool ShowNoTagsHint => !CanAddTagRule();
 
     public RedMineTagRuleEditorViewModel(RedMineInstanceSettings settings, int? tagId = null)

@@ -225,13 +225,13 @@ await runUiSuite({ name: 'ui-redmine-full', scenario: 'plugins', timeoutMs: 1200
         await openSettingsText(connection, 'Tracker 设置', 'TrackerSettingsDialogView');
         let tree = await connection.getTree();
         let dialog = rootOf(tree, 'TrackerSettingsDialogView');
-        for (const text of ['Tracker 配置', '插件状态', 'Jira', 'RedMine', '取消', '保存'])
+        for (const text of ['Tracker 配置', '插件状态', 'Jira', 'Redmine', '取消', '保存'])
             assertUi(textWithin(tree, dialog, text, true), 'Tracker 设置缺少：' + text);
-        await selectTab(connection, 'RedMine', 'RedMineConfigurationView');
+        await selectTab(connection, 'Redmine', 'RedMineConfigurationView');
         tree = await connection.getTree();
         const redmine = rootOf(tree, 'RedMineConfigurationView');
         for (const text of [
-            'RedMine Tracker 实例',
+            'Redmine Tracker 实例',
             '添加实例',
             '删除实例',
             '实例配置',
@@ -450,7 +450,7 @@ await runUiSuite({ name: 'ui-redmine-full', scenario: 'plugins', timeoutMs: 1200
 
     await runStep('redmine.tag-rule', '配置 Redmine 标签自动规则', async () => {
         await openSettingsText(connection, 'Tracker 设置', 'TrackerSettingsDialogView');
-        await selectTab(connection, 'RedMine', 'RedMineConfigurationView');
+        await selectTab(connection, 'Redmine', 'RedMineConfigurationView');
         await activateTextWithin(connection, 'RedMineConfigurationView', '添加规则');
         const added = await connection.waitForTree(current => {
             const editor = rootOf(current, 'RedMineTagRuleEditorView');

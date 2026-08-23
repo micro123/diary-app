@@ -123,6 +123,20 @@
     <Style Selector="Expander.WorkspaceSection">
         <Setter Property="HorizontalAlignment" Value="Stretch" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Margin" Value="0,0,0,6" />
+        <Style Selector="^:down /template/ ToggleButton#ExpanderHeader">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="10,8" />
+        </Style>
+        <Style Selector="^:down /template/ Border#ExpanderContent">
+            <Setter Property="Padding" Value="12,8" />
+        </Style>
+    </Style>
+    <Style Selector="Border.WorkspaceToolbar">
+        <Setter Property="Padding" Value="10" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Background" Value="{DynamicResource SemiColorFill2}" />
     </Style>
     <Style Selector="TextBlock.GridText">
         <Setter Property="VerticalAlignment" Value="Center"/>

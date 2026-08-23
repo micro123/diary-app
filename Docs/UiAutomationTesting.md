@@ -91,7 +91,7 @@ seed 只复制加密配置文件，不应提交到 Git，也不得写入报告�
 
 当前全量多场景编排器仍为 PowerShell。Linux 可以通过 `ui-test.sh start` 和 `ui-test.sh run <suite>` 运行任意单套件；无桌面的 Xvfb 全量编排和定期 CI 门禁仍是后续工作，不能仅凭已有桌面会话结果视为 headless 门禁完成。
 
-当前 9 个套件如下：
+当前 10 个套件如下：
 
 | 套件 | 结构化步骤 | 主要覆盖 |
 | --- | ---: | --- |
@@ -104,10 +104,21 @@ seed 只复制加密配置文件，不应提交到 Git，也不得写入报告�
 | `ui-survey-full` | 8 | v1 查询、v2 能力发现、详情、筛选、三种分组、明细开关、校验错误和性能 |
 | `ui-extra-fields-full` | 8 | 9 类字段定义、类型化编辑、清空、持久化、停用历史值和迁移只读事项 |
 | `ui-redmine-full` | 12 | 多 Tracker 设置、Redmine 管理、项目/Issue、标签规则、工时同步、防重复、删除边界、安全和性能 |
+| `ui-redmine-style` | 5 | Redmine 配置、插件状态、基本信息、问题/项目工具栏截图和 CheckBox 中心线，只读且不触发远程写入 |
 
-8 个带结构化摘要的套件当前合计 74 个步骤；`ui-smoke` 另含标签、模板、主题、草稿、本地持久化和性能断言。
+9 个带结构化摘要的套件当前合计 77 个步骤；`ui-smoke` 另含标签、模板、主题、草稿、本地持久化和性能断言。
 
 ## 4. 单套件调试
+
+Redmine 视觉回归必须使用已经加密的隔离 seed profile，并加载插件：
+
+```bash
+./Tools/ui-test.sh start --with-plugins --scenario plugins --seed-profile <seed-profile>
+./Tools/ui-test.sh run ui-redmine-style
+./Tools/ui-test.sh stop
+```
+
+`ui-redmine-style` 只切换页面、展开只读信息和截图；不会保存 Tracker 配置，不会同步服务器定义、执行搜索、导入 Issue、创建 Issue 或提交工时。截图输出到 `.build-tmp/ui-test/screenshots/`，API Key 保持密码遮罩。
 
 启动匹配场景后可直接运行 Node 脚本：
 

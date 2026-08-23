@@ -30,6 +30,7 @@
 | `ui-survey-full` | 8 | Survey v1/v2、能力、分组、明细和错误 |
 | `ui-extra-fields-full` | 8 | 附加字段定义、9 类编辑器、持久化、停用历史值和只读 |
 | `ui-redmine-full` | 12 | 多 Tracker、Redmine 管理、标签规则、工时和安全 |
+| `ui-redmine-style` | 5 | Redmine 只读视觉回归、工具栏布局、截图和 CheckBox 中心线 |
 
 ## 3. 功能级覆盖
 
