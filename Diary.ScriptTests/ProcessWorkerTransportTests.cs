@@ -400,6 +400,21 @@ public sealed class ProcessWorkerTransportTests
     }
 
     [TestMethod]
+    public async Task ProcessTransport_TerminationDiagnosticsWaitForExitCodeAndStderr()
+    {
+        using var process = StartTestProcess(
+            "echo 'transport failed' >&2; exit 7",
+            "echo transport failed 1>&2 & exit /b 7");
+        await using var transport = new ProcessWorkerTransport(process);
+        var notification = (IWorkerTerminationNotification)transport;
+
+        await notification.WaitForTerminationDiagnosticsAsync();
+
+        Assert.AreEqual(7, notification.ExitCode);
+        StringAssert.Contains(notification.StderrSummary, "transport failed");
+    }
+
+    [TestMethod]
     public async Task Supervisor_ReportsExitCodeAndStderrWhenWorkerExitsBeforeHandshake()
     {
         var supervisor = CreateEarlyExitSupervisor();

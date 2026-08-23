@@ -245,6 +245,7 @@ worker 启动后必须先发送 `hello`：
 - worker 声明的语言是否与启动配置一致。
 - 至少一个双方支持的 Script API 版本。
 - worker 版本和入口信息是否满足宿主策略。（当前未实现：`WorkerHandshake.Negotiate`（`Diary.Script.Runtime/WorkerProtocol.cs`）不校验 `WorkerVersion` 字段，只把它作为诊断信息保留。）
+- Worker 在握手前退出时，进程 transport 会等待退出状态和 stderr 排空后再生成诊断，确保退出码与 stderr 摘要来自同一次完整终止状态，不受标准流关闭与进程退出事件的时序竞争影响。
 - worker 是否在本次 supervisor 创建的进程中。（当前未实现：hello 中的 `processId` 当前不与 supervisor 实际创建的子进程 PID 比对。）
 
 握手失败时，主程序不得发送脚本源码或宿主数据，应终止 worker 并返回
