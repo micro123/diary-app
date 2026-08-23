@@ -11,7 +11,7 @@
 - **统计页**：工时分布、标签明细
 - **界面字体**：默认使用发布包中的 Noto Sans Mono CJK SC，也可选择“跟随系统”、已安装的系统字体或外部 `.ttf`/`.otf` 字体文件；保存后立即切换，不可用时安全回退
 - **跨设备工时调查**：在局域网中汇总多台 DiaryApp/DiaryToolpp 的工时统计，兼容旧版日期查询，并支持新版关键词、标签、优先级和明细查询
-- **脚本系统**：C#、Lua、Python 三种语言的脚本，支持应用脚本（手动执行）、编辑器脚本（日历右键按日/周/月/季/年/事项执行）、自动化脚本（`daily HH:mm` 定时 + 启动补跑）与查询脚本（只读统计汇总）。API 参考见 [`Docs/ScriptApi`](Docs/ScriptApi/CSharp.md)
+- **脚本系统**：C#、Lua、Python 三种语言的脚本，支持应用脚本（手动执行）、编辑器脚本（日历右键按日/周/月/季/年/事项执行）、自动化脚本（`daily HH:mm` 定时 + 启动补跑）与查询脚本（只读统计汇总）；可生成带本地标签/字段/模板的 AI 上下文包，并通过只读快照型 stdio MCP 辅助 AI 编写脚本。API 参考见 [`Docs/ScriptApi`](Docs/ScriptApi/CSharp.md)
 
 ## 运行要求
 
@@ -44,6 +44,7 @@ dotnet test --solution DiaryApp.sln --configuration Release
 
 - 最终用户手册（提交 Quarto 源文件与截图；CI 生成 HTML/PDF 并附加到 Release）：[`Docs/UserManual`](Docs/UserManual/index.qmd)
 - 脚本 API 参考：[C#](Docs/ScriptApi/CSharp.md)、[Lua](Docs/ScriptApi/Lua.md)、[Python](Docs/ScriptApi/Python.md)
+- AI 脚本上下文：[使用指南](Docs/AiScriptContextGuide.md)、[开发设计](Docs/AiScriptContextDesign.md)
 - 架构：[当前架构](Docs/CurrentArchitecture.md)、[数据库备份还原设计](Docs/DatabaseBackupRestoreDesign.md)、[插件目标架构](Docs/TrackerPluginArchitecture.md)、[脚本系统设计](Docs/ScriptSystemDesign.md)
 - 调查功能：[使用指南](Docs/SurveyUserGuide.md)、[协议设计](Docs/SurveyProtocolDesign.md)
 - 发布说明：[CHANGELOG](Docs/CHANGELOG.md)；Agent 发布操作：[新 Tag 发布指南](Docs/AgentReleaseTagGuide.md)

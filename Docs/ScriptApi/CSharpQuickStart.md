@@ -2,6 +2,8 @@
 
 C# 是 DiaryApp 的主推脚本语言。新脚本优先从“脚本管理 → 新建脚本”创建，宿主会生成正确的基类、descriptor 和入口签名。
 
+如果让外部 AI 协助编写脚本，可先在“脚本管理 → AI 上下文”中生成 Markdown/JSON，或刷新只读 stdio MCP 快照。它会提供当前标签、附加字段、模板等结构信息，但默认不包含事项正文。详见 [AI 脚本上下文使用指南](../AiScriptContextGuide.md)。
+
 ## 1. 记住一个入口
 
 业务 API 统一从 `context.Api()` 获取：

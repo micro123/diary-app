@@ -112,6 +112,8 @@ Jira --> JiraApi
 | `Diary.ScriptBase` | 脚本版本化契约、描述符、诊断和执行请求 | 不依赖核心数据库、DI 或 UI |
 | `Diary.ScriptHost` | 工作项查询、日志项/模板日志项、Tracker 只读目录及系统交互的宿主契约 | 数据访问和副作用均由宿主 API 控制，返回 DTO 或结构化错误 |
 | `Diary.Script.Runtime` | 引擎注册、构建服务、目录加载、执行器和脚本管理器 | 已接入 App DI；应用启动时通过共享加载状态在后台预加载 application/editor 脚本，脚本管理页复用结果 |
+| `Diary.AiContext` | AI 上下文 v1 DTO、JSON/Markdown 序列化、快照校验和内存查询 | 不引用数据库、GUI、插件或完整脚本门面；只处理已经授权的纯 DTO |
+| `Diary.Mcp` | 基于官方 C# SDK 的 stdio MCP 服务 | 启动时只读取指定快照，stdout 仅输出协议，六个工具均不能越过快照范围 |
 | `Diary.Script.Worker` | C#、Lua Worker 进程入口、协议适配和受限执行上下文 | 只通过 stdin/stdout 协议与宿主通信；不直接访问 App、DI、数据库或 UI |
 | `Diary.Survey` | 调查协议（v1/v2）、调查者和受访者收发实现 | 不依赖 UI；App 层负责端口与页面装配 |
 | `Diary.MigrationTool` | 从旧 DiaryToolpp 数据库导入核心数据 | 导入的工作项持久化为只读，不迁移 Tracker 信息 |
@@ -445,10 +447,19 @@ WorkItemCreated/WorkItemSaved/TagAdded 触发器均已接线。Query 入口已�
 基类与三语言创建模板，管理页可运行）。普通和模板日志项创建使用 provider 事务，支持 `Preview` 投影且预览不写入数据库；工作项相关自动化失败会通过全局 Toast 非阻塞提示，Startup/Scheduled 失败仍通过日志和执行历史追踪；C# 脚本编辑器已使用复用正式编译引用的进程内 Roslyn 语言服务，支持防抖实时诊断、语义补全和悬停信息，关键字补全作为降级；执行历史与进度均为会话内存态，持久化经决策明确延期；
 脚本包管理、Windows/Linux 运行时打包和更强的操作系统级资源限制仍需继续扩展；macOS 不在当前支持范围内。
 
-## 17. 维护约定
+## 17. AI 脚本上下文与 MCP
+
+脚本管理页通过 `AiContextSnapshotService` 收集当前标签、启用的附加字段定义、模板、Tracker 实例安全摘要、保存查询和固定只读 Host 能力。标签 metadata、数据库配置和 Tracker 凭据在映射前即被丢弃；事项标题、备注及附加字段值默认不收集，只有用户显式选择日期和数量后才进入快照。
+
+`Diary.AiContext` 定义 `diary.ai_context` v1 纯 DTO、2 MiB 快照上限、100 条事项上限、文本截断、snake_case JSON、Markdown 渲染和快照内查询。App 可以从同一对象生成预览、Markdown/JSON 导出和默认 MCP 快照，Unix 下快照权限尽力限制为当前用户读写。
+
+`Diary.Mcp` 是独立 stdio 进程，使用官方 MCP C# SDK，只依赖 `Diary.AiContext`。它不加载 App DI、数据库 provider、插件或脚本执行器，只开放标签、字段、模板、Tracker 摘要、事项筛选和事项汇总六个工具。详细边界见 [`AiScriptContextDesign.md`](AiScriptContextDesign.md)，使用方式见 [`AiScriptContextGuide.md`](AiScriptContextGuide.md)。
+
+## 18. 维护约定
 
 - 新增 tracker 不得把具体类型加入 `Diary.Core` 或核心编辑器。
 - 新增数据库扩展必须实现 provider 契约测试，并验证缺失程序集时核心数据库仍可启动。
 - schema 迁移必须幂等，成功写入版本号前不得假设结构已经完成。
+- 所有显式设置 `OutputType=Exe` 或 `WinExe` 的生产程序和 MSTest Runner 均设置 `CETCompat=false`，避免 Windows apphost 默认 CET 标记在内部兼容环境中导致进程启动失败；新增可执行项目时必须同步遵守。
 - 涉及插件、数据库扩展或实例隔离的改动，应同时更新本文档和对应图表源文件。
 - `TrackerPluginArchitecture.md` 继续作为目标架构和改造计划；本文作为当前实现基线。

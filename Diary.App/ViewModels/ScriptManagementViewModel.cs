@@ -177,12 +177,14 @@ public partial class ScriptManagementViewModel(
     ScriptProgressTracker progressTracker,
     ScriptAutomationScheduler scheduler,
     ScriptSharePackageService sharePackageService,
+    AiScriptContextViewModel aiContext,
     ILogger logger,
     IServiceProvider services) : ViewModelBase
 {
     private readonly string _scriptRoot = Path.Combine(FsTools.GetApplicationConfigDirectory(), "scripts");
 
     public ScriptApiReferenceViewModel ApiReference { get; } = new();
+    public AiScriptContextViewModel AiContext { get; } = aiContext;
     public ResettableObservableCollection<ScriptListItem> Scripts { get; } = new();
     public ResettableObservableCollection<ScriptListItem> VisibleScripts { get; } = new();
     public ResettableObservableCollection<ScriptHistoryListItem> History { get; } = new();
@@ -287,7 +289,7 @@ public partial class ScriptManagementViewModel(
 
     partial void OnSelectedDetailTabIndexChanged(int value)
     {
-        if (value == 5)
+        if (value == 6)
             ApiReference.EnsureLoaded();
     }
 

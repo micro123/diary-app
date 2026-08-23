@@ -294,6 +294,55 @@
                         </ScrollViewer>
                     </Grid>
                 </TabItem>
+                <TabItem Header="AI 上下文">
+                    <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8" Margin="8"
+                          DataContext="{Binding AiContext}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="选择允许外部 AI 看到的本地信息" FontWeight="SemiBold" />
+                            <WrapPanel Orientation="Horizontal">
+                                <CheckBox Content="标签" IsChecked="{Binding IncludeTags, Mode=TwoWay}" Margin="0,0,12,4" />
+                                <CheckBox Content="附加字段定义" IsChecked="{Binding IncludeExtraFieldDefinitions, Mode=TwoWay}" Margin="0,0,12,4" />
+                                <CheckBox Content="模板" IsChecked="{Binding IncludeTemplates, Mode=TwoWay}" Margin="0,0,12,4" />
+                                <CheckBox Content="Tracker 摘要" IsChecked="{Binding IncludeTrackerInstances, Mode=TwoWay}" Margin="0,0,12,4" />
+                                <CheckBox Content="保存查询" IsChecked="{Binding IncludeSavedQueries, Mode=TwoWay}" Margin="0,0,12,4" />
+                                <CheckBox Content="只读 Host 能力" IsChecked="{Binding IncludeHostCapabilities, Mode=TwoWay}" Margin="0,0,12,4" />
+                            </WrapPanel>
+                            <CheckBox Content="显式包含事项标题、备注和附加字段值（不可信数据）"
+                                      IsChecked="{Binding IncludeWorkItems, Mode=TwoWay}" />
+                            <Grid ColumnDefinitions="Auto,120,Auto,120,Auto,90" ColumnSpacing="6"
+                                  IsVisible="{Binding IncludeWorkItems}">
+                                <TextBlock Text="开始" VerticalAlignment="Center" />
+                                <TextBox Grid.Column="1" Text="{Binding StartDate, Mode=TwoWay}" Watermark="yyyy-MM-dd" />
+                                <TextBlock Grid.Column="2" Text="结束" VerticalAlignment="Center" />
+                                <TextBox Grid.Column="3" Text="{Binding EndDate, Mode=TwoWay}" Watermark="yyyy-MM-dd" />
+                                <TextBlock Grid.Column="4" Text="最多" VerticalAlignment="Center" />
+                                <NumericUpDown Grid.Column="5" Value="{Binding MaxWorkItems, Mode=TwoWay}"
+                                               Minimum="1" Maximum="100" Increment="10" />
+                            </Grid>
+                            <WrapPanel Orientation="Horizontal">
+                                <Button Content="生成预览" Command="{Binding GeneratePreviewCommand}" Margin="0,0,8,4" />
+                                <Button Content="导出 Markdown" Command="{Binding ExportMarkdownCommand}" Margin="0,0,8,4" />
+                                <Button Content="导出 JSON" Command="{Binding ExportJsonCommand}" Margin="0,0,8,4" />
+                                <Button Content="刷新 MCP 快照" Command="{Binding RefreshMcpSnapshotCommand}"
+                                        Classes="Primary" Margin="0,0,8,4" />
+                                <Button Content="打开使用文档" Command="{Binding OpenGuideCommand}" Margin="0,0,8,4" />
+                            </WrapPanel>
+                        </StackPanel>
+                        <Border Grid.Row="1" Padding="8" CornerRadius="6"
+                                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="{Binding Status}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding McpCommand}" FontFamily="Cascadia Code,Consolas,Menlo,Monospace"
+                                           FontSize="11" Opacity="0.68" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+                        <TextBox Grid.Row="2" Text="{Binding Preview}" IsReadOnly="True"
+                                 AcceptsReturn="True" TextWrapping="NoWrap"
+                                 FontFamily="Cascadia Code,Consolas,Menlo,Monospace"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                    </Grid>
+                </TabItem>
                 <TabItem Header="API Reference">
                     <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8" Margin="8">
                         <Grid ColumnDefinitions="Auto,160,*,Auto" ColumnSpacing="8">

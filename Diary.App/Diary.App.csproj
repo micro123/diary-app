@@ -40,9 +40,14 @@
                  CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
         <Content Include="..\Docs\ScriptApi\*.md" Link="Docs\ScriptApi\%(Filename)%(Extension)"
                  CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+        <Content Include="..\Docs\AiScriptContextDesign.md" Link="Docs\AiScriptContextDesign.md"
+                 CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+        <Content Include="..\Docs\AiScriptContextGuide.md" Link="Docs\AiScriptContextGuide.md"
+                 CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\Diary.AiContext\Diary.AiContext.csproj" />
         <PackageReference Include="Avalonia.Desktop" Version="11.3.18" />
         <PackageReference Include="Microsoft.Diagnostics.NETCore.Client" Version="0.2.661903" />
         <PackageReference Include="SkiaSharp" Version="2.88.9" />
@@ -118,6 +123,38 @@
         <Copy SourceFiles="@(ScriptWorkerOutput)"
               DestinationFiles="@(ScriptWorkerOutput->'$(OutputPath)%(RecursiveDir)%(Filename)%(Extension)')"
               SkipUnchangedFiles="true" />
+    </Target>
+
+    <Target Name="BuildAndCopyAiMcp" AfterTargets="Build" Condition="'$(RuntimeIdentifier)' == ''">
+        <MSBuild Projects="..\Diary.Mcp\Diary.Mcp.csproj"
+                 Targets="Build"
+                 Properties="Configuration=$(Configuration)" />
+        <ItemGroup>
+            <AiMcpBuildOutput Include="..\Diary.Mcp\bin\$(Configuration)\net10.0\*" />
+        </ItemGroup>
+        <Copy SourceFiles="@(AiMcpBuildOutput)"
+              DestinationFolder="$(OutputPath)"
+              SkipUnchangedFiles="true" />
+    </Target>
+
+    <Target Name="PublishAiMcp" BeforeTargets="ComputeFilesToPublish"
+            Condition="'$(RuntimeIdentifier)' != ''">
+        <PropertyGroup>
+            <AiMcpPublishDirectory>$(MSBuildProjectDirectory)\$(IntermediateOutputPath)DiaryMcpPublish\</AiMcpPublishDirectory>
+        </PropertyGroup>
+        <MSBuild Projects="..\Diary.Mcp\Diary.Mcp.csproj"
+                 Targets="Publish"
+                 Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=true;PublishSingleFile=true;PublishDir=$(AiMcpPublishDirectory)" />
+        <ItemGroup>
+            <AiMcpPublishExecutable Include="$(AiMcpPublishDirectory)Diary.Mcp.exe"
+                                    Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
+            <AiMcpPublishExecutable Include="$(AiMcpPublishDirectory)Diary.Mcp"
+                                    Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
+            <ResolvedFileToPublish Include="@(AiMcpPublishExecutable)">
+                <RelativePath>%(Filename)%(Extension)</RelativePath>
+                <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            </ResolvedFileToPublish>
+        </ItemGroup>
     </Target>
     
     <Target Name="IncludeRuntimeExtensionsInPublish" AfterTargets="ComputeFilesToPublish">

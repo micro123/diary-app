@@ -6,8 +6,11 @@
     <Nullable>enable</Nullable>
     <EnableMSTestRunner>true</EnableMSTestRunner>
     <OutputType>Exe</OutputType>
+    <CETCompat>false</CETCompat>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Diary.AiContext\Diary.AiContext.csproj" />
+    <ProjectReference Include="..\Diary.Mcp\Diary.Mcp.csproj" ReferenceOutputAssembly="false" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
     <PackageReference Include="MSTest" Version="4.3.3" />
   </ItemGroup>
