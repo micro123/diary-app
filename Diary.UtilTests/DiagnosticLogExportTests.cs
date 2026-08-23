@@ -14,7 +14,8 @@ public sealed class DiagnosticLogExportTests
         try
         {
             File.WriteAllText(Path.Combine(source, "Diary.App.log"), "current");
-            File.WriteAllText(Path.Combine(source, "Diary.App20260805.log"), "previous");
+            File.WriteAllText(Path.Combine(source, "Diary.App_001.log"), "previous");
+            File.WriteAllText(Path.Combine(source, "Diary.App_002.log"), "rolled");
             File.WriteAllText(Path.Combine(source, "other.txt"), "ignored");
 
             var export = DiagnosticLogExportService.Export(source, destination);
@@ -22,7 +23,7 @@ public sealed class DiagnosticLogExportTests
             Assert.IsNotNull(export);
             using var archive = ZipFile.OpenRead(export);
             CollectionAssert.AreEquivalent(
-                new[] { "Diary.App.log", "Diary.App20260805.log" },
+                new[] { "Diary.App.log", "Diary.App_001.log", "Diary.App_002.log" },
                 archive.Entries.Select(entry => entry.Name).ToArray());
         }
         finally
@@ -38,8 +39,8 @@ public sealed class DiagnosticLogExportTests
         var source = CreateDirectory();
         try
         {
-            var previous = Path.Combine(source, "Diary.App20260816.log");
-            var current = Path.Combine(source, "Diary.App20260817.log");
+            var previous = Path.Combine(source, "Diary.App_001.log");
+            var current = Path.Combine(source, "Diary.App_002.log");
             File.WriteAllText(previous, "previous");
             File.WriteAllText(current, "current");
             File.WriteAllText(Path.Combine(source, "other.log"), "ignored");

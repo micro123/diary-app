@@ -29,22 +29,27 @@ public sealed class DiagnosticLogExportService
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceDirectory);
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationDirectory);
 
-        var files = Directory.Exists(sourceDirectory)
-            ? Directory.EnumerateFiles(sourceDirectory, "Diary.App*.log")
-                .OrderBy(path => path, StringComparer.Ordinal)
-                .ToArray()
-            : Array.Empty<string>();
-        if (files.Length == 0)
-            return null;
-
         Directory.CreateDirectory(destinationDirectory);
         var exportPath = Path.Combine(
             destinationDirectory,
             $"DiaryApp-logs-{DateTime.Now:yyyyMMdd-HHmmss}.zip");
-        if (File.Exists(exportPath))
-            File.Delete(exportPath);
+        return ExportToArchive(sourceDirectory, exportPath);
+    }
 
-        using var archive = ZipFile.Open(exportPath, ZipArchiveMode.Create);
+    internal static string? ExportToArchive(string sourceDirectory, string archivePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceDirectory);
+        ArgumentException.ThrowIfNullOrWhiteSpace(archivePath);
+
+        var files = EnumerateLogFiles(sourceDirectory);
+        if (files.Length == 0)
+            return null;
+
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(archivePath))!);
+        if (File.Exists(archivePath))
+            File.Delete(archivePath);
+
+        using var archive = ZipFile.Open(archivePath, ZipArchiveMode.Create);
         foreach (var file in files)
         {
             var entry = archive.CreateEntry(Path.GetFileName(file), CompressionLevel.Fastest);
@@ -56,6 +61,13 @@ public sealed class DiagnosticLogExportService
             using var target = entry.Open();
             source.CopyTo(target);
         }
-        return exportPath;
+        return archivePath;
     }
+
+    private static string[] EnumerateLogFiles(string sourceDirectory) =>
+        Directory.Exists(sourceDirectory)
+            ? Directory.EnumerateFiles(sourceDirectory, "Diary.App*.log")
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .ToArray()
+            : [];
 }

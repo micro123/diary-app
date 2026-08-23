@@ -10,7 +10,7 @@
     <Grid x:Name="RootGrid" RowDefinitions="Auto,*,Auto" RowSpacing="14" Margin="24">
         <StackPanel Spacing="4">
             <TextBlock Text="Diary Tools NG 意外退出" FontSize="24" FontWeight="SemiBold" />
-            <TextBlock Text="程序已尝试保存诊断 Dump，可将其用于定位崩溃原因。"
+            <TextBlock Text="程序已尝试保存诊断 Dump 和滚动日志，可将其用于定位崩溃原因。"
                        Opacity="0.72" TextWrapping="Wrap" />
         </StackPanel>
 
@@ -28,7 +28,10 @@
                 <StackPanel Spacing="5">
                     <TextBlock x:Name="DumpStatusText" FontWeight="SemiBold" TextWrapping="Wrap" />
                     <SelectableTextBlock x:Name="DumpPathText" Opacity="0.7" TextWrapping="Wrap" />
-                    <TextBlock Text="Dump 可能包含进程内存中的敏感信息，请在确认后再提供给他人。"
+                    <TextBlock x:Name="LogStatusText" Margin="0,6,0,0"
+                               FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <SelectableTextBlock x:Name="LogPathText" Opacity="0.7" TextWrapping="Wrap" />
+                    <TextBlock Text="Dump 和日志可能包含敏感信息，请在确认后再提供给他人。"
                                Foreground="#D97706" TextWrapping="Wrap" />
                 </StackPanel>
             </StackPanel>

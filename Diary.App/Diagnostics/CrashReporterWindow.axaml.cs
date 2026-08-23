@@ -24,6 +24,12 @@ internal sealed partial class CrashReporterWindow : Window
         DumpPathText.Text = result.DumpSucceeded
             ? request.DumpPath
             : $"诊断目录：{request.DumpDirectory}";
+        LogStatusText.Text = result.LogArchiveSucceeded
+            ? $"滚动日志已归档（{FormatSize(result.LogArchiveSizeBytes ?? 0)}）"
+            : $"日志归档失败：{result.LogArchiveErrorMessage ?? "未知错误"}";
+        LogPathText.Text = result.LogArchiveSucceeded
+            ? request.LogArchivePath
+            : $"日志目录：{request.LogDirectory}";
     }
 
     private void OnOpenDumpFolder(object? sender, RoutedEventArgs args)

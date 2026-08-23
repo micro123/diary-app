@@ -126,7 +126,10 @@ internal static class CrashReporterProcess
                 request,
                 false,
                 null,
-                $"{exception.GetType().Name}: {exception.Message}");
+                $"{exception.GetType().Name}: {exception.Message}",
+                false,
+                null,
+                "崩溃捕获进程未能收集日志。");
             CrashReportStore.WriteResult(result);
             if (request.ShowDialog)
                 TryStartShowProcess(request.ResultPath);

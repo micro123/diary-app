@@ -13,7 +13,7 @@ public sealed class DiagnosticLogExportServiceTests
         var sourceDirectory = Path.Combine(root, "data");
         var destinationDirectory = Path.Combine(root, "temp");
         Directory.CreateDirectory(sourceDirectory);
-        var logPath = Path.Combine(sourceDirectory, "Diary.App20260821.log");
+        var logPath = Path.Combine(sourceDirectory, "Diary.App_001.log");
         const string content = "active log content";
         File.WriteAllText(logPath, content);
 

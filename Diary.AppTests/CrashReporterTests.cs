@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO.Compression;
 using Diary.App.Diagnostics;
 
 namespace Diary.AppTests;
@@ -19,7 +20,8 @@ public sealed class CrashReporterTests
                 directory,
                 processId: 123,
                 processName: "Diary:App",
-                occurredAtUtc: occurredAt);
+                occurredAtUtc: occurredAt,
+                logDirectory: directory);
 
             Assert.IsTrue(File.Exists(requestPath));
             Assert.AreEqual(123, request.ProcessId);
@@ -28,7 +30,8 @@ public sealed class CrashReporterTests
             Assert.AreEqual(request, loadedRequest);
 
             File.WriteAllBytes(request.DumpPath, [1, 2, 3]);
-            var result = new CrashReportResult(request, true, 3, null);
+            File.WriteAllBytes(request.LogArchivePath, [1, 2]);
+            var result = new CrashReportResult(request, true, 3, null, true, 2, null);
             CrashReportStore.WriteResult(result);
             Assert.AreEqual(result, CrashReportStore.ReadResult(request.ResultPath));
 
@@ -36,11 +39,13 @@ public sealed class CrashReporterTests
             {
                 var path = Path.Combine(directory, $"old-{index}.dmp");
                 File.WriteAllText(path, index.ToString());
+                File.WriteAllText(Path.ChangeExtension(path, ".logs.zip"), index.ToString());
                 File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(-index - 1));
             }
             CrashReportStore.Prune(directory, maxDumpCount: 3);
 
             Assert.AreEqual(3, Directory.EnumerateFiles(directory, "*.dmp").Count());
+            Assert.AreEqual(3, Directory.EnumerateFiles(directory, "*.logs.zip").Count());
         }
         finally
         {
@@ -58,6 +63,10 @@ public sealed class CrashReporterTests
             return;
         }
         var directory = CreateTemporaryDirectory();
+        var logDirectory = Path.Combine(directory, "logs");
+        Directory.CreateDirectory(logDirectory);
+        File.WriteAllText(Path.Combine(logDirectory, "Diary.App.log"), "current log");
+        File.WriteAllText(Path.Combine(logDirectory, "Diary.App_001.log"), "rolled log");
         using var process = StartWorkerProcess();
         try
         {
@@ -68,7 +77,8 @@ public sealed class CrashReporterTests
                 directory,
                 process.Id,
                 process.ProcessName,
-                showDialog: false);
+                showDialog: false,
+                logDirectory: logDirectory);
             using var captureProcess = StartCrashCaptureProcess(requestPath);
 
             await captureProcess.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(60));
@@ -78,6 +88,12 @@ public sealed class CrashReporterTests
             Assert.IsTrue(result.DumpSucceeded, result.ErrorMessage);
             Assert.IsTrue(File.Exists(request.DumpPath));
             Assert.IsGreaterThan(0, new FileInfo(request.DumpPath).Length);
+            Assert.IsTrue(result.LogArchiveSucceeded, result.LogArchiveErrorMessage);
+            Assert.IsTrue(File.Exists(request.LogArchivePath));
+            using var archive = ZipFile.OpenRead(request.LogArchivePath);
+            CollectionAssert.AreEquivalent(
+                new[] { "Diary.App.log", "Diary.App_001.log" },
+                archive.Entries.Select(entry => entry.Name).ToArray());
         }
         finally
         {

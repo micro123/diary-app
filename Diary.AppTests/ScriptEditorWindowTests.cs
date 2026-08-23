@@ -230,8 +230,10 @@ public sealed class ScriptEditorWindowTests
                 directory,
                 Path.Combine(directory, "sample.dmp"),
                 Path.Combine(directory, "sample.json"),
-                true);
-            var result = new CrashReportResult(request, true, 2048, null);
+                true,
+                directory,
+                Path.Combine(directory, "sample.logs.zip"));
+            var result = new CrashReportResult(request, true, 2048, null, true, 1024, null);
 
             await _session.Dispatch(() =>
             {
@@ -242,15 +244,18 @@ public sealed class ScriptEditorWindowTests
                     var exceptionType = window.FindControl<TextBlock>("ExceptionTypeText");
                     var message = window.FindControl<SelectableTextBlock>("ExceptionMessageText");
                     var status = window.FindControl<TextBlock>("DumpStatusText");
+                    var logStatus = window.FindControl<TextBlock>("LogStatusText");
                     var openFolder = window.FindControl<Button>("OpenDumpFolderButton");
 
                     Assert.IsNotNull(exceptionType);
                     Assert.IsNotNull(message);
                     Assert.IsNotNull(status);
+                    Assert.IsNotNull(logStatus);
                     Assert.IsNotNull(openFolder);
                     StringAssert.Contains(exceptionType.Text, "InvalidOperationException");
                     Assert.AreEqual("brief failure", message.Text);
                     StringAssert.Contains(status.Text, "2 KB");
+                    StringAssert.Contains(logStatus.Text, "1 KB");
                     Assert.AreEqual("打开 Dump 文件夹", openFolder.Content);
                 }
                 finally
@@ -279,8 +284,10 @@ public sealed class ScriptEditorWindowTests
             directory,
             Path.Combine(directory, new string('f', 120) + ".dmp"),
             Path.Combine(directory, "sample.json"),
-            true);
-        var result = new CrashReportResult(request, true, 2048, null);
+            true,
+            directory,
+            Path.Combine(directory, new string('l', 120) + ".logs.zip"));
+        var result = new CrashReportResult(request, true, 2048, null, true, 1024, null);
 
         await _session.Dispatch(() =>
         {
@@ -292,17 +299,20 @@ public sealed class ScriptEditorWindowTests
                 var details = window.FindControl<ScrollViewer>("DetailsScrollViewer");
                 var actions = window.FindControl<StackPanel>("ActionsPanel");
                 var dumpPath = window.FindControl<SelectableTextBlock>("DumpPathText");
+                var logPath = window.FindControl<SelectableTextBlock>("LogPathText");
 
                 Assert.IsNotNull(root);
                 Assert.IsNotNull(details);
                 Assert.IsNotNull(actions);
                 Assert.IsNotNull(dumpPath);
+                Assert.IsNotNull(logPath);
                 Assert.IsTrue(window.CanResize);
                 Assert.IsTrue(details.Bounds.Height > 0);
                 Assert.IsTrue(
                     actions.Bounds.Bottom <= root.Bounds.Height + 0.5,
                     $"操作区超出窗口内容：bottom={actions.Bounds.Bottom}, rootHeight={root.Bounds.Height}");
                 Assert.AreEqual(request.DumpPath, dumpPath.Text);
+                Assert.AreEqual(request.LogArchivePath, logPath.Text);
             }
             finally
             {

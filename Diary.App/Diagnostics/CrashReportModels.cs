@@ -15,13 +15,18 @@ internal sealed record CrashReportRequest(
     string DumpDirectory,
     string DumpPath,
     string ResultPath,
-    bool ShowDialog);
+    bool ShowDialog,
+    string LogDirectory,
+    string LogArchivePath);
 
 internal sealed record CrashReportResult(
     CrashReportRequest Request,
     bool DumpSucceeded,
     long? DumpSizeBytes,
-    string? ErrorMessage);
+    string? ErrorMessage,
+    bool LogArchiveSucceeded,
+    long? LogArchiveSizeBytes,
+    string? LogArchiveErrorMessage);
 
 internal static class CrashReportStore
 {
@@ -40,7 +45,8 @@ internal static class CrashReportStore
         int? processId = null,
         string? processName = null,
         DateTimeOffset? occurredAtUtc = null,
-        bool showDialog = true)
+        bool showDialog = true,
+        string? logDirectory = null)
     {
         ArgumentNullException.ThrowIfNull(exception);
         var directory = Path.GetFullPath(dumpDirectory ?? GetDumpDirectory());
@@ -52,6 +58,8 @@ internal static class CrashReportStore
         var dumpPath = Path.Combine(directory, baseName + ".dmp");
         var resultPath = Path.Combine(directory, baseName + ".json");
         var requestPath = Path.Combine(directory, baseName + ".request.json");
+        var sourceLogDirectory = Path.GetFullPath(logDirectory ?? FsTools.GetApplicationDataDirectory());
+        var logArchivePath = Path.Combine(directory, baseName + ".logs.zip");
         var version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "unknown";
         var message = exception.Message;
         if (message.Length > MaxExceptionMessageLength)
@@ -66,7 +74,9 @@ internal static class CrashReportStore
             directory,
             dumpPath,
             resultPath,
-            showDialog);
+            showDialog,
+            sourceLogDirectory,
+            logArchivePath);
         WriteJson(requestPath, request);
         return (request, requestPath);
     }
@@ -107,6 +117,7 @@ internal static class CrashReportStore
             DeleteBestEffort(dump.FullName);
             DeleteBestEffort(Path.ChangeExtension(dump.FullName, ".json"));
             DeleteBestEffort(Path.ChangeExtension(dump.FullName, ".request.json"));
+            DeleteBestEffort(Path.ChangeExtension(dump.FullName, ".logs.zip"));
         }
     }
 

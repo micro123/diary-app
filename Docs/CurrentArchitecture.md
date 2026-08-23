@@ -200,9 +200,9 @@ Debug 构建还提供显式启用的本地 UI 自动化入口：设置 `DIARY_CD
 
 `Diary.App` 在正常模式之外提供 `--capture-crash-dump` 和 `--show-crash-report` 两个内部模式。
 终止性托管异常到达 `AppDomain.UnhandledException` 后，正常进程启动独立捕获进程；捕获进程使用
-`Microsoft.Diagnostics.NETCore.Client` 对目标 PID 生成 Triage Dump，再启动不加载数据库、插件和脚本的最小 Avalonia 提示窗口。
-崩溃提示窗口将异常与 Dump 详情放入可滚动区域，底部操作始终可见，长路径可选择复制且窗口允许调整大小。
-Dump 默认位于 LocalApplicationData 下的 `Diary.App/CrashDumps`，只保留最近 5 个且不自动上传。
+`Microsoft.Diagnostics.NETCore.Client` 对目标 PID 生成 Triage Dump，并把应用当前保留的滚动日志压缩为同名 `.logs.zip`，再启动不加载数据库、插件和脚本的最小 Avalonia 提示窗口。应用日志只按 16 MiB 文件上限滚动，固定使用 `Diary.App.log` 和 `_001` 等序号文件，最多保留 4 个；归档读取允许原日志继续写入。
+崩溃提示窗口将异常、Dump 和日志归档详情放入可滚动区域，底部操作始终可见，长路径可选择复制且窗口允许调整大小。
+Dump 默认位于 LocalApplicationData 下的 `Diary.App/CrashDumps`，只保留最近 5 个并同步清理对应日志归档，所有诊断文件均不自动上传。
 详细边界见 [`CrashDumpDesign.md`](CrashDumpDesign.md)。
 
 ## 6. 数据库分层和扩展
