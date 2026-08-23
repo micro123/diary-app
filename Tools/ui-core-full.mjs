@@ -148,6 +148,8 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
             const expected = ['关于', '最大化', '最小化', '重启程序', '退出'];
             return expected.every(text => findByText(tree, text, entry => hasAncestorType(tree, entry, 'MenuItem')));
         }, 5000, '应用菜单内容不完整');
+        assertUi(!findByText(result.tree, '用户手册', entry => hasAncestorType(result.tree, entry, 'MenuItem')),
+            'Debug 构建不应显示发布版用户手册入口');
         await connection.pressKey('Escape', 'Escape', 27);
         return { openMs: result.elapsedMs };
     });

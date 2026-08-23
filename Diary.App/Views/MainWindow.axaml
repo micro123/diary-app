@@ -119,6 +119,9 @@
                 <Button.Flyout>
                     <MenuFlyout>
                         <MenuItem Header="关于" Command="{Binding ShowAboutCommand}" />
+                        <MenuItem Name="UserManualMenuItem" Header="用户手册"
+                                  Command="{Binding OpenUserManualCommand}"
+                                  IsVisible="{Binding IsUserManualVisible}" />
                         <Separator />
                         <MenuItem Header="最大化" Command="{Binding MaximizedCommand}" />
                         <MenuItem Header="最小化" Command="{Binding MinimizedCommand}" />

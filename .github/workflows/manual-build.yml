@@ -43,7 +43,7 @@ jobs:
           DIARY_REQUIRE_PYTHON_TESTS: '1'
 
   build:
-    needs: verify
+    needs: [verify, build-docs]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -75,6 +75,11 @@ jobs:
           $suffix = '${{ inputs.version_suffix }}'
           $version = "r$commitCount-$shortHash-$suffix"
           "version=$version" >> $env:GITHUB_OUTPUT
+      - name: Download user manual for package
+        uses: actions/download-artifact@v7
+        with:
+          name: DiaryAppNG-${{ steps.version.outputs.version }}-user-manual
+          path: artifacts/user-manual
       - name: Restore solution for ${{ matrix.rid }}
         run: dotnet restore DiaryApp.sln --runtime ${{ matrix.rid }} -p:Configuration=Release
       - name: Publish ${{ matrix.rid }}
@@ -89,6 +94,14 @@ jobs:
           New-Item -ItemType Directory -Path $out -Force | Out-Null
           dotnet publish Diary.App/Diary.App.csproj --configuration Release --runtime $rid --self-contained true --no-restore --output $out
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $manualSourceDirectory = Join-Path $env:GITHUB_WORKSPACE 'artifacts/user-manual/package/Docs/UserManual'
+          $manualDestinationDirectory = Join-Path $out 'Docs/UserManual'
+          if (-not (Test-Path -LiteralPath $manualSourceDirectory -PathType Container)) {
+            throw "User manual package directory is missing: $manualSourceDirectory"
+          }
+          New-Item -ItemType Directory -Path $manualDestinationDirectory -Force | Out-Null
+          Copy-Item -LiteralPath (Join-Path $manualSourceDirectory 'DiaryApp-User-Manual.html') -Destination $manualDestinationDirectory -Force
+          Copy-Item -LiteralPath (Join-Path $manualSourceDirectory 'DiaryApp-User-Manual.pdf') -Destination $manualDestinationDirectory -Force
           $workerExecutable = if ($rid -eq 'win-x64') { 'Diary.Script.Worker.exe' } else { 'Diary.Script.Worker' }
           $updaterExecutable = if ($rid -eq 'win-x64') { 'Diary.Updater.exe' } else { 'Diary.Updater' }
           dotnet publish Diary.Updater/Diary.Updater.csproj --configuration Release --runtime $rid --self-contained true --no-restore --output $updaterOut
@@ -128,7 +141,9 @@ jobs:
             'Diary.Jira.SQLite.dll',
             'Diary.Jira.PostgreSQL.dll',
             'nng.NET.dll',
-            'nng.NET.Shared.dll'
+            'nng.NET.Shared.dll',
+            'Docs/UserManual/DiaryApp-User-Manual.html',
+            'Docs/UserManual/DiaryApp-User-Manual.pdf'
           ) + $nativeRuntimeFiles
           foreach ($requiredFile in $requiredFiles) {
             $requiredPath = Join-Path $out $requiredFile
@@ -235,13 +250,13 @@ jobs:
             if ($zipExitCode -ne 0) { exit $zipExitCode }
             Assert-RuntimeDirectories $archive $rid
             Assert-NoPdbEntries $archive
-            python Tools/validate-release-package.py --archive $archive --rid $rid --flavor standard
+            python Tools/validate-release-package.py --archive $archive --rid $rid --flavor standard --require-user-manual
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           } else {
             Compress-Archive -Path (Join-Path $out '*') -DestinationPath $archive -CompressionLevel Optimal
             Assert-RuntimeDirectories $archive $rid
             Assert-NoPdbEntries $archive
-            python Tools/validate-release-package.py --archive $archive --rid $rid --flavor standard
+            python Tools/validate-release-package.py --archive $archive --rid $rid --flavor standard --require-user-manual
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
           Get-Item $archive, $debugArchive | Format-List Name, Length
@@ -278,7 +293,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: DiaryAppNG-${{ steps.version.outputs.version }}-user-manual
-          path: artifacts/user-manual/*
+          path: artifacts/user-manual
           if-no-files-found: error
 
   create-release:
@@ -323,8 +338,8 @@ jobs:
           prerelease: true
           files: |
             artifacts/*.zip
-            artifacts/*-User-Manual.pdf
-            artifacts/*-User-Manual.html
+            artifacts/DiaryAppNG-${{ steps.version.outputs.version }}-User-Manual.pdf
+            artifacts/DiaryAppNG-${{ steps.version.outputs.version }}-User-Manual.html
           body: |
             ## Manual Build ${{ steps.version.outputs.version }}
 

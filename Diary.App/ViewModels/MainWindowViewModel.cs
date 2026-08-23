@@ -46,11 +46,13 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly StatusBarViewModel _statusBarViewModel;
     private readonly IServiceProvider _serviceProvider;
     private readonly TrackerPluginLifecycleCoordinator _lifecycle;
+    private readonly UserManualService _userManualService;
     private readonly ILogger _logger;
     private IReadOnlyList<NavigateInfo> _fixedPages;
     public string VersionString => AppInfo.AppVersionString;
 
     public string VersionDetails => AppInfo.AppVersionDetails;
+    public bool IsUserManualVisible => _userManualService.IsMenuVisible;
     public StatusBarViewModel StatusBar => _statusBarViewModel;
 
     [RelayCommand]
@@ -76,6 +78,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _serviceProvider = serviceProvider;
         _logger = logger;
         _lifecycle = serviceProvider.GetRequiredService<TrackerPluginLifecycleCoordinator>();
+        _userManualService = serviceProvider.GetRequiredService<UserManualService>();
 
         // 导航可扩展：固定核心页面 + tracker 贡献页；设置通过标题栏对话框打开。
         // 手势按最终位置分配 Alt+1..；单 tracker（RedMine）下顺序/手势与原硬编码一致。
@@ -685,6 +688,21 @@ public partial class MainWindowViewModel : ViewModelBase
     private void Opened(object? parameter)
     {
         Messenger.Send(new WindowStateEvent(true));
+    }
+
+    [RelayCommand]
+    private void OpenUserManual()
+    {
+        try
+        {
+            _userManualService.Open();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+                                              or InvalidOperationException or PlatformNotSupportedException)
+        {
+            _logger.LogError(exception, "打开用户手册失败");
+            EventDispatcher.Notify("无法打开用户手册", exception.Message);
+        }
     }
 
     [RelayCommand]

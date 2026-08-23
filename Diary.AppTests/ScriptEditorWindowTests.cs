@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Headless;
 using Avalonia.Media;
 using AvaloniaEdit;
@@ -337,6 +338,34 @@ public sealed class ScriptEditorWindowTests
                     .SingleOrDefault(item => string.Equals(item.Header?.ToString(), "重启程序", StringComparison.Ordinal));
 
                 Assert.IsNotNull(restartItem);
+            }
+            finally
+            {
+                window.Close();
+            }
+        }, CancellationToken.None);
+    }
+
+    [TestMethod]
+    public async Task MainWindow_UserManualMenuDefinesBindings()
+    {
+        await _session.Dispatch(() =>
+        {
+            var window = new MainWindow();
+            try
+            {
+                var menuButton = window.FindControl<Button>("ApplicationMenuButton");
+                Assert.IsNotNull(menuButton);
+                var flyout = Assert.IsInstanceOfType<MenuFlyout>(menuButton.Flyout);
+                var manualItem = flyout.Items
+                    .OfType<Avalonia.Controls.MenuItem>()
+                    .SingleOrDefault(item => string.Equals(item.Header?.ToString(), "用户手册", StringComparison.Ordinal));
+
+                Assert.IsNotNull(manualItem);
+                Assert.IsNotNull(BindingOperations.GetBindingExpressionBase(manualItem, Visual.IsVisibleProperty));
+                Assert.IsNotNull(BindingOperations.GetBindingExpressionBase(
+                    manualItem,
+                    Avalonia.Controls.MenuItem.CommandProperty));
             }
             finally
             {

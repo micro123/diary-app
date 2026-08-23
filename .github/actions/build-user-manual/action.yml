@@ -35,6 +35,7 @@ runs:
         pdf_source="$source_dir/DiaryApp-User-Manual.pdf"
         html_source="$source_dir/DiaryApp-User-Manual.html"
         artifact_dir="artifacts/user-manual"
+        package_dir="$artifact_dir/package/Docs/UserManual"
 
         if [[ ! "$MANUAL_OUTPUT_NAME" =~ ^[A-Za-z0-9._+-]+$ ]]; then
           echo "Invalid manual output name: $MANUAL_OUTPUT_NAME" >&2
@@ -46,7 +47,10 @@ runs:
         head -c 5 "$pdf_source" | grep -q '%PDF-'
         grep -i -m 1 -q '<html' "$html_source"
 
-        mkdir -p "$artifact_dir"
+        mkdir -p "$artifact_dir" "$package_dir"
         cp "$pdf_source" "$artifact_dir/$MANUAL_OUTPUT_NAME.pdf"
         cp "$html_source" "$artifact_dir/$MANUAL_OUTPUT_NAME.html"
+        cp "$pdf_source" "$package_dir/DiaryApp-User-Manual.pdf"
+        cp "$html_source" "$package_dir/DiaryApp-User-Manual.html"
         ls -lh "$artifact_dir"
+        ls -lh "$package_dir"

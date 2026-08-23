@@ -28,6 +28,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--archive", required=True)
     parser.add_argument("--rid", required=True, choices=("win-x64", "linux-x64"))
     parser.add_argument("--flavor", required=True, choices=("standard", "python313"))
+    parser.add_argument(
+        "--require-user-manual",
+        action="store_true",
+        help="要求 ZIP 包含发布版内置 HTML/PDF 用户手册。",
+    )
     return parser.parse_args()
 
 
@@ -94,6 +99,13 @@ def validate() -> None:
         updater_entry,
         *runtime_markers,
     }
+    if args.require_user_manual:
+        required.update(
+            {
+                "Docs/UserManual/DiaryApp-User-Manual.html",
+                "Docs/UserManual/DiaryApp-User-Manual.pdf",
+            }
+        )
     missing = sorted(required - name_set)
     if missing:
         fail(f"ZIP 缺少必需运行文件：{', '.join(missing)}")
