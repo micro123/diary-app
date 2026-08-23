@@ -353,7 +353,7 @@ public partial class WorkEditorViewModel : ViewModelBase
             return;
         var dialog = new WorkItemExtraFieldsViewModel(
             Db!, WorkId, fields, isReadOnly: IsImportedReadOnly);
-        var result = await OverlayDialog.ShowCustomModal<bool>(dialog, options: new OverlayDialogOptions
+        var result = await OverlayDialog.ShowCustomAsync<bool>(dialog, options: new OverlayDialogOptions
         {
             Title = dialog.Title,
             CanDragMove = false,

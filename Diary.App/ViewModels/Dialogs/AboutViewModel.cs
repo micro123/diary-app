@@ -23,8 +23,8 @@ public partial class AboutViewModel : ViewModelBase, IDialogContext
                                   Avalonia, DataGrid, TreeDataGrid
                                   CommunityToolkit.Mvvm
                                   Semi.Avalonia, Irihi.Ursa
-                                  LiveCharts2
-                                  Projektanker.Icons.Avalonia
+                                  ScottPlot
+                                  Optris.Icons.Avalonia
                                   Xaml.Behaviors.Avalonia
                                   Newtonsoft.Json
                                   SourceGear.sqlite3, Npgsql

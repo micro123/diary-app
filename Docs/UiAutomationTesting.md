@@ -6,7 +6,7 @@ DiaryApp 在 Windows 和 Linux Debug 构建中提供基于 Chrome DevTools Proto
 
 该入口只用于本地开发和验证：
 
-- `Chrome.DevTools.Avalonia.v11` 只在 Debug 配置引用，Release 包不应包含 CDP 程序集。
+- `Chrome.DevTools.Avalonia 0.1.0-preview.34` 只在 Debug 配置引用，Release 包不应包含 CDP 程序集。
 - 只有显式设置 `DIARY_CDP_PORT` 时才启动监听，默认构建和正常启动不会开放端口。
 - `DIARY_UI_TEST_ROOT` 将配置、数据库、日志和临时文件映射到独立测试 profile。
 - 测试 profile 使用独立单实例 ID，可以与正常 DiaryApp 并行运行。
@@ -14,7 +14,7 @@ DiaryApp 在 Windows 和 Linux Debug 构建中提供基于 Chrome DevTools Proto
 - CDP 具备输入模拟、截图和运行时检查能力，不得在正式包或不可信网络中开放。
 - Release restore 必须显式传入 `-p:Configuration=Release`；发布包校验会拒绝 `Avalonia.Diagnostics`、`CDP.Integration.*`、`Chrome.DevTools.*` 和 `Xaml.Compiler` 调试组件。
 
-当前使用兼容 Avalonia 11 和 SkiaSharp 2.88.9 的 `Chrome.DevTools.Avalonia.v11 0.1.0-preview.30`。升级 SkiaSharp 3.x 后应重新评估更新版本。
+当前使用面向 Avalonia 12 的通用包 `Chrome.DevTools.Avalonia 0.1.0-preview.34`。Debug 条件引用同时将其开放的 Roslyn 依赖范围与项目使用的 5.6.0 对齐；Release restore、构建和发布包检查继续确认不携带 CDP 程序集。
 
 完整功能级状态见 [`UiAutomationCoverage.md`](UiAutomationCoverage.md)，UI 功能入口见 [`UiFeatureInventory.md`](UiFeatureInventory.md)。
 
@@ -96,8 +96,8 @@ seed 只复制加密配置文件，不应提交到 Git，也不得写入报告�
 | 套件 | 结构化步骤 | 主要覆盖 |
 | --- | ---: | --- |
 | `ui-settings-full` | 9 | 首次引导、设置分组、保存/丢弃、导航动态重建、数据库/迁移对话框、运行日志导出、更新检查、设置性能 |
-| `ui-smoke` | 单独断言集 | 标签、模板、主题、新建草稿、`新建 -> 修改 -> 新建`、模板替换前草稿保留、视觉树和截图性能 |
-| `ui-core-full` | 14 | 主外壳、应用菜单、Debug 用户手册入口隐藏、`Alt+数字`、关于、复制入口、日记快捷键、查询、保存查询、统计、核心性能 |
+| `ui-smoke` | 单独断言集 | 标签、模板、应用级亮暗主题切换及主内容亮度差、新建草稿、`新建 -> 修改 -> 新建`、模板替换前草稿保留、视觉树和截图性能 |
+| `ui-core-full` | 14 | 主外壳、标题栏应用/版本/设置菜单真实鼠标点击、Debug 用户手册入口隐藏、`Alt+数字`、关于、复制入口、日记快捷键、查询、保存查询、统计、核心性能 |
 | `ui-extended-full` | 11 | AI 上下文默认/显式授权、预览、MCP 快照和手册截图，程序设置标准分组布局、配置生成/复制和跳转，以及 C#/Lua/Python 脚本创建、筛选、重新加载、预览运行、执行历史、日志、API Reference、删除、性能 |
 | `ui-script-editor` | 4 | 独立脚本编辑器、命令区、编译检查和安全关闭 |
 | `ui-database-error` | 8 | 日记/查询/统计数据库异常状态、重试、设置入口、诊断导出和异常状态性能 |
@@ -173,7 +173,7 @@ Linux 的 `run` 会自动传入当前状态文件，不需要手动拼接 `--sta
 - 外部服务配置未提供时为 `blocked-external`，不计作功能通过。
 - 性能值用于同一机器、同一构建方式下的趋势比较，不作为跨机器固定发布阈值。
 - 首次页面创建包含视图构造和数据加载，应与预热后的视觉树/动作耗时分开观察。
-- 原生文件选择器、目录选择器、系统托盘和真实备份/还原不由 Avalonia CDP 控制，保留 Windows 原生人工或专用驱动验证。
+- 原生文件选择器、目录选择器、系统托盘、系统剪贴板、标题栏真实拖动/双击和真实备份/还原不由 Avalonia CDP 可靠控制，保留平台原生人工或专用驱动验证。
 
 ## 6. 2026-08-22 本机基线
 
@@ -216,16 +216,32 @@ Linux 原生 Debug App 在 `DISPLAY=:0`、1280×800 桌面会话中完成验证�
 
 本轮 Debug 冷启动到 CDP ready 为 1,318–1,839 ms，core 截图 P50/P95 为 54.37/71.02 ms，smoke `DOM.getDocument` P50/P95 为 6.89/13.13 ms；最新扩展套件耗时 9,152 ms。Redmine 两个筛选 CheckBox 与搜索框中心线偏差均为 0px。
 
-`ui-core-full` 还会打开应用图标菜单并确认 Debug 构建不显示发布版“用户手册”入口。Release 不编译 CDP，因此 Release 侧由单元测试验证菜单绑定和文件解析，并由 Tag/手动工作流的 ZIP 契约检查 HTML/PDF；系统默认浏览器或 PDF 阅读器的实际启动仍属于原生人工检查。
+`ui-core-full` 会通过 CDP 合成的真实鼠标事件依次打开左上角应用图标菜单、版本菜单和设置菜单，并确认 Debug 构建不显示发布版“用户手册”入口；测试不使用键盘激活兜底。Release 不编译 CDP，因此 Release 侧由单元测试验证菜单绑定和文件解析，并由 Tag/手动工作流的 ZIP 契约检查 HTML/PDF；系统默认浏览器或 PDF 阅读器的实际启动仍属于原生人工检查。
 
 扩展套件使用隔离 profile 预置一个标签、一项附加字段定义和一条示例事项，验证事项披露默认关闭、日期控件仅在显式授权后显示、预览包含版本化 schema 和不可信数据标记，以及刷新后的 MCP 快照只包含授权范围。随后打开程序设置，验证“AI 与 MCP”使用标准设置分组、五个设置行完整可见、复制内容中的可执行文件/快照路径、AI 可读说明和通用 JSON，并通过“打开 AI 上下文”返回正确页签。截图前会将最后一个操作行滚动到可视区域；用户手册版本已裁掉状态栏和 MCP 命令中的本机路径。
 
 smoke 在较矮窗口中只渲染前三个列表项，第 4 个模板事项会被 ListBox 虚拟化。最终持久化断言因此读取隔离 SQLite profile，确认标题、1.5 小时和标签关联已提交；UI 侧仍验证模板应用、保存状态和页面导航。smoke 还会在通知层消退后生成程序设置、标签和模板手册截图；Redmine 只读套件生成插件状态和管理页截图。当前机器未安装 Xvfb，因此本轮没有宣称 headless CI 已通过。
 
+### 6.2 2026-08-23 Avalonia 12 迁移验证
+
+Avalonia 12 迁移后的 Windows 全量报告为 `.build-tmp/ui-test/reports/ui-full-test-2026-08-23T14-24-51-233Z.json`。8 个无外部依赖套件全部通过：`ui-settings-full` 9/9、`ui-smoke` passed、`ui-core-full` 14/14、`ui-extended-full` 11/11、`ui-script-editor` 4/4、`ui-database-error` 8/8、`ui-survey-full` 8/8、`ui-extra-fields-full` 8/8，共 62 个结构化步骤加 smoke。`ui-redmine-full` 因未提供加密 seed profile 标记为 `blocked-external`，没有产生远程写入。
+
+Windows 还通过 CDP 激活标题栏应用菜单的“最大化”“最小化”和“退出”，并分别使用 Win32 窗口状态和进程退出结果交叉验证。真实标题栏拖动、双击最大化/还原和多显示器行为仍为 `Manual-Native`。
+
+标题栏命中回归修复后又使用全新隔离 profile 运行 `ui-core-full`，14/14 通过，报告为 `.build-tmp/ui-test/reports/ui-core-full-2026-08-23T15-59-13-109Z.json`。其中应用图标、版本和设置菜单的鼠标打开等待分别为 40.61 ms、29.82 ms 和 25.63 ms；整套耗时 4,507 ms，冷启动到 CDP ready 为 1,694 ms。性能数据仅用于同一机器和构建方式的趋势比较。
+
+主题按钮回归修复后，全新隔离 profile 的 `ui-smoke` 通过外层 `ThemeToggleButton` 发送真实鼠标点击，并解析 PNG 像素验证主内容配色，而不再只比较整窗文件哈希。暗色到亮色切换时主内容平均亮度为 27.70 → 253.30，差值 225.61，切换断言耗时 215.57 ms；报告为 `.build-tmp/ui-test/reports/ui-smoke-2026-08-23T16-19-42-614Z.json`。同一会话随后执行 `ui-core-full` 14/14 通过，报告为 `.build-tmp/ui-test/reports/ui-core-full-2026-08-23T16-19-58-051Z.json`。
+
+CDP 页面截图不包含 Avalonia 12 的独立 `WindowDrawnDecorations` 合成层，因此 smoke/core 通过只能证明应用级主题切换和标题栏菜单交互。150% DPI 冷启动原生截图复核显示，右上角窗口按钮仍跟随应用主题，而自定义标题栏使用反色主题；该视觉一致性问题保留为 Ursa 2.2/Avalonia 12 兼容项，不能使用早期热切换截图作为完成证据。
+
+Linux 自包含包在 WSLg 的真实 X11 会话中运行：`ui-core-full` 14/14 通过，报告为 `.build-tmp/ui-test/reports/ui-core-full-2026-08-23T14-29-57-775Z.json`；全新隔离 profile 的 `ui-smoke` 通过，报告为 `.build-tmp/ui-test/reports/ui-smoke-2026-08-23T14-31-29-175Z.json`。复用 core profile 时出现过列表虚拟化导致的可见性超时，换用全新 profile 后完整通过，因此不判定为应用回归。
+
+Avalonia 12 将 TextBox 模板中的 `PART_Watermark` 改为 `PART_Placeholder`。当前脚本优先使用显式控件名（包括 `ScriptSearchInput`、`ExtendedConditionsExpander` 和 `SurveyGroupByInput`），不再把内部模板部件作为稳定契约。Headless 会话清理使用异步释放，避免测试进程在套件结束时挂起。
+
 ## 7. 当前覆盖边界
 
 - Jira 真实服务、权限矩阵和自托管版本差异为 `Blocked-External`。
-- 原生文件/目录选择器、托盘、真实备份与还原为 `Manual-Native`。
+- 原生文件/目录选择器、托盘、系统剪贴板、标题栏真实拖动/双击、多显示器窗口行为和真实备份与还原为 `Manual-Native`。
 - 查询/统计计算、附加字段值转换和 Tracker 数据契约等低层语义继续由单元和集成测试承担；附加字段的真实控件交互和持久化已由 CDP 套件覆盖。
 - 后台任务进度预览 UI 尚未实现，状态为 `Not-Implemented`。
 - Release 不运行 CDP；“Release 包不含 CDP”和“应用 ZIP 携带稳定路径用户手册”由构建和发布包集成校验负责。

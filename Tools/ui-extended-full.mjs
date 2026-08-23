@@ -326,17 +326,14 @@ await runUiSuite({ name: 'ui-extended-full', scenario: 'extended', timeoutMs: 12
     await runStep('scripts.filter-reload', '脚本搜索、筛选和重新加载', async () => {
         let tree = await connection.getTree();
         const root = rootOf(tree, 'ScriptManagementView');
-        const search = descendants(tree, root).find(entry => typeOf(entry).includes('TextBox')
-            && within(tree, entry, child => nameOf(child) === 'PART_Watermark'
-                && textOf(child) === '搜索脚本名称或 ID'));
+        const search = findByName(tree, 'ScriptSearchInput');
         assertUi(search, '脚本搜索框缺失');
         await connection.replaceText(search, scripts[1].id);
         await connection.waitForTree(current => scriptRow(current, scripts[1].name)
             && !scriptRow(current, scripts[0].name), 5000, '脚本搜索筛选失败');
         tree = await connection.getTree();
         const currentRoot = rootOf(tree, 'ScriptManagementView');
-        const currentSearch = descendants(tree, currentRoot).find(entry => typeOf(entry).includes('TextBox')
-            && Number(entry.a.Width) > 400);
+        const currentSearch = findByName(tree, 'ScriptSearchInput');
         await connection.replaceText(currentSearch, '');
         await connection.waitForTree(current => scripts.every(item => scriptRow(current, item.name)), 5000,
             '清空搜索后脚本没有恢复');

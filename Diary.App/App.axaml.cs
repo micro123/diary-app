@@ -5,7 +5,6 @@ using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input.Platform;
-using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
 using Avalonia.Threading;
@@ -916,9 +915,6 @@ namespace Diary.App
 
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
-                // Avoid duplicate validations from both Avalonia and the CommunityToolkit. 
-                // More info: https://docs.avaloniaui.net/docs/guides/development-guides/data-validation#manage-validationplugins
-                DisableAvaloniaDataAnnotationValidation();
                 desktop.MainWindow = new MainWindow();
                 var vm = Services.GetRequiredService<MainWindowViewModel>();
                 vm.SetView(desktop.MainWindow);
@@ -1213,18 +1209,6 @@ namespace Diary.App
             SurveyEnabled = AppConfig.SurveySettings.Enabled;
         }
 
-        private void DisableAvaloniaDataAnnotationValidation()
-        {
-            // Get an array of plugins to remove
-            var dataValidationPluginsToRemove =
-                BindingPlugins.DataValidators.OfType<DataAnnotationsValidationPlugin>().ToArray();
-
-            // remove each entry found
-            foreach (var plugin in dataValidationPluginsToRemove)
-            {
-                BindingPlugins.DataValidators.Remove(plugin);
-            }
-        }
 
         public override SettingItemModel CreateModelFor(string caption, string helpTip, string key, object obj, PropertyInfo property)
         {

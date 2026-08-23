@@ -142,18 +142,35 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         return { version: textOf(findByName(tree, 'Version')), dateText: textOf(statusDate) };
     });
 
-    await runStep('shell.application-menu', '应用菜单内容', async () => {
+    await runStep('shell.titlebar-menus', '标题栏应用、版本和设置菜单', async () => {
         await connection.clickByName('ApplicationMenuButton');
-        const result = await connection.waitForTree(tree => {
+        const applicationMenu = await connection.waitForTree(tree => {
             const expected = ['关于', '最大化', '最小化', '重启程序', '退出'];
             return expected.every(text => findByText(tree, text, entry => hasAncestorType(tree, entry, 'MenuItem')));
-        }, 5000, '应用菜单内容不完整');
-        assertUi(!findByText(result.tree, '用户手册', entry => hasAncestorType(result.tree, entry, 'MenuItem')),
-            'Debug 构建不应显示发布版用户手册入口');
+        }, 5000, '左上角应用菜单无法通过鼠标打开或内容不完整');
+        assertUi(!findByText(applicationMenu.tree, '用户手册',
+            entry => hasAncestorType(applicationMenu.tree, entry, 'MenuItem')),
+        'Debug 构建不应显示发布版用户手册入口');
         await connection.pressKey('Escape', 'Escape', 27);
-        return { openMs: result.elapsedMs };
-    });
+        await delay(80);
 
+        await connection.clickByName('Version');
+        const versionMenu = await connection.waitForTree(tree => ['复制版本号', '复制详细信息'].every(text =>
+            findByText(tree, text, entry => hasAncestorType(tree, entry, 'MenuItem'))),
+        5000, '版本菜单无法通过鼠标打开');
+        await connection.pressKey('Escape', 'Escape', 27);
+        await delay(80);
+
+        await connection.clickByName('SettingsMenuButton');
+        const settingsMenu = await connection.waitForTree(tree => findByName(tree, 'ProgramSettingsMenuItem'),
+            5000, '设置菜单无法通过鼠标打开');
+        await connection.pressKey('Escape', 'Escape', 27);
+        return {
+            applicationMenuMs: applicationMenu.elapsedMs,
+            versionMenuMs: versionMenu.elapsedMs,
+            settingsMenuMs: settingsMenu.elapsedMs,
+        };
+    });
     await runStep('shell.navigation-collapse', '导航栏展开折叠', async () => {
         let tree = await connection.getTree();
         const toggle = findByName(tree, 'PanelOpen');

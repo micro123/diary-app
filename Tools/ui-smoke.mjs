@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import zlib from 'node:zlib';
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDirectory, '..');
@@ -13,6 +14,96 @@ const statePath = stateArgumentIndex >= 0
     ? path.resolve(process.argv[stateArgumentIndex + 1])
     : path.join(repositoryRoot, '.build-tmp', 'ui-test', 'current.json');
 const timeoutMs = 5000;
+
+function paethPredictor(left, up, upperLeft) {
+    const prediction = left + up - upperLeft;
+    const leftDistance = Math.abs(prediction - left);
+    const upDistance = Math.abs(prediction - up);
+    const upperLeftDistance = Math.abs(prediction - upperLeft);
+    if (leftDistance <= upDistance && leftDistance <= upperLeftDistance)
+        return left;
+    return upDistance <= upperLeftDistance ? up : upperLeft;
+}
+
+function pngContentLuminance(buffer) {
+    const signature = '89504e470d0a1a0a';
+    if (buffer.subarray(0, 8).toString('hex') !== signature)
+        throw new Error('截图不是有效的 PNG');
+
+    let width = 0;
+    let height = 0;
+    let bitDepth = 0;
+    let colorType = 0;
+    const imageData = [];
+    for (let offset = 8; offset < buffer.length;) {
+        const length = buffer.readUInt32BE(offset);
+        const type = buffer.subarray(offset + 4, offset + 8).toString('ascii');
+        const data = buffer.subarray(offset + 8, offset + 8 + length);
+        if (type === 'IHDR') {
+            width = data.readUInt32BE(0);
+            height = data.readUInt32BE(4);
+            bitDepth = data[8];
+            colorType = data[9];
+        } else if (type === 'IDAT') {
+            imageData.push(data);
+        } else if (type === 'IEND') {
+            break;
+        }
+        offset += length + 12;
+    }
+
+    const channels = colorType === 6 ? 4 : colorType === 2 ? 3 : 0;
+    if (!width || !height || bitDepth !== 8 || channels === 0)
+        throw new Error(`不支持的 PNG 格式：${width}x${height}, bitDepth=${bitDepth}, colorType=${colorType}`);
+
+    const pixels = zlib.inflateSync(Buffer.concat(imageData));
+    const stride = width * channels;
+    let sourceOffset = 0;
+    let previous = new Uint8Array(stride);
+    let current = new Uint8Array(stride);
+    const minX = Math.floor(width * 0.15);
+    const maxX = Math.ceil(width * 0.85);
+    const minY = Math.floor(height * 0.15);
+    const maxY = Math.ceil(height * 0.85);
+    let luminance = 0;
+    let samples = 0;
+
+    for (let y = 0; y < height; y++) {
+        const filter = pixels[sourceOffset++];
+        current.fill(0);
+        for (let index = 0; index < stride; index++) {
+            const raw = pixels[sourceOffset++];
+            const left = index >= channels ? current[index - channels] : 0;
+            const up = previous[index];
+            const upperLeft = index >= channels ? previous[index - channels] : 0;
+            const value = filter === 0 ? raw
+                : filter === 1 ? raw + left
+                    : filter === 2 ? raw + up
+                        : filter === 3 ? raw + Math.floor((left + up) / 2)
+                            : filter === 4 ? raw + paethPredictor(left, up, upperLeft)
+                                : Number.NaN;
+            if (Number.isNaN(value))
+                throw new Error('不支持的 PNG 行过滤器：' + filter);
+            current[index] = value & 0xff;
+        }
+
+        if (y >= minY && y < maxY && (y - minY) % 8 === 0) {
+            for (let x = minX; x < maxX; x += 8) {
+                const index = x * channels;
+                if (channels === 4 && current[index + 3] < 128)
+                    continue;
+                luminance += current[index] * 0.2126 + current[index + 1] * 0.7152 + current[index + 2] * 0.0722;
+                samples++;
+            }
+        }
+
+        [previous, current] = [current, previous];
+    }
+
+    if (samples === 0)
+        throw new Error('截图主内容区域没有可用像素');
+    return luminance / samples;
+}
 
 class CdpClient {
     constructor(url) {
@@ -228,7 +319,18 @@ async function main() {
         await client.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
         await client.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
     };
-    const replaceText = async (entry, text) => {
+    const activateNode = async entry => {
+        if (!entry)
+            throw new Error('待激活控件不存在');
+        await client.send('DOM.scrollIntoViewIfNeeded', { nodeId: entry.nodeId }).catch(() => {});
+        await client.send('DOM.focus', { nodeId: entry.nodeId });
+        await client.send('Input.dispatchKeyEvent', {
+            type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+        });
+        await client.send('Input.dispatchKeyEvent', {
+            type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+        });
+    };    const replaceText = async (entry, text) => {
         await clickNode(entry);
         await client.send('DOM.focus', { nodeId: entry.nodeId });
         await client.send('Input.dispatchKeyEvent', {
@@ -279,6 +381,7 @@ async function main() {
             elapsedMs: performance.now() - started,
             bytes: buffer.length,
             sha256: crypto.createHash('sha256').update(buffer).digest('hex'),
+            contentLuminance: pngContentLuminance(buffer),
             path: outputPath,
         };
     };
@@ -338,7 +441,7 @@ async function main() {
         await replaceText(tagNameInput, tagName);
         await waitForTree(current => textOf(findByName(current, 'TagNameInput')) === tagName);
         tree = await getTree();
-        await clickNode(findByName(tree, 'AddTagButton'));
+        await activateNode(findByName(tree, 'AddTagButton'));
         await waitForTree(current => findByText(current, tagName,
             entry => hasAncestorName(current, entry, 'TagList')));
         await new Promise(resolve => setTimeout(resolve, 3000));
@@ -352,7 +455,7 @@ async function main() {
         functional.tagsAndTemplates.tagCreateMs = performance.now() - started;
         functional.tagsAndTemplates.automationTabOpened = true;
         tree = await getTree();
-        await clickNode(findByName(tree, 'SaveTagSettingsButton'));
+        await activateNode(findByName(tree, 'SaveTagSettingsButton'));
         await waitForTree(current => !current.entries.some(entry => typeOf(entry).includes('TagEditorView')));
 
         started = performance.now();
@@ -366,7 +469,7 @@ async function main() {
         await replaceText(templateNameInput, templateName);
         await waitForTree(current => textOf(findByName(current, 'TemplateNameInput')) === templateName);
         tree = await getTree();
-        await clickNode(findByName(tree, 'AddTemplateButton'));
+        await activateNode(findByName(tree, 'AddTemplateButton'));
         await waitForTree(current => findByName(current, 'TemplateItemExpander'));
         await new Promise(resolve => setTimeout(resolve, 120));
         const templateItemTree = await getTree();
@@ -384,7 +487,7 @@ async function main() {
         await replaceText(findByName(tree, 'TemplateDefaultTimeInput'), '1.5');
         await waitForTree(current => textWithinNamedControl(current, 'TemplateDefaultTimeInput').includes('1.5'));
         tree = await getTree();
-        await clickNode(findByName(tree, 'TemplateAddTagButton'));
+        await activateNode(findByName(tree, 'TemplateAddTagButton'));
         const templateTagMenu = await waitForTree(current => findByText(current, tagName,
             entry => hasAncestorType(current, entry, 'MenuItem')));
         const templateTagMenuItem = ancestor(templateTagMenu.tree, templateTagMenu.value,
@@ -397,27 +500,34 @@ async function main() {
         await new Promise(resolve => setTimeout(resolve, 3000));
         functional.tagsAndTemplates.templateSettingsScreenshot = await screenshot('manual-template-settings.png');
         tree = await getTree();
-        await clickNode(findByName(tree, 'SaveTemplateSettingsButton'));
+        await activateNode(findByName(tree, 'SaveTemplateSettingsButton'));
         await waitForTree(current => !current.entries.some(entry => typeOf(entry).includes('TemplateEditorView')));
         functional.tagsAndTemplates.templateConfigureMs = performance.now() - started;
 
         const themeBefore = await screenshot('smoke-theme-before.png');
         tree = await getTree();
-        const themeButton = findByName(tree, 'PART_ThemeButton');
+        const themeButton = findByName(tree, 'ThemeToggleButton');
         if (!themeButton)
             throw new Error('找不到主题切换按钮');
         started = performance.now();
         await clickNode(themeButton);
         let themeAfter;
+        let luminanceDelta = 0;
         while (performance.now() - started < timeoutMs) {
             await new Promise(resolve => setTimeout(resolve, 20));
             themeAfter = await screenshot('smoke-theme-after.png');
-            if (themeAfter.sha256 !== themeBefore.sha256)
+            luminanceDelta = Math.abs(themeAfter.contentLuminance - themeBefore.contentLuminance);
+            if (luminanceDelta >= 40)
                 break;
         }
-        if (!themeAfter || themeAfter.sha256 === themeBefore.sha256)
-            throw new Error('主题切换后截图未变化');
+        if (!themeAfter || luminanceDelta < 40)
+            throw new Error(`主题切换未改变主内容配色：亮度差 ${luminanceDelta.toFixed(2)}`);
         functional.themeSwitchMs = performance.now() - started;
+        functional.themeSwitch = {
+            beforeLuminance: themeBefore.contentLuminance,
+            afterLuminance: themeAfter.contentLuminance,
+            luminanceDelta,
+        };
 
         tree = await getTree();
         const newButton = findByName(tree, 'NewWorkItemButton');
@@ -519,14 +629,14 @@ async function main() {
 
         tree = await getTree();
         const replacementButton = findByName(tree, 'NewWorkItemButton');
-        await clickNode(replacementButton);
+        await activateNode(replacementButton);
         const replacementEditor = await waitForTree(current => findByName(current, 'WorkTitleInput'));
         const replacementTitle = 'UI自动化新建覆盖测试';
         await replaceText(replacementEditor.value, replacementTitle);
         await waitForTree(current => textOf(findByName(current, 'WorkTitleInput')) === replacementTitle);
         tree = await getTree();
         started = performance.now();
-        await clickNode(findByName(tree, 'NewWorkItemButton'));
+        await activateNode(findByName(tree, 'NewWorkItemButton'));
         const replacementResult = await waitForTree(current => {
             const input = findByName(current, 'WorkTitleInput');
             const savedTitle = current.entries.find(entry => textOf(entry) === replacementTitle);
@@ -543,7 +653,7 @@ async function main() {
         await waitForTree(current => textOf(findByName(current, 'WorkTitleInput')) === templateReplacementDraft);
         tree = await getTree();
         started = performance.now();
-        await clickNode(findByName(tree, 'NewFromTemplateButton'));
+        await activateNode(findByName(tree, 'NewFromTemplateButton'));
         const templateMenu = await waitForTree(current => findByText(current, templateName,
             entry => hasAncestorType(current, entry, 'MenuItem')));
         const templateMenuItem = ancestor(templateMenu.tree, templateMenu.value,

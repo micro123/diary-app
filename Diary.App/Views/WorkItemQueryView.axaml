@@ -44,7 +44,7 @@
                             </ComboBox.ItemTemplate>
                         </ComboBox>
                         <TextBox Grid.Column="2" Grid.ColumnSpan="2" Text="{Binding SavedQueryName}"
-                                 Watermark="输入名称以保存当前条件" />
+                                 PlaceholderText="输入名称以保存当前条件" />
                         <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="4">
                             <Button Content="新增" Command="{Binding AddSavedQueryCommand}" />
                             <Button Content="应用" Command="{Binding ApplySavedQueryCommand}" />
@@ -78,7 +78,7 @@
                                 <Button Content="本月" Command="{Binding SelectCurrentMonthCommand}" />
                                 <views:QuickDateSelectButton />
                             </StackPanel>
-                            <TextBox Grid.Column="5" Text="{Binding Text}" Watermark="搜索事项标题或备注"
+                            <TextBox Grid.Column="5" Text="{Binding Text}" PlaceholderText="搜索事项标题或备注"
                                      MinWidth="190" />
                         </Grid>
                         <Grid Grid.Row="1" ColumnDefinitions="Auto,180,Auto,180,*" ColumnSpacing="8">

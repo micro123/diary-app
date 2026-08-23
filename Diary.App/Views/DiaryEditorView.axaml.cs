@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Diary.App.ViewModels;
 
 namespace Diary.App.Views;

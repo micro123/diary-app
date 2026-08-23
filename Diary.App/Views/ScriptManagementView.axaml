@@ -33,7 +33,7 @@
         </Border>
 
         <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-            <TextBox Text="{Binding SearchText, Mode=TwoWay}" Watermark="搜索脚本名称或 ID" />
+            <TextBox Name="ScriptSearchInput" Text="{Binding SearchText, Mode=TwoWay}" PlaceholderText="搜索脚本名称或 ID" />
             <ComboBox Grid.Column="1" Width="140" ItemsSource="{Binding ScopeFilters}"
                       SelectedItem="{Binding SelectedScopeFilter, Mode=TwoWay}" />
             <ComboBox Grid.Column="2" Width="140" ItemsSource="{Binding StatusFilters}"
@@ -166,14 +166,14 @@
                                            IsVisible="{Binding SelectedScript.IsCSharp}" />
                                 <TextBlock Text="默认执行参数" />
                                 <TextBox Text="{Binding DefaultArgumentsText, Mode=TwoWay}" AcceptsReturn="True"
-                                         TextWrapping="NoWrap" Height="90" Watermark="每行 key=value" />
+                                         TextWrapping="NoWrap" Height="90" PlaceholderText="每行 key=value" />
                                 <TextBlock Text="默认超时时间（秒）" />
                                 <NumericUpDown Value="{Binding DefaultTimeoutSeconds, Mode=TwoWay}"
                                                Minimum="1" Maximum="3600" Increment="10" />
                                 <StackPanel Spacing="4" IsVisible="{Binding SelectedScript.IsAutomation}">
                                     <TextBlock Text="调度时间" />
                                     <TextBox Text="{Binding AutomationScheduleText, Mode=TwoWay}"
-                                             Watermark="daily 09:00" />
+                                             PlaceholderText="daily 09:00" />
                                     <TextBlock Text="格式 daily HH:mm；留空表示不定时，由启动补跑或事件触发。" FontSize="12" Opacity="0.6" />
                                     <CheckBox Content="应用启动后补跑一轮" IsChecked="{Binding AutomationRunOnStartup, Mode=TwoWay}" />
                                     <TextBlock Text="事件触发" />
@@ -310,9 +310,9 @@
                             <Grid ColumnDefinitions="Auto,120,Auto,120,Auto,90" ColumnSpacing="6"
                                   IsVisible="{Binding IncludeWorkItems}">
                                 <TextBlock Text="开始" VerticalAlignment="Center" />
-                                <TextBox Grid.Column="1" Text="{Binding StartDate, Mode=TwoWay}" Watermark="yyyy-MM-dd" />
+                                <TextBox Grid.Column="1" Text="{Binding StartDate, Mode=TwoWay}" PlaceholderText="yyyy-MM-dd" />
                                 <TextBlock Grid.Column="2" Text="结束" VerticalAlignment="Center" />
-                                <TextBox Grid.Column="3" Text="{Binding EndDate, Mode=TwoWay}" Watermark="yyyy-MM-dd" />
+                                <TextBox Grid.Column="3" Text="{Binding EndDate, Mode=TwoWay}" PlaceholderText="yyyy-MM-dd" />
                                 <TextBlock Grid.Column="4" Text="最多" VerticalAlignment="Center" />
                                 <NumericUpDown Grid.Column="5" Value="{Binding MaxWorkItems, Mode=TwoWay}"
                                                Minimum="1" Maximum="100" Increment="10" />

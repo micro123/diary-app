@@ -12,9 +12,8 @@ using Diary.Core.Data.Statistics;
 using Diary.Database;
 using Diary.GUIBase.Utils;
 using Diary.Utils;
-using LiveChartsCore.Measure;
-using LiveChartsCore.SkiaSharpView;
-using LiveChartsCore.SkiaSharpView.Avalonia;
+using ScottPlot.Avalonia;
+using ScottPlot.TickGenerators;
 
 namespace Diary.App.Models;
 
@@ -136,19 +135,12 @@ public partial class StatisticsTabData : ObservableObject
 
     private void InitChart()
     {
-        Chart.Series = [Bar];
-        Chart.XAxes =
-        [
-            XAxis
-        ];
-        Chart.LegendPosition = LegendPosition.Hidden;
-        Chart.ZoomMode = ZoomAndPanMode.None;
-        Chart.EasingFunction = null; // disable animations
+        Chart.IsHitTestVisible = false;
+        Chart.Plot.XLabel("项目");
+        Chart.Plot.YLabel("工时");
     }
 
-    public CartesianChart Chart { get; } = new();
-    private ColumnSeries<double> Bar = new() { Name = "工时" };
-    private Axis XAxis = new() { Name = "项目" };
+    public AvaPlot Chart { get; } = new();
 
     [RelayCommand]
     private Task Refresh()
@@ -287,8 +279,17 @@ public partial class StatisticsTabData : ObservableObject
     private void ApplySnapshot(StatisticsSnapshot snapshot)
     {
         StatisticsTotal = snapshot.Total;
-        Bar.Values = snapshot.Times;
-        XAxis.Labels = snapshot.Labels;
+        Chart.Plot.Clear();
+        Chart.Plot.Add.Bars(snapshot.Times.ToArray());
+        var ticks = new NumericManual();
+        for (var index = 0; index < snapshot.Labels.Count; index++)
+        {
+            ticks.AddMajor(index, snapshot.Labels[index]);
+        }
+        Chart.Plot.Axes.Bottom.TickGenerator = ticks;
+        Chart.Plot.Axes.Margins(bottom: 0, top: 0.1);
+        Chart.Plot.Axes.AutoScale();
+        Chart.Refresh();
         _timeDetails.Items = snapshot.Details;
         TimeDetails.ExpandAll();
     }

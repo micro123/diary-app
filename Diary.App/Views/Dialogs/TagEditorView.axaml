@@ -53,7 +53,7 @@
                     <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="6">
                         <TextBox Name="TagNameInput"
                                  Text="{Binding NewTagName}"
-                                 Watermark="输入标签名称"
+                                 PlaceholderText="输入标签名称"
                                  Classes="ClearButton" />
                         <Button Name="AddTagButton"
                                 Grid.Column="1"
@@ -223,10 +223,10 @@
                                             <Grid ColumnDefinitions="180,*,Auto"
                                                   ColumnSpacing="8"
                                                   Margin="0 0 0 8">
-                                                <TextBox Text="{Binding Key}" Watermark="键" />
+                                                <TextBox Text="{Binding Key}" PlaceholderText="键" />
                                                 <TextBox Grid.Column="1"
                                                          Text="{Binding Value}"
-                                                         Watermark="值" />
+                                                         PlaceholderText="值" />
                                                 <Button Grid.Column="2"
                                                         ToolTip.Tip="删除元数据"
                                                         i:Attached.Icon="fa-trash-can"

@@ -11,7 +11,7 @@
         <Border Classes="WorkspaceToolbar" DockPanel.Dock="Top">
             <Grid RowDefinitions="Auto,Auto" RowSpacing="8">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                    <TextBox Text="{Binding SearchTerm}" Watermark="输入搜索关键字，Enter键搜索。">
+                    <TextBox Text="{Binding SearchTerm}" PlaceholderText="输入搜索关键字，Enter键搜索。">
                         <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding SearchCommand}" /></TextBox.KeyBindings>
                     </TextBox>
                     <Button Grid.Column="1" Classes="Primary" Content="搜索" Command="{Binding SearchCommand}" />

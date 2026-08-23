@@ -571,7 +571,7 @@ public partial class SurveyViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanViewCapabilities))]
     private async Task ViewCapabilities()
     {
-        await OverlayDialog.ShowCustomModal<object>(
+        await OverlayDialog.ShowCustomAsync<object>(
             new SurveyCapabilitiesViewModel(PeerCapabilities, CapabilityStatus),
             options: new OverlayDialogOptions
             {

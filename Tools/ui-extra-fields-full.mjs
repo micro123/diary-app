@@ -119,7 +119,7 @@ async function openSettingsText(connection, text, expectedType) {
     }
     if (!menu)
         throw lastError;
-    await connection.clickNode(menu.value.label);
+    await activateControl(connection, menu.value.item);
     return connection.waitForTree(tree => rootOf(tree, expectedType), 10000,
         '对话框未出现：' + expectedType);
 }

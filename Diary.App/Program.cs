@@ -3,9 +3,9 @@ using Diary.App.Diagnostics;
 using Diary.Core.Constants;
 using Diary.GUIBase.Utils;
 using Diary.Utils;
-using Projektanker.Icons.Avalonia;
-using Projektanker.Icons.Avalonia.FontAwesome;
-using Projektanker.Icons.Avalonia.MaterialDesign;
+using Optris.Icons.Avalonia;
+using Optris.Icons.Avalonia.FontAwesome;
+using Optris.Icons.Avalonia.MaterialDesign;
 
 namespace Diary.App
 {

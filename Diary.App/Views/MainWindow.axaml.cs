@@ -13,7 +13,6 @@ namespace Diary.App.Views
     {
         private ThemeVariantScope? _titleBarScope = null;
         private ThemeVariantScope? _statusBarScope = null;
-
         public MainWindow()
         {
             InitializeComponent();
@@ -43,6 +42,16 @@ namespace Diary.App.Views
             SyncBarsTheme();
         }
 
+        private void OnThemeToggleButtonClick(object? sender, RoutedEventArgs e)
+        {
+            if (Avalonia.Application.Current is not { } application)
+                return;
+
+            application.RequestedThemeVariant = application.ActualThemeVariant == ThemeVariant.Dark
+                ? ThemeVariant.Light
+                : ThemeVariant.Dark;
+        }
+
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             SyncBarsTheme();
@@ -52,10 +61,11 @@ namespace Diary.App.Views
 
         private void SyncBarsTheme()
         {
+            var barTheme = ActualThemeVariant == ThemeVariant.Dark ? ThemeVariant.Light : ThemeVariant.Dark;
             var t = _titleBarScope ??= GetThemeScopeOf<TitleBar>();
             var s = _statusBarScope ??= GetThemeScopeOf<StatusBarView>();
-            t!.RequestedThemeVariant = ActualThemeVariant == ThemeVariant.Dark ? ThemeVariant.Light : ThemeVariant.Dark;
-            s!.RequestedThemeVariant = ActualThemeVariant == ThemeVariant.Dark ? ThemeVariant.Light : ThemeVariant.Dark;
+            t!.RequestedThemeVariant = barTheme;
+            s!.RequestedThemeVariant = barTheme;
         }
 
         private ThemeVariantScope? GetThemeScopeOf<T>() where T : Control

@@ -240,7 +240,7 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
             var preview = await _tagSharePackageService.PreviewImportAsync(file.Path.LocalPath, database);
             var dialog = new TagShareImportDialogViewModel();
             dialog.Initialize(preview, RuleContributions);
-            var selection = await OverlayDialog.ShowCustomModal<TagShareImportSelection>(
+            var selection = await OverlayDialog.ShowCustomAsync<TagShareImportSelection>(
                 dialog,
                 options: new OverlayDialogOptions
                 {
@@ -311,7 +311,7 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
 
         var draft = field?.Clone() ?? new EditableTagExtraField(tag.Id);
         var editor = new TagExtraFieldEditorViewModel(draft);
-        var accepted = await OverlayDialog.ShowCustomModal<bool>(
+        var accepted = await OverlayDialog.ShowCustomAsync<bool>(
             editor,
             options: new OverlayDialogOptions
             {

@@ -54,7 +54,7 @@ public sealed class AppFileInteractionScriptApi(
         using var registration = cancellationToken.Register(() => Dispatcher.UIThread.Post(vm.Abort));
         var result = await Dispatcher.UIThread.InvokeAsync(async () =>
         {
-            var value = await OverlayDialog.ShowCustomModal<OptionDialogResult>(vm, options: new OverlayDialogOptions
+            var value = await OverlayDialog.ShowCustomAsync<OptionDialogResult>(vm, options: new OverlayDialogOptions
             {
                 Title = request.Title,
                 CanDragMove = false,

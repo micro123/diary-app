@@ -147,9 +147,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 };
 
                 if (m.Value.Modal)
-                    await OverlayDialog.ShowModal<StandardMessageView, StandardMessageViewModel>(vm, options: options);
+                    await OverlayDialog.ShowStandardAsync<StandardMessageView, StandardMessageViewModel>(vm, options: options);
                 else
-                    OverlayDialog.Show<StandardMessageView, StandardMessageViewModel>(vm, options: options);
+                    OverlayDialog.ShowStandard<StandardMessageView, StandardMessageViewModel>(vm, options: options);
             }, "通知对话框");
         });
 
@@ -162,7 +162,7 @@ public partial class MainWindowViewModel : ViewModelBase
             var result = await Dispatcher.UIThread.InvokeAsync(async () =>
             {
                 var req = m.Request;
-                var result = await MessageBox.ShowOverlayAsync(req.Message, req.Title, icon: MessageBoxIcon.Question,
+                var result = await OverlayMessageBox.ShowAsync(req.Message, req.Title, icon: MessageBoxIcon.Question,
                     button: MessageBoxButton.YesNo);
                 return result == MessageBoxResult.Yes;
             });
@@ -182,7 +182,7 @@ public partial class MainWindowViewModel : ViewModelBase
         PostUiAsync(async () =>
         {
             var viewModel = _serviceProvider.GetRequiredService<OnboardingViewModel>();
-            var result = await OverlayDialog.ShowCustomModal<OnboardingAction>(viewModel, options: new OverlayDialogOptions
+            var result = await OverlayDialog.ShowCustomAsync<OnboardingAction>(viewModel, options: new OverlayDialogOptions
             {
                 CanDragMove = false,
                 CanResize = false,
@@ -286,7 +286,7 @@ public partial class MainWindowViewModel : ViewModelBase
                         targetFactory.Name, dbConfig.GetType().FullName);
                     var oldDbConfig = JObject.FromObject(dbConfig);
                     vm.InitSettings("数据库设置", dbConfig);
-                    bool result = await OverlayDialog.ShowCustomModal<bool>(vm, options: options);
+                    bool result = await OverlayDialog.ShowCustomAsync<bool>(vm, options: options);
                     _logger.LogInformation("db settings updated: {result}", result);
                     if (result)
                     {
@@ -327,7 +327,7 @@ public partial class MainWindowViewModel : ViewModelBase
                         IsCloseButtonVisible = false,
                     };
                     var vm = _serviceProvider.GetRequiredService<DbMigrationViewModel>();
-                    bool result = await OverlayDialog.ShowCustomModal<bool>(vm, options: options);
+                    bool result = await OverlayDialog.ShowCustomAsync<bool>(vm, options: options);
                     _logger.LogInformation("migration result is: {result}", result);
                     if (result)
                         EventDispatcher.DbChanged();
@@ -351,7 +351,7 @@ public partial class MainWindowViewModel : ViewModelBase
                         IsCloseButtonVisible = false,
                     };
                     var vm = _serviceProvider.GetRequiredService<TagEditorViewModel>();
-                    await OverlayDialog.ShowCustomModal<object>(vm, options: options);
+                    await OverlayDialog.ShowCustomAsync<object>(vm, options: options);
                 }, "编辑工作标签");
                 return;
             case CommandNames.EditWorkTemplates:
@@ -372,7 +372,7 @@ public partial class MainWindowViewModel : ViewModelBase
                         IsCloseButtonVisible = false,
                     };
                     var vm = _serviceProvider.GetRequiredService<TemplateEditorViewModel>();
-                    await OverlayDialog.ShowCustomModal<object>(vm, options: options);
+                    await OverlayDialog.ShowCustomAsync<object>(vm, options: options);
                 }, "编辑工作模板");
                 return;
             case CommandNames.RaiseMainWindow:
@@ -577,7 +577,7 @@ public partial class MainWindowViewModel : ViewModelBase
         var restoreSafetyMessage = string.Equals(validation.ProviderName, "PostgreSQL", StringComparison.Ordinal)
             ? "PostgreSQL 还原只允许写入不存在或不包含 DiaryApp 已知表的目标数据库，不会覆盖当前数据库。"
             : "当前数据库会先生成安全副本，还原将在下次启动时执行。";
-        var confirmed = await MessageBox.ShowOverlayAsync(
+        var confirmed = await OverlayMessageBox.ShowAsync(
             $"将还原 {validation.ProviderName} 数据库" +
             (validation.DataVersion == 0
                 ? "。备份数据版本将在还原后的启动检查中确认。"
@@ -719,7 +719,7 @@ public partial class MainWindowViewModel : ViewModelBase
             CanLightDismiss = true,
             IsCloseButtonVisible = true,
         };
-        OverlayDialog.Show(_serviceProvider.GetRequiredService<AboutViewModel>(), null, options);
+        OverlayDialog.ShowStandard(_serviceProvider.GetRequiredService<AboutViewModel>(), null, options);
     }
 
     [RelayCommand]
@@ -765,7 +765,7 @@ public partial class MainWindowViewModel : ViewModelBase
             var preview = await sharePackageService.InspectAsync(file.Path.LocalPath, scriptRoot, existing);
             var dialog = _serviceProvider.GetRequiredService<ScriptShareImportDialogViewModel>();
             dialog.Initialize(preview);
-            var selection = await OverlayDialog.ShowCustomModal<ScriptShareImportSelection>(
+            var selection = await OverlayDialog.ShowCustomAsync<ScriptShareImportSelection>(
                 dialog,
                 options: new OverlayDialogOptions
                 {
@@ -819,7 +819,7 @@ public partial class MainWindowViewModel : ViewModelBase
         PostUiAsync(async () =>
         {
             var viewModel = _serviceProvider.GetRequiredService<SettingsViewModel>();
-            await OverlayDialog.ShowCustomModal<object>(viewModel, options: new OverlayDialogOptions
+            await OverlayDialog.ShowCustomAsync<object>(viewModel, options: new OverlayDialogOptions
             {
                 CanDragMove = false,
                 CanResize = true,
@@ -835,7 +835,7 @@ public partial class MainWindowViewModel : ViewModelBase
         PostUiAsync(async () =>
         {
             var viewModel = _serviceProvider.GetRequiredService<ExportTemplateManagerViewModel>();
-            await OverlayDialog.ShowCustomModal<object>(viewModel, options: new OverlayDialogOptions
+            await OverlayDialog.ShowCustomAsync<object>(viewModel, options: new OverlayDialogOptions
             {
                 CanDragMove = false,
                 CanResize = true,
@@ -851,7 +851,7 @@ public partial class MainWindowViewModel : ViewModelBase
         PostUiAsync(async () =>
         {
             var viewModel = _serviceProvider.GetRequiredService<TrackerSettingsDialogViewModel>();
-            await OverlayDialog.ShowCustomModal<object>(viewModel, options: new OverlayDialogOptions
+            await OverlayDialog.ShowCustomAsync<object>(viewModel, options: new OverlayDialogOptions
             {
                 CanDragMove = false,
                 CanResize = true,

@@ -53,7 +53,7 @@
                 <TextBox Name="WorkTimeInput" Grid.Column="0" Width="220"
                          HorizontalAlignment="Left" HorizontalContentAlignment="Right"
                          Text="{Binding TimeInput}"
-                         Watermark="例如 1.5、30m、1h30m"
+                         PlaceholderText="例如 1.5、30m、1h30m"
                          ToolTip.Tip="支持数字小时、分钟和小时写法，最多 24 小时；按 Enter 或移开焦点应用，按 Esc 恢复"
                          LostFocus="OnWorkTimeInputLostFocus">
                     <TextBox.KeyBindings>

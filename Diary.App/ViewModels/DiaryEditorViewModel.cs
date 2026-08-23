@@ -272,7 +272,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         if (!PrepareSelectedWorkForReplacement())
             return;
 
-        var selection = await OverlayDialog.ShowCustomModal<CopyDaySelection>(
+        var selection = await OverlayDialog.ShowCustomAsync<CopyDaySelection>(
             new CopyDayViewModel(CurrentDate),
             options: new OverlayDialogOptions
             {
@@ -454,7 +454,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         }
 
         var preview = new BatchUploadPreviewViewModel(DailyWorks);
-        var selection = await OverlayDialog.ShowCustomModal<BatchUploadSelection>(
+        var selection = await OverlayDialog.ShowCustomAsync<BatchUploadSelection>(
             preview,
             options: new OverlayDialogOptions
             {

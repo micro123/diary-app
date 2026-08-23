@@ -28,7 +28,7 @@ public sealed class WorkEditorViewModelTests
     }
 
     [ClassCleanup]
-    public static void Cleanup() => _session.Dispose();
+    public static async Task Cleanup() => await _session.DisposeAsync();
 
     [TestMethod]
     public async Task UploadFromBackgroundThreadUpdatesResultsOnUiThread()

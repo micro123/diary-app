@@ -2,7 +2,7 @@
 
 ## 1. 范围与状态
 
-本矩阵以 2026-08-22 的 [`UiFeatureInventory.md`](UiFeatureInventory.md) 为功能基准，记录 Windows UI 自动化、单元/集成验证和必须保留的人工边界。它描述的是可重复验证证据，不表示每个页面的每条异常分支都已通过 UI 自动化穷举。
+本矩阵以 2026-08-23 的 [`UiFeatureInventory.md`](UiFeatureInventory.md) 为功能基准，记录 Windows/Linux UI 自动化、单元/集成验证和必须保留的人工边界。它描述的是可重复验证证据，不表示每个页面的每条异常分支都已通过 UI 自动化穷举。
 
 状态统一为：
 
@@ -15,7 +15,7 @@
 | `Blocked-External` | 缺少可纳入当前门禁的外部服务、权限或版本矩阵 |
 | `Not-Implemented` | 功能清单明确记录为尚未实现 |
 
-最近 Windows 全量证据为 `ui-full-test-2026-08-22T06-09-21-453Z.json`：9/9 套件、当时定义的 72/72 结构化步骤通过，另有 smoke 断言集通过。新增 AI 上下文和程序设置 MCP 配置步骤后，当前 8 个结构化套件合计 74 步；Linux X11 已单独验证 `ui-extended-full` 11/11。运行方法和性能数据见 [`UiAutomationTesting.md`](UiAutomationTesting.md)。
+Avalonia 12 迁移后的最近 Windows 全量证据为 `ui-full-test-2026-08-23T14-24-51-233Z.json`：8 个无外部依赖套件全部通过，共 62 个结构化步骤加 smoke；标题栏命中修复后的定向证据为全新 profile `ui-core-full-2026-08-23T15-59-13-109Z.json`，14/14 通过。应用级主题切换由 smoke 主内容亮度变化覆盖；独立 `WindowDrawnDecorations` 不包含在 CDP 页面截图中，150% DPI 冷启动原生截图确认其与反色标题栏仍存在主题不一致，作为已知兼容项跟踪。`ui-redmine-full` 因未提供加密 seed profile 为 `Blocked-External`。Linux WSLg 原生 X11 已验证 core 14/14 和全新 profile smoke。2026-08-22 的 9/9、72/72 报告仍作为带外部 Redmine 环境的历史完整基线。运行方法和性能数据见 [`UiAutomationTesting.md`](UiAutomationTesting.md)。
 
 ## 2. 套件到功能映射
 
@@ -39,9 +39,10 @@
 | 清单 | 功能 | 状态 | 证据或边界 |
 | --- | --- | --- | --- |
 | 2.1 | 固定页、动态 Tracker 页、导航折叠、`Alt+1..9` | `Automated` | core 验证页面切换、折叠和数字快捷键；Redmine 验证动态导航 |
-| 2.2 | 应用菜单、关于、版本、主题 | `Automated` | core 验证菜单和关于；smoke 验证主题截图差异；复制版本明细仅结构检查 |
+| 2.2 | 应用图标菜单、版本菜单、设置菜单、关于、主题 | `Automated + Manual-Native` | core 通过真实鼠标事件依次打开三组标题栏菜单并验证内容，不使用键盘激活兜底；smoke 点击外层主题按钮并验证主内容平均亮度显著变化，避免仅标题栏或焦点变化造成误判；独立窗口装饰不在 CDP 页面截图内，原生截图确认其与反色标题栏仍存在已知主题差异；复制版本明细仅结构检查 |
 | 2.2 | 发布版用户手册入口 | `Unit/Integration` | 服务测试覆盖 Debug/Release 判定、HTML 优先和 PDF 回退；窗口测试检查命令/可见性绑定；Debug core 确认菜单隐藏；Tag/手动发布包校验强制要求 HTML/PDF。系统默认浏览器或 PDF 阅读器打开行为保留原生人工检查 |
-| 2.2 | 最大化、最小化、重启、退出 | `Manual-Native` | 涉及原生窗口/进程生命周期，未纳入连续套件 |
+| 2.2 | 应用菜单最大化、最小化、退出 | `Automated` | Avalonia 12 迁移验证通过 CDP 激活，并以 Win32 `showCmd` 和进程退出结果交叉确认 |
+| 2.2 | 标题栏真实拖动、双击还原/最大化、重启和多显示器窗口行为 | `Manual-Native` | 依赖操作系统物理指针、桌面前台或完整进程生命周期，不由当前 CDP 合成输入可靠控制 |
 | 2.3 | 托盘显示、恢复和退出 | `Manual-Native` | Avalonia CDP 不控制系统托盘 |
 | 2.4 | 状态栏日期、机器、用户和入口 | `Automated-ReadOnly` | core 读取状态栏结构和版本；不打开外部浏览器 |
 | 2.4 | 后台任务进度预览 | `Not-Implemented` | 当前只有状态占位和入口 |
@@ -159,7 +160,7 @@
 即使全量 CDP 套件通过，发布前仍需按风险执行以下检查：
 
 1. Windows 托盘显示、隐藏、恢复和退出。
-2. 最大化、最小化、重启和多显示器窗口行为。
+2. 标题栏真实拖动、双击最大化/还原、重启和多显示器窗口行为；应用菜单最大化、最小化和退出已有自动化证据。
 3. 文件/目录选择器、剪贴板和系统默认程序打开。
 4. SQLite/PostgreSQL 真实备份、还原、工具发现和取消。
 5. Release 包内容检查，确认没有 CDP 调试程序集和监听入口，并确认应用菜单可通过系统默认程序打开随包 HTML 用户手册。
@@ -167,4 +168,4 @@
 
 ## 5. 日期说明
 
-本轮基准日期和系统日期均为 2026-08-22，隔离 profile 目录名中的 `20260822` 与实际日期一致。测试未修改系统时钟。
+本轮 Avalonia 12 迁移基准日期为 2026-08-23；报告文件使用 UTC 时间戳，隔离 profile 不修改系统时钟。

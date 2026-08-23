@@ -12,9 +12,9 @@
         <ScrollViewer Grid.Row="1">
             <StackPanel Spacing="12">
                 <TextBlock Text="脚本名称" />
-                <TextBox Text="{Binding Name, Mode=TwoWay}" Watermark="例如：每日摘要" />
+                <TextBox Text="{Binding Name, Mode=TwoWay}" PlaceholderText="例如：每日摘要" />
                 <TextBlock Text="稳定 ID" />
-                <TextBox Text="{Binding Id, Mode=TwoWay}" Watermark="例如：daily-summary" />
+                <TextBox Text="{Binding Id, Mode=TwoWay}" PlaceholderText="例如：daily-summary" />
                 <TextBlock Text="只允许字母、数字、点、短横线和下划线，长度为 2-64 个字符且以字母开头。" FontSize="12" Opacity="0.6" />
                 <TextBlock Text="脚本类型" />
                 <ComboBox ItemsSource="{Binding Scopes}" SelectedItem="{Binding SelectedScope, Mode=TwoWay}" />
@@ -26,7 +26,7 @@
                 <TextBox Text="{Binding Description, Mode=TwoWay}" AcceptsReturn="True" TextWrapping="Wrap" Height="70" />
                 <StackPanel Spacing="4" IsVisible="{Binding IsAutomationTemplate}">
                     <TextBlock Text="调度时间" />
-                    <TextBox Text="{Binding ScheduleText, Mode=TwoWay}" Watermark="daily 09:00" />
+                    <TextBox Text="{Binding ScheduleText, Mode=TwoWay}" PlaceholderText="daily 09:00" />
                     <TextBlock Text="格式 daily HH:mm，例如 daily 09:00；留空时请勾选启动补跑或至少一个事件触发。" FontSize="12" Opacity="0.6" />
                     <CheckBox Content="应用启动后补跑一轮" IsChecked="{Binding RunOnStartup, Mode=TwoWay}" />
                     <TextBlock Text="事件触发" />

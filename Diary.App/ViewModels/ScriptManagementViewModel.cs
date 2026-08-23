@@ -458,7 +458,7 @@ public partial class ScriptManagementViewModel(
             return;
         var runDialog = services.GetRequiredService<ScriptRunDialogViewModel>();
         runDialog.Initialize(script.Name, script.Metadata);
-        var options = await OverlayDialog.ShowCustomModal<ScriptRunOptions>(
+        var options = await OverlayDialog.ShowCustomAsync<ScriptRunOptions>(
             runDialog,
             options: new OverlayDialogOptions
             {
@@ -632,7 +632,7 @@ public partial class ScriptManagementViewModel(
     {
         var dialog = services.GetRequiredService<ScriptShareExportDialogViewModel>();
         dialog.Initialize(Scripts);
-        var selection = await OverlayDialog.ShowCustomModal<ScriptShareExportSelection>(
+        var selection = await OverlayDialog.ShowCustomAsync<ScriptShareExportSelection>(
             dialog,
             options: new OverlayDialogOptions
             {
@@ -729,7 +729,7 @@ public partial class ScriptManagementViewModel(
             CanLightDismiss = false,
             IsCloseButtonVisible = false,
         };
-        var sourcePath = await OverlayDialog.ShowCustomModal<string>(viewModel, options: options);
+        var sourcePath = await OverlayDialog.ShowCustomAsync<string>(viewModel, options: options);
         if (!string.IsNullOrWhiteSpace(sourcePath))
         {
             Status = "脚本已创建，正在重新加载";

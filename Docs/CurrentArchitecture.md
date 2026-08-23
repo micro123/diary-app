@@ -6,6 +6,8 @@
 代码基线：当前工作区源码。tracker 插件实例和 UI 贡献已具备通用注册链路，Redmine 已开启多实例支持。
 完整的当前 UI 页面、操作入口、条件可见状态和自动化覆盖清单见 [`UiFeatureInventory.md`](UiFeatureInventory.md)。
 
+当前 UI 运行时基线为 .NET 10 + Avalonia 12.1.1。Semi 12.1.0.1 和 Ursa 2.2.0 提供主题、窗口与 Overlay；Optris 12.0.7 提供兼容图标；统计柱状图由 ScottPlot.Avalonia 5.1.59 渲染。项目不再引用 Avalonia 11、LiveCharts、Projektanker、旧 `Avalonia.Diagnostics` 或直接锁定的 SkiaSharp 2.88.9。迁移决策和验证证据见 [`Avalonia12MigrationAssessment.md`](Avalonia12MigrationAssessment.md)。
+
 当前架构的核心目标是：核心日记功能不依赖 Redmine；Redmine 通过插件契约、可选 UI 和数据库扩展接入；插件数据库可以独立迁移。
 
 ## 2. 总体结构
@@ -178,7 +180,7 @@ stop
 
 核心模式可通过 `Diary.App --core-only` 启动，不加载任何 tracker 插件或插件 UI，适合验证无 Redmine 程序集时的核心日记、编辑器和模板功能。该选项只影响当前进程，不修改插件配置和数据库数据。
 
-Debug 构建还提供显式启用的本地 UI 自动化入口：设置 `DIARY_CDP_PORT` 后由 `DebugUiAutomation` 在主窗口创建完成时启动 Avalonia CDP；设置 `DIARY_UI_TEST_ROOT` 时，`FsTools` 会在任何应用目录初始化前把配置、数据、日志和临时目录切换到独立 profile，并按 profile 路径生成独立单实例 ID。`DIARY_UI_TEST_SCENARIO` 支持 `default`、`extended`、`survey`、`database-error`、`extra-fields` 和 `plugins` 六种隔离场景，只在测试 profile 中预置开发者、调查、附加字段或数据库异常配置；`Tools/ui-full-test.ps1` 按场景编排 9 个 UI 套件，外部 Redmine 配置仅从加密 seed profile 复制。相关包引用、启动和停止代码均受 Debug 条件限制，Release 构建不携带该调试入口。测试生命周期和性能基线见 [`UiAutomationTesting.md`](UiAutomationTesting.md)，功能级状态见 [`UiAutomationCoverage.md`](UiAutomationCoverage.md)。
+Debug 构建还通过 `Chrome.DevTools.Avalonia 0.1.0-preview.34` 提供显式启用的本地 UI 自动化入口：设置 `DIARY_CDP_PORT` 后由 `DebugUiAutomation` 在主窗口创建完成时启动 Avalonia CDP；设置 `DIARY_UI_TEST_ROOT` 时，`FsTools` 会在任何应用目录初始化前把配置、数据、日志和临时目录切换到独立 profile，并按 profile 路径生成独立单实例 ID。`DIARY_UI_TEST_SCENARIO` 支持 `default`、`extended`、`survey`、`database-error`、`extra-fields` 和 `plugins` 六种隔离场景，只在测试 profile 中预置开发者、调查、附加字段或数据库异常配置；`Tools/ui-full-test.ps1` 按场景编排 9 个 UI 套件，外部 Redmine 配置仅从加密 seed profile 复制。相关包引用、启动和停止代码均受 Debug 条件限制，Release 构建不携带该调试入口。测试生命周期和性能基线见 [`UiAutomationTesting.md`](UiAutomationTesting.md)，功能级状态见 [`UiAutomationCoverage.md`](UiAutomationCoverage.md)。
 主窗口左上角应用图标菜单提供“重启程序”。命令先标记重启请求并复用正常退出流程，等待 `PreShutdownAsync` 停止调查服务、脚本 Worker、保存配置并释放 DI；`Program.Main` 在 Avalonia 生命周期返回且 `SingletonApp` 释放文件锁和命名管道后，才以原可执行文件和命令行参数启动新实例，避免新实例被单实例守卫拦截。框架依赖方式通过 `dotnet Diary.App.dll` 启动时会保留托管入口程序集参数。
 
 退出清理由 `RetryableAsyncOperation` 合并并发请求；清理失败时会释放失败任务，用户再次退出可重新执行，不会被永久 faulted 的任务锁住。UI Dispatcher 的全局异常处理只将 `DbException` 视为可恢复连接错误并继续运行；其他未处理异常仅记录后交回框架终止路径，由 CrashDump 流程保留诊断，避免把未知状态下的程序强行维持运行。
@@ -190,7 +192,7 @@ Debug 构建还提供显式启用的本地 UI 自动化入口：设置 `DIARY_CD
 
 工作项上传的远程协调可以从后台线程执行，但 `WorkEditorViewModel.Upload()` 完成后统一通过 Avalonia UI Dispatcher 更新 `UploadResults`、锁定状态和状态绑定，避免后台线程直接修改绑定集合。
 
-统计页刷新先在 UI 线程捕获日期和“占比计算基准”，后台只查询并构造不可变快照，最后回到 UI Dispatcher 原子更新总计、图表和树表。刷新请求使用递增 generation 且数据库查询串行化；旧请求即使较晚完成也不会覆盖较新的筛选结果。
+统计页刷新先在 UI 线程捕获日期和“占比计算基准”，后台只查询并构造不可变快照，最后回到 UI Dispatcher 原子更新总计、ScottPlot 柱状图和 TreeDataGrid 树表。刷新请求使用递增 generation 且数据库查询串行化；旧请求即使较晚完成也不会覆盖较新的筛选结果。
 
 事件记录页的 `DailyWorks` 使用统一的优先级、ID 排序规则：`WorkPriorities` 升序后按持久化工作项 ID 升序。日期加载、复制新增和每次工作项保存后都会重排；重排使用 `ObservableCollection.Move()`，避免通过清空集合破坏当前选中项，并在移动期间抑制由选择变化触发的重复保存。日期加载会按当日工作项 ID 批量读取附加字段，并把结果随备注、标签和 Tracker 绑定一起注入编辑器，避免每条事项重复执行附加字段查询。Redmine/Jira 编辑器直接复用数据仓库维护的开放 Issue/活动只读列表；只有历史绑定指向已关闭或缺失项时，才为该编辑器创建带失效占位项的局部列表，避免富数据日期切换时为每条事项重复复制全部 Tracker 选项。工作项克隆会先以空事项加载目标 Tracker 扩展的选项，再按用途决定是否复制选择：普通“重复当前事项”保留 Tracker 设置；跨日期复制仅复制本地字段、标签和附加字段，并绕过标签默认值自动化，确保不会创建 Tracker 本地绑定。
 

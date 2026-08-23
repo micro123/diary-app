@@ -174,7 +174,7 @@ public partial class SettingsViewModel : ViewModelBase, IDialogContext
     [RelayCommand]
     private async Task Load()
     {
-        // var confirm = await MessageBox.ShowOverlayAsync(
+        // var confirm = await OverlayMessageBox.ShowAsync(
         //     message: "所做的所有更改均被丢弃",
         //     title: "确认执行吗？",
         //     icon: MessageBoxIcon.Warning,

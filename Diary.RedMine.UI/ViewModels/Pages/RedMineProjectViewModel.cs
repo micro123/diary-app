@@ -49,7 +49,7 @@ public partial class RedMineProjectViewModel : PaginatedSearchViewModel<ProjectI
         var finished = false;
         do
         {
-            var result = await OverlayDialog.ShowModal<NewIssueView, NewIssueViewModel>(vm: viewModel, options: options);
+            var result = await OverlayDialog.ShowStandardAsync<NewIssueView, NewIssueViewModel>(vm: viewModel, options: options);
             if (result != DialogResult.OK)
             {
                 finished = true;

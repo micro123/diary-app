@@ -1,33 +1,33 @@
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using System.Reflection;
 using Avalonia.Media;
 using Avalonia.Media.Fonts;
-using Avalonia.Platform;
 
 namespace Diary.App.Fonts;
 
-internal sealed class UserFontCollection(byte[] fontData, string familyName) : IFontCollection
+internal sealed class UserFontCollection : IFontCollection
 {
-    private static readonly MethodInfo CreateGlyphTypefaceFromStreamMethod =
-        typeof(IFontManagerImpl).GetMethod(
-            "TryCreateGlyphTypeface",
-            [typeof(Stream), typeof(FontSimulations), typeof(IGlyphTypeface).MakeByRefType()])
-        ?? throw new MissingMethodException(
-            typeof(IFontManagerImpl).FullName,
-            "TryCreateGlyphTypeface(Stream, FontSimulations, out IGlyphTypeface)");
-
     private readonly Lock _syncRoot = new();
-    private readonly Dictionary<FontSimulations, FontEntry> _typefaces = [];
-    private IFontManagerImpl? _fontManager;
+    private readonly byte[] _fontData;
+    private RuntimeFontCollection? _inner;
     private bool _disposed;
+
+    public UserFontCollection(byte[] fontData, string familyName)
+    {
+        ArgumentNullException.ThrowIfNull(fontData);
+        if (string.IsNullOrWhiteSpace(familyName))
+            throw new ArgumentException("字体族名称不能为空。", nameof(familyName));
+
+        _fontData = fontData;
+        FamilyName = familyName;
+    }
 
     public static Uri CollectionKey { get; } = new("fonts:UserFont", UriKind.Absolute);
 
     public Uri Key => CollectionKey;
 
-    public string FamilyName { get; } = familyName;
+    public string FamilyName { get; }
 
     public int Count => 1;
 
@@ -35,31 +35,50 @@ internal sealed class UserFontCollection(byte[] fontData, string familyName) : I
         ? new FontFamily(Key, FamilyName)
         : throw new ArgumentOutOfRangeException(nameof(index));
 
-    public void Initialize(IFontManagerImpl fontManager)
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        _fontManager = fontManager;
-        if (!TryGetOrCreateTypeface(FontSimulations.None, out _))
-            throw new InvalidDataException($"无法加载字体文件中的字体族“{FamilyName}”。");
-    }
-
     public bool TryGetGlyphTypeface(
-        string requestedFamilyName,
+        string familyName,
         FontStyle style,
         FontWeight weight,
         FontStretch stretch,
-        [NotNullWhen(true)] out IGlyphTypeface? glyphTypeface)
+        [NotNullWhen(true)] out GlyphTypeface? glyphTypeface)
     {
         glyphTypeface = null;
-        if (!string.Equals(requestedFamilyName, FamilyName, StringComparison.OrdinalIgnoreCase))
-            return false;
+        return TryGetInner(out var inner)
+            && inner.TryGetGlyphTypeface(familyName, style, weight, stretch, out glyphTypeface);
+    }
 
-        var simulations = FontSimulations.None;
-        if (style != FontStyle.Normal)
-            simulations |= FontSimulations.Oblique;
-        if (weight >= FontWeight.SemiBold)
-            simulations |= FontSimulations.Bold;
-        return TryGetOrCreateTypeface(simulations, out glyphTypeface);
+    public bool TryGetFamilyTypefaces(
+        string familyName,
+        [NotNullWhen(true)] out IReadOnlyList<Typeface>? familyTypefaces)
+    {
+        familyTypefaces = null;
+        return TryGetInner(out var inner)
+            && inner.TryGetFamilyTypefaces(familyName, out familyTypefaces);
+    }
+
+    public bool TryCreateSyntheticGlyphTypeface(
+        GlyphTypeface glyphTypeface,
+        FontStyle style,
+        FontWeight weight,
+        FontStretch stretch,
+        [NotNullWhen(true)] out GlyphTypeface? syntheticGlyphTypeface)
+    {
+        syntheticGlyphTypeface = null;
+        return TryGetInner(out var inner)
+            && inner.TryCreateSyntheticGlyphTypeface(
+                glyphTypeface, style, weight, stretch, out syntheticGlyphTypeface);
+    }
+
+    public bool TryGetNearestMatch(
+        string familyName,
+        FontStyle style,
+        FontWeight weight,
+        FontStretch stretch,
+        [NotNullWhen(true)] out GlyphTypeface? glyphTypeface)
+    {
+        glyphTypeface = null;
+        return TryGetInner(out var inner)
+            && inner.TryGetNearestMatch(familyName, style, weight, stretch, out glyphTypeface);
     }
 
     public bool TryMatchCharacter(
@@ -72,19 +91,9 @@ internal sealed class UserFontCollection(byte[] fontData, string familyName) : I
         out Typeface typeface)
     {
         typeface = default;
-        if (!TryGetGlyphTypeface(
-                requestedFamilyName ?? FamilyName,
-                fontStyle,
-                fontWeight,
-                fontStretch,
-                out var glyphTypeface)
-            || !glyphTypeface.TryGetGlyph((uint)codepoint, out _))
-        {
-            return false;
-        }
-
-        typeface = new Typeface(new FontFamily(Key, FamilyName), fontStyle, fontWeight, fontStretch);
-        return true;
+        return TryGetInner(out var inner)
+            && inner.TryMatchCharacter(
+                codepoint, fontStyle, fontWeight, fontStretch, requestedFamilyName, culture, out typeface);
     }
 
     public IEnumerator<FontFamily> GetEnumerator()
@@ -102,48 +111,39 @@ internal sealed class UserFontCollection(byte[] fontData, string familyName) : I
                 return;
 
             _disposed = true;
-            foreach (var entry in _typefaces.Values)
-            {
-                entry.GlyphTypeface.Dispose();
-                entry.Stream.Dispose();
-            }
-            _typefaces.Clear();
+            if (_inner is not null)
+                ((IDisposable)_inner).Dispose();
+            _inner = null;
         }
     }
 
-    private bool TryGetOrCreateTypeface(
-        FontSimulations simulations,
-        [NotNullWhen(true)] out IGlyphTypeface? glyphTypeface)
+    private bool TryGetInner([NotNullWhen(true)] out RuntimeFontCollection? inner)
     {
         lock (_syncRoot)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            if (_typefaces.TryGetValue(simulations, out var existing))
+            if (_inner is not null)
             {
-                glyphTypeface = existing.GlyphTypeface;
+                inner = _inner;
                 return true;
             }
 
-            if (_fontManager is null)
-            {
-                glyphTypeface = null;
-                return false;
-            }
 
-            var stream = new MemoryStream(fontData, writable: false);
-            var arguments = new object?[] { stream, simulations, null };
-            var created = (bool)(CreateGlyphTypefaceFromStreamMethod.Invoke(_fontManager, arguments) ?? false);
-            glyphTypeface = arguments[2] as IGlyphTypeface;
-            if (!created || glyphTypeface is null)
-            {
-                stream.Dispose();
-                return false;
-            }
-
-            _typefaces.Add(simulations, new FontEntry(stream, glyphTypeface));
+            inner = _inner = new RuntimeFontCollection(Key, _fontData, FamilyName);
             return true;
         }
     }
 
-    private sealed record FontEntry(Stream Stream, IGlyphTypeface GlyphTypeface);
+    private sealed class RuntimeFontCollection : FontCollectionBase
+    {
+        public RuntimeFontCollection(Uri key, byte[] fontData, string familyName)
+        {
+            Key = key;
+            using var stream = new MemoryStream(fontData, writable: false);
+            if (!TryAddGlyphTypeface(stream, out var glyphTypeface) || glyphTypeface is null)
+                throw new InvalidDataException($"无法加载字体文件中的字体族“{familyName}”。");
+        }
+
+        public override Uri Key { get; }
+    }
 }

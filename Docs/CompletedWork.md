@@ -4,6 +4,14 @@
 
 本文件只记录完成结果，不作为当前待办列表。
 
+## 2026-08-23 Avalonia 12 迁移
+
+- [x] 将 Desktop/Headless、DataGrid、ColorPicker、Semi、Ursa、AvaloniaEdit、TreeDataGrid、SVG 和 Behaviors 统一迁移到 Avalonia 12；适配 Ursa 2.x、Placeholder、Clipboard、ContextRequested、字体集合及 Headless 异步释放 API。
+- [x] 使用 Optris 12.0.7 替换停止维护的 Projektanker 图标包，使用 ScottPlot.Avalonia 5.1.59 替换会混入 Avalonia 11/SkiaSharp 2.88 的 LiveCharts；现有柱状图、页面结构和用户交互保持不变。
+- [x] Debug CDP 迁移到 `Chrome.DevTools.Avalonia 0.1.0-preview.34`，修正 Avalonia 12 模板部件与焦点激活；Windows 8 个无外部依赖套件共 62 步加 smoke、Linux WSLg core 14/14 与 smoke 通过。
+- [x] 自定义标题栏改用 Avalonia 12 的 `ElementRole=TitleBar/User` 区分拖动区和交互区，修复左上角应用图标、版本号、主题及设置按钮被标题栏命中覆盖的问题；主题按钮显式切换应用级主题，避免 Ursa 2.2 只改变标题栏反色 scope。全新 profile 的 smoke 和 core 14/14 通过；独立 `WindowDrawnDecorations` 与反色标题栏的配色差异转入 `TODOS.md`。
+- [x] Debug/Release 构建和测试零失败，Windows/Linux Release 发布成功；发布依赖扫描确认不含 Avalonia 11、LiveCharts、Projektanker、SkiaSharp 2.88、Release CDP 或旧 Diagnostics。
+
 ## 2026-08-23 Worker 取消状态稳定性
 
 - [x] 取消宽限期超时后的强制回收结果增加 `WORKER_CANCEL_GRACE_EXPIRED` 警告，使 `Cancelled + Failed` 与无关 Worker 故障可区分。

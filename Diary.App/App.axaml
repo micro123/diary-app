@@ -167,7 +167,7 @@
 
     <Application.Styles>
         <semi:SemiTheme Locale="zh-CN" />
-        <u-semi:SemiTheme Locale="zh-CN" />
+        <semi:UrsaSemiTheme Locale="zh-CN" />
         <StyleInclude Source="avares://Diary.GUIBase/Resources/AppStyles.axaml"/>
         <StyleInclude Source="avares://Semi.Avalonia.ColorPicker/Index.axaml" />
         <StyleInclude Source="avares://Semi.Avalonia.DataGrid/Index.axaml" />

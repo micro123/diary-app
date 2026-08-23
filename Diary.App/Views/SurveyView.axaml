@@ -165,15 +165,15 @@
 
             <Border Grid.Row="2" Classes="SurveyCard" Padding="14"
                     IsVisible="{Binding IsExtendedQuery}">
-                <Expander Classes="SurveySection" Header="扩展查询条件（仅新版节点）">
+                <Expander Name="ExtendedConditionsExpander" Classes="SurveySection" Header="扩展查询条件（仅新版节点）">
                     <Grid ColumnDefinitions="Auto,*,Auto,*,Auto,*"
                           RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="10">
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="关键词" Classes="SurveyLabel" />
                         <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding ExtendedText}"
-                                 Watermark="事项标题或备注，可留空" />
+                                 PlaceholderText="事项标题或备注，可留空" />
                         <TextBlock Grid.Row="0" Grid.Column="2" Text="标签名" Classes="SurveyLabel" />
                         <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding ExtendedTagNames}"
-                                 Watermark="多个标签用逗号分隔" />
+                                 PlaceholderText="多个标签用逗号分隔" />
                         <TextBlock Grid.Row="0" Grid.Column="4" Text="标签模式" Classes="SurveyLabel" />
                         <ComboBox Grid.Row="0" Grid.Column="5" ItemsSource="{Binding ExtendedTagFilters}"
                                   SelectedIndex="{Binding ExtendedTagFilterIndex}" />
@@ -182,7 +182,7 @@
                         <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding ExtendedPriorities}"
                                   SelectedIndex="{Binding ExtendedPriorityIndex}" />
                         <TextBlock Grid.Row="1" Grid.Column="2" Text="分组维度" Classes="SurveyLabel" />
-                        <ComboBox Grid.Row="1" Grid.Column="3" ItemsSource="{Binding ExtendedGroupDimensions}"
+                        <ComboBox Name="SurveyGroupByInput" Grid.Row="1" Grid.Column="3" ItemsSource="{Binding ExtendedGroupDimensions}"
                                   SelectedIndex="{Binding ExtendedGroupByIndex}" />
                         <CheckBox Grid.Row="1" Grid.Column="4" Content="返回结果明细"
                                   IsChecked="{Binding ExtendedIncludeDetails}" />

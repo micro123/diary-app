@@ -11,7 +11,7 @@
         <Border Classes="WorkspaceToolbar" DockPanel.Dock="Top">
             <Grid RowDefinitions="Auto,Auto" RowSpacing="8">
                 <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
-                    <TextBox Text="{Binding SearchTerm}" Watermark="输入搜索词，Enter键按关键字搜索，Ctrl+Enter按问题ID搜索。">
+                    <TextBox Text="{Binding SearchTerm}" PlaceholderText="输入搜索词，Enter键按关键字搜索，Ctrl+Enter按问题ID搜索。">
                         <TextBox.KeyBindings>
                             <KeyBinding Gesture="Enter" Command="{Binding SearchCommand}"
                                         CommandParameter="{x:Static pages1:RedMineIssueManageViewModel.SearchByKeyword}" />

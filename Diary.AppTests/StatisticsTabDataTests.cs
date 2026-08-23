@@ -18,7 +18,7 @@ public sealed class StatisticsTabDataTests
     }
 
     [ClassCleanup]
-    public static void Cleanup() => _session.Dispose();
+    public static async Task Cleanup() => await _session.DisposeAsync();
 
     [TestMethod]
     public async Task ConcurrentRefresh_DoesNotLetOlderRequestOverwriteLatestResult()

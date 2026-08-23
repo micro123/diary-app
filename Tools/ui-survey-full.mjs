@@ -84,15 +84,13 @@ function comboBySelectedText(tree, root, selectedText) {
 
 async function expandExtendedConditions(connection) {
     const tree = await connection.getTree();
-    const root = rootOf(tree, 'SurveyView');
-    const header = textWithin(tree, root, '扩展查询条件（仅新版节点）');
-    assertUi(header, '扩展查询条件入口不可见');
-    const expander = ancestor(tree, header, entry => typeOf(entry).includes('Expander'));
+    const expander = named(tree, 'ExtendedConditionsExpander');
     assertUi(expander, '扩展查询条件缺少 Expander');
     const toggle = descendants(tree, expander).find(entry => isVisible(entry)
         && entry.a.Name === 'ExpanderHeader');
     assertUi(toggle, '扩展查询条件缺少展开按钮');
-    await connection.clickNode(toggle);
+    await connection.client.send('DOM.focus', { nodeId: toggle.nodeId });
+    await connection.pressKey(' ', 'Space', 32);
     await connection.waitForTree(current => {
         const currentRoot = rootOf(current, 'SurveyView');
         return textWithin(current, currentRoot, '关键词') && textWithin(current, currentRoot, '分组维度');
@@ -236,9 +234,9 @@ await runUiSuite({ name: 'ui-survey-full', scenario: 'survey', timeoutMs: 10000 
         for (const option of ['标签', '日期', '优先级']) {
             let tree = await connection.getTree();
             let root = rootOf(tree, 'SurveyView');
-            const currentOptions = ['标签', '日期', '优先级'];
-            const selected = currentOptions.find(text => comboBySelectedText(tree, root, text));
-            const groupCombo = selected ? comboBySelectedText(tree, root, selected) : null;
+            const groupCombo = named(tree, 'SurveyGroupByInput');
+            const selected = ['标签', '日期', '优先级'].find(text =>
+                descendants(tree, groupCombo).some(child => isVisible(child) && textOf(child) === text));
             assertUi(groupCombo, '找不到分组维度下拉框');
             if (selected !== option)
                 await selectComboOption(connection, groupCombo, option);

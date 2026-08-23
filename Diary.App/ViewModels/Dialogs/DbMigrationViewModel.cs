@@ -70,7 +70,7 @@ public partial class DbMigrationViewModel : ViewModelBase, IDialogContext
     [RelayCommand(CanExecute = nameof(CanWork))]
     private async Task DoMigrate()
     {
-        var ans = await MessageBox.ShowOverlayAsync("当前数据将全部丢失，要继续吗？", "操作确认",
+        var ans = await OverlayMessageBox.ShowAsync("当前数据将全部丢失，要继续吗？", "操作确认",
             icon: MessageBoxIcon.Warning,
             button: MessageBoxButton.YesNo);
         if (ans != MessageBoxResult.Yes)

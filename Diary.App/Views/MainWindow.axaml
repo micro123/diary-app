@@ -68,16 +68,16 @@
             <Setter Property="Template">
                 <ControlTemplate>
                     <ThemeVariantScope x:Name="TitleBarThemeScope">
-                        <Panel Background="{DynamicResource WindowDefaultBackground}">
-                            <u:WindowThumb Background="{TemplateBinding Background}" />
-                            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
-                                <ContentPresenter Grid.Column="0" Content="{TemplateBinding LeftContent}" />
-                                <ContentPresenter Grid.Column="1" IsHitTestVisible="{TemplateBinding IsHitTestVisible}"
-                                                  Content="{TemplateBinding Content}" />
-                                <ContentPresenter Grid.Column="2" Content="{TemplateBinding RightContent}" />
-                                <u:CaptionButtons Grid.Column="3" Name="PART_CaptionButtons" />
-                            </Grid>
-                        </Panel>
+                        <DockPanel Background="{DynamicResource WindowDefaultBackground}"
+                                   WindowDecorationProperties.ElementRole="TitleBar">
+                            <ContentPresenter Content="{TemplateBinding LeftContent}" DockPanel.Dock="Left"
+                                              WindowDecorationProperties.ElementRole="User" />
+                            <ContentPresenter Content="{TemplateBinding RightContent}" DockPanel.Dock="Right"
+                                              WindowDecorationProperties.ElementRole="User" />
+                            <ContentPresenter HorizontalAlignment="Stretch"
+                                              Content="{TemplateBinding CenterContent}"
+                                              WindowDecorationProperties.ElementRole="User" />
+                        </DockPanel>
                     </ThemeVariantScope>
                 </ControlTemplate>
             </Setter>
@@ -114,6 +114,7 @@
     <u:UrsaWindow.TitleBarContent>
         <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" Height="32" Margin="4 0" ColumnSpacing="0">
             <Button Name="ApplicationMenuButton" Grid.Column="0" Margin="0" Padding="0" BorderThickness="0"
+                    WindowDecorationProperties.ElementRole="User"
                     Background="Transparent">
                 <Image Source="/Assets/Icons/diary-app.ico" Width="32" Height="32" />
                 <Button.Flyout>
@@ -134,6 +135,7 @@
             <TextBlock Grid.Column="1" Text="{Binding $parent[u:UrsaWindow].Title}" FontSize="26" TextAlignment="Left"
                        VerticalAlignment="Center" IsHitTestVisible="False" FontWeight="Bold" />
             <Button Grid.Column="2" Content="{Binding VersionString}" IsEnabled="True"
+                    WindowDecorationProperties.ElementRole="User"
                     VerticalAlignment="Center" ToolTip.Tip="{Binding VersionDetails}"
                     Padding="16 4" ToolTip.ShowDelay="250" Classes="Flat Success" Name="Version">
                 <Button.Flyout>
@@ -145,8 +147,11 @@
                     </MenuFlyout>
                 </Button.Flyout>
             </Button>
-            <u:ThemeToggleButton Grid.Column="3" IsThreeState="False" Mode="Indicator" />
+            <u:ThemeToggleButton Name="ThemeToggleButton" Grid.Column="3" IsThreeState="False" Mode="Indicator"
+                                 WindowDecorationProperties.ElementRole="User"
+                                 Button.Click="OnThemeToggleButtonClick" />
             <Button Grid.Column="4" Name="SettingsMenuButton" Classes="Success ActionButton"
+                    WindowDecorationProperties.ElementRole="User"
                     Theme="{DynamicResource BorderlessButton}"
                     ToolTip.Tip="设置菜单" ToolTip.ShowDelay="250" Width="32" Height="32" Padding="0" BorderThickness="0"
                     Background="Transparent">

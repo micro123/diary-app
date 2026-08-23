@@ -14,9 +14,9 @@ using Diary.Core.Data.AppConfig;
 using Diary.Script.Runtime;
 using Diary.ScriptBase;
 using Microsoft.Extensions.Logging.Abstractions;
-using Projektanker.Icons.Avalonia;
-using Projektanker.Icons.Avalonia.FontAwesome;
-using Projektanker.Icons.Avalonia.MaterialDesign;
+using Optris.Icons.Avalonia;
+using Optris.Icons.Avalonia.FontAwesome;
+using Optris.Icons.Avalonia.MaterialDesign;
 
 namespace Diary.AppTests;
 
@@ -37,7 +37,7 @@ public sealed class ScriptEditorWindowTests
     }
 
     [ClassCleanup]
-    public static void Cleanup() => _session.Dispose();
+    public static async Task Cleanup() => await _session.DisposeAsync();
 
     [TestMethod]
     public async Task EditorWindow_SavesTextThroughBoundButtonCommand()
@@ -410,7 +410,7 @@ public sealed class ScriptEditorWindowTests
             {
                 var typeface = new Typeface(new FontFamily(resolved.DefaultFamilyName));
                 Assert.IsTrue(FontManager.Current.TryGetGlyphTypeface(typeface, out var glyphTypeface));
-                Assert.IsTrue(glyphTypeface.TryGetGlyph(0x4E2D, out _));
+                Assert.IsTrue(glyphTypeface.CharacterToGlyphMap.ContainsGlyph(0x4E2D));
             }
             finally
             {
@@ -465,7 +465,7 @@ public sealed class ScriptEditorWindowTests
                 Assert.AreEqual(applied.FontFamily, application.Resources[AppFontService.ResourceKey]);
                 var typeface = new Typeface(applied.FontFamily);
                 Assert.IsTrue(FontManager.Current.TryGetGlyphTypeface(typeface, out var glyphTypeface));
-                Assert.IsTrue(glyphTypeface.TryGetGlyph(0x4E2D, out _));
+                Assert.IsTrue(glyphTypeface.CharacterToGlyphMap.ContainsGlyph(0x4E2D));
 
                 var fallback = service.Apply(application, new ViewConfig
                 {

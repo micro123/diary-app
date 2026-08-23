@@ -36,26 +36,26 @@
                                                              IsVisible="{Binding UsesTextEditor}"
                                                              Text="{Binding Value, Mode=TwoWay}"
                                                              IsReadOnly="{Binding IsReadOnly}"
-                                                             Watermark="{Binding FieldKey}" />
+                                                             PlaceholderText="{Binding FieldKey}" />
                                                     <TextBox Name="WorkExtraMultilineInput"
                                                              IsVisible="{Binding UsesMultilineTextEditor}"
                                                              Text="{Binding Value, Mode=TwoWay}"
                                                              AcceptsReturn="True" TextWrapping="Wrap"
                                                              IsReadOnly="{Binding IsReadOnly}"
-                                                             MinHeight="72" Watermark="{Binding FieldKey}" />
+                                                             MinHeight="72" PlaceholderText="{Binding FieldKey}" />
                                                     <NumericUpDown Name="WorkExtraIntegerInput"
                                                                    IsVisible="{Binding UsesIntegerEditor}"
                                                                    Value="{Binding NumericValue, Mode=TwoWay}"
                                                                    Minimum="-2147483648" Maximum="2147483647"
                                                                    Increment="1" FormatString="0" ParsingNumberStyle="Integer"
                                                                    IsReadOnly="{Binding IsReadOnly}"
-                                                                   Watermark="未填写" />
+                                                                   PlaceholderText="未填写" />
                                                     <NumericUpDown Name="WorkExtraDecimalInput"
                                                                    IsVisible="{Binding UsesDecimalEditor}"
                                                                    Value="{Binding NumericValue, Mode=TwoWay}"
                                                                    Increment="0.1"
                                                                    IsReadOnly="{Binding IsReadOnly}"
-                                                                   Watermark="未填写" />
+                                                                   PlaceholderText="未填写" />
                                                     <CheckBox Name="WorkExtraBooleanInput"
                                                               IsVisible="{Binding UsesBooleanEditor}"
                                                               IsChecked="{Binding BooleanValue, Mode=TwoWay}"
@@ -67,7 +67,7 @@
                                                                         IsVisible="{Binding UsesDateEditor}"
                                                                         SelectedDate="{Binding DateValue, Mode=TwoWay}"
                                                                         IsEnabled="{Binding !IsReadOnly}"
-                                                                        Watermark="未填写" />
+                                                                        PlaceholderText="未填写" />
                                                     <Grid Name="WorkExtraTimeEditor"
                                                           IsVisible="{Binding UsesTimeEditor}"
                                                           ColumnDefinitions="*,Auto" ColumnSpacing="6">
@@ -87,7 +87,7 @@
                                                         <CalendarDatePicker Name="WorkExtraDateTimeDateInput"
                                                                             SelectedDate="{Binding DateTimeDateValue, Mode=TwoWay}"
                                                                             IsEnabled="{Binding !IsReadOnly}"
-                                                                            Watermark="日期" />
+                                                                            PlaceholderText="日期" />
                                                         <TextBlock Grid.Column="1" Text="·" VerticalAlignment="Center" />
                                                         <TimePicker Name="WorkExtraDateTimeTimeInput"
                                                                     Grid.Column="2"

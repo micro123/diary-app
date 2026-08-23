@@ -37,9 +37,11 @@
 
 - 应用图标菜单：关于、最大化、最小化、重启程序、退出；正式发布版且随包文档存在时，在“关于”后显示“用户手册”。
 - 版本按钮：显示版本号和详细信息 Tooltip；上下文菜单可复制版本号或复制详细信息。
-- 标题栏主题按钮用于在亮色和暗色之间快速切换；程序设置中的默认主题还可选择跟随系统。
+- 标题栏主题按钮用于在亮色和暗色之间快速切换；按钮显式切换应用级主题，不受标题栏反色 scope 限制。程序设置中的默认主题还可选择跟随系统。
 - 设置菜单：程序设置、标签设置、模板设置、数据模板、Tracker 设置、导入脚本扩展共享包。
 - 自定义标题栏和状态栏会与应用主题保持可读的反差配色。
+- Avalonia 12 的右上角最小化、最大化和关闭按钮位于独立窗口装饰层，当前仍跟随应用主题；自定义标题栏使用反色主题时可能出现左右配色不一致，作为 Ursa 2.2/Avalonia 12 已知兼容项跟踪。
+- Avalonia 12 标题栏将空白拖动区与用户交互区分离；核心自动化会用真实鼠标事件回归应用图标、版本和设置三个菜单入口。
 
 ### 2.3 托盘
 
@@ -593,7 +595,7 @@
 
 ## 17. 当前 UI 自动化覆盖
 
-Windows 和 Linux Debug 构建提供基于 `Chrome.DevTools.Avalonia.v11` 的本地 CDP 测试入口。当前共有 10 个套件：程序设置、smoke、核心页面、脚本管理、脚本编辑器、数据库异常、Survey、附加字段、Redmine 全量联调和 Redmine 只读视觉回归。
+Windows 和 Linux Debug 构建提供基于 `Chrome.DevTools.Avalonia 0.1.0-preview.34` 的 Avalonia 12 本地 CDP 测试入口。当前共有 10 个套件：程序设置、smoke、核心页面、脚本管理、脚本编辑器、数据库异常、Survey、附加字段、Redmine 全量联调和 Redmine 只读视觉回归。
 
 2026-08-22 本机最终基线为：
 
@@ -605,7 +607,15 @@ Windows 和 Linux Debug 构建提供基于 `Chrome.DevTools.Avalonia.v11` 的本
 - `ui-redmine-style` 可在 Linux 上使用加密 seed profile 检查 Redmine 配置、插件状态、工作台截图和筛选 CheckBox 中心线，全程不触发远程写入。
 - Release 不运行 CDP；Release 包不含 CDP 的要求继续由构建和发布包集成校验负责。
 
-覆盖状态按 `Automated`、`Automated-ReadOnly`、`Unit/Integration`、`Manual-Native`、`Blocked-External` 和 `Not-Implemented` 分类。原生文件/目录选择器、托盘和真实备份/还原保留 Windows 原生验证；Jira 真实服务为外部阻塞；后台任务进度预览仍未实现。
+Avalonia 12 迁移在 2026-08-23 增加了以下当前基线：
+
+- Windows 8 个无外部依赖套件全部通过，共 62 个结构化步骤加 smoke；Redmine 全量套件因没有加密 seed profile 保持 `Blocked-External`。
+- Windows 标题栏应用图标、版本和设置菜单已通过全新 profile 的 CDP 真实鼠标点击回归；应用菜单的最大化、最小化和退出另有 CDP + Win32/进程状态验证；真实拖动、双击和多显示器窗口行为保持 `Manual-Native`。
+- CDP smoke/core 已覆盖应用级主题切换和标题栏菜单命中，但页面截图不包含独立窗口装饰层；150% DPI 冷启动原生截图确认右上角按钮与反色标题栏仍存在主题差异，未作为迁移完成证据。
+- Linux WSLg 原生 X11 下 core 14/14 和全新 profile smoke 通过。
+- Release 发布依赖扫描确认没有 Avalonia 11、LiveCharts、Projektanker、SkiaSharp 2.88 或 CDP 调试程序集。
+
+覆盖状态按 `Automated`、`Automated-ReadOnly`、`Unit/Integration`、`Manual-Native`、`Blocked-External` 和 `Not-Implemented` 分类。原生文件/目录选择器、托盘、剪贴板、标题栏真实拖动/双击和真实备份/还原保留平台原生验证；Jira 真实服务为外部阻塞；后台任务进度预览仍未实现。
 
 详细功能级矩阵见 [`UiAutomationCoverage.md`](UiAutomationCoverage.md)，运行方法、场景和最近性能基线见 [`UiAutomationTesting.md`](UiAutomationTesting.md)。测试报告和文档不记录 Tracker 服务地址、账号或凭据。
 
