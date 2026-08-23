@@ -13,55 +13,7 @@
 
     <!-- 内容：DataTemplate 由 Application.DataTemplates 提供 (App.axaml)，与 GenericConfigView 共享 -->
     <Grid RowDefinitions="*,Auto">
-        <ScrollViewer>
-            <StackPanel Spacing="16">
-                <ItemsControl Classes="Settings" ItemsSource="{Binding SettingsTree.Children}"/>
-                <Expander Classes="Settings" IsExpanded="False">
-                    <Expander.Header>
-                        <Grid ColumnDefinitions="Auto,*,Auto">
-                            <TextBlock Classes="SectionHeader" Text="AI 与 MCP"
-                                       FontSize="{StaticResource SemiFontSizeHeader1}"
-                                       HorizontalAlignment="Stretch" VerticalAlignment="Center" />
-                            <Border Grid.Column="2" Classes="HelperIcon"
-                                    ToolTip.Tip="生成可直接交给 AI 的 stdio MCP 配置说明；配置只引用用户确认过的只读快照，不包含数据库凭据或快照正文。" />
-                        </Grid>
-                    </Expander.Header>
-                    <StackPanel>
-                        <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,*,Auto,*"
-                              VerticalAlignment="Center">
-                            <TextBlock Classes="SettingLineCaption" Text="快照状态" />
-                            <TextBlock Grid.Column="1" Text="{Binding McpSnapshotStatus}"
-                                       FontSize="18" TextWrapping="Wrap" VerticalAlignment="Center" />
-                        </Grid>
-                        <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,*,Auto,*"
-                              VerticalAlignment="Center">
-                            <TextBlock Classes="SettingLineCaption" Text="配置操作" />
-                            <Grid Grid.Column="1" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto"
-                                  ColumnSpacing="8" RowSpacing="6">
-                                <Button Content="打开 AI 上下文" Classes="Primary" FontSize="14"
-                                        HorizontalAlignment="Stretch"
-                                        ToolTip.Tip="保存当前程序设置并打开 AI 上下文"
-                                        Command="{Binding SaveAndOpenAiContextCommand}" />
-                                <Button Grid.Column="1" Content="复制 AI 说明" FontSize="14"
-                                        HorizontalAlignment="Stretch"
-                                        ToolTip.Tip="复制可直接交给 AI 的 MCP 配置说明"
-                                        IsEnabled="{Binding HasMcpSnapshot}"
-                                        Command="{Binding CopyMcpAiInstructionsCommand}" />
-                                <Button Grid.Row="1" Content="复制 MCP JSON" FontSize="14"
-                                        HorizontalAlignment="Stretch"
-                                        ToolTip.Tip="复制通用 mcpServers.diary JSON 配置"
-                                        IsEnabled="{Binding HasMcpSnapshot}"
-                                        Command="{Binding CopyGenericMcpConfigurationCommand}" />
-                                <Button Grid.Row="1" Grid.Column="1" Content="打开使用文档" FontSize="14"
-                                        HorizontalAlignment="Stretch"
-                                        ToolTip.Tip="打开 AI 脚本上下文与本地 MCP 使用指南"
-                                        Command="{Binding OpenMcpGuideCommand}" />
-                            </Grid>
-                        </Grid>
-                    </StackPanel>
-                </Expander>
-            </StackPanel>
-        </ScrollViewer>
+        <ItemsControl Classes="Settings" ItemsSource="{Binding SettingsTree.Children}"/>
         <StackPanel Grid.Row="1" Orientation="Horizontal"
                     HorizontalAlignment="Center" Spacing="16"
                     Margin="32  8 32 0">

@@ -134,6 +134,27 @@
                         Classes="HelperIcon"/>
             </Grid>
         </DataTemplate>
+        <DataTemplate DataType="{x:Type appVm:McpStatusSetting}">
+            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,Auto,*" VerticalAlignment="Center">
+                <TextBlock Classes="SettingLineCaption" />
+                <TextBlock Grid.Column="1" Width="400" FontSize="18"
+                           Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                <Border Grid.Column="2"
+                        IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"
+                        Classes="HelperIcon"/>
+            </Grid>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type appVm:McpActionSetting}">
+            <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,Auto,*" VerticalAlignment="Center">
+                <TextBlock Classes="SettingLineCaption" />
+                <Button Grid.Column="1" Classes="SLV" Classes.Primary="{Binding Primary}"
+                        Content="{Binding Text}" Command="{Binding Command}"
+                        IsEnabled="{Binding IsEnabled}" />
+                <Border Grid.Column="2"
+                        IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"
+                        Classes="HelperIcon"/>
+            </Grid>
+        </DataTemplate>
     </Application.DataTemplates>
 
     <Application.Resources>

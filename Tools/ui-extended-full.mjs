@@ -285,6 +285,13 @@ await runUiSuite({ name: 'ui-extended-full', scenario: 'extended', timeoutMs: 12
             '复制 MCP JSON', '打开使用文档'])
             assertUi(textWithin(tree, root, text), 'AI 与 MCP 设置缺少：' + text);
         assertUi(textWithin(tree, root, 'MCP 快照已生成', true), '设置页未识别已生成的 MCP 快照');
+        const guideText = textWithin(tree, root, '打开使用文档');
+        const guideButton = guideText && controlForText(tree, guideText);
+        assertUi(guideButton, 'AI 与 MCP 设置缺少使用文档按钮');
+        await connection.client.send('DOM.scrollIntoViewIfNeeded', {
+            nodeId: guideButton.nodeId,
+        }).catch(() => {});
+        await delay(100);
         const settingsScreenshot = await connection.screenshot('manual-mcp-settings.png');
 
         let copyText = textWithin(tree, root, '复制 AI 说明');

@@ -25,6 +25,9 @@ public partial class SettingsViewModel : ViewModelBase, IDialogContext
     private readonly DiagnosticLogExportService _logExport;
     private readonly AppFontService _fontService;
     private readonly McpSetupService _mcpSetupService;
+    private McpStatusSetting _mcpStatusSetting = null!;
+    private McpActionSetting _copyAiInstructionsSetting = null!;
+    private McpActionSetting _copyGenericConfigurationSetting = null!;
     [ObservableProperty] private SettingGroup _settingsTree = new("Root");
     [ObservableProperty] private bool _hasMcpSnapshot;
     [ObservableProperty] private string _mcpSnapshotStatus = string.Empty;
@@ -53,6 +56,37 @@ public partial class SettingsViewModel : ViewModelBase, IDialogContext
     {
         var app = BaseApp.Instance;
         SettingTreeBuilder.BuildTree(SettingsTree, app.AppConfig, app);
+        var mcpGroup = new SettingGroup(
+            "AI 与 MCP",
+            "生成可直接交给 AI 的 stdio MCP 配置说明；配置只引用用户确认过的只读快照，不包含数据库凭据或快照正文。");
+        _mcpStatusSetting = new McpStatusSetting(
+            "快照状态",
+            "显示只读 MCP 快照是否存在及最后更新时间。");
+        _copyAiInstructionsSetting = new McpActionSetting(
+            "AI 配置说明",
+            "复制包含 stdio 启动方式、工具列表和安全要求的 Markdown。",
+            "复制 AI 说明",
+            CopyMcpAiInstructionsCommand);
+        _copyGenericConfigurationSetting = new McpActionSetting(
+            "MCP JSON",
+            "复制通用 mcpServers.diary command/args JSON 配置。",
+            "复制 MCP JSON",
+            CopyGenericMcpConfigurationCommand);
+        mcpGroup.Children.Add(_mcpStatusSetting);
+        mcpGroup.Children.Add(new McpActionSetting(
+            "AI 上下文",
+            "保存当前程序设置并打开 AI 上下文；不会自动生成快照。",
+            "打开 AI 上下文",
+            SaveAndOpenAiContextCommand,
+            primary: true));
+        mcpGroup.Children.Add(_copyAiInstructionsSetting);
+        mcpGroup.Children.Add(_copyGenericConfigurationSetting);
+        mcpGroup.Children.Add(new McpActionSetting(
+            "使用文档",
+            "打开 AI 脚本上下文与本地 MCP 使用指南。",
+            "打开使用文档",
+            OpenMcpGuideCommand));
+        SettingsTree.Children.Add(mcpGroup);
         SettingsTree.Load();
     }
 
@@ -206,6 +240,9 @@ public partial class SettingsViewModel : ViewModelBase, IDialogContext
     {
         HasMcpSnapshot = _mcpSetupService.SnapshotExists;
         McpSnapshotStatus = _mcpSetupService.SnapshotStatus;
+        _mcpStatusSetting.Status = McpSnapshotStatus;
+        _copyAiInstructionsSetting.IsEnabled = HasMcpSnapshot;
+        _copyGenericConfigurationSetting.IsEnabled = HasMcpSnapshot;
     }
 
 }

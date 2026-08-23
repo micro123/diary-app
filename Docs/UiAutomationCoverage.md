@@ -106,7 +106,7 @@
 | 清单 | 功能 | 状态 | 证据或边界 |
 | --- | --- | --- | --- |
 | 8.1–8.3 | 设置分组、编辑、保存、丢弃和动态导航 | `Automated` | settings 覆盖 5 组设置和开发者导航重建 |
-| 8.1–8.3 | AI 与 MCP 快照状态、配置复制和跳转 | `Automated` | extended 在真实隔离快照上验证 AI 可读 Markdown、通用 JSON 复制，以及保存设置后直接打开 AI 上下文；内容格式另有单元测试 |
+| 8.1–8.3 | AI 与 MCP 快照状态、标准设置行、配置复制和跳转 | `Automated` | extended 在真实隔离快照上验证标准分组内五行内容完整可见、AI 可读 Markdown、通用 JSON 复制，以及保存设置后直接打开 AI 上下文；内容格式另有单元测试 |
 | 8.4 | 数据库配置入口 | `Automated` | settings/database-error 验证对话框和无效驱动安全失败 |
 | 8.4 | SQLite/PostgreSQL 真实备份与还原 | `Manual-Native` | 依赖原生目录/文件、外部工具和灾备环境；底层由集成测试覆盖 |
 | 8.5 | 数据迁移向导打开和安全取消 | `Automated` | settings 覆盖向导边界 |
