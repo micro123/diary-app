@@ -235,8 +235,27 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         return { openMs: opened.elapsedMs };
     });
 
-    await runStep('diary.copy-dialog', '复制入口和复制整天取消', async () => {
+    await runStep('diary.copy-dialog', '跨月回到今天、复制入口和复制整天取消', async () => {
         await connection.navigate('日记记录', 'DiaryEditorView');
+        await connection.clickByText('回到今天');
+        let tree = await connection.getTree();
+        const calendar = findByName(tree, 'DiaryCalendar');
+        const todayHeader = textOf(findByName(tree, 'PART_HeaderButton'));
+        const todayButton = calendar && descendants(tree, calendar).find(entry =>
+            isVisible(entry) && typeOf(entry).includes('CalendarDayButton')
+            && textOf(entry) === String(new Date().getDate()));
+        assertUi(calendar && todayHeader && todayButton, '找不到跨月回到今天测试所需的日历元素');
+        await connection.focusNode(todayButton);
+        await connection.pressKey('PageUp', 'PageUp', 33);
+        const previousMonth = await connection.waitForTree(current => {
+            const header = findByName(current, 'PART_HeaderButton');
+            return header && textOf(header) !== todayHeader ? header : null;
+        }, 3000, 'PageUp 后日历没有切换到上个月');
+        await connection.clickByText('回到今天');
+        const returnedToday = await connection.waitForTree(current => {
+            const header = findByName(current, 'PART_HeaderButton');
+            return header && textOf(header) === todayHeader ? header : null;
+        }, 3000, '跨月后回到今天没有恢复当前月份');
         await connection.clickByText('复制记录');
         const menu = await connection.waitForTree(tree => ['复制昨天', '复制最近', '复制整天'].every(text =>
             findByText(tree, text, entry => hasAncestorType(tree, entry, 'MenuItem'))), 5000, '复制菜单不完整');
@@ -246,7 +265,11 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         assertUi(textInView(dialog.tree, 'CopyDayView', '源日期'), '复制整天缺少源日期');
         assertUi(textInView(dialog.tree, 'CopyDayView', '目标日期：'), '复制整天缺少目标日期');
         await closeViewWithButton(connection, 'CopyDayView', '取消');
-        return { dialogMs: dialog.elapsedMs };
+        return {
+            previousMonthHeader: textOf(previousMonth.value),
+            todayHeader: textOf(returnedToday.value),
+            dialogMs: dialog.elapsedMs,
+        };
     });
 
     await runStep('diary.shortcuts', '新建、保存、重复和删除取消快捷键', async () => {

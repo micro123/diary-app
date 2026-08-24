@@ -6,6 +6,7 @@
 
 ## 2026-08-24 统一 UI 重设计
 
+- [x] 修复日历只翻月、不改变当天选中状态时“回到今天”不会恢复当前月份的问题；显示月份与选中日期现在显式同步，`ui-core-full` 已覆盖从 2026 年 8 月翻到 7 月再返回 8 月的真实 CDP 回归路径。
 - [x] 在 `feat/unified-ui-redesign` 分支完成日记、查询、统计、程序设置、标签、事项模板、数据模板、Tracker 配置/状态、Jira/Redmine 编辑与实例配置，以及 Redmine 基本信息、问题、项目和新建问题子页面的统一布局。
 - [x] 保留全部命令、快捷键、控件名称、页签文字、数据绑定和远程副作用边界；Windows CDP 已覆盖设置、smoke、核心、扩展、数据库异常、Survey、附加字段、Redmine 全功能和只读视觉回归。
 - [x] 修复高 DPI CDP 截图直接以物理像素写入 96 DPI PNG，以及 Windows overlay 子内容被重复缩放的问题；Windows 改用 `PrintWindow` 捕获真实窗口表面，并按 `Page.getLayoutMetrics` 自动推导当前窗口倍率、归一化为逻辑 1×/96 DPI，物理原图保留在 `raw-physical/`，同时增加 125%/150% PNG 单元测试和报告尺度字段；修复后全量报告 `ui-full-test-2026-08-24T14-44-09-118Z.json` 为 9/9 套件通过。

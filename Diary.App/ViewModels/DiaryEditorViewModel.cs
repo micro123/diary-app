@@ -532,7 +532,10 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     private void GoDate(DateTime date)
     {
-        SelectedDate = date;
+        if (SelectedDate == date)
+            CurrentDate = date;
+        else
+            SelectedDate = date;
     }
 
     partial void OnSelectedDateChanged(DateTime value)
@@ -556,8 +559,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
             return;
         }
 
-        _currentDate = value;
-        _logger.LogDebug("date changed to {Date}", _currentDate);
+        CurrentDate = value;
+        _logger.LogDebug("date changed to {Date}", CurrentDate);
         FetchWorks();
     }
 
