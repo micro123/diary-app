@@ -790,29 +790,11 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     [ObservableProperty] private ObservableCollection<DayMenuItem> _quickMenuItems = new();
 
-    public enum CalendarWhat
-    {
-        None,
-        Day,
-        Month,
-        Year,
-    }
+    public void ShowCompactCalendarDayContextMenu(DateTime selectDate) =>
+        FillDayMenus(selectDate.Date);
 
-    public void ShowCalendarContextMenu(DateTime selectDate, CalendarWhat what)
-    {
-        switch (what)
-        {
-            case CalendarWhat.Day:
-                FillDayMenus(selectDate);
-                break;
-            case CalendarWhat.Month:
-                FillMonthMenus(selectDate);
-                break;
-            case CalendarWhat.Year:
-                FillYearMenus(selectDate);
-                break;
-        }
-    }
+    public void ShowCompactCalendarPeriodContextMenu() =>
+        FillPeriodMenus(CompactCalendarAnchorDate.Date);
 
     private void AddMenuHeader(string text) =>
         QuickMenuItems.Add(new DayMenuItem { Header = text });
@@ -959,7 +941,9 @@ public partial class DiaryEditorViewModel : ViewModelBase
             AddMenuSeparator();
             AddMenuAction("调查本周工时情况", CreateSurveyCommand(date, AdjustPart.Week));
         }
-        AddEditorScriptActions(date.Date, date.Date);
+        AddEditorScriptActions(
+            ScriptEditorTarget.ForDay(TimeTools.FormatDateTime(date)),
+            "脚本（日）");
         var weekStart = StartOfWeek(date);
         AddEditorScriptActions(
             ScriptEditorTarget.ForWeek(TimeTools.FormatDateTime(weekStart)),
@@ -969,39 +953,31 @@ public partial class DiaryEditorViewModel : ViewModelBase
             "脚本（上周）");
     }
 
-    private void FillMonthMenus(DateTime date)
+    private void FillPeriodMenus(DateTime date)
     {
         QuickMenuItems.Clear();
-        AddMenuHeader($"{date:yyyy年MM月} 第{(date.Month - 1) / 3 + 1}季度");
+        var quarter = (date.Month - 1) / 3 + 1;
+        AddMenuHeader($"{date:yyyy年MM月} · 第{quarter}季度 · {date:yyyy}年度");
         AddMenuSeparator();
         AddMenuAction("统计本月工时", CreateStatisticsCommand(date, AdjustPart.Month));
         AddMenuAction("统计本季度工时", CreateStatisticsCommand(date, AdjustPart.Quarter));
+        AddMenuAction("统计此年工时", CreateStatisticsCommand(date, AdjustPart.Year));
         if (IsSurveyorEnabled)
         {
             AddMenuSeparator();
             AddMenuAction("调查本月工时情况", CreateSurveyCommand(date, AdjustPart.Month));
             AddMenuAction("调查本季度工时情况", CreateSurveyCommand(date, AdjustPart.Quarter));
-        }
-        AddEditorScriptActions(
-            new DateTime(date.Year, date.Month, 1),
-            new DateTime(date.Year, date.Month, DateTime.DaysInMonth(date.Year, date.Month)));
-        AddEditorScriptActions(
-            ScriptEditorTarget.ForQuarter(date.Year, (date.Month - 1) / 3 + 1),
-            $"脚本（{date.Year} 年第{(date.Month - 1) / 3 + 1}季度）");
-    }
-
-    private void FillYearMenus(DateTime date)
-    {
-        QuickMenuItems.Clear();
-        AddMenuHeader(date.ToString("yyyy年"));
-        AddMenuSeparator();
-        AddMenuAction("统计此年工时", CreateStatisticsCommand(date, AdjustPart.Year));
-        if (IsSurveyorEnabled)
-        {
-            AddMenuSeparator();
             AddMenuAction("调查此年工时情况", CreateSurveyCommand(date, AdjustPart.Year));
         }
-        AddEditorScriptActions(new DateTime(date.Year, 1, 1), new DateTime(date.Year, 12, 31));
+        AddEditorScriptActions(
+            ScriptEditorTarget.ForMonth(date.Year, date.Month),
+            "脚本（本月）");
+        AddEditorScriptActions(
+            ScriptEditorTarget.ForQuarter(date.Year, quarter),
+            "脚本（本季度）");
+        AddEditorScriptActions(
+            ScriptEditorTarget.ForYear(date.Year),
+            "脚本（本年度）");
     }
 
     public override void OnHide()

@@ -59,7 +59,7 @@
 | 3.2 | 复制昨天/最近入口、复制整天对话框 | `Automated` | core 验证三入口和复制整天安全取消 |
 | 3.2 | 复制内容、标签、附加字段和远程绑定排除语义 | `Unit/Integration` | ViewModel 回归覆盖 Tracker 目标初始化和本地复制排除绑定；2026-08-22 富数据定向 CDP 验证带 Tracker 的源事项可复制两个标签和 9 类附加字段，目标无 Redmine/Jira 绑定 |
 | 3.2 | 大量数据下连续日期导航性能和无变化写入 | `Automated-Performance` | `date-performance` 隔离场景预置 540 天 × 48 条稀疏事项数据，专项套件执行 120 次逐次切换和两组 24 次高速连按，输出延迟、CPU、内存和进程 I/O；已完成 SQLite/PostgreSQL × Core-only/真实 Redmine 四组对照，Tracker 组每天约 20% 本地绑定，SQLite 断言主文件/WAL/journal 不变化，PostgreSQL 断言业务摘要及插入/更新/删除计数不变化，并确认 Redmine 无远程工时写入；不纳入常规全量门禁 |
-| 3.3 | 日历上下文菜单和日期/周/月/季度/年动作 | `Automated + Unit/Integration` | core 通过标准上下文菜单键验证紧凑日期菜单可打开；命令路由、完整月历层级和脚本目标由 ViewModel/脚本测试验证 |
+| 3.3 | 日历上下文菜单和日期/周/月/季度/年动作 | `Automated + Unit/Integration` | core 通过标准上下文菜单键验证紧凑日期同时提供日/周操作、月份标题同时提供月/季度/年度操作，并验证完整月历可打开；命令路由和脚本目标由 ViewModel/脚本测试验证 |
 | 3.4 | 当日汇总、事项列表、优先级排序 | `Automated-ReadOnly` | smoke/core 读取列表和保存状态；排序语义由单元/集成测试承担 |
 | 3.5 | 标题、日期、工时、优先级、备注等通用字段 | `Automated` | core 断言日期、标题、耗时输入框绝对左边缘偏差不超过 1px；smoke 覆盖耗时 Enter、Esc、失焦应用、模板和保存；完整格式组合由单元测试承担 |
 | 3.6 | 标签创建、选择、模板应用和最近标签 | `Automated` | smoke 创建标签并验证模板应用；Redmine 验证标签默认值 |

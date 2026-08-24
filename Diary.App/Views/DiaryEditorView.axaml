@@ -128,31 +128,30 @@
                             </Button>
                             <Button Name="CompactCalendarHeader" Grid.Column="1" Classes="CompactCalendarHeader"
                                     Content="{Binding CompactCalendarTitle}"
-                                    ToolTip.Tip="打开完整月历">
+                                    ToolTip.Tip="左键打开完整月历，右键显示月、季度和年度操作"
+                                    ContextRequested="OnCompactCalendarHeaderContextRequested">
+                                <Button.ContextMenu>
+                                    <ContextMenu ItemsSource="{Binding QuickMenuItems}">
+                                        <ContextMenu.ItemContainerTheme>
+                                            <ControlTheme TargetType="MenuItem"
+                                                          BasedOn="{StaticResource {x:Type MenuItem}}"
+                                                          x:DataType="viewModels:DayMenuItem">
+                                                <Setter Property="Header" Value="{Binding Header}" />
+                                                <Setter Property="Command" Value="{Binding Command}" />
+                                                <Setter Property="CommandParameter" Value="{Binding}" />
+                                                <Setter Property="IsEnabled" Value="{Binding Enabled}" />
+                                                <Setter Property="ItemsSource" Value="{Binding Children}" />
+                                            </ControlTheme>
+                                        </ContextMenu.ItemContainerTheme>
+                                    </ContextMenu>
+                                </Button.ContextMenu>
                                 <Button.Flyout>
                                     <Flyout ShowMode="Standard" PlacementGravity="Bottom">
                                         <Calendar Name="DiaryCalendar" FirstDayOfWeek="Monday"
                                                   Width="292" Height="285"
                                                   IsTodayHighlighted="True" SelectionMode="SingleDate"
                                                   DisplayDate="{Binding CompactCalendarAnchorDate}"
-                                                  SelectedDate="{Binding SelectedDate}"
-                                                  ContextRequested="OnCalendarContextRequested">
-                                            <Calendar.ContextMenu>
-                                                <ContextMenu ItemsSource="{Binding QuickMenuItems}">
-                                                    <ContextMenu.ItemContainerTheme>
-                                                        <ControlTheme TargetType="MenuItem"
-                                                                      BasedOn="{StaticResource {x:Type MenuItem}}"
-                                                                      x:DataType="viewModels:DayMenuItem">
-                                                            <Setter Property="Header" Value="{Binding Header}" />
-                                                            <Setter Property="Command" Value="{Binding Command}" />
-                                                            <Setter Property="CommandParameter" Value="{Binding}" />
-                                                            <Setter Property="IsEnabled" Value="{Binding Enabled}" />
-                                                            <Setter Property="ItemsSource" Value="{Binding Children}" />
-                                                        </ControlTheme>
-                                                    </ContextMenu.ItemContainerTheme>
-                                                </ContextMenu>
-                                            </Calendar.ContextMenu>
-                                        </Calendar>
+                                                  SelectedDate="{Binding SelectedDate}" />
                                     </Flyout>
                                 </Button.Flyout>
                             </Button>

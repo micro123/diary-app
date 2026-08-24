@@ -58,7 +58,7 @@ def editor_main(context):
    - Lua：`Docs/ScriptApi/Examples/OvertimeWorkItems.lua`
    - C#：`Docs/ScriptApi/Examples/OvertimeWorkItems.cs`
 3. 如果使用 C#，请将脚本 ID 设置为 `overtime-work-items`；或者同步修改 C# 源码中的 `Id` 属性和脚本 metadata。
-4. 在日历的日期、周、月、季度或年份右键菜单中执行脚本，会查询对应目标范围。
+4. 在紧凑日期的日/周/上周菜单，或月份标题的月/季度/年度菜单中执行脚本，会查询对应目标范围。
 5. 在工作项上右键执行脚本时，会查询该工作项所在日期的工作项。
 
 编辑器右键菜单由宿主自动注入目标范围，不需要手工传入 `startDate` 或 `endDate`。如果需要任意自定义日期范围，应继续使用 Application 脚本并通过参数传入日期。

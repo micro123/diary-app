@@ -241,7 +241,7 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         return { openMs: opened.elapsedMs };
     });
 
-    await runStep('diary.copy-dialog', '紧凑周历、跨月回到今天和复制整天取消', async () => {
+    await runStep('diary.copy-dialog', '紧凑周历、分层右键菜单、跨月回到今天和复制整天取消', async () => {
         await connection.navigate('日记记录', 'DiaryEditorView');
         await connection.clickByText('回到今天');
         let tree = await connection.getTree();
@@ -311,9 +311,19 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         assertUi(currentDayButton, '找不到可验证右键菜单的周历日期');
         await connection.client.send('DOM.focus', { nodeId: currentDayButton.nodeId });
         await connection.pressKey('F10', 'F10', 121, shift);
-        await connection.waitForTree(current =>
-            findByText(current, '统计本周工时', entry => hasAncestorType(current, entry, 'MenuItem')),
-        3000, '紧凑周历日期右键菜单没有打开');
+        await connection.waitForTree(current => ['同步本日工时', '统计本周工时'].every(text =>
+            findByText(current, text, entry => hasAncestorType(current, entry, 'MenuItem'))),
+        3000, '紧凑周历日期右键菜单没有同时提供日和周操作');
+        await connection.pressKey('Escape', 'Escape', 27);
+
+        tree = await connection.getTree();
+        const compactCalendarHeader = findByName(tree, 'CompactCalendarHeader');
+        assertUi(compactCalendarHeader, '找不到可验证右键菜单的月份标题');
+        await connection.client.send('DOM.focus', { nodeId: compactCalendarHeader.nodeId });
+        await connection.pressKey('F10', 'F10', 121, shift);
+        await connection.waitForTree(current => ['统计本月工时', '统计本季度工时', '统计此年工时'].every(text =>
+            findByText(current, text, entry => hasAncestorType(current, entry, 'MenuItem'))),
+        3000, '月份标题右键菜单没有同时提供月、季度和年度操作');
         await connection.pressKey('Escape', 'Escape', 27);
 
         await connection.clickByName('CompactCalendarHeader');
@@ -350,6 +360,7 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         return {
             oneWeekHeight: boundsOf(compactDays).height,
             compactDayContextMenu: true,
+            compactHeaderContextMenu: true,
             fullCalendarHeight: fullCalendarBounds.height,
             wheelWeekBrowsing: true,
             previousPeriodHeader: textOf(previousPeriod.value),
