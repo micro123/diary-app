@@ -10,14 +10,14 @@ namespace Diary.RedMine;
 /// <summary>
 /// <see cref="IRedMineApi"/> 实现。从原静态 <c>RedMineApis</c> 迁出，方法体逐行一致，
 /// 仍走 <see cref="RestTools"/>（同程序集 internal 静态），日志仅记录结构化摘要，不记录响应正文。
-/// 无状态，注册为 DI 单例。
+/// 客户端释放与在途请求通过租约协调，配置重载不会释放仍在使用的 HTTP 客户端。
 /// </summary>
 public class RedMineApi : IRedMineApi, IDisposable
 {
     private const int ClosedStatusId = 5;
     private readonly RedMineConfig _configuration;
     private readonly ILogger _logger;
-    private readonly RestClient? _client;
+    private readonly SharedDisposableResource<RestClient>? _clientLifetime;
 
     public RedMineApi(RedMineConfig? configuration = null, ILogger<RedMineApi>? logger = null)
     {
@@ -25,7 +25,8 @@ public class RedMineApi : IRedMineApi, IDisposable
             ?? RedMineConfigurationStore.Current.Instances.FirstOrDefault()
             ?? new RedMineInstanceSettings();
         _logger = logger ?? Logging.Factory.CreateLogger<RedMineApi>();
-        _client = RestTools.BasicClient(_configuration);
+        var client = RestTools.BasicClient(_configuration);
+        _clientLifetime = client is null ? null : new SharedDisposableResource<RestClient>(client);
     }
     public int PageSize => 50;
 
@@ -38,9 +39,10 @@ public class RedMineApi : IRedMineApi, IDisposable
         total = 0;
         string url;
         url = !string.IsNullOrEmpty(keyword) ? ProjectInfo.Search() : ProjectInfo.All();
-        var client = _client;
-        if (client != null)
+        using var clientLease = _clientLifetime?.TryAcquire();
+        if (clientLease is not null)
         {
+            var client = clientLease.Resource;
             var request = RestTools.HttpGet(_configuration, url);
             if (!string.IsNullOrEmpty(keyword))
                 request.AddQueryParameter("q", keyword);
@@ -68,9 +70,10 @@ public class RedMineApi : IRedMineApi, IDisposable
     {
         project = null;
         var url = ProjectInfo.Fetch(id);
-        var client = _client;
-        if (client != null)
+        using var clientLease = _clientLifetime?.TryAcquire();
+        if (clientLease is not null)
         {
+            var client = clientLease.Resource;
             var request = RestTools.HttpGet(_configuration, url);
             var response = client.Execute<ProjectInfo.FetchResult>(request);
             if (response.StatusCode != HttpStatusCode.OK)
@@ -110,9 +113,10 @@ public class RedMineApi : IRedMineApi, IDisposable
         total = 0;
 
         var url = IssueInfo.Query();
-        var client = _client;
-        if (client != null)
+        using var clientLease = _clientLifetime?.TryAcquire();
+        if (clientLease is not null)
         {
+            var client = clientLease.Resource;
             var request = RestTools.HttpGet(_configuration, url);
             if (myIssues)
                 request.AddQueryParameter("assigned_to_id", "me");
@@ -143,9 +147,10 @@ public class RedMineApi : IRedMineApi, IDisposable
     {
         issues = null;
         var url = IssueInfo.Fetch(id);
-        var client = _client;
-        if (client != null)
+        using var clientLease = _clientLifetime?.TryAcquire();
+        if (clientLease is not null)
         {
+            var client = clientLease.Resource;
             var request = RestTools.HttpGet(_configuration, url);
             var response = client.Execute<IssueInfo.FetchResult>(request);
             if (response.StatusCode != HttpStatusCode.OK)
@@ -169,9 +174,10 @@ public class RedMineApi : IRedMineApi, IDisposable
         issue = null;
 
         var url = IssueInfo.Query();
-        var client = _client;
-        if (client != null)
+        using var clientLease = _clientLifetime?.TryAcquire();
+        if (clientLease is not null)
         {
+            var client = clientLease.Resource;
             var request = RestTools.HttpPost(_configuration, url);
             var postData = new IssueInfo.PostRes(projectId, subject);
             if (!string.IsNullOrEmpty(description))
@@ -205,13 +211,13 @@ public class RedMineApi : IRedMineApi, IDisposable
         if (id <= 0)
             return false;
 
-        var client = _client;
-        if (client is null)
+        using var clientLease = _clientLifetime?.TryAcquire();
+        if (clientLease is null)
             return false;
 
         var request = RestTools.HttpPut(_configuration, IssueInfo.Fetch(id));
         request.AddJsonBody(new IssueInfo.PutRes(ClosedStatusId));
-        var response = client.Execute(request);
+        var response = clientLease.Resource.Execute(request);
         if (response.StatusCode is not (HttpStatusCode.OK or HttpStatusCode.NoContent))
         {
             _logger.LogError("http status code {StatusCode}: {ErrorMessage}", response.StatusCode, response.ErrorMessage);
@@ -228,9 +234,10 @@ public class RedMineApi : IRedMineApi, IDisposable
         timeInfo = null;
 
         var url = TimeInfo.Query();
-        var client = _client;
-        if (client != null)
+        using var clientLease = _clientLifetime?.TryAcquire();
+        if (clientLease is not null)
         {
+            var client = clientLease.Resource;
             var request = RestTools.HttpPost(_configuration, url);
             var body = new TimeInfo.PostRes(issue, activity, date, comment, hours);
             request.AddJsonBody(body);
@@ -258,9 +265,10 @@ public class RedMineApi : IRedMineApi, IDisposable
         total = 0;
 
         var url = TimeInfo.Query();
-        var client = _client;
-        if (client != null)
+        using var clientLease = _clientLifetime?.TryAcquire();
+        if (clientLease is not null)
         {
+            var client = clientLease.Resource;
             var request = RestTools.HttpGet(_configuration, url);
             request.AddQueryParameter("user_id", "me");
             request.AddQueryParameter("limit", PageSize);
@@ -291,9 +299,10 @@ public class RedMineApi : IRedMineApi, IDisposable
     {
         activities = null;
         var url = ActivityInfo.Query();
-        var client = _client;
-        if (client != null)
+        using var clientLease = _clientLifetime?.TryAcquire();
+        if (clientLease is not null)
         {
+            var client = clientLease.Resource;
             var request = RestTools.HttpGet(_configuration, url);
             var response = client.Execute<ActivityInfo.Res>(request);
             if (response.StatusCode != HttpStatusCode.OK)
@@ -315,9 +324,10 @@ public class RedMineApi : IRedMineApi, IDisposable
     {
         userInfo = null;
         var url = UserInfo.Query();
-        var client = _client;
-        if (client != null)
+        using var clientLease = _clientLifetime?.TryAcquire();
+        if (clientLease is not null)
         {
+            var client = clientLease.Resource;
             var request = RestTools.HttpGet(_configuration, url);
             var response = client.Execute<UserInfo.Res>(request);
             if (response.StatusCode != HttpStatusCode.OK)
@@ -334,5 +344,5 @@ public class RedMineApi : IRedMineApi, IDisposable
         return userInfo != null;
     }
 
-    public void Dispose() => _client?.Dispose();
+    public void Dispose() => _clientLifetime?.Dispose();
 }

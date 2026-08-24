@@ -90,6 +90,20 @@ public sealed class RedMineConfigurationEditSessionTests
         Assert.IsTrue(viewModel.Issues.Any(option => option.Id == 84));
     }
 
+    [TestMethod]
+    public void RuleViewModelCanHideTagSelectorForScopedTagEditor()
+    {
+        var viewModel = new RedMineTagRuleViewModel(
+            new RedMineTagRule { TagId = 7 },
+            [new RedMineTagRuleOption(7, "tag")],
+            [new RedMineTagRuleOption(0, "none")],
+            [new RedMineTagRuleOption(0, "none")],
+            showTagSelector: false);
+
+        Assert.IsFalse(viewModel.ShowTagSelector);
+        Assert.AreEqual(7, viewModel.SelectedTag!.Id);
+    }
+
     private static RedMineInstanceSettings CreateSettings()
         => new()
         {

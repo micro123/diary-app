@@ -14,23 +14,45 @@
         <ItemsControl ItemsSource="{Binding TagRules}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="viewModels:RedMineTagRuleViewModel">
-                    <Border Padding="8" Margin="0,0,0,6" CornerRadius="6"
+                    <Border Padding="10" Margin="0,0,0,6" CornerRadius="6"
+                            HorizontalAlignment="Stretch"
                             Background="{DynamicResource SemiColorFill2}">
-                        <StackPanel Spacing="6">
-                            <CheckBox Content="启用" IsChecked="{Binding Enabled}" />
-                            <ComboBox ItemsSource="{Binding Tags}" SelectedItem="{Binding SelectedTag}">
-                                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
-                            </ComboBox>
-                            <ComboBox ItemsSource="{Binding Activities}" SelectedItem="{Binding SelectedActivity}">
-                                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
-                            </ComboBox>
-                            <ComboBox ItemsSource="{Binding Issues}" SelectedItem="{Binding SelectedIssue}">
-                                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
-                            </ComboBox>
-                            <Button Content="删除" HorizontalAlignment="Left"
+                        <Grid ColumnDefinitions="Auto,Auto,*,2*,Auto" ColumnSpacing="12">
+                            <CheckBox Content="启用"
+                                      IsChecked="{Binding Enabled}"
+                                      VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1"
+                                        Spacing="3"
+                                        IsVisible="{Binding ShowTagSelector}">
+                                <TextBlock Text="标签" Opacity="0.65" />
+                                <ComboBox MinWidth="150"
+                                          ItemsSource="{Binding Tags}"
+                                          SelectedItem="{Binding SelectedTag}">
+                                    <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Spacing="3">
+                                <TextBlock Text="活动" Opacity="0.65" />
+                                <ComboBox MinWidth="150"
+                                          ItemsSource="{Binding Activities}"
+                                          SelectedItem="{Binding SelectedActivity}">
+                                    <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Column="3" Spacing="3">
+                                <TextBlock Text="问题" Opacity="0.65" />
+                                <ComboBox MinWidth="220"
+                                          ItemsSource="{Binding Issues}"
+                                          SelectedItem="{Binding SelectedIssue}">
+                                    <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                            <Button Grid.Column="4"
+                                    Content="删除"
+                                    VerticalAlignment="Bottom"
                                     Command="{Binding $parent[UserControl].((viewModels:RedMineTagRuleEditorViewModel)DataContext).RemoveTagRuleCommand}"
                                     CommandParameter="{Binding}" />
-                        </StackPanel>
+                        </Grid>
                     </Border>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>

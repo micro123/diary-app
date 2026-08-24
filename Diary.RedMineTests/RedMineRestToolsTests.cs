@@ -56,4 +56,20 @@ public sealed class RedMineRestToolsTests
     {
         Assert.IsFalse(new RedMineApi(new RedMineConfig()).CloseIssue(0));
     }
+
+    [TestMethod]
+    public void RequestsAfterDispose_ReturnFailureWithoutUsingDisposedClient()
+    {
+        var api = new RedMineApi(new RedMineConfig
+        {
+            RedMineServerUrl = "https://redmine.example/",
+            RedMineApiKey = "key",
+        });
+        api.Dispose();
+
+        Assert.IsFalse(api.GetActivities(out var activities));
+        Assert.IsNull(activities);
+        Assert.IsFalse(api.GetUserInfo(out var user));
+        Assert.IsNull(user);
+    }
 }

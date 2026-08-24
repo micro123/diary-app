@@ -18,6 +18,7 @@ public sealed partial class RedMineTagRuleViewModel : ObservableObject
     public IReadOnlyList<RedMineTagRuleOption> Tags { get; }
     public IReadOnlyList<RedMineTagRuleOption> Activities { get; }
     public IReadOnlyList<RedMineTagRuleOption> Issues { get; }
+    public bool ShowTagSelector { get; }
 
     [ObservableProperty] private RedMineTagRuleOption? _selectedTag;
     [ObservableProperty] private RedMineTagRuleOption? _selectedActivity;
@@ -33,9 +34,11 @@ public sealed partial class RedMineTagRuleViewModel : ObservableObject
         RedMineTagRule rule,
         IReadOnlyList<RedMineTagRuleOption> tags,
         IReadOnlyList<RedMineTagRuleOption> activities,
-        IReadOnlyList<RedMineTagRuleOption> issues)
+        IReadOnlyList<RedMineTagRuleOption> issues,
+        bool showTagSelector = true)
     {
         Rule = rule;
+        ShowTagSelector = showTagSelector;
         Tags = AddMissingOption(tags, rule.TagId, "已删除标签");
         Activities = AddMissingOption(activities, rule.ActivityId ?? 0, "无效活动");
         Issues = AddMissingOption(issues, rule.IssueId ?? 0, "无效问题");
@@ -131,7 +134,12 @@ public sealed partial class RedMineTagRuleEditorViewModel : ViewModelBase
         }
 
         foreach (var rule in _settings.TagRules.Where(rule => _tagId is null || rule.TagId == _tagId))
-            TagRules.Add(new RedMineTagRuleViewModel(rule, tags, activities, issues));
+            TagRules.Add(new RedMineTagRuleViewModel(
+                rule,
+                tags,
+                activities,
+                issues,
+                showTagSelector: _tagId is null));
     }
 
     [RelayCommand(CanExecute = nameof(CanAddTagRule))]

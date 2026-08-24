@@ -41,16 +41,23 @@ public partial class RedMineInfoViewModel : ViewModelBase
     [RelayCommand]
     private async Task SyncActivities()
     {
-        await Task.Run(() =>
+        try
         {
-            _api.GetActivities(out var activities);
-            if (activities is not null)
+            var synchronized = await Task.Run(() =>
             {
+                if (!_api.GetActivities(out var activities) || activities is null)
+                    return false;
                 foreach (var activity in activities)
                     _database.AddRedMineActivity(activity.Id, activity.Name);
-            }
-        });
-        EventDispatcher.DbChanged(RedMineUiEvents.ActivityChanged);
+                return true;
+            });
+            if (synchronized)
+                EventDispatcher.DbChanged(RedMineUiEvents.ActivityChanged);
+        }
+        catch (ObjectDisposedException exception)
+        {
+            _logger.LogInformation(exception, "RedMine 配置重载时活动同步已停止");
+        }
     }
 
     public void UpdateUserInfo(UserInfo? userInfo)
