@@ -123,6 +123,12 @@ function isCurrentDateText(value, date) {
     ].some(expected => expected.every((part, index) => parts[index] === part));
 }
 
+function boundsOf(entry) {
+    const parts = String(entry?.a?.Bounds ?? '').split(',').map(Number);
+    assertUi(parts.length === 4 && parts.every(Number.isFinite), '控件缺少有效 Bounds：' + entry?.a?.Name);
+    return { x: parts[0], y: parts[1], width: parts[2], height: parts[3] };
+}
+
 await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, stopOnFailure: true }, async ({
     connection, runStep, addFinding,
 }) => {
@@ -235,39 +241,121 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         return { openMs: opened.elapsedMs };
     });
 
-    await runStep('diary.copy-dialog', '跨月回到今天、复制入口和复制整天取消', async () => {
+    await runStep('diary.copy-dialog', '紧凑周历、跨月回到今天和复制整天取消', async () => {
         await connection.navigate('日记记录', 'DiaryEditorView');
         await connection.clickByText('回到今天');
         let tree = await connection.getTree();
-        const calendar = findByName(tree, 'DiaryCalendar');
-        const todayHeader = textOf(findByName(tree, 'PART_HeaderButton'));
-        const todayButton = calendar && descendants(tree, calendar).find(entry =>
-            isVisible(entry) && typeOf(entry).includes('CalendarDayButton')
-            && textOf(entry) === String(new Date().getDate()));
-        assertUi(calendar && todayHeader && todayButton, '找不到跨月回到今天测试所需的日历元素');
-        await connection.focusNode(todayButton);
-        await connection.pressKey('PageUp', 'PageUp', 33);
-        const previousMonth = await connection.waitForTree(current => {
-            const header = findByName(current, 'PART_HeaderButton');
+        const dateHeading = findByName(tree, 'DiaryDateHeading');
+        const dateDescription = findByName(tree, 'DiaryDateDescription');
+        const dateActions = findByName(tree, 'DiaryDateActions');
+        const statusPill = findByName(tree, 'SelectedWorkStatusPill');
+        const compactCalendar = findByName(tree, 'CompactCalendar');
+        const compactDays = findByName(tree, 'CompactCalendarDays');
+        const todayHeader = textOf(findByName(tree, 'CompactCalendarHeader'));
+        assertUi(dateHeading && dateDescription && dateActions && compactCalendar && compactDays && todayHeader,
+            '日记页日期头部或紧凑周历结构不完整');
+        const headingBounds = boundsOf(dateHeading);
+        const descriptionBounds = boundsOf(dateDescription);
+        const actionBounds = boundsOf(dateActions);
+        assertUi(headingBounds.y + headingBounds.height <= actionBounds.y,
+            '日期标题与操作按钮发生垂直重叠');
+        assertUi(descriptionBounds.height <= 24, '日期说明被挤压换行');
+        assertUi(!statusPill || !isVisible(statusPill), '未选中事项时仍显示空状态胶囊');
+        const compactDayButtons = descendants(tree, compactDays).filter(entry =>
+            isVisible(entry) && typeOf(entry).includes('Button')
+            && String(entry.a.Class ?? '').includes('CompactCalendarDay'));
+        assertUi(compactDayButtons.length === 7, '默认一周视图没有显示 7 个日期');
+        const todayButton = compactDayButtons.find(entry => textOf(entry) === String(new Date().getDate())
+            && String(entry.a.Class ?? '').includes('Selected'));
+        assertUi(todayButton, '紧凑周历没有标记当前选中日期');
+
+        const selectedDateTitle = textOf(findByName(tree, 'DiaryDateTitle'));
+        const initialFirstDayText = textOf(compactDayButtons[0]);
+        const calendarBox = await connection.client.send('DOM.getBoxModel', { nodeId: compactCalendar.nodeId });
+        const calendarQuad = calendarBox.model.border;
+        const calendarX = (calendarQuad[0] + calendarQuad[4]) / 2;
+        const calendarY = (calendarQuad[1] + calendarQuad[5]) / 2;
+        await connection.client.send('Input.dispatchMouseEvent', {
+            type: 'mouseMoved', x: calendarX, y: calendarY,
+        });
+        await connection.client.send('Input.dispatchMouseEvent', {
+            type: 'mouseWheel', x: calendarX, y: calendarY, deltaX: 0, deltaY: 120,
+        });
+        await connection.waitForTree(current => {
+            const root = findByName(current, 'CompactCalendarDays');
+            const buttons = root && descendants(current, root).filter(entry =>
+                isVisible(entry) && typeOf(entry).includes('Button')
+                && String(entry.a.Class ?? '').includes('CompactCalendarDay'));
+            return buttons?.length === 7 && textOf(buttons[0]) !== initialFirstDayText ? root : null;
+        }, 3000, '滚轮向下没有浏览到后一周');
+        tree = await connection.getTree();
+        assertUi(textOf(findByName(tree, 'DiaryDateTitle')) === selectedDateTitle,
+            '滚轮浏览周历时改变了当前选中日期');
+        await connection.client.send('Input.dispatchMouseEvent', {
+            type: 'mouseWheel', x: calendarX, y: calendarY, deltaX: 0, deltaY: -120,
+        });
+        await connection.waitForTree(current => {
+            const root = findByName(current, 'CompactCalendarDays');
+            const buttons = root && descendants(current, root).filter(entry =>
+                isVisible(entry) && typeOf(entry).includes('Button')
+                && String(entry.a.Class ?? '').includes('CompactCalendarDay'));
+            return buttons?.length === 7 && textOf(buttons[0]) === initialFirstDayText ? root : null;
+        }, 3000, '反向滚轮没有恢复原周');
+
+        tree = await connection.getTree();
+        const currentCompactDays = findByName(tree, 'CompactCalendarDays');
+        const currentDayButton = descendants(tree, currentCompactDays).find(entry =>
+            isVisible(entry) && typeOf(entry).includes('Button')
+            && String(entry.a.Class ?? '').includes('CompactCalendarDay')
+            && String(entry.a.Class ?? '').includes('Selected'));
+        assertUi(currentDayButton, '找不到可验证右键菜单的周历日期');
+        await connection.client.send('DOM.focus', { nodeId: currentDayButton.nodeId });
+        await connection.pressKey('F10', 'F10', 121, shift);
+        await connection.waitForTree(current =>
+            findByText(current, '统计本周工时', entry => hasAncestorType(current, entry, 'MenuItem')),
+        3000, '紧凑周历日期右键菜单没有打开');
+        await connection.pressKey('Escape', 'Escape', 27);
+
+        await connection.clickByName('CompactCalendarHeader');
+        const fullCalendar = await connection.waitForTree(current => {
+            const calendar = findByName(current, 'DiaryCalendar');
+            return calendar && isVisible(calendar) ? calendar : null;
+        }, 3000, '点击周历标题没有打开完整月历');
+        const fullCalendarBounds = boundsOf(fullCalendar.value);
+        assertUi(fullCalendarBounds.height >= 280, '完整月历弹层高度不足');
+        await connection.pressKey('Escape', 'Escape', 27);
+        await connection.pressKey('Escape', 'Escape', 27);
+
+        for (let index = 0; index < 5; index += 1)
+            await connection.clickByName('PreviousCalendarPeriodButton');
+        const previousPeriod = await connection.waitForTree(current => {
+            const header = findByName(current, 'CompactCalendarHeader');
             return header && textOf(header) !== todayHeader ? header : null;
-        }, 3000, 'PageUp 后日历没有切换到上个月');
+        }, 3000, '向前浏览后周历标题没有跨月');
         await connection.clickByText('回到今天');
         const returnedToday = await connection.waitForTree(current => {
-            const header = findByName(current, 'PART_HeaderButton');
+            const header = findByName(current, 'CompactCalendarHeader');
             return header && textOf(header) === todayHeader ? header : null;
-        }, 3000, '跨月后回到今天没有恢复当前月份');
+        }, 3000, '跨月后回到今天没有恢复当前周期');
+
         await connection.clickByText('复制记录');
-        const menu = await connection.waitForTree(tree => ['复制昨天', '复制最近', '复制整天'].every(text =>
-            findByText(tree, text, entry => hasAncestorType(tree, entry, 'MenuItem'))), 5000, '复制菜单不完整');
+        const menu = await connection.waitForTree(current => ['复制昨天', '复制最近', '复制整天'].every(text =>
+            findByText(current, text, entry => hasAncestorType(current, entry, 'MenuItem'))), 5000, '复制菜单不完整');
         const wholeDayText = findByText(menu.tree, '复制整天', entry => hasAncestorType(menu.tree, entry, 'MenuItem'));
         await connection.clickNode(ancestor(menu.tree, wholeDayText, entry => typeOf(entry).includes('MenuItem')));
-        const dialog = await connection.waitForTree(tree => viewRoot(tree, 'CopyDayView'), 8000, '复制整天对话框未出现');
+        const dialog = await connection.waitForTree(current => viewRoot(current, 'CopyDayView'), 8000, '复制整天对话框未出现');
         assertUi(textInView(dialog.tree, 'CopyDayView', '源日期'), '复制整天缺少源日期');
         assertUi(textInView(dialog.tree, 'CopyDayView', '目标日期：'), '复制整天缺少目标日期');
         await closeViewWithButton(connection, 'CopyDayView', '取消');
         return {
-            previousMonthHeader: textOf(previousMonth.value),
+            oneWeekHeight: boundsOf(compactDays).height,
+            compactDayContextMenu: true,
+            fullCalendarHeight: fullCalendarBounds.height,
+            wheelWeekBrowsing: true,
+            previousPeriodHeader: textOf(previousPeriod.value),
             todayHeader: textOf(returnedToday.value),
+            dateDescriptionHeight: descriptionBounds.height,
+            emptyStatusPillHidden: !statusPill || !isVisible(statusPill),
             dialogMs: dialog.elapsedMs,
         };
     });
@@ -276,6 +364,19 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         await connection.navigate('日记记录', 'DiaryEditorView');
         await connection.pressKey('n', 'KeyN', 78, ctrl);
         const editor = await connection.waitForTree(tree => findByName(tree, 'WorkTitleInput'), 8000, 'Ctrl+N 未打开编辑器');
+        const editorTree = editor.tree;
+        const dateInput = findByName(editorTree, 'WorkDatePicker');
+        const titleInput = findByName(editorTree, 'WorkTitleInput');
+        const timeInput = findByName(editorTree, 'WorkTimeInput');
+        assertUi(dateInput && titleInput && timeInput, '一般信息字段结构不完整');
+        const [dateBox, titleBox, timeBox] = await Promise.all([
+            connection.client.send('DOM.getBoxModel', { nodeId: dateInput.nodeId }),
+            connection.client.send('DOM.getBoxModel', { nodeId: titleInput.nodeId }),
+            connection.client.send('DOM.getBoxModel', { nodeId: timeInput.nodeId }),
+        ]);
+        const inputLeftEdges = [dateBox, titleBox, timeBox].map(box => box.model.border[0]);
+        assertUi(Math.max(...inputLeftEdges) - Math.min(...inputLeftEdges) <= 1,
+            '日期、标题和耗时输入框左边缘未对齐');
         await connection.replaceText(editor.value, workTitle);
         await connection.clickByName('UseTodayButton');
         await connection.pressKey('s', 'KeyS', 83, ctrl);

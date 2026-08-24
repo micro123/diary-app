@@ -38,6 +38,17 @@ public sealed class DayMenuItem
 }
 
 
+public sealed class CompactCalendarDay
+{
+    public required DateTime Date { get; init; }
+    public required string DayText { get; init; }
+    public required string ToolTip { get; init; }
+    public bool IsToday { get; init; }
+    public bool IsSelected { get; init; }
+    public bool IsOutsideMonth { get; init; }
+}
+
+
 [DiAutoRegister(singleton: true)]
 public partial class DiaryEditorViewModel : ViewModelBase
 {
@@ -56,6 +67,15 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private bool _sortingDailyWorks;
     private bool _loadingWorks;
     private bool _restoringSelectedDate;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CompactCalendarTitle))]
+    private DateTime _compactCalendarAnchorDate;
+
+    [ObservableProperty]
+    private ObservableCollection<CompactCalendarDay> _compactCalendarDays = new();
+
+    public string CompactCalendarTitle => CompactCalendarAnchorDate.ToString("yyyy年M月", CultureInfo.CurrentCulture);
 
     [ObservableProperty] private ObservableCollection<Template> _templates = new();
     [ObservableProperty] private bool _canUseTemplates = false;
@@ -529,13 +549,75 @@ public partial class DiaryEditorViewModel : ViewModelBase
         GoDate(DateTime.Today);
     }
 
+    [RelayCommand]
+    private void SelectCompactCalendarDate(DateTime date) => GoDate(date.Date);
+
+    [RelayCommand]
+    private void ShowPreviousCalendarPeriod() => ShiftCompactCalendarWeeks(-1);
+
+    [RelayCommand]
+    private void ShowNextCalendarPeriod() => ShiftCompactCalendarWeeks(1);
+
+    public void NavigateCompactCalendarSelection(int days) => GoDate(SelectedDate.AddDays(days));
+
+    public void ShiftCompactCalendarPeriod(int direction)
+    {
+        if (direction == 0)
+            return;
+        ShiftCompactCalendarWeeks(Math.Sign(direction));
+    }
+
+    public void ShiftCompactCalendarWeeks(int weeks)
+    {
+        if (weeks != 0)
+            CompactCalendarAnchorDate = CompactCalendarAnchorDate.AddDays(7 * weeks);
+    }
 
     private void GoDate(DateTime date)
     {
+        date = date.Date;
         if (SelectedDate == date)
+        {
             CurrentDate = date;
+            SetCompactCalendarAnchor(date);
+        }
         else
+        {
             SelectedDate = date;
+        }
+    }
+
+    private void SetCompactCalendarAnchor(DateTime date)
+    {
+        date = date.Date;
+        if (CompactCalendarAnchorDate == date)
+            RefreshCompactCalendar();
+        else
+            CompactCalendarAnchorDate = date;
+    }
+
+    partial void OnCompactCalendarAnchorDateChanged(DateTime value) => RefreshCompactCalendar();
+
+    private void RefreshCompactCalendar()
+    {
+        var anchor = CompactCalendarAnchorDate == default ? DateTime.Today : CompactCalendarAnchorDate.Date;
+        var weekStart = StartOfWeek(anchor);
+        var firstDate = weekStart;
+        const int dayCount = 7;
+        CompactCalendarDays = new ObservableCollection<CompactCalendarDay>(
+            Enumerable.Range(0, dayCount).Select(offset =>
+            {
+                var date = firstDate.AddDays(offset);
+                return new CompactCalendarDay
+                {
+                    Date = date,
+                    DayText = date.Day.ToString(CultureInfo.InvariantCulture),
+                    ToolTip = date.ToString("yyyy年M月d日 dddd", CultureInfo.CurrentCulture),
+                    IsToday = date == DateTime.Today,
+                    IsSelected = date == SelectedDate.Date,
+                    IsOutsideMonth = date.Month != anchor.Month || date.Year != anchor.Year,
+                };
+            }));
     }
 
     partial void OnSelectedDateChanged(DateTime value)
@@ -560,6 +642,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         }
 
         CurrentDate = value;
+        SetCompactCalendarAnchor(value);
         _logger.LogDebug("date changed to {Date}", CurrentDate);
         FetchWorks();
     }
@@ -581,7 +664,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         _logger = logger;
         _serviceProvider = serviceProvider;
         _scriptCatalog = scriptCatalog;
-        _scriptManager = scriptManager;
+        _scriptManager = scriptManager;        CompactCalendarAnchorDate = DateTime.Today;
         SelectedDate = DateTime.Today;
 
         Messenger.Register<DbChangedEvent>(this, (r, m) =>

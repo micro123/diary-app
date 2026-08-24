@@ -35,8 +35,8 @@
               RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="10"
               IsEnabled="{Binding !IsLocked}">
             <TextBlock Grid.Row="0" Grid.Column="0" Text="日期" Classes="FieldLabel" />
-            <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="260,Auto,*" ColumnSpacing="12">
-                <CalendarDatePicker Name="WorkDatePicker" Grid.Column="0" HorizontalAlignment="Stretch"
+            <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="Auto,Auto,*" ColumnSpacing="12">
+                <CalendarDatePicker Name="WorkDatePicker" Grid.Column="0" HorizontalAlignment="Left"
                                     SelectedDate="{Binding Date, Converter={StaticResource DateConvert}}" />
                 <SplitButton Name="UseTodayButton" Grid.Column="1" Content="使用今天"
                              Command="{Binding QuickDateCommand}" CommandParameter="0">

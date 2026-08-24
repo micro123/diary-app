@@ -278,13 +278,14 @@ await runUiSuite({
 
     const focusCalendar = async date => {
         const tree = await connection.getTree();
-        const calendar = findByName(tree, 'DiaryCalendar');
-        assertUi(calendar, '找不到日期性能测试所需的 DiaryCalendar');
+        const calendar = findByName(tree, 'CompactCalendarDays');
+        assertUi(calendar, '找不到日期性能测试所需的 CompactCalendarDays');
         const dayText = String(date.getDate());
         const dayButton = descendants(tree, calendar).find(entry =>
-            typeOf(entry).includes('CalendarDayButton') && textOf(entry) === dayText);
+            typeOf(entry).includes('Button') && textOf(entry) === dayText
+            && String(entry.a.Class ?? '').includes('Selected'));
         assertUi(dayButton, '找不到当前日期按钮：' + localDateText(date));
-        await connection.focusNode(dayButton);
+        await connection.client.send('DOM.focus', { nodeId: calendar.nodeId });
     };
 
     const waitForDate = async date => connection.waitForTree(

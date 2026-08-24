@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Diary.App.ViewModels;
 
 namespace Diary.App.Views;
@@ -97,5 +98,70 @@ public partial class DiaryEditorView : UserControl
         }
 
         vm.ShowCalendarContextMenu((DateTime)selectDate!, what);
+        if (calendar?.ContextMenu is { } contextMenu)
+            contextMenu.ItemsSource = vm.QuickMenuItems;
     }
+
+    private void OnCompactCalendarDayContextRequested(object? sender, ContextRequestedEventArgs args)
+    {
+        if (DataContext is DiaryEditorViewModel vm
+            && sender is Control
+            {
+                DataContext: CompactCalendarDay day,
+                ContextMenu: { } contextMenu,
+            } control)
+        {
+            vm.ShowCalendarContextMenu(day.Date, DiaryEditorViewModel.CalendarWhat.Day);
+            contextMenu.ItemsSource = vm.QuickMenuItems;
+        }
+    }
+
+    private void OnCompactCalendarKeyDown(object? sender, KeyEventArgs args)
+    {
+        if (DataContext is not DiaryEditorViewModel vm)
+            return;
+
+        var handled = true;
+        switch (args.Key)
+        {
+            case Key.Left:
+                vm.NavigateCompactCalendarSelection(-1);
+                break;
+            case Key.Right:
+                vm.NavigateCompactCalendarSelection(1);
+                break;
+            case Key.Up:
+                vm.NavigateCompactCalendarSelection(-7);
+                break;
+            case Key.Down:
+                vm.NavigateCompactCalendarSelection(7);
+                break;
+            case Key.PageUp:
+                vm.ShiftCompactCalendarPeriod(-1);
+                break;
+            case Key.PageDown:
+                vm.ShiftCompactCalendarPeriod(1);
+                break;
+            default:
+                handled = false;
+                break;
+        }
+
+        args.Handled = handled;
+    }
+
+    private void OnCompactCalendarPointerWheelChanged(object? sender, PointerWheelEventArgs args)
+    {
+        if (DataContext is not DiaryEditorViewModel vm || args.Delta.Y == 0)
+            return;
+
+        vm.ShiftCompactCalendarWeeks(args.Delta.Y > 0 ? -1 : 1);
+        args.Handled = true;
+    }
+
+    private void OnCompactCalendarDayClick(object? sender, Avalonia.Interactivity.RoutedEventArgs args)
+    {
+        this.FindControl<ItemsControl>("CompactCalendarDays")?.Focus();
+    }
+
 }

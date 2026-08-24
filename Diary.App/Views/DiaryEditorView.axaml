@@ -29,6 +29,44 @@
         <Style Selector="TextBlock">
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
+        <Style Selector="Button.CompactCalendarNavigation">
+            <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="4" />
+        </Style>
+        <Style Selector="Button.CompactCalendarHeader">
+            <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.CompactCalendarWeekday">
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="Opacity" Value="0.62" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button.CompactCalendarDay">
+            <Setter Property="MinWidth" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource SemiColorTertiaryActive}" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.CompactCalendarDay.OutsideMonth">
+            <Setter Property="Opacity" Value="0.52" />
+        </Style>
+        <Style Selector="Button.CompactCalendarDay.Today">
+            <Setter Property="BorderBrush" Value="{DynamicResource SemiColorPrimaryBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Button.CompactCalendarDay.Selected">
+            <Setter Property="Background" Value="{DynamicResource SemiColorPrimaryBrush}" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Opacity" Value="1" />
+        </Style>
     </UserControl.Styles>
 
     <Panel>
@@ -51,14 +89,16 @@
             <!-- 左侧是日期和项目列表展示 -->
             <Border Classes="MasterPane">
             <DockPanel VerticalSpacing="10">
-                <Grid ColumnSpacing="8" ColumnDefinitions="*,Auto" HorizontalAlignment="Stretch"
-                      DockPanel.Dock="Top">
-                    <StackPanel Spacing="2">
-                        <TextBlock Text="{Binding SelectedDate, StringFormat='{}{0:yyyy年M月d日}'}"
+                <StackPanel DockPanel.Dock="Top" Spacing="8">
+                    <StackPanel Name="DiaryDateHeading" Spacing="2">
+                        <TextBlock Name="DiaryDateTitle"
+                                   Text="{Binding SelectedDate, StringFormat='{}{0:yyyy年M月d日}'}"
                                    Classes="SectionTitle" />
-                        <TextBlock Text="选择日期并管理当天的工作记录" Classes="SectionDescription" />
+                        <TextBlock Name="DiaryDateDescription"
+                                   Text="选择日期并管理当天的工作记录"
+                                   TextWrapping="NoWrap" Classes="SectionDescription" />
                     </StackPanel>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                    <StackPanel Name="DiaryDateActions" Orientation="Horizontal" Spacing="6">
                         <Button Content="回到今天"
                                 HotKey="Ctrl+T" Classes="ActionButton"
                                 Command="{Binding SelectTodayCommand}" />
@@ -77,30 +117,100 @@
                             </Button.Flyout>
                         </Button>
                     </StackPanel>
-                </Grid>
-                <Calendar Name="DiaryCalendar" FirstDayOfWeek="Monday" DockPanel.Dock="Top"
-                          Height="250"
-                          IsTodayHighlighted="True" SelectionMode="SingleDate"
-                          DisplayDate="{Binding CurrentDate}"
-                          SelectedDate="{Binding SelectedDate}"
-                          ContextRequested="OnCalendarContextRequested">
-                    <Calendar.ContextMenu>
-                        <ContextMenu ItemsSource="{Binding QuickMenuItems}">
-                            <ContextMenu.ItemContainerTheme>
-                                <ControlTheme TargetType="MenuItem"
-                                              BasedOn="{StaticResource {x:Type MenuItem}}"
-                                              x:DataType="viewModels:DayMenuItem">
-                                        <Setter Property="Header" Value="{Binding Header}" />
-                                        <Setter Property="Command"
-                                                Value="{Binding Command}" />
-                                        <Setter Property="CommandParameter" Value="{Binding}" />
-                                        <Setter Property="IsEnabled" Value="{Binding Enabled}" />
-                                        <Setter Property="ItemsSource" Value="{Binding Children}" />
-                                    </ControlTheme>
-                            </ContextMenu.ItemContainerTheme>
-                        </ContextMenu>
-                    </Calendar.ContextMenu>
-                </Calendar>
+                </StackPanel>
+                <Border Name="CompactCalendar" DockPanel.Dock="Top" Classes="SubtleCard" Padding="8"
+                        PointerWheelChanged="OnCompactCalendarPointerWheelChanged">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="4">
+                            <Button Name="PreviousCalendarPeriodButton" Classes="CompactCalendarNavigation"
+                                    ToolTip.Tip="显示上一周期" Command="{Binding ShowPreviousCalendarPeriodCommand}">
+                                <i:Icon Value="mdi-chevron-left" FontSize="18" />
+                            </Button>
+                            <Button Name="CompactCalendarHeader" Grid.Column="1" Classes="CompactCalendarHeader"
+                                    Content="{Binding CompactCalendarTitle}"
+                                    ToolTip.Tip="打开完整月历">
+                                <Button.Flyout>
+                                    <Flyout ShowMode="Standard" PlacementGravity="Bottom">
+                                        <Calendar Name="DiaryCalendar" FirstDayOfWeek="Monday"
+                                                  Width="292" Height="285"
+                                                  IsTodayHighlighted="True" SelectionMode="SingleDate"
+                                                  DisplayDate="{Binding CompactCalendarAnchorDate}"
+                                                  SelectedDate="{Binding SelectedDate}"
+                                                  ContextRequested="OnCalendarContextRequested">
+                                            <Calendar.ContextMenu>
+                                                <ContextMenu ItemsSource="{Binding QuickMenuItems}">
+                                                    <ContextMenu.ItemContainerTheme>
+                                                        <ControlTheme TargetType="MenuItem"
+                                                                      BasedOn="{StaticResource {x:Type MenuItem}}"
+                                                                      x:DataType="viewModels:DayMenuItem">
+                                                            <Setter Property="Header" Value="{Binding Header}" />
+                                                            <Setter Property="Command" Value="{Binding Command}" />
+                                                            <Setter Property="CommandParameter" Value="{Binding}" />
+                                                            <Setter Property="IsEnabled" Value="{Binding Enabled}" />
+                                                            <Setter Property="ItemsSource" Value="{Binding Children}" />
+                                                        </ControlTheme>
+                                                    </ContextMenu.ItemContainerTheme>
+                                                </ContextMenu>
+                                            </Calendar.ContextMenu>
+                                        </Calendar>
+                                    </Flyout>
+                                </Button.Flyout>
+                            </Button>
+                            <Button Name="NextCalendarPeriodButton" Grid.Column="2"
+                                    Classes="CompactCalendarNavigation"
+                                    ToolTip.Tip="显示下一周期" Command="{Binding ShowNextCalendarPeriodCommand}">
+                                <i:Icon Value="mdi-chevron-right" FontSize="18" />
+                            </Button>
+                        </Grid>
+                        <UniformGrid Columns="7">
+                            <TextBlock Text="一" Classes="CompactCalendarWeekday" />
+                            <TextBlock Text="二" Classes="CompactCalendarWeekday" />
+                            <TextBlock Text="三" Classes="CompactCalendarWeekday" />
+                            <TextBlock Text="四" Classes="CompactCalendarWeekday" />
+                            <TextBlock Text="五" Classes="CompactCalendarWeekday" />
+                            <TextBlock Text="六" Classes="CompactCalendarWeekday" />
+                            <TextBlock Text="日" Classes="CompactCalendarWeekday" />
+                        </UniformGrid>
+                        <ItemsControl Name="CompactCalendarDays" ItemsSource="{Binding CompactCalendarDays}"
+                                      Focusable="True" KeyDown="OnCompactCalendarKeyDown">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="7" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="viewModels:CompactCalendarDay">
+                                    <Button Classes="CompactCalendarDay"
+                                            Classes.Selected="{Binding IsSelected}"
+                                            Classes.Primary="{Binding IsSelected}"
+                                            Classes.Today="{Binding IsToday}"
+                                            Classes.OutsideMonth="{Binding IsOutsideMonth}"
+                                            Content="{Binding DayText}" ToolTip.Tip="{Binding ToolTip}"
+                                            Command="{Binding $parent[UserControl].((viewModels:DiaryEditorViewModel)DataContext).SelectCompactCalendarDateCommand}"
+                                            CommandParameter="{Binding Date}"
+                                            ContextRequested="OnCompactCalendarDayContextRequested"
+                                            Click="OnCompactCalendarDayClick">
+                                        <Button.ContextMenu>
+                                            <ContextMenu ItemsSource="{Binding $parent[UserControl].((viewModels:DiaryEditorViewModel)DataContext).QuickMenuItems}">
+                                                <ContextMenu.ItemContainerTheme>
+                                                    <ControlTheme TargetType="MenuItem"
+                                                                  BasedOn="{StaticResource {x:Type MenuItem}}"
+                                                                  x:DataType="viewModels:DayMenuItem">
+                                                        <Setter Property="Header" Value="{Binding Header}" />
+                                                        <Setter Property="Command" Value="{Binding Command}" />
+                                                        <Setter Property="CommandParameter" Value="{Binding}" />
+                                                        <Setter Property="IsEnabled" Value="{Binding Enabled}" />
+                                                        <Setter Property="ItemsSource" Value="{Binding Children}" />
+                                                    </ControlTheme>
+                                                </ContextMenu.ItemContainerTheme>
+                                            </ContextMenu>
+                                        </Button.ContextMenu>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
                 <!-- 统计信息 -->
                 <Border DockPanel.Dock="Bottom" Classes="SubtleCard" Padding="10,8">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
@@ -226,7 +336,8 @@
                             Command="{Binding DeleteWorkItemCommand}" />
                     <Button Grid.Column="5" Classes="ActionButton" Content="同步工时" HotKey="Ctrl+U"
                             Command="{Binding UploadTimeCommand}" />
-                    <Border Grid.Column="6" Classes="StatusPill" HorizontalAlignment="Right">
+                    <Border Name="SelectedWorkStatusPill" Grid.Column="6" Classes="StatusPill"
+                            HorizontalAlignment="Right" IsVisible="{Binding HasItem}">
                         <TextBlock Text="{Binding SelectedWork.StatusSummary}" HorizontalAlignment="Center" />
                     </Border>
                 </Grid>
