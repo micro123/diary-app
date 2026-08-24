@@ -109,6 +109,35 @@ public sealed class MigrationToolTests
     }
 
     [TestMethod]
+    public void SQLite_SkipsTagLinksWithMissingWorkItemsOrTags()
+    {
+        using var db = TestDb.Create();
+        using var legacy = LegacyDatabase.Create(data: """
+            INSERT INTO tags(tag_id, tag_name, tag_color, tag_level, tag_disabled)
+            VALUES (1, '有效标签', 4278190335, 0, 0);
+            INSERT INTO work_items(work_id, hour, comment, note, create_date, act_id, issue_id, is_uploaded, priority)
+            VALUES (1, 1.0, '有效事项', NULL, '2026-08-24', NULL, NULL, 0, 1);
+            INSERT INTO work_item_tags(work_id, tag_id) VALUES (1, 1);
+            INSERT INTO work_item_tags(work_id, tag_id) VALUES (1, 99);
+            INSERT INTO work_item_tags(work_id, tag_id) VALUES (99, 1);
+            """);
+        var progress = new List<(bool Success, double Value, string Message)>();
+
+        var result = Migrator.MigrateFromSqlite(
+            db,
+            legacy.Path,
+            (success, value, message) => progress.Add((success, value, message)));
+
+        Assert.IsTrue(result);
+        var item = db.GetWorkItemByDate("2026-08-24").Single();
+        Assert.AreEqual(1, db.GetWorkItemTags(item).Single().Id);
+        Assert.IsTrue(progress.Any(x => x.Success &&
+            x.Message.Contains("跳过2条悬空标签关联") &&
+            x.Message.Contains("缺失工作记录1条") &&
+            x.Message.Contains("缺失标签1条")));
+    }
+
+    [TestMethod]
     public void SQLite_RollsBackCoreDataWhenImportFails()
     {
         using var db = TestDb.Create();

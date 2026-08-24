@@ -10,6 +10,7 @@ internal abstract class BaseMigrator : IDisposable, IAsyncDisposable
     private readonly Action<bool, double, string> _processCallback;
     private readonly IDbConnection _connection;
     private readonly HashSet<int> _importedWorkIds = new();
+    private readonly HashSet<int> _importedTagIds = new();
 
     protected BaseMigrator(DbInterfaceBase db, IDbConnection connection, Action<bool, double, string> processCallback)
     {
@@ -121,6 +122,8 @@ internal abstract class BaseMigrator : IDisposable, IAsyncDisposable
 
             if (tag.Id != tagId && !Db.UpdateWorkTagId(tag.Id, tagId))
                 return false;
+
+            _importedTagIds.Add(tagId);
         }
 
         return true;
@@ -131,12 +134,32 @@ internal abstract class BaseMigrator : IDisposable, IAsyncDisposable
         using var command = CreateCommand("SELECT work_id, tag_id FROM work_item_tags;");
         using var reader = command.ExecuteReader();
         var cnt = 1;
+        var skipped = 0;
+        var missingWorks = 0;
+        var missingTags = 0;
         while (reader.Read())
         {
             Ok(p, $"处理第{cnt++}条标签组");
-            if (!Db.WorkItemAddTag(new WorkItem { Id = reader.GetInt32(0) },
-                    new WorkTag { Id = reader.GetInt32(1) }))
+            var workId = reader.GetInt32(0);
+            var tagId = reader.GetInt32(1);
+            var missingWork = !_importedWorkIds.Contains(workId);
+            var missingTag = !_importedTagIds.Contains(tagId);
+            if (missingWork || missingTag)
+            {
+                skipped++;
+                missingWorks += missingWork ? 1 : 0;
+                missingTags += missingTag ? 1 : 0;
+                continue;
+            }
+
+            if (!Db.WorkItemAddTag(new WorkItem { Id = workId }, new WorkTag { Id = tagId }))
                 return false;
+        }
+
+        if (skipped > 0)
+        {
+            Ok(p,
+                $"已跳过{skipped}条悬空标签关联（缺失工作记录{missingWorks}条，缺失标签{missingTags}条）");
         }
 
         return true;
