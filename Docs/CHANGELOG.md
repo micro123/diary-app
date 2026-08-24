@@ -5,6 +5,9 @@
 ## 未发布
 
 日期：2026-08-24
+- 优化 SQLite 在机械硬盘上的日期导航性能：工作项按核心字段、备注和 Tracker 绑定判断实际变更，日期列表重建不再误触发无变化保存；SQLite 默认启用 WAL、NORMAL 同步和 5 秒锁等待，减少连续键盘切换日期时的回滚日志创建、同步写入和锁冲突。
+- 新增独立 `date-performance` CDP 重负载场景和 6 步专项套件：按稀疏日常分布生成 540 天共 25,920 条事项、备注、标签和附加字段，执行 120 次逐次日期切换与高速连按，报告 P50/P95/P99、CPU、内存和进程 I/O；SQLite 强制验证主文件/WAL/journal 不变化，远程 PostgreSQL 校验业务摘要与插入/更新/删除计数。启用插件时可使用离线 Jira 或临时真实 Redmine，并为每天约 20% 的事项生成本地绑定；已完成 SQLite/PostgreSQL × Core-only/Redmine 四组对照且确认 Redmine 无远程工时写入，Windows 生命周期工具同步支持 `run -Suite`。
+- 修复 PostgreSQL Jira 扩展把整数状态列按布尔值写入、筛选和读取，导致启用 Jira 后出现 `integer = boolean` 并阻断 UI 初始化的问题；数据库共享契约现同时覆盖 SQLite/PostgreSQL 的项目归档、Issue 开关状态和开放 Issue 筛选。
 - MCP 发布由约 96.86 MB 的独立自包含单文件改为自包含多文件目录，并在主应用发布结束后按大小和 SHA-256 安全合并；相同的 .NET Runtime、Roslyn 与脚本依赖直接复用，内容冲突、Windows 大小写冲突、符号链接或 PDB 会阻断发布。Windows Python 3.13 完整包实测从 138,518,435 bytes 降至 100,141,220 bytes，减少 27.71%，同时发布脚本、CI、ZIP 校验器和更新服务器强制检查 MCP apphost、DLL、deps 与 runtimeconfig。
 - 修复 Redmine 配置重载与活动同步并发时释放在途 `RestClient` 导致应用崩溃的问题；旧实例停止接收新请求，在途请求完成后再释放客户端，生命周期结束不再把异常抛入 Avalonia UI 线程。
 - 稳定真实进程脚本取消测试：取消宽限期内未收到 Worker 结果时返回可观察的 `WORKER_CANCEL_GRACE_EXPIRED` 警告并强制回收，后续执行按既有状态机重新启动 Worker；跨语言测试同时验证优雅复用和强制回收后重启两种合法路径，不再把 CI 调度窗口误判为功能失败。

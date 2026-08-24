@@ -24,6 +24,7 @@ no_build=false
 with_plugins=false
 scenario="default"
 seed_profile=""
+profile_base="$state_directory/profiles"
 display_value="${DISPLAY:-}"
 force_xvfb=false
 
@@ -40,8 +41,9 @@ start 选项：
   --port <port>             CDP 监听端口，默认 9222
   --no-build               跳过 Debug restore/build
   --with-plugins            加载 Tracker 插件
-  --scenario <name>         default、extended、survey、database-error、extra-fields 或 plugins
+  --scenario <name>         default、extended、survey、database-error、extra-fields、date-performance 或 plugins
   --seed-profile <path>     复制已有 profile 的加密配置文件
+  --profile-base <path>     将隔离 profile 创建到指定磁盘目录，性能测试可指向 HDD
   --display <display>       使用指定 X11 DISPLAY，例如 :0
   --xvfb                    强制启动独立 Xvfb；未设置 DISPLAY 时会自动尝试
 
@@ -83,6 +85,11 @@ while (($# > 0)); do
             seed_profile="$2"
             shift 2
             ;;
+        --profile-base)
+            (($# >= 2)) || fail "--profile-base 缺少值。"
+            profile_base="$2"
+            shift 2
+            ;;
         --display)
             (($# >= 2)) || fail "--display 缺少值。"
             display_value="$2"
@@ -116,7 +123,7 @@ if [[ ! "$port" =~ ^[0-9]+$ ]] || ((port < 1024 || port > 65535)); then
 fi
 
 case "$scenario" in
-    default|extended|survey|database-error|extra-fields|plugins) ;;
+    default|extended|survey|database-error|extra-fields|date-performance|plugins) ;;
     *) fail "不支持的测试场景：$scenario" ;;
 esac
 
@@ -261,7 +268,9 @@ start_ui_test() {
     mkdir -p -- "$state_directory/profiles" "$state_directory/logs"
     local run_id profile app_log_path started_ms targets_json startup_ready_ms
     run_id="$(date +%Y%m%d%H%M%S)-$(python3 -c 'import uuid; print(uuid.uuid4().hex[:8])')"
-    profile="$state_directory/profiles/$run_id"
+    mkdir -p -- "$profile_base"
+    profile_base="$(readlink -f "$profile_base")"
+    profile="$profile_base/$run_id"
     app_log_path="$state_directory/logs/$run_id-app.log"
     xvfb_log_path="$state_directory/logs/$run_id-xvfb.log"
     mkdir -p -- "$profile"

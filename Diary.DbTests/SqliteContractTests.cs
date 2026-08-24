@@ -12,6 +12,28 @@ public class SqliteContractTests : DbContractTests
         => TestDb.Create(getMigration);
 
     [TestMethod]
+    public void Connect_ConfiguresDesktopWritePragmas()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"diary-sqlite-pragmas-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            using var db = new SQLiteDb(new FileSqliteFactory(Path.Combine(root, "diary.sqlite3")));
+            Assert.IsTrue(db.Connect());
+            var host = (IDbExtensionHost)db;
+
+            Assert.AreEqual("wal", Convert.ToString(host.ExecuteScalar("PRAGMA journal_mode;")));
+            Assert.AreEqual(1L, Convert.ToInt64(host.ExecuteScalar("PRAGMA synchronous;")));
+            Assert.AreEqual(5000L, Convert.ToInt64(host.ExecuteScalar("PRAGMA busy_timeout;")));
+            Assert.AreEqual(1L, Convert.ToInt64(host.ExecuteScalar("PRAGMA foreign_keys;")));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void Compatibility_EmptySQLiteDatabase_IsUninitialized()
     {
         using var db = new SQLiteDb(new FileSqliteFactory(":memory:"));

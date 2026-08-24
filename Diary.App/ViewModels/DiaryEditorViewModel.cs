@@ -54,6 +54,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private string CurrentDateString => TimeTools.FormatDateTime(CurrentDate);
     private bool _creating;
     private bool _sortingDailyWorks;
+    private bool _loadingWorks;
+    private bool _restoringSelectedDate;
 
     [ObservableProperty] private ObservableCollection<Template> _templates = new();
     [ObservableProperty] private bool _canUseTemplates = false;
@@ -108,7 +110,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanSave))]
     private void SaveWorkItem() => TrySaveWorkItem();
 
-    private bool TrySaveWorkItem()
+    private bool TrySaveWorkItem(bool navigateToSavedDate = true)
     {
         var selected = SelectedWork;
         if (selected is null)
@@ -125,7 +127,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
             DailyWorks.Add(selected);
         }
 
-        if (newDate || created)
+        if (navigateToSavedDate && (newDate || created))
         {
             var date = selected.Date;
             var id = selected.WorkId;
@@ -530,12 +532,30 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     private void GoDate(DateTime date)
     {
-        CurrentDate = date;
         SelectedDate = date;
     }
 
     partial void OnSelectedDateChanged(DateTime value)
     {
+        if (_restoringSelectedDate)
+            return;
+
+        var previousDate = CurrentDate;
+        if (SelectedWork is { ShouldPersistBeforeReplacement: true }
+            && !TrySaveWorkItem(navigateToSavedDate: false))
+        {
+            _restoringSelectedDate = true;
+            try
+            {
+                SelectedDate = previousDate;
+            }
+            finally
+            {
+                _restoringSelectedDate = false;
+            }
+            return;
+        }
+
         _currentDate = value;
         _logger.LogDebug("date changed to {Date}", _currentDate);
         FetchWorks();
@@ -543,8 +563,9 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     partial void OnSelectedWorkChanging(WorkEditorViewModel? value) // 指 即将 从 当前值 更改为 value
     {
-        if (!_deleting && !_creating && !_sortingDailyWorks && SelectedWork is not null)
-            SaveWorkItem();
+        if (!_deleting && !_creating && !_sortingDailyWorks && !_loadingWorks
+            && SelectedWork is { ShouldPersistBeforeReplacement: true })
+            TrySaveWorkItem();
         UpdateTimeInfos();
     }
 
@@ -616,44 +637,53 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     private void FetchWorks()
     {
-        DailyWorks.Clear();
-        var db = App.Instance.UseDb;
-        if (db != null)
+        _loadingWorks = true;
+        try
         {
-            var dbItems = db.GetWorkItemByDate(CurrentDateString);
-            if (dbItems.Count > 0)
+            DailyWorks.Clear();
+            SelectedWork = null;
+            var db = App.Instance.UseDb;
+            if (db != null)
             {
-                var notesById = db.GetWorkNotesByDate(CurrentDateString);
-                var tagsById = db.GetWorkTagsByDate(CurrentDateString);
-                var extraFieldsById = db.GetWorkItemExtraFieldsByWorkItemIds(
-                    dbItems.Select(item => item.Id).ToArray());
-                var trackers = App.Instance.Services
-                    .GetRequiredService<TrackerUiContributionRegistry>().Contributions;
-                var bindingsByTracker = new Dictionary<TrackerKey, IDictionary<int, object?>?>();
-                foreach (var t in trackers)
+                var dbItems = db.GetWorkItemByDate(CurrentDateString);
+                if (dbItems.Count > 0)
                 {
-                    var key = new TrackerKey(t.PluginId, t.Instance.InstanceId);
-                    bindingsByTracker[key] = t.Instance.LoadBindingsByDate(CurrentDateString);
-                }
+                    var notesById = db.GetWorkNotesByDate(CurrentDateString);
+                    var tagsById = db.GetWorkTagsByDate(CurrentDateString);
+                    var extraFieldsById = db.GetWorkItemExtraFieldsByWorkItemIds(
+                        dbItems.Select(item => item.Id).ToArray());
+                    var trackers = App.Instance.Services
+                        .GetRequiredService<TrackerUiContributionRegistry>().Contributions;
+                    var bindingsByTracker = new Dictionary<TrackerKey, IDictionary<int, object?>?>();
+                    foreach (var t in trackers)
+                    {
+                        var key = new TrackerKey(t.PluginId, t.Instance.InstanceId);
+                        bindingsByTracker[key] = t.Instance.LoadBindingsByDate(CurrentDateString);
+                    }
 
-                foreach (var item in dbItems)
-                {
-                    var x = WorkEditorViewModel.FromWorkItem(item);
-                    ConfigureEditorScriptActions(x);
-                    x.SyncFromBatch(notesById, tagsById, bindingsByTracker, extraFieldsById);
-                    DailyWorks.Add(x);
+                    foreach (var item in dbItems)
+                    {
+                        var x = WorkEditorViewModel.FromWorkItem(item);
+                        ConfigureEditorScriptActions(x);
+                        x.SyncFromBatch(notesById, tagsById, bindingsByTracker, extraFieldsById);
+                        DailyWorks.Add(x);
+                    }
+                    SortDailyWorks();
                 }
-                SortDailyWorks();
+            }
+            else
+            {
+                _logger.LogWarning("db is null");
+            }
+
+            if (DailyWorks.Count > 0)
+            {
+                SelectedWork = DailyWorks[0];
             }
         }
-        else
+        finally
         {
-            _logger.LogWarning("db is null");
-        }
-
-        if (DailyWorks.Count > 0)
-        {
-            SelectedWork = DailyWorks[0];
+            _loadingWorks = false;
         }
     }
 

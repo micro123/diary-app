@@ -31,12 +31,20 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
     public string? UploadError => TimeEntry?.UploadError;
     public DateTimeOffset? UploadAttemptedAt => TimeEntry?.UploadAttemptedAt;
     public bool CanDelete => !Uploaded;
+    public bool HasChanges => SelectedIssueId != TimeEntry?.IssueId
+        || SelectedActivityId != TimeEntry?.ActivityId;
     public TrackerKey Key => new(RedMinePluginConstants.PluginId, InstanceId);
     public string InstanceId => _settings.InstanceId;
     ViewModelBase ITrackerEditorExtension.View => this;
 
     private readonly IRedMineDb _database;
     private readonly RedMineInstanceSettings _settings;
+    private int? SelectedIssueId => IssueIndex >= 0 && IssueIndex < RedMineIssues.Count
+        ? RedMineIssues[IssueIndex].Id
+        : null;
+    private int? SelectedActivityId => ActivityIndex >= 0 && ActivityIndex < RedMineActivities.Count
+        ? RedMineActivities[ActivityIndex].Id
+        : null;
 
     public RedMineEditorRegionViewModel(
         IRedMineUiData data,

@@ -42,10 +42,18 @@ public sealed partial class SQLiteDb(IDbFactory factory) : DbInterfaceBase(facto
         };
         _connection = new SQLiteConnection(csb.ToString());
         _connection.Open();
-        using (var foreignKeys = _connection.CreateCommand())
+
+        foreach (var pragma in new[]
+                 {
+                     "PRAGMA journal_mode = WAL;",
+                     "PRAGMA synchronous = NORMAL;",
+                     "PRAGMA busy_timeout = 5000;",
+                     "PRAGMA foreign_keys = ON;",
+                 })
         {
-            foreignKeys.CommandText = "PRAGMA foreign_keys = ON;";
-            foreignKeys.ExecuteNonQuery();
+            using var command = _connection.CreateCommand();
+            command.CommandText = pragma;
+            command.ExecuteNonQuery();
         }
 
         // query version

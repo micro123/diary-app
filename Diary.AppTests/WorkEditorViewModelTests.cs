@@ -214,15 +214,33 @@ public sealed class WorkEditorViewModelTests
     }
 
     [TestMethod]
-    public void ExistingItemNeedsPersistenceBeforeReplacement()
+    public void UnchangedExistingItemDoesNotNeedPersistenceBeforeReplacement()
     {
         var viewModel = CreateViewModel();
-        SetWorkItem(viewModel, new WorkItem
+        LoadExistingItem(viewModel, new WorkItem
         {
             Id = 7,
             CreateDate = "2026-08-21",
-            Comment = string.Empty,
+            Comment = "已保存事项",
+            Time = 1.5,
+            Priority = WorkPriorities.P1,
         });
+
+        Assert.IsFalse(viewModel.ShouldPersistBeforeReplacement);
+    }
+
+    [TestMethod]
+    public void ChangedExistingItemNeedsPersistenceBeforeReplacement()
+    {
+        var viewModel = CreateViewModel();
+        LoadExistingItem(viewModel, new WorkItem
+        {
+            Id = 7,
+            CreateDate = "2026-08-21",
+            Comment = "已保存事项",
+        }, "原备注");
+
+        viewModel.Note = "修改后的备注";
 
         Assert.IsTrue(viewModel.ShouldPersistBeforeReplacement);
     }
@@ -325,6 +343,21 @@ public sealed class WorkEditorViewModelTests
             BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.IsNotNull(property);
         property.SetValue(viewModel, item);
+    }
+
+    private static void LoadExistingItem(
+        WorkEditorViewModel viewModel,
+        WorkItem item,
+        string note = "")
+    {
+        SetWorkItem(viewModel, item);
+        viewModel.WorkId = item.Id;
+        viewModel.Date = item.CreateDate;
+        viewModel.Comment = item.Comment;
+        viewModel.Time = item.Time;
+        viewModel.Priority = item.Priority;
+        viewModel.Note = note;
+        viewModel.AcceptCurrentStateAsPersisted();
     }
 
     private static WorkItem? GetWorkItem(WorkEditorViewModel viewModel)

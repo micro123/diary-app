@@ -40,7 +40,12 @@ public partial class JiraEditorRegionViewModel : ViewModelBase, ITrackerEditorEx
     public string? UploadError => _timeEntry?.UploadError;
     public DateTimeOffset? UploadAttemptedAt => _timeEntry?.UploadAttemptedAt;
     public bool CanDelete => !Uploaded;
+    public bool HasChanges => SelectedIssueKey != _timeEntry?.IssueKey;
     ViewModelBase ITrackerEditorExtension.View => this;
+
+    private string? SelectedIssueKey => IssueIndex >= 0 && IssueIndex < Issues.Count
+        ? Issues[IssueIndex].Key
+        : null;
 
     public void Load(WorkItem? item, object? binding = null)
     {

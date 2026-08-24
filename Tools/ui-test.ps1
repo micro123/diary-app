@@ -3,15 +3,17 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('start', 'stop', 'status', 'smoke')]
+    [ValidateSet('start', 'stop', 'status', 'smoke', 'run')]
     [string] $Command = 'start',
     [ValidateRange(1024, 65535)]
     [int] $Port = 9222,
     [switch] $NoBuild,
     [switch] $WithPlugins,
-    [ValidateSet('default', 'extended', 'survey', 'database-error', 'extra-fields', 'plugins')]
+    [ValidateSet('default', 'extended', 'survey', 'database-error', 'extra-fields', 'date-performance', 'plugins')]
     [string] $Scenario = 'default',
-    [string] $SeedProfile = ''
+    [string] $SeedProfile = '',
+    [string] $ProfileBase = '',
+    [string] $Suite = ''
 )
 
 Set-StrictMode -Version Latest
@@ -79,7 +81,13 @@ function Start-UiTest {
 
     New-Item -ItemType Directory -Path $stateDirectory -Force | Out-Null
     $runId = "{0}-{1}" -f (Get-Date -Format 'yyyyMMddHHmmss'), [guid]::NewGuid().ToString('N').Substring(0, 8)
-    $profile = Join-Path $stateDirectory "profiles\$runId"
+    $profileRoot = $(if ([string]::IsNullOrWhiteSpace($ProfileBase)) {
+        Join-Path $stateDirectory 'profiles'
+    } else {
+        [IO.Path]::GetFullPath($ProfileBase)
+    })
+    New-Item -ItemType Directory -Path $profileRoot -Force | Out-Null
+    $profile = Join-Path $profileRoot $runId
     New-Item -ItemType Directory -Path $profile -Force | Out-Null
 
     if (-not [string]::IsNullOrWhiteSpace($SeedProfile)) {
@@ -173,7 +181,7 @@ function Stop-UiTest {
     Write-Host "UI 测试程序已停止：PID=$($process.Id)"
 }
 
-function Invoke-UiSmoke {
+function Invoke-UiSuite([string] $SuiteName) {
     $state = Get-TestState
     $process = Get-OwnedProcess $state
     if ($null -eq $process) {
@@ -181,15 +189,27 @@ function Invoke-UiSmoke {
     }
     $node = Get-Command node -ErrorAction SilentlyContinue
     if ($null -eq $node) {
-        throw '找不到 Node.js；UI smoke 需要 Node.js 22.5 或更高版本。'
+        throw '找不到 Node.js；UI 测试需要 Node.js 22.5 或更高版本。'
     }
     $nodeVersion = [version](& $node.Source -p 'process.versions.node')
     if ($nodeVersion -lt [version]'22.5.0') {
-        throw "UI smoke 需要 Node.js 22.5 或更高版本，当前为 $nodeVersion。"
+        throw "UI 测试需要 Node.js 22.5 或更高版本，当前为 $nodeVersion。"
     }
-    & $node.Source (Join-Path $scriptDirectory 'ui-smoke.mjs') --state $statePath
+    if ([string]::IsNullOrWhiteSpace($SuiteName) -or $SuiteName -notmatch '^ui-[a-z0-9-]+(?:\.mjs)?$') {
+        throw "无效的 UI 套件名称：$SuiteName"
+    }
+    $suiteFile = $(if ($SuiteName.EndsWith('.mjs', [StringComparison]::OrdinalIgnoreCase)) {
+        $SuiteName
+    } else {
+        "$SuiteName.mjs"
+    })
+    $suitePath = Join-Path $scriptDirectory $suiteFile
+    if (-not (Test-Path -LiteralPath $suitePath -PathType Leaf)) {
+        throw "找不到 UI 套件：$suiteFile"
+    }
+    & $node.Source $suitePath --state $statePath
     if ($LASTEXITCODE -ne 0) {
-        throw "UI smoke 失败：exit=$LASTEXITCODE"
+        throw "UI 套件失败：$suiteFile，exit=$LASTEXITCODE"
     }
 }
 
@@ -216,5 +236,6 @@ switch ($Command) {
     'start' { Start-UiTest }
     'stop' { Stop-UiTest }
     'status' { Show-UiTestStatus }
-    'smoke' { Invoke-UiSmoke }
+    'smoke' { Invoke-UiSuite 'ui-smoke' }
+    'run' { Invoke-UiSuite $Suite }
 }

@@ -176,9 +176,9 @@ stop
 
 插件状态目前使用 `PluginState` 表示兼容、阻塞、迁移失败等结果。插件迁移失败会返回 `MigrationFailed`，不会让 `PluginHost.Migrate()` 报告启用成功；核心启动仍由应用层决定是否继续使用核心功能。
 
-核心模式可通过 `Diary.App --core-only` 启动，不加载任何 tracker 插件或插件 UI，适合验证无 Redmine 程序集时的核心日记、编辑器和模板功能。该选项只影响当前进程，不修改插件配置和数据库数据。
+核心模式可通过 `Diary.App --core-only` 启动，不加载任何 tracker 插件或插件 UI，适合验证无 Redmine 程序集时的核心日记、编辑器和模板功能。该选项只影响当前进程，不修改插件配置和数据库数据。UI 生命周期工具默认使用核心模式；显式传入 `--with-plugins` / `-WithPlugins` 才加载 Tracker，用于和核心性能基线做同库对照。
 
-Debug 构建还提供显式启用的本地 UI 自动化入口：设置 `DIARY_CDP_PORT` 后由 `DebugUiAutomation` 在主窗口创建完成时启动 Avalonia CDP；设置 `DIARY_UI_TEST_ROOT` 时，`FsTools` 会在任何应用目录初始化前把配置、数据、日志和临时目录切换到独立 profile，并按 profile 路径生成独立单实例 ID。`DIARY_UI_TEST_SCENARIO` 支持 `default`、`extended`、`survey`、`database-error`、`extra-fields` 和 `plugins` 六种隔离场景，只在测试 profile 中预置开发者、调查、附加字段或数据库异常配置；`Tools/ui-full-test.ps1` 按场景编排 9 个 UI 套件，外部 Redmine 配置仅从加密 seed profile 复制。相关包引用、启动和停止代码均受 Debug 条件限制，Release 构建不携带该调试入口。测试生命周期和性能基线见 [`UiAutomationTesting.md`](UiAutomationTesting.md)，功能级状态见 [`UiAutomationCoverage.md`](UiAutomationCoverage.md)。
+Debug 构建还提供显式启用的本地 UI 自动化入口：设置 `DIARY_CDP_PORT` 后由 `DebugUiAutomation` 在主窗口创建完成时启动 Avalonia CDP；设置 `DIARY_UI_TEST_ROOT` 时，`FsTools` 会在任何应用目录初始化前把配置、数据、日志和临时目录切换到独立 profile，并按 profile 路径生成独立单实例 ID。`DIARY_UI_TEST_SCENARIO` 支持 `default`、`extended`、`survey`、`database-error`、`extra-fields`、`date-performance` 和 `plugins` 七种隔离场景，只在测试 profile 中预置开发者、调查、附加字段、性能数据或数据库异常配置。`date-performance` 默认使用隔离 SQLite，也可通过 Debug-only 环境变量临时连接专用 PostgreSQL 测试库；启用插件时默认创建不持久化、不主动联网的 Jira 测试实例，也可通过进程环境临时接入真实 Redmine。Tracker 性能数据只使用本地缓存与本地绑定，按日期内稳定顺序为每天约 20% 的事项生成关联，不执行远程搜索或写入。`Tools/ui-full-test.ps1` 按场景编排 9 个常规 UI 套件，日期性能专项独立运行，常规外部 Redmine 配置仅从加密 seed profile 复制。相关包引用、启动和停止代码均受 Debug 条件限制，Release 构建不携带该调试入口。测试生命周期和性能基线见 [`UiAutomationTesting.md`](UiAutomationTesting.md)，功能级状态见 [`UiAutomationCoverage.md`](UiAutomationCoverage.md)。
 主窗口左上角应用图标菜单提供“重启程序”。命令先标记重启请求并复用正常退出流程，等待 `PreShutdownAsync` 停止调查服务、脚本 Worker、保存配置并释放 DI；`Program.Main` 在 Avalonia 生命周期返回且 `SingletonApp` 释放文件锁和命名管道后，才以原可执行文件和命令行参数启动新实例，避免新实例被单实例守卫拦截。框架依赖方式通过 `dotnet Diary.App.dll` 启动时会保留托管入口程序集参数。
 
 退出清理由 `RetryableAsyncOperation` 合并并发请求；清理失败时会释放失败任务，用户再次退出可重新执行，不会被永久 faulted 的任务锁住。UI Dispatcher 的全局异常处理只将 `DbException` 视为可恢复连接错误并继续运行；其他未处理异常仅记录后交回框架终止路径，由 CrashDump 流程保留诊断，避免把未知状态下的程序强行维持运行。
@@ -192,7 +192,7 @@ Debug 构建还提供显式启用的本地 UI 自动化入口：设置 `DIARY_CD
 
 统计页刷新先在 UI 线程捕获日期和“占比计算基准”，后台只查询并构造不可变快照，最后回到 UI Dispatcher 原子更新总计、柱状图、饼图和树表。柱状图与饼图复用同一份主标签工时数据，切换显示不会再次查询数据库。刷新请求使用递增 generation 且数据库查询串行化；旧请求即使较晚完成也不会覆盖较新的筛选结果。
 
-事件记录页的 `DailyWorks` 使用统一的优先级、ID 排序规则：`WorkPriorities` 升序后按持久化工作项 ID 升序。日期加载、复制新增和每次工作项保存后都会重排；重排使用 `ObservableCollection.Move()`，避免通过清空集合破坏当前选中项，并在移动期间抑制由选择变化触发的重复保存。日期加载会按当日工作项 ID 批量读取附加字段，并把结果随备注、标签和 Tracker 绑定一起注入编辑器，避免每条事项重复执行附加字段查询。Redmine/Jira 编辑器直接复用数据仓库维护的开放 Issue/活动只读列表；只有历史绑定指向已关闭或缺失项时，才为该编辑器创建带失效占位项的局部列表，避免富数据日期切换时为每条事项重复复制全部 Tracker 选项。工作项克隆会先以空事项加载目标 Tracker 扩展的选项，再按用途决定是否复制选择：普通“重复当前事项”保留 Tracker 设置；跨日期复制仅复制本地字段、标签和附加字段，并绕过标签默认值自动化，确保不会创建 Tracker 本地绑定。
+事件记录页的 `DailyWorks` 使用统一的优先级、ID 排序规则：`WorkPriorities` 升序后按持久化工作项 ID 升序。日期加载、复制新增和每次工作项保存后都会重排；重排使用 `ObservableCollection.Move()`，避免通过清空集合破坏当前选中项，并在移动期间抑制由选择变化触发的重复保存。日期和事项切换会比较核心字段、备注与 Tracker 绑定，只在实际修改后保存；日期列表重建期间明确抑制选择变化保存，纯浏览不应修改 SQLite 主文件或 WAL，也不应增加 PostgreSQL 业务写入计数。日期加载会按当日工作项 ID 批量读取附加字段，并把结果随备注、标签和 Tracker 绑定一起注入编辑器，避免每条事项重复执行附加字段查询。Redmine/Jira 编辑器直接复用数据仓库维护的开放 Issue/活动只读列表；只有历史绑定指向已关闭或缺失项时，才为该编辑器创建带失效占位项的局部列表，避免富数据日期切换时为每条事项重复复制全部 Tracker 选项。工作项克隆会先以空事项加载目标 Tracker 扩展的选项，再按用途决定是否复制选择：普通“重复当前事项”保留 Tracker 设置；跨日期复制仅复制本地字段、标签和附加字段，并绕过标签默认值自动化，确保不会创建 Tracker 本地绑定。Debug CDP 提供独立 `date-performance` 重负载场景，为 SQLite 或 PostgreSQL 生成 25,920 条稀疏富数据，并可加载真实 Jira 插件与 20% 本地绑定；报告日期导航延迟、CPU、工作集、进程 I/O 和数据库无变化证据，用于同机同后端趋势回归。
 
 脚本宿主的普通日志项和模板日志项创建 API 接收应用层提供的数据库变更回调。只有 provider 事务真实提交成功后才调用该回调；应用内执行和 Worker HostCall 均将其映射为 `DbChangedEvent.ShareData`，事件记录页随后在 UI Dispatcher 上重新读取当前日期。Preview、幂等重放和失败回滚不会发送变更通知，通知回调自身失败也不改变已经提交的脚本结果。
 

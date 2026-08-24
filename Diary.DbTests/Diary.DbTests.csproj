@@ -27,6 +27,7 @@
     <ProjectReference Include="..\Diary.RedMine\Diary.RedMine.csproj" />
     <ProjectReference Include="..\Diary.Jira\Diary.Jira.csproj" />
     <ProjectReference Include="..\Diary.Jira.SQLite\Diary.Jira.SQLite.csproj" />
+    <ProjectReference Include="..\Diary.Jira.PostgreSQL\Diary.Jira.PostgreSQL.csproj" />
     <ProjectReference Include="..\Diary.MigrationTool\Diary.MigrationTool.csproj" />
     <ProjectReference Include="..\Diary.App\Diary.App.csproj" />
   </ItemGroup>

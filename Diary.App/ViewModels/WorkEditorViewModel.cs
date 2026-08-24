@@ -51,6 +51,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     private readonly DbInterfaceBase? _database;
     private readonly List<(WorkTag Tag, TagAddSource Source, int Sequence)> _pendingTagAutomation = [];
     private IReadOnlyList<int> _recentTagIds = Array.Empty<int>();
+    private string _persistedNote = string.Empty;
 
     // db data fields
     private WorkItem? WorkItem { get; set; } // ref to existed db item, may null
@@ -234,14 +235,22 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     public bool IsNewItem => WorkItem is null;
 
-    public bool ShouldPersistBeforeReplacement => !IsImportedReadOnly
-        && (!IsNewItem
-        || !string.IsNullOrWhiteSpace(Comment)
-        || !string.IsNullOrWhiteSpace(Note)
-        || Time != 0
-        || Priority != WorkPriorities.P0
-        || WorkTags.Count != 0
-        || _extraFieldValues.Any(value => !string.IsNullOrWhiteSpace(value.Value)));
+    public bool HasUnsavedChanges => WorkItem is { } item
+        ? item.CreateDate != Date
+          || item.Comment != Comment
+          || Math.Abs(item.Time - Time) > 0.0000001
+          || item.Priority != Priority
+          || _persistedNote != Note
+          || Extensions.Any(extension => extension.HasChanges)
+        : !string.IsNullOrWhiteSpace(Comment)
+          || !string.IsNullOrWhiteSpace(Note)
+          || Time != 0
+          || Priority != WorkPriorities.P0
+          || WorkTags.Count != 0
+          || _extraFieldValues.Any(value => !string.IsNullOrWhiteSpace(value.Value))
+          || Extensions.Any(extension => extension.HasChanges);
+
+    public bool ShouldPersistBeforeReplacement => !IsImportedReadOnly && HasUnsavedChanges;
 
     // public int WorkId => WorkItem?.Id ?? 0;
     [ObservableProperty] private int _workId;
@@ -268,6 +277,7 @@ public partial class WorkEditorViewModel : ViewModelBase
 
         WorkItem = result.WorkItem;
         WorkId = WorkItem.Id;
+        AcceptCurrentStateAsPersisted();
         if (created)
         {
             TriggerScriptAutomation(ScriptAutomationTriggerKind.WorkItemCreated, WorkItem);
@@ -457,6 +467,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         foreach (var ext in Extensions)
             ext.Load(WorkItem);
         RecomputeIsLocked();
+        AcceptCurrentStateAsPersisted();
     }
 
     public void SyncFromBatch(
@@ -504,7 +515,10 @@ public partial class WorkEditorViewModel : ViewModelBase
             ext.Load(WorkItem, binding);
         }
         RecomputeIsLocked();
+        AcceptCurrentStateAsPersisted();
     }
+
+    internal void AcceptCurrentStateAsPersisted() => _persistedNote = Note;
 
     private void SyncNote()
     {

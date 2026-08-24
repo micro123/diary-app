@@ -38,17 +38,17 @@ public sealed class PgJiraDb(IDbExtensionHost host, string instanceId) : IJiraDb
     }
 
     public void UpsertProject(JiraProject project)
-        => _host.Execute("INSERT INTO jira_projects(instance_id,project_key,project_name,project_desc,is_archived) VALUES ($1,$2,$3,$4,$5) ON CONFLICT(instance_id,project_key) DO UPDATE SET project_name=$3,project_desc=$4,is_archived=$5;", ("$1", InstanceId), ("$2", project.Key), ("$3", project.Name), ("$4", project.Description), ("$5", project.Archived));
+        => _host.Execute("INSERT INTO jira_projects(instance_id,project_key,project_name,project_desc,is_archived) VALUES ($1,$2,$3,$4,$5) ON CONFLICT(instance_id,project_key) DO UPDATE SET project_name=$3,project_desc=$4,is_archived=$5;", ("$1", InstanceId), ("$2", project.Key), ("$3", project.Name), ("$4", project.Description), ("$5", project.Archived ? 1 : 0));
 
     public void UpsertIssue(JiraIssue issue)
     {
         UpsertProject(new JiraProject(issue.ProjectKey, issue.ProjectName, string.Empty, false));
-        _host.Execute("INSERT INTO jira_issues(instance_id,issue_key,issue_title,project_key,project_name,status_name,is_closed) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(instance_id,issue_key) DO UPDATE SET issue_title=$3,project_key=$4,project_name=$5,status_name=$6,is_closed=$7;", ("$1", InstanceId), ("$2", issue.Key), ("$3", issue.Summary), ("$4", issue.ProjectKey), ("$5", issue.ProjectName), ("$6", issue.Status), ("$7", issue.Closed));
+        _host.Execute("INSERT INTO jira_issues(instance_id,issue_key,issue_title,project_key,project_name,status_name,is_closed) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(instance_id,issue_key) DO UPDATE SET issue_title=$3,project_key=$4,project_name=$5,status_name=$6,is_closed=$7;", ("$1", InstanceId), ("$2", issue.Key), ("$3", issue.Summary), ("$4", issue.ProjectKey), ("$5", issue.ProjectName), ("$6", issue.Status), ("$7", issue.Closed ? 1 : 0));
     }
 
     public ICollection<JiraIssueDisplay> GetIssues(bool openOnly = true)
     {
-        var sql = "SELECT issue_key,issue_title,project_name,status_name,is_closed FROM jira_issues WHERE instance_id=$1" + (openOnly ? " AND is_closed=FALSE" : string.Empty) + " ORDER BY is_closed,issue_key;";
+        var sql = "SELECT issue_key,issue_title,project_name,status_name,is_closed FROM jira_issues WHERE instance_id=$1" + (openOnly ? " AND is_closed=0" : string.Empty) + " ORDER BY is_closed,issue_key;";
         return _host.Query(sql, MapIssue, ("$1", InstanceId));
     }
 
@@ -84,9 +84,9 @@ public sealed class PgJiraDb(IDbExtensionHost host, string instanceId) : IJiraDb
         Summary = _host.ReadString(reader, 1),
         Project = _host.ReadString(reader, 2),
         Status = _host.ReadString(reader, 3),
-        Disabled = reader.GetBoolean(4),
+        Disabled = reader.GetInt32(4) != 0,
     };
-    private JiraProject MapProject(DbDataReader reader) => new(_host.ReadString(reader, 0), _host.ReadString(reader, 1), _host.ReadString(reader, 2), reader.GetBoolean(3));
+    private JiraProject MapProject(DbDataReader reader) => new(_host.ReadString(reader, 0), _host.ReadString(reader, 1), _host.ReadString(reader, 2), reader.GetInt32(3) != 0);
     private JiraWorkTimeEntry MapEntry(DbDataReader reader) => new()
     {
         WorkId = reader.GetInt32(0),

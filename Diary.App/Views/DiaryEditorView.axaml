@@ -74,7 +74,7 @@
                     </StackPanel>
                 </Grid>
                 <Separator DockPanel.Dock="Top" />
-                <Calendar FirstDayOfWeek="Monday" DockPanel.Dock="Top"
+                <Calendar Name="DiaryCalendar" FirstDayOfWeek="Monday" DockPanel.Dock="Top"
                           IsTodayHighlighted="True" SelectionMode="SingleDate"
                           DisplayDate="{Binding CurrentDate}"
                           SelectedDate="{Binding SelectedDate}"

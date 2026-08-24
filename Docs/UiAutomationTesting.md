@@ -26,6 +26,7 @@ Windows 使用 `Tools/ui-test.ps1` 管理单个隔离 App 生命周期：
 .\Tools\ui-test.ps1 start
 .\Tools\ui-test.ps1 status
 .\Tools\ui-test.ps1 smoke
+.\Tools\ui-test.ps1 run -Suite ui-core-full
 .\Tools\ui-test.ps1 stop
 ```
 
@@ -62,6 +63,7 @@ Linux 默认构建流程先按 Debug 配置执行 restore，再使用 `--no-rest
 | `survey` | `-Scenario survey` / `--scenario survey` | 开启调查者和本机受访节点 |
 | `database-error` | `-Scenario database-error` / `--scenario database-error` | 注入不存在的数据库驱动，验证恢复 UI |
 | `extra-fields` | `-Scenario extra-fields` / `--scenario extra-fields` | 预置迁移只读事项，验证标签附加字段定义和类型化编辑 |
+| `date-performance` | `-Scenario date-performance` / `--scenario date-performance` | 预置 540 天、每日 48 条富工作数据，验证大量日期切换性能和只读导航不写库 |
 | `plugins` | `-Scenario plugins -WithPlugins` / `--scenario plugins --with-plugins` | 加载 Tracker 插件和动态管理页 |
 
 两种工具的 `start` 都会创建 `.build-tmp/ui-test/profiles/<runId>`，等待 CDP ready，并将 PID、端口、profile、场景和冷启动时间写入 `.build-tmp/ui-test/current.json`。Linux 额外记录 `platform`、`display`、Xvfb PID 和应用日志路径。`stop` 会校验 PID 对应的可执行文件后再终止进程，避免误杀其他 DiaryApp 或 Xvfb 实例。
@@ -91,7 +93,7 @@ seed 只复制加密配置文件，不应提交到 Git，也不得写入报告�
 
 当前全量多场景编排器仍为 PowerShell。Linux 可以通过 `ui-test.sh start` 和 `ui-test.sh run <suite>` 运行任意单套件；无桌面的 Xvfb 全量编排和定期 CI 门禁仍是后续工作，不能仅凭已有桌面会话结果视为 headless 门禁完成。
 
-当前 10 个套件如下：
+当前 11 个套件如下；`ui-date-performance` 是耗时和机器差异较大的专项，不加入常规全量编排：
 
 | 套件 | 结构化步骤 | 主要覆盖 |
 | --- | ---: | --- |
@@ -103,10 +105,11 @@ seed 只复制加密配置文件，不应提交到 Git，也不得写入报告�
 | `ui-database-error` | 8 | 日记/查询/统计数据库异常状态、重试、设置入口、诊断导出和异常状态性能 |
 | `ui-survey-full` | 8 | v1 查询、v2 能力发现、详情、筛选、三种分组、明细开关、校验错误和性能 |
 | `ui-extra-fields-full` | 8 | 9 类字段定义、类型化编辑、清空、持久化、停用历史值和迁移只读事项 |
+| `ui-date-performance` | 6 | 25,920 条事项、120 次逐次日期切换、两组高速连按、CPU/内存/进程 I/O；SQLite 检查主文件/WAL，PostgreSQL 检查数据摘要与写入计数 |
 | `ui-redmine-full` | 12 | 多 Tracker 设置、Redmine 管理、项目/Issue、标签规则、工时同步、防重复、删除边界、安全和性能 |
 | `ui-redmine-style` | 5 | Redmine 配置、插件状态、基本信息、问题/项目工具栏截图和 CheckBox 中心线，只读且不触发远程写入 |
 
-9 个带结构化摘要的套件当前合计 77 个步骤；`ui-smoke` 另含标签、模板、主题、草稿、本地持久化和性能断言。
+常规全量编排的 9 个带结构化摘要套件当前合计 77 个步骤；`ui-smoke` 另含标签、模板、主题、草稿、本地持久化和性能断言。日期性能专项另有 6 步，按目标机器和目标磁盘单独运行。
 
 ## 4. 单套件调试
 
@@ -124,7 +127,7 @@ Redmine 视觉回归必须使用已经加密的隔离 seed profile，并加载�
 
 ```powershell
 .\Tools\ui-test.ps1 start -NoBuild -Scenario default
-node .\Tools\ui-core-full.mjs
+.\Tools\ui-test.ps1 run -Suite ui-core-full
 .\Tools\ui-test.ps1 stop
 ```
 
@@ -136,6 +139,47 @@ node .\Tools\ui-extended-full.mjs
 node .\Tools\ui-script-editor.mjs
 .\Tools\ui-test.ps1 stop
 ```
+
+日期切换性能专项必须使用新建的隔离 profile，不要传入真实用户 profile。它会一次性生成 25,920 条事项，并按日常使用比例生成 6,480 条备注、33,696 条标签关系和 8,640 条附加字段值，而不是让每条事项都携带全部扩展数据：
+
+```powershell
+.\Tools\ui-test.ps1 start -Scenario date-performance -ProfileBase 'D:\DiaryUiPerf'
+.\Tools\ui-test.ps1 run -Suite ui-date-performance
+.\Tools\ui-test.ps1 stop
+```
+
+Linux 等价命令：
+
+```bash
+./Tools/ui-test.sh start --scenario date-performance --profile-base /mnt/hdd/diary-ui-perf --display :0
+./Tools/ui-test.sh run ui-date-performance
+./Tools/ui-test.sh stop
+```
+
+`-ProfileBase` / `--profile-base` 决定数据库、WAL、配置和日志实际所在磁盘；验证 HDD 时必须指向目标机械盘，不能只把报告输出到 HDD。专项报告记录逐次切换 P50/P95/P99/最大值、最慢日期、高速连按吞吐、进程 CPU 时间、平均占用核数、工作集与读写字节。测试在预热后记录 SQLite 主文件、WAL 和 journal 的大小与修改时间；120 次逐次切换和两组高速连按结束后这些文件必须保持不变，`-shm` 因锁状态变化不作为写入失败依据。进程总写入超过 1 MiB 或工作集增长超过 256 MiB 会产生 warning，但不直接失败；这些值用于同一 Windows HDD 和同一构建方式下的趋势比较。
+
+远程 PostgreSQL 使用同一个 `date-performance` 场景，但必须连接专用空数据库，不能指向用户数据库。Debug 进程通过环境变量临时覆盖数据库配置，不保存密码；运行 Node 套件的终端也必须保留这些变量，并安装可执行的 `psql`，用于读取数据摘要及 `pg_stat_database` 插入、更新、删除计数：
+
+```bash
+export DIARY_UI_TEST_PG_HOST='<postgres-host>'
+export DIARY_UI_TEST_PG_PORT='5432'
+export DIARY_UI_TEST_PG_DATABASE='diary_cdp_test'
+export DIARY_UI_TEST_PG_USER='<test-user>'
+export DIARY_UI_TEST_PG_PASSWORD='<test-password>'
+./Tools/ui-test.sh start --scenario date-performance --port 9333 --display :0
+./Tools/ui-test.sh run ui-date-performance
+./Tools/ui-test.sh stop
+```
+
+PostgreSQL 模式会使用 `generate_series` 在单一事务中生成相同规模的数据；预热后比较事项数量、ID/标题长度/工时摘要、备注/标签/附加字段数量和数据库写入计数。纯日期浏览导致业务摘要变化，或 `tup_inserted`、`tup_updated`、`tup_deleted` 增加时直接失败。默认启动仍带 `--core-only`，用于获得未加载 Tracker 的核心基线；传入 `--with-plugins` / `-WithPlugins` 后，Debug 场景默认临时启用一个不主动联网的 Jira 实例。设置 `DIARY_UI_TEST_REDMINE_URL`、`DIARY_UI_TEST_REDMINE_API_KEY`、`DIARY_UI_TEST_REDMINE_ACTIVITY_IDS` 和 `DIARY_UI_TEST_REDMINE_ISSUE_IDS` 时则改用真实 Redmine 配置和真实活动/Issue ID，但仍只创建本地绑定，不搜索、创建或上传远程数据。Tracker 模式为 20% 的事项生成 5,184 条绑定，按日期内稳定顺序取样，540 天每天都有 9～10 条关联；已有的按整天聚集旧分布会自动重建。临时配置和凭据不持久化：
+
+```bash
+./Tools/ui-test.sh start --scenario date-performance --with-plugins --port 9333 --display :0
+./Tools/ui-test.sh run ui-date-performance
+./Tools/ui-test.sh stop
+```
+
+真实 Redmine 对照测试必须在 App 启动和 Node 套件两个进程中传入相同环境变量。API Key 只应存在于当前 shell 或受保护的本地凭据文件中，不写入脚本、报告或文档。测试前后可通过 Redmine 只读 API 比较当前用户工时总数，确认专项没有远程副作用。
 
 附加字段套件使用独立场景：
 
@@ -171,7 +215,7 @@ Linux 的 `run` 会自动传入当前状态文件，不需要手动拼接 `--sta
 
 - 功能断言失败、对话框未关闭、目标页面未出现或状态未持久化均为 `failed`。
 - 外部服务配置未提供时为 `blocked-external`，不计作功能通过。
-- 性能值用于同一机器、同一构建方式下的趋势比较，不作为跨机器固定发布阈值。
+- 性能值用于同一机器、同一构建方式下的趋势比较，不作为跨机器固定发布阈值。日期性能专项的默认 warning 线为逐次切换 P95 300ms、最大值 1.5s、24 次高速切换 8s、进程写入 1 MiB 和工作集增长 256 MiB。
 - 首次页面创建包含视图构造和数据加载，应与预热后的视觉树/动作耗时分开观察。
 - 原生文件选择器、目录选择器、系统托盘和真实备份/还原不由 Avalonia CDP 控制，保留 Windows 原生人工或专用驱动验证。
 
@@ -217,6 +261,46 @@ Linux 原生 Debug App 在 `DISPLAY=:0`、1280×800 桌面会话中完成验证�
 本轮 Debug 冷启动到 CDP ready 为 1,318–1,839 ms，core 截图 P50/P95 为 54.37/71.02 ms，smoke `DOM.getDocument` P50/P95 为 6.89/13.13 ms；最新扩展套件耗时 9,152 ms。Redmine 两个筛选 CheckBox 与搜索框中心线偏差均为 0px。
 
 `ui-core-full` 还会打开应用图标菜单并确认 Debug 构建不显示发布版“用户手册”入口。Release 不编译 CDP，因此 Release 侧由单元测试验证菜单绑定和文件解析，并由 Tag/手动工作流的 ZIP 契约检查 HTML/PDF；系统默认浏览器或 PDF 阅读器的实际启动仍属于原生人工检查。
+
+### 6.2 2026-08-24 SQLite 初始密集数据基线
+
+`ui-date-performance` 在 Linux X11 Debug 构建完成 6/6 步。测试 profile 位于 NVMe/Btrfs，不代表 Windows HDD 性能，但用于验证场景、键盘事件、指标采集和数据库无写入断言已经完整串通。该轮使用每条事项 2 个标签和 1 个附加字段的初始密集分布；场景后来改为稀疏日常分布，因此该报告保留为历史实现基线，不与后续稀疏结果直接比较。
+
+| 项目 | 结果 |
+| --- | ---: |
+| 富数据规模 | 540 天 × 48 条，共 25,920 条事项 |
+| 逐次切换 | 120 次 |
+| P50 / P95 / P99 | 76.73 / 152.14 / 166.97 ms |
+| 最大值 / 平均值 | 189.68 / 88.11 ms |
+| 高速连按 | 前进 17.34 次/秒，后退 15.64 次/秒 |
+| SQLite 主文件/WAL/journal 变化 | 0 |
+| 测量阶段进程写入 | 36 KiB，数据库文件无变化 |
+| 平均 CPU | 1.67 核 |
+| 工作集增长 | 394.23 MiB，产生 warning |
+
+报告：`.build-tmp/ui-test/reports/ui-date-performance-2026-08-24T05-52-51-388Z.json`。工作集增长可能包含 Debug/JIT、Skia/Avalonia 缓存和 GC 尚未归还的内存，不能仅凭一次样本判定泄漏；后续需要在 Windows HDD 上重复运行并增加稳定等待或强制 GC 对照。
+
+### 6.3 2026-08-24 四组稀疏日常数据对照基线
+
+同一 Linux X11 Debug 构建按相同口径依次运行 SQLite Core-only、SQLite + 真实 Redmine、远程 PostgreSQL Core-only、远程 PostgreSQL + 真实 Redmine，四组均完成 6/6 步。每组使用 25,920 条事项、6,480 条备注、33,696 条标签关系和 8,640 条附加字段值；Tracker 组另有 5,184 条本地 Redmine 绑定。修正后的取样在 540 天每天生成 9～10 条关联，2026-08-24 为 48 条事项中的 10 条。测试只读取 Redmine 当前用户、活动和 Issue，并在测试前后确认远程工时总数保持 6 条。
+
+| 模式 | P50 | P95 | P99 | 平均值 | 高速前进/后退 | 平均 CPU | 工作集增长 | 进程写入 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| SQLite Core-only | 70.74 ms | 105.63 ms | 122.15 ms | 73.64 ms | 18.79 / 18.35 次/秒 | 1.68 核 | 392.94 MiB | 36 KiB |
+| SQLite + Redmine | 85.67 ms | 161.17 ms | 180.75 ms | 93.31 ms | 14.19 / 14.35 次/秒 | 1.58 核 | 442.38 MiB | 28 KiB |
+| PostgreSQL Core-only | 113.27 ms | 163.88 ms | 183.62 ms | 118.89 ms | 7.38 / 6.85 次/秒 | 1.05 核 | 401.83 MiB | 44 KiB |
+| PostgreSQL + Redmine | 242.70 ms | 301.78 ms | 325.47 ms | 243.83 ms | 3.90 / 3.92 次/秒 | 0.79 核 | 455.57 MiB | 40 KiB |
+
+SQLite 加载 Redmine 后 P50 增加约 21%、P95 增加约 53%，平均值增加约 27%，高速连按吞吐下降约 22%～24%。PostgreSQL 加载 Redmine 后 P50 增加约 114%、P95 增加约 84%、P99 增加约 77%，平均值增加约 105%，高速连按吞吐下降约 43%～47%；P95 略高于 300 ms warning 线。四组的 SQLite 主文件/WAL/journal 或 PostgreSQL 业务摘要及插入、更新、删除计数均未变化，因此差异主要反映 Tracker 绑定查询、编辑扩展创建、选项同步和视觉树构造，而不是浏览导致的落盘写入。
+
+报告：
+
+- SQLite Core-only：`.build-tmp/ui-test/reports/ui-date-performance-2026-08-24T07-41-26-920Z.json`
+- SQLite + Redmine：`.build-tmp/ui-test/reports/ui-date-performance-2026-08-24T07-42-25-161Z.json`
+- PostgreSQL Core-only：`.build-tmp/ui-test/reports/ui-date-performance-2026-08-24T07-43-46-283Z.json`
+- PostgreSQL + Redmine：`.build-tmp/ui-test/reports/ui-date-performance-2026-08-24T07-44-57-230Z.json`
+
+四组工作集都增长超过 256 MiB 并产生 warning；该值仍可能包含 Debug/JIT、Skia/Avalonia 缓存和 GC 尚未归还内存，需要在 Windows HDD 上多轮复测后判断。远程 PostgreSQL + Redmine 是当前最明显的日期切换瓶颈，应继续分段采样绑定读取、编辑扩展生命周期和选项同步成本。
 
 扩展套件使用隔离 profile 预置一个标签、一项附加字段定义和一条示例事项，验证事项披露默认关闭、日期控件仅在显式授权后显示、预览包含版本化 schema 和不可信数据标记，以及刷新后的 MCP 快照只包含授权范围。随后打开程序设置，验证“AI 与 MCP”使用标准设置分组、五个设置行完整可见、复制内容中的可执行文件/快照路径、AI 可读说明和通用 JSON，并通过“打开 AI 上下文”返回正确页签。截图前会将最后一个操作行滚动到可视区域；用户手册版本已裁掉状态栏和 MCP 命令中的本机路径。
 

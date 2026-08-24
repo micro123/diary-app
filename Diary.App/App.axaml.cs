@@ -195,6 +195,9 @@ namespace Diary.App
             Debug.Assert(database != null);
             var dbConfig = factory.GetConfig();
             EasySaveLoad.Load(dbConfig); // 加载数据库配置
+#if DEBUG
+            DebugUiAutomation.ApplyDatabaseConfiguration(factory.Name, dbConfig);
+#endif
             Logger.LogDebug("数据库配置已加载：驱动 {Driver}，配置类型 {ConfigType}",
                 factory.Name, dbConfig.GetType().FullName);
 
@@ -824,6 +827,9 @@ namespace Diary.App
                     try
                     {
                         var configuration = _pluginConfigurationLoader.Load(plugin);
+#if DEBUG
+                        DebugUiAutomation.ApplyTrackerConfiguration(plugin.Manifest.Id, configuration);
+#endif
                         _pluginConfigurations[plugin.Manifest.Id] = configuration;
                         _plugins.Add(plugin);
                         registeredPluginIds.Add(plugin.Manifest.Id);
@@ -903,7 +909,18 @@ namespace Diary.App
                     Services.GetRequiredService<DbShareData>().InitLoad();
 #endif
                 if (success)
+                {
                     RegisterTrackerInstances();
+#if DEBUG
+                    if (UseDb is not null
+                        && DebugUiAutomation.ApplyDatePerformanceTrackerScenario(
+                            UseDb,
+                            Services.GetRequiredService<PluginInstanceRegistry>().Instances))
+                    {
+                        RegisterTrackerInstances();
+                    }
+#endif
+                }
             }
             catch (Exception ex)
             {

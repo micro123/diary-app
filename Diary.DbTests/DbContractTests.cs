@@ -1,6 +1,7 @@
 using Diary.Core;
 using Diary.Core.Data.Base;
 using Diary.Database;
+using Diary.Jira;
 using Diary.RedMine;
 
 namespace Diary.DbTests;
@@ -16,6 +17,28 @@ public abstract class DbContractTests
 
     protected static IRedMineDb GetRedMine(DbInterfaceBase db, string instanceId = "redmine.default")
         => db.GetExtension<IRedMineDb>(instanceId, new RedMinePlugin().GetMigrations())!;
+
+    protected static IJiraDb GetJira(DbInterfaceBase db, string instanceId = "jira.default")
+        => db.GetExtension<IJiraDb>(instanceId, new JiraPlugin().GetMigrations())!;
+
+    [TestMethod]
+    public void JiraIssues_IntegerFlagsRoundTripAndOpenFilter()
+    {
+        using var db = CreateDb();
+        var jira = GetJira(db);
+        jira.UpsertProject(new JiraProject("ARCH", "Archived", "Historical", true));
+        jira.UpsertIssue(new JiraIssue("CDP-1", "Open issue", "CDP", "CDP", "Doing", false));
+        jira.UpsertIssue(new JiraIssue("CDP-2", "Closed issue", "CDP", "CDP", "Done", true));
+
+        var openIssues = jira.GetIssues();
+        var allIssues = jira.GetIssues(openOnly: false);
+
+        Assert.AreEqual(1, openIssues.Count);
+        Assert.AreEqual("CDP-1", openIssues.Single().Key);
+        Assert.AreEqual(2, allIssues.Count);
+        Assert.IsTrue(allIssues.Single(issue => issue.Key == "CDP-2").Disabled);
+        Assert.IsTrue(jira.GetProjects().Single(project => project.Key == "ARCH").Archived);
+    }
 
     // ---------- WorkTag ----------
 
