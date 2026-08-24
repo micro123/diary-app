@@ -46,7 +46,15 @@
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
         <Style Selector="Button.CompactCalendarDay">
-            <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <ContentPresenter Content="{TemplateBinding Content}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      Background="Transparent"
+                                      HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                      VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+                </ControlTemplate>
+            </Setter>
             <Setter Property="MinWidth" Value="28" />
             <Setter Property="Height" Value="28" />
             <Setter Property="Padding" Value="0" />
@@ -63,6 +71,12 @@
         </Style>
         <Style Selector="Button.CompactCalendarDay.Selected">
             <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="Button.CompactCalendarDay:pointerover Border.CompactCalendarHoverIndicator">
+            <Setter Property="Background" Value="{DynamicResource SemiColorFill1}" />
+        </Style>
+        <Style Selector="Button.CompactCalendarDay:pressed Border.CompactCalendarHoverIndicator">
+            <Setter Property="Background" Value="{DynamicResource SemiColorFill2}" />
         </Style>
         <Style Selector="Border.CompactCalendarSelectedIndicator.Selected">
             <Setter Property="Background" Value="{DynamicResource SemiColorPrimary}" />
@@ -211,6 +225,10 @@
                                             ContextRequested="OnCompactCalendarDayContextRequested"
                                             Click="OnCompactCalendarDayClick">
                                         <Grid>
+                                            <Border Classes="CompactCalendarHoverIndicator"
+                                                    Width="28" Height="28"
+                                                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                    CornerRadius="14" />
                                             <Border Classes="CompactCalendarSelectedIndicator"
                                                     Classes.Selected="{Binding IsSelected}"
                                                     Width="28" Height="28"
