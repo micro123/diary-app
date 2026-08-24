@@ -148,7 +148,6 @@
                                 <Button.Flyout>
                                     <Flyout ShowMode="Standard" PlacementGravity="Bottom">
                                         <Calendar Name="DiaryCalendar" FirstDayOfWeek="Monday"
-                                                  Width="292" Height="285"
                                                   IsTodayHighlighted="True" SelectionMode="SingleDate"
                                                   DisplayDate="{Binding CompactCalendarAnchorDate}"
                                                   SelectedDate="{Binding SelectedDate}" />

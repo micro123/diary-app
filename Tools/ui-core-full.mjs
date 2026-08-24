@@ -332,7 +332,12 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
             return calendar && isVisible(calendar) ? calendar : null;
         }, 3000, '点击周历标题没有打开完整月历');
         const fullCalendarBounds = boundsOf(fullCalendar.value);
-        assertUi(fullCalendarBounds.height >= 280, '完整月历弹层高度不足');
+        const calendarItem = findByName(fullCalendar.tree, 'PART_CalendarItem');
+        assertUi(calendarItem, '完整月历模板内容缺失');
+        const calendarItemBounds = boundsOf(calendarItem);
+        assertUi(fullCalendarBounds.width >= calendarItemBounds.width
+            && fullCalendarBounds.height >= calendarItemBounds.height,
+        '完整月历尺寸小于内部模板，边框会被裁切');
         await connection.pressKey('Escape', 'Escape', 27);
         await connection.pressKey('Escape', 'Escape', 27);
 
@@ -362,6 +367,8 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
             compactDayContextMenu: true,
             compactHeaderContextMenu: true,
             fullCalendarHeight: fullCalendarBounds.height,
+            calendarItemWidth: calendarItemBounds.width,
+            calendarItemHeight: calendarItemBounds.height,
             wheelWeekBrowsing: true,
             previousPeriodHeader: textOf(previousPeriod.value),
             todayHeader: textOf(returnedToday.value),
