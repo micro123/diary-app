@@ -192,7 +192,11 @@ Debug 构建还提供显式启用的本地 UI 自动化入口：设置 `DIARY_CD
 
 统计页刷新先在 UI 线程捕获日期和“占比计算基准”，后台只查询并构造不可变快照，最后回到 UI Dispatcher 原子更新总计、柱状图、饼图和树表。柱状图与饼图复用同一份主标签工时数据，切换显示不会再次查询数据库。刷新请求使用递增 generation 且数据库查询串行化；旧请求即使较晚完成也不会覆盖较新的筛选结果。
 
-事件记录页的 `DailyWorks` 使用统一的优先级、ID 排序规则：`WorkPriorities` 升序后按持久化工作项 ID 升序。日期加载、复制新增和每次工作项保存后都会重排；重排使用 `ObservableCollection.Move()`，避免通过清空集合破坏当前选中项，并在移动期间抑制由选择变化触发的重复保存。日期和事项切换会比较核心字段、备注与 Tracker 绑定，只在实际修改后保存；日期列表重建期间明确抑制选择变化保存，纯浏览不应修改 SQLite 主文件或 WAL，也不应增加 PostgreSQL 业务写入计数。日期加载会按当日工作项 ID 批量读取附加字段，并把结果随备注、标签和 Tracker 绑定一起注入编辑器，避免每条事项重复执行附加字段查询。Redmine/Jira 编辑器直接复用数据仓库维护的开放 Issue/活动只读列表；只有历史绑定指向已关闭或缺失项时，才为该编辑器创建带失效占位项的局部列表，避免富数据日期切换时为每条事项重复复制全部 Tracker 选项。工作项克隆会先以空事项加载目标 Tracker 扩展的选项，再按用途决定是否复制选择：普通“重复当前事项”保留 Tracker 设置；跨日期复制仅复制本地字段、标签和附加字段，并绕过标签默认值自动化，确保不会创建 Tracker 本地绑定。Debug CDP 提供独立 `date-performance` 重负载场景，为 SQLite 或 PostgreSQL 生成 25,920 条稀疏富数据，并可加载真实 Jira 插件与 20% 本地绑定；报告日期导航延迟、CPU、工作集、进程 I/O 和数据库无变化证据，用于同机同后端趋势回归。
+事件记录页的 `DailyWorks` 使用统一的优先级、ID 排序规则：`WorkPriorities` 升序后按持久化工作项 ID 升序。日期加载、复制新增和每次工作项保存后都会重排；重排使用 `ObservableCollection.Move()`，避免通过清空集合破坏当前选中项，并在移动期间抑制由选择变化触发的重复保存。日期和事项切换会比较核心字段、备注与 Tracker 绑定，只在实际修改后保存；日期列表重建期间明确抑制选择变化保存，纯浏览不应修改 SQLite 主文件或 WAL，也不应增加 PostgreSQL 业务写入计数。
+
+日期加载先取得当日工作项 ID，再按这组 ID 批量读取备注、标签、附加字段和每个 Tracker 的本地绑定。`ITrackerInstance.LoadBindingsByDate(date, workItemIds)` 默认回退旧的按日期接口以兼容现有插件，Redmine/Jira 的 SQLite 与 PostgreSQL provider 则使用 ID 集合单次查询，并按每批最多 500 个 ID 分段，避免参数过多。批量结果注入编辑器时调用 `ITrackerEditorExtension.LoadFromBatch()`：其中 `null` 明确表示批量查询已经确认该事项没有绑定，不能再次执行单事项回查；普通 `Load()` 仍保留独立编辑场景的按需查询能力。该语义消除了无绑定事项的 Tracker N+1 查询，PostgreSQL 附加字段读取同时使用基于 `(work_id, field_id)` 的 LATERAL 单值查找，复用现有索引且不改变数据库 schema。Redmine/Jira 编辑器直接复用数据仓库维护的开放 Issue/活动只读列表；只有历史绑定指向已关闭或缺失项时，才为该编辑器创建带失效占位项的局部列表，避免富数据日期切换时为每条事项重复复制全部 Tracker 选项。
+
+工作项克隆会先以空事项加载目标 Tracker 扩展的选项，再按用途决定是否复制选择：普通“重复当前事项”保留 Tracker 设置；跨日期复制仅复制本地字段、标签和附加字段，并绕过标签默认值自动化，确保不会创建 Tracker 本地绑定。Debug CDP 提供独立 `date-performance` 重负载场景，为 SQLite 或 PostgreSQL 生成 25,920 条稀疏富数据，并可加载真实 Jira 插件与 20% 本地绑定；报告日期导航延迟、CPU、工作集、进程 I/O 和数据库无变化证据，用于同机同后端趋势回归。
 
 脚本宿主的普通日志项和模板日志项创建 API 接收应用层提供的数据库变更回调。只有 provider 事务真实提交成功后才调用该回调；应用内执行和 Worker HostCall 均将其映射为 `DbChangedEvent.ShareData`，事件记录页随后在 UI Dispatcher 上重新读取当前日期。Preview、幂等重放和失败回滚不会发送变更通知，通知回调自身失败也不改变已经提交的脚本结果。
 

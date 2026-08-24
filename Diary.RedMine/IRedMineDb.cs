@@ -18,6 +18,19 @@ public interface IRedMineDb
     void UpdateRedMineProjectStatus(int id, bool closed);
     WorkTimeEntry? WorkItemGetTimeEntry(WorkItem item);
     IDictionary<int, WorkTimeEntry> GetWorkTimeEntriesByDate(string date);
+    IDictionary<int, WorkTimeEntry> GetWorkTimeEntriesByWorkItemIds(
+        IReadOnlyCollection<int> workItemIds)
+    {
+        ArgumentNullException.ThrowIfNull(workItemIds);
+        var result = new Dictionary<int, WorkTimeEntry>();
+        foreach (var id in workItemIds.Where(id => id > 0).Distinct())
+        {
+            var entry = WorkItemGetTimeEntry(new WorkItem { Id = id });
+            if (entry is not null)
+                result[id] = entry;
+        }
+        return result;
+    }
     bool WorkItemWasUploaded(WorkItem item);
 
     ICollection<RedMineActivity> GetRedMineActivities();

@@ -300,7 +300,27 @@ SQLite 加载 Redmine 后 P50 增加约 21%、P95 增加约 53%，平均值增�
 - PostgreSQL Core-only：`.build-tmp/ui-test/reports/ui-date-performance-2026-08-24T07-43-46-283Z.json`
 - PostgreSQL + Redmine：`.build-tmp/ui-test/reports/ui-date-performance-2026-08-24T07-44-57-230Z.json`
 
-四组工作集都增长超过 256 MiB 并产生 warning；该值仍可能包含 Debug/JIT、Skia/Avalonia 缓存和 GC 尚未归还内存，需要在 Windows HDD 上多轮复测后判断。远程 PostgreSQL + Redmine 是当前最明显的日期切换瓶颈，应继续分段采样绑定读取、编辑扩展生命周期和选项同步成本。
+上述数据作为优化前基线保留。SQL Trace 确认，Redmine 日期加载虽然已经批量读取绑定，但无绑定事项收到的 `null` 又被编辑扩展解释为“尚未查询”，当天 48 条事项、10 条绑定时会额外执行 38 次单事项查询，总查询数由理论 5 次扩大为 43 次；SQLite 与 PostgreSQL 使用相同逻辑，因此都存在该问题。优化后由批量加载接口明确区分“未预取”和“已确认无绑定”，并复用当天事项 ID 批量读取备注、标签、附加字段和 Tracker 绑定，Redmine/Jira SQLite 与 PostgreSQL provider 均按最多 500 个 ID 一批查询，日期加载固定为 5 次数据库查询。
+
+同一构建和数据集完成优化后单轮复测，四组均通过 6/6 步：
+
+| 模式 | P50 | P95 | P99 | 平均值 | 高速前进/后退 | 平均 CPU | 工作集增长 | 进程写入 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| SQLite Core-only | 68.63 ms | 131.43 ms | 147.23 ms | 76.05 ms | 19.00 / 18.23 次/秒 | 1.65 核 | 388.87 MiB | 36 KiB |
+| SQLite + Redmine | 82.83 ms | 164.67 ms | 172.19 ms | 90.11 ms | 14.11 / 14.77 次/秒 | 1.61 核 | 439.95 MiB | 28 KiB |
+| PostgreSQL Core-only | 118.41 ms | 167.87 ms | 184.00 ms | 126.35 ms | 7.72 / 7.03 次/秒 | 1.08 核 | 395.05 MiB | 44 KiB |
+| PostgreSQL + Redmine | 131.99 ms | 217.01 ms | 287.92 ms | 145.23 ms | 6.03 / 5.90 次/秒 | 1.07 核 | 457.27 MiB | 36 KiB |
+
+PostgreSQL + Redmine 相对优化前 P50 降低约 46%、P95 降低约 28%、平均值降低约 40%，高速前进/后退吞吐提高约 55%/51%，P95 已低于 300 ms warning 线。SQLite + Redmine 的 P50 和平均值分别降低约 3% 和 3%，P95 单轮增加约 2%，属于当前 Debug 单轮波动范围；查询数同样从 43 次降为 5 次，但本地往返成本低，因此端到端收益不如远程 PostgreSQL 明显。Core-only 两组也有单轮尾延迟波动，需以同机多轮结果判断趋势，不能据此认定回归。
+
+优化后报告：
+
+- SQLite Core-only：`.build-tmp/ui-test/reports/ui-date-performance-2026-08-24T09-14-12-859Z.json`
+- SQLite + Redmine：`.build-tmp/ui-test/reports/ui-date-performance-2026-08-24T09-14-48-838Z.json`
+- PostgreSQL Core-only：`.build-tmp/ui-test/reports/ui-date-performance-2026-08-24T09-15-38-211Z.json`
+- PostgreSQL + Redmine：`.build-tmp/ui-test/reports/ui-date-performance-2026-08-24T09-17-52-091Z.json`
+
+优化后四组的 SQLite 文件状态或 PostgreSQL 业务摘要与写入计数仍未变化；本地 Redmine 绑定保持 5,184 条、每天 9～10 条，远端工时保持 6 条。四组工作集仍增长超过 256 MiB 并产生 warning；该值可能包含 Debug/JIT、Skia/Avalonia 缓存和 GC 尚未归还内存，需要在 Windows HDD 上多轮复测后判断。剩余日期切换成本主要位于每事项编辑扩展创建、选项同步和视觉树构造。
 
 扩展套件使用隔离 profile 预置一个标签、一项附加字段定义和一条示例事项，验证事项披露默认关闭、日期控件仅在显式授权后显示、预览包含版本化 schema 和不可信数据标记，以及刷新后的 MCP 快照只包含授权范围。随后打开程序设置，验证“AI 与 MCP”使用标准设置分组、五个设置行完整可见、复制内容中的可执行文件/快照路径、AI 可读说明和通用 JSON，并通过“打开 AI 上下文”返回正确页签。截图前会将最后一个操作行滚动到可视区域；用户手册版本已裁掉状态栏和 MCP 命令中的本机路径。
 

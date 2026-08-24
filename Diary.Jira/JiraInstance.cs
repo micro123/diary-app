@@ -22,4 +22,10 @@ public sealed class JiraInstance(JiraInstanceConfiguration configuration) : ITra
 
     public IDictionary<int, object?>? LoadBindingsByDate(string date)
         => Database.GetWorkTimeEntriesByDate(date).ToDictionary(item => item.Key, item => (object?)item.Value);
+
+    public IDictionary<int, object?>? LoadBindingsByDate(
+        string date,
+        IReadOnlyCollection<int> workItemIds)
+        => Database.GetWorkTimeEntriesByWorkItemIds(workItemIds)
+            .ToDictionary(item => item.Key, item => (object?)item.Value);
 }

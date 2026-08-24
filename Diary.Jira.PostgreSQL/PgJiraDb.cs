@@ -10,6 +10,7 @@ namespace Diary.Db.PostgreSQL;
 public sealed class PgJiraDb(IDbExtensionHost host, string instanceId) : IJiraDb
 {
     private const uint CurrentSchemaVersion = 1;
+    private const int WorkItemQueryBatchSize = 500;
     private readonly IDbExtensionHost _host = host;
     public string InstanceId => instanceId;
     public uint SchemaVersion => CurrentSchemaVersion;
@@ -60,6 +61,29 @@ public sealed class PgJiraDb(IDbExtensionHost host, string instanceId) : IJiraDb
 
     public IDictionary<int, JiraWorkTimeEntry> GetWorkTimeEntriesByDate(string date)
         => _host.Query("SELECT jira_work_entries.work_id,issue_key,remote_worklog_id,upload_state,upload_error,upload_attempted_at FROM jira_work_entries INNER JOIN work_items ON jira_work_entries.work_id=work_items.id WHERE jira_work_entries.instance_id=$1 AND work_items.create_date=$2;", MapEntry, ("$1", InstanceId), ("$2", date)).ToDictionary(item => item.WorkId);
+
+    public IDictionary<int, JiraWorkTimeEntry> GetWorkTimeEntriesByWorkItemIds(
+        IReadOnlyCollection<int> workItemIds)
+    {
+        ArgumentNullException.ThrowIfNull(workItemIds);
+        var result = new Dictionary<int, JiraWorkTimeEntry>();
+        foreach (var batch in workItemIds.Where(id => id > 0).Distinct().Chunk(WorkItemQueryBatchSize))
+        {
+            var placeholders = new string[batch.Length];
+            var args = new (string Name, object? Value)[batch.Length + 1];
+            args[0] = ("$1", InstanceId);
+            for (var i = 0; i < batch.Length; i++)
+            {
+                placeholders[i] = $"${i + 2}";
+                args[i + 1] = (placeholders[i], batch[i]);
+            }
+            var sql = "SELECT work_id,issue_key,remote_worklog_id,upload_state,upload_error,upload_attempted_at "
+                + $"FROM jira_work_entries WHERE instance_id=$1 AND work_id IN ({string.Join(", ", placeholders)});";
+            foreach (var entry in _host.Query(sql, MapEntry, args))
+                result[entry.WorkId] = entry;
+        }
+        return result;
+    }
 
     public JiraWorkTimeEntry? CreateWorkTimeEntry(int workId, string issueKey)
     {

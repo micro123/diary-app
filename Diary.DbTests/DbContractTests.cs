@@ -881,6 +881,48 @@ public abstract class DbContractTests
         Assert.AreEqual(10, dict[item.Id].ActivityId);
     }
 
+    [TestMethod]
+    public void GetWorkTimeEntriesByWorkItemIds_ReturnsOnlyRequestedBindings()
+    {
+        using var db = CreateDb();
+        var included = db.CreateWorkItem("2026-08-01", "included");
+        var unbound = db.CreateWorkItem("2026-08-01", "unbound");
+        var excluded = db.CreateWorkItem("2026-08-02", "excluded");
+        var redmine = GetRedMine(db);
+        redmine.AddRedMineActivity(10, "开发");
+        redmine.AddRedMineProject(20, "P", "");
+        redmine.AddRedMineIssue(100, "任务", "", 20);
+        redmine.CreateWorkTimeEntry(included.Id, 10, 100);
+        redmine.CreateWorkTimeEntry(excluded.Id, 10, 100);
+
+        var entries = redmine.GetWorkTimeEntriesByWorkItemIds([included.Id, unbound.Id]);
+
+        Assert.AreEqual(1, entries.Count);
+        Assert.AreEqual(100, entries[included.Id].IssueId);
+        Assert.IsFalse(entries.ContainsKey(excluded.Id));
+    }
+
+    [TestMethod]
+    public void JiraGetWorkTimeEntriesByWorkItemIds_ReturnsOnlyRequestedBindings()
+    {
+        using var db = CreateDb();
+        var included = db.CreateWorkItem("2026-08-01", "included");
+        var unbound = db.CreateWorkItem("2026-08-01", "unbound");
+        var excluded = db.CreateWorkItem("2026-08-02", "excluded");
+        var jira = GetJira(db);
+        jira.UpsertProject(new JiraProject("CDP", "CDP", "Performance", false));
+        jira.UpsertIssue(new JiraIssue("CDP-1", "Included", "CDP", "CDP", "Doing", false));
+        jira.UpsertIssue(new JiraIssue("CDP-2", "Excluded", "CDP", "CDP", "Doing", false));
+        jira.CreateWorkTimeEntry(included.Id, "CDP-1");
+        jira.CreateWorkTimeEntry(excluded.Id, "CDP-2");
+
+        var entries = jira.GetWorkTimeEntriesByWorkItemIds([included.Id, unbound.Id]);
+
+        Assert.AreEqual(1, entries.Count);
+        Assert.AreEqual("CDP-1", entries[included.Id].IssueKey);
+        Assert.IsFalse(entries.ContainsKey(excluded.Id));
+    }
+
     // ---------- 统计 ----------
 
     /// <summary>档 2 上提回归 + helper 边界：空表 → 空 fallback（IsDBNull 守卫）。</summary>

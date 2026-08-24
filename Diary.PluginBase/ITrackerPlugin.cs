@@ -52,4 +52,12 @@ public interface ITrackerInstance
     /// 供编辑器列表批量同步；无数据返回 null。
     /// </summary>
     IDictionary<int, object?>? LoadBindingsByDate(string date);
+
+    /// <summary>
+    /// 使用宿主已经加载的工作项 ID 批量读取绑定。默认回退到按日期读取，保持旧插件兼容。
+    /// </summary>
+    IDictionary<int, object?>? LoadBindingsByDate(
+        string date,
+        IReadOnlyCollection<int> workItemIds)
+        => LoadBindingsByDate(date);
 }

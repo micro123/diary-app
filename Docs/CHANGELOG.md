@@ -5,6 +5,7 @@
 ## 未发布
 
 日期：2026-08-24
+- 消除日期加载中的 Tracker 空绑定 N+1 查询：批量加载结果现在明确区分“未预取”和“已确认无绑定”，Redmine/Jira 的 SQLite 与 PostgreSQL provider 按当日事项 ID 批量读取绑定，备注和标签也复用同一 ID 集合；PostgreSQL + Redmine 重负载单轮测试从每日期 43 次查询降至 5 次，P50 从 242.70 ms 降至 131.99 ms、P95 从 301.78 ms 降至 217.01 ms，SQLite 同样消除逐条回查。
 - 优化 SQLite 在机械硬盘上的日期导航性能：工作项按核心字段、备注和 Tracker 绑定判断实际变更，日期列表重建不再误触发无变化保存；SQLite 默认启用 WAL、NORMAL 同步和 5 秒锁等待，减少连续键盘切换日期时的回滚日志创建、同步写入和锁冲突。
 - 新增独立 `date-performance` CDP 重负载场景和 6 步专项套件：按稀疏日常分布生成 540 天共 25,920 条事项、备注、标签和附加字段，执行 120 次逐次日期切换与高速连按，报告 P50/P95/P99、CPU、内存和进程 I/O；SQLite 强制验证主文件/WAL/journal 不变化，远程 PostgreSQL 校验业务摘要与插入/更新/删除计数。启用插件时可使用离线 Jira 或临时真实 Redmine，并为每天约 20% 的事项生成本地绑定；已完成 SQLite/PostgreSQL × Core-only/Redmine 四组对照且确认 Redmine 无远程工时写入，Windows 生命周期工具同步支持 `run -Suite`。
 - 修复 PostgreSQL Jira 扩展把整数状态列按布尔值写入、筛选和读取，导致启用 Jira 后出现 `integer = boolean` 并阻断 UI 初始化的问题；数据库共享契约现同时覆盖 SQLite/PostgreSQL 的项目归档、Issue 开关状态和开放 Issue 筛选。

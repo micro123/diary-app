@@ -430,8 +430,12 @@ public sealed partial class PgDb(IDbFactory factory) : DbInterfaceBase(factory),
                        FROM work_item_tags wit
                        INNER JOIN tag_extra_field_definitions d ON d.tag_id=wit.tag_id
                        INNER JOIN work_tags t ON t.id=d.tag_id
-                       LEFT JOIN work_item_extra_field_values v
-                          ON v.work_id=wit.work_id AND v.field_id=d.field_id
+                       LEFT JOIN LATERAL (
+                          SELECT value_json
+                          FROM work_item_extra_field_values value
+                          WHERE value.work_id=wit.work_id AND value.field_id=d.field_id
+                          LIMIT 1
+                       ) v ON TRUE
                        WHERE wit.work_id IN ({string.Join(", ", placeholders)})
                          AND (d.enabled=TRUE OR v.value_json IS NOT NULL)
                        ORDER BY wit.work_id, t.tag_level, t.id, d.sort_order, d.field_key;

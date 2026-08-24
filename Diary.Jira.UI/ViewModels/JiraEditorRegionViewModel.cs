@@ -48,9 +48,15 @@ public partial class JiraEditorRegionViewModel : ViewModelBase, ITrackerEditorEx
         : null;
 
     public void Load(WorkItem? item, object? binding = null)
+        => LoadCore(item, binding, queryWhenMissing: true);
+
+    public void LoadFromBatch(WorkItem? item, object? binding)
+        => LoadCore(item, binding, queryWhenMissing: false);
+
+    private void LoadCore(WorkItem? item, object? binding, bool queryWhenMissing)
     {
         _timeEntry = item is { Id: > 0 }
-            ? binding as JiraWorkTimeEntry ?? _database.WorkItemGetTimeEntry(item)
+            ? binding as JiraWorkTimeEntry ?? (queryWhenMissing ? _database.WorkItemGetTimeEntry(item) : null)
             : null;
         ReloadIssues();
         SyncFromEntry();

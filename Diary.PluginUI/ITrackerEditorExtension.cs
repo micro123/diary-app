@@ -19,6 +19,12 @@ public interface ITrackerEditorExtension
     /// <summary>加载工作项的本地绑定（<paramref name="binding"/> 为批量预取，null 时扩展自行加载；新项 item 为 null）。</summary>
     void Load(WorkItem? item, object? binding = null);
 
+    /// <summary>
+    /// 使用批量预取结果加载工作项。此时 <paramref name="binding"/> 为 null 表示已确认不存在绑定，
+    /// 不应再逐项查询数据库。默认实现保留第三方扩展的兼容行为。
+    /// </summary>
+    void LoadFromBatch(WorkItem? item, object? binding) => Load(item, binding);
+
     /// <summary>保存时持久化本地绑定（如 CreateWorkTimeEntry）；无绑定时返回 true。</summary>
     bool Save(WorkItem item);
 

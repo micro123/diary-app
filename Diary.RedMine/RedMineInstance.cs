@@ -28,4 +28,12 @@ public sealed class RedMineInstance(RedMineInstanceConfiguration configuration) 
         var bindings = configuration.Database.GetWorkTimeEntriesByDate(date);
         return bindings.ToDictionary(item => item.Key, item => (object?)item.Value);
     }
+
+    public IDictionary<int, object?>? LoadBindingsByDate(
+        string date,
+        IReadOnlyCollection<int> workItemIds)
+    {
+        var bindings = configuration.Database.GetWorkTimeEntriesByWorkItemIds(workItemIds);
+        return bindings.ToDictionary(item => item.Key, item => (object?)item.Value);
+    }
 }

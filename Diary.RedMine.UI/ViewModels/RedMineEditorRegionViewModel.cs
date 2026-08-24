@@ -59,9 +59,15 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
     }
 
     public void Load(WorkItem? item, object? binding = null)
+        => LoadCore(item, binding, queryWhenMissing: true);
+
+    public void LoadFromBatch(WorkItem? item, object? binding)
+        => LoadCore(item, binding, queryWhenMissing: false);
+
+    private void LoadCore(WorkItem? item, object? binding, bool queryWhenMissing)
     {
         TimeEntry = item is { Id: > 0 }
-            ? binding as WorkTimeEntry ?? _database.WorkItemGetTimeEntry(item)
+            ? binding as WorkTimeEntry ?? (queryWhenMissing ? _database.WorkItemGetTimeEntry(item) : null)
             : null;
         RefreshOptions();
         SyncFromEntry();

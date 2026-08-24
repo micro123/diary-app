@@ -82,6 +82,35 @@ public sealed class WorkEditorViewModelTests
     }
 
     [TestMethod]
+    public void SyncFromBatchUsesExplicitBatchLoadForMissingTrackerBinding()
+    {
+        var registry = CreateCloneTrackerRegistry();
+        var viewModel = CreateViewModel(registry);
+        var item = new WorkItem
+        {
+            Id = 42,
+            CreateDate = "2026-08-24",
+            Comment = "批量加载",
+        };
+        LoadExistingItem(viewModel, item);
+        var extension = (CloneTrackerExtension)viewModel.Extensions.Single();
+        var bindings = new Dictionary<TrackerKey, IDictionary<int, object?>?>
+        {
+            [extension.Key] = new Dictionary<int, object?>(),
+        };
+
+        viewModel.SyncFromBatch(
+            [],
+            [],
+            bindings,
+            new Dictionary<int, ICollection<WorkItemExtraField>>());
+
+        Assert.AreEqual(1, extension.BatchLoadCallCount);
+        Assert.AreEqual(0, extension.RegularLoadCallCount);
+        Assert.IsNull(extension.LastBatchBinding);
+    }
+
+    [TestMethod]
     public void PristineNewItemDoesNotNeedPersistenceBeforeReplacement()
     {
         var viewModel = CreateViewModel();
@@ -407,9 +436,22 @@ public sealed class WorkEditorViewModelTests
         public bool OptionsLoadedWhenCloned { get; private set; }
         public string? Selection { get; set; }
         public int CloneCallCount { get; private set; }
+        public int RegularLoadCallCount { get; private set; }
+        public int BatchLoadCallCount { get; private set; }
+        public object? LastBatchBinding { get; private set; }
 
         public void Load(WorkItem? item, object? binding = null)
-            => OptionsLoaded = true;
+        {
+            RegularLoadCallCount++;
+            OptionsLoaded = true;
+        }
+
+        public void LoadFromBatch(WorkItem? item, object? binding)
+        {
+            BatchLoadCallCount++;
+            LastBatchBinding = binding;
+            OptionsLoaded = true;
+        }
 
         public bool Save(WorkItem item) => OptionsLoaded;
 

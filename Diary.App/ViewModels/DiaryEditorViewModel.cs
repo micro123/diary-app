@@ -648,17 +648,18 @@ public partial class DiaryEditorViewModel : ViewModelBase
                 var dbItems = db.GetWorkItemByDate(CurrentDateString);
                 if (dbItems.Count > 0)
                 {
-                    var notesById = db.GetWorkNotesByDate(CurrentDateString);
-                    var tagsById = db.GetWorkTagsByDate(CurrentDateString);
-                    var extraFieldsById = db.GetWorkItemExtraFieldsByWorkItemIds(
-                        dbItems.Select(item => item.Id).ToArray());
+                    var workItemIds = dbItems.Select(item => item.Id).ToArray();
+                    var notesById = db.GetWorkNotesByWorkItemIds(workItemIds);
+                    var tagsById = db.GetWorkTagsByWorkItemIds(workItemIds);
+                    var extraFieldsById = db.GetWorkItemExtraFieldsByWorkItemIds(workItemIds);
                     var trackers = App.Instance.Services
                         .GetRequiredService<TrackerUiContributionRegistry>().Contributions;
                     var bindingsByTracker = new Dictionary<TrackerKey, IDictionary<int, object?>?>();
                     foreach (var t in trackers)
                     {
                         var key = new TrackerKey(t.PluginId, t.Instance.InstanceId);
-                        bindingsByTracker[key] = t.Instance.LoadBindingsByDate(CurrentDateString);
+                        bindingsByTracker[key] = t.Instance.LoadBindingsByDate(
+                            CurrentDateString, workItemIds);
                     }
 
                     foreach (var item in dbItems)

@@ -429,9 +429,10 @@ public partial class WorkEditorViewModel : ViewModelBase
     private void SyncExtraFields(IEnumerable<WorkItemExtraField>? prefetchedFields = null)
     {
         _extraFieldValues.Clear();
-        if (WorkItem is { Id: > 0 } item && Db is not null)
+        if (WorkItem is { Id: > 0 } item
+            && (prefetchedFields is not null || Db is not null))
         {
-            var fields = prefetchedFields?.ToArray() ?? Db.GetWorkItemExtraFields(item).ToArray();
+            var fields = prefetchedFields?.ToArray() ?? Db!.GetWorkItemExtraFields(item).ToArray();
             foreach (var field in fields.Where(field => !string.IsNullOrWhiteSpace(field.Value)))
             {
                 _extraFieldValues.Add(new WorkItemExtraFieldValue
@@ -512,7 +513,7 @@ public partial class WorkEditorViewModel : ViewModelBase
             {
                 binding = bv;
             }
-            ext.Load(WorkItem, binding);
+            ext.LoadFromBatch(WorkItem, binding);
         }
         RecomputeIsLocked();
         AcceptCurrentStateAsPersisted();

@@ -17,6 +17,7 @@ namespace Diary.Db.PostgreSQL;
 public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRedMineDb
 {
     private const uint CurrentSchemaVersion = 1;
+    private const int WorkItemQueryBatchSize = 500;
     private readonly IDbExtensionHost _host = host;
 
     public string InstanceId => instanceId;
@@ -180,6 +181,30 @@ public sealed class PgRedMineDb(IDbExtensionHost host, string instanceId) : IRed
         var result = new Dictionary<int, WorkTimeEntry>();
         foreach (var entry in _host.Query(sql, MapWorkTimeEntry, ("$1", InstanceId), ("$2", date)))
             result[entry.WorkId] = entry;
+        return result;
+    }
+
+    public IDictionary<int, WorkTimeEntry> GetWorkTimeEntriesByWorkItemIds(
+        IReadOnlyCollection<int> workItemIds)
+    {
+        ArgumentNullException.ThrowIfNull(workItemIds);
+        var result = new Dictionary<int, WorkTimeEntry>();
+        foreach (var batch in workItemIds.Where(id => id > 0).Distinct().Chunk(WorkItemQueryBatchSize))
+        {
+            var placeholders = new string[batch.Length];
+            var args = new (string Name, object? Value)[batch.Length + 1];
+            args[0] = ("$1", InstanceId);
+            for (var i = 0; i < batch.Length; i++)
+            {
+                placeholders[i] = $"${i + 2}";
+                args[i + 1] = (placeholders[i], batch[i]);
+            }
+            var sql = $"SELECT work_id,id,act_id,issue_id,upload_state,upload_error,upload_attempted_at "
+                + $"FROM redmine_time_entries WHERE instance_id=$1 "
+                + $"AND work_id IN ({string.Join(", ", placeholders)});";
+            foreach (var entry in _host.Query(sql, MapWorkTimeEntry, args))
+                result[entry.WorkId] = entry;
+        }
         return result;
     }
 
