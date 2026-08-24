@@ -213,11 +213,15 @@
                                         <Grid>
                                             <Border Classes="CompactCalendarSelectedIndicator"
                                                     Classes.Selected="{Binding IsSelected}"
-                                                    CornerRadius="4" />
+                                                    Width="28" Height="28"
+                                                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                    CornerRadius="14" />
                                             <Border Classes="CompactCalendarTodayIndicator"
                                                     Classes.Today="{Binding IsToday}"
                                                     Classes.Selected="{Binding IsSelected}"
-                                                    CornerRadius="4" />
+                                                    Width="28" Height="28"
+                                                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                    CornerRadius="14" />
                                             <TextBlock Classes="CompactCalendarDayText"
                                                        Classes.Today="{Binding IsToday}"
                                                        Classes.Selected="{Binding IsSelected}"

@@ -327,6 +327,7 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         await connection.client.send('Input.dispatchMouseEvent', {
             type: 'mouseMoved', x: targetX, y: targetY,
         });
+        await delay(80);
         await connection.client.send('Input.dispatchMouseEvent', {
             type: 'mousePressed', x: targetX, y: targetY, button: 'right', buttons: 2, clickCount: 1,
         });
