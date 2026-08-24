@@ -373,8 +373,11 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
             dom.push(performance.now() - started);
         }
         const screenshots = [];
-        for (let index = 0; index < 5; index++)
-            screenshots.push((await connection.screenshot('core-performance-' + index + '.png')).elapsedMs);
+        for (let index = 0; index < 5; index++) {
+            const started = performance.now();
+            await connection.client.send('Page.captureScreenshot', { format: 'png' }, 15000);
+            screenshots.push(performance.now() - started);
+        }
         const metrics = {
             domP50Ms: percentile(dom, 0.5),
             domP95Ms: percentile(dom, 0.95),

@@ -111,7 +111,7 @@ seed 只复制加密配置文件，不应提交到 Git，也不得写入报告�
 
 常规全量编排包含 9 个套件，其中 8 个结构化套件合计 74 个步骤；`ui-smoke` 另含标签、模板、主题、草稿、本地持久化和性能断言。日期性能专项另有 6 步，按目标机器和目标磁盘单独运行。
 
-2026-08-24 的统一 UI Windows 复检分别通过设置 9/9、smoke、核心 14/14、扩展 11/11、脚本编辑器 4/4、数据库异常 8/8、Survey 8/8、附加字段 8/8、Redmine 全功能 12/12 和 Redmine 只读视觉 5/5；常规全量报告 `ui-full-test-2026-08-24T13-04-28-833Z.json` 为 9/9 套件通过。复检覆盖日记、查询、统计、程序设置、标签、模板、数据模板、Tracker 配置/状态、Jira/Redmine 实例配置和 Redmine 管理子页面。`ui-redmine-full` 同步兼容统一耗时 `TextBox` 的直接输入，并在保存配置后要求文件使用当前 `DiaryGCM` 整体加密格式；旧 `Salted__` seed 只作为读取兼容输入。
+2026-08-24 的统一 UI Windows 复检分别通过设置 9/9、smoke、核心 14/14、扩展 11/11、脚本编辑器 4/4、数据库异常 8/8、Survey 8/8、附加字段 8/8、Redmine 全功能 12/12 和 Redmine 只读视觉 5/5；截图 DPI 与 overlay 重复缩放修复后的常规全量报告 `ui-full-test-2026-08-24T14-44-09-118Z.json` 仍为 9/9 套件通过。复检覆盖日记、查询、统计、程序设置、标签、模板、数据模板、Tracker 配置/状态、Jira/Redmine 实例配置和 Redmine 管理子页面。`ui-redmine-full` 同步兼容统一耗时 `TextBox` 的直接输入，并在保存配置后要求文件使用当前 `DiaryGCM` 整体加密格式；旧 `Salted__` seed 只作为读取兼容输入。
 
 ## 4. 单套件调试
 
@@ -208,10 +208,19 @@ Linux 的 `run` 会自动传入当前状态文件，不需要手动拼接 `--sta
 
 - `.build-tmp/ui-test/reports/*.json`
 - `.build-tmp/ui-test/screenshots/*.png`
+- `.build-tmp/ui-test/screenshots/raw-physical/*.png`
 - `.build-tmp/ui-test/profiles/*`
 - `.build-tmp/ui-test/logs/*.log`
 
 单套件报告包含场景、profile、冷启动时间、步骤耗时、断言结果、性能样本和 finding。全量报告汇总每个套件的 `passed`、`failed` 或 `blocked-external` 状态。
+
+保存到 `screenshots/` 根目录的图片是供验收和用户手册使用的逻辑 1× 截图。公共截图工具先读取 `Page.getLayoutMetrics` 的当前窗口逻辑视口；Windows 使用 `PrintWindow` 捕获真实窗口合成表面，Linux 使用 `Page.captureScreenshot`，再按物理像素与逻辑视口的实际比例归一化并写入 96 DPI 元数据。例如 Windows 150% 缩放下的 1942×1256 原图会输出为约 1295×837 的手册图。缩放倍率由当前窗口自动推导，不读取或硬编码系统 DPI，因此支持多显示器上的 100%、125%、150%、175% 和 200% 等不同倍率。物理像素与逻辑尺寸不一致时，未经缩放的原图同时保存在 `screenshots/raw-physical/`，只用于高 DPI 裁切、像素边界和渲染清晰度复核。
+
+截图报告保留兼容字段 `path`、`bytes` 和 `sha256`，并增加 `width`、`height`、`dpi`、`captureSource`、`normalized`、`renderScale`、`physicalWidth`、`physicalHeight` 和可选 `physicalPath`。编写手册时应从 `screenshots/` 根目录取图后再做脱敏或裁剪，不应直接使用 `raw-physical/`。PNG 归一化实现不依赖第三方 Node 图像包，可单独验证：
+
+```powershell
+node --test Tools/ui-screenshot.test.mjs
+```
 
 判定规则：
 
@@ -326,7 +335,7 @@ PostgreSQL + Redmine 相对优化前 P50 降低约 46%、P95 降低约 28%、平
 
 扩展套件使用隔离 profile 预置一个标签、一项附加字段定义和一条示例事项，验证事项披露默认关闭、日期控件仅在显式授权后显示、预览包含版本化 schema 和不可信数据标记，以及刷新后的 MCP 快照只包含授权范围。随后打开程序设置，验证“AI 与 MCP”使用标准设置分组、五个设置行完整可见、复制内容中的可执行文件/快照路径、AI 可读说明和通用 JSON，并通过“打开 AI 上下文”返回正确页签。截图前会将最后一个操作行滚动到可视区域；用户手册版本已裁掉状态栏和 MCP 命令中的本机路径。
 
-smoke 在较矮窗口中只渲染前三个列表项，第 4 个模板事项会被 ListBox 虚拟化。最终持久化断言因此读取隔离 SQLite profile，确认标题、1.5 小时和标签关联已提交；UI 侧仍验证模板应用、保存状态和页面导航。smoke 还会在通知层消退后生成程序设置、标签和模板手册截图；Redmine 只读套件生成插件状态和管理页截图。当前机器未安装 Xvfb，因此本轮没有宣称 headless CI 已通过。
+smoke 在较矮窗口中只渲染前三个列表项，第 4 个模板事项会被 ListBox 虚拟化。最终持久化断言因此读取隔离 SQLite profile，确认标题、1.5 小时和标签关联已提交；UI 侧仍验证模板应用、保存状态和页面导航。smoke 还会在通知层消退后生成程序设置、标签和模板手册截图；Redmine 只读套件生成插件状态和管理页截图。这些保存到截图根目录的手册图统一为逻辑 1×/96 DPI，150% 等高 DPI 原图保存在 `raw-physical/`。当前机器未安装 Xvfb，因此本轮没有宣称 headless CI 已通过。
 
 ## 7. 当前覆盖边界
 
@@ -339,6 +348,6 @@ smoke 在较矮窗口中只渲染前三个列表项，第 4 个模板事项会�
 
 ## 8. CDP 兼容性
 
-已在 Windows 和 Linux 验证 `DOM.getDocument`、`DOM.querySelector`、`DOM.getBoxModel`、`DOM.focus`、`Input.dispatchMouseEvent`、`Input.dispatchKeyEvent`、`Input.insertText` 和 `Page.captureScreenshot`。Playwright 的 `connectOverCDP()` 可以建立连接，但高层截图调用在当前预览版 CDP 上可能等待超时，因此项目脚本使用原始 CDP 命令。
+已在 Windows 和 Linux 验证 `DOM.getDocument`、`DOM.querySelector`、`DOM.getBoxModel`、`DOM.focus`、`Input.dispatchMouseEvent`、`Input.dispatchKeyEvent`、`Input.insertText`、`Page.getLayoutMetrics` 和 `Page.captureScreenshot`。当前预览版 CDP 的 `Page.captureScreenshot` 会返回 Avalonia 后备缓冲区的物理像素、忽略 `clip.scale`，并在 Windows 高 DPI 下对 `OverlayDialog` 子内容重复应用窗口缩放；DOM Bounds 正确，但截图中的 overlay 会错位放大。Windows 保存截图因此改用 `Tools/ui-window-screenshot.ps1` 的 `PrintWindow` 真实窗口捕获，CDP 仍负责逻辑尺寸和交互。Playwright 的 `connectOverCDP()` 可以建立连接，但高层截图调用可能等待超时，因此项目脚本继续使用原始 CDP 命令。
 
 Linux 下部分 Avalonia 控件收到第一组坐标点击时只获取焦点，公共点击辅助函数会先执行 `DOM.focus` 再发送鼠标事件；带 Ctrl/Alt/Meta 的快捷键不再额外发送 `char` 事件，避免 `Ctrl+S` 保存后字符 `s` 进入文本框。状态栏日期断言按年月日数值匹配，不依赖 `yyyy/M/d` 或 `MM/dd/yyyy` 等区域格式。

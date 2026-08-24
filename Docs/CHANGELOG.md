@@ -17,6 +17,7 @@
 - 稳定真实进程脚本取消测试：取消宽限期内未收到 Worker 结果时返回可观察的 `WORKER_CANCEL_GRACE_EXPIRED` 警告并强制回收，后续执行按既有状态机重新启动 Worker；跨语言测试同时验证优雅复用和强制回收后重启两种合法路径，不再把 CI 调度窗口误判为功能失败。
 - 正式发布版在左上角应用图标菜单中提供“用户手册”，随包 HTML 存在时优先用系统默认浏览器打开，缺失时回退 PDF；Debug 构建不显示入口且无需携带手册。Tag 与手动发布的 Windows/Linux 应用 ZIP 现在都内置稳定路径的 HTML/PDF，并在压缩前和 ZIP 契约校验中强制检查。
 - 统一程序设置、主要功能页、旧式对话框和 Redmine 工作台的标题层级、按钮语义、分组、工具栏与分页样式；修复 Redmine 筛选 CheckBox 垂直对齐和用户可见名称大小写。新增不产生远程写入的 Redmine 只读 CDP 视觉套件，并更新程序设置、标签、模板及 Tracker/Redmine 用户手册截图。
+- 修复 Windows 高 DPI 下 CDP 截图以物理像素写入 96 DPI PNG、并对 overlay 子内容重复缩放的问题；Windows 改为捕获真实窗口表面，按当前窗口自动识别的倍率输出逻辑 1×/96 DPI 图片，同时保留高 DPI 物理原图和尺度元数据。
 - 应用日志只按文件大小滚动，基础文件名固定为 `Diary.App.log`，达到 16 MiB 后写入 `_001` 等可预测序号文件，总保留数限制为最近 4 个且文件名不再包含日期；首次使用新策略时清理旧日期格式日志，当前日志定位和手动导出兼容全部滚动文件。终止性托管崩溃在生成 Triage Dump 后还会尽力把当前保留日志归档为同名 `.logs.zip`，崩溃提示分别显示 Dump 和日志收集结果，旧 Dump 清理时同步删除日志归档。
 - 脚本管理新增 AI 上下文页，可选择并预览标签、附加字段、模板、Tracker 安全摘要、保存查询和只读 Host 能力，导出 Markdown/JSON；事项正文默认关闭并受日期、数量和文本预算限制。新增版本化只读快照与独立 stdio MCP，在用户授权快照内提供六个数据工具，并提供不会加载或执行源码的 `diary_validate_script` C#/Lua/Python 编译校验工具；不连接数据库或暴露写 API、凭据和标签 metadata。程序设置以统一的标准设置分组和设置行显示快照状态、复制通用 JSON 或可直接交给 AI 的配置说明，并保存设置后跳转到 AI 上下文。MCP 及全部显式 Exe/WinExe 测试 Runner 统一关闭 Windows apphost CET 标记。补充 Linux CDP 的授权、预览、快照、标准设置布局和配置复制回归，并将隔离示例数据截图加入用户手册。
 - 新增 Linux Debug UI/CDP 生命周期工具，支持 X11 或自动管理 Xvfb、隔离 profile、场景/插件 seed、`start/status/smoke/run/stop` 和日志定位；统一点击焦点与快捷键字符注入语义，核心套件日期断言不再依赖区域格式，Linux X11 下 core 14/14、smoke 与 extended 11/11 已通过。

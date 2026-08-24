@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
-import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { captureUiScreenshot } from './ui-screenshot.mjs';
 
 export const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 export const repositoryRoot = path.resolve(scriptDirectory, '..');
@@ -292,20 +292,12 @@ export async function connectUiTest(options = {}) {
         }
         throw lastError;
     };
-    const screenshot = async fileName => {
-        const started = performance.now();
-        const result = await client.send('Page.captureScreenshot', { format: 'png' }, 15000);
-        const buffer = Buffer.from(result.data, 'base64');
-        const outputPath = path.join(repositoryRoot, '.build-tmp', 'ui-test', 'screenshots', fileName);
-        await fs.mkdir(path.dirname(outputPath), { recursive: true });
-        await fs.writeFile(outputPath, buffer);
-        return {
-            elapsedMs: performance.now() - started,
-            bytes: buffer.length,
-            sha256: crypto.createHash('sha256').update(buffer).digest('hex'),
-            path: outputPath,
-        };
-    };
+    const screenshot = fileName => captureUiScreenshot({
+        client,
+        repositoryRoot,
+        fileName,
+        processId: state.processId,
+    });
     return {
         statePath, state, target, client, getTree, waitForTree, clickNode, clickByName, clickByText,
         focusNode, replaceText, appendText, pressKey, navigate, openSettingsMenuItem, screenshot,

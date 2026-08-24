@@ -15,7 +15,9 @@
 | `Blocked-External` | 缺少可纳入当前门禁的外部服务、权限或版本矩阵 |
 | `Not-Implemented` | 功能清单明确记录为尚未实现 |
 
-统一 UI 复检中，Windows 已分别通过 `ui-settings-full` 9/9、`ui-smoke`、`ui-core-full` 14/14、`ui-extended-full` 11/11、`ui-script-editor` 4/4、`ui-database-error` 8/8、`ui-survey-full` 8/8、`ui-extra-fields-full` 8/8、`ui-redmine-full` 12/12 和 `ui-redmine-style` 5/5。常规全量编排为 9/9 套件，其中 8 个结构化套件共 74 步，最终报告为 `ui-full-test-2026-08-24T13-04-28-833Z.json`；运行方法和性能数据见 [`UiAutomationTesting.md`](UiAutomationTesting.md)。
+统一 UI 复检中，Windows 已分别通过 `ui-settings-full` 9/9、`ui-smoke`、`ui-core-full` 14/14、`ui-extended-full` 11/11、`ui-script-editor` 4/4、`ui-database-error` 8/8、`ui-survey-full` 8/8、`ui-extra-fields-full` 8/8、`ui-redmine-full` 12/12 和 `ui-redmine-style` 5/5。修复截图 DPI 与 overlay 重复缩放后，常规全量编排仍为 9/9 套件，其中 8 个结构化套件共 74 步，最终报告为 `ui-full-test-2026-08-24T14-44-09-118Z.json`；运行方法和性能数据见 [`UiAutomationTesting.md`](UiAutomationTesting.md)。
+
+自动化保存的验收及手册截图统一归一化为逻辑 1×/96 DPI；Windows 使用真实窗口表面避免 CDP 对 overlay 子内容重复缩放，高 DPI 物理原图独立保存在 `screenshots/raw-physical/`。覆盖证据引用逻辑图，物理图仅用于检查缩放、裁切和像素边界。
 
 ## 2. 套件到功能映射
 
