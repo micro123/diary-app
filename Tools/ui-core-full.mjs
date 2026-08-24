@@ -263,8 +263,16 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         const headingBounds = boundsOf(dateHeading);
         const descriptionBounds = boundsOf(dateDescription);
         const actionBounds = boundsOf(dateActions);
+        const todayActionButton = controlForText(tree, findByText(tree, '回到今天'), ['Button']);
+        const copyActionButton = controlForText(tree, findByText(tree, '复制记录'), ['Button']);
+        const todayActionBounds = boundsOf(todayActionButton);
+        const copyActionBounds = boundsOf(copyActionButton);
         assertUi(headingBounds.y + headingBounds.height <= actionBounds.y,
             '日期标题与操作按钮发生垂直重叠');
+        assertUi(Math.abs(todayActionBounds.x - actionBounds.x) <= 1
+            && Math.abs(copyActionBounds.x + copyActionBounds.width
+                - actionBounds.x - actionBounds.width) <= 1,
+            '回到今天和复制记录没有分别对齐操作区两侧');
         assertUi(descriptionBounds.height <= 24, '日期说明被挤压换行');
         assertUi(!statusPill || !isVisible(statusPill), '未选中事项时仍显示空状态胶囊');
         const compactDayButtons = descendants(tree, compactDays).filter(entry =>

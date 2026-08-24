@@ -135,11 +135,11 @@
                                    Text="选择日期并管理当天的工作记录"
                                    TextWrapping="NoWrap" Classes="SectionDescription" />
                     </StackPanel>
-                    <StackPanel Name="DiaryDateActions" Orientation="Horizontal" Spacing="6">
+                    <Grid Name="DiaryDateActions" ColumnDefinitions="Auto,*,Auto">
                         <Button Content="回到今天"
                                 HotKey="Ctrl+T" Classes="ActionButton"
                                 Command="{Binding SelectTodayCommand}" />
-                        <Button Content="复制记录" Classes="ActionButton"
+                        <Button Grid.Column="2" Content="复制记录" Classes="ActionButton"
                                 ToolTip.Tip="选择复制昨天、最近记录或整天记录">
                             <Button.Flyout>
                                 <MenuFlyout ShowMode="Transient">
@@ -153,7 +153,7 @@
                                 </MenuFlyout>
                             </Button.Flyout>
                         </Button>
-                    </StackPanel>
+                    </Grid>
                 </StackPanel>
                 <Border Name="CompactCalendar" DockPanel.Dock="Top" Classes="SubtleCard" Padding="8"
                         PointerWheelChanged="OnCompactCalendarPointerWheelChanged">
