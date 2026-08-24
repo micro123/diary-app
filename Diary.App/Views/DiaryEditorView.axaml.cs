@@ -21,7 +21,7 @@ public partial class DiaryEditorView : UserControl
         }
     }
 
-    private void OnCompactCalendarDayContextRequested(object? sender, ContextRequestedEventArgs _)
+    private void OnCompactCalendarDayContextRequested(object? sender, ContextRequestedEventArgs args)
     {
         if (DataContext is DiaryEditorViewModel vm
             && sender is Control
@@ -30,7 +30,12 @@ public partial class DiaryEditorView : UserControl
                 ContextMenu: { } contextMenu,
             })
         {
-            vm.ShowCompactCalendarDayContextMenu(day.Date);
+            if (!vm.ShowCompactCalendarDayContextMenu(day.Date))
+            {
+                args.Handled = true;
+                return;
+            }
+
             contextMenu.ItemsSource = vm.QuickMenuItems;
         }
     }

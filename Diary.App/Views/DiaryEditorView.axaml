@@ -46,26 +46,49 @@
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
         <Style Selector="Button.CompactCalendarDay">
+            <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
             <Setter Property="MinWidth" Value="28" />
             <Setter Property="Height" Value="28" />
             <Setter Property="Padding" Value="0" />
-            <Setter Property="CornerRadius" Value="4" />
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="Transparent" />
-            <Setter Property="Foreground" Value="{DynamicResource SemiColorTertiaryActive}" />
-            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
         </Style>
         <Style Selector="Button.CompactCalendarDay.OutsideMonth">
             <Setter Property="Opacity" Value="0.52" />
         </Style>
         <Style Selector="Button.CompactCalendarDay.Today">
-            <Setter Property="BorderBrush" Value="{DynamicResource SemiColorPrimaryBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Opacity" Value="1" />
         </Style>
         <Style Selector="Button.CompactCalendarDay.Selected">
-            <Setter Property="Background" Value="{DynamicResource SemiColorPrimaryBrush}" />
-            <Setter Property="Foreground" Value="White" />
             <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="Border.CompactCalendarSelectedIndicator.Selected">
+            <Setter Property="Background" Value="{DynamicResource SemiColorPrimary}" />
+        </Style>
+        <Style Selector="Border.CompactCalendarTodayIndicator.Today">
+            <Setter Property="Background" Value="{DynamicResource SemiColorPrimaryLight}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SemiColorPrimary}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Border.CompactCalendarTodayIndicator.Today.Selected">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="White" />
+            <Setter Property="BorderThickness" Value="2" />
+        </Style>
+        <Style Selector="TextBlock.CompactCalendarDayText">
+            <Setter Property="Foreground" Value="{DynamicResource SemiColorTertiaryActive}" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.CompactCalendarDayText.Today">
+            <Setter Property="Foreground" Value="{DynamicResource SemiColorPrimary}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.CompactCalendarDayText.Selected">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
     </UserControl.Styles>
 
@@ -180,14 +203,26 @@
                                 <DataTemplate x:DataType="viewModels:CompactCalendarDay">
                                     <Button Classes="CompactCalendarDay"
                                             Classes.Selected="{Binding IsSelected}"
-                                            Classes.Primary="{Binding IsSelected}"
                                             Classes.Today="{Binding IsToday}"
                                             Classes.OutsideMonth="{Binding IsOutsideMonth}"
-                                            Content="{Binding DayText}" ToolTip.Tip="{Binding ToolTip}"
+                                            ToolTip.Tip="{Binding ToolTip}"
                                             Command="{Binding $parent[UserControl].((viewModels:DiaryEditorViewModel)DataContext).SelectCompactCalendarDateCommand}"
                                             CommandParameter="{Binding Date}"
                                             ContextRequested="OnCompactCalendarDayContextRequested"
                                             Click="OnCompactCalendarDayClick">
+                                        <Grid>
+                                            <Border Classes="CompactCalendarSelectedIndicator"
+                                                    Classes.Selected="{Binding IsSelected}"
+                                                    CornerRadius="4" />
+                                            <Border Classes="CompactCalendarTodayIndicator"
+                                                    Classes.Today="{Binding IsToday}"
+                                                    Classes.Selected="{Binding IsSelected}"
+                                                    CornerRadius="4" />
+                                            <TextBlock Classes="CompactCalendarDayText"
+                                                       Classes.Today="{Binding IsToday}"
+                                                       Classes.Selected="{Binding IsSelected}"
+                                                       Text="{Binding DayText}" />
+                                        </Grid>
                                         <Button.ContextMenu>
                                             <ContextMenu ItemsSource="{Binding $parent[UserControl].((viewModels:DiaryEditorViewModel)DataContext).QuickMenuItems}">
                                                 <ContextMenu.ItemContainerTheme>

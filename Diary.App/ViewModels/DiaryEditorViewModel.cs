@@ -38,14 +38,20 @@ public sealed class DayMenuItem
 }
 
 
-public sealed class CompactCalendarDay
+public sealed partial class CompactCalendarDay : ObservableObject
 {
     public required DateTime Date { get; init; }
     public required string DayText { get; init; }
     public required string ToolTip { get; init; }
-    public bool IsToday { get; init; }
-    public bool IsSelected { get; init; }
-    public bool IsOutsideMonth { get; init; }
+
+    [ObservableProperty]
+    private bool _isToday;
+
+    [ObservableProperty]
+    private bool _isSelected;
+
+    [ObservableProperty]
+    private bool _isOutsideMonth;
 }
 
 
@@ -601,9 +607,22 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private void RefreshCompactCalendar()
     {
         var anchor = CompactCalendarAnchorDate == default ? DateTime.Today : CompactCalendarAnchorDate.Date;
-        var weekStart = StartOfWeek(anchor);
-        var firstDate = weekStart;
+        var firstDate = StartOfWeek(anchor);
+        var today = DateTime.Today;
         const int dayCount = 7;
+
+        if (CompactCalendarDays.Count == dayCount
+            && CompactCalendarDays.Select((day, index) => day.Date == firstDate.AddDays(index)).All(matches => matches))
+        {
+            foreach (var day in CompactCalendarDays)
+            {
+                day.IsToday = day.Date == today;
+                day.IsSelected = day.Date == SelectedDate.Date;
+                day.IsOutsideMonth = day.Date.Month != anchor.Month || day.Date.Year != anchor.Year;
+            }
+            return;
+        }
+
         CompactCalendarDays = new ObservableCollection<CompactCalendarDay>(
             Enumerable.Range(0, dayCount).Select(offset =>
             {
@@ -613,7 +632,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
                     Date = date,
                     DayText = date.Day.ToString(CultureInfo.InvariantCulture),
                     ToolTip = date.ToString("yyyy年M月d日 dddd", CultureInfo.CurrentCulture),
-                    IsToday = date == DateTime.Today,
+                    IsToday = date == today,
                     IsSelected = date == SelectedDate.Date,
                     IsOutsideMonth = date.Month != anchor.Month || date.Year != anchor.Year,
                 };
@@ -790,8 +809,17 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     [ObservableProperty] private ObservableCollection<DayMenuItem> _quickMenuItems = new();
 
-    public void ShowCompactCalendarDayContextMenu(DateTime selectDate) =>
-        FillDayMenus(selectDate.Date);
+    public bool ShowCompactCalendarDayContextMenu(DateTime selectDate)
+    {
+        selectDate = selectDate.Date;
+        if (selectDate != SelectedDate.Date)
+            GoDate(selectDate);
+        if (SelectedDate.Date != selectDate)
+            return false;
+
+        FillDayMenus(selectDate);
+        return true;
+    }
 
     public void ShowCompactCalendarPeriodContextMenu() =>
         FillPeriodMenus(CompactCalendarAnchorDate.Date);
@@ -926,9 +954,6 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     private void FillDayMenus(DateTime date)
     {
-        if (date != SelectedDate)
-            GoDate(date);
-
         QuickMenuItems.Clear();
         var weekOfYear = CultureInfo.InvariantCulture.Calendar.GetWeekOfYear(date, CalendarWeekRule.FirstDay, DayOfWeek.Monday);
         AddMenuHeader($"{date:yyyy年MM月dd日} 第{weekOfYear}周");

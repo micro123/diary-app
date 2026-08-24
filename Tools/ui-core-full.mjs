@@ -37,6 +37,12 @@ function textInView(tree, typeName, text, contains = false) {
         && (contains ? textOf(entry).includes(text) : textOf(entry) === text));
 }
 
+function compactCalendarDayText(tree, button) {
+    const label = descendants(tree, button).find(entry =>
+        String(entry.a.Class ?? '').includes('CompactCalendarDayText'));
+    return textOf(label);
+}
+
 async function clickTextInView(connection, typeName, text, contains = false) {
     const tree = await connection.getTree();
     const entry = textInView(tree, typeName, text, contains);
@@ -265,12 +271,12 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
             isVisible(entry) && typeOf(entry).includes('Button')
             && String(entry.a.Class ?? '').includes('CompactCalendarDay'));
         assertUi(compactDayButtons.length === 7, '默认一周视图没有显示 7 个日期');
-        const todayButton = compactDayButtons.find(entry => textOf(entry) === String(new Date().getDate())
+        const todayButton = compactDayButtons.find(entry => String(entry.a.Class ?? '').includes('Today')
             && String(entry.a.Class ?? '').includes('Selected'));
-        assertUi(todayButton, '紧凑周历没有标记当前选中日期');
+        assertUi(todayButton, '回到今天后没有同时标记今天和当前选中日期');
 
         const selectedDateTitle = textOf(findByName(tree, 'DiaryDateTitle'));
-        const initialFirstDayText = textOf(compactDayButtons[0]);
+        const initialFirstDayText = compactCalendarDayText(tree, compactDayButtons[0]);
         const calendarBox = await connection.client.send('DOM.getBoxModel', { nodeId: compactCalendar.nodeId });
         const calendarQuad = calendarBox.model.border;
         const calendarX = (calendarQuad[0] + calendarQuad[4]) / 2;
@@ -286,7 +292,8 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
             const buttons = root && descendants(current, root).filter(entry =>
                 isVisible(entry) && typeOf(entry).includes('Button')
                 && String(entry.a.Class ?? '').includes('CompactCalendarDay'));
-            return buttons?.length === 7 && textOf(buttons[0]) !== initialFirstDayText ? root : null;
+            return buttons?.length === 7
+                && compactCalendarDayText(current, buttons[0]) !== initialFirstDayText ? root : null;
         }, 3000, '滚轮向下没有浏览到后一周');
         tree = await connection.getTree();
         assertUi(textOf(findByName(tree, 'DiaryDateTitle')) === selectedDateTitle,
@@ -299,21 +306,47 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
             const buttons = root && descendants(current, root).filter(entry =>
                 isVisible(entry) && typeOf(entry).includes('Button')
                 && String(entry.a.Class ?? '').includes('CompactCalendarDay'));
-            return buttons?.length === 7 && textOf(buttons[0]) === initialFirstDayText ? root : null;
+            return buttons?.length === 7
+                && compactCalendarDayText(current, buttons[0]) === initialFirstDayText ? root : null;
         }, 3000, '反向滚轮没有恢复原周');
 
         tree = await connection.getTree();
         const currentCompactDays = findByName(tree, 'CompactCalendarDays');
-        const currentDayButton = descendants(tree, currentCompactDays).find(entry =>
+        const currentDayButtons = descendants(tree, currentCompactDays).filter(entry =>
             isVisible(entry) && typeOf(entry).includes('Button')
-            && String(entry.a.Class ?? '').includes('CompactCalendarDay')
+            && String(entry.a.Class ?? '').includes('CompactCalendarDay'));
+        const currentTodayButton = currentDayButtons.find(entry => String(entry.a.Class ?? '').includes('Today')
             && String(entry.a.Class ?? '').includes('Selected'));
-        assertUi(currentDayButton, '找不到可验证右键菜单的周历日期');
-        await connection.client.send('DOM.focus', { nodeId: currentDayButton.nodeId });
-        await connection.pressKey('F10', 'F10', 121, shift);
-        await connection.waitForTree(current => ['同步本日工时', '统计本周工时'].every(text =>
+        const contextTargetButton = currentDayButtons.find(entry => !String(entry.a.Class ?? '').includes('Selected'));
+        assertUi(currentTodayButton && contextTargetButton, '找不到可验证今天与非选中日期的周历按钮');
+        const contextTargetText = compactCalendarDayText(tree, contextTargetButton);
+        const targetBox = await connection.client.send('DOM.getBoxModel', { nodeId: contextTargetButton.nodeId });
+        const targetQuad = targetBox.model.border;
+        const targetX = (targetQuad[0] + targetQuad[4]) / 2;
+        const targetY = (targetQuad[1] + targetQuad[5]) / 2;
+        await connection.client.send('Input.dispatchMouseEvent', {
+            type: 'mouseMoved', x: targetX, y: targetY,
+        });
+        await connection.client.send('Input.dispatchMouseEvent', {
+            type: 'mousePressed', x: targetX, y: targetY, button: 'right', buttons: 2, clickCount: 1,
+        });
+        await connection.client.send('Input.dispatchMouseEvent', {
+            type: 'mouseReleased', x: targetX, y: targetY, button: 'right', buttons: 0, clickCount: 1,
+        });
+        const dayMenu = await connection.waitForTree(current => ['同步本日工时', '统计本周工时'].every(text =>
             findByText(current, text, entry => hasAncestorType(current, entry, 'MenuItem'))),
-        3000, '紧凑周历日期右键菜单没有同时提供日和周操作');
+        3000, '右键非选中日期后没有同时选中日期并打开日/周菜单');
+        const updatedCompactDays = findByName(dayMenu.tree, 'CompactCalendarDays');
+        const updatedDayButtons = descendants(dayMenu.tree, updatedCompactDays).filter(entry =>
+            isVisible(entry) && typeOf(entry).includes('Button')
+            && String(entry.a.Class ?? '').includes('CompactCalendarDay'));
+        const selectedTargetButton = updatedDayButtons.find(entry =>
+            compactCalendarDayText(dayMenu.tree, entry) === contextTargetText
+            && String(entry.a.Class ?? '').includes('Selected'));
+        const updatedTodayButton = updatedDayButtons.find(entry => String(entry.a.Class ?? '').includes('Today'));
+        assertUi(selectedTargetButton, '右键非选中日期后目标日期没有变为当前选中');
+        assertUi(updatedTodayButton && !String(updatedTodayButton.a.Class ?? '').includes('Selected'),
+            '选择其他日期后今天标记与当前选中状态没有分离');
         await connection.pressKey('Escape', 'Escape', 27);
 
         tree = await connection.getTree();
@@ -365,6 +398,8 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         return {
             oneWeekHeight: boundsOf(compactDays).height,
             compactDayContextMenu: true,
+            rightClickSelectsDate: true,
+            todayAndSelectedStates: true,
             compactHeaderContextMenu: true,
             fullCalendarHeight: fullCalendarBounds.height,
             calendarItemWidth: calendarItemBounds.width,
