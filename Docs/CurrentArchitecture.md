@@ -186,11 +186,11 @@ Debug 构建还提供显式启用的本地 UI 自动化入口：设置 `DIARY_CD
 应用初始化阶段会立即启动脚本目录的后台异步加载。目录发现、元数据读取和脚本构建在后台任务中执行；脚本管理页首次显示时复用正在进行的加载任务或已完成结果，只有手动重新加载、脚本编辑保存或编译检查才会强制重新扫描。
 调查功能的接收循环使用各自的 `CancellationToken`，消息处理器在接收任务中以可等待任务执行；处理器异常会记录并通过 `ReceiveMessageHandlerError` 诊断，不再由未观察的 fire-and-forget 任务承载。`AppSurveyor.StopServerAsync()` 和 `AppRespondent.ShutdownAsync()` 先取消接收，再等待接收循环和消息处理完成后释放 NNG 资源；应用配置重载和退出流程都等待这些异步生命周期任务。保留的无返回值 `StopServer()`/`Shutdown()` 仅用于兼容调用并主动观察后台任务，UI 路径不使用同步等待。
 
-调查页默认选择兼容查询，兼容查询 v1 会完全隐藏扩展条件卡片，用户显式切换到扩展查询 v2 后才显示并配置筛选、分组和明细，避免由字段内容隐式改变协议。页面布局以全宽查询配置为主，查询卡将标题与节点摘要、模式与日期、计算与执行压缩为三行，节点探测只在查询卡标题区显示状态和操作入口，完整节点能力通过独立 `OverlayDialog` 查看；扩展条件和结果区分层占满可用宽度，结果区独立滚动；查询状态会显示已收到的节点数量和节点错误，能力结果统一调度到 UI 线程更新。设置模型生成的 `Expander` 显式使用 `.Settings` 类，模板标题字号、颜色和内容边框样式仅匹配 `Expander.Settings`，不会泄漏到调查结果等普通折叠控件。`SurveyUserGuide.md` 作为用户文档复制到构建和发布目录，页面可调用系统默认程序直接打开。
+调查页默认选择兼容查询，兼容查询 v1 会完全隐藏扩展条件卡片，用户显式切换到扩展查询 v2 后才显示并配置筛选、分组和明细，避免由字段内容隐式改变协议。页面布局以全宽查询配置为主，查询卡将标题与节点摘要、模式与日期、计算与执行压缩为三行，节点探测只在查询卡标题区显示状态和操作入口，完整节点能力通过独立 `OverlayDialog` 查看；扩展条件和结果区分层占满可用宽度，结果区独立滚动；查询状态会显示已收到的节点数量和节点错误，能力结果统一调度到 UI 线程更新。每个节点的结果摘要保持可见，内部 `TreeDataGrid` 默认折叠到根节点，避免多节点、多标签结果一次展开占满区域。设置模型生成的 `Expander` 显式使用 `.Settings` 类，模板标题字号、颜色和内容边框样式仅匹配 `Expander.Settings`，不会泄漏到调查结果等普通折叠控件。`SurveyUserGuide.md` 作为用户文档复制到构建和发布目录，页面可调用系统默认程序直接打开。
 
 工作项上传的远程协调可以从后台线程执行，但 `WorkEditorViewModel.Upload()` 完成后统一通过 Avalonia UI Dispatcher 更新 `UploadResults`、锁定状态和状态绑定，避免后台线程直接修改绑定集合。
 
-统计页刷新先在 UI 线程捕获日期和“占比计算基准”，后台只查询并构造不可变快照，最后回到 UI Dispatcher 原子更新总计、图表和树表。刷新请求使用递增 generation 且数据库查询串行化；旧请求即使较晚完成也不会覆盖较新的筛选结果。
+统计页刷新先在 UI 线程捕获日期和“占比计算基准”，后台只查询并构造不可变快照，最后回到 UI Dispatcher 原子更新总计、柱状图、饼图和树表。柱状图与饼图复用同一份主标签工时数据，切换显示不会再次查询数据库。刷新请求使用递增 generation 且数据库查询串行化；旧请求即使较晚完成也不会覆盖较新的筛选结果。
 
 事件记录页的 `DailyWorks` 使用统一的优先级、ID 排序规则：`WorkPriorities` 升序后按持久化工作项 ID 升序。日期加载、复制新增和每次工作项保存后都会重排；重排使用 `ObservableCollection.Move()`，避免通过清空集合破坏当前选中项，并在移动期间抑制由选择变化触发的重复保存。日期加载会按当日工作项 ID 批量读取附加字段，并把结果随备注、标签和 Tracker 绑定一起注入编辑器，避免每条事项重复执行附加字段查询。Redmine/Jira 编辑器直接复用数据仓库维护的开放 Issue/活动只读列表；只有历史绑定指向已关闭或缺失项时，才为该编辑器创建带失效占位项的局部列表，避免富数据日期切换时为每条事项重复复制全部 Tracker 选项。工作项克隆会先以空事项加载目标 Tracker 扩展的选项，再按用途决定是否复制选择：普通“重复当前事项”保留 Tracker 设置；跨日期复制仅复制本地字段、标签和附加字段，并绕过标签默认值自动化，确保不会创建 Tracker 本地绑定。
 
@@ -256,6 +256,10 @@ Jira：plugin_data_versions（与 Redmine 共用同一张表）、jira_projects�
 当前表结构的 ERD 图见 [`diagrams/database-schema.puml`](diagrams/database-schema.puml)。
 
 ### 核心数据迁移与发布门禁
+
+`Diary.MigrationTool` 从 DiaryToolpp 5.0.0 SQLite/PostgreSQL 数据源导入统计所需的标签、工作记录、备注和标签关系，
+不迁移 Tracker 远端对象，并将导入工作项标记为只读。旧库可能在未启用外键约束时遗留指向已删除工作记录或标签的
+`work_item_tags`；迁移器只导入两端都已成功导入的关系，跳过悬空关系并通过进度消息报告数量，不会因此修改源数据库或放弃其余有效数据。
 
 数据库兼容性不再只依赖 `data_versions`。`DbInterfaceBase.CheckCompatibility()` 综合检查 provider 身份和能力、
 声明数据版本、迁移元数据、规范化 schema fingerprint，以及 provider 数据完整性检查；只有
@@ -371,7 +375,7 @@ Redmine 和 Jira UI 通过 `Diary.PluginUI` 的契约接入：
 
 敏感配置使用带版本头的 AES-256-GCM 保存，密文完整性由认证标签校验。每次安装首次保存时生成随机 256 位主密钥，再结合 `StorageFileAttribute` 中的用途字符串派生文件密钥；Windows 使用当前用户 DPAPI 保护主密钥，Unix 将主密钥文件限制为仅当前用户读写。旧 `Salted__` AES-CBC/PBKDF2 文件保持只读兼容，后续保存会自动写成新格式。API Key 等字段通过 `ConfigureTextAttribute` 标记为密码输入；编辑器只在用户显式修改后更新字段，配置迁移和日志导出均不输出明文密钥。
 
-Jira API 明确区分自有和外部注入的 `HttpClient`，Redmine API 每个实例持有单一 `RestClient`；Tracker UI 贡献重新注册或应用退出时由 `TrackerUiContributionRegistry` 统一释放贡献及其自有客户端，避免静态客户端缓存和临时连接测试泄漏。
+Jira API 明确区分自有和外部注入的 `HttpClient`，Redmine API 每个实例持有单一 `RestClient`；Tracker UI 贡献重新注册或应用退出时由 `TrackerUiContributionRegistry` 统一请求释放贡献及其自有客户端。Redmine 请求通过并发安全租约持有客户端：释放请求会立即阻止旧实例接受新调用，但必须等待已经开始的请求归还最后一个租约后才真正释放 `RestClient`，避免配置重载与后台同步竞态，同时继续防止静态客户端缓存和临时连接测试泄漏。
 
 ## 12. 当前已知缺口
 
@@ -419,7 +423,7 @@ Redmine 实例设置页和核心标签编辑器复用规则编辑 ViewModel，�
 不新增版本化 migration。字段的 `FieldKey` 全局唯一且创建后不可修改，字段类型在创建时固定；
 字段停用而非物理删除，历史字段值保留。
 
-标签编辑器采用左侧标签导航和右侧详情页签，基础信息、元数据、Tracker 自动化操作、附加字段分别维护。附加字段页签只显示字段摘要；新增或编辑字段通过二级对话框完成，确认后回填主页面草稿，主页面保存时统一提交。
+标签编辑器采用左侧标签导航和右侧详情页签，基础信息、元数据、Tracker 自动化操作、附加字段分别维护。标签页内的 Redmine 自动化规则按“启用、活动、问题、删除”水平排列，并复用外层当前标签，不重复显示标签选择；Tracker 全局设置中的规则编辑器仍保留标签选择。附加字段页签只显示字段摘要；新增或编辑字段通过二级对话框完成，确认后回填主页面草稿，主页面保存时统一提交。
 
 日志编辑器不展开附加字段，只提供独立“附加信息”对话框，并按标签分组编辑；文本、多行文本、整数、小数、三态布尔、日期、时间、日期时间和选项字段分别使用对应控件，所有类型均保留空值语义，只读工作项禁用编辑。按钮 Tooltip 显示截断预览。附加字段编辑不触发脚本执行，脚本查询 DTO 通过 `FieldKey` 只读访问字段值。
 
@@ -453,7 +457,9 @@ WorkItemCreated/WorkItemSaved/TagAdded 触发器均已接线。Query 入口已�
 
 `Diary.AiContext` 定义 `diary.ai_context` v1 纯 DTO、2 MiB 快照上限、100 条事项上限、文本截断、snake_case JSON、Markdown 渲染和快照内查询。App 可以从同一对象生成预览、Markdown/JSON 导出和默认 MCP 快照，Unix 下快照权限尽力限制为当前用户读写。
 
-`Diary.Mcp` 是独立 stdio 进程，使用官方 MCP C# SDK。数据查询只依赖 `Diary.AiContext`；脚本校验另外引用 C#、Lua、Python 内置引擎的无执行校验接口。它不加载 App DI、数据库 provider、插件、脚本目录、Worker、Host API 或脚本执行器，开放六个快照数据工具和一个 `diary_validate_script` 工具。后者只接受语言和源码，C# Emit 到内存但不加载程序集，Lua 只编译代码块，Python 只解析语法树与固定安全策略。详细边界见 [`AiScriptContextDesign.md`](AiScriptContextDesign.md)，使用方式见 [`AiScriptContextGuide.md`](AiScriptContextGuide.md)。
+`Diary.Mcp` 是独立 stdio 进程，使用官方 MCP C# SDK。数据查询只依赖 `Diary.AiContext`；脚本校验另外引用 C#、Lua、Python 内置引擎的无执行校验接口。它不加载 App DI、数据库 provider、插件、脚本目录、Worker、Host API 或脚本执行器，开放六个快照数据工具和一个 `diary_validate_script` 工具。后者只接受语言和源码，C# Emit 到内存但不加载程序集，Lua 只编译代码块，Python 只解析语法树与固定安全策略。
+
+MCP 按目标 RID 自包含发布为 apphost 加 DLL/deps/runtimeconfig 的多文件布局，再合并到主应用发布根目录。合并器对同名文件执行大小和 SHA-256 校验：完全相同的 .NET Runtime、Roslyn 与脚本依赖由主应用和 MCP 共享，内容不同或 Windows 下仅大小写不同的冲突会使发布失败。更新器继续保持独立、裁剪、自包含单文件，避免更新过程中依赖正在被替换的应用目录。详细边界见 [`AiScriptContextDesign.md`](AiScriptContextDesign.md)，使用方式见 [`AiScriptContextGuide.md`](AiScriptContextGuide.md)。
 
 ## 18. 维护约定
 
