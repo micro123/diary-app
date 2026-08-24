@@ -157,8 +157,11 @@
             </TabControl.ItemTemplate>
             <TabControl.ContentTemplate>
                 <DataTemplate DataType="viewModels:TrackerEditorTabItem">
-                    <ContentControl Content="{Binding Extension.View}"
-                                    IsEnabled="{Binding !Extension.IsLocked}" />
+                    <Border Name="TrackerEditorContentHost"
+                            IsEnabled="{Binding !IsHostReadOnly}">
+                        <ContentControl Content="{Binding Extension.View}"
+                                        IsEnabled="{Binding !Extension.IsLocked}" />
+                    </Border>
                 </DataTemplate>
             </TabControl.ContentTemplate>
         </TabControl>

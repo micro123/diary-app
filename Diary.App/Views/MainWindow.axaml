@@ -138,6 +138,9 @@
                     Padding="16 4" ToolTip.ShowDelay="250" Classes="Flat Success" Name="Version">
                 <Button.Flyout>
                     <MenuFlyout>
+                        <MenuItem Name="CheckForUpdatesMenuItem" Header="检查更新"
+                                  Command="{Binding CheckForUpdatesCommand}" />
+                        <Separator />
                         <MenuItem Header="复制版本号" Command="{Binding CopyVersionCommand}"
                                   CommandParameter="{x:True}" />
                         <MenuItem Header="复制详细信息" Command="{Binding CopyVersionCommand}"
@@ -174,8 +177,6 @@
     <DockPanel Margin="0 32 0 0">
         <!-- 状态栏 -->
         <views:StatusBarView Name="StatusBarView" DockPanel.Dock="Bottom" DataContext="{Binding StatusBar}"/>
-        <Border Height="2" BorderThickness="0 0 0 2" BorderBrush="{DynamicResource SemiColorFocusBorder}"
-                DockPanel.Dock="Bottom"/>
         <!-- 主内容 -->
         <SplitView Padding="4" DisplayMode="CompactOverlay" OpenPaneLength="256" CompactPaneLength="64"
                    IsPaneOpen="{Binding #PanelOpen.IsChecked, Mode=TwoWay}"

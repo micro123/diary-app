@@ -7,63 +7,78 @@
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="Diary.App.Views.StatusBarView"
              x:DataType="viewModels:StatusBarViewModel"
-             Height="32" >
+             Height="34">
     <Design.DataContext>
         <viewModels:StatusBarViewModel/>
     </Design.DataContext>
-    <DockPanel>
-        <DockPanel.Styles>
-            <Style Selector="Button">
-                <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
-                <Setter Property="Height" Value="24" />
-            </Style>
-            <Style Selector="StackPanel">
-                <Setter Property="Spacing" Value="4" />
-            </Style>
-        </DockPanel.Styles>
-        
-        <Button DockPanel.Dock="Left" ToolTip.Tip="查看源代码" Classes="Warning"
-                Command="{Binding OpenSourceUrlCommand}">
-            <i:Icon Value="mdi-github" />
-        </Button>
-        
-        <Button DockPanel.Dock="Right" ToolTip.Tip="当前日期" Classes="Warning">
-            <StackPanel Orientation="Horizontal">
-                <i:Icon Value="mdi-calendar-month-outline" />
-                <TextBlock Text="{Binding Date}"/>
+    <Border Background="{DynamicResource WindowDefaultBackground}"
+            BorderBrush="{DynamicResource SemiColorBorder}"
+            BorderThickness="0 1 0 0">
+        <DockPanel Margin="8 0">
+            <DockPanel.Styles>
+                <Style Selector="Button.StatusItem">
+                    <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
+                    <Setter Property="Height" Value="28" />
+                    <Setter Property="MinWidth" Value="28" />
+                    <Setter Property="Padding" Value="8 2" />
+                    <Setter Property="Background" Value="Transparent" />
+                    <Style Selector="^:pointerover">
+                        <Setter Property="Background" Value="{DynamicResource SemiColorFill2}" />
+                    </Style>
+                </Style>
+                <Style Selector="Button.StatusItem StackPanel">
+                    <Setter Property="Spacing" Value="5" />
+                </Style>
+                <Style Selector="Button.StatusItem i|Icon">
+                    <Setter Property="FontSize" Value="16" />
+                </Style>
+                <Style Selector="Button.StatusItem TextBlock">
+                    <Setter Property="FontSize" Value="12" />
+                    <Setter Property="VerticalAlignment" Value="Center" />
+                </Style>
+            </DockPanel.Styles>
+
+            <Button DockPanel.Dock="Left" Classes="StatusItem"
+                    ToolTip.Tip="查看源代码" Command="{Binding OpenSourceUrlCommand}">
+                <i:Icon Value="mdi-github" />
+            </Button>
+
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2">
+                <Button Classes="StatusItem" ToolTip.Tip="查看后台任务"
+                        IsVisible="{Binding HasTasks}">
+                    <!-- TODO: 添加任务进度预览 -->
+                    <i:Icon Value="mdi-gauge" />
+                </Button>
+                <Border Width="1" Height="16" Margin="4 0"
+                        VerticalAlignment="Center"
+                        Background="{DynamicResource SemiColorBorder}"
+                        IsVisible="{Binding HasTasks}" />
+                <Button Classes="StatusItem" ToolTip.Tip="用户名">
+                    <StackPanel Orientation="Horizontal">
+                        <i:Icon Value="mdi-account-outline" />
+                        <TextBlock Text="{Binding UserName}" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="StatusItem" ToolTip.Tip="计算机名称">
+                    <StackPanel Orientation="Horizontal">
+                        <i:Icon Value="mdi-desktop-classic" />
+                        <TextBlock Text="{Binding ComputerName}" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="StatusItem" ToolTip.Tip="当前日期">
+                    <StackPanel Orientation="Horizontal">
+                        <i:Icon Value="mdi-calendar-month-outline" />
+                        <TextBlock Text="{Binding Date}" />
+                    </StackPanel>
+                    <Button.Flyout>
+                        <Flyout ShowMode="Standard" PlacementGravity="BottomLeft">
+                            <Calendar SelectionMode="None" />
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
             </StackPanel>
-            <Button.Flyout>
-                <Flyout ShowMode="Standard" PlacementGravity="BottomLeft">
-                    <Calendar SelectionMode="None"/>
-                </Flyout>
-            </Button.Flyout>
-        </Button>
-        <Button DockPanel.Dock="Right" ToolTip.Tip="计算机名称" Classes="Warning">
-            <StackPanel Orientation="Horizontal">
-                <i:Icon Value="mdi-desktop-classic" />
-                <TextBlock Text="{Binding ComputerName}" />
-            </StackPanel>
-        </Button>
-        <Button DockPanel.Dock="Right" ToolTip.Tip="用户名" Classes="Warning">
-            <StackPanel Orientation="Horizontal">
-                <i:Icon Value="mdi-account" />
-                <TextBlock Text="{Binding UserName}" />
-            </StackPanel>
-        </Button>
-        
-        <Border Width="2" DockPanel.Dock="Right" BorderThickness="0 0 2 0" 
-                BorderBrush="{DynamicResource SemiColorBorder}"
-                IsVisible="{Binding HasTasks}"/>
-        
-        <Button DockPanel.Dock="Right" ToolTip.Tip="查看后台任务" Classes="Success"
-                IsVisible="{Binding HasTasks}">
-            <!-- TODO: 添加任务进度预览 -->
-            <StackPanel Orientation="Horizontal">
-                <i:Icon Value="mdi-gauge" />
-            </StackPanel>
-        </Button>
-        
-        <!-- 占用剩余空间 -->
-        <Rectangle />
-    </DockPanel>
+
+            <Rectangle />
+        </DockPanel>
+    </Border>
 </UserControl>

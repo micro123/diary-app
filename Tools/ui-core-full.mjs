@@ -139,7 +139,18 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         const statusDate = [statusBar, ...descendants(tree, statusBar)]
             .find(entry => isVisible(entry) && isCurrentDateText(textOf(entry), now));
         assertUi(statusDate, '状态栏缺少当前日期');
-        return { version: textOf(findByName(tree, 'Version')), dateText: textOf(statusDate) };
+        await connection.clickByName('Version');
+        const versionMenu = await connection.waitForTree(current => {
+            const item = findByText(current, '检查更新', entry => hasAncestorType(current, entry, 'MenuItem'));
+            return item && ancestor(current, item, entry => typeOf(entry).includes('MenuItem'));
+        }, 5000, '版本菜单缺少检查更新入口');
+        assertUi(isEnabled(versionMenu.value), '检查更新入口不可用');
+        await connection.pressKey('Escape', 'Escape', 27);
+        return {
+            version: textOf(findByName(tree, 'Version')),
+            dateText: textOf(statusDate),
+            updateShortcut: textOf(versionMenu.value),
+        };
     });
 
     await runStep('shell.application-menu', '应用菜单内容', async () => {

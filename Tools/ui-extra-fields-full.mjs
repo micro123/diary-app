@@ -570,6 +570,15 @@ await runUiSuite({ name: 'ui-extra-fields-full', scenario: 'extra-fields', timeo
         await activateControl(connection, named(tree, 'CloseWorkExtraFieldsButton'));
         await connection.waitForTree(current => !named(current, 'WorkItemExtraFieldsRoot'), 8000,
             '只读附加信息对话框未关闭');
-        return { readonlyEntry: true, readonlyValue: true, saveHidden: true };
+        tree = await connection.getTree();
+        const trackerEditor = named(tree, 'TrackerEditorContentHost');
+        if (trackerEditor)
+            assertUi(!isEffectivelyEnabled(tree, trackerEditor), '只读事项的 Tracker 区域仍可编辑');
+        return {
+            readonlyEntry: true,
+            readonlyValue: true,
+            saveHidden: true,
+            trackerReadOnly: trackerEditor ? true : 'no-tracker-loaded',
+        };
     });
 });

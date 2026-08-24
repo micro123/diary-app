@@ -62,6 +62,10 @@ public partial class MainWindowViewModel : ViewModelBase
         ToastManager?.Show("已复制", NotificationType.Success);
     }
 
+    [RelayCommand]
+    private void CheckForUpdates()
+        => PostUiAsync(() => CheckForUpdatesAsync(automatic: false), "检查更新");
+
     [ObservableProperty] private ObservableCollection<NavigateInfo> _pages = new();
 
     [ObservableProperty] private NavigateInfo? _selectedPage = null;
@@ -255,7 +259,7 @@ public partial class MainWindowViewModel : ViewModelBase
         switch (cmd)
         {
             case CommandNames.CheckForUpdates:
-                PostUiAsync(() => CheckForUpdatesAsync(automatic: false), "检查更新");
+                CheckForUpdates();
                 return;
             case CommandNames.ShowOnboarding:
                 ShowOnboarding();

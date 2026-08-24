@@ -43,7 +43,7 @@
 | 2.2 | 发布版用户手册入口 | `Unit/Integration` | 服务测试覆盖 Debug/Release 判定、HTML 优先和 PDF 回退；窗口测试检查命令/可见性绑定；Debug core 确认菜单隐藏；Tag/手动发布包校验强制要求 HTML/PDF。系统默认浏览器或 PDF 阅读器打开行为保留原生人工检查 |
 | 2.2 | 最大化、最小化、重启、退出 | `Manual-Native` | 涉及原生窗口/进程生命周期，未纳入连续套件 |
 | 2.3 | 托盘显示、恢复和退出 | `Manual-Native` | Avalonia CDP 不控制系统托盘 |
-| 2.4 | 状态栏日期、机器、用户和入口 | `Automated-ReadOnly` | core 读取状态栏结构和版本；不打开外部浏览器 |
+| 2.4 | 状态栏日期、机器、用户和入口 | `Automated-ReadOnly` | core 读取状态栏结构和版本，并确认版本菜单提供可用的检查更新入口；不打开外部浏览器 |
 | 2.4 | 后台任务进度预览 | `Not-Implemented` | 当前只有状态占位和入口 |
 | 2.5 | 首次引导、关闭、从设置重新打开 | `Automated` | settings 覆盖启动引导和设置内重开 |
 

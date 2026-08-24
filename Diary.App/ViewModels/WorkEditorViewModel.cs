@@ -31,6 +31,9 @@ public partial class TrackerEditorTabItem : ObservableObject
     [ObservableProperty]
     private string _header;
 
+    [ObservableProperty]
+    private bool _isHostReadOnly;
+
     public string Identity => $"{Extension.Key.PluginId}/{Extension.InstanceId}";
 
     public TrackerEditorTabItem(ITrackerEditorExtension extension, string header)
@@ -54,7 +57,19 @@ public partial class WorkEditorViewModel : ViewModelBase
     private string _persistedNote = string.Empty;
 
     // db data fields
-    private WorkItem? WorkItem { get; set; } // ref to existed db item, may null
+    private WorkItem? _workItem;
+    private WorkItem? WorkItem
+    {
+        get => _workItem;
+        set
+        {
+            if (ReferenceEquals(_workItem, value))
+                return;
+            _workItem = value;
+            RecomputeIsLocked();
+            OnPropertyChanged(nameof(IsImportedReadOnly));
+        }
+    }
 
     // tracker 扩展集合（RedMine 等，可多个）。无 tracker 时空集合，编辑器只渲染 generic 字段。
     public ObservableCollection<ITrackerEditorExtension> Extensions { get; } = new();
@@ -793,7 +808,10 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     private void RecomputeIsLocked()
     {
-        IsLocked = IsImportedReadOnly || Extensions.Any(e => e.IsLocked);
+        var isImportedReadOnly = IsImportedReadOnly;
+        foreach (var tab in TrackerTabs)
+            tab.IsHostReadOnly = isImportedReadOnly;
+        IsLocked = isImportedReadOnly || Extensions.Any(e => e.IsLocked);
         NotifyStatusChanged();
     }
 

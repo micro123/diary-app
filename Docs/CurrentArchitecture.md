@@ -338,7 +338,7 @@ Redmine 和 Jira UI 通过 `Diary.PluginUI` 的契约接入：
 - `ITrackerUiContribution`：提供导航页、管理页、编辑器区域和模板贡献。
 - `ITrackerEditorExtension`：将 tracker 绑定和上传能力放入工作项编辑器。
 
-核心编辑器从 `TrackerUiContributionRegistry` 获取按实例创建的 `ITrackerUiContribution`，不直接依赖 Redmine 具体 ViewModel。模板只保存核心字段和默认标签，Tracker 活动、问题等默认值由标签规则推导；当前 Redmine UI 仍保留 `IRedMineUiData` 和部分 Redmine 专用数据缓存，用于管理页和选择器。
+核心编辑器从 `TrackerUiContributionRegistry` 获取按实例创建的 `ITrackerUiContribution`，不直接依赖 Redmine 具体 ViewModel。模板只保存核心字段和默认标签，Tracker 活动、问题等默认值由标签规则推导；当前 Redmine UI 仍保留 `IRedMineUiData` 和部分 Redmine 专用数据缓存，用于管理页和选择器。导入或迁移事项的核心只读标记由宿主同步到每个 `TrackerEditorTabItem`：Tab 头仍可切换以查看不同实例的历史绑定，但扩展内容区整体禁用，因此第三方 Tracker 也不能绕过核心只读边界修改关联。
 核心编辑器的一般信息区域使用统一标签列和内容列，耗时由一个输入框同时接收数字小时和时间表达式，并与快捷时长、优先级在同一行展示；输入按 `Enter` 或失焦应用，按 `Esc` 恢复最近已应用值，格式说明收纳在 Tooltip 中。日记页左侧工作项列表按标题、耗时/标签、保存与同步状态分层展示，列表项只依赖 `WorkEditorViewModel` 的通用状态属性，不引入具体 Tracker 类型。
 
 ## 10. 数据保存边界

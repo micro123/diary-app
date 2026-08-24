@@ -290,6 +290,50 @@ public sealed class WorkEditorViewModelTests
     }
 
     [TestMethod]
+    public void ImportedReadOnlyItemDisablesTrackerEditorContent()
+    {
+        var viewModel = CreateViewModel(CreateCloneTrackerRegistry());
+        LoadExistingItem(viewModel, new WorkItem
+        {
+            Id = 8,
+            CreateDate = "2026-08-22",
+            Comment = "迁移记录",
+            IsReadOnly = true,
+        });
+
+        viewModel.SyncFromBatch(
+            [],
+            [],
+            null,
+            new Dictionary<int, ICollection<WorkItemExtraField>>());
+
+        Assert.IsTrue(viewModel.IsImportedReadOnly);
+        Assert.IsTrue(viewModel.IsLocked);
+        Assert.IsTrue(viewModel.TrackerTabs.Single().IsHostReadOnly);
+    }
+
+    [TestMethod]
+    public void EditableItemKeepsTrackerEditorContentEnabled()
+    {
+        var viewModel = CreateViewModel(CreateCloneTrackerRegistry());
+        LoadExistingItem(viewModel, new WorkItem
+        {
+            Id = 9,
+            CreateDate = "2026-08-22",
+            Comment = "普通记录",
+        });
+
+        viewModel.SyncFromBatch(
+            [],
+            [],
+            null,
+            new Dictionary<int, ICollection<WorkItemExtraField>>());
+
+        Assert.IsFalse(viewModel.IsImportedReadOnly);
+        Assert.IsFalse(viewModel.TrackerTabs.Single().IsHostReadOnly);
+    }
+
+    [TestMethod]
     public void CloneWithoutTrackerBindingsInitializesOptionsAndSkipsSelection()
     {
         var viewModel = CreateViewModel(CreateCloneTrackerRegistry());

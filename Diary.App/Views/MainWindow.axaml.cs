@@ -54,8 +54,10 @@ namespace Diary.App.Views
         {
             var t = _titleBarScope ??= GetThemeScopeOf<TitleBar>();
             var s = _statusBarScope ??= GetThemeScopeOf<StatusBarView>();
-            t!.RequestedThemeVariant = ActualThemeVariant == ThemeVariant.Dark ? ThemeVariant.Light : ThemeVariant.Dark;
-            s!.RequestedThemeVariant = ActualThemeVariant == ThemeVariant.Dark ? ThemeVariant.Light : ThemeVariant.Dark;
+            if (t is not null)
+                t.RequestedThemeVariant = ActualThemeVariant == ThemeVariant.Dark ? ThemeVariant.Light : ThemeVariant.Dark;
+            if (s is not null)
+                s.RequestedThemeVariant = ActualThemeVariant;
         }
 
         private ThemeVariantScope? GetThemeScopeOf<T>() where T : Control
