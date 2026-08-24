@@ -79,7 +79,7 @@ public sealed partial class SurveyResult
         };
 
         UpdatePercent(summaryTags, total > 0 ? total : _data.TotalTime);
-        GridSource.ExpandAll();
+        GridSource.CollapseAll();
     }
 
     public string Title => $"{_data.Username}@{_data.Hostname}";

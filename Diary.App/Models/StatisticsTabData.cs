@@ -70,6 +70,7 @@ public partial class StatisticsTabData : ObservableObject
     [ObservableProperty] private bool _useCustomTime = false;
     [ObservableProperty] private double _customTotal = 0;
     [ObservableProperty] private double _statisticsTotal = 0;
+    [ObservableProperty] private bool _isPieChart;
 
     private HierarchicalTreeDataGridSource<StatisticsTimeNode> _timeDetails;
     public HierarchicalTreeDataGridSource<StatisticsTimeNode> TimeDetails => _timeDetails;
@@ -144,9 +145,13 @@ public partial class StatisticsTabData : ObservableObject
         Chart.LegendPosition = LegendPosition.Hidden;
         Chart.ZoomMode = ZoomAndPanMode.None;
         Chart.EasingFunction = null; // disable animations
+
+        PieChart.LegendPosition = LegendPosition.Right;
+        PieChart.EasingFunction = null; // disable animations
     }
 
     public CartesianChart Chart { get; } = new();
+    public PieChart PieChart { get; } = new();
     private ColumnSeries<double> Bar = new() { Name = "工时" };
     private Axis XAxis = new() { Name = "项目" };
 
@@ -289,6 +294,13 @@ public partial class StatisticsTabData : ObservableObject
         StatisticsTotal = snapshot.Total;
         Bar.Values = snapshot.Times;
         XAxis.Labels = snapshot.Labels;
+        PieChart.Series = snapshot.Labels
+            .Select((label, index) => new PieSeries<double>
+            {
+                Name = label,
+                Values = [snapshot.Times[index]],
+            })
+            .ToArray();
         _timeDetails.Items = snapshot.Details;
         TimeDetails.ExpandAll();
     }

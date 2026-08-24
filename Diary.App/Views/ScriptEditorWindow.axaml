@@ -6,7 +6,7 @@
               x:Class="Diary.App.Views.ScriptEditorWindow"
               x:DataType="vm:ScriptEditorViewModel"
               Width="1100" Height="760" MinWidth="720" MinHeight="480"
-              WindowStartupLocation="CenterScreen"
+              WindowStartupLocation="CenterOwner"
               Title="{Binding WindowTitle}">
     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10" Margin="14,46,14,14">
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">

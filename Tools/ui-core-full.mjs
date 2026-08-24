@@ -343,6 +343,12 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         await connection.clickByText('重新统计');
         await connection.waitForTree(current => findByTextContains(current, '统计总工时：'), 8000,
             '重新统计没有完成');
+        tree = await connection.getTree();
+        const chartToggle = findByName(tree, 'StatisticsChartTypeToggle');
+        assertUi(chartToggle && !isChecked(chartToggle), '统计图表没有默认显示柱状图');
+        await connection.clickNode(chartToggle);
+        await connection.waitForTree(current => isChecked(findByName(current, 'StatisticsChartTypeToggle')),
+            5000, '统计图表没有切换到饼图');
         await connection.clickByText('全部展开');
         await connection.clickByText('全部折叠');
         return { navigationMs, refreshMs: performance.now() - started };

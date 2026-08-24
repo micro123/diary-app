@@ -107,11 +107,21 @@
                                 <Grid RowDefinitions="Auto,*" RowSpacing="8">
                                     <Grid ColumnDefinitions="*,Auto">
                                         <TextBlock Text="工时分布" FontSize="16" FontWeight="SemiBold" />
-                                        <TextBlock Grid.Column="1"
-                                                   Text="{Binding StatisticsTotal, StringFormat='合计 {0:0.##} 小时'}"
-                                                   Opacity="0.7" />
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                                            <TextBlock Text="{Binding StatisticsTotal, StringFormat='合计 {0:0.##} 小时'}"
+                                                       Opacity="0.7" VerticalAlignment="Center" />
+                                            <ToggleSwitch Name="StatisticsChartTypeToggle"
+                                                          IsChecked="{Binding IsPieChart, Mode=TwoWay}"
+                                                          OnContent="饼图" OffContent="柱状图"
+                                                          ToolTip.Tip="切换工时分布图表" />
+                                        </StackPanel>
                                     </Grid>
-                                    <ContentControl Grid.Row="1" Content="{Binding Chart}" MinHeight="260" />
+                                    <Grid Grid.Row="1">
+                                        <ContentControl Content="{Binding Chart}" MinHeight="260"
+                                                        IsVisible="{Binding !IsPieChart}" />
+                                        <ContentControl Content="{Binding PieChart}" MinHeight="260"
+                                                        IsVisible="{Binding IsPieChart}" />
+                                    </Grid>
                                 </Grid>
                             </Border>
 

@@ -54,6 +54,37 @@ public sealed class StatisticsTabDataTests
         }, CancellationToken.None);
     }
 
+    [TestMethod]
+    public async Task ChartMode_DefaultsToBar_AndCanSwitchToPie()
+    {
+        await _session.Dispatch(async () =>
+        {
+            var viewModel = new StatisticsTabData(
+                StatisticsType.Custom,
+                (_, _) => new StatisticsResult
+                {
+                    DateBegin = "2026-08-01",
+                    DateEnd = "2026-08-22",
+                    Total = 3,
+                    PrimaryTags =
+                    [
+                        new TagTime { TagId = 1, TagName = "开发", Time = 2 },
+                        new TagTime { TagId = 2, TagName = "会议", Time = 1 },
+                    ],
+                },
+                loadImmediately: false);
+
+            Assert.IsFalse(viewModel.IsPieChart);
+
+            await viewModel.RefreshAsync();
+
+            viewModel.IsPieChart = true;
+
+            Assert.IsTrue(viewModel.IsPieChart);
+            Assert.AreEqual(2, viewModel.PieChart.Series.Count());
+        }, CancellationToken.None);
+    }
+
     private static StatisticsResult CreateResult(double total) => new()
     {
         DateBegin = "2026-08-01",
