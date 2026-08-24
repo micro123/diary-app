@@ -8,7 +8,7 @@
 
 ### Windows 原生方式
 
-Windows 10/11 推荐使用 PowerShell 7 和 Python 3.11+ 直接运行，不要求安装 Docker、Git Bash、`curl`、`zip` 或 `unzip`：
+Windows 10/11 推荐使用 PowerShell 7、Python 3.11+ 和 Quarto CLI 直接运行，不要求安装 Docker、Git Bash、`curl`、`zip` 或 `unzip`：
 
 ```powershell
 # 第一次：后台启动 Python 服务，构建 standard 包并发布
@@ -24,7 +24,7 @@ Windows 10/11 推荐使用 PowerShell 7 和 Python 3.11+ 直接运行，不要�
 .\Tools\local-update.ps1 server-stop
 ```
 
-PowerShell 工具默认发布 `win-x64/standard`，也可使用 `-Flavor python313` 构建带 Python 3.13 embeddable runtime 的包。后者会首次下载并校验 Python 官方 ZIP，缓存到 `artifacts/cache/python`：
+PowerShell 工具默认发布 `win-x64/standard`，也可使用 `-Flavor python313` 构建带 Python 3.13 embeddable runtime 的包。两种包都会先用 Quarto 渲染用户手册，将稳定文件名的 HTML/PDF 注入 `Docs/UserManual`，并执行与 CI 相同的手册存在性和格式校验。Python flavor 会首次下载并校验 Python 官方 ZIP，缓存到 `artifacts/cache/python`：
 
 ```powershell
 .\Tools\local-update.ps1 all -Flavor python313
@@ -34,7 +34,7 @@ PowerShell 工具默认发布 `win-x64/standard`，也可使用 `-Flavor python3
 
 ### Bash/Docker 方式
 
-Linux、WSL 或已经安装 Docker/Git Bash 的环境可以继续使用原有工具：
+Linux、WSL 或已经安装 Docker/Git Bash 的环境可以继续使用原有工具；本机构建环境同样需要 Quarto CLI，以生成发布包内的 HTML/PDF 用户手册：
 
 ```bash
 # 第一次：构建/启动本机 Docker 服务，打包并发布 python313 包
@@ -48,6 +48,8 @@ Linux、WSL 或已经安装 Docker/Git Bash 的环境可以继续使用原有工
 ```
 
 两种工具都会生成仅限本机使用的随机发布 Token，在构建时注入单调递增的 UTC 时间序号和 `BuildChannel=local`，使包内 `AppSequence`、显示版本和服务器 manifest 保持一致；上传后还会回读 latest 并核对 sequence 与完整包 SHA-256。local 的 sequence 使用较大的时间值，但客户端记录构建频道；用户主动切回 `stable`/`preview` 时会按目标频道重新比较，不会被 local sequence 锁定。
+
+本地发布只生成 local 通道需要的运行包，不生成 GitHub Release 使用的独立 `-dbg.zip`、release metadata 或版本化手册附件；运行包自身的目录结构、更新器、运行时裁剪、PDB 排除、Python 哈希、稳定路径手册和 ZIP 校验与最新 Tag/手动 CI 保持一致。
 
 在 Windows 应用中测试时，将“更新服务器”设为 `http://127.0.0.1:18080`，“更新频道”设为 `local`，包类型与发布包保持一致（默认 `standard`，也可使用 `Auto`）。先运行一个 sequence 较低的旧包，再执行一次 `publish` 生成更高 sequence 的包，随后在应用中点击“检查更新”。更新准备完成后应用会退出，由 `Diary.Updater.exe` 完成替换并重启；更新确认和失败回滚逻辑与 stable/preview 共用。
 

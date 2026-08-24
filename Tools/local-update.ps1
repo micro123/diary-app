@@ -230,16 +230,54 @@ function Assert-PublishOutput([string] $PublishDirectory) {
     $requiredFiles = @(
         'Diary.App.exe', 'Diary.App.dll', 'Diary.Script.Worker.dll', 'Diary.Script.Worker.exe',
         'Diary.Script.Worker.deps.json', 'Diary.Script.Worker.runtimeconfig.json', 'Diary.Updater.exe',
+        'Diary.Mcp.exe', 'Diary.Mcp.dll', 'Diary.Mcp.deps.json', 'Diary.Mcp.runtimeconfig.json',
         'Microsoft.Diagnostics.NETCore.Client.dll', 'Diary.RedMine.dll', 'Diary.RedMine.UI.dll',
         'Diary.RedMine.SQLite.dll', 'Diary.RedMine.PostgreSQL.dll', 'Diary.Jira.dll', 'Diary.Jira.UI.dll',
         'Diary.Jira.SQLite.dll', 'Diary.Jira.PostgreSQL.dll', 'nng.NET.dll', 'nng.NET.Shared.dll',
-        'nng.dll', 'mbedcrypto.dll', 'mbedtls.dll', 'mbedx509.dll'
+        'nng.dll', 'mbedcrypto.dll', 'mbedtls.dll', 'mbedx509.dll',
+        'Docs\UserManual\DiaryApp-User-Manual.html', 'Docs\UserManual\DiaryApp-User-Manual.pdf'
     )
     foreach ($requiredFile in $requiredFiles) {
         if (-not (Test-Path -LiteralPath (Join-Path $PublishDirectory $requiredFile) -PathType Leaf)) {
             throw "发布目录缺少必需文件：$requiredFile"
         }
     }
+}
+
+function Add-UserManual([string] $PublishDirectory) {
+    Assert-Command 'quarto'
+    $manualProjectDirectory = Join-Path $RepositoryRoot 'Docs\UserManual'
+    $manualOutputDirectory = Join-Path $manualProjectDirectory '_output'
+    $htmlSource = Join-Path $manualOutputDirectory 'DiaryApp-User-Manual.html'
+    $pdfSource = Join-Path $manualOutputDirectory 'DiaryApp-User-Manual.pdf'
+    $manualDestinationDirectory = Join-Path $PublishDirectory 'Docs\UserManual'
+
+    Write-Host '正在渲染用户手册……'
+    Invoke-Native 'quarto' @('render', $manualProjectDirectory)
+    if (-not (Test-Path -LiteralPath $htmlSource -PathType Leaf) -or
+        (Get-Item -LiteralPath $htmlSource).Length -eq 0 -or
+        (Get-Content -LiteralPath $htmlSource -Raw) -notmatch '(?i)<html') {
+        throw "用户手册 HTML 缺失或格式无效：$htmlSource"
+    }
+    if (-not (Test-Path -LiteralPath $pdfSource -PathType Leaf) -or
+        (Get-Item -LiteralPath $pdfSource).Length -lt 5) {
+        throw "用户手册 PDF 缺失或格式无效：$pdfSource"
+    }
+    $pdfStream = [System.IO.File]::OpenRead($pdfSource)
+    try {
+        $header = [byte[]]::new(5)
+        if ($pdfStream.Read($header, 0, $header.Length) -ne $header.Length -or
+            [System.Text.Encoding]::ASCII.GetString($header) -ne '%PDF-') {
+            throw "用户手册 PDF 缺少有效文件头：$pdfSource"
+        }
+    }
+    finally {
+        $pdfStream.Dispose()
+    }
+
+    New-Item -ItemType Directory -Path $manualDestinationDirectory -Force | Out-Null
+    Copy-Item -LiteralPath $htmlSource -Destination (Join-Path $manualDestinationDirectory 'DiaryApp-User-Manual.html') -Force
+    Copy-Item -LiteralPath $pdfSource -Destination (Join-Path $manualDestinationDirectory 'DiaryApp-User-Manual.pdf') -Force
 }
 
 function Remove-UnrelatedRuntimeAssets([string] $PublishDirectory) {
@@ -314,7 +352,7 @@ function Build-UpdatePackage([long] $BuildSequence) {
         $env:DIARY_BUILD_SEQUENCE = "$BuildSequence"
         $env:DIARY_BUILD_CHANNEL = $Channel
         Write-Host "正在还原并发布 $Rid 自包含应用……"
-        Invoke-Native 'dotnet' @('restore', (Join-Path $RepositoryRoot 'DiaryApp.sln'), '--runtime', $Rid)
+        Invoke-Native 'dotnet' @('restore', (Join-Path $RepositoryRoot 'DiaryApp.sln'), '--runtime', $Rid, '-p:Configuration=Release')
         Invoke-Native 'dotnet' @('publish', (Join-Path $RepositoryRoot 'Diary.App\Diary.App.csproj'), '--configuration', 'Release', '--runtime', $Rid, '--self-contained', 'true', '--no-restore', '--output', $publishDirectory)
         Invoke-Native 'dotnet' @('publish', (Join-Path $RepositoryRoot 'Diary.Updater\Diary.Updater.csproj'), '--configuration', 'Release', '--runtime', $Rid, '--self-contained', 'true', '--no-restore', '--output', $updaterDirectory)
     }
@@ -331,6 +369,7 @@ function Build-UpdatePackage([long] $BuildSequence) {
     Get-ChildItem -LiteralPath $publishDirectory -File -Recurse -Filter '*.pdb' | ForEach-Object {
         Remove-Item -LiteralPath $_.FullName -Force
     }
+    Add-UserManual $publishDirectory
     Assert-PublishOutput $publishDirectory
     Remove-UnrelatedRuntimeAssets $publishDirectory
     if ($Flavor -eq 'python313') {
@@ -343,7 +382,7 @@ function Build-UpdatePackage([long] $BuildSequence) {
         $temporaryArchive,
         [System.IO.Compression.CompressionLevel]::Optimal,
         $false)
-    Invoke-Native $python @((Join-Path $RepositoryRoot 'Tools\validate-release-package.py'), '--archive', $temporaryArchive, '--rid', $Rid, '--flavor', $Flavor)
+    Invoke-Native $python @((Join-Path $RepositoryRoot 'Tools\validate-release-package.py'), '--archive', $temporaryArchive, '--rid', $Rid, '--flavor', $Flavor, '--require-user-manual')
     Move-Item -LiteralPath $temporaryArchive -Destination $archivePath -Force
     return $archivePath
 }

@@ -361,6 +361,7 @@ Cancelled
 安全解压后，服务必须确认：
 
 - 应用入口和 `Diary.Updater` 存在；
+- `Diary.Mcp` 的目标平台 apphost、`Diary.Mcp.dll`、`Diary.Mcp.deps.json` 和 `Diary.Mcp.runtimeconfig.json` 存在；
 - 目标 RID 的运行时目录存在；
 - 不存在其他目标平台运行时目录；
 - `Diary.Script.Worker` 及其运行时依赖存在；
@@ -371,7 +372,7 @@ Cancelled
 - 应用包中没有 `.update/installed-manifest.json` 或其他自引用清单，除非服务明确采用重新打包模式；
 - 所有必需文件的路径、大小和类型符合服务配置。
 
-检查规则必须可配置但不能通过客户端请求修改。缺少入口、Worker、更新器或目标运行时的包必须拒绝。
+检查规则必须可配置但不能通过客户端请求修改。缺少应用入口、MCP 多文件运行布局、Worker、更新器或目标运行时的包必须拒绝。MCP 与主应用共享同一安装根目录中的运行时和公共依赖，服务不得把 MCP apphost 误判为可脱离其余发布文件独立安装的单文件组件。
 
 ### 7.3 文件分类
 
@@ -1133,7 +1134,7 @@ Blob 和完整包可以从 GitHub 源 ZIP 重建；当前策略只保留各发�
 
 ## 20. 第一版决策与后续事项
 
-第一版已经确定：使用文件系统保存索引和快照；客户端 API 使用可配置的 HTTP/HTTPS 根地址；Release metadata 由 CI 作为额外资产上传；完整包复用校验后的 GitHub 源 ZIP；每份 metadata 必须包含完整三维运行资产矩阵；本机工具可用独立 Token 将 `win-x64/standard` 或 `win-x64/python313` 包发布到 `local`，并复用相同验证与存储模型。Windows 开发机可直接使用 PowerShell + Python 原生运行服务，Linux/WSL 仍可使用 Bash + Docker。以下事项仍需后续确定或实现：
+第一版已经确定：使用文件系统保存索引和快照；客户端 API 使用可配置的 HTTP/HTTPS 根地址；Release metadata 由 CI 作为额外资产上传；完整包复用校验后的 GitHub 源 ZIP；每份 metadata 必须包含完整三维运行资产矩阵；本机工具可用独立 Token 将 `win-x64/standard` 或 `win-x64/python313` 包发布到 `local`，并复用相同验证与存储模型。local 运行包与 CI 一样必须包含稳定路径的 HTML/PDF 用户手册并通过 `validate-release-package.py --require-user-manual`，但不要求生成仅供 GitHub 附件使用的调试符号包、metadata 和版本化手册副本。Windows 开发机可直接使用 PowerShell + Python 原生运行服务，Linux/WSL 仍可使用 Bash + Docker。以下事项仍需后续确定或实现：
 
 - 局域网客户端是否需要 IP allowlist、反向代理认证或应用级 Token；
 - 元数据规模和审计要求增长后是否引入 SQLite 或 PostgreSQL；

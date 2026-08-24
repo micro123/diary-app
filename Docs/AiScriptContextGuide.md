@@ -39,6 +39,8 @@ DiaryApp 可以把你明确选择的本地结构信息导出给外部 AI，帮�
 dotnet run --project Diary.Mcp -- --snapshot "/absolute/path/to/mcp-snapshot.json"
 ```
 
+正式发布版的 `Diary.Mcp.exe` 或 `Diary.Mcp` 是独立进程入口，但它会复用同一应用目录中的 .NET Runtime、Roslyn 和脚本引擎文件。请保留完整的 DiaryApp 解压目录，不要只复制 MCP 可执行文件；移动安装位置后，应重新从页面复制包含新绝对路径的配置。
+
 不要为 MCP 进程额外注入数据库密码、Tracker Token 或云服务密钥等环境变量。
 
 ## 从程序设置复制配置

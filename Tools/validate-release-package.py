@@ -86,6 +86,7 @@ def validate() -> None:
     app_entry = "Diary.App.exe" if args.rid == "win-x64" else "Diary.App"
     worker_entry = "Diary.Script.Worker.exe" if args.rid == "win-x64" else "Diary.Script.Worker"
     updater_entry = "Diary.Updater.exe" if args.rid == "win-x64" else "Diary.Updater"
+    mcp_entry = "Diary.Mcp.exe" if args.rid == "win-x64" else "Diary.Mcp"
     runtime_markers = (
         ("coreclr.dll", "hostfxr.dll")
         if args.rid == "win-x64"
@@ -97,6 +98,10 @@ def validate() -> None:
         app_entry,
         worker_entry,
         updater_entry,
+        mcp_entry,
+        "Diary.Mcp.dll",
+        "Diary.Mcp.deps.json",
+        "Diary.Mcp.runtimeconfig.json",
         *runtime_markers,
     }
     if args.require_user_manual:

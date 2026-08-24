@@ -94,6 +94,10 @@ UI 的“生成预览”只更新内存预览；“刷新 MCP 快照”才写默
 
 Windows apphost 显式设置 `CETCompat=false`，与主程序、脚本 Worker 和更新器采用同一内部 Windows 兼容策略；Linux 行为不受该 PE 标记影响。
 
+发布时 MCP 仍保持独立进程和独立 apphost，但不再生成单文件包。`Diary.App` 先按目标 RID 将 MCP 发布为自包含多文件目录，再把该目录安全合并到主应用发布根目录；`Diary.Mcp.dll`、`Diary.Mcp.deps.json`、`Diary.Mcp.runtimeconfig.json` 和对应平台 apphost 都是发布包必需文件。主应用与 MCP 的 .NET Runtime、Roslyn 和脚本引擎依赖若路径、大小及 SHA-256 完全一致则只保留一份；任一同名文件内容不同都必须中止发布，Windows 目标还要拒绝仅大小写不同的路径冲突。MCP 发布关闭调试符号，合并过程拒绝符号链接和 PDB。
+
+该布局减少重复运行时，但意味着发布版 MCP 依赖安装目录中的共享文件。配置第三方 Agent 时可以直接引用安装目录内的 MCP apphost，不得只复制 `Diary.Mcp.exe` 或 `Diary.Mcp` 到其他位置；如需迁移，应保留整个应用发布目录。
+
 工具白名单：
 
 - `diary_list_tags`

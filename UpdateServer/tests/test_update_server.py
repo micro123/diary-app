@@ -36,6 +36,10 @@ def create_package(
         "Diary.App.exe": b"app-exe",
         "Diary.Script.Worker.exe": b"worker-exe",
         "Diary.Updater.exe": b"updater-exe",
+        "Diary.Mcp.exe": b"mcp-exe",
+        "Diary.Mcp.dll": b"mcp-dll",
+        "Diary.Mcp.deps.json": b"{}",
+        "Diary.Mcp.runtimeconfig.json": b"{}",
     }
     if rid == "linux-x64":
         names = {
@@ -48,6 +52,10 @@ def create_package(
             "Diary.App": b"app-exe",
             "Diary.Script.Worker": b"worker-exe",
             "Diary.Updater": b"updater-exe",
+            "Diary.Mcp": b"mcp-exe",
+            "Diary.Mcp.dll": b"mcp-dll",
+            "Diary.Mcp.deps.json": b"{}",
+            "Diary.Mcp.runtimeconfig.json": b"{}",
         }
     if flavor == "python313":
         names.update({
@@ -60,7 +68,7 @@ def create_package(
             info = zipfile.ZipInfo(name)
             info.compress_type = zipfile.ZIP_DEFLATED
             info.create_system = 3
-            info.external_attr = (0o100755 if name in {"Diary.App", "Diary.Script.Worker", "Diary.Updater"} else 0o100644) << 16
+            info.external_attr = (0o100755 if name in {"Diary.App", "Diary.Script.Worker", "Diary.Updater", "Diary.Mcp"} else 0o100644) << 16
             archive.writestr(info, content)
 
 
@@ -157,6 +165,20 @@ class ArchiveTests(unittest.TestCase):
                 archive.writestr("../outside", b"bad")
             with self.assertRaisesRegex(ValueError, "非法路径段"):
                 validate_and_index(package, "win-x64", "standard", Path(directory) / "blobs")
+
+    def test_rejects_package_without_mcp_runtime_files(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source.zip"
+            package = root / "package.zip"
+            create_package(source)
+            with zipfile.ZipFile(source) as input_archive, zipfile.ZipFile(package, "w") as output_archive:
+                for info in input_archive.infolist():
+                    if info.filename == "Diary.Mcp.runtimeconfig.json":
+                        continue
+                    output_archive.writestr(info, input_archive.read(info.filename))
+            with self.assertRaisesRegex(ValueError, "Diary.Mcp.runtimeconfig.json"):
+                validate_and_index(package, "win-x64", "standard", root / "blobs")
 
 
 class SynchronizerTests(unittest.TestCase):

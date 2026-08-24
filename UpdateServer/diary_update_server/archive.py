@@ -101,8 +101,20 @@ def validate_and_index(
     app_entry = "Diary.App.exe" if rid == "win-x64" else "Diary.App"
     worker_entry = "Diary.Script.Worker.exe" if rid == "win-x64" else "Diary.Script.Worker"
     updater_entry = "Diary.Updater.exe" if rid == "win-x64" else "Diary.Updater"
+    mcp_entry = "Diary.Mcp.exe" if rid == "win-x64" else "Diary.Mcp"
     runtime_markers = ("coreclr.dll", "hostfxr.dll") if rid == "win-x64" else ("libcoreclr.so", "libhostfxr.so")
-    required = {"Diary.App.dll", "Diary.Script.Worker.dll", app_entry, worker_entry, updater_entry, *runtime_markers}
+    required = {
+        "Diary.App.dll",
+        "Diary.Script.Worker.dll",
+        "Diary.Mcp.dll",
+        "Diary.Mcp.deps.json",
+        "Diary.Mcp.runtimeconfig.json",
+        app_entry,
+        worker_entry,
+        updater_entry,
+        mcp_entry,
+        *runtime_markers,
+    }
     missing = sorted(required - name_set)
     if missing:
         raise ValueError(f"ZIP 缺少必需运行文件：{', '.join(missing)}")

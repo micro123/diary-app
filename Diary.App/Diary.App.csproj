@@ -137,24 +137,19 @@
               SkipUnchangedFiles="true" />
     </Target>
 
-    <Target Name="PublishAiMcp" BeforeTargets="ComputeFilesToPublish"
+    <Target Name="PublishAiMcp" AfterTargets="Publish"
             Condition="'$(RuntimeIdentifier)' != ''">
         <PropertyGroup>
             <AiMcpPublishDirectory>$(MSBuildProjectDirectory)\$(IntermediateOutputPath)DiaryMcpPublish\</AiMcpPublishDirectory>
+            <AiMcpMergePython Condition="$([MSBuild]::IsOSPlatform('Windows'))">python</AiMcpMergePython>
+            <AiMcpMergePython Condition="!$([MSBuild]::IsOSPlatform('Windows'))">python3</AiMcpMergePython>
+            <AiMcpCaseInsensitiveArgument Condition="$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win-'))"> --case-insensitive</AiMcpCaseInsensitiveArgument>
         </PropertyGroup>
+        <RemoveDir Directories="$(AiMcpPublishDirectory)" />
         <MSBuild Projects="..\Diary.Mcp\Diary.Mcp.csproj"
                  Targets="Publish"
-                 Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=true;PublishSingleFile=true;PublishDir=$(AiMcpPublishDirectory)" />
-        <ItemGroup>
-            <AiMcpPublishExecutable Include="$(AiMcpPublishDirectory)Diary.Mcp.exe"
-                                    Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
-            <AiMcpPublishExecutable Include="$(AiMcpPublishDirectory)Diary.Mcp"
-                                    Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
-            <ResolvedFileToPublish Include="@(AiMcpPublishExecutable)">
-                <RelativePath>%(Filename)%(Extension)</RelativePath>
-                <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-            </ResolvedFileToPublish>
-        </ItemGroup>
+                 Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=true;PublishSingleFile=false;DebugType=None;DebugSymbols=false;PublishDir=$(AiMcpPublishDirectory)" />
+        <Exec Command="$(AiMcpMergePython) &quot;$(MSBuildProjectDirectory)/../Tools/merge-publish-directory.py&quot; --source &quot;$(AiMcpPublishDirectory)&quot; --target &quot;$(PublishDir)&quot;$(AiMcpCaseInsensitiveArgument)" />
     </Target>
     
     <Target Name="IncludeRuntimeExtensionsInPublish" AfterTargets="ComputeFilesToPublish">

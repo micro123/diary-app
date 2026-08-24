@@ -61,6 +61,10 @@ verify_publish_output() {
         "Diary.Script.Worker.deps.json"
         "Diary.Script.Worker.runtimeconfig.json"
         "Diary.Updater.exe"
+        "Diary.Mcp.exe"
+        "Diary.Mcp.dll"
+        "Diary.Mcp.deps.json"
+        "Diary.Mcp.runtimeconfig.json"
         "Microsoft.Diagnostics.NETCore.Client.dll"
         "Diary.RedMine.dll"
         "Diary.RedMine.UI.dll"
@@ -76,6 +80,8 @@ verify_publish_output() {
         "mbedcrypto.dll"
         "mbedtls.dll"
         "mbedx509.dll"
+        "Docs/UserManual/DiaryApp-User-Manual.html"
+        "Docs/UserManual/DiaryApp-User-Manual.pdf"
     )
 
     for required_file in "${required_files[@]}"; do
@@ -84,6 +90,30 @@ verify_publish_output() {
             exit 1
         fi
     done
+}
+
+add_user_manual() {
+    local publish_directory="$1"
+    local manual_project_directory="$repository_root/Docs/UserManual"
+    local manual_output_directory="$manual_project_directory/_output"
+    local manual_destination_directory="$publish_directory/Docs/UserManual"
+    local html_source="$manual_output_directory/DiaryApp-User-Manual.html"
+    local pdf_source="$manual_output_directory/DiaryApp-User-Manual.pdf"
+
+    printf '正在渲染用户手册……\n'
+    quarto render "$manual_project_directory"
+    if [ ! -s "$html_source" ] || ! grep -i -m 1 -q '<html' "$html_source"; then
+        printf '用户手册 HTML 缺失或格式无效：%s\n' "$html_source" >&2
+        exit 1
+    fi
+    if [ ! -s "$pdf_source" ] || ! head -c 5 "$pdf_source" | grep -q '%PDF-'; then
+        printf '用户手册 PDF 缺失或格式无效：%s\n' "$pdf_source" >&2
+        exit 1
+    fi
+
+    mkdir -p -- "$manual_destination_directory"
+    cp -- "$html_source" "$manual_destination_directory/DiaryApp-User-Manual.html"
+    cp -- "$pdf_source" "$manual_destination_directory/DiaryApp-User-Manual.pdf"
 }
 
 remove_unrelated_runtime_assets() {
@@ -283,7 +313,7 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 
-for command_name in dotnet git curl sha256sum unzip zip mktemp python3; do
+for command_name in dotnet git curl sha256sum unzip zip mktemp python3 quarto; do
     require_command "$command_name"
 done
 
@@ -309,7 +339,7 @@ temporary_archive="$temporary_directory/$archive_name"
 mkdir -p -- "$publish_directory" "$updater_publish_directory" "$output_directory"
 
 printf '正在还原 %s 依赖……\n' "$RID"
-dotnet restore "$repository_root/DiaryApp.sln" --runtime "$RID"
+dotnet restore "$repository_root/DiaryApp.sln" --runtime "$RID" -p:Configuration="$CONFIGURATION"
 
 printf '正在发布 %s 自包含应用……\n' "$RID"
 dotnet publish "$repository_root/Diary.App/Diary.App.csproj" \
@@ -330,6 +360,7 @@ cp -- "$updater_publish_directory/Diary.Updater.exe" "$publish_directory/Diary.U
 
 find "$publish_directory" -type f -iname '*.pdb' -delete
 
+add_user_manual "$publish_directory"
 verify_publish_output "$publish_directory"
 remove_unrelated_runtime_assets "$publish_directory" "$RID"
 
@@ -358,15 +389,22 @@ verify_archive_entry "$temporary_archive" "Diary.App.dll"
 verify_archive_entry "$temporary_archive" "Diary.App.exe"
 verify_archive_entry "$temporary_archive" "Diary.Script.Worker.exe"
 verify_archive_entry "$temporary_archive" "Diary.Updater.exe"
+verify_archive_entry "$temporary_archive" "Diary.Mcp.exe"
+verify_archive_entry "$temporary_archive" "Diary.Mcp.dll"
+verify_archive_entry "$temporary_archive" "Diary.Mcp.deps.json"
+verify_archive_entry "$temporary_archive" "Diary.Mcp.runtimeconfig.json"
 verify_archive_entry "$temporary_archive" "nng.dll"
 verify_archive_entry "$temporary_archive" "nng.NET.dll"
+verify_archive_entry "$temporary_archive" "Docs/UserManual/DiaryApp-User-Manual.html"
+verify_archive_entry "$temporary_archive" "Docs/UserManual/DiaryApp-User-Manual.pdf"
 verify_archive_entry "$temporary_archive" "python/python.exe"
 verify_archive_entry "$temporary_archive" "python/python${PYTHON_SERIES}.dll"
 verify_archive_runtime_directories "$temporary_archive" "$RID"
 python3 "$repository_root/Tools/validate-release-package.py" \
     --archive "$temporary_archive" \
     --rid "$RID" \
-    --flavor python313
+    --flavor python313 \
+    --require-user-manual
 
 mv -f -- "$temporary_archive" "$archive_path"
 
