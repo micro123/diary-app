@@ -3,18 +3,21 @@
              xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
              x:Class="Diary.App.Views.Dialogs.ExportTemplateManagerView"
              x:DataType="dialogs:ExportTemplateManagerViewModel"
-             Width="900" Height="620" Padding="20">
-    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="16">
-        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-            <StackPanel Spacing="4">
-                <TextBlock Text="数据模板" Classes="PageTitle" />
-                <TextBlock Text="导入模板文件后，由对应插件校验模板结构并声明所需导出数据。"
-                           Classes="PageSubtitle" />
-            </StackPanel>
-            <Button Grid.Column="1" Content="导入模板" Command="{Binding ImportCommand}"
-                    Classes="Primary" VerticalAlignment="Center" />
-        </Grid>
-        <Grid Grid.Row="1">
+             Width="900" Height="620" Padding="16">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
+        <Border Classes="PageHeader">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="数据模板" Classes="PageTitle" />
+                    <TextBlock Text="导入模板文件后，由对应插件校验模板结构并声明所需导出数据。"
+                               Classes="PageSubtitle" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="导入模板" Command="{Binding ImportCommand}"
+                        Classes="Primary" VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+        <Border Grid.Row="1" Classes="DetailPane" Padding="14">
+        <Grid>
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6"
                         IsVisible="{Binding IsEmpty}">
                 <TextBlock Text="尚未导入数据模板。" Classes="EmptyStateTitle" />
@@ -25,9 +28,8 @@
                 <ItemsControl ItemsSource="{Binding Templates}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="dialogs:ExportTemplateItemViewModel">
-                            <Border Padding="14" Margin="0 0 0 10"
-                                    Background="#12000000" CornerRadius="8">
-                                <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+                            <Border Classes="SectionCard" Margin="0 0 0 10">
+                                <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8">
                                     <Grid ColumnDefinitions="*,Auto">
                                         <StackPanel Spacing="3">
                                             <TextBlock Text="{Binding DisplayName}" FontSize="16"
@@ -44,14 +46,14 @@
                                     <TextBlock Grid.Row="2"
                                                Text="{Binding BindingSummary, StringFormat=数据：{0}}"
                                                TextWrapping="Wrap" Opacity="0.8" />
-                                    <StackPanel Grid.Row="3" Orientation="Horizontal"
-                                                HorizontalAlignment="Right" Spacing="8">
+                                    <StackPanel Grid.Row="3" Classes="CompactActions"
+                                                HorizontalAlignment="Right">
                                         <Button Content="重新校验" Command="{Binding $parent[ItemsControl].DataContext.RevalidateCommand}"
-                                                CommandParameter="{Binding}" Padding="12 6" />
+                                                CommandParameter="{Binding}" />
                                         <Button Content="启用/禁用" Command="{Binding $parent[ItemsControl].DataContext.ToggleCommand}"
-                                                CommandParameter="{Binding}" Padding="12 6" />
+                                                CommandParameter="{Binding}" />
                                         <Button Content="归档" Command="{Binding $parent[ItemsControl].DataContext.ArchiveCommand}"
-                                                CommandParameter="{Binding}" Padding="12 6" />
+                                                CommandParameter="{Binding}" />
                                     </StackPanel>
                                 </Grid>
                             </Border>
@@ -60,8 +62,11 @@
                 </ItemsControl>
             </ScrollViewer>
         </Grid>
+        </Border>
         <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="12">
-            <TextBlock Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center" Opacity="0.8" />
+            <Border Classes="StatusPill" HorizontalAlignment="Left">
+                <TextBlock Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center" />
+            </Border>
             <Button Grid.Column="1" Content="关闭" Command="{Binding CancelCommand}" />
         </Grid>
     </Grid>

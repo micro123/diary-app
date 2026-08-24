@@ -497,8 +497,10 @@ await runUiSuite({ name: 'ui-redmine-full', scenario: 'plugins', timeoutMs: 1200
         await connection.pressKey('Enter', 'Enter', 13);
         tree = await connection.getTree();
         const timeControl = findByName(tree, 'WorkTimeInput');
-        const timeInput = descendants(tree, timeControl).find(entry => isVisible(entry)
-            && typeOf(entry).includes('TextBox'));
+        const timeInput = timeControl && typeOf(timeControl).includes('TextBox')
+            ? timeControl
+            : descendants(tree, timeControl).find(entry => isVisible(entry)
+                && typeOf(entry).includes('TextBox'));
         assertUi(timeInput, '工作耗时输入框不存在');
         await connection.replaceText(timeInput, '0.25');
         tree = await connection.getTree();
@@ -585,8 +587,8 @@ await runUiSuite({ name: 'ui-redmine-full', scenario: 'plugins', timeoutMs: 1200
         assertUi(redmineFiles.length > 0, '隔离 profile 缺少 Redmine 配置文件');
         for (const name of redmineFiles) {
             const content = await fs.readFile(path.join(configDirectory, name));
-            assertUi(content.subarray(0, 8).toString('ascii') === 'Salted__',
-                'Redmine 配置文件没有整体加密：' + name);
+            assertUi(content.subarray(0, 8).toString('ascii') === 'DiaryGCM',
+                'Redmine 配置文件没有迁移为当前整体加密格式：' + name);
         }
         const dataDirectory = path.join(connection.state.profile, 'data');
         const logNames = (await fs.readdir(dataDirectory)).filter(name => /^Diary\.App.*\.log$/.test(name));

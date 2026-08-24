@@ -5,34 +5,56 @@
              x:DataType="viewModels:JiraConfigurationViewModel"
              Padding="8">
     <Grid RowDefinitions="Auto,*" RowSpacing="12">
-        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-            <TextBlock Text="Jira 工时 Tracker 实例" FontSize="18" FontWeight="SemiBold" />
-            <Button Grid.Column="1" Content="添加实例" Command="{Binding AddInstanceCommand}" />
-            <Button Grid.Column="2" Content="删除实例" Classes="Danger" Command="{Binding RemoveInstanceCommand}" IsEnabled="{Binding CanRemoveInstance}" />
-        </Grid>
-        <Grid Grid.Row="1" ColumnDefinitions="220,*" ColumnSpacing="16">
-            <ListBox ItemsSource="{Binding Instances}" SelectedItem="{Binding SelectedInstance}">
+        <Border Classes="PageHeader">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                <StackPanel Spacing="3">
+                    <TextBlock Text="Jira 工时 Tracker 实例" Classes="SectionTitle" />
+                    <TextBlock Text="维护 Jira 服务实例、认证参数和工时连接。" Classes="SectionDescription" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="添加实例" Classes="Primary"
+                        Command="{Binding AddInstanceCommand}" VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+        <Grid Grid.Row="1" ColumnDefinitions="260,*" ColumnSpacing="12">
+            <Border Classes="MasterPane">
+            <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
+                <TextBlock Text="实例" Classes="SectionTitle" />
+                <ListBox Grid.Row="1" ItemsSource="{Binding Instances}" SelectedItem="{Binding SelectedInstance}">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <StackPanel Spacing="2" Margin="4">
+                        <StackPanel Spacing="3" Margin="4,6">
                             <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
-                            <TextBlock Text="{Binding InstanceId}" FontSize="11" Opacity="0.6" />
+                            <TextBlock Text="{Binding InstanceId}" FontSize="11" FontFamily="monospace" Opacity="0.6" />
                         </StackPanel>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
-            </ListBox>
-            <ScrollViewer Grid.Column="1" IsVisible="{Binding HasSelectedInstance}">
-                <StackPanel Spacing="12">
-                    <Expander Header="实例配置" IsExpanded="True">
+                </ListBox>
+                <Button Grid.Row="2" Content="删除实例" Classes="Danger"
+                        Command="{Binding RemoveInstanceCommand}" IsEnabled="{Binding CanRemoveInstance}" />
+            </Grid>
+            </Border>
+            <Border Grid.Column="1" Classes="DetailPane">
+            <ScrollViewer IsVisible="{Binding HasSelectedInstance}">
+                <StackPanel Spacing="14" Margin="16">
+                    <StackPanel Spacing="3">
+                        <TextBlock Text="实例配置" Classes="SectionTitle" />
+                        <TextBlock Text="连接信息与认证数据仅用于当前 Jira 实例。" Classes="SectionDescription" />
+                    </StackPanel>
+                    <Expander Classes="WorkspaceSection" Header="连接参数" IsExpanded="True">
                         <ItemsControl Classes="Settings" ItemsSource="{Binding InstanceSettings.Children}" />
                     </Expander>
-                    <StackPanel Spacing="6">
-                        <Button Content="测试连接" Command="{Binding TestConnectionCommand}" IsEnabled="{Binding !TestingConnection}" HorizontalAlignment="Left" />
+                    <Border Classes="SectionCard">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="连接检查" FontWeight="SemiBold" />
+                        <Button Content="测试连接" Classes="Primary" Command="{Binding TestConnectionCommand}"
+                                IsEnabled="{Binding !TestingConnection}" HorizontalAlignment="Left" />
                         <TextBlock Text="{Binding ConnectionMessage}" Opacity="0.8" TextWrapping="Wrap" />
                         <TextBlock Text="Jira Cloud 使用账号邮箱 + API Token；自托管 Jira 可使用 Bearer Token。" Opacity="0.7" TextWrapping="Wrap" />
                     </StackPanel>
+                    </Border>
                 </StackPanel>
             </ScrollViewer>
+            </Border>
         </Grid>
     </Grid>
 </UserControl>

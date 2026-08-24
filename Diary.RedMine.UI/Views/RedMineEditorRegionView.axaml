@@ -8,10 +8,10 @@
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="120"
              x:DataType="viewModels:RedMineEditorRegionViewModel"
              x:Class="Diary.RedMine.UI.Views.RedMineEditorRegionView">
-    <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*"
+    <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="110,*"
           ColumnSpacing="8" RowSpacing="8" IsEnabled="{Binding !Uploaded}">
-        <TextBlock Grid.Row="0" Grid.Column="0" Text="关联问题:" />
-        <TextBlock Grid.Row="1" Grid.Column="0" Text="关联活动:" />
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="关联问题" Classes="FieldLabel" />
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="关联活动" Classes="FieldLabel" />
         <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding RedMineIssues}"
                   SelectedIndex="{Binding IssueIndex}" Text="{Binding IssueText}">
             <ComboBox.ItemTemplate>

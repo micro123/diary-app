@@ -10,8 +10,15 @@
              x:DataType="pages1:RedMineInfoViewModel"
              x:Class="Diary.RedMine.UI.Views.Pages.RedMineInfoView"
              Padding="8">
-    <DockPanel VerticalSpacing="6">
-        <Expander Classes="WorkspaceSection" IsExpanded="False" Header="用户信息" DockPanel.Dock="Top">
+    <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="10">
+        <Border Classes="PageHeader">
+            <StackPanel Spacing="3">
+                <TextBlock Text="基本信息" Classes="SectionTitle" />
+                <TextBlock Text="查看当前 Redmine 用户、活动定义和已导入到本地的问题。"
+                           Classes="SectionDescription" />
+            </StackPanel>
+        </Border>
+        <Expander Grid.Row="1" Classes="WorkspaceSection" IsExpanded="False" Header="用户信息">
             <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="4" ColumnSpacing="4">
                 <TextBlock Grid.Column="0" Grid.Row="0" Text="用户ID：" />
                 <TextBlock Grid.Column="1" Grid.Row="0" Text="{Binding UserId}" />
@@ -21,7 +28,7 @@
                 <TextBlock Grid.Column="1" Grid.Row="2" Text="{Binding UserName}" />
             </Grid>
         </Expander>
-        <Expander Classes="WorkspaceSection" IsExpanded="False" Header="活动列表" DockPanel.Dock="Top">
+        <Expander Grid.Row="2" Classes="WorkspaceSection" IsExpanded="False" Header="活动列表">
             <StackPanel Orientation="Vertical" Spacing="16" HorizontalAlignment="Left">
                 <ItemsControl ItemsSource="{Binding Activities}">
                     <ItemsControl.ItemsPanel>
@@ -47,12 +54,19 @@
                 </Button>
             </StackPanel>
         </Expander>
-        <u:Divider Content="已导入的问题" HorizontalContentAlignment="Left" DockPanel.Dock="Top" />
-        <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Spacing="8">
-            <Button Content="与服务器同步" Command="{Binding SyncIssueStateCommand}" />
-            <Button Content="重新抓取" Command="{Binding ReloadIssuesCommand}" />
-        </StackPanel>
-        <DataGrid ItemsSource="{Binding Issues}" IsReadOnly="True" x:Name="IssueList">
+        <Border Grid.Row="3" Classes="SectionCard">
+        <Grid RowDefinitions="Auto,*" RowSpacing="10">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <StackPanel Spacing="2">
+                    <TextBlock Text="已导入的问题" Classes="SectionTitle" />
+                    <TextBlock Text="同步远程状态，或重新抓取已导入的问题详情。" Classes="SectionDescription" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Classes="CompactActions">
+                    <Button Content="与服务器同步" Command="{Binding SyncIssueStateCommand}" />
+                    <Button Content="重新抓取" Command="{Binding ReloadIssuesCommand}" />
+                </StackPanel>
+            </Grid>
+        <DataGrid Grid.Row="1" ItemsSource="{Binding Issues}" IsReadOnly="True" x:Name="IssueList">
             <DataGrid.Columns>
                 <DataGridTextColumn Width="Auto" Header="ID" Binding="{Binding Id}" />
                 <DataGridTextColumn Width="*" Header="描述" Binding="{Binding Title}" />
@@ -75,5 +89,7 @@
                 </DataGridTemplateColumn>
             </DataGrid.Columns>
         </DataGrid>
-    </DockPanel>
+        </Grid>
+        </Border>
+    </Grid>
 </UserControl>

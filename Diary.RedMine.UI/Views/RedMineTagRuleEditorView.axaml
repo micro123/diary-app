@@ -3,10 +3,10 @@
              xmlns:viewModels="clr-namespace:Diary.RedMine.UI.ViewModels"
              x:Class="Diary.RedMine.UI.Views.RedMineTagRuleEditorView"
              x:DataType="viewModels:RedMineTagRuleEditorViewModel">
-    <StackPanel Spacing="8">
-        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
-        <StackPanel Orientation="Horizontal" Spacing="8">
-            <Button Content="添加规则" HorizontalAlignment="Left" Command="{Binding AddTagRuleCommand}" />
+    <StackPanel Spacing="10">
+        <TextBlock Text="{Binding Title}" Classes="SectionTitle" />
+        <StackPanel Classes="CompactActions">
+            <Button Content="添加规则" Classes="Primary" HorizontalAlignment="Left" Command="{Binding AddTagRuleCommand}" />
             <TextBlock Text="需要先创建至少一个启用的工作标签。"
                        VerticalAlignment="Center" Opacity="0.65"
                        IsVisible="{Binding ShowNoTagsHint}" />
@@ -14,9 +14,7 @@
         <ItemsControl ItemsSource="{Binding TagRules}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="viewModels:RedMineTagRuleViewModel">
-                    <Border Padding="10" Margin="0,0,0,6" CornerRadius="6"
-                            HorizontalAlignment="Stretch"
-                            Background="{DynamicResource SemiColorFill2}">
+                    <Border Classes="SubtleCard" Margin="0,0,0,6" HorizontalAlignment="Stretch">
                         <Grid ColumnDefinitions="Auto,Auto,*,2*,Auto" ColumnSpacing="12">
                             <CheckBox Content="启用"
                                       IsChecked="{Binding Enabled}"
@@ -24,7 +22,7 @@
                             <StackPanel Grid.Column="1"
                                         Spacing="3"
                                         IsVisible="{Binding ShowTagSelector}">
-                                <TextBlock Text="标签" Opacity="0.65" />
+                                <TextBlock Text="标签" Classes="FieldLabel" />
                                 <ComboBox MinWidth="150"
                                           ItemsSource="{Binding Tags}"
                                           SelectedItem="{Binding SelectedTag}">
@@ -32,7 +30,7 @@
                                 </ComboBox>
                             </StackPanel>
                             <StackPanel Grid.Column="2" Spacing="3">
-                                <TextBlock Text="活动" Opacity="0.65" />
+                                <TextBlock Text="活动" Classes="FieldLabel" />
                                 <ComboBox MinWidth="150"
                                           ItemsSource="{Binding Activities}"
                                           SelectedItem="{Binding SelectedActivity}">
@@ -40,7 +38,7 @@
                                 </ComboBox>
                             </StackPanel>
                             <StackPanel Grid.Column="3" Spacing="3">
-                                <TextBlock Text="问题" Opacity="0.65" />
+                                <TextBlock Text="问题" Classes="FieldLabel" />
                                 <ComboBox MinWidth="220"
                                           ItemsSource="{Binding Issues}"
                                           SelectedItem="{Binding SelectedIssue}">
@@ -48,7 +46,7 @@
                                 </ComboBox>
                             </StackPanel>
                             <Button Grid.Column="4"
-                                    Content="删除"
+                                    Content="删除规则" Classes="Danger"
                                     VerticalAlignment="Bottom"
                                     Command="{Binding $parent[UserControl].((viewModels:RedMineTagRuleEditorViewModel)DataContext).RemoveTagRuleCommand}"
                                     CommandParameter="{Binding}" />

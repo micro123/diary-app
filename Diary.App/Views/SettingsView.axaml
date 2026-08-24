@@ -6,23 +6,29 @@
              xmlns:viewModels="clr-namespace:Diary.App.ViewModels"
              x:Class="Diary.App.Views.SettingsView"
              x:DataType="viewModels:SettingsViewModel"
-             Width="800" Height="680" Margin="8 28 8 8" Padding="8">
+             Width="800" Height="680" Margin="8 28 8 8" Padding="12">
     <Design.DataContext>
         <viewModels:SettingsViewModel/>
     </Design.DataContext>
 
     <!-- 内容：DataTemplate 由 Application.DataTemplates 提供 (App.axaml)，与 GenericConfigView 共享 -->
-    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
-        <StackPanel Spacing="2" Margin="8,0,8,4">
-            <TextBlock Text="程序设置" Classes="PageTitle" />
-            <TextBlock Text="管理界面、工作流、数据库、更新以及 AI 集成。" Classes="PageSubtitle" />
-        </StackPanel>
-        <ItemsControl Grid.Row="1" Classes="Settings" ItemsSource="{Binding SettingsTree.Children}"/>
-        <StackPanel Grid.Row="2" Classes="DialogFooter" Margin="32 8 32 0">
-            <Button Classes="Large" Content="打开当前日志" Command="{Binding OpenCurrentLogCommand}" />
-            <Button Classes="Large" Content="导出日志" Command="{Binding ExportLogsCommand}" />
-            <Button Classes="Large Primary" Content="保存" Command="{Binding SaveCommand}" />
-            <Button Classes="Large" Content="关闭" Command="{Binding LoadCommand}" />
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
+        <Border Classes="PageHeader">
+            <StackPanel Spacing="3">
+                <TextBlock Text="程序设置" Classes="PageTitle" />
+                <TextBlock Text="管理界面、工作流、数据库、更新以及 AI 集成。"
+                           Classes="PageSubtitle" />
+            </StackPanel>
+        </Border>
+        <Border Grid.Row="1" Classes="DetailPane" Padding="8" ClipToBounds="True">
+            <ItemsControl Classes="Settings" MinHeight="0"
+                          ItemsSource="{Binding SettingsTree.Children}" />
+        </Border>
+        <StackPanel Grid.Row="2" Classes="DialogFooter">
+            <Button Content="打开当前日志" Command="{Binding OpenCurrentLogCommand}" />
+            <Button Content="导出日志" Command="{Binding ExportLogsCommand}" />
+            <Button Content="关闭" Command="{Binding LoadCommand}" />
+            <Button Classes="Primary" Content="保存" Command="{Binding SaveCommand}" />
         </StackPanel>
     </Grid>
 </UserControl>

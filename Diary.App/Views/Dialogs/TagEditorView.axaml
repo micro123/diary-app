@@ -28,26 +28,24 @@
         </ResourceDictionary>
     </UserControl.Resources>
     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
-        <StackPanel Grid.Row="0" Spacing="3">
-            <TextBlock Text="{Binding Title}" Classes="Header" />
-            <TextBlock Text="管理标签、元数据、Tracker 自动化操作和附加字段"
-                       Opacity="0.72" />
-        </StackPanel>
+        <Border Grid.Row="0" Classes="PageHeader">
+            <StackPanel Spacing="3">
+                <TextBlock Text="{Binding Title}" Classes="PageTitle" />
+                <TextBlock Text="管理标签、元数据、Tracker 自动化操作和附加字段。左侧选择标签，右侧完成详细配置。"
+                           Classes="PageSubtitle" />
+            </StackPanel>
+        </Border>
 
-        <Grid Grid.Row="1" ColumnDefinitions="250,*" ColumnSpacing="12">
-            <Border Grid.Column="0"
-                    Padding="12"
-                    Background="{DynamicResource SemiColorFill1}">
+        <Grid Grid.Row="1" ColumnDefinitions="280,*" ColumnSpacing="12">
+            <Border Grid.Column="0" Classes="MasterPane">
                 <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="10">
                     <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
-                        <TextBlock Text="标签" FontWeight="SemiBold" FontSize="16" />
+                        <TextBlock Text="标签" Classes="SectionTitle" />
                         <Button Grid.Column="1"
                                 Content="导入"
-                                Padding="10 4"
                                 Command="{Binding ImportTagsCommand}" />
                         <Button Grid.Column="2"
                                 Content="导出"
-                                Padding="10 4"
                                 Command="{Binding ExportTagsCommand}" />
                     </Grid>
                     <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="6">
@@ -57,7 +55,7 @@
                                  Classes="ClearButton" />
                         <Button Name="AddTagButton"
                                 Grid.Column="1"
-                                Content="添加"
+                                Content="添加" Classes="Primary"
                                 Command="{Binding NewTagCommand}" />
                     </Grid>
                     <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="8">
@@ -131,16 +129,15 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="10">
-                <Border Grid.Row="0" Padding="12"
-                        Background="{DynamicResource SemiColorFill1}">
+            <Border Grid.Column="1" Classes="DetailPane">
+            <Grid RowDefinitions="Auto,*">
+                <Border Grid.Row="0" Classes="DetailHeader">
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                         <StackPanel Spacing="3">
                             <TextBlock Text="{Binding SelectedTag.Name}"
                                        FontSize="20"
                                        FontWeight="SemiBold" />
-                            <TextBlock Text="编辑当前标签的配置"
-                                       Opacity="0.65" />
+                            <TextBlock Text="编辑当前标签的配置" Classes="SectionDescription" />
                         </StackPanel>
                         <TextBlock Grid.Column="1"
                                    Text="{Binding SelectedTag.Id, StringFormat='标签 #{0}'}"
@@ -149,17 +146,17 @@
                     </Grid>
                 </Border>
 
-                <TabControl Grid.Row="1">
+                <TabControl Grid.Row="1" Theme="{DynamicResource LineTabControl}" Margin="12,6,12,12">
                     <TabItem Header="基础信息">
                         <ScrollViewer>
                             <StackPanel Margin="16" Spacing="12">
-                                <TextBlock Text="标签名称" />
+                                <TextBlock Text="标签名称" Classes="FieldLabel" />
                                 <TextBox Text="{Binding SelectedTag.Name}"
                                          Classes="ClearButton" />
 
                                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
                                     <StackPanel Spacing="4">
-                                        <TextBlock Text="标签颜色" />
+                                        <TextBlock Text="标签颜色" Classes="FieldLabel" />
                                         <ColorPicker HsvColor="{Binding SelectedTag.Color, Converter={StaticResource Hsv2Int}}"
                                                      SelectedIndex="1"
                                                      PaletteColumnCount="16"
@@ -170,7 +167,7 @@
                                         </ColorPicker>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Spacing="10">
-                                        <TextBlock Text="标签状态" />
+                                        <TextBlock Text="标签状态" Classes="FieldLabel" />
                                         <Grid ColumnDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8">
                                             <TextBlock Text="主标签" VerticalAlignment="Center" />
                                             <ToggleSwitch Grid.Column="1"
@@ -184,8 +181,7 @@
                                     </StackPanel>
                                 </Grid>
 
-                                <Border Padding="10"
-                                        Background="{DynamicResource SemiColorFill1}">
+                                <Border Classes="SubtleCard">
                                     <StackPanel Spacing="6">
                                         <TextBlock Text="说明"
                                                    FontWeight="SemiBold" />
@@ -255,9 +251,7 @@
                                 <ItemsControl ItemsSource="{Binding RuleContributions}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Padding="10"
-                                                    Margin="0 0 0 8"
-                                                    Background="{DynamicResource SemiColorFill1}">
+                                            <Border Classes="SubtleCard" Margin="0 0 0 8">
                                                 <ContentControl Content="{Binding View}" />
                                             </Border>
                                         </DataTemplate>
@@ -334,6 +328,7 @@
                     </TabItem>
                 </TabControl>
             </Grid>
+            </Border>
         </Grid>
 
         <StackPanel Grid.Row="2" Classes="DialogFooter">

@@ -7,11 +7,11 @@
              mc:Ignorable="d" d:DesignWidth="760" d:DesignHeight="520"
              x:Class="Diary.App.Views.Dialogs.TrackerPluginDiagnosticsView"
              x:DataType="dialogs:TrackerPluginDiagnosticsViewModel"
-             MinWidth="620" MinHeight="420" Padding="24">
+             MinWidth="620" MinHeight="420" Padding="8">
     <Grid RowDefinitions="Auto,*" RowSpacing="16">
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
             <StackPanel Spacing="4">
-                <TextBlock Text="Tracker 插件状态" FontSize="22" FontWeight="SemiBold" />
+                <TextBlock Text="Tracker 插件状态" Classes="SectionTitle" />
                 <TextBlock Text="查看实例运行状态，管理启用、重试和卸载操作。"
                            Opacity="0.65" />
             </StackPanel>
@@ -21,13 +21,12 @@
         <Grid Grid.Row="1">
             <TextBlock Text="当前没有已注册的 Tracker 实例。"
                        HorizontalAlignment="Center" VerticalAlignment="Center"
-                       Opacity="0.6" IsVisible="{Binding IsEmpty}" />
+                       Classes="EmptyStateDescription" IsVisible="{Binding IsEmpty}" />
             <ScrollViewer IsVisible="{Binding !IsEmpty}">
             <ItemsControl ItemsSource="{Binding Entries}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="viewModels:TrackerPluginDiagnosticViewModel">
-                        <Border Padding="16" Margin="0 0 0 12"
-                                Background="#12000000" CornerRadius="10">
+                        <Border Classes="SectionCard" Margin="0 0 0 12">
                             <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
                                 <Grid ColumnDefinitions="*,Auto">
                                     <StackPanel Spacing="3">
@@ -36,21 +35,19 @@
                                         <TextBlock Text="{Binding InstanceSummary}" FontSize="12"
                                                    Opacity="0.55" />
                                     </StackPanel>
-                                    <Border Grid.Column="1" MinWidth="72" Padding="10 4"
-                                            Background="#18000000" CornerRadius="12">
+                                    <Border Grid.Column="1" Classes="StatusPill">
                                         <TextBlock Text="{Binding StateText}" FontWeight="SemiBold"
                                                    HorizontalAlignment="Center"
                                                    VerticalAlignment="Center" />
                                     </Border>
                                 </Grid>
-                                <Border Grid.Row="1" Padding="10 8"
-                                        Background="#18000000" CornerRadius="6"
+                                <Border Grid.Row="1" Classes="SubtleCard"
                                         IsVisible="{Binding HasError}">
                                     <TextBlock Text="{Binding Error}" Foreground="IndianRed"
                                                TextWrapping="Wrap" />
                                 </Border>
-                                <StackPanel Grid.Row="2" Orientation="Horizontal"
-                                            HorizontalAlignment="Right" Spacing="8">
+                                <StackPanel Grid.Row="2" Classes="CompactActions"
+                                            HorizontalAlignment="Right">
                                     <Button Content="重试" Command="{Binding RetryCommand}"
                                             IsVisible="{Binding CanRetry}" Padding="12 6" />
                                     <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}"

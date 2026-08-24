@@ -46,14 +46,19 @@
                 <Button Content="导出诊断日志" Command="{Binding ExportDiagnosticsCommand}" />
             </StackPanel>
         </StackPanel>
-        <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="4"
+        <Grid ColumnDefinitions="320,1,*" ColumnSpacing="12" Margin="8"
               IsVisible="{Binding DatabaseOk, Source={x:Static app:App.Instance}}">
             <!-- 左侧是日期和项目列表展示 -->
-            <DockPanel VerticalSpacing="8" Width="280">
-                <Grid ColumnSpacing="8" ColumnDefinitions="Auto,*,Auto" HorizontalAlignment="Stretch"
+            <Border Classes="MasterPane">
+            <DockPanel VerticalSpacing="10">
+                <Grid ColumnSpacing="8" ColumnDefinitions="*,Auto" HorizontalAlignment="Stretch"
                       DockPanel.Dock="Top">
-                    <TextBlock Text="日期选择" VerticalAlignment="Center" />
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="{Binding SelectedDate, StringFormat='{}{0:yyyy年M月d日}'}"
+                                   Classes="SectionTitle" />
+                        <TextBlock Text="选择日期并管理当天的工作记录" Classes="SectionDescription" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
                         <Button Content="回到今天"
                                 HotKey="Ctrl+T" Classes="ActionButton"
                                 Command="{Binding SelectTodayCommand}" />
@@ -73,8 +78,8 @@
                         </Button>
                     </StackPanel>
                 </Grid>
-                <Separator DockPanel.Dock="Top" />
                 <Calendar Name="DiaryCalendar" FirstDayOfWeek="Monday" DockPanel.Dock="Top"
+                          Height="250"
                           IsTodayHighlighted="True" SelectionMode="SingleDate"
                           DisplayDate="{Binding CurrentDate}"
                           SelectedDate="{Binding SelectedDate}"
@@ -96,26 +101,31 @@
                         </ContextMenu>
                     </Calendar.ContextMenu>
                 </Calendar>
-                <Separator DockPanel.Dock="Top" />
                 <!-- 统计信息 -->
-                <StackPanel Orientation="Horizontal" DockPanel.Dock="Bottom" Spacing="8">
-                    <TextBlock Text="{Binding TotalTime, StringFormat='总共 {0:0.##} 小时'}" />
-                    <TextBlock Text="{Binding UploadedTime, StringFormat='提交 {0:0.##} 小时'}" />
+                <Border DockPanel.Dock="Bottom" Classes="SubtleCard" Padding="10,8">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="{Binding TotalTime, StringFormat='当天合计 {0:0.##} 小时'}"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding UploadedTime, StringFormat='已同步 {0:0.##} 小时'}"
+                                   Opacity="0.68" />
+                    </StackPanel>
                     <Button Command="{Binding UploadAllCommand}" HotKey="Ctrl+Shift+U"
-                            Classes="ActionButton">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            Grid.Column="1" Classes="ActionButton">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
                             <i:Icon Value="mdi-cloud-upload-outline" FontSize="14" />
-                            <TextBlock Text="提交" />
+                            <TextBlock Text="同步当天" />
                         </StackPanel>
                     </Button>
-                </StackPanel>
+                </Grid>
+                </Border>
                 <ScrollViewer>
                     <ListBox ItemsSource="{Binding DailyWorks}"
                              VerticalAlignment="Stretch" Name="DailyItemList"
                              SelectionMode="Single" SelectedItem="{Binding SelectedWork}">
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="{x:Type viewModels:WorkEditorViewModel}">
-                                <Border Theme="{DynamicResource CardBorder}" Padding="4"
+                                <Border Theme="{DynamicResource CardBorder}" Padding="8,6"
                                         CornerRadius="6" ToolTip.Placement="Pointer" ToolTip.HorizontalOffset="48"
                                         ToolTip.Tip="{Binding Comment}">
                                     <Border.ContextMenu>
@@ -181,15 +191,18 @@
                     </ListBox>
                 </ScrollViewer>
             </DockPanel>
+            </Border>
             <Border Grid.Column="1" BorderThickness="1" BorderBrush="{DynamicResource GridSplitterBackground}"
-                    CornerRadius="0" Margin="0 42 0 0" />
+                    CornerRadius="0" />
             <!-- 右侧是编辑区 -->
-            <DockPanel Grid.Column="2" VerticalSpacing="8">
-                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0">
+            <Border Grid.Column="2" Classes="DetailPane" Padding="12">
+            <DockPanel VerticalSpacing="10">
+                <Border DockPanel.Dock="Top" Classes="WorkspaceToolbar">
+                <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
                     <Button Name="NewWorkItemButton" Classes="ActionButton" Content="新建事项" HotKey="Ctrl+N"
                             Command="{Binding NewWorkItemCommand}" />
                     <!-- TODO: add flyout for next button -->
-                    <Button Name="NewFromTemplateButton" Classes="ActionButton"
+                    <Button Name="NewFromTemplateButton" Grid.Column="1" Classes="ActionButton"
                             Content="从模板新建" HotKey="Ctrl+Shift+N"
                             IsEnabled="{Binding CanUseTemplates}">
                         <Button.Flyout>
@@ -205,24 +218,29 @@
                             </MenuFlyout>
                         </Button.Flyout>
                     </Button>
-                    <Button Classes="ActionButton" Content="保存" HotKey="Ctrl+S"
+                    <Button Grid.Column="2" Classes="Primary ActionButton" Content="保存" HotKey="Ctrl+S"
                             Command="{Binding SaveWorkItemCommand}" />
-                    <Button Classes="ActionButton" Content="重复当前事项" HotKey="Ctrl+D"
+                    <Button Grid.Column="3" Classes="ActionButton" Content="重复当前事项" HotKey="Ctrl+D"
                             Command="{Binding DuplicateWorkItemCommand}" />
-                    <Button Classes="ActionButton" Content="删除当前项" HotKey="Ctrl+Shift+D"
+                    <Button Grid.Column="4" Classes="Danger ActionButton" Content="删除当前项" HotKey="Ctrl+Shift+D"
                             Command="{Binding DeleteWorkItemCommand}" />
-                    <Button Classes="ActionButton" Content="同步工时" HotKey="Ctrl+U"
+                    <Button Grid.Column="5" Classes="ActionButton" Content="同步工时" HotKey="Ctrl+U"
                             Command="{Binding UploadTimeCommand}" />
-                </StackPanel>
-                <Separator DockPanel.Dock="Top" />
-                <TextBlock DockPanel.Dock="Top" Text="{Binding SelectedWork.StatusSummary}" Opacity="0.7" />
+                    <Border Grid.Column="6" Classes="StatusPill" HorizontalAlignment="Right">
+                        <TextBlock Text="{Binding SelectedWork.StatusSummary}" HorizontalAlignment="Center" />
+                    </Border>
+                </Grid>
+                </Border>
                 <Panel>
                     <TextBlock Text="当前未选中任何事项" FontSize="48" HorizontalAlignment="Center"
                                Foreground="{DynamicResource ButtonDefaultDisabledForeground}"
                                IsVisible="{Binding !HasItem}" VerticalAlignment="Center" />
-                    <ContentControl IsVisible="{Binding HasItem}" Content="{Binding SelectedWork}" />
+                    <ScrollViewer IsVisible="{Binding HasItem}" VerticalScrollBarVisibility="Auto">
+                        <ContentControl Content="{Binding SelectedWork}" />
+                    </ScrollViewer>
                 </Panel>
             </DockPanel>
+            </Border>
         </Grid>
     </Panel>
 </UserControl>

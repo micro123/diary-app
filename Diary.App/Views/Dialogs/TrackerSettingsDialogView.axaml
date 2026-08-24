@@ -3,16 +3,18 @@
              xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
              x:Class="Diary.App.Views.Dialogs.TrackerSettingsDialogView"
              x:DataType="dialogs:TrackerSettingsDialogViewModel"
-             Width="950" Height="650" Padding="12">
+             Width="950" Height="650" Padding="16">
     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
-        <StackPanel Spacing="2">
-            <TextBlock Text="Tracker 设置" Classes="PageTitle" />
-            <TextBlock Text="配置外部服务实例，并查看插件运行和数据状态。"
-                       Classes="PageSubtitle" />
-        </StackPanel>
-        <TabControl Grid.Row="1">
+        <Border Classes="PageHeader">
+            <StackPanel Spacing="3">
+                <TextBlock Text="Tracker 设置" Classes="PageTitle" />
+                <TextBlock Text="配置 Jira、Redmine 等外部服务实例，并查看插件运行和本地数据状态。"
+                           Classes="PageSubtitle" />
+            </StackPanel>
+        </Border>
+        <TabControl Grid.Row="1" Theme="{DynamicResource LineTabControl}">
             <TabItem Header="Tracker 配置">
-                <TabControl ItemsSource="{Binding ProviderPages}">
+                <TabControl ItemsSource="{Binding ProviderPages}" Margin="0,8,0,0">
                     <TabControl.ItemTemplate>
                         <DataTemplate x:DataType="dialogs:TrackerSettingsPageItem">
                             <TextBlock Text="{Binding Header}" />
@@ -26,7 +28,7 @@
                 </TabControl>
             </TabItem>
             <TabItem Header="插件状态">
-                <ContentControl Content="{Binding Diagnostics}" />
+                <ContentControl Content="{Binding Diagnostics}" Margin="0,8,0,0" />
             </TabItem>
         </TabControl>
         <StackPanel Grid.Row="2" Classes="DialogFooter">

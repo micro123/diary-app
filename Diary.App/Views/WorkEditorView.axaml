@@ -10,7 +10,7 @@
              xmlns:redMine="clr-namespace:Diary.RedMine.Models;assembly=Diary.RedMine"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:DataType="viewModels:WorkEditorViewModel"
-             x:Class="Diary.App.Views.WorkEditorView" Padding="8 0 0 0">
+             x:Class="Diary.App.Views.WorkEditorView">
     <Design.DataContext>
         <viewModels:WorkEditorViewModel />
     </Design.DataContext>
@@ -24,14 +24,19 @@
         </Style>
     </UserControl.Styles>
 
-    <DockPanel Name="EditPanel" VerticalSpacing="4">
-        <u:Divider DockPanel.Dock="Top" Content="一般信息" HorizontalContentAlignment="Left" />
-        <Grid DockPanel.Dock="Top" ColumnDefinitions="64,*"
+    <DockPanel Name="EditPanel" VerticalSpacing="10">
+        <Border DockPanel.Dock="Top" Classes="SectionCard">
+        <StackPanel Spacing="10">
+        <StackPanel Spacing="2">
+            <TextBlock Text="一般信息" Classes="SectionTitle" />
+            <TextBlock Text="记录日期、工作内容、耗时和优先级" Classes="SectionDescription" />
+        </StackPanel>
+        <Grid ColumnDefinitions="72,*"
               RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="10"
               IsEnabled="{Binding !IsLocked}">
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="日期：" VerticalAlignment="Center" />
-            <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="240,Auto" ColumnSpacing="12">
-                <CalendarDatePicker Name="WorkDatePicker" Grid.Column="0" Width="240" HorizontalAlignment="Left"
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="日期" Classes="FieldLabel" />
+            <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="260,Auto,*" ColumnSpacing="12">
+                <CalendarDatePicker Name="WorkDatePicker" Grid.Column="0" HorizontalAlignment="Stretch"
                                     SelectedDate="{Binding Date, Converter={StaticResource DateConvert}}" />
                 <SplitButton Name="UseTodayButton" Grid.Column="1" Content="使用今天"
                              Command="{Binding QuickDateCommand}" CommandParameter="0">
@@ -44,14 +49,14 @@
                 </SplitButton>
             </Grid>
 
-            <TextBlock Grid.Row="1" Grid.Column="0" Text="标题：" VerticalAlignment="Center" />
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="标题" Classes="FieldLabel" />
             <TextBox Name="WorkTitleInput" Grid.Row="1" Grid.Column="1" MinHeight="40"
                      Text="{Binding Comment}" Classes="ClearButton" />
 
-            <TextBlock Grid.Row="2" Grid.Column="0" Text="耗时：" VerticalAlignment="Center" />
-            <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="220,Auto,Auto,96,*" ColumnSpacing="12">
-                <TextBox Name="WorkTimeInput" Grid.Column="0" Width="220"
-                         HorizontalAlignment="Left" HorizontalContentAlignment="Right"
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="耗时" Classes="FieldLabel" />
+            <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="220,Auto,Auto,120,*" ColumnSpacing="12">
+                <TextBox Name="WorkTimeInput" Grid.Column="0"
+                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Right"
                          Text="{Binding TimeInput}"
                          Watermark="例如 1.5、30m、1h30m"
                          ToolTip.Tip="支持数字小时、分钟和小时写法，最多 24 小时；按 Enter 或移开焦点应用，按 Esc 恢复"
@@ -75,12 +80,19 @@
                         </MenuFlyout>
                     </SplitButton.Flyout>
                 </SplitButton>
-                <TextBlock Grid.Column="2" Text="优先级：" VerticalAlignment="Center" />
-                <u:EnumSelector Grid.Column="3" Width="96" Value="{Binding Priority}"
+                <TextBlock Grid.Column="2" Text="优先级" Classes="FieldLabel" />
+                <u:EnumSelector Grid.Column="3" Value="{Binding Priority}"
                                 EnumType="{x:Type base:WorkPriorities}" />
             </Grid>
         </Grid>
-        <u:Divider DockPanel.Dock="Top" Content="标签列表" HorizontalContentAlignment="Left" />
+        </StackPanel>
+        </Border>
+        <Border DockPanel.Dock="Top" Classes="SectionCard">
+        <StackPanel Spacing="10">
+        <StackPanel Spacing="2">
+            <TextBlock Text="标签与附加信息" Classes="SectionTitle" />
+            <TextBlock Text="使用标签分类记录，并维护标签提供的附加字段" Classes="SectionDescription" />
+        </StackPanel>
         <!-- 标签列表 -->
         <ItemsControl ItemsSource="{Binding WorkTags}" DockPanel.Dock="Top" IsEnabled="{Binding !IsLocked}">
             <ItemsControl.ItemsPanel>
@@ -115,7 +127,7 @@
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8">
+        <StackPanel Orientation="Horizontal" Spacing="8">
         <Button HorizontalAlignment="Left"
                 IsEnabled="{Binding HasAvailableTags}">
             <StackPanel Orientation="Horizontal" Spacing="4">
@@ -147,8 +159,16 @@
             </StackPanel>
         </Button>
         </StackPanel>
+        </StackPanel>
+        </Border>
         <!-- tracker 扩展区（RedMine 等，可多个）：按实例切换，每个扩展由全局 ViewLocator 渲染 -->
-        <TabControl DockPanel.Dock="Top" ItemsSource="{Binding TrackerTabs}"
+        <Border DockPanel.Dock="Top" Classes="SectionCard">
+        <StackPanel Spacing="8">
+            <StackPanel Spacing="2">
+                <TextBlock Text="Tracker 关联" Classes="SectionTitle" />
+                <TextBlock Text="选择远程工作项并查看各实例的同步状态" Classes="SectionDescription" />
+            </StackPanel>
+        <TabControl ItemsSource="{Binding TrackerTabs}"
                     TabStripPlacement="Top" Theme="{DynamicResource LineTabControl}">
             <TabControl.ItemTemplate>
                 <DataTemplate DataType="viewModels:TrackerEditorTabItem">
@@ -165,8 +185,9 @@
                 </DataTemplate>
             </TabControl.ContentTemplate>
         </TabControl>
-        <Border DockPanel.Dock="Top" IsVisible="{Binding HasUploadResults}"
-                Background="{DynamicResource SemiColorFill2}" CornerRadius="4" Padding="10 8">
+        </StackPanel>
+        </Border>
+        <Border DockPanel.Dock="Top" IsVisible="{Binding HasUploadResults}" Classes="SectionCard">
             <StackPanel Spacing="6">
                 <TextBlock Text="最近一次同步结果" FontWeight="SemiBold" />
                 <ItemsControl ItemsSource="{Binding UploadResults}">
@@ -178,8 +199,9 @@
                                     <TextBlock Text="{Binding ResultSummary}" Opacity="0.75"
                                                TextWrapping="Wrap" />
                                 </StackPanel>
-                                <TextBlock Grid.Column="1" Text="{Binding StateText}"
-                                           VerticalAlignment="Center" Opacity="0.85" />
+                                <Border Grid.Column="1" Classes="StatusPill" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding StateText}" HorizontalAlignment="Center" />
+                                </Border>
                             </Grid>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -187,8 +209,21 @@
             </StackPanel>
         </Border>
         <!-- plm预留 -->
-        <u:Divider DockPanel.Dock="Top" Content="备注（仅本地存储）" HorizontalContentAlignment="Left" />
-        <TextBox Text="{Binding Note}" AcceptsReturn="True" VerticalAlignment="Stretch"
-                 VerticalContentAlignment="Top" Padding="4" Classes="Bordered" IsEnabled="{Binding !IsLocked}"/>
+        <Border Classes="SectionCard">
+            <Grid RowDefinitions="Auto,*" RowSpacing="8">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="备注" Classes="SectionTitle" />
+                        <TextBlock Text="补充只在本机保存的上下文信息" Classes="SectionDescription" />
+                    </StackPanel>
+                    <Border Grid.Column="1" Classes="StatusPill" VerticalAlignment="Top">
+                        <TextBlock Text="仅本地" HorizontalAlignment="Center" />
+                    </Border>
+                </Grid>
+                <TextBox Grid.Row="1" Text="{Binding Note}" AcceptsReturn="True" MinHeight="130"
+                         VerticalContentAlignment="Top" Padding="8" Classes="Bordered"
+                         IsEnabled="{Binding !IsLocked}" />
+            </Grid>
+        </Border>
     </DockPanel>
 </UserControl>

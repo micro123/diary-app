@@ -18,52 +18,67 @@
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
     </UserControl.Styles>
-    <DockPanel VerticalSpacing="8">
-        <TextBlock Classes="Header" Text="模板编辑" DockPanel.Dock="Top" />
-        <u:Divider Content="新建模板" HorizontalContentAlignment="Left" DockPanel.Dock="Top" />
-        <Grid ColumnSpacing="4" DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto">
-            <TextBlock Grid.Column="0" Text="模板名" />
-            <TextBox Name="TemplateNameInput" Grid.Column="1"
-                     Text="{Binding NewTemplateName}" HorizontalAlignment="Stretch" />
-            <Button Name="AddTemplateButton" Grid.Column="2" Command="{Binding AddTemplateCommand}">
-                <StackPanel Orientation="Horizontal" Spacing="4">
-                    <i:Icon Value="mdi-invoice-text-plus-outline" />
-                    <TextBlock Text="添加" />
+    <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
+        <Border Classes="PageHeader">
+            <StackPanel Spacing="3">
+                <TextBlock Classes="PageTitle" Text="模板编辑" />
+                <TextBlock Classes="PageSubtitle"
+                           Text="预设事项标题、默认工时和标签；日记页可直接从模板创建事项。" />
+            </StackPanel>
+        </Border>
+        <Border Grid.Row="1" Classes="SectionCard">
+            <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="8" ColumnSpacing="8">
+                <StackPanel Spacing="2">
+                    <TextBlock Text="新建模板" Classes="SectionTitle" />
+                    <TextBlock Text="创建后可在下方展开并设置默认内容。" Classes="SectionDescription" />
                 </StackPanel>
-            </Button>
-        </Grid>
-        <u:Divider Content="现有模板" HorizontalContentAlignment="Left" DockPanel.Dock="Top" />
-        <StackPanel DockPanel.Dock="Bottom" Classes="DialogFooter">
-            <Button Content="取消" Command="{Binding SaveCommand}"
-                    CommandParameter="0" />
-            <Button Name="SaveTemplateSettingsButton" Classes="Primary" Content="保存"
-                    Command="{Binding SaveCommand}" CommandParameter="1" />
-        </StackPanel>
-        <ScrollViewer>
+                <Grid Grid.Row="1" Grid.ColumnSpan="2" ColumnDefinitions="100,*,120" ColumnSpacing="8">
+                    <TextBlock Text="模板名称" Classes="FieldLabel" />
+                    <TextBox Name="TemplateNameInput" Grid.Column="1"
+                             Text="{Binding NewTemplateName}" Watermark="输入模板名称" />
+                    <Button Name="AddTemplateButton" Grid.Column="2" Classes="Primary"
+                            Command="{Binding AddTemplateCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <i:Icon Value="mdi-invoice-text-plus-outline" />
+                            <TextBlock Text="添加模板" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </Grid>
+        </Border>
+        <Border Grid.Row="2" Classes="DetailPane" Padding="12" ClipToBounds="True">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
             <ItemsControl ItemsSource="{Binding Templates}" x:Name="TemplatesView"
-                          Classes="Reorderable">
+                          Classes="Reorderable" MinWidth="0">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="dialogs1:TemplateViewModel">
-                        <Expander Name="TemplateItemExpander" Header="{Binding Name}" IsExpanded="False">
-                            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto"
-                                  RowSpacing="8" ColumnSpacing="4">
-                                <TextBlock Grid.Column="0" Grid.Row="0" Text="模板 ID：" />
-                                <TextBlock Grid.Column="1" Grid.Row="0" Text="{Binding Id}" />
-                                <Button Grid.Column="2" Grid.Row="0" Classes="Borderless"
+                        <Expander Name="TemplateItemExpander" Classes="WorkspaceSection"
+                                  Header="{Binding Name}" IsExpanded="False">
+                            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="110,*,190"
+                                  RowSpacing="10" ColumnSpacing="8">
+                                <TextBlock Grid.Column="0" Grid.Row="0" Text="模板 ID" Classes="FieldLabel" />
+                                <TextBlock Grid.Column="1" Grid.Row="0" Text="{Binding Id}"
+                                           MinWidth="0" FontFamily="monospace" Opacity="0.72"
+                                           TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Id}" />
+                                <StackPanel Grid.Column="2" Grid.Row="0" Classes="CompactActions">
+                                <Button Classes="IconAction"
                                         Command="{Binding #TemplatesView.((dialogs1:TemplateEditorViewModel)DataContext).CopyTemplateIdCommand}"
                                         CommandParameter="{Binding}" ToolTip.Tip="复制模板 ID">
                                     <i:Icon Value="mdi-content-copy" />
                                 </Button>
-                                <TextBlock Grid.Column="0" Grid.Row="1" Text="默认标题：" />
+                                <Button Content="删除模板" Classes="Danger"
+                                        Command="{Binding #TemplatesView.((dialogs1:TemplateEditorViewModel)DataContext).DeleteCommand}"
+                                        CommandParameter="{Binding}" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="0" Grid.Row="1" Text="默认标题" Classes="FieldLabel" />
                                 <TextBox Name="TemplateDefaultTitleInput" Grid.Column="1" Grid.Row="1"
-                                         Text="{Binding DefaultTitle}" />
-                                <TextBlock Grid.Column="0" Grid.Row="2" Text="默认时间：" />
+                                         Grid.ColumnSpan="2" Text="{Binding DefaultTitle}" />
+                                <TextBlock Grid.Column="0" Grid.Row="2" Text="默认工时" Classes="FieldLabel" />
                                 <u:NumericDoubleUpDown Name="TemplateDefaultTimeInput"
                                                        Grid.Column="1" Grid.Row="2" Value="{Binding Time}"
-                                                       ShowButtonSpinner="False" />
-                                <TextBlock Grid.Column="0" Grid.Row="3" Text="标签列表：" />
+                                                       ShowButtonSpinner="False" Watermark="小时" />
+                                <TextBlock Grid.Column="0" Grid.Row="3" Text="默认标签" Classes="FieldLabel" />
                                  <Button Name="TemplateAddTagButton" Grid.Column="2" Grid.Row="3" Classes="Primary"
-                                         Theme="{DynamicResource BorderlessButton}"
                                          IsEnabled="{Binding #TemplatesView.((dialogs1:TemplateEditorViewModel)DataContext).HasTags}">
                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                         <i:Icon Value="" />
@@ -85,7 +100,7 @@
                                         </MenuFlyout>
                                     </Button.Flyout>
                                 </Button>
-                                <ItemsControl Grid.Column="0" Grid.Row="4" Grid.ColumnSpan="2"
+                                <ItemsControl Grid.Column="1" Grid.Row="4" Grid.ColumnSpan="2"
                                               ItemsSource="{Binding Tags}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
@@ -126,5 +141,11 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </ScrollViewer>
-    </DockPanel>
+        </Border>
+        <StackPanel Grid.Row="3" Classes="DialogFooter">
+            <Button Content="取消" Command="{Binding SaveCommand}" CommandParameter="0" />
+            <Button Name="SaveTemplateSettingsButton" Classes="Primary" Content="保存"
+                    Command="{Binding SaveCommand}" CommandParameter="1" />
+        </StackPanel>
+    </Grid>
 </UserControl>

@@ -2,7 +2,7 @@
 
 ## 1. 范围与状态
 
-本矩阵以 2026-08-22 的 [`UiFeatureInventory.md`](UiFeatureInventory.md) 为功能基准，记录 Windows UI 自动化、单元/集成验证和必须保留的人工边界。它描述的是可重复验证证据，不表示每个页面的每条异常分支都已通过 UI 自动化穷举。
+本矩阵以 2026-08-24 的 [`UiFeatureInventory.md`](UiFeatureInventory.md) 为功能基准，记录 Windows UI 自动化、单元/集成验证和必须保留的人工边界。它描述的是可重复验证证据，不表示每个页面的每条异常分支都已通过 UI 自动化穷举。
 
 状态统一为：
 
@@ -15,7 +15,7 @@
 | `Blocked-External` | 缺少可纳入当前门禁的外部服务、权限或版本矩阵 |
 | `Not-Implemented` | 功能清单明确记录为尚未实现 |
 
-最近 Windows 全量证据为 `ui-full-test-2026-08-22T06-09-21-453Z.json`：9/9 套件、当时定义的 72/72 结构化步骤通过，另有 smoke 断言集通过。新增 AI 上下文和程序设置 MCP 配置步骤后，当前 8 个结构化套件合计 74 步；Linux X11 已单独验证 `ui-extended-full` 11/11。运行方法和性能数据见 [`UiAutomationTesting.md`](UiAutomationTesting.md)。
+统一 UI 复检中，Windows 已分别通过 `ui-settings-full` 9/9、`ui-smoke`、`ui-core-full` 14/14、`ui-extended-full` 11/11、`ui-script-editor` 4/4、`ui-database-error` 8/8、`ui-survey-full` 8/8、`ui-extra-fields-full` 8/8、`ui-redmine-full` 12/12 和 `ui-redmine-style` 5/5。常规全量编排为 9/9 套件，其中 8 个结构化套件共 74 步，最终报告为 `ui-full-test-2026-08-24T13-04-28-833Z.json`；运行方法和性能数据见 [`UiAutomationTesting.md`](UiAutomationTesting.md)。
 
 ## 2. 套件到功能映射
 
@@ -168,4 +168,4 @@
 
 ## 5. 日期说明
 
-本轮基准日期和系统日期均为 2026-08-22，隔离 profile 目录名中的 `20260822` 与实际日期一致。测试未修改系统时钟。
+本轮统一 UI 复检日期和系统日期均为 2026-08-24，隔离 profile 目录名中的 `20260824` 与实际日期一致。测试未修改系统时钟。

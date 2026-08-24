@@ -5,35 +5,50 @@
              x:DataType="viewModels:RedMineConfigurationViewModel"
              Padding="8">
     <Grid RowDefinitions="Auto,*" RowSpacing="12">
-        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-            <TextBlock Text="Redmine Tracker 实例" FontSize="18" FontWeight="SemiBold"
-                       VerticalAlignment="Center" />
-            <Button Grid.Column="1" Content="添加实例" Command="{Binding AddInstanceCommand}" />
-            <Button Grid.Column="2" Content="删除实例" Classes="Danger"
-                    Command="{Binding RemoveInstanceCommand}"
-                    IsEnabled="{Binding CanRemoveInstance}" />
-        </Grid>
-        <Grid Grid.Row="1" ColumnDefinitions="220,*" ColumnSpacing="16">
-            <ListBox ItemsSource="{Binding Instances}" SelectedItem="{Binding SelectedInstance}">
+        <Border Classes="PageHeader">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                <StackPanel Spacing="3">
+                    <TextBlock Text="Redmine Tracker 实例" Classes="SectionTitle" />
+                    <TextBlock Text="维护 Redmine 服务实例、连接参数与标签自动化规则。" Classes="SectionDescription" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="添加实例" Classes="Primary"
+                        Command="{Binding AddInstanceCommand}" VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+        <Grid Grid.Row="1" ColumnDefinitions="260,*" ColumnSpacing="12">
+            <Border Classes="MasterPane">
+            <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
+                <TextBlock Text="实例" Classes="SectionTitle" />
+                <ListBox Grid.Row="1" ItemsSource="{Binding Instances}" SelectedItem="{Binding SelectedInstance}">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <StackPanel Spacing="2" Margin="4">
+                        <StackPanel Spacing="3" Margin="4,6">
                             <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
-                            <TextBlock Text="{Binding InstanceId}" FontSize="11" Opacity="0.6" />
+                            <TextBlock Text="{Binding InstanceId}" FontSize="11" FontFamily="monospace" Opacity="0.6" />
                         </StackPanel>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
-            </ListBox>
-            <ScrollViewer Grid.Column="1" IsVisible="{Binding HasSelectedInstance}">
-                <StackPanel Spacing="12">
-                    <Expander Header="实例配置" IsExpanded="True">
+                </ListBox>
+                <Button Grid.Row="2" Content="删除实例" Classes="Danger"
+                        Command="{Binding RemoveInstanceCommand}" IsEnabled="{Binding CanRemoveInstance}" />
+            </Grid>
+            </Border>
+            <Border Grid.Column="1" Classes="DetailPane">
+            <ScrollViewer IsVisible="{Binding HasSelectedInstance}">
+                <StackPanel Spacing="14" Margin="16">
+                    <StackPanel Spacing="3">
+                        <TextBlock Text="实例配置" Classes="SectionTitle" />
+                        <TextBlock Text="分别维护连接参数与自动关联工作标签的规则。" Classes="SectionDescription" />
+                    </StackPanel>
+                    <Expander Classes="WorkspaceSection" Header="连接参数" IsExpanded="True">
                         <ItemsControl Classes="Settings" ItemsSource="{Binding InstanceSettings.Children}" />
                     </Expander>
-                    <Expander Header="标签自动规则" IsExpanded="True">
+                    <Expander Classes="WorkspaceSection" Header="标签自动规则" IsExpanded="True">
                         <ContentControl Content="{Binding TagRuleEditor}" />
                     </Expander>
                 </StackPanel>
             </ScrollViewer>
+            </Border>
         </Grid>
     </Grid>
 </UserControl>
