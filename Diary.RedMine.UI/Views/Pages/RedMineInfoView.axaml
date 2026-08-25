@@ -10,15 +10,8 @@
              x:DataType="pages1:RedMineInfoViewModel"
              x:Class="Diary.RedMine.UI.Views.Pages.RedMineInfoView"
              Padding="8">
-    <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="10">
-        <Border Classes="PageHeader">
-            <StackPanel Spacing="3">
-                <TextBlock Text="基本信息" Classes="SectionTitle" />
-                <TextBlock Text="查看当前 Redmine 用户、活动定义和已导入到本地的问题。"
-                           Classes="SectionDescription" />
-            </StackPanel>
-        </Border>
-        <Expander Grid.Row="1" Classes="WorkspaceSection" IsExpanded="False" Header="用户信息">
+    <Grid RowDefinitions="Auto,Auto,*" RowSpacing="10">
+        <Expander Classes="WorkspaceSection" IsExpanded="False" Header="用户信息">
             <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="4" ColumnSpacing="4">
                 <TextBlock Grid.Column="0" Grid.Row="0" Text="用户ID：" />
                 <TextBlock Grid.Column="1" Grid.Row="0" Text="{Binding UserId}" />
@@ -28,7 +21,7 @@
                 <TextBlock Grid.Column="1" Grid.Row="2" Text="{Binding UserName}" />
             </Grid>
         </Expander>
-        <Expander Grid.Row="2" Classes="WorkspaceSection" IsExpanded="False" Header="活动列表">
+        <Expander Grid.Row="1" Classes="WorkspaceSection" IsExpanded="False" Header="活动列表">
             <StackPanel Orientation="Vertical" Spacing="16" HorizontalAlignment="Left">
                 <ItemsControl ItemsSource="{Binding Activities}">
                     <ItemsControl.ItemsPanel>
@@ -54,7 +47,7 @@
                 </Button>
             </StackPanel>
         </Expander>
-        <Border Grid.Row="3" Classes="SectionCard">
+        <Border Grid.Row="2" Classes="SectionCard">
         <Grid RowDefinitions="Auto,*" RowSpacing="10">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                 <StackPanel Spacing="2">

@@ -7,21 +7,14 @@
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="Diary.RedMine.UI.Views.RedMineManageView"
              x:DataType="viewModels:RedMineManageViewModel">
-    <Grid Margin="8" RowDefinitions="Auto,*" RowSpacing="12">
-        <Border Classes="PageHeader" IsVisible="{Binding ServerOk}">
-            <StackPanel Spacing="3">
-                <TextBlock Text="Redmine 管理" Classes="PageTitle" />
-                <TextBlock Text="查看账户与已导入问题，搜索远程问题和项目，并创建新问题。"
-                           Classes="PageSubtitle" />
-            </StackPanel>
-        </Border>
+    <Grid Margin="8">
         <StackPanel IsVisible="{Binding !ServerOk}" HorizontalAlignment="Center"
-                    Grid.RowSpan="2" VerticalAlignment="Center" Spacing="6">
+                    VerticalAlignment="Center" Spacing="6">
             <TextBlock Text="无法连接 Redmine 服务器" Classes="EmptyStateTitle" />
             <TextBlock Text="请检查 Redmine 服务地址、API Key 和网络连接。"
                        Classes="EmptyStateDescription" />
         </StackPanel>
-        <Border Grid.Row="1" Classes="DetailPane" IsVisible="{Binding ServerOk}">
+        <Border Classes="DetailPane" IsVisible="{Binding ServerOk}">
         <TabControl ItemsSource="{Binding Tabs}"
                     TabStripPlacement="Top" Theme="{DynamicResource LineTabControl}"
                     Margin="12,4,12,12">

@@ -6,6 +6,7 @@
 
 ## 2026-08-25 日历与 Redmine 回归修复
 
+- [x] 精简 Redmine 管理页视觉层级，移除与动态导航重复的外层“Redmine 管理”说明卡和与页签重复的“基本信息”说明卡；内容直接从页签、用户信息、活动列表和已导入问题开始，Linux X11 `ui-redmine-style` 5/5 通过。
 - [x] 紧凑周历月份标题对鼠标右键、`Shift+F10` 和系统上下文请求显式打开月/季度/年度菜单，避免同一按钮的完整月历 Flyout 截断上下文菜单路由；Linux X11 `ui-core-full` 原始断言 14/14 通过。
 - [x] Redmine 空关键字项目列表统一读取兼容 `projects` 与 `results` 的项目集合，`/projects.json` 不再被误判为空；新增本地 HTTP 回归测试。
 - [x] Redmine Issue 启停改为数据库成功后原位替换 UI 集合项并同步开放 Issue 列表，不再依赖清空重载整个 DataGrid；真实 Redmine `ui-redmine-full` 原始断言 12/12 通过。
