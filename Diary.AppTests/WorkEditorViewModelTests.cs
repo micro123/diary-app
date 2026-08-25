@@ -381,6 +381,35 @@ public sealed class WorkEditorViewModelTests
     }
 
     [TestMethod]
+    public void SynchronizedItemKeepsExtraFieldsVisibleAsReadOnly()
+    {
+        var viewModel = CreateViewModel(CreateCloneTrackerRegistry());
+        var extension = (CloneTrackerExtension)viewModel.Extensions.Single();
+        extension.IsLocked = true;
+        LoadExistingItem(viewModel, new WorkItem
+        {
+            Id = 10,
+            CreateDate = "2026-08-22",
+            Comment = "已同步记录",
+        });
+
+        viewModel.SyncFromBatch(
+            [],
+            [],
+            null,
+            new Dictionary<int, ICollection<WorkItemExtraField>>
+            {
+                [10] = [new WorkItemExtraField { FieldId = "synced", Label = "同步字段" }],
+            });
+
+        Assert.IsTrue(viewModel.IsLocked);
+        Assert.IsTrue(viewModel.ShowExtraFieldsButton);
+        Assert.IsTrue(viewModel.CanOpenExtraFields);
+        Assert.IsTrue(viewModel.IsExtraFieldsReadOnly);
+        Assert.AreEqual("查看附加信息", viewModel.ExtraFieldsButtonText);
+    }
+
+    [TestMethod]
     public void EditableItemKeepsTrackerEditorContentEnabled()
     {
         var viewModel = CreateViewModel(CreateCloneTrackerRegistry());
@@ -403,6 +432,8 @@ public sealed class WorkEditorViewModelTests
         Assert.IsFalse(viewModel.IsImportedReadOnly);
         Assert.IsTrue(viewModel.ShowExtraFieldsButton);
         Assert.IsTrue(viewModel.CanOpenExtraFields);
+        Assert.IsFalse(viewModel.IsExtraFieldsReadOnly);
+        Assert.AreEqual("附加信息", viewModel.ExtraFieldsButtonText);
         Assert.IsFalse(viewModel.TrackerTabs.Single().IsHostReadOnly);
     }
 
@@ -649,7 +680,7 @@ public sealed class WorkEditorViewModelTests
         public TrackerKey Key => new("test.clone", "local");
         public string InstanceId => Key.InstanceId;
         ViewModelBase ITrackerEditorExtension.View => this;
-        public bool IsLocked => false;
+        public bool IsLocked { get; set; }
         public bool CanDelete => true;
         public bool OptionsLoaded { get; private set; }
         public bool OptionsLoadedWhenCloned { get; private set; }

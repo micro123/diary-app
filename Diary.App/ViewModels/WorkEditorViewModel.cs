@@ -96,8 +96,9 @@ public partial class WorkEditorViewModel : ViewModelBase
     public bool HasAvailableTags => !IsLocked && AvailableTags.Count > 0;
     public bool HasExtraFields => _extraFields.Count > 0;
     public bool ShowExtraFieldsButton => HasExtraFields && !IsImportedReadOnly;
-    public bool CanOpenExtraFields => ShowExtraFieldsButton && !IsLocked;
-    public string ExtraFieldsButtonText => "附加信息";
+    public bool CanOpenExtraFields => ShowExtraFieldsButton;
+    public bool IsExtraFieldsReadOnly => IsLocked;
+    public string ExtraFieldsButtonText => IsExtraFieldsReadOnly ? "查看附加信息" : "附加信息";
     public string ExtraFieldsSummary => _extraFields.Count == 0
         ? "暂无附加信息"
         : string.Join(Environment.NewLine, _extraFields
@@ -450,7 +451,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         if (fields.Count == 0)
             return;
         var dialog = new WorkItemExtraFieldsViewModel(
-            Db!, WorkId, fields, isReadOnly: IsImportedReadOnly);
+            Db!, WorkId, fields, isReadOnly: IsExtraFieldsReadOnly);
         var result = await OverlayDialog.ShowCustomModal<bool>(dialog, options: new OverlayDialogOptions
         {
             Title = dialog.Title,
@@ -548,6 +549,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         OnPropertyChanged(nameof(HasExtraFields));
         OnPropertyChanged(nameof(ShowExtraFieldsButton));
         OnPropertyChanged(nameof(CanOpenExtraFields));
+        OnPropertyChanged(nameof(IsExtraFieldsReadOnly));
         OnPropertyChanged(nameof(ExtraFieldsSummary));
         OnPropertyChanged(nameof(ExtraFieldsButtonText));
     }
@@ -1000,6 +1002,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         OnPropertyChanged(nameof(HasAvailableTags));
         OnPropertyChanged(nameof(ShowExtraFieldsButton));
         OnPropertyChanged(nameof(CanOpenExtraFields));
+        OnPropertyChanged(nameof(IsExtraFieldsReadOnly));
         OnPropertyChanged(nameof(ExtraFieldsButtonText));
     }
 }

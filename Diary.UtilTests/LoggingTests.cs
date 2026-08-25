@@ -3,25 +3,43 @@ using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Events;
 
+using System.Text.RegularExpressions;
 namespace Diary.UtilTests;
 
 [TestClass]
 public class LoggingTests
 {
     [TestMethod]
-    public void LogIncludesManagedThreadId()
+    public void FileSinkUsesCompactTimestampAndOmitsThreadMetadata()
     {
-        var logDirectory = FsTools.GetApplicationDataDirectory();
-        var threadId = Environment.CurrentManagedThreadId;
+        var directory = Path.Combine(Path.GetTempPath(), $"diary-log-format-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "Diary.App.log");
+            using (var logger = Logging.ConfigureFileSink(
+                       new LoggerConfiguration().MinimumLevel.Verbose(),
+                       path,
+                       LogEventLevel.Verbose)
+                   .CreateLogger())
+            {
+                logger.ForContext<LoggingTests>().Information("紧凑格式");
+            }
 
-        Logging.Logger.LogInformation("线程 ID 测试 {ThreadId}", threadId);
-        Logging.Shutdown();
-
-        var logPath = Directory.EnumerateFiles(logDirectory, "Diary.App*.log")
-            .OrderByDescending(File.GetLastWriteTimeUtc)
-            .First();
-        var log = File.ReadAllText(logPath);
-        StringAssert.Contains(log, $"[T{threadId}]");
+            var log = File.ReadAllText(path);
+            Assert.IsTrue(
+                Regex.IsMatch(
+                    log,
+                    @"^\[\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] \[INF\] \[Diary\.UtilTests\.LoggingTests\] 紧凑格式\r?$",
+                    RegexOptions.Multiline),
+                log);
+            Assert.DoesNotContain("[T", log);
+            Assert.IsFalse(Regex.IsMatch(log, @"\.\d{3} [+-]\d{2}:\d{2}\]"), log);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
     }
 
     [TestMethod]

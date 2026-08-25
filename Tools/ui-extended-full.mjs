@@ -470,6 +470,10 @@ await runUiSuite({ name: 'ui-extended-full', scenario: 'extended', timeoutMs: 12
             const row = scriptRow(tree, item.name);
             assertUi(row && descendants(tree, row).some(entry => textOf(entry) === 'V2'),
                 '脚本列表缺少 V2 标识：' + item.name);
+            const versionBadge = descendants(tree, row)
+                .find(entry => nameOf(entry) === 'ScriptApiVersionBadge');
+            assertUi(versionBadge && Number(versionBadge.a.Width) >= 30 && Number(versionBadge.a.Height) >= 18,
+                '脚本 API 版本标识缺少圆角矩形背景容器：' + item.name);
         }
         await activateText(connection, 'ScriptManagementView', '重新加载');
         const reloaded = await connection.waitForTree(current => findByTextContains(current, '已加载 3 个脚本'),
@@ -517,6 +521,10 @@ await runUiSuite({ name: 'ui-extended-full', scenario: 'extended', timeoutMs: 12
         tree = await connection.getTree();
         root = rootOf(tree, 'ScriptManagementView');
         assertUi(textWithin(tree, root, '清空日志'), '运行日志缺少清理入口');
+        assertUi(textWithin(tree, root, '复制全部'), '运行日志缺少复制全部入口');
+        const runLogTextBox = findByName(tree, 'ScriptRunLogTextBox');
+        assertUi(runLogTextBox && typeOf(runLogTextBox).includes('TextBox'),
+            '运行日志没有使用可选择复制的只读文本框');
         tree = await connection.getTree();
         root = rootOf(tree, 'ScriptManagementView');
         tabText = textWithin(tree, root, 'API Reference');

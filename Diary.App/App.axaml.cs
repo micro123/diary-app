@@ -1331,7 +1331,7 @@ namespace Diary.App
             return new ScriptLogApi((level, message) =>
             {
                 var formatted = $"[Script:{scriptId}][Execution:{correlationId}] {message}";
-                store.Append(level, formatted);
+                store.Append(level, message, scriptId);
                 switch (level)
                 {
                     case ScriptLogLevel.Debug:

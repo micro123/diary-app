@@ -283,6 +283,7 @@ public partial class ScriptManagementViewModel(
     public bool ShowNoResultsState => !Loading && HasScripts && !HasVisibleScripts;
     public bool HasSelectedDiagnostics => SelectedScript?.Diagnostics.Count > 0;
     public bool HasScriptLogs => ScriptLogs.Count > 0;
+    public string ScriptLogsText => ScriptLogStore.FormatText(ScriptLogs);
     public bool HasDirectoryDiagnostics => DirectoryDiagnostics.Count > 0;
     private bool _scriptLogSubscribed;
     private bool _progressSubscribed;
@@ -402,6 +403,7 @@ public partial class ScriptManagementViewModel(
 
         ScriptLogs.ReplaceAll(scriptLogStore.GetSnapshot());
         OnPropertyChanged(nameof(HasScriptLogs));
+        OnPropertyChanged(nameof(ScriptLogsText));
     }
 
     [RelayCommand]
@@ -667,6 +669,15 @@ public partial class ScriptManagementViewModel(
             return;
         if (await CopyStringToClipboardAsync(history.Log))
             NotificationManager?.Show("执行日志已复制", NotificationType.Success);
+    }
+
+    [RelayCommand]
+    private async Task CopyScriptLogs()
+    {
+        if (!HasScriptLogs)
+            return;
+        if (await CopyStringToClipboardAsync(ScriptLogsText))
+            NotificationManager?.Show("运行日志已复制", NotificationType.Success);
     }
 
     [RelayCommand]

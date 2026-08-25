@@ -34,7 +34,7 @@ Dump 和关联滚动日志归档仅保存在本机，不自动上传。Dump 可�
 - `<进程>-<UTC时间>-<PID>.json`：捕获结果和简要异常信息；
 - 捕获期间短暂存在的 `.request.json`，完成后删除。
 
-正常应用日志只按大小滚动，基础文件名固定为 `Diary.App.log`，单文件上限为 16 MiB，达到上限后使用 `Diary.App_001.log`、`Diary.App_002.log` 等可预测序号继续写入，最多保留最近 4 个文件；文件名不包含日期。日志初始化时会清理旧版 `Diary.AppYYYYMMDD.log` 和 `Diary.AppYYYYMMDD_NNN.log`，避免旧文件绕过保留上限。默认只保留最近 5 个成功 Dump，并同步清理对应结果文件和 `.logs.zip` 日志归档。
+正常应用日志只按大小滚动，基础文件名固定为 `Diary.App.log`，单文件上限为 16 MiB，达到上限后使用 `Diary.App_001.log`、`Diary.App_002.log` 等可预测序号继续写入，最多保留最近 4 个文件；文件名不包含日期。日志行使用 `[MM-dd HH:mm:ss] [LVL] [SourceContext] message` 紧凑格式，不记录年份、毫秒、时区或托管线程 ID。日志初始化时会清理旧版 `Diary.AppYYYYMMDD.log` 和 `Diary.AppYYYYMMDD_NNN.log`，避免旧文件绕过保留上限。默认只保留最近 5 个成功 Dump，并同步清理对应结果文件和 `.logs.zip` 日志归档。
 
 ## 4. 异常边界
 

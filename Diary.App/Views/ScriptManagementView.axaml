@@ -3,7 +3,6 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
               xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                xmlns:vm="using:Diary.App.ViewModels"
-               xmlns:models="using:Diary.App.Models"
                xmlns:views="using:Diary.App.Views"
               xmlns:i="https://github.com/projektanker/icons.avalonia"
              x:Class="Diary.App.Views.ScriptManagementView"
@@ -93,15 +92,17 @@
                                         <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold"
                                                    TextTrimming="CharacterEllipsis"
                                                    VerticalAlignment="Center" />
-                                        <Border Padding="6,1" CornerRadius="8"
+                                        <Border Name="ScriptApiVersionBadge"
+                                                MinWidth="30" Padding="6,2" CornerRadius="6"
                                                 VerticalAlignment="Center"
-                                                Background="{DynamicResource SemiColorPrimaryBrush}"
+                                                Background="{DynamicResource SemiColorFill1}"
                                                 BorderBrush="{DynamicResource SemiColorPrimaryBrush}"
                                                 BorderThickness="1"
                                                 ToolTip.Tip="{Binding ApiVersionDescription}">
                                             <TextBlock Text="{Binding ApiVersionLabel}" FontSize="11"
                                                        FontWeight="SemiBold"
-                                                       Foreground="{DynamicResource ButtonDefaultPrimaryForeground}" />
+                                                       TextAlignment="Center"
+                                                       Foreground="{DynamicResource SemiColorPrimaryBrush}" />
                                         </Border>
                                     </StackPanel>
                                     <TextBlock Text="{Binding Id}" Opacity="0.58" />
@@ -298,24 +299,19 @@
                     <Grid RowDefinitions="Auto,*" RowSpacing="8" Margin="8">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
                             <TextBlock Text="当前会话的脚本日志" Opacity="0.68" VerticalAlignment="Center" />
+                            <Button Content="复制全部" Command="{Binding CopyScriptLogsCommand}"
+                                    IsEnabled="{Binding HasScriptLogs}" />
                             <Button Content="清空日志" Command="{Binding ClearScriptLogsCommand}"
                                     IsEnabled="{Binding HasScriptLogs}" />
                         </StackPanel>
-                        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto">
-                            <Grid>
-                                <ItemsControl ItemsSource="{Binding ScriptLogs}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="models:ScriptLogEntry">
-                                            <TextBlock Text="{Binding DisplayText}" TextWrapping="Wrap" Margin="2"
-                                                       FontFamily="Cascadia Code,Consolas,Menlo,Monospace" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                                <TextBlock Text="暂无脚本运行日志" Opacity="0.68"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                           IsVisible="{Binding !HasScriptLogs}" />
-                            </Grid>
-                        </ScrollViewer>
+                        <TextBox Name="ScriptRunLogTextBox" Grid.Row="1"
+                                 Text="{Binding ScriptLogsText, Mode=OneWay}"
+                                 IsReadOnly="True" AcceptsReturn="True"
+                                 TextWrapping="NoWrap" VerticalContentAlignment="Top"
+                                 FontFamily="Cascadia Code,Consolas,Menlo,Monospace"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 Watermark="暂无脚本运行日志" />
                     </Grid>
                 </TabItem>
                 <TabItem Header="AI 上下文">
