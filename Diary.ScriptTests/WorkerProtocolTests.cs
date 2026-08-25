@@ -31,6 +31,20 @@ public sealed class WorkerProtocolTests
     }
 
     [TestMethod]
+    public void Negotiate_SelectsHighestCommonApiVersion()
+    {
+        var result = WorkerHandshake.Negotiate(
+            CreateHello(apis: [ScriptApiVersion.V1, ScriptApiVersion.V2]),
+            new WorkerHandshakeOptions(
+                "csharp",
+                [ScriptApiVersion.V1, ScriptApiVersion.V2],
+                ["workItems.query"]));
+
+        Assert.IsTrue(result.Accepted);
+        Assert.AreEqual(ScriptApiVersion.V2, result.AcceptedPayload!.ApiVersion);
+    }
+
+    [TestMethod]
     [DataRow("wrong.protocol", 1)]
     [DataRow("diary.script.worker", 2)]
     public void Negotiate_RejectsProtocolMismatch(string protocol, int version)

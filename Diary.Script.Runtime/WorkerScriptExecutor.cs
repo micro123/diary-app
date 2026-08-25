@@ -63,7 +63,9 @@ public sealed class WorkerScriptExecutor(
                          descriptor.Description,
                          engineName,
                          descriptor.SupportedEditorTargets,
-                         descriptor.EntryKind)),
+                         descriptor.EntryKind,
+                         descriptor.Parameters),
+                    descriptor.ApiVersion),
                 timeout,
                 cancellationToken,
                 hostCallContext);
@@ -109,7 +111,8 @@ public sealed record WorkerExecutePayload(
     string SourcePath,
     string Source,
     ScriptExecutionRequest Request,
-    ScriptDescriptorHint? DescriptorHint = null);
+    ScriptDescriptorHint? DescriptorHint = null,
+    ScriptApiVersion ApiVersion = ScriptApiVersion.V1);
 
 public enum WorkerIsolationMode
 {

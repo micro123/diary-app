@@ -59,7 +59,8 @@ public sealed class PythonEngine : IScriptEngineV1, IScriptValidatorV1
             descriptorHint.Scope!.Value,
             descriptorHint.Description,
             descriptorHint.SupportedEditorTargets,
-            descriptorHint.EntryKind);
+            descriptorHint.EntryKind,
+            descriptorHint.Parameters);
         return ScriptBuildResult.Success(new PythonProgram(
             descriptor,
             request.SourcePath,

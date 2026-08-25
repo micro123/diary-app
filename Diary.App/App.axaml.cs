@@ -557,7 +557,7 @@ namespace Diary.App
                         hostCallTimeout: TimeSpan.FromSeconds(30),
                         heartbeatInterval: TimeSpan.FromSeconds(30),
                         heartbeatTimeout: TimeSpan.FromSeconds(15)),
-                    new WorkerHandshakeOptions("csharp", [ScriptApiVersion.V1], ScriptHostApiCatalog.All),
+                    new WorkerHandshakeOptions("csharp", [ScriptApiVersion.V1, ScriptApiVersion.V2], ScriptHostApiCatalog.All),
                     sharedWorkerPolicy);
                 var luaRuntime = new WorkerRuntime(
                     "lua",
@@ -569,7 +569,7 @@ namespace Diary.App
                         hostCallTimeout: TimeSpan.FromSeconds(30),
                         heartbeatInterval: TimeSpan.FromSeconds(30),
                         heartbeatTimeout: TimeSpan.FromSeconds(15)),
-                    new WorkerHandshakeOptions("lua", [ScriptApiVersion.V1], ScriptHostApiCatalog.All),
+                    new WorkerHandshakeOptions("lua", [ScriptApiVersion.V1, ScriptApiVersion.V2], ScriptHostApiCatalog.All),
                     sharedWorkerPolicy);
                 var pythonRuntime = new WorkerRuntime(
                     "python",
@@ -582,7 +582,7 @@ namespace Diary.App
                         hostCallTimeout: TimeSpan.FromSeconds(30),
                         heartbeatInterval: TimeSpan.FromSeconds(30),
                         heartbeatTimeout: TimeSpan.FromSeconds(15)),
-                    new WorkerHandshakeOptions("python", [ScriptApiVersion.V1], ScriptHostApiCatalog.All),
+                    new WorkerHandshakeOptions("python", [ScriptApiVersion.V1, ScriptApiVersion.V2], ScriptHostApiCatalog.All),
                     dedicatedWorkerPolicy);
                 return new WorkerScriptExecutor(
                     services.GetRequiredService<IScriptCatalog>(),
@@ -694,6 +694,7 @@ namespace Diary.App
                             StartDate = range.StartDate,
                             EndDate = range.EndDate,
                         }, cancellationToken: cancellationToken),
+                        ScriptAutomationContextFactory.FromRequest(request),
                         progressReporter: update =>
                         {
                             Services.GetRequiredService<ScriptProgressTracker>().Report(

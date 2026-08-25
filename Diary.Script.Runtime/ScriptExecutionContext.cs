@@ -106,3 +106,42 @@ public sealed class ScriptExecutionContext(
 
     private sealed record ApiRegistration(object Api);
 }
+
+internal sealed class BoundScriptExecutionContext(
+    IScriptExecutionContext inner,
+    ScriptExecutionRequest request) : IScriptApplicationContext, IScriptEditorContext, IScriptAutomationContext
+{
+    public ScriptExecutionMetadata? Metadata => inner.Metadata;
+
+    public ScriptEntryKind EntryKind => request.EntryKind ?? inner.EntryKind;
+
+    public IReadOnlyDictionary<string, string> Arguments { get; } =
+        request.Arguments ?? ImmutableDictionary<string, string>.Empty;
+
+    public CancellationToken CancellationToken => inner.CancellationToken;
+
+    public bool IsCancellationRequested => inner.IsCancellationRequested;
+
+    public ScriptEditorTarget Target => request.Target
+        ?? throw new InvalidOperationException("编辑器上下文必须提供目标。");
+
+    public ScriptWorkItem? WorkItem => request.Target?.WorkItem;
+
+    public ScriptAutomationContext Automation { get; } = ScriptAutomationContextFactory.FromRequest(request);
+
+    public ValueTask ReportProgressAsync(ScriptProgressUpdate update) => inner.ReportProgressAsync(update);
+
+    public TApi? GetApi<TApi>() where TApi : class => inner.GetApi<TApi>();
+
+    public TApi GetRequiredApi<TApi>() where TApi : class => inner.GetRequiredApi<TApi>();
+
+    public ScriptDateRange? GetDateRange() => request.Target is null
+        ? null
+        : ScriptEditorTargetResolver.GetDateRange(request.Target);
+
+    public IAsyncEnumerable<ScriptWorkItem> StreamItemsAsync(
+        CancellationToken cancellationToken = default) =>
+        inner is IScriptEditorContext editorContext
+            ? editorContext.StreamItemsAsync(cancellationToken)
+            : throw new InvalidOperationException("当前脚本上下文未配置事项迭代 API。");
+}

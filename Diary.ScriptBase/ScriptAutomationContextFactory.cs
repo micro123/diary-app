@@ -14,6 +14,6 @@ public static class ScriptAutomationContextFactory
             ScriptExecutionSource.TagAdded => ScriptAutomationTriggerKind.TagAdded,
             _ => ScriptAutomationTriggerKind.Unknown,
         },
-        request.Arguments ?? ImmutableDictionary<string, string>.Empty,
+        request.AutomationEventData ?? request.Arguments ?? ImmutableDictionary<string, string>.Empty,
         request.IdempotencyKey);
 }

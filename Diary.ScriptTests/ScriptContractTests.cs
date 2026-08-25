@@ -10,10 +10,13 @@ namespace Diary.ScriptTests;
 public sealed class ScriptContractTests
 {
     [TestMethod]
-    public void StableValues_AreExplicitAndVersionIsV1()
+    public void StableValues_AreExplicitAndCurrentVersionIsV2()
     {
         Assert.AreEqual(1, EnumValue<ScriptApiVersion>("V1"));
-        Assert.AreEqual((int)ScriptApiVersions.Current, EnumValue<ScriptApiVersion>("V1"));
+        Assert.AreEqual(2, EnumValue<ScriptApiVersion>("V2"));
+        CollectionAssert.AreEquivalent(
+            new[] { ScriptApiVersion.V1, ScriptApiVersion.V2 },
+            ScriptApiVersions.Supported.ToArray());
         Assert.AreEqual(3, EnumValue<ScriptDiagnosticSeverity>("Error"));
         Assert.AreEqual(6, EnumValue<ScriptDiagnosticCategory>("Host"));
         Assert.AreEqual(4, EnumValue<ScriptExecutionStatus>("Rejected"));
@@ -24,12 +27,27 @@ public sealed class ScriptContractTests
     [TestMethod]
     public void Contracts_RoundTripWithSystemTextJson()
     {
+        var parameters = new[]
+        {
+            new ScriptParameterDefinition(
+                "format",
+                "Format",
+                ScriptParameterType.Choice,
+                Required: true,
+                DefaultValue: "markdown",
+                Choices:
+                [
+                    new("markdown", "Markdown"),
+                    new("csv", "CSV"),
+                ]),
+        };
         var descriptor = new ScriptDescriptor(
             "daily-summary",
             "Daily summary",
-            ScriptApiVersion.V1,
+            ScriptApiVersion.V2,
             ScriptScope.Editor,
-            "Read-only summary");
+            "Read-only summary",
+            Parameters: parameters);
         var diagnostic = new ScriptDiagnostic(
             "TEST001",
             "message",
@@ -42,18 +60,32 @@ public sealed class ScriptContractTests
         var descriptorJson = JsonSerializer.Serialize(descriptor);
         var diagnosticJson = JsonSerializer.Serialize(diagnostic);
 
-        Assert.AreEqual(descriptor, JsonSerializer.Deserialize<ScriptDescriptor>(descriptorJson));
+        var restoredDescriptor = JsonSerializer.Deserialize<ScriptDescriptor>(descriptorJson);
+        Assert.IsNotNull(restoredDescriptor);
+        Assert.AreEqual(descriptor.Id, restoredDescriptor.Id);
+        Assert.AreEqual(descriptor.ApiVersion, restoredDescriptor.ApiVersion);
+        var restoredParameter = restoredDescriptor.Parameters!.Single();
+        Assert.AreEqual(parameters.Single().Name, restoredParameter.Name);
+        Assert.AreEqual(parameters.Single().Type, restoredParameter.Type);
+        Assert.AreEqual(parameters.Single().DefaultValue, restoredParameter.DefaultValue);
+        CollectionAssert.AreEqual(
+            parameters.Single().Choices!.ToArray(),
+            restoredParameter.Choices!.ToArray());
         Assert.AreEqual(diagnostic, JsonSerializer.Deserialize<ScriptDiagnostic>(diagnosticJson));
-        StringAssert.Contains(descriptorJson, "\"ApiVersion\":1");
+        StringAssert.Contains(descriptorJson, "\"ApiVersion\":2");
         StringAssert.Contains(diagnosticJson, "\"Severity\":2");
 
         var buildRequest = new ScriptBuildRequest("script.test", "source");
         var executionRequest = new ScriptExecutionRequest(
-            ScriptEditorTarget.ForMonth(2026, 8));
+            ScriptEditorTarget.ForMonth(2026, 8),
+            AutomationEventData: ImmutableDictionary<string, string>.Empty.Add("workItemId", "42"));
         Assert.AreEqual(buildRequest, JsonSerializer.Deserialize<ScriptBuildRequest>(
             JsonSerializer.Serialize(buildRequest)));
-        Assert.AreEqual(executionRequest, JsonSerializer.Deserialize<ScriptExecutionRequest>(
-            JsonSerializer.Serialize(executionRequest)));
+        var restoredExecutionRequest = JsonSerializer.Deserialize<ScriptExecutionRequest>(
+            JsonSerializer.Serialize(executionRequest));
+        Assert.IsNotNull(restoredExecutionRequest);
+        Assert.AreEqual(executionRequest.Target, restoredExecutionRequest.Target);
+        Assert.AreEqual("42", restoredExecutionRequest.AutomationEventData!["workItemId"]);
 
         var buildResult = JsonSerializer.Deserialize<ScriptBuildResult>(JsonSerializer.Serialize(
             ScriptBuildResult.Failure(diagnostic)));

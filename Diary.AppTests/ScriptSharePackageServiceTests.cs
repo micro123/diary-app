@@ -19,7 +19,21 @@ public sealed class ScriptSharePackageServiceTests
         var packagePath = Path.Combine(CreateRoot(), "shared.diaryscripts");
         try
         {
-            var appSource = await CreateScriptAsync(sourceRoot, "application", "alpha.cs", "// alpha", """{"TimeoutSeconds":30}""");
+            var appSource = await CreateScriptAsync(
+                sourceRoot,
+                "application",
+                "alpha.cs",
+                "// alpha",
+                """
+                {
+                  "apiVersion": "V2",
+                  "parameters": [
+                    { "name": "limit", "label": "Limit", "type": "Integer" }
+                  ],
+                  "defaultArguments": { "limit": "25" },
+                  "timeoutSeconds": 30
+                }
+                """);
             var editorSource = await CreateScriptAsync(
                 sourceRoot,
                 "editor",
@@ -52,7 +66,7 @@ public sealed class ScriptSharePackageServiceTests
             Assert.AreEqual("// alpha", await File.ReadAllTextAsync(Path.Combine(targetRoot, "application", "alpha.cs")));
             StringAssert.Contains(
                 await File.ReadAllTextAsync(Path.Combine(targetRoot, "application", "alpha.cs.json")),
-                "TimeoutSeconds");
+                "\"apiVersion\": \"V2\"");
             StringAssert.Contains(
                 await File.ReadAllTextAsync(Path.Combine(targetRoot, "editor", "beta.py")),
                 "editor_main");
@@ -77,12 +91,18 @@ public sealed class ScriptSharePackageServiceTests
             var source = Path.Combine(packageSourceDirectory, "main.lua");
             await File.WriteAllTextAsync(source, "return true");
             var metadata = new ScriptFileMetadata(
+                ApiVersion: ScriptApiVersion.V2,
                 Id: "portable-lua",
                 Name: "Portable Lua",
                 Engine: "lua",
                 Scope: ScriptScope.Application,
                 EntryKind: ScriptEntryKind.Automation,
-                Schedule: "daily 08:30");
+                Schedule: "daily 08:30",
+                DefaultArguments: new Dictionary<string, string> { ["limit"] = "25" },
+                Parameters:
+                [
+                    new("limit", "Limit", ScriptParameterType.Integer, Required: true),
+                ]);
             var service = CreateService();
 
             await service.ExportAsync(packagePath, sourceRoot,
@@ -108,8 +128,11 @@ public sealed class ScriptSharePackageServiceTests
             var importedMetadata = JsonSerializer.Deserialize<ScriptFileMetadata>(
                 await File.ReadAllTextAsync(importedMetadataPath));
             Assert.IsNotNull(importedMetadata);
+            Assert.AreEqual(ScriptApiVersion.V2, importedMetadata.ApiVersion);
             Assert.AreEqual("portable-lua", importedMetadata.Id);
             Assert.AreEqual("daily 08:30", importedMetadata.Schedule);
+            Assert.AreEqual("limit", importedMetadata.Parameters!.Single().Name);
+            Assert.AreEqual("25", importedMetadata.DefaultArguments!["limit"]);
         }
         finally
         {

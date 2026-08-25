@@ -249,6 +249,106 @@ public sealed class ScriptDirectoryLoaderTests
         Assert.AreEqual("SCRIPT_SCHEDULE_INVALID", entry.BuildResult.Diagnostics.Single().Code);
     }
 
+    [TestMethod]
+    public async Task LoadAsync_V2MetadataExposesParametersAndStoresDefaults()
+    {
+        var loader = CreateLoader(out var catalog);
+        var sourcePath = await WriteScriptAsync("application", "parameterized.fake", "parameterized");
+        await File.WriteAllTextAsync(sourcePath + ".json", """
+            {
+              "apiVersion": "V2",
+              "parameters": [
+                {
+                  "name": "limit",
+                  "label": "Limit",
+                  "type": "Integer",
+                  "required": true
+                }
+              ],
+              "defaultArguments": {
+                "limit": "25"
+              }
+            }
+            """);
+
+        var result = await loader.LoadAsync(_root);
+
+        var entry = result.Entries.Single();
+        Assert.IsTrue(entry.BuildResult!.Succeeded, JoinDiagnostics(entry.BuildResult.Diagnostics));
+        Assert.AreEqual(ScriptApiVersion.V2, entry.BuildResult.Program!.Descriptor.ApiVersion);
+        Assert.AreEqual("limit", entry.BuildResult.Program.Descriptor.Parameters!.Single().Name);
+        Assert.IsTrue(catalog.TryGetSource("parameterized", out var source));
+        Assert.AreEqual("25", source!.DefaultArguments!["limit"]);
+    }
+
+    [TestMethod]
+    public async Task LoadAsync_RejectsInvalidV2MetadataDefault()
+    {
+        var loader = CreateLoader(out var catalog);
+        var sourcePath = await WriteScriptAsync("application", "invalid-default.fake", "invalid-default");
+        await File.WriteAllTextAsync(sourcePath + ".json", """
+            {
+              "apiVersion": "V2",
+              "parameters": [
+                { "name": "limit", "label": "Limit", "type": "Integer" }
+              ],
+              "defaultArguments": { "limit": "not-an-integer" }
+            }
+            """);
+
+        var result = await loader.LoadAsync(_root);
+
+        var entry = result.Entries.Single();
+        Assert.IsFalse(entry.BuildResult!.Succeeded);
+        Assert.AreEqual("SCRIPT_ARGUMENT_TYPE_INVALID", entry.BuildResult.Diagnostics.Single().Code);
+        Assert.IsFalse(catalog.TryGet("invalid-default", out _));
+    }
+
+    [TestMethod]
+    public async Task LoadAsync_AutomationV2RequiresDefaultsForRequiredParameters()
+    {
+        var loader = CreateLoader(out var catalog);
+        var sourcePath = await WriteScriptAsync("application", "automation-v2.fake", "automation-v2");
+        await File.WriteAllTextAsync(sourcePath + ".json", """
+            {
+              "apiVersion": "V2",
+              "entryKind": "Automation",
+              "runOnStartup": true,
+              "parameters": [
+                { "name": "project", "label": "Project", "type": "String", "required": true }
+              ]
+            }
+            """);
+
+        var result = await loader.LoadAsync(_root);
+
+        var entry = result.Entries.Single();
+        Assert.IsFalse(entry.BuildResult!.Succeeded);
+        Assert.AreEqual("SCRIPT_ARGUMENT_REQUIRED", entry.BuildResult.Diagnostics.Single().Code);
+        Assert.IsFalse(catalog.TryGet("automation-v2", out _));
+    }
+
+    [TestMethod]
+    public async Task LoadAsync_ApplicationV2MayRequireRuntimeInput()
+    {
+        var loader = CreateLoader(out var catalog);
+        var sourcePath = await WriteScriptAsync("application", "manual-v2.fake", "manual-v2");
+        await File.WriteAllTextAsync(sourcePath + ".json", """
+            {
+              "apiVersion": "V2",
+              "parameters": [
+                { "name": "project", "label": "Project", "type": "String", "required": true }
+              ]
+            }
+            """);
+
+        var result = await loader.LoadAsync(_root);
+
+        var entry = result.Entries.Single();
+        Assert.IsTrue(entry.BuildResult!.Succeeded, JoinDiagnostics(entry.BuildResult.Diagnostics));
+        Assert.IsTrue(catalog.TryGet("manual-v2", out _));
+    }
+
     private static ScriptDirectoryLoader CreateLoader(out ScriptCatalog catalog)
     {
         var registry = new ScriptEngineRegistry();
@@ -287,9 +387,13 @@ public sealed class ScriptDirectoryLoaderTests
                     id,
                     request.ApiVersion,
                     editor ? ScriptScope.Editor : ScriptScope.Application,
-                    EntryKind: request.DescriptorHint?.EntryKind ?? ScriptEntryKind.Application))));
+                    EntryKind: request.DescriptorHint?.EntryKind ?? ScriptEntryKind.Application,
+                    Parameters: request.DescriptorHint?.Parameters))));
         }
     }
+
+    private static string JoinDiagnostics(IEnumerable<ScriptDiagnostic> diagnostics) =>
+        string.Join(Environment.NewLine, diagnostics.Select(item => $"{item.Code}: {item.Message}"));
 
     private sealed class EngineProbe(string name, string extension) : IScriptEngineV1
     {

@@ -8,7 +8,7 @@
 
 本文同时记录目标设计和当前实现。当前已实现协议握手、版本和 HostCall 协商、UTF-8 JSON 行编解码、
 可注入传输层、本机进程 transport、C#/Lua/Python Worker 执行链路、按 EngineName 隔离的 supervisor、
-双向宿主 API 转发、通道终止结构化失败以及执行消息和宿主调用次数限制。
+双向宿主 API 转发、通道终止结构化失败以及执行消息和宿主调用次数限制。C#、Lua、Python Worker 均声明支持脚本 API V1/V2；握手选择最高共同版本，而每次执行载荷显式携带实际脚本 API 版本，因此同一 Worker 可连续执行 V1 和 V2 脚本。
 工作集上限按 supervisor 的资源检查周期持续监控，stderr 超限会触发 Worker 回收；操作系统级硬内存限制仍按平台能力处理。Windows/Linux CI 已固定 Python 3.10，并在两端执行真实 C#、Lua、Python Worker 进程测试；发布包运行时 Smoke Test 仍需补充。macOS 不在当前支持范围内。Worker 协议 stdout 已与脚本标准输出隔离，并限制脚本输出大小。工作项流当前采用受限分页 HostCall，不跨 Worker 边界持有数据库连接或 reader，详见查询设计文档。现有脚本 V1 类型和执行结果见
 [`ScriptSystemDesign.md`](ScriptSystemDesign.md) 及 `Diary.ScriptBase`。选项选择对话框、通用导出 HostCall（第一阶段为 XLSX，后续 CSV/DOCX）、目录选择令牌和 `FileId` 生命周期见 [`ScriptSpreadsheetExportDesign.md`](ScriptSpreadsheetExportDesign.md)；第一阶段的目录选择、RequireChoice、XLSX 导出和结果文件打开询问已接入 C#、Lua、Python Worker。
 

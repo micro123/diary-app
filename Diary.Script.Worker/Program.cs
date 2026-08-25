@@ -41,7 +41,6 @@ internal sealed class CSharpWorker(Stream input, Stream output)
     private string? _activeExecutionId;
     private int _maxMessageBytes = WorkerProtocol.DefaultMaxMessageBytes;
     private int _maxResultMessageBytes = WorkerProtocol.DefaultMaxResultMessageBytes;
-    private ScriptApiVersion _negotiatedApiVersion = ScriptApiVersion.V1;
     private readonly BoundedTextWriter _console = new(1 * 1024 * 1024);
 
     public async Task RunAsync()
@@ -52,7 +51,7 @@ internal sealed class CSharpWorker(Stream input, Stream output)
             WorkerMessageType.Hello,
             Guid.NewGuid().ToString("N"),
             null,
-            new("csharp", "0.5", [ScriptApiVersion.V1], ScriptHostApiCatalog.All, Environment.ProcessId));
+            new("csharp", "0.6", [ScriptApiVersion.V1, ScriptApiVersion.V2], ScriptHostApiCatalog.All, Environment.ProcessId));
         Console.SetOut(_console);
         // 防止脚本读取 Worker stdin（协议通道）：Console 输入一律视为空流。
         Console.SetIn(TextReader.Null);
@@ -62,7 +61,6 @@ internal sealed class CSharpWorker(Stream input, Stream output)
             return;
         _maxMessageBytes = accepted.Payload.MaxMessageBytes;
         _maxResultMessageBytes = accepted.Payload.MaxResultMessageBytes;
-        _negotiatedApiVersion = accepted.Payload.ApiVersion;
         _hostCalls.MaxMessageBytes = _maxMessageBytes;
 
         var drainTask = DrainConsoleOutputAsync();
@@ -213,7 +211,7 @@ internal sealed class CSharpWorker(Stream input, Stream output)
             var build = await _engine.BuildAsync(new ScriptBuildRequest(
                 payload.SourcePath,
                 payload.Source,
-                ApiVersion: _negotiatedApiVersion,
+                ApiVersion: payload.ApiVersion,
                 DescriptorHint: payload.DescriptorHint));
             if (!build.Succeeded || build.Program is null)
             {

@@ -55,7 +55,7 @@ public static class ScriptMetadataEditor
             foreach (var propertyName in new[]
                      {
                          "ApiVersion", "Id", "Name", "Description", "Engine", "Scope",
-                         "SupportedEditorTargets", "EntryKind",
+                         "SupportedEditorTargets", "EntryKind", "Parameters",
                      })
             {
                 SetProperty(root, propertyName, null);

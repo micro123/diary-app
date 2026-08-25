@@ -67,7 +67,8 @@ public sealed class ScriptAutomationSchedulerTests
         var execution = manager.Executions.Single();
         Assert.AreEqual("created-script", execution.ScriptId);
         Assert.AreEqual(ScriptExecutionSource.WorkItemCreated, execution.Source);
-        Assert.AreEqual("42", execution.Arguments["workItemId"]);
+        Assert.AreEqual(0, execution.Arguments.Count);
+        Assert.AreEqual("42", execution.EventData["workItemId"]);
         StringAssert.StartsWith(execution.IdempotencyKey, "event:WorkItemCreated:save-42");
     }
 
@@ -186,7 +187,13 @@ public sealed class ScriptAutomationSchedulerTests
 
     private sealed class RecordingScriptManager(bool fail = false) : IScriptManager
     {
-        public List<(string ScriptId, ScriptExecutionSource Source, string? IdempotencyKey, IReadOnlyDictionary<string, string> Arguments)> Executions { get; } = [];
+        public List<(
+            string ScriptId,
+            ScriptExecutionSource Source,
+            string? IdempotencyKey,
+            IReadOnlyDictionary<string, string> Arguments,
+            IReadOnlyDictionary<string, string> EventData)> Executions
+        { get; } = [];
 
         public ValueTask<ScriptBuildResult> BuildAndRegisterAsync(
             ScriptBuildRequest request,
@@ -215,7 +222,8 @@ public sealed class ScriptAutomationSchedulerTests
                 scriptId,
                 request.Source,
                 request.IdempotencyKey,
-                request.Arguments ?? ImmutableDictionary<string, string>.Empty));
+                request.Arguments ?? ImmutableDictionary<string, string>.Empty,
+                request.AutomationEventData ?? ImmutableDictionary<string, string>.Empty));
             var result = fail
                 ? new ScriptExecutionResult(
                     ScriptExecutionStatus.Failed,

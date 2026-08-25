@@ -259,6 +259,7 @@ class ScriptContext:
         self.state = state
         self.request = request if isinstance(request, dict) else {}
         self.arguments = self.request.get("arguments") or {}
+        self.automation_event_data = self.request.get("automationEventData") or {}
         self.target = self.request.get("target")
         self.source = self.request.get("source", "Unknown")
         self.entry_kind = self.request.get("entryKind", "Application")
@@ -275,10 +276,16 @@ class ScriptContext:
         self.dateRange = self.date_range
         self.workItem = self.work_item
         self.items = TargetItemsApi(self)
-        trigger = "Scheduled" if self.source == "Automation" else "Startup" if self.source == "Startup" else "Unknown"
+        trigger = {
+            "Automation": "Scheduled",
+            "Startup": "Startup",
+            "WorkItemCreated": "WorkItemCreated",
+            "WorkItemSaved": "WorkItemSaved",
+            "TagAdded": "TagAdded",
+        }.get(self.source, "Unknown")
         self.automation = {
             "trigger": trigger,
-            "eventData": dict(self.arguments or {}),
+            "eventData": dict(self.automation_event_data or {}),
             "idempotencyKey": self.idempotency_key,
         }
 
@@ -734,8 +741,8 @@ def diagnostic(code, message, source_path, category):
 def run():
     send_message("Hello", new_id(), None, {
         "language": "python",
-        "workerVersion": "0.3",
-        "supportedApiVersions": ["V1"],
+        "workerVersion": "0.4",
+        "supportedApiVersions": ["V1", "V2"],
         "supportedHostApis": ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "ui.options.select", "ui.directory.pick", "ui.exported_file.open", "exports.formats.list", "exports.templates.list", "exports.export", "log.write", "script.progress", "host.capabilities.list"],
         "processId": os.getpid(),
     })

@@ -195,9 +195,9 @@ public sealed class ScriptAutomationScheduler(
             var outcome = await Task.Run(async () => await scriptManager.ExecuteAsync(
                 plan.ScriptId,
                 new ScriptExecutionRequest(
-                    Arguments: eventData?.ToImmutableDictionary(StringComparer.Ordinal),
                     Source: source,
-                    IdempotencyKey: idempotencyKey),
+                    IdempotencyKey: idempotencyKey,
+                    AutomationEventData: eventData?.ToImmutableDictionary(StringComparer.Ordinal)),
                 TimeSpan.FromMinutes(5),
                 CancellationToken.None));
             logger.LogInformation(

@@ -1,6 +1,6 @@
 # Lua 脚本 API Reference
 
-Lua 使用 `ScriptApiVersion.V1`。脚本在独立 Lua Worker 中执行，通过全局 `diary` 表访问宿主 API。公共门面统一使用 snake_case（如 `work_items`、`get_date_range()`）；请求和结果 DTO 保持宿主协议字段。旧 camelCase 门面保留为兼容别名，新脚本不再推荐。所有宿主调用参数和返回值都是 JSON 可转换的 Lua 值。
+Lua 支持 `ScriptApiVersion.V1` 和 `V2`。脚本在独立 Lua Worker 中执行，通过全局 `diary` 表访问宿主 API。V1 保留自由字符串参数；V2 的参数契约必须在相邻 metadata 或包 manifest 中声明，宿主不执行 Lua 源码来发现参数。公共门面统一使用 snake_case（如 `work_items`、`get_date_range()`）；请求和结果 DTO 保持宿主协议字段。旧 camelCase 门面保留为兼容别名，新脚本不再推荐。所有宿主调用参数和返回值都是 JSON 可转换的 Lua 值。
 
 ## 1. 脚本入口和上下文
 
@@ -36,6 +36,7 @@ end
 完整示例：[Lua 5 分钟入门：查询并追加日志项](Examples/LuaQuickStart.md)。
 右键查询“加班”工作项示例：[OvertimeWorkItems.lua](Examples/OvertimeWorkItems.lua)。
 自动化脚本示例：[每日自查补录](Examples/AutomationDailyCheck.md)；查询脚本示例：[本月工时汇总](Examples/QueryMonthlySummary.md)。
+V2 加载期参数示例：[参数化工时汇总](Examples/ParameterizedSummary.md)。
 
 `context` 字段：
 
@@ -52,6 +53,35 @@ end
 | `get_date_range()` | 获取当前目标日期范围；无范围时返回 `nil`。 |
 | `items.stream()` | 按当前日期范围分页迭代事项。 |
 | `log` | 调试日志 API。 |
+| `automation` | 自动化触发类型、独立事件数据和幂等键；V2 事件字段不会进入 `arguments`。 |
+
+V2 metadata 示例：
+
+```json
+{
+  "apiVersion": "V2",
+  "id": "summary-lua",
+  "name": "参数化汇总",
+  "engine": "lua",
+  "scope": "Application",
+  "entryKind": "Query",
+  "parameters": [
+    {
+      "name": "range",
+      "label": "统计范围",
+      "type": "Choice",
+      "required": true,
+      "defaultValue": "thisWeek",
+      "choices": [
+        { "value": "thisWeek", "label": "本周" },
+        { "value": "thisMonth", "label": "本月" }
+      ]
+    }
+  ]
+}
+```
+
+参数支持 String、MultilineString、Integer、Number、Boolean、Date、DateTime 和 Choice。宿主在进入 Worker 前合并默认值并校验，脚本从 `context.arguments` 读取规范化字符串；V2 未声明的参数会被拒绝。当前管理页仍使用 `key=value` 文本输入。
 
 取消状态只在脚本主动轮询时可见；宿主调用仍会由 Worker 绑定当前执行的取消生命周期。长循环应在批次之间检查：
 

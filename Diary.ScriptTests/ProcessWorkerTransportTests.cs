@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 using Diary.Script.Runtime;
 using Diary.ScriptBase;
@@ -164,16 +165,188 @@ public sealed class ProcessWorkerTransportTests
         }
     }
 
-    private static void RegisterSource(ScriptCatalog catalog, string id, string engine, string path, string source)
+    [TestMethod]
+    public async Task WorkerScriptExecutor_ExecutesMixedV1V2AndNormalizedArgumentsAcrossLanguages()
     {
-        catalog.Register(new TestProgram(id));
-        catalog.SetSource(id, new(path, source, engine));
+        var workerPath = GetWorkerPath();
+        Assert.IsTrue(File.Exists(workerPath), $"Worker 文件不存在：{workerPath}");
+        var pythonRuntime = await GetRequiredPythonRuntimeAsync();
+        var parameters = new[]
+        {
+            new ScriptParameterDefinition("count", "Count", ScriptParameterType.Integer, Required: true),
+            new ScriptParameterDefinition("enabled", "Enabled", ScriptParameterType.Boolean, Required: true),
+        };
+        var catalog = new ScriptCatalog();
+        RegisterSource(
+            catalog,
+            "mixed-v1",
+            "csharp",
+            "mixed-v1.cs",
+            "public sealed class MixedV1 : Diary.ScriptBase.ApplicationScript { public override string Id => \"mixed-v1\"; public override string Name => \"Mixed V1\"; public override System.Threading.Tasks.ValueTask<Diary.ScriptBase.ScriptExecutionResult> ExecuteAsync(Diary.ScriptBase.IScriptApplicationContext context, System.Threading.CancellationToken cancellationToken = default) => System.Threading.Tasks.ValueTask.FromResult(Diary.ScriptBase.ScriptExecutionResult.Succeeded()); }");
+        RegisterSource(
+            catalog,
+            "mixed-v2-csharp",
+            "csharp",
+            "mixed-v2.cs",
+            """
+                public sealed class MixedV2 : Diary.ScriptBase.ApplicationScriptV2
+                {
+                    public override string Id => "mixed-v2-csharp";
+                    public override string Name => "Mixed V2 C#";
+                    public override System.Collections.Generic.IReadOnlyList<Diary.ScriptBase.ScriptParameterDefinition> Parameters =>
+                    [
+                        new("count", "Count", Diary.ScriptBase.ScriptParameterType.Integer, Required: true),
+                        new("enabled", "Enabled", Diary.ScriptBase.ScriptParameterType.Boolean, Required: true),
+                    ];
+                    public override System.Threading.Tasks.ValueTask<Diary.ScriptBase.ScriptExecutionResult> ExecuteAsync(
+                        Diary.ScriptBase.IScriptApplicationContext context,
+                        System.Threading.CancellationToken cancellationToken = default)
+                    {
+                        if (context.Arguments["count"] != "42" || context.Arguments["enabled"] != "true")
+                            throw new System.InvalidOperationException("C# V2 arguments were not normalized.");
+                        return System.Threading.Tasks.ValueTask.FromResult(Diary.ScriptBase.ScriptExecutionResult.Succeeded());
+                    }
+                }
+                """,
+            new ScriptDescriptor(
+                "mixed-v2-csharp",
+                "Mixed V2 C#",
+                ScriptApiVersion.V2,
+                ScriptScope.Application,
+                Parameters: parameters));
+        RegisterSource(
+            catalog,
+            "mixed-v2-lua",
+            "lua",
+            "mixed-v2.lua",
+            """
+                function application_main(context)
+                  if context.arguments.count ~= "42" or context.arguments.enabled ~= "true" then
+                    error("Lua V2 arguments were not normalized")
+                  end
+                  return nil
+                end
+                """,
+            new ScriptDescriptor(
+                "mixed-v2-lua",
+                "Mixed V2 Lua",
+                ScriptApiVersion.V2,
+                ScriptScope.Application,
+                Parameters: parameters));
+        var pythonDescriptor = new ScriptDescriptor(
+            "mixed-v2-python",
+            "Mixed V2 Python",
+            ScriptApiVersion.V2,
+            ScriptScope.Application,
+            EntryKind: ScriptEntryKind.Automation,
+            Parameters: [new("project", "Project", ScriptParameterType.String, Required: true)]);
+        RegisterSource(
+            catalog,
+            pythonDescriptor.Id,
+            "python",
+            "mixed-v2.py",
+            """
+                def automation_main(context):
+                    if context.arguments.get("project") != "diary":
+                        raise RuntimeError("Python V2 defaults were not bound")
+                    if "workItemId" in context.arguments:
+                        raise RuntimeError("Automation event data leaked into V2 arguments")
+                    if context.automation["eventData"].get("workItemId") != "42":
+                        raise RuntimeError("Automation event data was not exposed")
+                    return None
+                """,
+            pythonDescriptor,
+            new Dictionary<string, string> { ["project"] = "diary" });
+
+        var runtimes = new Dictionary<string, WorkerRuntime>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["csharp"] = new(
+                "csharp",
+                CreateDotnetSupervisor(workerPath, "csharp"),
+                new("csharp", [ScriptApiVersion.V1, ScriptApiVersion.V2], []),
+                WorkerRuntimePolicy.Shared),
+            ["lua"] = new(
+                "lua",
+                CreateDotnetSupervisor(workerPath, "lua"),
+                new("lua", [ScriptApiVersion.V1, ScriptApiVersion.V2], []),
+                WorkerRuntimePolicy.Shared),
+            ["python"] = new(
+                "python",
+                new WorkerSupervisor(
+                    new ProcessWorkerTransportFactory(new WorkerProcessOptions(
+                        pythonRuntime.ExecutablePath!,
+                        Diary.Script.Py.PythonWorkerSource.CreateArguments(),
+                        AppContext.BaseDirectory,
+                        new Dictionary<string, string>
+                        {
+                            ["PYTHONIOENCODING"] = "utf-8",
+                            ["PYTHONUNBUFFERED"] = "1",
+                        })),
+                    handshakeTimeout: TimeSpan.FromSeconds(30)),
+                new("python", [ScriptApiVersion.V1, ScriptApiVersion.V2], []),
+                WorkerRuntimePolicy.Dedicated),
+        };
+        var workerExecutor = new WorkerScriptExecutor(catalog, runtimes);
+        var manager = new ScriptManager(
+            new ScriptBuildService(new ScriptEngineRegistry()),
+            catalog,
+            new ScriptExecutor(),
+            workerExecutor: workerExecutor);
+        var suppliedArguments = ImmutableDictionary<string, string>.Empty
+            .Add("count", "+0042")
+            .Add("enabled", "True");
+        try
+        {
+            var v1 = await manager.ExecuteAsync("mixed-v1", new ScriptExecutionRequest());
+            Assert.AreEqual(ScriptExecutionStatus.Succeeded, v1.Result.Status, JoinDiagnostics(v1.Result.Diagnostics));
+
+            foreach (var scriptId in new[] { "mixed-v2-csharp", "mixed-v2-lua" })
+            {
+                var outcome = await manager.ExecuteAsync(
+                    scriptId,
+                    new ScriptExecutionRequest(Arguments: suppliedArguments));
+                Assert.AreEqual(
+                    ScriptExecutionStatus.Succeeded,
+                    outcome.Result.Status,
+                    $"{scriptId}: {JoinDiagnostics(outcome.Result.Diagnostics)}");
+            }
+
+            var python = await manager.ExecuteAsync(
+                pythonDescriptor.Id,
+                new ScriptExecutionRequest(
+                    Source: ScriptExecutionSource.WorkItemCreated,
+                    AutomationEventData: ImmutableDictionary<string, string>.Empty.Add("workItemId", "42")));
+            Assert.AreEqual(
+                ScriptExecutionStatus.Succeeded,
+                python.Result.Status,
+                JoinDiagnostics(python.Result.Diagnostics));
+        }
+        finally
+        {
+            await workerExecutor.StopAllAsync();
+        }
     }
 
-    private sealed class TestProgram(string id) : IScriptProgramV1
+    private static void RegisterSource(
+        ScriptCatalog catalog,
+        string id,
+        string engine,
+        string path,
+        string source,
+        ScriptDescriptor? descriptor = null,
+        IReadOnlyDictionary<string, string>? defaultArguments = null)
     {
-        public ScriptDescriptor Descriptor { get; } = new(
-            id, id, ScriptApiVersion.V1, ScriptScope.Application);
+        catalog.Register(new TestProgram(descriptor ?? new ScriptDescriptor(
+            id,
+            id,
+            ScriptApiVersion.V1,
+            ScriptScope.Application)));
+        catalog.SetSource(id, new(path, source, engine, defaultArguments));
+    }
+
+    private sealed class TestProgram(ScriptDescriptor descriptor) : IScriptProgramV1
+    {
+        public ScriptDescriptor Descriptor { get; } = descriptor;
 
         public ValueTask<ScriptExecutionResult> ExecuteAsync(
             ScriptExecutionRequest request,
@@ -181,6 +354,9 @@ public sealed class ProcessWorkerTransportTests
             CancellationToken cancellationToken = default) =>
             ValueTask.FromResult(ScriptExecutionResult.Succeeded());
     }
+
+    private static string JoinDiagnostics(IEnumerable<ScriptDiagnostic> diagnostics) =>
+        string.Join("; ", diagnostics.Select(item => $"{item.Code}: {item.Message}"));
 
     [TestMethod]
     public async Task ProcessTransport_CancelledPollingScriptsRemainRecoverableAcrossLanguages()

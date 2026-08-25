@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Diary.ScriptBase;
 
 namespace Diary.Script.Runtime;
@@ -17,6 +18,7 @@ public sealed record ScriptFileMetadata(
     bool RunOnStartup = false,
     IReadOnlyList<ScriptAutomationTriggerKind>? Triggers = null,
     IReadOnlyDictionary<string, string>? DefaultArguments = null,
+    IReadOnlyList<ScriptParameterDefinition>? Parameters = null,
     int? TimeoutSeconds = null);
 
 public sealed record ScriptPackageManifest(
@@ -33,6 +35,7 @@ public sealed record ScriptPackageManifest(
     bool RunOnStartup = false,
     IReadOnlyList<ScriptAutomationTriggerKind>? Triggers = null,
     IReadOnlyDictionary<string, string>? DefaultArguments = null,
+    IReadOnlyList<ScriptParameterDefinition>? Parameters = null,
     int? TimeoutSeconds = null);
 
 public sealed record ScriptDirectoryEntry(
@@ -61,6 +64,7 @@ public sealed class ScriptDirectoryLoader(
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
+        Converters = { new JsonStringEnumConverter() },
     };
     private readonly HashSet<string> _registeredIds = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _loadGate = new(1, 1);
@@ -133,7 +137,8 @@ public sealed class ScriptDirectoryLoader(
                                     metadata.Description,
                                     metadata.Engine ?? selection.Engine.StableName,
                                     metadata.SupportedEditorTargets,
-                                    metadata.EntryKind)),
+                                    metadata.EntryKind,
+                                    metadata.Parameters)),
                             cancellationToken);
                     }
                     catch (IOException)
@@ -161,6 +166,22 @@ public sealed class ScriptDirectoryLoader(
                         {
                             DisposeProgram(result.Program);
                             result = runtimeConfigurationError;
+                        }
+                    }
+
+                    if (result.Succeeded && result.Program is not null)
+                    {
+                        var entryKind = ScriptEntryKindResolver.Resolve(result.Program.Descriptor);
+                        var binding = ScriptParameterBinder.Bind(
+                            result.Program.Descriptor,
+                            metadata.DefaultArguments,
+                            null,
+                            sourcePath,
+                            requireRequired: entryKind == ScriptEntryKind.Automation);
+                        if (!binding.Succeeded)
+                        {
+                            DisposeProgram(result.Program);
+                            result = new ScriptBuildResult(false, null, result.Diagnostics.AddRange(binding.Diagnostics));
                         }
                     }
 
@@ -215,7 +236,8 @@ public sealed class ScriptDirectoryLoader(
                             catalog.SetSource(result.Program.Descriptor.Id, new ScriptSourceInfo(
                                 sourcePath,
                                 await File.ReadAllTextAsync(sourcePath, cancellationToken),
-                                result.EngineName));
+                                result.EngineName,
+                                metadata.DefaultArguments));
                         }
                     }
 
@@ -317,6 +339,7 @@ public sealed class ScriptDirectoryLoader(
                         RunOnStartup: manifest.RunOnStartup,
                         Triggers: manifest.Triggers,
                         DefaultArguments: manifest.DefaultArguments,
+                        Parameters: manifest.Parameters,
                         TimeoutSeconds: manifest.TimeoutSeconds)));
             }
             catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException or InvalidDataException)
@@ -400,8 +423,16 @@ public sealed class ScriptDirectoryLoader(
                 descriptor.SupportedEditorTargets?.Order()
                 ?? Enumerable.Empty<ScriptEditorTargetKind>()))
             return false;
+        if (metadata.Parameters is not null
+            && !ParameterDefinitionsEqual(metadata.Parameters, descriptor.Parameters))
+            return false;
         return true;
     }
+
+    private static bool ParameterDefinitionsEqual(
+        IReadOnlyList<ScriptParameterDefinition> left,
+        IReadOnlyList<ScriptParameterDefinition>? right) =>
+        JsonSerializer.Serialize(left, JsonOptions) == JsonSerializer.Serialize(right ?? [], JsonOptions);
 
     private static void DisposeProgram(IScriptProgramV1 program)
     {

@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Diary.Script.Runtime;
 using Diary.ScriptBase;
 
@@ -328,6 +329,245 @@ public sealed class ScriptRuntimeTests
 
         Assert.AreEqual(2, contexts.Count);
         Assert.AreNotSame(contexts[0], contexts[1]);
+    }
+
+    [TestMethod]
+    public async Task Manager_BindsAndNormalizesV2ArgumentsBeforeExecution()
+    {
+        ScriptExecutionRequest? observedRequest = null;
+        IScriptExecutionContext? observedContext = null;
+        var descriptor = new ScriptDescriptor(
+            "v2-arguments",
+            "V2 arguments",
+            ScriptApiVersion.V2,
+            ScriptScope.Application,
+            Parameters:
+            [
+                new("limit", "Limit", ScriptParameterType.Integer, Required: true, DefaultValue: "1"),
+                new("enabled", "Enabled", ScriptParameterType.Boolean, DefaultValue: "false"),
+            ]);
+        var program = new FakeProgram(
+            descriptor.Id,
+            (request, context, _) =>
+            {
+                observedRequest = request;
+                observedContext = context;
+                return ValueTask.FromResult(ScriptExecutionResult.Succeeded());
+            },
+            descriptor);
+        var catalog = new ScriptCatalog();
+        catalog.Register(program);
+        catalog.SetSource(descriptor.Id, new ScriptSourceInfo(
+            "v2.fake",
+            "source",
+            "fake",
+            new Dictionary<string, string> { ["limit"] = "0007" }));
+        var manager = new ScriptManager(
+            new ScriptBuildService(new ScriptEngineRegistry()),
+            catalog,
+            new ScriptExecutor());
+
+        var outcome = await manager.ExecuteAsync(
+            descriptor.Id,
+            new ScriptExecutionRequest(
+                Arguments: ImmutableDictionary<string, string>.Empty.Add("enabled", "True")));
+
+        Assert.AreEqual(ScriptExecutionStatus.Succeeded, outcome.Result.Status);
+        Assert.IsNotNull(observedRequest);
+        Assert.IsNotNull(observedContext);
+        Assert.AreEqual("7", observedRequest.Arguments!["limit"]);
+        Assert.AreEqual("true", observedRequest.Arguments["enabled"]);
+        Assert.AreEqual("7", observedContext.Arguments["limit"]);
+        Assert.AreEqual("true", observedContext.Arguments["enabled"]);
+    }
+
+    [TestMethod]
+    public async Task Manager_RejectsInvalidV2ArgumentsWithoutExecutingProgram()
+    {
+        var executionCount = 0;
+        var descriptor = new ScriptDescriptor(
+            "v2-invalid",
+            "V2 invalid",
+            ScriptApiVersion.V2,
+            ScriptScope.Application,
+            Parameters: [new("limit", "Limit", ScriptParameterType.Integer, Required: true)]);
+        var catalog = new ScriptCatalog();
+        catalog.Register(new FakeProgram(
+            descriptor.Id,
+            (_, _, _) =>
+            {
+                executionCount++;
+                return ValueTask.FromResult(ScriptExecutionResult.Succeeded());
+            },
+            descriptor));
+        var manager = new ScriptManager(
+            new ScriptBuildService(new ScriptEngineRegistry()),
+            catalog,
+            new ScriptExecutor());
+
+        var outcome = await manager.ExecuteAsync(
+            descriptor.Id,
+            new ScriptExecutionRequest(
+                Arguments: ImmutableDictionary<string, string>.Empty.Add("limit", "invalid")));
+
+        Assert.AreEqual(ScriptExecutionStatus.Rejected, outcome.Result.Status);
+        Assert.AreEqual("SCRIPT_ARGUMENT_TYPE_INVALID", outcome.Result.Diagnostics.Single().Code);
+        Assert.AreEqual(0, executionCount);
+    }
+
+    [TestMethod]
+    public async Task Manager_ExplicitContextReceivesBoundV2ArgumentsAndPreservesApis()
+    {
+        IScriptExecutionContext? observedContext = null;
+        var descriptor = new ScriptDescriptor(
+            "v2-explicit-context",
+            "V2 explicit context",
+            ScriptApiVersion.V2,
+            ScriptScope.Application,
+            Parameters: [new("limit", "Limit", ScriptParameterType.Integer, Required: true, DefaultValue: "7")]);
+        var catalog = new ScriptCatalog();
+        catalog.Register(new FakeProgram(
+            descriptor.Id,
+            (_, context, _) =>
+            {
+                observedContext = context;
+                return ValueTask.FromResult(ScriptExecutionResult.Succeeded());
+            },
+            descriptor));
+        var manager = new ScriptManager(
+            new ScriptBuildService(new ScriptEngineRegistry()),
+            catalog,
+            new ScriptExecutor());
+        var context = new ScriptExecutionContext();
+        context.RegisterApi<IFakeReadApi>(new FakeReadApi());
+
+        var outcome = await manager.ExecuteAsync(
+            descriptor.Id,
+            new ScriptExecutionRequest(),
+            context);
+
+        Assert.AreEqual(ScriptExecutionStatus.Succeeded, outcome.Result.Status);
+        Assert.AreEqual("7", observedContext!.Arguments["limit"]);
+        Assert.IsNotNull(observedContext.GetApi<IFakeReadApi>());
+    }
+
+    [TestMethod]
+    public async Task Manager_V1MirrorsAutomationEventDataIntoArguments()
+    {
+        ScriptExecutionRequest? observedRequest = null;
+        IScriptAutomationContext? observedContext = null;
+        var descriptor = new ScriptDescriptor(
+            "v1-automation",
+            "V1 automation",
+            ScriptApiVersion.V1,
+            ScriptScope.Application,
+            EntryKind: ScriptEntryKind.Automation);
+        var catalog = new ScriptCatalog();
+        catalog.Register(new FakeProgram(
+            descriptor.Id,
+            (request, context, _) =>
+            {
+                observedRequest = request;
+                observedContext = (IScriptAutomationContext)context;
+                return ValueTask.FromResult(ScriptExecutionResult.Succeeded());
+            },
+            descriptor));
+        var manager = new ScriptManager(
+            new ScriptBuildService(new ScriptEngineRegistry()),
+            catalog,
+            new ScriptExecutor());
+
+        var outcome = await manager.ExecuteAsync(
+            descriptor.Id,
+            new ScriptExecutionRequest(
+                Source: ScriptExecutionSource.WorkItemCreated,
+                AutomationEventData: ImmutableDictionary<string, string>.Empty.Add("workItemId", "42")));
+
+        Assert.AreEqual(ScriptExecutionStatus.Succeeded, outcome.Result.Status);
+        Assert.AreEqual("42", observedRequest!.Arguments!["workItemId"]);
+        Assert.AreEqual("42", observedContext!.Arguments["workItemId"]);
+        Assert.AreEqual("42", observedContext.Automation.EventData["workItemId"]);
+    }
+
+    [TestMethod]
+    public async Task Manager_V2KeepsAutomationEventDataSeparateFromArguments()
+    {
+        ScriptExecutionRequest? observedRequest = null;
+        IScriptAutomationContext? observedContext = null;
+        var descriptor = new ScriptDescriptor(
+            "v2-automation",
+            "V2 automation",
+            ScriptApiVersion.V2,
+            ScriptScope.Application,
+            EntryKind: ScriptEntryKind.Automation,
+            Parameters: [new("project", "Project", ScriptParameterType.String, Required: true)]);
+        var catalog = new ScriptCatalog();
+        catalog.Register(new FakeProgram(
+            descriptor.Id,
+            (request, context, _) =>
+            {
+                observedRequest = request;
+                observedContext = (IScriptAutomationContext)context;
+                return ValueTask.FromResult(ScriptExecutionResult.Succeeded());
+            },
+            descriptor));
+        catalog.SetSource(descriptor.Id, new ScriptSourceInfo(
+            "v2-automation.fake",
+            "source",
+            "fake",
+            new Dictionary<string, string> { ["project"] = "diary" }));
+        var manager = new ScriptManager(
+            new ScriptBuildService(new ScriptEngineRegistry()),
+            catalog,
+            new ScriptExecutor());
+
+        var outcome = await manager.ExecuteAsync(
+            descriptor.Id,
+            new ScriptExecutionRequest(
+                Source: ScriptExecutionSource.WorkItemCreated,
+                AutomationEventData: ImmutableDictionary<string, string>.Empty.Add("workItemId", "42")));
+
+        Assert.AreEqual(ScriptExecutionStatus.Succeeded, outcome.Result.Status);
+        Assert.AreEqual("diary", observedRequest!.Arguments!["project"]);
+        Assert.IsFalse(observedRequest.Arguments.ContainsKey("workItemId"));
+        Assert.AreEqual("diary", observedContext!.Arguments["project"]);
+        Assert.AreEqual("42", observedContext.Automation.EventData["workItemId"]);
+    }
+
+    [TestMethod]
+    public async Task Manager_V2ManualAutomationDoesNotTreatArgumentsAsEventData()
+    {
+        IScriptAutomationContext? observedContext = null;
+        var descriptor = new ScriptDescriptor(
+            "v2-manual-automation",
+            "V2 manual automation",
+            ScriptApiVersion.V2,
+            ScriptScope.Application,
+            EntryKind: ScriptEntryKind.Automation,
+            Parameters: [new("project", "Project", ScriptParameterType.String, Required: true)]);
+        var catalog = new ScriptCatalog();
+        catalog.Register(new FakeProgram(
+            descriptor.Id,
+            (_, context, _) =>
+            {
+                observedContext = (IScriptAutomationContext)context;
+                return ValueTask.FromResult(ScriptExecutionResult.Succeeded());
+            },
+            descriptor));
+        var manager = new ScriptManager(
+            new ScriptBuildService(new ScriptEngineRegistry()),
+            catalog,
+            new ScriptExecutor());
+
+        var outcome = await manager.ExecuteAsync(
+            descriptor.Id,
+            new ScriptExecutionRequest(
+                Source: ScriptExecutionSource.Manual,
+                Arguments: ImmutableDictionary<string, string>.Empty.Add("project", "diary")));
+
+        Assert.AreEqual(ScriptExecutionStatus.Succeeded, outcome.Result.Status);
+        Assert.AreEqual("diary", observedContext!.Arguments["project"]);
+        Assert.AreEqual(0, observedContext.Automation.EventData.Count);
     }
 
     [TestMethod]

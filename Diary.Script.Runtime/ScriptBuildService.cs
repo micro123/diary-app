@@ -17,7 +17,7 @@ public sealed class ScriptBuildService(IScriptEngineRegistry engines) : IScriptB
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.ApiVersion != ScriptApiVersions.Current)
+        if (!ScriptApiVersions.IsSupported(request.ApiVersion))
             return Failure("SCRIPT_API_UNSUPPORTED", "The requested script API version is not supported.", request.SourcePath);
 
         var selection = engines.Select(new ScriptMatchRequest(request.SourcePath));
@@ -80,7 +80,7 @@ public sealed class ScriptBuildService(IScriptEngineRegistry engines) : IScriptB
             if (descriptor is null
                 || string.IsNullOrWhiteSpace(descriptor.Id)
                 || string.IsNullOrWhiteSpace(descriptor.Name)
-                || descriptor.ApiVersion != request.ApiVersion
+                || !ScriptApiVersions.IsSupported(descriptor.ApiVersion)
                 || !Enum.IsDefined(descriptor.Scope)
                 || !Enum.IsDefined(entryKind)
                 || !ScriptEntryKindResolver.IsCompatible(entryKind, descriptor.Scope))
@@ -102,6 +102,10 @@ public sealed class ScriptBuildService(IScriptEngineRegistry engines) : IScriptB
                     ScriptDiagnosticCategory.Validation,
                     request.SourcePath));
             }
+
+            var parameterDiagnostics = ScriptParameterBinder.ValidateDescriptor(descriptor, request.SourcePath);
+            if (!parameterDiagnostics.IsEmpty)
+                return new ScriptBuildResult(false, null, diagnostics.AddRange(parameterDiagnostics));
         }
         catch (Exception)
         {

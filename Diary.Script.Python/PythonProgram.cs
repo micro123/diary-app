@@ -34,12 +34,12 @@ public sealed class PythonProgram(
             workerDirectory)));
         try
         {
-            await supervisor.StartAsync(new("python", [ScriptApiVersion.V1], ["workItems.query"]), cancellationToken);
+            await supervisor.StartAsync(new("python", [ScriptApiVersion.V1, ScriptApiVersion.V2], ["workItems.query"]), cancellationToken);
             var executionId = context.Metadata?.ExecutionId ?? Guid.NewGuid();
             var result = await supervisor.ExecuteAsync(
                 Descriptor.Id,
                 executionId.ToString("N"),
-                new WorkerExecutePayload(Descriptor.Id, SourcePath, Source, request),
+                new WorkerExecutePayload(Descriptor.Id, SourcePath, Source, request, ApiVersion: Descriptor.ApiVersion),
                 cancellationToken: cancellationToken);
             return new ScriptExecutionResult(result.Payload.Status, result.Payload.Diagnostics.ToImmutableArray(), result.Payload.Effects);
         }

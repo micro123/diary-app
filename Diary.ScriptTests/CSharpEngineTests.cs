@@ -72,6 +72,41 @@ public sealed class CSharpEngineTests
     }
 
     [TestMethod]
+    public async Task BuildAsync_DiscoversV2ParametersFromTypedBaseClass()
+    {
+        var source = """
+            using System.Collections.Generic;
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Diary.ScriptBase;
+            public sealed class ParameterizedProgram : ApplicationScriptV2
+            {
+                public override string Id => "parameterized-csharp";
+                public override string Name => "Parameterized C#";
+                public override IReadOnlyList<ScriptParameterDefinition> Parameters =>
+                [
+                    new("limit", "Limit", ScriptParameterType.Integer, Required: true),
+                    new("enabled", "Enabled", ScriptParameterType.Boolean, DefaultValue: "false"),
+                ];
+                public override ValueTask<ScriptExecutionResult> ExecuteAsync(
+                    IScriptApplicationContext context,
+                    CancellationToken cancellationToken = default) =>
+                    ValueTask.FromResult(ScriptExecutionResult.Succeeded());
+            }
+            """;
+
+        var result = await _engine.BuildAsync(new ScriptBuildRequest("parameterized.cs", source));
+
+        Assert.IsTrue(
+            result.Succeeded,
+            string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.AreEqual(ScriptApiVersion.V2, result.Program!.Descriptor.ApiVersion);
+        Assert.AreEqual(2, result.Program.Descriptor.Parameters!.Count);
+        Assert.AreEqual("limit", result.Program.Descriptor.Parameters[0].Name);
+        Assert.IsTrue(result.Program.Descriptor.Parameters[0].Required);
+    }
+
+    [TestMethod]
     public async Task BuildAsync_CompiledProgramCanUseReadOnlyHostApi()
     {
         var source = """

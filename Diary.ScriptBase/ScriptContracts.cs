@@ -7,11 +7,17 @@ namespace Diary.ScriptBase;
 public enum ScriptApiVersion
 {
     V1 = 1,
+    V2 = 2,
 }
 
 public static class ScriptApiVersions
 {
-    public const ScriptApiVersion Current = ScriptApiVersion.V1;
+    public const ScriptApiVersion Current = ScriptApiVersion.V2;
+
+    public static IReadOnlySet<ScriptApiVersion> Supported { get; } =
+        new HashSet<ScriptApiVersion> { ScriptApiVersion.V1, ScriptApiVersion.V2 };
+
+    public static bool IsSupported(ScriptApiVersion version) => Supported.Contains(version);
 }
 
 public enum ScriptScope
@@ -60,6 +66,32 @@ public enum ScriptExecutionSource
     TagAdded = 7,
 }
 
+public enum ScriptParameterType
+{
+    String = 1,
+    MultilineString = 2,
+    Integer = 3,
+    Number = 4,
+    Boolean = 5,
+    Date = 6,
+    DateTime = 7,
+    Choice = 8,
+}
+
+public sealed record ScriptParameterChoice(
+    string Value,
+    string Label);
+
+public sealed record ScriptParameterDefinition(
+    string Name,
+    string Label,
+    ScriptParameterType Type,
+    bool Required = false,
+    string? Description = null,
+    string? DefaultValue = null,
+    IReadOnlyList<ScriptParameterChoice>? Choices = null,
+    string? Placeholder = null);
+
 public sealed record ScriptDescriptor(
     string Id,
     string Name,
@@ -67,7 +99,8 @@ public sealed record ScriptDescriptor(
     ScriptScope Scope,
     string? Description = null,
     IReadOnlyList<ScriptEditorTargetKind>? SupportedEditorTargets = null,
-    ScriptEntryKind? EntryKind = null);
+    ScriptEntryKind? EntryKind = null,
+    IReadOnlyList<ScriptParameterDefinition>? Parameters = null);
 
 public sealed record ScriptDescriptorHint(
     string? Id = null,
@@ -76,7 +109,8 @@ public sealed record ScriptDescriptorHint(
     string? Description = null,
     string? EngineName = null,
     IReadOnlyList<ScriptEditorTargetKind>? SupportedEditorTargets = null,
-    ScriptEntryKind? EntryKind = null);
+    ScriptEntryKind? EntryKind = null,
+    IReadOnlyList<ScriptParameterDefinition>? Parameters = null);
 
 public enum ScriptDiagnosticSeverity
 {
@@ -365,7 +399,8 @@ public sealed record ScriptExecutionRequest(
     ScriptExecutionSource Source = ScriptExecutionSource.Unknown,
     ScriptEntryKind? EntryKind = null,
     string? IdempotencyKey = null,
-    bool Preview = false);
+    bool Preview = false,
+    ImmutableDictionary<string, string>? AutomationEventData = null);
 
 public sealed record ScriptProgressUpdate(
     double Fraction,
@@ -488,6 +523,42 @@ public interface IQueryScriptV1
         CancellationToken cancellationToken = default);
 }
 
+public interface IApplicationScriptV2
+{
+    ScriptDescriptor Descriptor { get; }
+
+    ValueTask<ScriptExecutionResult> ExecuteAsync(
+        IScriptApplicationContext context,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IEditorScriptV2
+{
+    ScriptDescriptor Descriptor { get; }
+
+    ValueTask<ScriptExecutionResult> ExecuteAsync(
+        IScriptEditorContext context,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAutomationScriptV2
+{
+    ScriptDescriptor Descriptor { get; }
+
+    ValueTask<ScriptExecutionResult> ExecuteAsync(
+        IScriptAutomationContext context,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IQueryScriptV2
+{
+    ScriptDescriptor Descriptor { get; }
+
+    ValueTask<ScriptExecutionResult> ExecuteAsync(
+        IScriptApplicationContext context,
+        CancellationToken cancellationToken = default);
+}
+
 public static class ScriptProgramAdapter
 {
     public static bool TryAdapt(object program, out IScriptProgramV1? adapted)
@@ -500,6 +571,10 @@ public static class ScriptProgramAdapter
             IEditorScriptV1 editor => new TypedScriptProgramAdapter(editor),
             IAutomationScriptV1 automation => new TypedScriptProgramAdapter(automation),
             IQueryScriptV1 query => new TypedScriptProgramAdapter(query),
+            IApplicationScriptV2 applicationV2 => new TypedScriptProgramAdapter(applicationV2),
+            IEditorScriptV2 editorV2 => new TypedScriptProgramAdapter(editorV2),
+            IAutomationScriptV2 automationV2 => new TypedScriptProgramAdapter(automationV2),
+            IQueryScriptV2 queryV2 => new TypedScriptProgramAdapter(queryV2),
             _ => null,
         };
         return adapted is not null;
@@ -518,6 +593,10 @@ public static class ScriptProgramAdapter
                 IEditorScriptV1 editor => editor.Descriptor,
                 IAutomationScriptV1 automation => automation.Descriptor,
                 IQueryScriptV1 query => query.Descriptor,
+                IApplicationScriptV2 applicationV2 => applicationV2.Descriptor,
+                IEditorScriptV2 editorV2 => editorV2.Descriptor,
+                IAutomationScriptV2 automationV2 => automationV2.Descriptor,
+                IQueryScriptV2 queryV2 => queryV2.Descriptor,
                 _ => throw new ArgumentException("Unsupported typed script program.", nameof(program)),
             };
         }
@@ -544,6 +623,18 @@ public static class ScriptProgramAdapter
                 ScriptEntryKind.Query when _program is IQueryScriptV1 query
                     && context is IScriptApplicationContext queryContext =>
                     query.ExecuteAsync(queryContext, cancellationToken),
+                ScriptEntryKind.Application when _program is IApplicationScriptV2 applicationV2
+                    && context is IScriptApplicationContext applicationContextV2 =>
+                    applicationV2.ExecuteAsync(applicationContextV2, cancellationToken),
+                ScriptEntryKind.Editor when _program is IEditorScriptV2 editorV2
+                    && context is IScriptEditorContext editorContextV2 =>
+                    editorV2.ExecuteAsync(editorContextV2, cancellationToken),
+                ScriptEntryKind.Automation when _program is IAutomationScriptV2 automationV2
+                    && context is IScriptAutomationContext automationContextV2 =>
+                    automationV2.ExecuteAsync(automationContextV2, cancellationToken),
+                ScriptEntryKind.Query when _program is IQueryScriptV2 queryV2
+                    && context is IScriptApplicationContext queryContextV2 =>
+                    queryV2.ExecuteAsync(queryContextV2, cancellationToken),
                 _ => ValueTask.FromResult(new ScriptExecutionResult(
                     ScriptExecutionStatus.Rejected,
                     [new ScriptDiagnostic(

@@ -4,6 +4,13 @@
 
 本文件只记录完成结果，不作为当前待办列表。
 
+## 2026-08-25 脚本 API V2 加载期参数契约
+
+- [x] 增加 String、MultilineString、Integer、Number、Boolean、Date、DateTime 和 Choice 八种参数定义；C# 通过四类 V2 SDK 基类声明，Lua/Python 通过相邻 metadata 或包 manifest 声明，脚本加载后即可从 Catalog 读取完整契约。
+- [x] 宿主在进入 Worker 前统一合并 descriptor 默认值、metadata `defaultArguments` 和本次输入，完成必填、未知参数、类型、Choice、长度与总大小校验，并向三种语言传递规范化字符串值。
+- [x] C#、Lua、Python Worker 同时支持 V1/V2 和混合版本执行；Automation 用户参数与事件数据已分离，V1 保留兼容镜像，V2 不再让事件字段污染 `Arguments`。
+- [x] 增加参数 Binder、目录加载、执行上下文、三语言引擎、共享包和真实 Worker 进程回归测试，并提供三语言参数化汇总示例；类型化参数 UI、创建向导默认 V2 和日志复制保留在 TODO。
+
 ## 2026-08-25 界面密度、日历与 Redmine 回归修复
 
 - [x] 在不改变布局、功能入口、文字尺寸和视觉层级的前提下，系统收紧公共页面、卡片、主从面板、设置分组、表单、工具栏和常用对话框间距；主窗口页面四周约 4px，同级主卡片保留 6px、小型列表卡片保留 4px；日记页左右主卡片直接使用 4px 间距并移除重复分隔线。Linux X11 Debug 构建 0 警告、0 错误，设置 9/9、核心 14/14、扩展 11/11、Survey 8/8、数据库异常 8/8、附加字段 8/8 和 Redmine 只读视觉 5/5 通过。

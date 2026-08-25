@@ -68,6 +68,12 @@ public sealed class ScriptSharePackageService(ILogger<ScriptSharePackageService>
         WriteIndented = true,
     };
 
+    private static readonly JsonSerializerOptions MetadataReadJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        Converters = { new JsonStringEnumConverter() },
+    };
+
     public async ValueTask ExportAsync(
         string packagePath,
         string scriptRoot,
@@ -561,7 +567,7 @@ public sealed class ScriptSharePackageService(ILogger<ScriptSharePackageService>
             using var document = JsonDocument.Parse(bytes);
             if (document.RootElement.ValueKind != JsonValueKind.Object)
                 throw new JsonException();
-            metadata = JsonSerializer.Deserialize<ScriptFileMetadata>(bytes, MetadataJsonOptions)
+            metadata = JsonSerializer.Deserialize<ScriptFileMetadata>(bytes, MetadataReadJsonOptions)
                 ?? throw new JsonException();
         }
         catch (JsonException exception)
@@ -598,6 +604,7 @@ public sealed class ScriptSharePackageService(ILogger<ScriptSharePackageService>
         || metadata.RunOnStartup
         || metadata.Triggers is { Count: > 0 }
         || metadata.DefaultArguments is { Count: > 0 }
+        || metadata.Parameters is { Count: > 0 }
         || metadata.TimeoutSeconds is not null;
 
     private static string GetArchiveDirectory(string path)

@@ -1,6 +1,6 @@
 # C# 脚本 API Reference
 
-本文对应 `ScriptApiVersion.V1`。C# 是主推脚本语言，统一在独立 Worker 中执行，使用 `Diary.ScriptBase` 契约和 `Diary.ScriptHost` API。宿主只注册已经实现的 API，脚本不需要声明或申请 capability。首次使用建议先阅读 [C# 脚本 5 分钟入门](CSharpQuickStart.md)。
+本文覆盖 `ScriptApiVersion.V1` 和 `V2`。C# 是主推脚本语言，统一在独立 Worker 中执行，使用 `Diary.ScriptBase` 契约和 `Diary.ScriptHost` API。V1 保留自由字符串参数；V2 可在源码 descriptor 中声明加载期强类型参数。宿主只注册已经实现的 API，脚本不需要声明或申请 capability。首次使用建议先阅读 [C# 脚本 5 分钟入门](CSharpQuickStart.md)。
 
 ## 1. 最小脚本
 
@@ -55,12 +55,44 @@ var trackers = api.Tracker.ListInstances();
 | --- | --- | --- |
 | `Id` | `string` | 稳定的脚本 ID，用于加载、执行和历史记录。 |
 | `Name` | `string` | UI 展示名称。 |
-| `ApiVersion` | `ScriptApiVersion` | 当前使用 `V1`。 |
+| `ApiVersion` | `ScriptApiVersion` | `V1` 或 `V2`；新参数契约使用 `V2`。 |
 | `Scope` | `ScriptScope` | `Application` 或 `Editor`。 |
-| `EntryKind` | `ScriptEntryKind?` | `Application`、`Editor`、`Automation` 或预留的 `Query`；与作用域和目标必须一致。 |
+| `EntryKind` | `ScriptEntryKind?` | `Application`、`Editor`、`Automation` 或 `Query`；与作用域和目标必须一致。 |
 | `Description` | `string?` | 可选描述。 |
+| `Parameters` | `IReadOnlyList<ScriptParameterDefinition>?` | V2 加载期参数契约；V1 必须为空。 |
 
-C# 的 Id、Name、Description、Scope、EntryKind 和 SupportedEditorTargets 以源码 descriptor 为唯一来源。同目录 metadata 只保存 schedule、runOnStartup、triggers、defaultArguments、timeoutSeconds 等运行配置；保存 C# 配置时会清理旧身份字段。旧版 `capabilities` 字段仍会被忽略。
+C# 的 Id、Name、Description、Scope、EntryKind、SupportedEditorTargets 和 V2 Parameters 以源码 descriptor 为唯一来源。同目录 metadata 只保存 schedule、runOnStartup、triggers、defaultArguments、timeoutSeconds 等运行配置；保存 C# 配置时会清理旧身份字段和参数定义。旧版 `capabilities` 字段仍会被忽略。
+
+### 2.1 V2 参数
+
+需要加载期参数契约时，继承 `ApplicationScriptV2`、`EditorScriptV2`、`AutomationScriptV2` 或 `QueryScriptV2`，并重写 `Parameters`。支持 `String`、`MultilineString`、`Integer`、`Number`、`Boolean`、`Date`、`DateTime` 和 `Choice`。脚本仍从 `context.Arguments` 读取规范化字符串值。
+
+~~~csharp
+public sealed class SummaryScript : QueryScriptV2
+{
+    public override string Id => "summary-v2";
+    public override string Name => "参数化汇总";
+    public override IReadOnlyList<ScriptParameterDefinition> Parameters =>
+    [
+        new("range", "统计范围", ScriptParameterType.Choice,
+            Required: true,
+            DefaultValue: "thisWeek",
+            Choices: [new("thisWeek", "本周"), new("thisMonth", "本月")]),
+        new("includeZero", "包含零工时", ScriptParameterType.Boolean, DefaultValue: "false"),
+    ];
+
+    public override ValueTask<ScriptExecutionResult> ExecuteAsync(
+        IScriptApplicationContext context,
+        CancellationToken cancellationToken = default)
+    {
+        var range = context.Arguments["range"];
+        var includeZero = context.Arguments["includeZero"] == "true";
+        return ValueTask.FromResult(ScriptExecutionResult.Succeeded());
+    }
+}
+~~~
+
+完整三语言示例见 [V2 参数化工时汇总](Examples/ParameterizedSummary.md)。当前管理页仍使用 `key=value` 文本输入；类型化参数表单将在后续 UI 阶段接入。
 
 ## 3. 执行请求和上下文
 

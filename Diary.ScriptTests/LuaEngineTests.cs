@@ -57,6 +57,29 @@ public sealed class LuaEngineTests
     }
 
     [TestMethod]
+    public async Task BuildAsync_V2DescriptorContainsMetadataParameters()
+    {
+        var parameters = new[]
+        {
+            new ScriptParameterDefinition("limit", "Limit", ScriptParameterType.Integer, Required: true),
+        };
+
+        var result = await _engine.BuildAsync(new ScriptBuildRequest(
+            "parameterized.lua",
+            "function application_main(context) return nil end",
+            ScriptApiVersion.V2,
+            new ScriptDescriptorHint(
+                "parameterized-lua",
+                "Parameterized Lua",
+                ScriptScope.Application,
+                Parameters: parameters)));
+
+        Assert.IsTrue(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics.Select(item => item.Message)));
+        Assert.AreEqual(ScriptApiVersion.V2, result.Program!.Descriptor.ApiVersion);
+        Assert.AreEqual(parameters.Single(), result.Program.Descriptor.Parameters!.Single());
+    }
+
+    [TestMethod]
     public async Task BuildAsync_ReportsMissingDescriptorHint()
     {
         var result = await _engine.BuildAsync(new ScriptBuildRequest("missing.lua", "function application_main() end"));

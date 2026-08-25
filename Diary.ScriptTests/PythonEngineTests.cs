@@ -96,6 +96,34 @@ public sealed class PythonEngineTests
     }
 
     [TestMethod]
+    public async Task BuildAsync_V2DescriptorContainsMetadataParameters()
+    {
+        var runtime = new PythonRuntimeResolver();
+        var resolved = await runtime.ResolveAsync();
+        if (!resolved.Succeeded)
+            Assert.Inconclusive("A usable Python 3.10+ runtime is required for this test.");
+        var parameters = new[]
+        {
+            new ScriptParameterDefinition("limit", "Limit", ScriptParameterType.Integer, Required: true),
+        };
+        var engine = new PythonEngine(runtime);
+
+        var result = await engine.BuildAsync(new ScriptBuildRequest(
+            "parameterized.py",
+            "def application_main(context):\n    return None",
+            ScriptApiVersion.V2,
+            new ScriptDescriptorHint(
+                "parameterized-python",
+                "Parameterized Python",
+                ScriptScope.Application,
+                Parameters: parameters)));
+
+        Assert.IsTrue(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics.Select(item => item.Message)));
+        Assert.AreEqual(ScriptApiVersion.V2, result.Program!.Descriptor.ApiVersion);
+        Assert.AreEqual(parameters.Single(), result.Program.Descriptor.Parameters!.Single());
+    }
+
+    [TestMethod]
     public async Task BuildAsync_AcceptsUnicodeSourceThroughSyntaxProbe()
     {
         var runtime = new PythonRuntimeResolver();

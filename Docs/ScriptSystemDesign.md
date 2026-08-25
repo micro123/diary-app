@@ -1,5 +1,7 @@
 # 脚本系统设计
 
+脚本加载期强类型参数契约见 [`ScriptApiV2ParameterDesign.md`](ScriptApiV2ParameterDesign.md)。V2 核心运行时已实现：三语言可在加载期暴露参数定义，宿主在进入 Worker 前统一绑定和校验，同时保留 V1 行为；类型化参数 UI 尚待接入。
+
 ## 1. 文档范围
 
 本文描述 Diary.App 脚本系统的目标设计、运行时边界和分阶段实现计划。
@@ -135,29 +137,29 @@ IScriptValidatorV1
 
 ### 5.1 应用脚本
 
-应用脚本使用 `IApplicationScriptV1` 或 `ApplicationScript`，对应 `ScriptEntryKind.Application`。它接收没有编辑器目标的 `IScriptApplicationContext`，适合批量整理、导出统计和创建追加式工作记录。
+应用脚本使用 V1 的 `IApplicationScriptV1` / `ApplicationScript`，或 V2 的 `IApplicationScriptV2` / `ApplicationScriptV2`，对应 `ScriptEntryKind.Application`。它接收没有编辑器目标的 `IScriptApplicationContext`，适合批量整理、导出统计和创建追加式工作记录。
 
 ### 5.2 编辑器脚本
 
-编辑器脚本使用 `IEditorScriptV1` 或 `EditorScript`，对应 `ScriptEntryKind.Editor`。它必须收到 `Year`、`Quarter`、`Month`、`Week`、`Day` 或 `WorkItem` 目标，并可通过 `GetDateRange()`、`StreamItemsAsync()` 或不可变的 `ScriptWorkItem` 快照读取上下文。
+编辑器脚本使用 V1 的 `IEditorScriptV1` / `EditorScript`，或 V2 的 `IEditorScriptV2` / `EditorScriptV2`，对应 `ScriptEntryKind.Editor`。它必须收到 `Year`、`Quarter`、`Month`、`Week`、`Day` 或 `WorkItem` 目标，并可通过 `GetDateRange()`、`StreamItemsAsync()` 或不可变的 `ScriptWorkItem` 快照读取上下文。
 
 编辑器脚本可以在 metadata 中声明 `supportedEditorTargets`；未声明时视为支持全部六类目标。`ScriptExecutionRequest.Target` 对应用程序扩展必须为 `null`，对编辑器扩展必须是上述六类目标之一。查询和 Tracker/模板发现均为只读 API。
 
 ### 5.3 自动化脚本
 
-自动化脚本使用 `IAutomationScriptV1` 或 `AutomationScript`，对应 `ScriptEntryKind.Automation`。`IScriptAutomationContext.Automation` 携带触发器类型、事件数据和幂等键；触发器类型包括 Startup、Scheduled、WorkItemCreated、WorkItemSaved 和 TagAdded。自动化脚本只允许通过追加式 API 产生工作记录，不提供删除或直接改写历史记录。
+自动化脚本使用 V1 的 `IAutomationScriptV1` / `AutomationScript`，或 V2 的 `IAutomationScriptV2` / `AutomationScriptV2`，对应 `ScriptEntryKind.Automation`。`IScriptAutomationContext.Automation` 携带触发器类型、事件数据和幂等键；触发器类型包括 Startup、Scheduled、WorkItemCreated、WorkItemSaved 和 TagAdded。V2 将用户参数与事件数据完全分离，V1 保留事件字段镜像到参数字典的兼容行为。自动化脚本只允许通过追加式 API 产生工作记录，不提供删除或直接改写历史记录。
 
 五类自动化触发均已接线。metadata/manifest 支持 `Schedule`（格式 `"daily HH:mm"`）、`RunOnStartup`（bool，默认 false）和 `Triggers`（`WorkItemCreated`、`WorkItemSaved`、`TagAdded` 数组）；其中 `Triggers` 仅允许 Automation 入口，事件型自动化可不配置 `Schedule`，但必须至少声明一个事件触发、定时或启动补跑方式。目录加载时校验，非法配置→ `SCRIPT_SCHEDULE_INVALID` 构建失败且不注册。`Diary.App/Services/ScriptAutomationScheduler` 以 30 秒 DispatcherTimer tick + `SemaphoreSlim` 串行执行，定时/启动使用内存 last-run 防重，事件使用 `scriptId + trigger + eventId` 防重；事件请求幂等键为 `event:{trigger}:{eventId}`。工作项保存入口在创建成功后触发 `WorkItemCreated`，更新成功后触发 `WorkItemSaved`；持久化工作项添加标签立即触发 `TagAdded`，新建草稿中的标签在首次保存成功后按添加顺序补发，重复标签、加载和删除不触发。事件数据包含 `workItemId`、`date`、`comment`、`time`、`priority`；`TagAdded` 额外包含 `tagId`、`tagName`、`tagLevel`、`tagSource`、`sequence`。三语言 context 均提供 `automation = { trigger, eventData, idempotencyKey }`，应用 PreShutdown 时停止调度器。
 
 ### 5.4 查询入口和模板边界
 
-Query 入口已落地：ScriptBase 提供 `IQueryScriptV1` 接口与 `QueryScript` 抽象基类（Scope=Application、EntryKind=Query、上下文 `IScriptApplicationContext`），`ScriptProgramAdapter` 与 C# 引擎类型识别均已支持；创建向导提供「查询脚本」模板（C# 使用 `QueryScript` 子类，Lua/Python 使用 `query_main` 入口），管理页可直接运行（CanRun 已放行 Application scope）。模板和已启用 Tracker 实例提供只读发现 API；模板的选择、读取、应用和持久化仍由编辑器或宿主完成，脚本不能创建、修改、删除或直接应用模板。
+Query 入口已落地：ScriptBase 提供 V1 的 `IQueryScriptV1` / `QueryScript` 和 V2 的 `IQueryScriptV2` / `QueryScriptV2`（Scope=Application、EntryKind=Query、上下文 `IScriptApplicationContext`），`ScriptProgramAdapter` 与 C# 引擎类型识别均已支持；创建向导当前仍默认生成 V1 查询脚本，Lua/Python 使用 `query_main` 入口，管理页可直接运行。模板和已启用 Tracker 实例提供只读发现 API；模板的选择、读取、应用和持久化仍由编辑器或宿主完成，脚本不能创建、修改、删除或直接应用模板。
 
 脚本生命周期为：
 
 ```text
-发现 -> 读取元数据/manifest -> 校验入口和目标 -> 选择引擎 -> 构建/加载缓存
-     -> 注册脚本 -> 用户执行 -> 创建执行上下文 -> Worker 执行
+发现 -> 读取元数据/manifest -> 校验入口、目标和参数 schema -> 选择引擎 -> 构建/加载缓存
+     -> 注册脚本 -> 用户执行 -> 合并并校验参数 -> 创建执行上下文 -> Worker 执行
      -> 返回结果/诊断/副作用摘要 -> 释放上下文
 ```
 

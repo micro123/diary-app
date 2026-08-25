@@ -192,7 +192,11 @@ public sealed class CSharpEngine : IScriptEngineV1, IScriptValidatorV1
                         || typeof(IApplicationScriptV1).IsAssignableFrom(type)
                         || typeof(IEditorScriptV1).IsAssignableFrom(type)
                         || typeof(IAutomationScriptV1).IsAssignableFrom(type)
-                        || typeof(IQueryScriptV1).IsAssignableFrom(type)))
+                        || typeof(IQueryScriptV1).IsAssignableFrom(type)
+                        || typeof(IApplicationScriptV2).IsAssignableFrom(type)
+                        || typeof(IEditorScriptV2).IsAssignableFrom(type)
+                        || typeof(IAutomationScriptV2).IsAssignableFrom(type)
+                        || typeof(IQueryScriptV2).IsAssignableFrom(type)))
                 .ToArray();
             if (programs.Length != 1)
             {
