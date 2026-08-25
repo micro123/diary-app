@@ -216,11 +216,15 @@ class ClipboardApi:
 
 class UiApi:
     def __init__(self, state):
+        self._request_main_window_activation = HostApi(state, "ui.window.raise")
         self._notify = HostApi(state, "ui.notify")
         self._confirm = HostApi(state, "ui.confirm")
         self._select_option = HostApi(state, "ui.options.select")
         self._pick_directory = HostApi(state, "ui.directory.pick")
         self._open_exported_file = HostApi(state, "ui.exported_file.open")
+
+    def request_main_window_activation(self):
+        return self._request_main_window_activation({})
 
     def notify(self, title, body):
         return self._notify({"title": title, "body": body})
@@ -743,7 +747,7 @@ def run():
         "language": "python",
         "workerVersion": "0.4",
         "supportedApiVersions": ["V1", "V2"],
-        "supportedHostApis": ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.notify", "ui.confirm", "ui.options.select", "ui.directory.pick", "ui.exported_file.open", "exports.formats.list", "exports.templates.list", "exports.export", "log.write", "script.progress", "host.capabilities.list"],
+        "supportedHostApis": ["workItems.query", "logItems.create", "templateLogItems.create", "templates.list", "trackerInstances.get", "trackerInstances.list", "clipboard.get", "clipboard.set", "ui.window.raise", "ui.notify", "ui.confirm", "ui.options.select", "ui.directory.pick", "ui.exported_file.open", "exports.formats.list", "exports.templates.list", "exports.export", "log.write", "script.progress", "host.capabilities.list"],
         "processId": os.getpid(),
     })
     accepted = read_message()

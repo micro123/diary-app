@@ -77,7 +77,8 @@ public sealed class WorkItemQueryWorkerDispatcher(
         if (string.Equals(call.Method, "clipboard.get", StringComparison.Ordinal)
             || string.Equals(call.Method, "clipboard.set", StringComparison.Ordinal))
             return await DispatchClipboardAsync(clipboardApiFactory, call, cancellationToken);
-        if (string.Equals(call.Method, "ui.notify", StringComparison.Ordinal)
+        if (string.Equals(call.Method, "ui.window.raise", StringComparison.Ordinal)
+            || string.Equals(call.Method, "ui.notify", StringComparison.Ordinal)
             || string.Equals(call.Method, "ui.confirm", StringComparison.Ordinal))
             return await DispatchInteractionAsync(interactionApiFactory, call, cancellationToken);
         if (string.Equals(call.Method, "ui.options.select", StringComparison.Ordinal)
@@ -347,8 +348,13 @@ public sealed class WorkItemQueryWorkerDispatcher(
         if (factory is null) return new(false, Error: new("ProviderFailure", "用户交互宿主 API 未配置。"));
         try
         {
-            var input = call.Params.Deserialize<InteractionInput>(WorkerProtocol.JsonOptions) ?? throw new JsonException();
             var api = factory();
+            if (call.Method == "ui.window.raise")
+            {
+                await api.RequestMainWindowActivationAsync(cancellationToken);
+                return new(true);
+            }
+            var input = call.Params.Deserialize<InteractionInput>(WorkerProtocol.JsonOptions) ?? throw new JsonException();
             if (call.Method == "ui.notify") { await api.NotifyAsync(input.Title, input.Body, cancellationToken); return new(true); }
             return new(true, JsonSerializer.SerializeToElement(await api.ConfirmAsync(input.Title, input.Body, cancellationToken)));
         }

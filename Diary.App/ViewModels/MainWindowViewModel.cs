@@ -383,13 +383,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 Dispatcher.UIThread.Post(() =>
                 {
                     if (!Window!.IsVisible)
-                    {
                         Window.Show();
-                    }
-                    else
-                    {
-                        Window.Activate();
-                    }
+                    Window.Activate();
                 });
                 return;
             case CommandNames.QuitApp:

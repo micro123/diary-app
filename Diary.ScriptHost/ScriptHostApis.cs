@@ -82,6 +82,7 @@ public interface IClipboardScriptApi
 
 public interface IUserInteractionScriptApi
 {
+    ValueTask RequestMainWindowActivationAsync(CancellationToken cancellationToken = default);
     ValueTask NotifyAsync(string title, string body, CancellationToken cancellationToken = default);
     ValueTask<bool> ConfirmAsync(string title, string body, CancellationToken cancellationToken = default);
 }

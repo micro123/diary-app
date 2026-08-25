@@ -72,6 +72,61 @@ public sealed class CSharpEngineTests
     }
 
     [TestMethod]
+    public async Task BuildAsync_DeprecatedSysApiStillCompilesWithMigrationWarning()
+    {
+        var source = """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Diary.ScriptBase;
+            using Diary.ScriptHost;
+            public sealed class LegacySystemApiProgram : IScriptProgramV1
+            {
+                public ScriptDescriptor Descriptor => new("legacy-system", "Legacy System", ScriptApiVersion.V1, ScriptScope.Application);
+                public ValueTask<ScriptExecutionResult> ExecuteAsync(ScriptExecutionRequest request, IScriptExecutionContext context, CancellationToken cancellationToken = default)
+                {
+                    _ = context.GetApi<SysApi>();
+                    return ValueTask.FromResult(ScriptExecutionResult.Succeeded());
+                }
+            }
+            """;
+
+        var result = await _engine.BuildAsync(new ScriptBuildRequest("legacy-system.cs", source));
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.IsTrue(result.Diagnostics.Any(diagnostic =>
+            diagnostic.Code == "CS0618"
+            && diagnostic.Severity == ScriptDiagnosticSeverity.Warning
+            && diagnostic.Message.Contains("ISysApi", StringComparison.Ordinal)));
+        (result.Program as IDisposable)?.Dispose();
+    }
+
+    [TestMethod]
+    public async Task BuildAsync_RecommendedISysApiHasNoDeprecationWarning()
+    {
+        var source = """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using Diary.ScriptBase;
+            using Diary.ScriptHost;
+            public sealed class SystemApiProgram : IScriptProgramV1
+            {
+                public ScriptDescriptor Descriptor => new("system", "System", ScriptApiVersion.V1, ScriptScope.Application);
+                public ValueTask<ScriptExecutionResult> ExecuteAsync(ScriptExecutionRequest request, IScriptExecutionContext context, CancellationToken cancellationToken = default)
+                {
+                    _ = context.GetApi<ISysApi>();
+                    return ValueTask.FromResult(ScriptExecutionResult.Succeeded());
+                }
+            }
+            """;
+
+        var result = await _engine.BuildAsync(new ScriptBuildRequest("system.cs", source));
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.IsFalse(result.Diagnostics.Any(diagnostic => diagnostic.Code == "CS0618"));
+        (result.Program as IDisposable)?.Dispose();
+    }
+
+    [TestMethod]
     public async Task BuildAsync_DiscoversV2ParametersFromTypedBaseClass()
     {
         var source = """

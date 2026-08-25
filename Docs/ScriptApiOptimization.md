@@ -47,8 +47,8 @@
 | 创建日志项 | IDiaryApi.CreateLogItemAsync | diary.logItems.create | context.diary.logItems.create |
 | 按模板创建 | IDiaryApi.CreateFromTemplateAsync | diary.templateLogItems.create | context.diary.templateLogItems.create |
 | Tracker 实例 | ITrackerApi.GetInstance | diary.trackerInstances.get | context.diary.trackerInstances.get |
-| 剪贴板 | SysApi | diary.clipboard | context.diary.clipboard |
-| 用户交互 | SysApi | diary.ui | context.diary.ui |
+| 剪贴板 | ISysApi | diary.clipboard | context.diary.clipboard |
+| 用户交互 | ISysApi | diary.ui | context.diary.ui |
 | 日志 | ILogApi | diary.log | context.log |
 
 当前 API 已经有稳定的领域划分，但不同语言的入口组织和错误语义还没有完全统一。
@@ -153,7 +153,7 @@ C# 当前使用多个独立 API：
 ~~~csharp
 context.GetApi<IDiaryApi>();
 context.GetApi<ITrackerApi>();
-context.GetApi<SysApi>();
+context.GetApi<ISysApi>();
 context.GetApi<ILogApi>();
 ~~~
 

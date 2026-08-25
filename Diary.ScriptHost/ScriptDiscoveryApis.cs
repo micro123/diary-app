@@ -14,6 +14,7 @@ public static class ScriptHostApiCatalog
         "trackerInstances.list",
         "clipboard.get",
         "clipboard.set",
+        "ui.window.raise",
         "ui.notify",
         "ui.confirm",
         "ui.options.select",

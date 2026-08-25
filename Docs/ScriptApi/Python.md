@@ -250,13 +250,14 @@ changed = context.diary.clipboard.set("复制到系统剪贴板的文本")
 ## 6. 用户交互
 
 ```python
+context.diary.ui.request_main_window_activation()
 context.diary.ui.notify("脚本完成", "日志项已经创建")
 confirmed = context.diary.ui.confirm("继续操作", "是否继续？")
 if confirmed:
     print("用户确认")
 ```
 
-`notify(title, body)` 无返回值；`confirm(title, body)` 返回 bool。
+`request_main_window_activation()` 请求宿主显示并激活 DiaryApp 主窗口，但操作系统可能拒绝强制抢占焦点；`notify(title, body)` 无返回值；`confirm(title, body)` 返回 bool。
 
 `context.log.debug(message)`、`context.log.info(message)`、`context.log.warning(message)` 和 `context.log.error(message)` 将调试信息写入宿主日志。单条日志受大小限制，不能输出敏感配置。
 
@@ -336,6 +337,7 @@ else:
 | `context.diary.tracker_instances.list` | `trackerInstances.list` |
 | `context.diary.clipboard.get` | `clipboard.get` |
 | `context.diary.clipboard.set` | `clipboard.set` |
+| `context.diary.ui.request_main_window_activation` | `ui.window.raise` |
 | `context.diary.ui.notify` | `ui.notify` |
 | `context.diary.ui.confirm` | `ui.confirm` |
 | `context.diary.ui.select_option` | `ui.options.select` |

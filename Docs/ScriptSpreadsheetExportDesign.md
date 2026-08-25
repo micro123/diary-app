@@ -50,7 +50,7 @@
 
 当前查询接口支持 `StartDate`、`EndDate`、标签 ID 和标签匹配模式，编辑器上下文也提供 `GetDateRange()` 与 `StreamItemsAsync()`，因此脚本可以直接使用右键菜单提供的范围，不需要重新询问月份或自行计算月初月末。
 
-当前 `SysApi` 已提供：
+当前 `ISysApi` 已提供（旧名称 `SysApi` 仅作兼容保留）：
 
 - 剪贴板读写；
 - 通知；
@@ -187,7 +187,7 @@ api.Exports     文件导出能力
 api.Log         脚本日志能力
 ```
 
-电子表格导出属于“应用导出能力”，不放入 `SysApi`，避免系统 API 变成所有业务功能的杂合入口。
+电子表格导出属于“应用导出能力”，不放入 `ISysApi`，避免系统 API 变成所有业务功能的杂合入口。
 
 ### 5.2 系统交互 API
 
@@ -204,7 +204,7 @@ api.Log         脚本日志能力
 这类交互不能复用只返回布尔值的 `ConfirmAsync()`。建议增加统一的选项选择 API：
 
 ```csharp
-public interface SysApi
+public interface ISysApi
 {
     ValueTask<OptionDialogResult> SelectOptionAsync(
         OptionDialogRequest request,
@@ -295,7 +295,7 @@ UI 实现约束：
 第一阶段只实现目录选择：
 
 ```csharp
-public interface SysApi
+public interface ISysApi
 {
     ValueTask<DirectorySelection?> PickDirectoryAsync(
         DirectoryPickerOptions options,
@@ -334,7 +334,7 @@ public sealed record DirectoryPickerOptions
 导出结果不直接返回任意路径，而返回宿主登记的短期文件引用。调用名称明确包含“询问”，避免误解为无条件打开：
 
 ```csharp
-public interface SysApi
+public interface ISysApi
 {
     ValueTask<OpenExportedFileResult> AskToOpenExportedFileAsync(
         string file_id,

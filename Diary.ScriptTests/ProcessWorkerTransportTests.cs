@@ -810,6 +810,125 @@ public sealed class ProcessWorkerTransportTests
     }
 
     [TestMethod]
+    public async Task ProcessTransport_RequestsMainWindowActivationAcrossLanguages()
+    {
+        var workerPath = GetWorkerPath();
+        Assert.IsTrue(File.Exists(workerPath), $"Worker 文件不存在：{workerPath}");
+        var dotnetPath = GetRequiredDotnetPath();
+        var pythonRuntime = await GetRequiredPythonRuntimeAsync();
+
+        var cases = new[]
+        {
+            new WindowActivationCase(
+                "csharp",
+                dispatcher => CreateDotnetSupervisor(workerPath, "csharp", dotnetPath, dispatcher),
+                new WorkerExecutePayload(
+                    "window-csharp",
+                    "window.cs",
+                    """
+                    using Diary.ScriptBase;
+                    using Diary.ScriptHost;
+
+                    public sealed class WindowDemo : IScriptProgramV1
+                    {
+                        public ScriptDescriptor Descriptor { get; } = new(
+                            "window-csharp", "Window C#", ScriptApiVersion.V1, ScriptScope.Application);
+
+                        public async System.Threading.Tasks.ValueTask<ScriptExecutionResult> ExecuteAsync(
+                            ScriptExecutionRequest request,
+                            IScriptExecutionContext context,
+                            System.Threading.CancellationToken cancellationToken = default)
+                        {
+                            _ = context.GetRequiredApi<SysApi>();
+                            await context.GetRequiredApi<ISysApi>()
+                                .RequestMainWindowActivationAsync(cancellationToken);
+                            return ScriptExecutionResult.Succeeded();
+                        }
+                    }
+                    """,
+                    new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual),
+                    new ScriptDescriptorHint("window-csharp", "Window C#", ScriptScope.Application, EngineName: "csharp"))),
+            new WindowActivationCase(
+                "lua",
+                dispatcher => CreateDotnetSupervisor(workerPath, "lua", dotnetPath, dispatcher),
+                new WorkerExecutePayload(
+                    "window-lua",
+                    "window.lua",
+                    "function application_main(context)\n    diary.ui.request_main_window_activation()\nend\n",
+                    new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual),
+                    new ScriptDescriptorHint("window-lua", "Window Lua", ScriptScope.Application, EngineName: "lua"))),
+            new WindowActivationCase(
+                "python",
+                dispatcher => new WorkerSupervisor(
+                    new ProcessWorkerTransportFactory(new WorkerProcessOptions(
+                        pythonRuntime.ExecutablePath!,
+                        Diary.Script.Py.PythonWorkerSource.CreateArguments(),
+                        AppContext.BaseDirectory,
+                        new Dictionary<string, string>
+                        {
+                            ["PYTHONIOENCODING"] = "utf-8",
+                            ["PYTHONUNBUFFERED"] = "1",
+                        })),
+                    dispatcher,
+                    cancellationGracePeriod: TimeSpan.FromSeconds(2)),
+                new WorkerExecutePayload(
+                    "window-python",
+                    "window.py",
+                    "def application_main(context):\n    context.diary.ui.request_main_window_activation()\n    return None\n",
+                    new ScriptExecutionRequest(Source: ScriptExecutionSource.Manual),
+                    new ScriptDescriptorHint("window-python", "Window Python", ScriptScope.Application, EngineName: "python"))),
+        };
+
+        foreach (var testCase in cases)
+        {
+            var dispatcher = new MethodRecordingDispatcher();
+            var supervisor = testCase.SupervisorFactory(dispatcher);
+            try
+            {
+                await supervisor.StartAsync(new(
+                    testCase.Language,
+                    [ScriptApiVersion.V1],
+                    ["ui.window.raise"]));
+                var result = await supervisor.ExecuteAsync(
+                    testCase.Payload.ScriptId,
+                    $"{testCase.Language}-window",
+                    testCase.Payload,
+                    TimeSpan.FromSeconds(30));
+
+                Assert.AreEqual(ScriptExecutionStatus.Succeeded, result.Payload.Status,
+                    $"{testCase.Language}: {string.Join("; ", result.Payload.Diagnostics.Select(item => $"{item.Code}: {item.Message}"))}");
+                CollectionAssert.AreEqual(
+                    new[] { "ui.window.raise" },
+                    dispatcher.Methods,
+                    $"{testCase.Language} 的窗口激活 HostCall 不匹配。");
+            }
+            finally
+            {
+                await supervisor.StopAsync();
+            }
+        }
+    }
+
+    private sealed record WindowActivationCase(
+        string Language,
+        Func<IWorkerHostCallDispatcher, WorkerSupervisor> SupervisorFactory,
+        WorkerExecutePayload Payload);
+
+    private sealed class MethodRecordingDispatcher : IWorkerHostCallDispatcher
+    {
+        public List<string> Methods { get; } = [];
+
+        public ValueTask<WorkerHostResultPayload> DispatchAsync(
+            string executionId,
+            WorkerHostCallPayload call,
+            CancellationToken cancellationToken = default)
+        {
+            Methods.Add(call.Method);
+            return ValueTask.FromResult(new WorkerHostResultPayload(true));
+        }
+    }
+
+    [TestMethod]
     public async Task ProcessTransport_PassesEffectsThroughLuaAndPython()
     {
         var workerPath = GetWorkerPath();

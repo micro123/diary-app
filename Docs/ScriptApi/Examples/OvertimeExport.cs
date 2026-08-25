@@ -20,7 +20,7 @@ public sealed class OvertimeExportEditorScript : EditorScript
         CancellationToken cancellationToken = default)
     {
         var diary = context.GetApi<IDiaryApi>();
-        var system = context.GetApi<SysApi>();
+        var system = context.GetApi<ISysApi>();
         var exports = context.GetApi<IExportApi>();
         if (diary is null || system is null || exports is null)
             return new(ScriptExecutionStatus.Rejected, []);

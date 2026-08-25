@@ -269,10 +269,14 @@ internal sealed class CSharpWorker(Stream input, Stream output)
                 context.GetApi<ITemplateScriptApi>()!,
                 context.GetApi<IHostCapabilitiesScriptApi>()!));
             context.RegisterApi<ITrackerApi>(new WorkerTrackerApiProxy(context.GetApi<ITrackerInstanceScriptApi>()!));
-            context.RegisterApi<SysApi>(new WorkerSystemInteractionApiProxy(
+            var systemApi = new WorkerSystemInteractionApiProxy(
                 context.GetApi<IClipboardScriptApi>()!,
                 context.GetApi<IUserInteractionScriptApi>()!,
-                context.GetApi<IFileInteractionApi>()!));
+                context.GetApi<IFileInteractionApi>()!);
+            context.RegisterApi<ISysApi>(systemApi);
+#pragma warning disable CS0618 // 保留现有脚本通过 GetApi<SysApi>() 获取系统 API 的兼容路径。
+            context.RegisterApi<SysApi>(systemApi);
+#pragma warning restore CS0618
             var outcome = await _executor.ExecuteAsync(build.Program, payload.Request, context, cancellationToken: cancellationToken, executionId: executionId);
             await WriteResultAsync(message, new(outcome.Result.Status, outcome.Result.Diagnostics, DurationMilliseconds: (long)outcome.Duration.TotalMilliseconds, Effects: outcome.Result.Effects));
         }

@@ -20,7 +20,7 @@ public sealed class OvertimeWorkItemsEditorScript : EditorScript
         IScriptEditorContext context,
         CancellationToken cancellationToken = default)
     {
-        var system = context.GetApi<SysApi>();
+        var system = context.GetApi<ISysApi>();
         if (system is null)
             return new(ScriptExecutionStatus.Rejected, []);
 

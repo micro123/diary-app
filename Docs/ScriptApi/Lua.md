@@ -328,6 +328,7 @@ local ok = diary.clipboard.set("复制到系统剪贴板的文本")
 ## 6. 用户交互
 
 ```lua
+diary.ui.request_main_window_activation()
 diary.ui.notify("脚本完成", "日志项已经创建")
 local confirmed = diary.ui.confirm("继续操作", "是否继续？")
 if confirmed then
@@ -335,7 +336,7 @@ if confirmed then
 end
 ```
 
-`notify(title, body)` 无返回值；`confirm(title, body)` 返回布尔值。非结果类宿主调用（剪贴板、用户交互、日志和列表类）失败会抛出 Lua 错误，可使用 `pcall` 捕获：
+`request_main_window_activation()` 请求宿主显示并激活 DiaryApp 主窗口，但操作系统可能拒绝强制抢占焦点；`notify(title, body)` 无返回值；`confirm(title, body)` 返回布尔值。非结果类宿主调用（剪贴板、用户交互、日志和列表类）失败会抛出 Lua 错误，可使用 `pcall` 捕获：
 
 ```lua
 local ok, result = pcall(function()
@@ -416,6 +417,7 @@ end
 | `diary.tracker_instances.list` | `trackerInstances.list` |
 | `diary.clipboard.get` | `clipboard.get` |
 | `diary.clipboard.set` | `clipboard.set` |
+| `diary.ui.request_main_window_activation` | `ui.window.raise` |
 | `diary.ui.notify` | `ui.notify` |
 | `diary.ui.confirm` | `ui.confirm` |
 | `diary.ui.select_option` | `ui.options.select` |

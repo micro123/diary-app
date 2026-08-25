@@ -364,7 +364,8 @@
 - [x] 执行历史和错误详情已接入 UI，仅在内存保留最近 30 条，支持复制单条脱敏日志，对常见 Token/Password/Secret 字段脱敏。
 
 ### 9.4 脚本 API 和宿主能力
-- [x] 已将日记、Tracker、系统交互和日志能力分别整合为 `IDiaryApi`、`ITrackerApi`、`SysApi` 和 `ILogApi`；旧细分接口仅保留为宿主内部适配层。
+- [x] 已将日记、Tracker、系统交互和日志能力分别整合为 `IDiaryApi`、`ITrackerApi`、`ISysApi` 和 `ILogApi`；旧名称 `SysApi` 标记为 deprecated 并由宿主继续注册以兼容现有 C# 脚本。
+- [x] 系统交互 API 增加 `ui.window.raise`，C#、Lua 和 Python 脚本均可请求显示并激活 DiaryApp 主窗口；该调用采用请求语义，不承诺绕过操作系统的前台焦点策略。
 - [x] 已提供年、季度、月、日目标的日期范围校验和按范围迭代 API；统一时区/周期计算宿主 API 待补。
 - [x] 已提供跨 C#、Lua、Python Worker 的异步 `LogApi`，日志通过 `log.write` 转发并限制消息大小。
 - [x] 提供只读工作项查询 API，复用 `WorkItemQuery` 和统一标签筛选语义。

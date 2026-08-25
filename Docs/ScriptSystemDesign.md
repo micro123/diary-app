@@ -347,7 +347,7 @@ V1 不把脚本 capability 当作用户授权门禁。宿主只注册已经实�
 返回结构化的不支持错误；独立 Worker 通过握手声明实际支持的 HostCall，宿主仍会校验方法、参数、
 目标、执行 ID 和消息大小。
 
-已实现的边界 API 包括 `IDiaryApi`、`ITrackerApi`、`SysApi` 和 `ILogApi`。网络、文件系统、
+已实现的边界 API 包括 `IDiaryApi`、`ITrackerApi`、`ISysApi` 和 `ILogApi`。`SysApi` 仅作为已弃用的 C# 源码兼容接口保留，宿主同时注册两个类型；新脚本统一使用 `ISysApi`。网络、文件系统、
 数据库连接、DI 容器和 Avalonia 对象不会注入脚本。`ILogApi` 的日志通过 `log.write`
 HostCall 转发到宿主，并限制单条消息大小。宿主会把格式化后的脚本日志同时写入主程序
 logger 和脚本管理页的共享运行日志窗口；共享窗口只接收脚本日志，不显示其他程序日志，
@@ -364,7 +364,7 @@ V1 和 V2 共用按领域拆分的宿主 API；版本号不增加权限，也不
 IScriptExecutionContext
   +-- IDiaryApi
   +-- ITrackerApi
-  +-- SysApi
+  +-- ISysApi（SysApi 为已弃用兼容接口）
   +-- ILogApi
 ```
 
@@ -502,7 +502,7 @@ ScriptCatalog（保存 EngineName 和 Descriptor）
 
 当前 Lua/Python 均支持 `ScriptApiVersion.V1`、应用脚本和编辑器脚本。脚本 metadata 中的
 capability 字段已移除并兼容忽略；Worker 通过 `supportedHostApis` 声明实际支持的方法。
-当前开放工作项查询、受控日志项/模板日志项创建、Tracker 只读实例目录、剪贴板、用户交互、
+当前开放工作项查询、受控日志项/模板日志项创建、Tracker 只读实例目录、剪贴板、通知/确认、主窗口激活请求、
 `log.write` 和 `host.capabilities.list`；脚本可通过能力列表发现当前 Worker 实际注册的 HostCall。能力列表不替代权限、作用域和参数校验。
 不提供工作项更新、Tracker 远程写入、网络、文件系统或进程创建，也不自动安装第三方依赖。
 

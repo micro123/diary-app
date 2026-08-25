@@ -119,14 +119,18 @@ public sealed class WorkerQueryDispatcherTests
         var interaction = new FakeInteractionApi();
         var dispatcher = new WorkItemQueryWorkerDispatcher(
             () => new FakeQueryApi(), interactionApiFactory: () => interaction);
+        var raise = await dispatcher.DispatchAsync("exec", new(
+            "ui.window.raise", JsonSerializer.SerializeToElement(new { })));
         var notify = await dispatcher.DispatchAsync("exec", new(
             "ui.notify", JsonSerializer.SerializeToElement(new { title = "Title", body = "Body" })));
         var confirm = await dispatcher.DispatchAsync("exec", new(
             "ui.confirm", JsonSerializer.SerializeToElement(new { title = "Confirm", body = "Continue?" })));
 
+        Assert.IsTrue(raise.Success);
         Assert.IsTrue(notify.Success);
         Assert.IsTrue(confirm.Success);
         Assert.IsTrue(confirm.Result!.Value.GetBoolean());
+        Assert.AreEqual(1, interaction.WindowActivationRequestCount);
         Assert.AreEqual("Confirm", interaction.Title);
     }
 
@@ -444,7 +448,13 @@ public sealed class WorkerQueryDispatcherTests
 
     private sealed class FakeInteractionApi : IUserInteractionScriptApi
     {
+        public int WindowActivationRequestCount { get; private set; }
         public string? Title { get; private set; }
+        public ValueTask RequestMainWindowActivationAsync(CancellationToken cancellationToken = default)
+        {
+            WindowActivationRequestCount++;
+            return ValueTask.CompletedTask;
+        }
         public ValueTask NotifyAsync(string title, string body, CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
         public ValueTask<bool> ConfirmAsync(string title, string body, CancellationToken cancellationToken = default)
         {

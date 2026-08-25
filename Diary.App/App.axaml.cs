@@ -745,10 +745,14 @@ namespace Diary.App
                           context.GetApi<ITemplateScriptApi>()!,
                           context.GetApi<IHostCapabilitiesScriptApi>()!));
                     context.RegisterApi<ITrackerApi>(new TrackerApi(context.GetApi<ITrackerInstanceScriptApi>()!));
-                    context.RegisterApi<SysApi>(new SystemInteractionApi(
+                    var systemApi = new SystemInteractionApi(
                        context.GetApi<IClipboardScriptApi>()!,
                        context.GetApi<IUserInteractionScriptApi>()!,
-                       context.GetApi<IFileInteractionApi>()!));
+                       context.GetApi<IFileInteractionApi>()!);
+                    context.RegisterApi<ISysApi>(systemApi);
+#pragma warning disable CS0618 // 保留现有脚本通过 GetApi<SysApi>() 获取系统 API 的兼容路径。
+                    context.RegisterApi<SysApi>(systemApi);
+#pragma warning restore CS0618
                     return context;
                 }));
             var compatibility = new PluginCompatibilityContext(
@@ -1346,6 +1350,13 @@ namespace Diary.App
 
     internal sealed class AppUserInteractionScriptApi : IUserInteractionScriptApi
     {
+        public ValueTask RequestMainWindowActivationAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            EventDispatcher.RunCommand(CommandNames.RaiseMainWindow);
+            return ValueTask.CompletedTask;
+        }
+
         public ValueTask NotifyAsync(string title, string body, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();

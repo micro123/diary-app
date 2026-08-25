@@ -272,6 +272,7 @@ internal sealed class LuaWorker(Stream input, Stream output)
         lua.RegisterFunction("__diary_host_capabilities_list", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.ListHostCapabilities))!);
         lua.RegisterFunction("__diary_clipboard_get", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.GetClipboard))!);
         lua.RegisterFunction("__diary_clipboard_set", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.SetClipboard))!);
+        lua.RegisterFunction("__diary_ui_window_raise", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.RequestMainWindowActivation))!);
         lua.RegisterFunction("__diary_ui_notify", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Notify))!);
         lua.RegisterFunction("__diary_ui_confirm", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.Confirm))!);
         lua.RegisterFunction("__diary_ui_options_select", bridge, bridge.GetType().GetMethod(nameof(LuaHostBridge.SelectOption))!);
@@ -419,6 +420,7 @@ internal sealed class LuaWorker(Stream input, Stream output)
         public object? ListHostCapabilities() => Call("host.capabilities.list", new { });
         public object? GetClipboard() => Call("clipboard.get", new { });
         public object? SetClipboard(object? text) => Call("clipboard.set", new { text = text?.ToString() ?? string.Empty });
+        public object? RequestMainWindowActivation() => Call("ui.window.raise", new { });
         public object? Notify(object? title, object? body) => Call("ui.notify", new { title = title?.ToString() ?? string.Empty, body = body?.ToString() ?? string.Empty });
         public object? Confirm(object? title, object? body) => Call("ui.confirm", new { title = title?.ToString() ?? string.Empty, body = body?.ToString() ?? string.Empty });
         public object? SelectOption(object? request) => Call("ui.options.select", request ?? new { });

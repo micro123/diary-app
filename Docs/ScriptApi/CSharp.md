@@ -323,7 +323,7 @@ if (result is { Succeeded: true })
 ## 8. 剪贴板
 
 ```csharp
-var system = context.GetApi<SysApi>();
+var system = context.GetApi<ISysApi>();
 var oldText = await system!.GetClipboardTextAsync(cancellationToken);
 var succeeded = await system.SetClipboardTextAsync("复制内容", cancellationToken);
 ```
@@ -333,12 +333,13 @@ var succeeded = await system.SetClipboardTextAsync("复制内容", cancellationT
 ## 9. 用户交互
 
 ```csharp
-var system = context.GetApi<SysApi>();
+var system = context.GetApi<ISysApi>();
+await system!.RequestMainWindowActivationAsync(cancellationToken);
 await system!.NotifyAsync("脚本完成", "日志项已创建。", cancellationToken);
 var confirmed = await system.ConfirmAsync("继续操作", "是否继续？", cancellationToken);
 ```
 
-`NotifyAsync` 显示通知；`ConfirmAsync` 返回用户是否确认。自动化或后台执行时 UI 可能不可用，应捕获异常并将失败作为脚本诊断处理。
+`RequestMainWindowActivationAsync` 请求宿主显示并激活 DiaryApp 主窗口；该调用表示宿主已接受请求，但操作系统仍可能依据前台焦点策略拒绝强制抢占焦点。`NotifyAsync` 显示通知；`ConfirmAsync` 返回用户是否确认。自动化或后台执行时 UI 可能不可用，应捕获异常并将失败作为脚本诊断处理。
 
 ### 9.1 交互式导出（第一阶段）
 
@@ -437,10 +438,11 @@ if (log is not null)
 | `IDiaryApi.Host.List` | `host.capabilities.list` |
 | `ITrackerApi.GetInstance` | `trackerInstances.get` |
 | `ITrackerApi.ListInstances` | `trackerInstances.list` |
-| `SysApi.GetClipboardTextAsync` | `clipboard.get` |
-| `SysApi.SetClipboardTextAsync` | `clipboard.set` |
-| `SysApi.NotifyAsync` | `ui.notify` |
-| `SysApi.ConfirmAsync` | `ui.confirm` |
+| `ISysApi.GetClipboardTextAsync` | `clipboard.get` |
+| `ISysApi.SetClipboardTextAsync` | `clipboard.set` |
+| `ISysApi.RequestMainWindowActivationAsync` | `ui.window.raise` |
+| `ISysApi.NotifyAsync` | `ui.notify` |
+| `ISysApi.ConfirmAsync` | `ui.confirm` |
 | `ILogApi.*Async` | `log.write` |
 | `ReportProgressAsync` | `script.progress` |
 
@@ -587,10 +589,11 @@ public interface ITrackerApi
     IReadOnlyList<ScriptTrackerInstance> ListInstances();
 }
 
-public interface SysApi
+public interface ISysApi
 {
     ValueTask<string?> GetClipboardTextAsync(CancellationToken cancellationToken = default);
     ValueTask<bool> SetClipboardTextAsync(string text, CancellationToken cancellationToken = default);
+    ValueTask RequestMainWindowActivationAsync(CancellationToken cancellationToken = default);
     ValueTask NotifyAsync(string title, string body, CancellationToken cancellationToken = default);
     ValueTask<bool> ConfirmAsync(string title, string body, CancellationToken cancellationToken = default);
     ValueTask<OptionDialogResult> SelectOptionAsync(OptionDialogRequest request, CancellationToken cancellationToken = default);
@@ -616,7 +619,7 @@ public interface ILogApi
 
 `Templates` 与 `Host` 各只有一个只读方法 `List()`，返回 `IReadOnlyList<ScriptTemplateInfo>` 与 `IReadOnlyList<string>`。
 
-`ScriptApiFacade`（`context.Api()` 返回）提供 `Diary`（`IDiaryApi`）、`Tracker`（`ITrackerApi`）、`System`（`SysApi`）、`Exports`（`IExportApi`）、`Log`（`ILogApi`）五个属性，均通过 `GetRequiredApi<T>()` 获取——门面不扩大权限，缺少 API 时同样报错。
+`ScriptApiFacade`（`context.Api()` 返回）提供 `Diary`（`IDiaryApi`）、`Tracker`（`ITrackerApi`）、`System`（`ISysApi`）、`Exports`（`IExportApi`）、`Log`（`ILogApi`）五个属性，均通过 `GetRequiredApi<T>()` 获取——门面不扩大权限，缺少 API 时同样报错。旧名称 `SysApi` 已标记为 deprecated，宿主仍会同时注册该兼容接口；现有脚本可以继续运行，但新代码应改用 `ISysApi`。
 
 ### 13.6 入口返回值与异常映射
 

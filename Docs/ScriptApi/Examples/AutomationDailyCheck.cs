@@ -21,7 +21,7 @@ public sealed class AutomationDailyCheckScript : AutomationScript
         CancellationToken cancellationToken = default)
     {
         var diary = context.GetApi<IDiaryApi>();
-        var system = context.GetApi<SysApi>();
+        var system = context.GetApi<ISysApi>();
         var log = context.GetApi<ILogApi>();
         if (diary is null || system is null)
             return new(ScriptExecutionStatus.Rejected, []);

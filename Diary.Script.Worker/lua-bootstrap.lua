@@ -42,6 +42,7 @@ diary = {
         set = function(text) return __diary_clipboard_set(text) end,
     },
     ui = {
+        request_main_window_activation = function() return __diary_ui_window_raise() end,
         notify = function(title, body) return __diary_ui_notify(title, body) end,
         confirm = function(title, body) return __diary_ui_confirm(title, body) end,
         select_option = function(request) return __diary_ui_options_select(request) end,
