@@ -29,7 +29,8 @@ public sealed class UpdateChecker(IUpdateSource source)
             return new UpdateCheckResult(
                 UpdateCheckStatus.UpdateAvailable,
                 envelope,
-                UpdateUris.FullPackage(request.ServerUri, envelope.Manifest));
+                UpdateUris.FullPackage(request.ServerUri, envelope.Manifest),
+                request.ServerUri);
         }
         catch (UpdateSourceException exception)
         {

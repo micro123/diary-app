@@ -39,10 +39,10 @@ internal static class UpdaterProgram
 
             if (command.Mode == UpdaterMode.Recover)
             {
-                var executor = new UpdateTransactionExecutor();
-                var state = await executor.RecoverAsync(validated, rollbackApplied: true);
+                var recoveryExecutor = new UpdateTransactionExecutor();
+                var state = await recoveryExecutor.RecoverAsync(validated, rollbackApplied: true);
                 if (state == UpdateTransactionState.RolledBack && plan.Restart?.PreviousSha256 is not null)
-                    executor.StartRecoveredApplication(validated);
+                    recoveryExecutor.StartRecoveredApplication(validated);
                 Console.WriteLine($"更新事务已恢复到状态：{state}");
                 return 0;
             }
@@ -62,7 +62,17 @@ internal static class UpdaterProgram
                 return 0;
             }
 
-            var result = await new UpdateTransactionExecutor().ApplyAsync(validated);
+            var executor = new UpdateTransactionExecutor();
+            UpdateApplyResult result;
+            try
+            {
+                result = await executor.ApplyAsync(validated);
+            }
+            catch
+            {
+                await TryRestartPreviousApplicationAsync(validated, store, executor);
+                throw;
+            }
             Console.WriteLine($"更新事务完成：{result.State}");
             return 0;
         }
@@ -76,6 +86,27 @@ internal static class UpdaterProgram
         {
             Console.Error.WriteLine($"更新失败：{exception.Message}");
             return 1;
+        }
+    }
+
+    private static async ValueTask TryRestartPreviousApplicationAsync(
+        ValidatedUpdatePlan plan,
+        UpdateTransactionStore store,
+        UpdateTransactionExecutor executor)
+    {
+        try
+        {
+            var status = await store.ReadStatusAsync(CancellationToken.None);
+            if (status?.State is not (UpdateTransactionState.RolledBack or UpdateTransactionState.Failed)
+                || plan.Plan.Restart?.PreviousSha256 is null)
+            {
+                return;
+            }
+            executor.StartRecoveredApplication(plan);
+        }
+        catch (Exception exception)
+        {
+            Console.Error.WriteLine($"无法重新启动上一版本：{exception.Message}");
         }
     }
 

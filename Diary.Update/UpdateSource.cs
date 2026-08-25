@@ -23,6 +23,13 @@ public interface IUpdatePackageSource
         UpdatePackageDescriptor descriptor,
         IProgress<UpdateDownloadProgress>? progress = null,
         CancellationToken cancellationToken = default);
+
+    ValueTask DownloadContentAsync(
+        Uri contentUri,
+        string targetPath,
+        UpdateManifestFile descriptor,
+        IProgress<UpdateDownloadProgress>? progress = null,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class UpdateSourceException(
@@ -113,21 +120,63 @@ public sealed class HttpUpdateSource(HttpClient httpClient) : IUpdateSource, IUp
         if (descriptor.Size <= 0 || !UpdateHash.IsSha256(descriptor.Sha256))
             throw new InvalidDataException("完整包描述非法。");
 
+        await DownloadFileAsync(
+            packageUri,
+            targetPath,
+            descriptor.Size,
+            descriptor.Sha256,
+            "更新完整包",
+            progress,
+            cancellationToken);
+    }
+
+    public async ValueTask DownloadContentAsync(
+        Uri contentUri,
+        string targetPath,
+        UpdateManifestFile descriptor,
+        IProgress<UpdateDownloadProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+        if (!contentUri.IsAbsoluteUri || contentUri.Scheme is not ("http" or "https"))
+            throw new ArgumentException("更新文件地址必须是 HTTP 或 HTTPS 绝对地址。", nameof(contentUri));
+        if (descriptor.Size < 0 || !UpdateHash.IsSha256(descriptor.Sha256))
+            throw new InvalidDataException($"更新文件描述非法：{descriptor.Path}");
+
+        await DownloadFileAsync(
+            contentUri,
+            targetPath,
+            descriptor.Size,
+            descriptor.Sha256,
+            $"更新文件 {descriptor.Path}",
+            progress,
+            cancellationToken);
+    }
+
+    private async ValueTask DownloadFileAsync(
+        Uri uri,
+        string targetPath,
+        long expectedSize,
+        string expectedSha256,
+        string operation,
+        IProgress<UpdateDownloadProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+
         var directory = Path.GetDirectoryName(targetPath)
-            ?? throw new InvalidDataException("完整包目标路径没有父目录。");
+            ?? throw new InvalidDataException($"{operation}目标路径没有父目录。");
         Directory.CreateDirectory(directory);
         if (File.Exists(targetPath))
         {
-            await UpdateHash.VerifyFileAsync(targetPath, descriptor.Size, descriptor.Sha256, cancellationToken);
-            progress?.Report(new(descriptor.Size, descriptor.Size));
+            await UpdateHash.VerifyFileAsync(targetPath, expectedSize, expectedSha256, cancellationToken);
+            progress?.Report(new(expectedSize, expectedSize));
             return;
         }
 
         var temporaryPath = Path.Combine(directory, $".{Path.GetFileName(targetPath)}.{Guid.NewGuid():N}.tmp");
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, packageUri);
-            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/zip"));
+            using var request = new HttpRequestMessage(HttpMethod.Get, uri);
             HttpResponseMessage response;
             try
             {
@@ -138,21 +187,21 @@ public sealed class HttpUpdateSource(HttpClient httpClient) : IUpdateSource, IUp
             }
             catch (HttpRequestException exception)
             {
-                throw new UpdateSourceException("无法下载更新完整包。", true, innerException: exception);
+                throw new UpdateSourceException($"无法下载{operation}。", true, innerException: exception);
             }
             catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
             {
-                throw new UpdateSourceException("下载更新完整包超时。", true, innerException: exception);
+                throw new UpdateSourceException($"下载{operation}超时。", true, innerException: exception);
             }
 
             using (response)
             {
                 if (!response.IsSuccessStatusCode)
-                    throw CreateHttpError(response.StatusCode, "下载更新完整包失败");
+                    throw CreateHttpError(response.StatusCode, $"下载{operation}失败");
                 if (response.Content.Headers.ContentLength is { } contentLength
-                    && contentLength != descriptor.Size)
+                    && contentLength != expectedSize)
                 {
-                    throw new InvalidDataException("更新完整包 Content-Length 与清单不匹配。");
+                    throw new InvalidDataException($"{operation}的 Content-Length 与清单不匹配。");
                 }
 
                 await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -172,18 +221,18 @@ public sealed class HttpUpdateSource(HttpClient httpClient) : IUpdateSource, IUp
                     if (read == 0)
                         break;
                     received += read;
-                    if (received > descriptor.Size)
-                        throw new InvalidDataException("更新完整包大小超过清单声明。");
+                    if (received > expectedSize)
+                        throw new InvalidDataException($"{operation}大小超过清单声明。");
                     digest.AppendData(buffer, 0, read);
                     await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-                    progress?.Report(new(received, descriptor.Size));
+                    progress?.Report(new(received, expectedSize));
                 }
                 await target.FlushAsync(cancellationToken);
-                if (received != descriptor.Size)
-                    throw new InvalidDataException("更新完整包下载长度与清单不匹配。");
+                if (received != expectedSize)
+                    throw new InvalidDataException($"{operation}下载长度与清单不匹配。");
                 var actualSha256 = Convert.ToHexStringLower(digest.GetHashAndReset());
-                if (!string.Equals(actualSha256, descriptor.Sha256, StringComparison.Ordinal))
-                    throw new InvalidDataException("更新完整包 SHA-256 与清单不匹配。");
+                if (!string.Equals(actualSha256, expectedSha256, StringComparison.Ordinal))
+                    throw new InvalidDataException($"{operation}的 SHA-256 与清单不匹配。");
             }
             File.Move(temporaryPath, targetPath, overwrite: false);
         }
@@ -214,6 +263,13 @@ public static class UpdateUris
     public static Uri FullPackage(Uri serverUri, UpdateManifest manifest) =>
         Build(serverUri,
             $"api/v1/updates/packages/{Escape(manifest.Channel)}/{manifest.Sequence}/{Escape(manifest.Rid)}/{Escape(manifest.Flavor)}");
+
+    public static Uri Content(Uri serverUri, string sha256)
+    {
+        if (!UpdateHash.IsSha256(sha256))
+            throw new ArgumentException("内容 SHA-256 非法。", nameof(sha256));
+        return Build(serverUri, $"api/v1/updates/content/{sha256}");
+    }
 
     private static string Escape(string value) => Uri.EscapeDataString(value);
 

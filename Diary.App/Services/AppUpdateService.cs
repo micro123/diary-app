@@ -86,9 +86,10 @@ public sealed class AppUpdateService(
     {
         if (result.Status != UpdateCheckStatus.UpdateAvailable
             || result.Envelope is null
-            || result.FullPackageUri is null)
+            || result.FullPackageUri is null
+            || result.ServerUri is null)
         {
-            throw new ArgumentException("更新检查结果不包含可下载的完整包。", nameof(result));
+            throw new ArgumentException("更新检查结果不包含完整的下载信息。", nameof(result));
         }
         if (!await _prepareLock.WaitAsync(0, cancellationToken))
             throw new InvalidOperationException("已有更新正在下载或准备。请稍后重试。");
@@ -99,6 +100,7 @@ public sealed class AppUpdateService(
                 : [];
             var request = new UpdatePreparationRequest
             {
+                ServerUri = result.ServerUri,
                 PackageUri = result.FullPackageUri,
                 Envelope = result.Envelope,
                 CurrentVersion = AppInfo.AppVersionString,
@@ -107,13 +109,15 @@ public sealed class AppUpdateService(
                 RestartArguments = restartArguments,
             };
             logger.LogInformation(
-                "开始下载并准备应用更新：TargetVersion={TargetVersion}, PackageSize={PackageSize}",
+                "开始下载并准备应用更新：TargetVersion={TargetVersion}, FullPackageSize={FullPackageSize}",
                 result.Envelope.Manifest.VersionId,
                 result.Envelope.FullPackage.Size);
             var prepared = await preparationService.PrepareAsync(request, progress, cancellationToken);
             logger.LogInformation(
-                "应用更新准备完成：TransactionId={TransactionId}, Add={Add}, Replace={Replace}, Delete={Delete}, Conflicts={Conflicts}",
+                "应用更新准备完成：TransactionId={TransactionId}, Mode={Mode}, DownloadSize={DownloadSize}, Add={Add}, Replace={Replace}, Delete={Delete}, Conflicts={Conflicts}",
                 prepared.TransactionId,
+                prepared.DownloadMode,
+                prepared.DownloadSize,
                 prepared.AddCount,
                 prepared.ReplaceCount,
                 prepared.DeleteCount,
@@ -140,6 +144,11 @@ public sealed class AppUpdateService(
         string planPath,
         CancellationToken cancellationToken = default)
         => startupManager.ConfirmAsync(planPath, AppInfo.AppSequence, cancellationToken);
+
+    public ValueTask<UpdateTransactionStatus> ReadStartupStatusAsync(
+        string planPath,
+        CancellationToken cancellationToken = default)
+        => startupManager.ReadStatusAsync(planPath, cancellationToken);
 
     public ValueTask<bool> HandleRolledBackStartupAsync(
         string planPath,

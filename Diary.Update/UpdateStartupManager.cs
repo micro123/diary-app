@@ -4,6 +4,16 @@ namespace Diary.Update;
 
 public sealed class UpdateStartupManager
 {
+    public async ValueTask<UpdateTransactionStatus> ReadStatusAsync(
+        string planPath,
+        CancellationToken cancellationToken = default)
+    {
+        var plan = await UpdateTransactionStore.LoadPlanAsync(planPath, cancellationToken);
+        var validated = UpdatePlanValidator.Validate(plan, planPath);
+        return await new UpdateTransactionStore(validated).ReadStatusAsync(cancellationToken)
+            ?? throw new InvalidDataException("更新事务没有启动状态。");
+    }
+
     public async ValueTask<bool> HandleRolledBackStartupAsync(
         string planPath,
         bool startupSucceeded,

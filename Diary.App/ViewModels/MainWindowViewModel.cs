@@ -417,12 +417,13 @@ public partial class MainWindowViewModel : ViewModelBase
                         "发现新版本",
                         $"当前版本：{AppInfo.AppVersionString}\n"
                         + $"最新版本：{manifest.VersionId}（序号 {manifest.Sequence}）\n"
-                        + $"完整包：{FormatSize(package.Size)}\n\n"
+                        + $"完整包上限：{FormatSize(package.Size)}\n\n"
+                        + "更新器会比较本地文件并优先只下载变化内容；本地清单不可用或跨度不支持时才回退完整包。"
                         + "是否立即下载并安装？准备完成后应用会自动退出并重启。");
                     if (!confirmed)
                         return;
 
-                    EventDispatcher.ShowToast("正在下载并校验更新完整包，请勿退出应用…");
+                    EventDispatcher.ShowToast("正在比较本地文件并下载更新内容，请勿退出应用…");
                     try
                     {
                         var updateService = _serviceProvider.GetRequiredService<AppUpdateService>();

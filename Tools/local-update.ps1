@@ -9,7 +9,8 @@ param(
     [string] $TokenFile = $(if ($env:DIARY_UPDATE_PUBLISH_TOKEN_FILE) { $env:DIARY_UPDATE_PUBLISH_TOKEN_FILE } else { '' }),
     [Nullable[long]] $Sequence,
     [ValidateSet('standard', 'python313')]
-    [string] $Flavor = 'standard'
+    [string] $Flavor = 'standard',
+    [switch] $ReuseExistingManual
 )
 
 Set-StrictMode -Version Latest
@@ -245,15 +246,20 @@ function Assert-PublishOutput([string] $PublishDirectory) {
 }
 
 function Add-UserManual([string] $PublishDirectory) {
-    Assert-Command 'quarto'
     $manualProjectDirectory = Join-Path $RepositoryRoot 'Docs\UserManual'
     $manualOutputDirectory = Join-Path $manualProjectDirectory '_output'
     $htmlSource = Join-Path $manualOutputDirectory 'DiaryApp-User-Manual.html'
     $pdfSource = Join-Path $manualOutputDirectory 'DiaryApp-User-Manual.pdf'
     $manualDestinationDirectory = Join-Path $PublishDirectory 'Docs\UserManual'
 
-    Write-Host '正在渲染用户手册……'
-    Invoke-Native 'quarto' @('render', $manualProjectDirectory)
+    if ($ReuseExistingManual) {
+        Write-Warning '正在复用现有用户手册产物；该选项只用于本地升级链路测试，产物可能不包含最新文档修改。'
+    }
+    else {
+        Assert-Command 'quarto'
+        Write-Host '正在渲染用户手册……'
+        Invoke-Native 'quarto' @('render', $manualProjectDirectory)
+    }
     if (-not (Test-Path -LiteralPath $htmlSource -PathType Leaf) -or
         (Get-Item -LiteralPath $htmlSource).Length -eq 0 -or
         (Get-Content -LiteralPath $htmlSource -Raw) -notmatch '(?i)<html') {

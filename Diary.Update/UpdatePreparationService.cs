@@ -2,8 +2,24 @@ using System.Text.Json;
 
 namespace Diary.Update;
 
-public sealed class UpdatePreparationService(IUpdatePackageSource packageSource)
+public sealed class UpdatePreparationService
 {
+    private readonly IUpdatePackageSource _packageSource;
+    private readonly Func<string, CancellationToken, ValueTask<UpdateMachineVersion>> _probeUpdater;
+
+    public UpdatePreparationService(IUpdatePackageSource packageSource)
+        : this(packageSource, UpdateProcessServices.ProbeUpdaterAsync)
+    {
+    }
+
+    internal UpdatePreparationService(
+        IUpdatePackageSource packageSource,
+        Func<string, CancellationToken, ValueTask<UpdateMachineVersion>> probeUpdater)
+    {
+        _packageSource = packageSource;
+        _probeUpdater = probeUpdater;
+    }
+
     public async ValueTask<PreparedUpdate> PrepareAsync(
         UpdatePreparationRequest request,
         IProgress<UpdateDownloadProgress>? progress = null,
@@ -38,17 +54,53 @@ public sealed class UpdatePreparationService(IUpdatePackageSource packageSource)
 
         try
         {
-            await packageSource.DownloadPackageAsync(
-                request.PackageUri,
-                packagePath,
-                request.Envelope.FullPackage,
-                progress,
-                cancellationToken);
-            await UpdatePackageExtractor.ExtractAndValidateAsync(
-                packagePath,
-                stagingDirectory,
+            var installedManifest = await TryLoadInstalledManifestAsync(
+                installDirectory,
                 manifest,
                 cancellationToken);
+            var useIncremental = installedManifest is not null
+                && installedManifest.Sequence >= manifest.MinIncrementalSequence
+                && installedManifest.Sequence <= manifest.Sequence;
+            UpdateDownloadMode downloadMode;
+            long downloadSize;
+            var preservedConflicts = new List<string>();
+            var updaterName = manifest.Rid == "win-x64" ? "Diary.Updater.exe" : "Diary.Updater";
+            var operations = await BuildOperationsAsync(
+                installDirectory,
+                manifest,
+                updaterName,
+                installedManifest,
+                preservedConflicts,
+                cancellationToken);
+            await EnsureMcpAvailableAsync(installDirectory, operations, cancellationToken);
+
+            if (useIncremental)
+            {
+                downloadSize = await DownloadIncrementalFilesAsync(
+                    request.ServerUri,
+                    stagingDirectory,
+                    manifest,
+                    operations,
+                    progress,
+                    cancellationToken);
+                downloadMode = UpdateDownloadMode.Incremental;
+            }
+            else
+            {
+                await _packageSource.DownloadPackageAsync(
+                    request.PackageUri,
+                    packagePath,
+                    request.Envelope.FullPackage,
+                    progress,
+                    cancellationToken);
+                await UpdatePackageExtractor.ExtractAndValidateAsync(
+                    packagePath,
+                    stagingDirectory,
+                    manifest,
+                    cancellationToken);
+                downloadMode = UpdateDownloadMode.FullPackage;
+                downloadSize = request.Envelope.FullPackage.Size;
+            }
 
             var installedManifestSourcePath = Path.Combine(stagingDirectory, ".update", "installed-manifest.json");
             await WriteManifestAsync(installedManifestSourcePath, manifest, cancellationToken);
@@ -57,7 +109,6 @@ public sealed class UpdatePreparationService(IUpdatePackageSource packageSource)
                 installedManifestSourcePath,
                 cancellationToken);
 
-            var updaterName = manifest.Rid == "win-x64" ? "Diary.Updater.exe" : "Diary.Updater";
             var appName = manifest.Rid == "win-x64" ? "Diary.App.exe" : "Diary.App";
             var targetUpdaterFile = RequireFile(manifest, updaterName, "updater");
             var targetAppFile = RequireFile(manifest, appName, "app");
@@ -100,14 +151,6 @@ public sealed class UpdatePreparationService(IUpdatePackageSource packageSource)
                 throw CreateFileInUseException("验证更新引导程序", targetUpdaterFile.Path, exception);
             }
 
-            var preservedConflicts = new List<string>();
-            var operations = await BuildOperationsAsync(
-                installDirectory,
-                stagingDirectory,
-                manifest,
-                updaterName,
-                preservedConflicts,
-                cancellationToken);
             EnsureBackupCapacity(updatesRoot, installDirectory, operations, installedManifestSize);
 
             var plan = new UpdateTransactionPlan
@@ -163,6 +206,8 @@ public sealed class UpdatePreparationService(IUpdatePackageSource packageSource)
                 bootstrapUpdaterPath,
                 manifest.VersionId,
                 manifest.Sequence,
+                downloadMode,
+                downloadSize,
                 request.Envelope.FullPackage.Size,
                 operations.Count(operation => operation.Kind == UpdateFileOperationKind.Add),
                 operations.Count(operation => operation.Kind == UpdateFileOperationKind.Replace),
@@ -179,9 +224,9 @@ public sealed class UpdatePreparationService(IUpdatePackageSource packageSource)
 
     private static async ValueTask<List<UpdateFileOperation>> BuildOperationsAsync(
         string installDirectory,
-        string stagingDirectory,
         UpdateManifest manifest,
         string updaterName,
+        UpdateManifest? installedManifest,
         List<string> preservedConflicts,
         CancellationToken cancellationToken)
     {
@@ -218,7 +263,6 @@ public sealed class UpdatePreparationService(IUpdatePackageSource packageSource)
             });
         }
 
-        var installedManifest = await TryLoadInstalledManifestAsync(installDirectory, manifest, cancellationToken);
         if (installedManifest is null)
             return operations;
         var comparer = manifest.Rid == "win-x64" ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
@@ -248,6 +292,81 @@ public sealed class UpdatePreparationService(IUpdatePackageSource packageSource)
         return operations;
     }
 
+    private async ValueTask<long> DownloadIncrementalFilesAsync(
+        Uri serverUri,
+        string stagingDirectory,
+        UpdateManifest manifest,
+        IReadOnlyList<UpdateFileOperation> operations,
+        IProgress<UpdateDownloadProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        var comparer = manifest.Rid == "win-x64" ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        var files = manifest.Files.ToDictionary(file => file.Path, comparer);
+        var downloads = operations
+            .Where(operation => operation.Kind is UpdateFileOperationKind.Add or UpdateFileOperationKind.Replace)
+            .Select(operation => files[operation.TargetPath])
+            .ToArray();
+        var totalBytes = downloads.Sum(file => file.Size);
+        long completedBytes = 0;
+        progress?.Report(new(0, totalBytes));
+        foreach (var file in downloads)
+        {
+            var targetPath = UpdatePathPolicy.ResolveInside(stagingDirectory, file.Path, file.Path);
+            Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+            var completedBeforeFile = completedBytes;
+            var fileProgress = progress is null
+                ? null
+                : new InlineProgress<UpdateDownloadProgress>(value =>
+                    progress.Report(new(completedBeforeFile + value.BytesReceived, totalBytes)));
+            await _packageSource.DownloadContentAsync(
+                UpdateUris.Content(serverUri, file.Sha256),
+                targetPath,
+                file,
+                fileProgress,
+                cancellationToken);
+            if (file.Executable && !OperatingSystem.IsWindows())
+                File.SetUnixFileMode(targetPath, ExecutableMode);
+            completedBytes += file.Size;
+            progress?.Report(new(completedBytes, totalBytes));
+        }
+        return totalBytes;
+    }
+
+    internal static async ValueTask EnsureMcpAvailableAsync(
+        string installDirectory,
+        IReadOnlyList<UpdateFileOperation> operations,
+        CancellationToken cancellationToken,
+        IReadOnlyList<TimeSpan>? retryDelays = null)
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+        var operation = operations.FirstOrDefault(item =>
+            string.Equals(item.TargetPath, "Diary.Mcp.exe", StringComparison.OrdinalIgnoreCase));
+        if (operation is null)
+            return;
+        var path = UpdatePathPolicy.ResolveInside(installDirectory, operation.TargetPath, operation.TargetPath);
+        if (!File.Exists(path))
+            return;
+        try
+        {
+            await UpdateFileAccess.ExecuteWithSharingRetryAsync(() =>
+            {
+                using var stream = new FileStream(
+                    path,
+                    FileMode.Open,
+                    FileAccess.ReadWrite,
+                    FileShare.None);
+                return ValueTask.FromResult(true);
+            }, cancellationToken, retryDelays);
+        }
+        catch (Exception exception) when (UpdateFileAccess.IsSharingViolation(exception))
+        {
+            throw new IOException(
+                "Diary MCP 正被外部 AI 客户端占用，无法安全更新。请先结束当前 MCP 会话或关闭相关 AI 客户端，然后重试更新。",
+                exception);
+        }
+    }
+
     private static async ValueTask<string> ComputeInstalledFileSha256Async(
         string path,
         string relativePath,
@@ -263,7 +382,7 @@ public sealed class UpdatePreparationService(IUpdatePackageSource packageSource)
         }
     }
 
-    private static async ValueTask<UpdateMachineVersion> ProbeTargetUpdaterAsync(
+    private async ValueTask<UpdateMachineVersion> ProbeTargetUpdaterAsync(
         string path,
         string relativePath,
         CancellationToken cancellationToken)
@@ -271,7 +390,7 @@ public sealed class UpdatePreparationService(IUpdatePackageSource packageSource)
         try
         {
             return await UpdateFileAccess.ExecuteWithSharingRetryAsync(
-                () => UpdateProcessServices.ProbeUpdaterAsync(path, cancellationToken),
+                () => _probeUpdater(path, cancellationToken),
                 cancellationToken);
         }
         catch (Exception exception) when (UpdateFileAccess.IsSharingViolation(exception))
@@ -331,7 +450,11 @@ public sealed class UpdatePreparationService(IUpdatePackageSource packageSource)
                 cancellationToken);
             if (manifest is null)
                 return null;
-            UpdateManifestValidator.ValidateManifest(manifest, rid: target.Rid, flavor: target.Flavor);
+            UpdateManifestValidator.ValidateManifest(
+                manifest,
+                channel: target.Channel,
+                rid: target.Rid,
+                flavor: target.Flavor);
             return manifest;
         }
         catch (Exception exception) when (exception is JsonException or InvalidDataException or IOException)
@@ -406,4 +529,9 @@ public sealed class UpdatePreparationService(IUpdatePackageSource packageSource)
         UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute
         | UnixFileMode.GroupRead | UnixFileMode.GroupExecute
         | UnixFileMode.OtherRead | UnixFileMode.OtherExecute;
+
+    private sealed class InlineProgress<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
+    }
 }

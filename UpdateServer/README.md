@@ -24,6 +24,14 @@ Windows 10/11 推荐使用 PowerShell 7、Python 3.11+ 和 Quarto CLI 直接运�
 .\Tools\local-update.ps1 server-stop
 ```
 
+本机未安装 Quarto、但 `Docs/UserManual/_output/` 已有通过基本格式检查的 HTML/PDF 时，可仅为升级链路测试显式复用现有手册产物：
+
+```powershell
+.\Tools\local-update.ps1 publish -ReuseExistingManual
+```
+
+该选项会输出警告，生成的包可能不包含最新手册修改，不用于正式发布；默认行为仍要求安装 Quarto 并重新渲染。
+
 PowerShell 工具默认发布 `win-x64/standard`，也可使用 `-Flavor python313` 构建带 Python 3.13 embeddable runtime 的包。两种包都会先用 Quarto 渲染用户手册，将稳定文件名的 HTML/PDF 注入 `Docs/UserManual`，并执行与 CI 相同的手册存在性和格式校验。Python flavor 会首次下载并校验 Python 官方 ZIP，缓存到 `artifacts/cache/python`：
 
 ```powershell

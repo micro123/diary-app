@@ -997,12 +997,22 @@ namespace Diary.App
             var updateService = Services.GetRequiredService<AppUpdateService>();
             try
             {
+                var startupStatus = await updateService.ReadStartupStatusAsync(planPath);
                 if (await updateService.HandleRolledBackStartupAsync(planPath, startupSucceeded))
                 {
                     if (startupSucceeded)
                     {
                         Logger.LogInformation("回滚后启动确认完成：PlanPath={PlanPath}", planPath);
-                        EventDispatcher.ShowToast("已回滚到上一版本", NotificationType.Warning);
+                        if (string.IsNullOrWhiteSpace(startupStatus.Message))
+                        {
+                            EventDispatcher.ShowToast("已回滚到上一版本", NotificationType.Warning);
+                        }
+                        else
+                        {
+                            EventDispatcher.Notify(
+                                "更新失败，已回滚",
+                                startupStatus.Message + "\n\n请关闭占用更新文件的程序后重试。");
+                        }
                     }
                     else
                     {
@@ -1011,6 +1021,18 @@ namespace Diary.App
                             "回滚后仍无法启动",
                             "程序文件已经回滚，但旧版本仍未完成数据库或配置初始化。事务现场已保留，请联系管理员处理。");
                     }
+                    return;
+                }
+                if (startupStatus.State == UpdateTransactionState.Failed)
+                {
+                    Logger.LogError(
+                        "更新失败且回滚未完成：PlanPath={PlanPath}, Error={Error}",
+                        planPath,
+                        startupStatus.Message);
+                    EventDispatcher.Notify(
+                        "更新失败且回滚未完成",
+                        (startupStatus.Message ?? "更新器未能完成文件回滚。")
+                        + "\n\n事务现场已保留，请关闭占用更新文件的程序并联系管理员处理。");
                     return;
                 }
             }

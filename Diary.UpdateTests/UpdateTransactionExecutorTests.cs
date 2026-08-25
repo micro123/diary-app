@@ -59,6 +59,26 @@ public sealed class UpdateTransactionExecutorTests
     }
 
     [TestMethod]
+    public async Task ApplyAsync_WhenPreflightFails_RecordsRollbackState()
+    {
+        using var fixture = await UpdateFixture.CreateAsync();
+        var staged = await fixture.StageAsync("payload/new.txt", "new-content");
+        var plan = await fixture.CreatePlanAsync(
+        [
+            await fixture.OperationAsync(UpdateFileOperationKind.Add, "new.txt", staged),
+        ]);
+        File.Delete(staged);
+        var validated = UpdatePlanValidator.Validate(plan, fixture.PlanPath);
+
+        await Assert.ThrowsAsync<FileNotFoundException>(async () =>
+            await new UpdateTransactionExecutor().ApplyAsync(validated, restartApplication: false));
+
+        var status = await new UpdateTransactionStore(validated).ReadStatusAsync();
+        Assert.AreEqual(UpdateTransactionState.RolledBack, status!.State);
+        Assert.IsFalse(File.Exists(fixture.InstallPath("new.txt")));
+    }
+
+    [TestMethod]
     public async Task RecoverAsync_RemovesPreparedAddedFile()
     {
         using var fixture = await UpdateFixture.CreateAsync();
@@ -299,6 +319,74 @@ public sealed class UpdateTransactionExecutorTests
         Assert.IsTrue(handled);
         Assert.IsTrue(Directory.Exists(plan.TransactionDirectory));
         Assert.IsTrue(File.Exists(plan.BootstrapUpdater.Path));
+    }
+
+    [TestMethod]
+    public async Task RecoverAsync_WhenLockedTargetAlreadyMatchesBackup_SkipsRewrite()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("Windows 文件占用恢复测试仅适用于 Windows。");
+            return;
+        }
+
+        using var fixture = await UpdateFixture.CreateAsync();
+        var target = fixture.InstallPath("Diary.Mcp.exe");
+        await File.WriteAllTextAsync(target, "original");
+        var replacement = await fixture.StageAsync("payload/Diary.Mcp.exe", "replacement");
+        var operation = await fixture.OperationAsync(UpdateFileOperationKind.Replace, "Diary.Mcp.exe", replacement, target);
+        var plan = await fixture.CreatePlanAsync([operation]);
+        var validated = UpdatePlanValidator.Validate(plan, fixture.PlanPath);
+        var validatedOperation = validated.Operations.Single(item => item.Operation.TargetPath == "Diary.Mcp.exe");
+        Directory.CreateDirectory(Path.GetDirectoryName(validatedOperation.BackupPath)!);
+        File.Copy(target, validatedOperation.BackupPath);
+        var store = new UpdateTransactionStore(validated);
+        await store.WriteStatusAsync(UpdateTransactionState.Applying);
+        await store.AppendJournalAsync(new UpdateJournalEntry
+        {
+            Sequence = 0,
+            Phase = UpdateJournalPhase.Prepared,
+            Kind = UpdateFileOperationKind.Replace,
+            TargetPath = "Diary.Mcp.exe",
+            BackupPath = Path.GetRelativePath(validated.BackupDirectory, validatedOperation.BackupPath).Replace('\\', '/'),
+            ExistedBefore = true,
+            Timestamp = DateTimeOffset.UtcNow,
+        });
+        await using var locked = new FileStream(target, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+        var state = await new UpdateTransactionExecutor().RecoverAsync(validated);
+
+        Assert.AreEqual(UpdateTransactionState.RolledBack, state);
+        Assert.AreEqual("original", await File.ReadAllTextAsync(target));
+    }
+
+    [TestMethod]
+    public async Task ApplyAsync_WhenTargetBecomesLocked_ReportsActionablePathAndRollsBack()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("Windows 文件占用测试仅适用于 Windows。");
+            return;
+        }
+
+        using var fixture = await UpdateFixture.CreateAsync();
+        var target = fixture.InstallPath("Diary.Mcp.exe");
+        await File.WriteAllTextAsync(target, "original");
+        var replacement = await fixture.StageAsync("payload/Diary.Mcp.exe", "replacement");
+        var operation = await fixture.OperationAsync(UpdateFileOperationKind.Replace, "Diary.Mcp.exe", replacement, target);
+        var plan = await fixture.CreatePlanAsync([operation]);
+        var validated = UpdatePlanValidator.Validate(plan, fixture.PlanPath);
+        await using var locked = new FileStream(target, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+        var exception = await Assert.ThrowsAsync<IOException>(async () =>
+            await new UpdateTransactionExecutor().ApplyAsync(validated, restartApplication: false));
+
+        StringAssert.Contains(exception.Message, "Diary.Mcp.exe");
+        StringAssert.Contains(exception.Message, "文件可能被其他进程占用");
+        var status = await new UpdateTransactionStore(validated).ReadStatusAsync();
+        Assert.AreEqual(UpdateTransactionState.RolledBack, status!.State);
+        StringAssert.Contains(status.Message, "请先关闭相关程序后重试");
+        Assert.AreEqual("original", await File.ReadAllTextAsync(target));
     }
 
     private sealed class UpdateFixture : IDisposable

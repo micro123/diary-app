@@ -21,12 +21,12 @@ public sealed class UpdateTransactionExecutor
 
         Directory.CreateDirectory(plan.BackupDirectory);
         store.ResetJournal();
-        await PreflightAsync(plan, cancellationToken);
-        await BackupExistingFilesAsync(plan, cancellationToken);
         await store.WriteStatusAsync(UpdateTransactionState.Applying, cancellationToken: cancellationToken);
 
         try
         {
+            await PreflightAsync(plan, cancellationToken);
+            await BackupExistingFilesAsync(plan, cancellationToken);
             var sequence = 0;
             foreach (var operation in plan.Operations.Where(item => item.Operation.Kind != UpdateFileOperationKind.Delete))
                 await ApplyOperationAsync(plan, store, operation, sequence++, cancellationToken);
@@ -272,6 +272,16 @@ public sealed class UpdateTransactionExecutor
             if (!File.Exists(backupPath))
                 throw new FileNotFoundException("回滚备份不存在。", backupPath);
             var expectedHash = await UpdateHash.ComputeSha256Async(backupPath, cancellationToken);
+            if (File.Exists(targetPath))
+            {
+                var currentHash = await UpdateHash.ComputeSha256Async(targetPath, cancellationToken);
+                if (string.Equals(currentHash, expectedHash, StringComparison.Ordinal))
+                {
+                    if (entry.OriginalUnixMode is { } unchangedUnixMode && !OperatingSystem.IsWindows())
+                        File.SetUnixFileMode(targetPath, (UnixFileMode)unchangedUnixMode);
+                    continue;
+                }
+            }
             await ReplaceFromSourceAsync(
                 backupPath,
                 targetPath,
@@ -319,7 +329,16 @@ public sealed class UpdateTransactionExecutor
                     | UnixFileMode.GroupRead | UnixFileMode.GroupExecute
                     | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
             }
-            File.Move(temporaryPath, target, overwrite: true);
+            try
+            {
+                File.Move(temporaryPath, target, overwrite: true);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                throw new IOException(
+                    $"替换更新文件失败：{target}。文件可能被其他进程占用，请先关闭相关程序后重试。",
+                    exception);
+            }
         }
         finally
         {

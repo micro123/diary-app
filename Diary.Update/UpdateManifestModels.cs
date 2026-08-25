@@ -57,12 +57,14 @@ public sealed record UpdateCheckResult(
     UpdateCheckStatus Status,
     UpdateManifestEnvelope? Envelope = null,
     Uri? FullPackageUri = null,
+    Uri? ServerUri = null,
     string? Error = null);
 
 public sealed record UpdateDownloadProgress(long BytesReceived, long TotalBytes);
 
 public sealed record UpdatePreparationRequest
 {
+    public required Uri ServerUri { get; init; }
     public required Uri PackageUri { get; init; }
     public required UpdateManifestEnvelope Envelope { get; init; }
     public required string CurrentVersion { get; init; }
@@ -71,13 +73,21 @@ public sealed record UpdatePreparationRequest
     public IReadOnlyList<string> RestartArguments { get; init; } = [];
 }
 
+public enum UpdateDownloadMode
+{
+    Incremental,
+    FullPackage,
+}
+
 public sealed record PreparedUpdate(
     string TransactionId,
     string PlanPath,
     string BootstrapUpdaterPath,
     string TargetVersion,
     long TargetSequence,
-    long PackageSize,
+    UpdateDownloadMode DownloadMode,
+    long DownloadSize,
+    long FullPackageSize,
     int AddCount,
     int ReplaceCount,
     int DeleteCount,

@@ -20,6 +20,7 @@ public sealed class UpdateCheckerTests
         Assert.AreEqual(
             "http://updates.local/api/v1/updates/packages/preview/501/win-x64/standard",
             result.FullPackageUri?.AbsoluteUri);
+        Assert.AreEqual("http://updates.local/", result.ServerUri?.AbsoluteUri);
     }
 
     [TestMethod]

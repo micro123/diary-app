@@ -64,6 +64,30 @@ public sealed class HttpUpdateSourcePackageTests
                 Descriptor(payload)));
     }
 
+    [TestMethod]
+    public async Task DownloadContentAsync_WritesValidatedBlob()
+    {
+        var payload = "changed file"u8.ToArray();
+        using var client = CreateClient(payload);
+        var source = new HttpUpdateSource(client);
+        using var directory = new TemporaryDirectory();
+        var target = Path.Combine(directory.Path, "payload", "Diary.Mcp.exe");
+        var descriptor = new UpdateManifestFile
+        {
+            Path = "Diary.Mcp.exe",
+            Size = payload.Length,
+            Sha256 = Convert.ToHexStringLower(SHA256.HashData(payload)),
+            Component = "app",
+        };
+
+        await source.DownloadContentAsync(
+            UpdateUris.Content(new Uri("http://updates.local"), descriptor.Sha256),
+            target,
+            descriptor);
+
+        CollectionAssert.AreEqual(payload, await File.ReadAllBytesAsync(target));
+    }
+
     private static HttpClient CreateClient(byte[] payload, long? declaredLength = null)
         => new(new StubHandler(() =>
         {
