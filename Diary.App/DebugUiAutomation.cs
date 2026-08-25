@@ -459,32 +459,7 @@ internal static class DebugUiAutomation
         if (_scenario != ExtraFieldsScenario)
             return false;
 
-        const string tagName = "UI只读附加字段标签";
-        const string fieldKey = "ui.readonly.note";
         const string workTitle = "UI只读附加字段事项";
-        var tag = database.AllWorkTags().FirstOrDefault(item => item.Name == tagName)
-                  ?? database.CreateWorkTag(tagName, true, 0x455A64);
-        if (tag.Id <= 0)
-            throw new InvalidOperationException("无法创建附加字段 UI 测试标签。");
-
-        var definition = database.GetTagExtraFieldDefinitions(tag.Id, includeDisabled: true)
-            .FirstOrDefault(item => item.FieldKey == fieldKey);
-        if (definition is null)
-        {
-            definition = new TagExtraFieldDefinition
-            {
-                FieldKey = fieldKey,
-                TagId = tag.Id,
-                Label = "只读历史备注",
-                Type = TagExtraFieldType.Text,
-                Description = "用于验证迁移导入事项的附加字段只读展示。",
-                SortOrder = 0,
-                Enabled = true,
-            };
-            if (!database.CreateTagExtraFieldDefinition(definition))
-                throw new InvalidOperationException("无法创建附加字段 UI 测试定义。");
-        }
-
         var date = DateTime.Today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
         var existing = database.GetWorkItemByDate(date).FirstOrDefault(item => item.Comment == workTitle);
         if (existing is not null)
@@ -494,14 +469,6 @@ internal static class DebugUiAutomation
         workItem.Time = 0.5;
         if (workItem.Id <= 0
             || !database.UpdateWorkItem(workItem)
-            || !database.WorkItemAddTag(workItem, tag)
-            || !database.SaveWorkItemExtraFieldValues(workItem.Id,
-                [new WorkItemExtraFieldValue
-                {
-                    WorkItemId = workItem.Id,
-                    FieldId = definition.FieldId,
-                    Value = "迁移历史值",
-                }])
             || !database.MarkWorkItemReadOnly(workItem))
         {
             throw new InvalidOperationException("无法创建附加字段只读 UI 测试事项。");

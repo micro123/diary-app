@@ -62,7 +62,7 @@ Linux 默认构建流程先按 Debug 配置执行 restore，再使用 `--no-rest
 | `extended` | `-Scenario extended` / `--scenario extended` | 开启开发者功能，显示脚本管理 |
 | `survey` | `-Scenario survey` / `--scenario survey` | 开启调查者和本机受访节点 |
 | `database-error` | `-Scenario database-error` / `--scenario database-error` | 注入不存在的数据库驱动，验证恢复 UI |
-| `extra-fields` | `-Scenario extra-fields` / `--scenario extra-fields` | 预置迁移只读事项，验证标签附加字段定义和类型化编辑 |
+| `extra-fields` | `-Scenario extra-fields` / `--scenario extra-fields` | 预置迁移只读事项，验证标签附加字段定义、类型化编辑和迁移事项入口隐藏 |
 | `date-performance` | `-Scenario date-performance` / `--scenario date-performance` | 预置 540 天、每日 48 条富工作数据，验证大量日期切换性能和只读导航不写库 |
 | `plugins` | `-Scenario plugins -WithPlugins` / `--scenario plugins --with-plugins` | 加载 Tracker 插件和动态管理页 |
 

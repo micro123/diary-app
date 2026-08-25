@@ -95,8 +95,9 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     public bool HasAvailableTags => !IsLocked && AvailableTags.Count > 0;
     public bool HasExtraFields => _extraFields.Count > 0;
-    public bool CanOpenExtraFields => HasExtraFields && (!IsLocked || IsImportedReadOnly);
-    public string ExtraFieldsButtonText => IsImportedReadOnly ? "查看附加信息" : "附加信息";
+    public bool ShowExtraFieldsButton => HasExtraFields && !IsImportedReadOnly;
+    public bool CanOpenExtraFields => ShowExtraFieldsButton && !IsLocked;
+    public string ExtraFieldsButtonText => "附加信息";
     public string ExtraFieldsSummary => _extraFields.Count == 0
         ? "暂无附加信息"
         : string.Join(Environment.NewLine, _extraFields
@@ -545,6 +546,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     {
         _extraFields = fields.ToArray();
         OnPropertyChanged(nameof(HasExtraFields));
+        OnPropertyChanged(nameof(ShowExtraFieldsButton));
         OnPropertyChanged(nameof(CanOpenExtraFields));
         OnPropertyChanged(nameof(ExtraFieldsSummary));
         OnPropertyChanged(nameof(ExtraFieldsButtonText));
@@ -996,6 +998,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsStatusPillError));
         OnPropertyChanged(nameof(IsStatusPillUncertain));
         OnPropertyChanged(nameof(HasAvailableTags));
+        OnPropertyChanged(nameof(ShowExtraFieldsButton));
         OnPropertyChanged(nameof(CanOpenExtraFields));
         OnPropertyChanged(nameof(ExtraFieldsButtonText));
     }

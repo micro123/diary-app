@@ -367,10 +367,16 @@ public sealed class WorkEditorViewModelTests
             [],
             [],
             null,
-            new Dictionary<int, ICollection<WorkItemExtraField>>());
+            new Dictionary<int, ICollection<WorkItemExtraField>>
+            {
+                [8] = [new WorkItemExtraField { FieldId = "unexpected", Label = "不应显示" }],
+            });
 
         Assert.IsTrue(viewModel.IsImportedReadOnly);
         Assert.IsTrue(viewModel.IsLocked);
+        Assert.IsTrue(viewModel.HasExtraFields);
+        Assert.IsFalse(viewModel.ShowExtraFieldsButton);
+        Assert.IsFalse(viewModel.CanOpenExtraFields);
         Assert.IsTrue(viewModel.TrackerTabs.Single().IsHostReadOnly);
     }
 
@@ -389,9 +395,14 @@ public sealed class WorkEditorViewModelTests
             [],
             [],
             null,
-            new Dictionary<int, ICollection<WorkItemExtraField>>());
+            new Dictionary<int, ICollection<WorkItemExtraField>>
+            {
+                [9] = [new WorkItemExtraField { FieldId = "normal", Label = "正常字段" }],
+            });
 
         Assert.IsFalse(viewModel.IsImportedReadOnly);
+        Assert.IsTrue(viewModel.ShowExtraFieldsButton);
+        Assert.IsTrue(viewModel.CanOpenExtraFields);
         Assert.IsFalse(viewModel.TrackerTabs.Single().IsHostReadOnly);
     }
 

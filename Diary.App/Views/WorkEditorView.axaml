@@ -157,7 +157,7 @@
         </Button>
         <Button Name="ExtraFieldsButton"
                 HorizontalAlignment="Left"
-                IsVisible="{Binding HasExtraFields}" IsEnabled="{Binding CanOpenExtraFields}"
+                IsVisible="{Binding ShowExtraFieldsButton}" IsEnabled="{Binding CanOpenExtraFields}"
                 Command="{Binding EditExtraFieldsCommand}"
                 ToolTip.Tip="{Binding ExtraFieldsSummary}">
             <StackPanel Orientation="Horizontal" Spacing="4">

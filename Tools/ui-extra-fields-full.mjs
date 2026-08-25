@@ -249,18 +249,28 @@ async function addField(connection, field, index) {
 }
 
 async function selectWork(connection, title) {
-    const found = await connection.waitForTree(tree => {
-        const dailyList = named(tree, 'DailyItemList');
-        const label = dailyList && descendants(tree, dailyList).find(entry => isVisible(entry)
-            && textOf(entry) === title && hasAncestorType(tree, entry, 'ListBoxItem'));
-        const item = label && ancestor(tree, label, entry => typeOf(entry).includes('ListBoxItem'));
-        return label && item ? { label, item } : null;
-    }, 8000, '当天事项列表找不到：' + title);
-    await connection.clickNode(found.value.label);
-    return connection.waitForTree(tree => {
-        const input = named(tree, 'WorkTitleInput');
-        return input && textOf(input) === title ? input : null;
-    }, 8000, '事项未选中：' + title);
+    let lastError;
+    for (let attempt = 0; attempt < 3; attempt++) {
+        const found = await connection.waitForTree(tree => {
+            const dailyList = named(tree, 'DailyItemList');
+            const label = dailyList && descendants(tree, dailyList).find(entry => isVisible(entry)
+                && textOf(entry) === title && hasAncestorType(tree, entry, 'ListBoxItem'));
+            const item = label && ancestor(tree, label, entry => typeOf(entry).includes('ListBoxItem'));
+            return label && item ? { label, item } : null;
+        }, 8000, '当天事项列表找不到：' + title);
+        await connection.clickNode(found.value.item);
+        try {
+            return await connection.waitForTree(tree => {
+                const input = named(tree, 'WorkTitleInput');
+                return input && textOf(input) === title ? input : null;
+            }, 1200, '事项未选中：' + title);
+        }
+        catch (error) {
+            lastError = error;
+            await delay(80);
+        }
+    }
+    throw lastError;
 }
 
 async function setTimePicker(connection, pickerName, hour, minute) {
@@ -546,38 +556,16 @@ await runUiSuite({ name: 'ui-extra-fields-full', scenario: 'extra-fields', timeo
         return { historyPreserved: true, fieldReadOnly: true };
     });
 
-    await runStep('extra-fields.readonly-import', '只读事项可查看附加字段但不能保存', async () => {
+    await runStep('extra-fields.readonly-import', '迁移只读事项不显示附加信息入口', async () => {
         await selectWork(connection, readonlyTitle);
-        let tree = await connection.getTree();
+        const tree = await connection.getTree();
         const entry = named(tree, 'ExtraFieldsButton');
-        assertUi(entry && isEffectivelyEnabled(tree, entry), '只读事项附加信息入口不可用');
-        assertUi(textWithinControl(tree, 'ExtraFieldsButton').includes('查看附加信息'),
-            '只读事项入口文案不正确');
-        await activateControl(connection, entry);
-        const dialog = await connection.waitForTree(current => named(current, 'WorkItemExtraFieldsRoot'), 8000,
-            '只读事项附加信息未打开');
-        tree = dialog.tree;
-        assertUi(findByText(tree, '查看附加信息'), '只读对话框标题不正确');
-        assertUi(findByText(tree, '只读历史备注'), '只读字段定义未显示');
-        const value = named(tree, 'WorkExtraTextInput');
-        assertUi(value && textOf(value) === '迁移历史值', '只读事项历史值不正确');
-        await connection.replaceText(value, '不应写入');
-        tree = await connection.getTree();
-        assertUi(textOf(named(tree, 'WorkExtraTextInput')) === '迁移历史值', '只读事项字段仍可编辑');
-        assertUi(named(tree, 'CloseWorkExtraFieldsButton'), '只读对话框缺少关闭按钮');
-        assertUi(!named(tree, 'SaveWorkExtraFieldsButton'), '只读对话框错误显示保存按钮');
-        assertUi(!named(tree, 'CancelWorkExtraFieldsButton'), '只读对话框错误显示取消按钮');
-        await activateControl(connection, named(tree, 'CloseWorkExtraFieldsButton'));
-        await connection.waitForTree(current => !named(current, 'WorkItemExtraFieldsRoot'), 8000,
-            '只读附加信息对话框未关闭');
-        tree = await connection.getTree();
+        assertUi(!entry, '迁移只读事项错误显示附加信息入口');
         const trackerEditor = named(tree, 'TrackerEditorContentHost');
         if (trackerEditor)
             assertUi(!isEffectivelyEnabled(tree, trackerEditor), '只读事项的 Tracker 区域仍可编辑');
         return {
-            readonlyEntry: true,
-            readonlyValue: true,
-            saveHidden: true,
+            extraFieldsEntryHidden: true,
             trackerReadOnly: trackerEditor ? true : 'no-tracker-loaded',
         };
     });
