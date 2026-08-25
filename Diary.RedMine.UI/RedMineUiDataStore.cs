@@ -42,6 +42,25 @@ public sealed class RedMineUiDataStore : IRedMineUiData
         LoadActivities();
     }
 
+    public void UpdateIssueStatus(int issueId, bool disabled)
+    {
+        var current = RedMineIssues.FirstOrDefault(issue => issue.Id == issueId);
+        if (current is null)
+            return;
+
+        var index = RedMineIssues.IndexOf(current);
+        var updated = current with { Disabled = disabled };
+        RedMineIssues[index] = updated;
+
+        var openIssue = RedMineIssuesOpen.FirstOrDefault(issue => issue.Id == issueId);
+        if (disabled && openIssue is not null)
+            RedMineIssuesOpen.Remove(openIssue);
+        else if (!disabled && openIssue is null)
+            RedMineIssuesOpen.Insert(RedMineIssues.Take(index).Count(issue => !issue.Disabled), updated);
+        else if (openIssue is not null)
+            RedMineIssuesOpen[RedMineIssuesOpen.IndexOf(openIssue)] = updated;
+    }
+
     private void LoadActivities()
     {
         var db = _database ?? BaseApp.Instance.UseDb?.GetExtension<IRedMineDb>(_instanceId, RedMineMigrations);

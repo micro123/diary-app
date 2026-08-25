@@ -113,6 +113,8 @@ seed 只复制加密配置文件，不应提交到 Git，也不得写入报告�
 
 2026-08-24 的统一 UI Windows 复检分别通过设置 9/9、smoke、核心 14/14、扩展 11/11、脚本编辑器 4/4、数据库异常 8/8、Survey 8/8、附加字段 8/8、Redmine 全功能 12/12 和 Redmine 只读视觉 5/5；截图 DPI 与 overlay 重复缩放修复后的常规全量报告 `ui-full-test-2026-08-24T14-44-09-118Z.json` 仍为 9/9 套件通过。复检覆盖日记、查询、统计、程序设置、标签、模板、数据模板、Tracker 配置/状态、Jira/Redmine 实例配置和 Redmine 管理子页面。`ui-redmine-full` 同步兼容统一耗时 `TextBox` 的直接输入，并在保存配置后要求文件使用当前 `DiaryGCM` 整体加密格式；旧 `Salted__` seed 只作为读取兼容输入。
 
+2026-08-25 在 Linux X11 使用原始套件完成回归：`ui-core-full` 14/14 通过，确认月份标题的鼠标右键、`Shift+F10` 和系统上下文请求可打开月/季度/年度菜单；`ui-redmine-full` 12/12 通过，确认空关键字项目列表可直接读取 `/projects.json`，Issue 启停无需重新抓取即可即时更新。报告分别为 `ui-core-full-2026-08-25T02-01-04-386Z.json` 和 `ui-redmine-full-2026-08-25T02-01-27-676Z.json`。
+
 ## 4. 单套件调试
 
 Redmine 视觉回归必须使用已经加密的隔离 seed profile，并加载插件：

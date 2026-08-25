@@ -166,6 +166,8 @@
                             <Button Name="CompactCalendarHeader" Grid.Column="1" Classes="CompactCalendarHeader"
                                     Content="{Binding CompactCalendarTitle}"
                                     ToolTip.Tip="左键打开完整月历，右键显示月、季度和年度操作"
+                                    PointerPressed="OnCompactCalendarHeaderPointerPressed"
+                                    KeyDown="OnCompactCalendarHeaderKeyDown"
                                     ContextRequested="OnCompactCalendarHeaderContextRequested">
                                 <Button.ContextMenu>
                                     <ContextMenu ItemsSource="{Binding QuickMenuItems}">

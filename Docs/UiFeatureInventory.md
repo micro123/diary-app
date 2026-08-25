@@ -608,6 +608,7 @@ Windows 和 Linux Debug 构建提供基于 `Chrome.DevTools.Avalonia.v11` 的本
 - 已覆盖 Survey v1/v2、多 Tracker 设置、Redmine 管理与真实工时同步、数据库异常、设置维护、更新检查、脚本管理和编辑器、查询、统计、标签、模板，以及 9 类附加字段定义与编辑。
 - 已验证 `Alt+1..9` 主导航、`新建 -> 修改 -> 新建`、删除取消、保存查询删除取消、运行中日志导出、附加字段清空/重开/停用历史值/迁移只读，以及 Redmine 防重复同步等回归路径。
 - `ui-redmine-style` 可在 Linux 上使用加密 seed profile 检查 Redmine 配置、插件状态、工作台截图和筛选 CheckBox 中心线，全程不触发远程写入。
+- Redmine 项目管理的空关键字搜索覆盖 `/projects.json` 的 `projects` 响应，关键词搜索继续兼容 `/search.json` 的 `results` 响应；已导入 Issue 启停在数据库成功后原位更新表格和可选 Issue 集合，不要求用户手动重新抓取。
 - Release 不运行 CDP；Release 包不含 CDP 的要求继续由构建和发布包集成校验负责。
 
 覆盖状态按 `Automated`、`Automated-ReadOnly`、`Unit/Integration`、`Manual-Native`、`Blocked-External` 和 `Not-Implemented` 分类。原生文件/目录选择器、托盘和真实备份/还原保留 Windows 原生验证；Jira 真实服务为外部阻塞；后台任务进度预览仍未实现。

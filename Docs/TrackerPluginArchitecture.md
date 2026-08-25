@@ -784,6 +784,7 @@ SupportedProviders: PostgreSQL
 - 通用实例配置存储接口和实例状态模型已定义。
 - 实例创建、数据库初始化、迁移和 UI/模板注册已由宿主统一编排，数据库扩展细节仍由插件负责。
 - 接入 `SupportsMultipleInstances`，贯通导航、管理页和编辑器上下文。
+- Redmine 项目查询统一通过兼容 `projects`/`results` 的结果集合读取；Issue 本地启停在数据库成功后由实例级 UI 数据仓库原位替换状态，并同步开放 Issue 集合，避免全量重载 DataGrid 和重置当前视口。
 
 验收标准：新增测试 tracker 不需要修改 `Diary.App` 的 tracker 专用分支即可创建两个实例。
 

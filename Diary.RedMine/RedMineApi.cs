@@ -57,7 +57,7 @@ public class RedMineApi : IRedMineApi, IDisposable
             else
             {
                 total = response.Data!.Total;
-                projects = response.Data.Results;
+                projects = response.Data.Projects;
                 _logger.LogDebug("Loaded {Count} RedMine projects (total {Total})", projects.Count(), total);
             }
         }

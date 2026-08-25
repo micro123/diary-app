@@ -11,14 +11,47 @@ public partial class DiaryEditorView : UserControl
         InitializeComponent();
     }
 
-    private void OnCompactCalendarHeaderContextRequested(object? sender, ContextRequestedEventArgs _)
+    private void OnCompactCalendarHeaderContextRequested(object? sender, ContextRequestedEventArgs args)
     {
         if (DataContext is DiaryEditorViewModel vm
-            && sender is Control { ContextMenu: { } contextMenu })
+            && sender is Control { ContextMenu: { } contextMenu } control)
         {
-            vm.ShowCompactCalendarPeriodContextMenu();
-            contextMenu.ItemsSource = vm.QuickMenuItems;
+            OpenCompactCalendarPeriodContextMenu(vm, control, contextMenu);
+            args.Handled = true;
         }
+    }
+
+    private void OnCompactCalendarHeaderPointerPressed(object? sender, PointerPressedEventArgs args)
+    {
+        if (DataContext is DiaryEditorViewModel vm
+            && sender is Control { ContextMenu: { } contextMenu } control
+            && args.GetCurrentPoint(control).Properties.PointerUpdateKind == PointerUpdateKind.RightButtonPressed)
+        {
+            OpenCompactCalendarPeriodContextMenu(vm, control, contextMenu);
+            args.Handled = true;
+        }
+    }
+
+    private void OnCompactCalendarHeaderKeyDown(object? sender, KeyEventArgs args)
+    {
+        if (DataContext is DiaryEditorViewModel vm
+            && sender is Control { ContextMenu: { } contextMenu } control
+            && args.Key == Key.F10
+            && args.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            OpenCompactCalendarPeriodContextMenu(vm, control, contextMenu);
+            args.Handled = true;
+        }
+    }
+
+    private static void OpenCompactCalendarPeriodContextMenu(
+        DiaryEditorViewModel viewModel,
+        Control control,
+        ContextMenu contextMenu)
+    {
+        viewModel.ShowCompactCalendarPeriodContextMenu();
+        contextMenu.ItemsSource = viewModel.QuickMenuItems;
+        contextMenu.Open(control);
     }
 
     private void OnCompactCalendarDayContextRequested(object? sender, ContextRequestedEventArgs args)

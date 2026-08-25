@@ -103,8 +103,9 @@ public partial class RedMineInfoViewModel : ViewModelBase
     [RelayCommand]
     private async Task ToggleIssue(RedMineIssueDisplay issue)
     {
-        await Task.Run(() => _database.UpdateRedMineIssueStatus(issue.Id, !issue.Disabled));
-        EventDispatcher.DbChanged(RedMineUiEvents.IssueChanged);
+        var disabled = !issue.Disabled;
+        await Task.Run(() => _database.UpdateRedMineIssueStatus(issue.Id, disabled));
+        await Dispatcher.UIThread.InvokeAsync(() => _data.UpdateIssueStatus(issue.Id, disabled));
     }
 
     [RelayCommand]

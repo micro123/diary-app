@@ -10,4 +10,5 @@ public interface IRedMineUiData
     ObservableCollection<RedMineActivity> RedMineActivities { get; }
 
     void InitLoad();
+    void UpdateIssueStatus(int issueId, bool disabled);
 }
