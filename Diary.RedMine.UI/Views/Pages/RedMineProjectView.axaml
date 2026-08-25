@@ -10,11 +10,11 @@
     <Grid RowDefinitions="Auto,*" RowSpacing="8">
         <Border Classes="PageHeader">
             <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
-                <StackPanel Spacing="2">
+                <Grid Classes="SectionHeading" ColumnDefinitions="Auto,*">
                     <TextBlock Text="项目管理" Classes="SectionTitle" />
-                    <TextBlock Text="搜索 Redmine 项目、查看项目说明并在目标项目中新建问题。"
-                               Classes="SectionDescription" />
-                </StackPanel>
+                    <TextBlock Grid.Column="1" Text="搜索、查看与新建问题" Classes="SectionDescription"
+                               ToolTip.Tip="搜索 Redmine 项目、查看项目说明并在目标项目中新建问题。" />
+                </Grid>
                 <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <TextBox Text="{Binding SearchTerm}" Watermark="输入搜索关键字，Enter键搜索。">
                         <TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding SearchCommand}" /></TextBox.KeyBindings>

@@ -20,18 +20,19 @@
     </UserControl.Styles>
     <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8">
         <Border Classes="PageHeader">
-            <StackPanel Spacing="3">
+            <Grid Classes="PageHeading" ColumnDefinitions="Auto,*">
                 <TextBlock Classes="PageTitle" Text="模板编辑" />
-                <TextBlock Classes="PageSubtitle"
-                           Text="预设事项标题、默认工时和标签；日记页可直接从模板创建事项。" />
-            </StackPanel>
+                <TextBlock Grid.Column="1" Classes="PageSubtitle" Text="事项默认内容与标签"
+                           ToolTip.Tip="预设事项标题、默认工时和标签；日记页可直接从模板创建事项。" />
+            </Grid>
         </Border>
         <Border Grid.Row="1" Classes="SectionCard">
             <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="8" ColumnSpacing="8">
-                <StackPanel Spacing="2">
+                <Grid Classes="SectionHeading" ColumnDefinitions="Auto,*">
                     <TextBlock Text="新建模板" Classes="SectionTitle" />
-                    <TextBlock Text="创建后可在下方展开并设置默认内容。" Classes="SectionDescription" />
-                </StackPanel>
+                    <TextBlock Grid.Column="1" Text="创建并设置默认内容" Classes="SectionDescription"
+                               ToolTip.Tip="创建后可在下方展开并设置默认内容。" />
+                </Grid>
                 <Grid Grid.Row="1" Grid.ColumnSpan="2" ColumnDefinitions="100,*,120" ColumnSpacing="8">
                     <TextBlock Text="模板名称" Classes="FieldLabel" />
                     <TextBox Name="TemplateNameInput" Grid.Column="1"

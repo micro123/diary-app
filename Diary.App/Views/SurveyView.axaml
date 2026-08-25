@@ -61,11 +61,11 @@
         <Grid RowDefinitions="Auto,Auto,Auto,*"
               IsVisible="{Binding SurveyEnabled, Source={x:Static app:App.Instance}}">
             <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                <StackPanel Spacing="3">
+                <Grid Classes="PageHeading" ColumnDefinitions="Auto,*">
                     <TextBlock Text="团队调查" Classes="PageTitle" />
-                    <TextBlock Text="查询受访节点的工作记录，并按节点能力选择兼容或扩展查询。"
-                               Classes="PageSubtitle" />
-                </StackPanel>
+                    <TextBlock Grid.Column="1" Text="兼容查询与扩展分析" Classes="PageSubtitle"
+                               ToolTip.Tip="查询受访节点的工作记录，并按节点能力选择兼容或扩展查询。" />
+                </Grid>
                 <Button Grid.Column="1" Command="{Binding OpenSurveyGuideCommand}"
                         VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" Spacing="6">

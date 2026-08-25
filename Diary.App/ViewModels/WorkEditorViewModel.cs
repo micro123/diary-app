@@ -74,6 +74,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     // tracker 扩展集合（RedMine 等，可多个）。无 tracker 时空集合，编辑器只渲染 generic 字段。
     public ObservableCollection<ITrackerEditorExtension> Extensions { get; } = new();
     public ObservableCollection<TrackerEditorTabItem> TrackerTabs { get; } = new();
+    public bool HasTrackerEditors => TrackerTabs.Count > 0;
     public ObservableCollection<TrackerUploadResult> UploadResults { get; } = new();
     public bool HasUploadResults => UploadResults.Count > 0;
     public ObservableCollection<WorkEditorScriptMenuItem> EditorScriptActions { get; } = new();
@@ -141,6 +142,17 @@ public partial class WorkEditorViewModel : ViewModelBase
         : WorkItemUploadStatusResolver.GetDisplayText(UploadStatus);
 
     public string StatusSummary => $"{LocalSaveStatusText} · {UploadStatusText}";
+
+    public bool IsStatusPillWarning => !IsImportedReadOnly && UploadStatus == WorkItemUploadStatus.Unsaved;
+
+    public bool IsStatusPillInfo => !IsImportedReadOnly && UploadStatus == WorkItemUploadStatus.Pending;
+
+    public bool IsStatusPillSuccess => !IsImportedReadOnly && UploadStatus == WorkItemUploadStatus.Synchronized;
+
+    public bool IsStatusPillError => !IsImportedReadOnly
+        && UploadStatus is WorkItemUploadStatus.PartialFailure or WorkItemUploadStatus.Failed;
+
+    public bool IsStatusPillUncertain => !IsImportedReadOnly && UploadStatus == WorkItemUploadStatus.Uncertain;
 
     public ObservableCollection<WorkTag> AllTags => _shareData.WorkTags;
 
@@ -821,6 +833,11 @@ public partial class WorkEditorViewModel : ViewModelBase
         OnPropertyChanged(nameof(UploadStatus));
         OnPropertyChanged(nameof(UploadStatusText));
         OnPropertyChanged(nameof(StatusSummary));
+        OnPropertyChanged(nameof(IsStatusPillWarning));
+        OnPropertyChanged(nameof(IsStatusPillInfo));
+        OnPropertyChanged(nameof(IsStatusPillSuccess));
+        OnPropertyChanged(nameof(IsStatusPillError));
+        OnPropertyChanged(nameof(IsStatusPillUncertain));
         OnPropertyChanged(nameof(HasAvailableTags));
         OnPropertyChanged(nameof(CanOpenExtraFields));
         OnPropertyChanged(nameof(ExtraFieldsButtonText));

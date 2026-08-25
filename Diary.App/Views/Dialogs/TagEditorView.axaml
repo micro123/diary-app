@@ -29,11 +29,12 @@
     </UserControl.Resources>
     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
         <Border Grid.Row="0" Classes="PageHeader">
-            <StackPanel Spacing="3">
+            <Grid Classes="PageHeading" ColumnDefinitions="Auto,*">
                 <TextBlock Text="{Binding Title}" Classes="PageTitle" />
-                <TextBlock Text="管理标签、元数据、Tracker 自动化操作和附加字段。左侧选择标签，右侧完成详细配置。"
-                           Classes="PageSubtitle" />
-            </StackPanel>
+                <i:Icon Grid.Column="1" Value="mdi-information-outline" FontSize="17"
+                        Classes="PageSubtitleIcon" HorizontalAlignment="Left"
+                        ToolTip.Tip="管理标签、元数据、Tracker 自动化操作和附加字段。左侧选择标签，右侧完成详细配置。" />
+            </Grid>
         </Border>
 
         <Grid Grid.Row="1" ColumnDefinitions="280,*" ColumnSpacing="8">
@@ -133,12 +134,14 @@
             <Grid RowDefinitions="Auto,*">
                 <Border Grid.Row="0" Classes="DetailHeader">
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                        <StackPanel Spacing="3">
+                        <Grid Classes="SectionHeading" ColumnDefinitions="Auto,*">
                             <TextBlock Text="{Binding SelectedTag.Name}"
                                        FontSize="20"
                                        FontWeight="SemiBold" />
-                            <TextBlock Text="编辑当前标签的配置" Classes="SectionDescription" />
-                        </StackPanel>
+                            <i:Icon Grid.Column="1" Value="mdi-information-outline" FontSize="16"
+                                    Classes="SectionDescriptionIcon" HorizontalAlignment="Left"
+                                    ToolTip.Tip="编辑当前标签的配置" />
+                        </Grid>
                         <TextBlock Grid.Column="1"
                                    Text="{Binding SelectedTag.Id, StringFormat='标签 #{0}'}"
                                    VerticalAlignment="Center"

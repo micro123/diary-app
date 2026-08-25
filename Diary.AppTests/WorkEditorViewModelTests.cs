@@ -61,6 +61,13 @@ public sealed class WorkEditorViewModelTests
     }
 
     [TestMethod]
+    public void TrackerEditorVisibilityMatchesAvailableExtensions()
+    {
+        Assert.IsFalse(CreateViewModel().HasTrackerEditors);
+        Assert.IsTrue(CreateViewModel(CreateCloneTrackerRegistry()).HasTrackerEditors);
+    }
+
+    [TestMethod]
     public void ImportedExtraFieldsAreReadOnlyInDialog()
     {
         var field = new WorkItemExtraField

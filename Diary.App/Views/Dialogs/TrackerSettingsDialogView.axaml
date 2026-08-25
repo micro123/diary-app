@@ -6,11 +6,11 @@
              Width="950" Height="650" Padding="10">
     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
         <Border Classes="PageHeader">
-            <StackPanel Spacing="3">
+            <Grid Classes="PageHeading" ColumnDefinitions="Auto,*">
                 <TextBlock Text="Tracker 设置" Classes="PageTitle" />
-                <TextBlock Text="配置 Jira、Redmine 等外部服务实例，并查看插件运行和本地数据状态。"
-                           Classes="PageSubtitle" />
-            </StackPanel>
+                <TextBlock Grid.Column="1" Text="实例配置与插件状态" Classes="PageSubtitle"
+                           ToolTip.Tip="配置 Jira、Redmine 等外部服务实例，并查看插件运行和本地数据状态。" />
+            </Grid>
         </Border>
         <TabControl Grid.Row="1" Theme="{DynamicResource LineTabControl}">
             <TabItem Header="Tracker 配置">

@@ -11,11 +11,10 @@
              mc:Ignorable="d" d:DesignWidth="960" d:DesignHeight="640">
     <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="8">
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-            <StackPanel>
+            <Grid Classes="PageHeading" ColumnDefinitions="Auto,*">
                 <TextBlock Text="脚本工作台" Classes="PageTitle" />
-                <TextBlock Text="管理本机脚本，支持应用自动化和编辑器操作。"
-                           Classes="PageSubtitle" />
-            </StackPanel>
+                <TextBlock Grid.Column="1" Text="脚本、自动化与编辑器操作" Classes="PageSubtitle" />
+            </Grid>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
                 <Button Content="新建脚本" Command="{Binding CreateScriptCommand}" Classes="Primary" />
                 <Button Content="导出共享包" Command="{Binding ExportScriptsCommand}"

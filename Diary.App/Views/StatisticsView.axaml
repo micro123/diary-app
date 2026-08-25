@@ -69,10 +69,10 @@
                     <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="7">
                         <Border Grid.Row="0" Classes="PageHeader">
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                <StackPanel Spacing="2">
+                                <Grid Classes="PageHeading" ColumnDefinitions="Auto,*">
                                     <TextBlock Text="{Binding Name}" Classes="PageTitle" />
-                                    <TextBlock Text="查看工时分布、标签占比和分层明细" Classes="PageSubtitle" />
-                                </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="工时分布与标签明细" Classes="PageSubtitle" />
+                                </Grid>
                                 <Border Grid.Column="1" Classes="StatusPill" VerticalAlignment="Center">
                                     <TextBlock Text="{Binding StatisticsTotal, StringFormat='合计 {0:0.##} 小时'}"
                                                HorizontalAlignment="Center" />
@@ -116,10 +116,10 @@
                             <Border Grid.Column="0" Classes="SectionCard">
                                 <Grid RowDefinitions="Auto,*" RowSpacing="8">
                                     <Grid ColumnDefinitions="*,Auto">
-                                        <StackPanel Spacing="2">
+                                        <Grid Classes="SectionHeading" ColumnDefinitions="Auto,*">
                                             <TextBlock Text="工时分布" Classes="SectionTitle" />
-                                            <TextBlock Text="按当前统计维度比较各项耗时" Classes="SectionDescription" />
-                                        </StackPanel>
+                                            <TextBlock Grid.Column="1" Text="按维度比较耗时" Classes="SectionDescription" />
+                                        </Grid>
                                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
                                             <TextBlock Text="{Binding StatisticsTotal, StringFormat='合计 {0:0.##} 小时'}"
                                                        Opacity="0.7" VerticalAlignment="Center" />
@@ -141,10 +141,10 @@
                             <Border Grid.Column="1" Classes="SectionCard">
                                 <Grid RowDefinitions="Auto,*" RowSpacing="8">
                                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                        <StackPanel Spacing="2">
+                                        <Grid Classes="SectionHeading" ColumnDefinitions="Auto,*">
                                             <TextBlock Text="标签明细" Classes="SectionTitle" />
-                                            <TextBlock Text="同一事项可能同时计入多个标签" Classes="SectionDescription" />
-                                        </StackPanel>
+                                            <TextBlock Grid.Column="1" Text="事项可计入多个标签" Classes="SectionDescription" />
+                                        </Grid>
                                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
                                             <Button Content="全部展开" Command="{Binding ExpandTreeCommand}"
                                                     CommandParameter="1" Theme="{DynamicResource BorderlessButton}" />

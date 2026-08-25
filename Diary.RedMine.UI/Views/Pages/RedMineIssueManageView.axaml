@@ -10,10 +10,11 @@
     <Grid RowDefinitions="Auto,*" RowSpacing="8">
         <Border Classes="PageHeader">
             <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
-                <StackPanel Spacing="2">
+                <Grid Classes="SectionHeading" ColumnDefinitions="Auto,*">
                     <TextBlock Text="问题管理" Classes="SectionTitle" />
-                    <TextBlock Text="按关键字或问题 ID 搜索远程问题，并将结果导入日记。" Classes="SectionDescription" />
-                </StackPanel>
+                    <TextBlock Grid.Column="1" Text="搜索并导入远程问题" Classes="SectionDescription"
+                               ToolTip.Tip="按关键字或问题 ID 搜索远程问题，并将结果导入日记。" />
+                </Grid>
                 <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
                     <TextBox Text="{Binding SearchTerm}" Watermark="输入搜索词，Enter键按关键字搜索，Ctrl+Enter按问题ID搜索。">
                         <TextBox.KeyBindings>

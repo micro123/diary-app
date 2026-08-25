@@ -183,6 +183,54 @@
         <Setter Property="Padding" Value="8,3" />
         <Setter Property="CornerRadius" Value="12" />
         <Setter Property="Background" Value="{DynamicResource SemiColorFill2}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SemiColorBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Border.StatusPill.StatusWarning">
+        <Setter Property="Background" Value="#A66A00" />
+        <Setter Property="BorderBrush" Value="#D99A22" />
+    </Style>
+    <Style Selector="Border.StatusPill.StatusInfo">
+        <Setter Property="Background" Value="#2563A8" />
+        <Setter Property="BorderBrush" Value="#4C8ED9" />
+    </Style>
+    <Style Selector="Border.StatusPill.StatusSuccess">
+        <Setter Property="Background" Value="#26734D" />
+        <Setter Property="BorderBrush" Value="#45A675" />
+    </Style>
+    <Style Selector="Border.StatusPill.StatusError">
+        <Setter Property="Background" Value="#A63F3F" />
+        <Setter Property="BorderBrush" Value="#D96767" />
+    </Style>
+    <Style Selector="Border.StatusPill.StatusUncertain">
+        <Setter Property="Background" Value="#98541C" />
+        <Setter Property="BorderBrush" Value="#D28445" />
+    </Style>
+    <Style Selector="Border.StatusPill.StatusWarning TextBlock,
+                     Border.StatusPill.StatusInfo TextBlock,
+                     Border.StatusPill.StatusSuccess TextBlock,
+                     Border.StatusPill.StatusError TextBlock,
+                     Border.StatusPill.StatusUncertain TextBlock">
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Grid.SectionHeading">
+        <Setter Property="ColumnSpacing" Value="8" />
+        <Setter Property="VerticalAlignment" Value="Bottom" />
+    </Style>
+    <Style Selector="Grid.SectionHeading TextBlock.SectionTitle,
+                     Grid.SectionHeading TextBlock.SectionDescription,
+                     Grid.SectionHeading i|Icon.SectionDescriptionIcon">
+        <Setter Property="VerticalAlignment" Value="Bottom" />
+    </Style>
+    <Style Selector="Grid.PageHeading">
+        <Setter Property="ColumnSpacing" Value="10" />
+        <Setter Property="VerticalAlignment" Value="Bottom" />
+    </Style>
+    <Style Selector="Grid.PageHeading TextBlock.PageTitle,
+                     Grid.PageHeading TextBlock.PageSubtitle,
+                     Grid.PageHeading i|Icon.PageSubtitleIcon">
+        <Setter Property="VerticalAlignment" Value="Bottom" />
     </Style>
     <Style Selector="TextBlock.SectionTitle">
         <Setter Property="FontSize" Value="18" />

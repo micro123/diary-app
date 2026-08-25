@@ -7,10 +7,10 @@
     <Grid RowDefinitions="Auto,*" RowSpacing="8">
         <Border Classes="PageHeader">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                <StackPanel Spacing="3">
+                <Grid Classes="SectionHeading" ColumnDefinitions="Auto,*">
                     <TextBlock Text="Jira 工时 Tracker 实例" Classes="SectionTitle" />
-                    <TextBlock Text="维护 Jira 服务实例、认证参数和工时连接。" Classes="SectionDescription" />
-                </StackPanel>
+                    <TextBlock Grid.Column="1" Text="实例、认证与工时连接" Classes="SectionDescription" />
+                </Grid>
                 <Button Grid.Column="1" Content="添加实例" Classes="Primary"
                         Command="{Binding AddInstanceCommand}" VerticalAlignment="Center" />
             </Grid>
@@ -36,10 +36,10 @@
             <Border Grid.Column="1" Classes="DetailPane">
             <ScrollViewer IsVisible="{Binding HasSelectedInstance}">
                 <StackPanel Spacing="9" Margin="10">
-                    <StackPanel Spacing="3">
+                    <Grid Classes="SectionHeading" ColumnDefinitions="Auto,*">
                         <TextBlock Text="实例配置" Classes="SectionTitle" />
-                        <TextBlock Text="连接信息与认证数据仅用于当前 Jira 实例。" Classes="SectionDescription" />
-                    </StackPanel>
+                        <TextBlock Grid.Column="1" Text="当前实例的连接与认证" Classes="SectionDescription" />
+                    </Grid>
                     <Expander Classes="WorkspaceSection" Header="连接参数" IsExpanded="True">
                         <ItemsControl Classes="Settings" ItemsSource="{Binding InstanceSettings.Children}" />
                     </Expander>

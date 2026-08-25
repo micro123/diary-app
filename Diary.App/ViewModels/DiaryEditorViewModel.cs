@@ -81,7 +81,19 @@ public partial class DiaryEditorViewModel : ViewModelBase
     [ObservableProperty]
     private ObservableCollection<CompactCalendarDay> _compactCalendarDays = new();
 
-    public string CompactCalendarTitle => CompactCalendarAnchorDate.ToString("yyyy年M月", CultureInfo.CurrentCulture);
+    public string CompactCalendarTitle => FormatCompactCalendarTitle(CompactCalendarAnchorDate);
+
+    internal static string FormatCompactCalendarTitle(DateTime date)
+    {
+        var weekOfYear = GetCalendarWeekNumber(date);
+        return $"{date.ToString("yyyy年M月", CultureInfo.CurrentCulture)} 第{weekOfYear}周";
+    }
+
+    private static int GetCalendarWeekNumber(DateTime date) =>
+        CultureInfo.InvariantCulture.Calendar.GetWeekOfYear(
+            date,
+            CalendarWeekRule.FirstDay,
+            DayOfWeek.Monday);
 
     [ObservableProperty] private ObservableCollection<Template> _templates = new();
     [ObservableProperty] private bool _canUseTemplates = false;
@@ -955,7 +967,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private void FillDayMenus(DateTime date)
     {
         QuickMenuItems.Clear();
-        var weekOfYear = CultureInfo.InvariantCulture.Calendar.GetWeekOfYear(date, CalendarWeekRule.FirstDay, DayOfWeek.Monday);
+        var weekOfYear = GetCalendarWeekNumber(date);
         AddMenuHeader($"{date:yyyy年MM月dd日} 第{weekOfYear}周");
         AddMenuHeader($"今日总工时{TotalTime:0.##}小时，有{TotalTime - UploadedTime:0.##}小时未同步");
         AddMenuSeparator();

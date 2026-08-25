@@ -129,6 +129,15 @@ function isCurrentDateText(value, date) {
     ].some(expected => expected.every((part, index) => parts[index] === part));
 }
 
+function formatCompactCalendarHeader(date) {
+    const yearStart = Date.UTC(date.getFullYear(), 0, 1);
+    const dateValue = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+    const dayOfYear = Math.floor((dateValue - yearStart) / 86400000) + 1;
+    const mondayOffset = (new Date(yearStart).getUTCDay() + 6) % 7;
+    const week = Math.floor((dayOfYear - 1 + mondayOffset) / 7) + 1;
+    return `${date.getFullYear()}年${date.getMonth() + 1}月 第${week}周`;
+}
+
 function boundsOf(entry) {
     const parts = String(entry?.a?.Bounds ?? '').split(',').map(Number);
     assertUi(parts.length === 4 && parts.every(Number.isFinite), '控件缺少有效 Bounds：' + entry?.a?.Name);
@@ -260,6 +269,7 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         const todayHeader = textOf(findByName(tree, 'CompactCalendarHeader'));
         assertUi(dateHeading && dateDescription && dateActions && compactCalendar && compactDays && todayHeader,
             '日记页日期头部或紧凑周历结构不完整');
+        assertUi(todayHeader === formatCompactCalendarHeader(new Date()), '周历标题没有显示当前年月和年度周次');
         const headingBounds = boundsOf(dateHeading);
         const descriptionBounds = boundsOf(dateDescription);
         const actionBounds = boundsOf(dateActions);
@@ -306,17 +316,23 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         tree = await connection.getTree();
         assertUi(textOf(findByName(tree, 'DiaryDateTitle')) === selectedDateTitle,
             '滚轮浏览周历时改变了当前选中日期');
+        const wheelWeekHeader = textOf(findByName(tree, 'CompactCalendarHeader'));
+        assertUi(wheelWeekHeader !== todayHeader && /^\d{4}年\d{1,2}月 第\d{1,2}周$/.test(wheelWeekHeader),
+            '滚轮浏览后一周时周历标题没有同步周次');
         await connection.client.send('Input.dispatchMouseEvent', {
             type: 'mouseWheel', x: calendarX, y: calendarY, deltaX: 0, deltaY: -120,
         });
         await connection.waitForTree(current => {
             const root = findByName(current, 'CompactCalendarDays');
+            const header = findByName(current, 'CompactCalendarHeader');
             const buttons = root && descendants(current, root).filter(entry =>
                 isVisible(entry) && typeOf(entry).includes('Button')
                 && String(entry.a.Class ?? '').includes('CompactCalendarDay'));
             return buttons?.length === 7
-                && compactCalendarDayText(current, buttons[0]) === initialFirstDayText ? root : null;
+                && compactCalendarDayText(current, buttons[0]) === initialFirstDayText
+                && textOf(header) === todayHeader ? root : null;
         }, 3000, '反向滚轮没有恢复原周');
+        await delay(200);
 
         tree = await connection.getTree();
         const currentCompactDays = findByName(tree, 'CompactCalendarDays');
@@ -332,19 +348,30 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         const targetQuad = targetBox.model.border;
         const targetX = (targetQuad[0] + targetQuad[4]) / 2;
         const targetY = (targetQuad[1] + targetQuad[5]) / 2;
-        await connection.client.send('Input.dispatchMouseEvent', {
-            type: 'mouseMoved', x: targetX, y: targetY,
-        });
-        await delay(80);
-        await connection.client.send('Input.dispatchMouseEvent', {
-            type: 'mousePressed', x: targetX, y: targetY, button: 'right', buttons: 2, clickCount: 1,
-        });
-        await connection.client.send('Input.dispatchMouseEvent', {
-            type: 'mouseReleased', x: targetX, y: targetY, button: 'right', buttons: 0, clickCount: 1,
-        });
-        const dayMenu = await connection.waitForTree(current => ['同步本日工时', '统计本周工时'].every(text =>
-            findByText(current, text, entry => hasAncestorType(current, entry, 'MenuItem'))),
-        3000, '右键非选中日期后没有同时选中日期并打开日/周菜单');
+        const openDayMenu = async timeoutMs => {
+            await connection.client.send('Input.dispatchMouseEvent', {
+                type: 'mouseMoved', x: targetX, y: targetY,
+            });
+            await delay(200);
+            await connection.client.send('Input.dispatchMouseEvent', {
+                type: 'mousePressed', x: targetX, y: targetY, button: 'right', buttons: 2, clickCount: 1,
+            });
+            await connection.client.send('Input.dispatchMouseEvent', {
+                type: 'mouseReleased', x: targetX, y: targetY, button: 'right', buttons: 0, clickCount: 1,
+            });
+            return connection.waitForTree(current => ['同步本日工时', '统计本周工时'].every(text =>
+                findByText(current, text, entry => hasAncestorType(current, entry, 'MenuItem'))),
+            timeoutMs, '右键非选中日期后没有同时选中日期并打开日/周菜单');
+        };
+        let dayMenu;
+        try {
+            dayMenu = await openDayMenu(1500);
+        }
+        catch {
+            await connection.pressKey('Escape', 'Escape', 27);
+            await delay(300);
+            dayMenu = await openDayMenu(5000);
+        }
         const updatedCompactDays = findByName(dayMenu.tree, 'CompactCalendarDays');
         const updatedDayButtons = descendants(dayMenu.tree, updatedCompactDays).filter(entry =>
             isVisible(entry) && typeOf(entry).includes('Button')
@@ -431,7 +458,7 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
             return !findByName(current, 'DiaryCalendar')
                 && title && isCurrentDateText(textOf(title), expectedSelectedDate) ? title : null;
         }, 3000, '点击相邻月份日期后没有选中该日期并关闭 Flyout');
-        const expectedCalendarHeader = `${expectedSelectedDate.getFullYear()}年${expectedSelectedDate.getMonth() + 1}月`;
+        const expectedCalendarHeader = formatCompactCalendarHeader(expectedSelectedDate);
         assertUi(textOf(findByName(selectedAdjacentDate.tree, 'CompactCalendarHeader')) === expectedCalendarHeader,
             '点击相邻月份日期后周历标题没有切换到目标月份');
 
@@ -469,6 +496,7 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
             adjacentMonthSelectionClosesFlyout: true,
             adjacentMonthSelectedDate: textOf(selectedAdjacentDate.value),
             wheelWeekBrowsing: true,
+            wheelWeekHeader,
             previousPeriodHeader: textOf(previousPeriod.value),
             todayHeader: textOf(returnedToday.value),
             dateDescriptionHeight: descriptionBounds.height,
@@ -485,7 +513,34 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         const dateInput = findByName(editorTree, 'WorkDatePicker');
         const titleInput = findByName(editorTree, 'WorkTitleInput');
         const timeInput = findByName(editorTree, 'WorkTimeInput');
-        assertUi(dateInput && titleInput && timeInput, '一般信息字段结构不完整');
+        const noteInput = findByName(editorTree, 'WorkNoteInput');
+        const noteCard = findByName(editorTree, 'WorkNoteCard');
+        assertUi(dateInput && titleInput && timeInput && noteInput && noteCard, '事项编辑字段结构不完整');
+        assertUi(!findByName(editorTree, 'TrackerAssociationCard'),
+            '没有启用 Tracker 时仍显示 Tracker 关联卡片');
+        const noteBounds = boundsOf(noteInput);
+        const [noteBox, noteCardBox] = await Promise.all([
+            connection.client.send('DOM.getBoxModel', { nodeId: noteInput.nodeId }),
+            connection.client.send('DOM.getBoxModel', { nodeId: noteCard.nodeId }),
+        ]);
+        const quadBottom = quad => Math.max(...quad.filter((_, index) => index % 2 === 1));
+        const noteBottomGap = quadBottom(noteCardBox.model.border) - quadBottom(noteBox.model.border);
+        assertUi(noteBounds.height >= 180 && noteBottomGap <= 18,
+            `备注编辑框没有填满卡片剩余高度：height=${noteBounds.height}, bottomGap=${noteBottomGap}`);
+        const generalTitle = findByText(editorTree, '一般信息');
+        const generalDescription = findByText(editorTree, '日期、内容、耗时与优先级');
+        const generalTitleBounds = boundsOf(generalTitle);
+        const generalDescriptionBounds = boundsOf(generalDescription);
+        assertUi(generalTitle && generalDescription
+            && generalTitleBounds.x + generalTitleBounds.width <= generalDescriptionBounds.x
+            && Math.abs(generalTitleBounds.y + generalTitleBounds.height
+                - generalDescriptionBounds.y - generalDescriptionBounds.height) <= 2,
+        '一般信息标题与说明没有左右排列并保持底部对齐');
+        const draftStatusPill = findByName(editorTree, 'SelectedWorkStatusPill');
+        assertUi(draftStatusPill && isVisible(draftStatusPill)
+            && String(draftStatusPill.a.Class ?? '').includes('StatusWarning')
+            && descendants(editorTree, draftStatusPill).some(entry => textOf(entry).includes('未保存 · 待保存')),
+        '新事项状态胶囊没有使用未保存警告配色');
         const [dateBox, titleBox, timeBox] = await Promise.all([
             connection.client.send('DOM.getBoxModel', { nodeId: dateInput.nodeId }),
             connection.client.send('DOM.getBoxModel', { nodeId: titleInput.nodeId }),
@@ -497,8 +552,13 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         await connection.replaceText(editor.value, workTitle);
         await connection.clickByName('UseTodayButton');
         await connection.pressKey('s', 'KeyS', 83, ctrl);
-        await connection.waitForTree(tree => findByText(tree, workTitle) && findByTextContains(tree, '本地已保存'),
+        const saved = await connection.waitForTree(tree => findByText(tree, workTitle) && findByTextContains(tree, '本地已保存'),
             10000, 'Ctrl+S 后未观察到本地保存');
+        const savedStatusPill = findByName(saved.tree, 'SelectedWorkStatusPill');
+        assertUi(savedStatusPill
+            && !['StatusWarning', 'StatusInfo', 'StatusSuccess', 'StatusError', 'StatusUncertain']
+                .some(className => String(savedStatusPill.a.Class ?? '').includes(className)),
+        '未配置 Tracker 的已保存事项不应使用同步语义色');
         await connection.pressKey('d', 'KeyD', 68, ctrl);
         const duplicate = await connection.waitForTree(tree => {
             const input = findByName(tree, 'WorkTitleInput');
@@ -513,7 +573,17 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         await connection.pressKey('Enter', 'Enter', 13);
         await connection.waitForTree(tree => !findByName(tree, 'PART_NoButton'), 5000,
             '删除确认没有取消');
-        return { editorMs: editor.elapsedMs, duplicateMs: duplicate.elapsedMs, confirmMs: confirm.elapsedMs };
+        return {
+            editorMs: editor.elapsedMs,
+            duplicateMs: duplicate.elapsedMs,
+            confirmMs: confirm.elapsedMs,
+            sectionHeadingInline: true,
+            noteEditorHeight: noteBounds.height,
+            noteEditorBottomGap: noteBottomGap,
+            trackerAssociationHidden: true,
+            draftStatusTone: 'warning',
+            savedStatusTone: 'neutral',
+        };
     });
 
     await runStep('query.execute-saved', '查询、条件折叠和保存查询维护', async () => {
@@ -523,13 +593,34 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         let tree = queried.tree;
         const filter = findByName(tree, 'FilterToggle');
         assertUi(filter && isChecked(filter), '查询条件默认未展开');
-        await connection.clickNode(filter);
-        await connection.waitForTree(current => !isChecked(findByName(current, 'FilterToggle')), 3000,
-            '查询条件未折叠');
-        tree = await connection.getTree();
-        await connection.clickNode(findByName(tree, 'FilterToggle'));
-        await connection.waitForTree(current => isChecked(findByName(current, 'FilterToggle')), 3000,
-            '查询条件未展开');
+        const setFilterExpanded = async (expanded, message) => {
+            let lastError;
+            for (let attempt = 0; attempt < 3; attempt += 1) {
+                const current = await connection.getTree();
+                const toggle = findByName(current, 'FilterToggle');
+                assertUi(toggle, '查询条件开关不存在');
+                if (Boolean(isChecked(toggle)) === expanded)
+                    return;
+                if (attempt === 0)
+                    await connection.clickNode(toggle);
+                else {
+                    await connection.client.send('DOM.focus', { nodeId: toggle.nodeId });
+                    await connection.pressKey(' ', 'Space', 32);
+                }
+                try {
+                    await connection.waitForTree(next => Boolean(isChecked(findByName(next, 'FilterToggle'))) === expanded,
+                        1500, message);
+                    return;
+                }
+                catch (error) {
+                    lastError = error;
+                    await delay(120);
+                }
+            }
+            throw lastError;
+        };
+        await setFilterExpanded(false, '查询条件未折叠');
+        await setFilterExpanded(true, '查询条件未展开');
         tree = await connection.getTree();
         const nameInput = tree.entries.find(entry => isVisible(entry) && typeOf(entry).includes('TextBox')
             && !entry.a.Name && Number(entry.a.Width) >= 300);
@@ -599,8 +690,18 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         const chartToggle = findByName(tree, 'StatisticsChartTypeToggle');
         assertUi(chartToggle && !isChecked(chartToggle), '统计图表没有默认显示柱状图');
         await connection.clickNode(chartToggle);
-        await connection.waitForTree(current => isChecked(findByName(current, 'StatisticsChartTypeToggle')),
-            5000, '统计图表没有切换到饼图');
+        try {
+            await connection.waitForTree(current => isChecked(findByName(current, 'StatisticsChartTypeToggle')),
+                1500, '统计图表没有切换到饼图');
+        }
+        catch {
+            const current = await connection.getTree();
+            const toggle = findByName(current, 'StatisticsChartTypeToggle');
+            await connection.client.send('DOM.focus', { nodeId: toggle.nodeId });
+            await connection.pressKey(' ', 'Space', 32);
+            await connection.waitForTree(next => isChecked(findByName(next, 'StatisticsChartTypeToggle')),
+                5000, '统计图表没有切换到饼图');
+        }
         await connection.clickByText('全部展开');
         await connection.clickByText('全部折叠');
         return { navigationMs, refreshMs: performance.now() - started };

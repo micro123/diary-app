@@ -27,10 +27,10 @@
     <DockPanel Name="EditPanel" VerticalSpacing="7">
         <Border DockPanel.Dock="Top" Classes="SectionCard">
         <StackPanel Spacing="7">
-        <StackPanel Spacing="2">
+        <Grid Classes="SectionHeading" ColumnDefinitions="Auto,*">
             <TextBlock Text="一般信息" Classes="SectionTitle" />
-            <TextBlock Text="记录日期、工作内容、耗时和优先级" Classes="SectionDescription" />
-        </StackPanel>
+            <TextBlock Grid.Column="1" Text="日期、内容、耗时与优先级" Classes="SectionDescription" />
+        </Grid>
         <Grid ColumnDefinitions="72,*"
               RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="7"
               IsEnabled="{Binding !IsLocked}">
@@ -89,10 +89,10 @@
         </Border>
         <Border DockPanel.Dock="Top" Classes="SectionCard">
         <StackPanel Spacing="7">
-        <StackPanel Spacing="2">
+        <Grid Classes="SectionHeading" ColumnDefinitions="Auto,*">
             <TextBlock Text="标签与附加信息" Classes="SectionTitle" />
-            <TextBlock Text="使用标签分类记录，并维护标签提供的附加字段" Classes="SectionDescription" />
-        </StackPanel>
+            <TextBlock Grid.Column="1" Text="标签分类与附加字段" Classes="SectionDescription" />
+        </Grid>
         <!-- 标签列表 -->
         <ItemsControl ItemsSource="{Binding WorkTags}" DockPanel.Dock="Top" IsEnabled="{Binding !IsLocked}">
             <ItemsControl.ItemsPanel>
@@ -162,12 +162,13 @@
         </StackPanel>
         </Border>
         <!-- tracker 扩展区（RedMine 等，可多个）：按实例切换，每个扩展由全局 ViewLocator 渲染 -->
-        <Border DockPanel.Dock="Top" Classes="SectionCard">
+        <Border Name="TrackerAssociationCard" DockPanel.Dock="Top"
+                IsVisible="{Binding HasTrackerEditors}" Classes="SectionCard">
         <StackPanel Spacing="8">
-            <StackPanel Spacing="2">
+            <Grid Classes="SectionHeading" ColumnDefinitions="Auto,*">
                 <TextBlock Text="Tracker 关联" Classes="SectionTitle" />
-                <TextBlock Text="选择远程工作项并查看各实例的同步状态" Classes="SectionDescription" />
-            </StackPanel>
+                <TextBlock Grid.Column="1" Text="远程关联与同步状态" Classes="SectionDescription" />
+            </Grid>
         <TabControl ItemsSource="{Binding TrackerTabs}"
                     TabStripPlacement="Top" Theme="{DynamicResource LineTabControl}">
             <TabControl.ItemTemplate>
@@ -209,18 +210,21 @@
             </StackPanel>
         </Border>
         <!-- plm预留 -->
-        <Border Classes="SectionCard">
+        <Border Name="WorkNoteCard" Classes="SectionCard">
             <Grid RowDefinitions="Auto,*" RowSpacing="8">
                 <Grid ColumnDefinitions="*,Auto">
-                    <StackPanel Spacing="2">
+                    <Grid Classes="SectionHeading" ColumnDefinitions="Auto,*">
                         <TextBlock Text="备注" Classes="SectionTitle" />
-                        <TextBlock Text="补充只在本机保存的上下文信息" Classes="SectionDescription" />
-                    </StackPanel>
+                        <i:Icon Grid.Column="1" Value="mdi-information-outline" FontSize="16"
+                                Classes="SectionDescriptionIcon" HorizontalAlignment="Left"
+                                ToolTip.Tip="补充只在本机保存的上下文信息" />
+                    </Grid>
                     <Border Grid.Column="1" Classes="StatusPill" VerticalAlignment="Top">
                         <TextBlock Text="仅本地" HorizontalAlignment="Center" />
                     </Border>
                 </Grid>
-                <TextBox Grid.Row="1" Text="{Binding Note}" AcceptsReturn="True" MinHeight="130"
+                <TextBox Name="WorkNoteInput" Grid.Row="1" Text="{Binding Note}" AcceptsReturn="True"
+                         MinHeight="130" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                          VerticalContentAlignment="Top" Padding="8" Classes="Bordered"
                          IsEnabled="{Binding !IsLocked}" />
             </Grid>

@@ -13,11 +13,11 @@
     </UserControl.Styles>
     <Border Classes="SectionCard">
         <Grid RowDefinitions="Auto,Auto" RowSpacing="6">
-            <StackPanel Spacing="2">
+            <Grid Classes="SectionHeading" ColumnDefinitions="Auto,*">
                 <TextBlock Text="新建 Redmine 问题" Classes="SectionTitle" />
-                <TextBlock Text="填写问题标题与说明，并选择是否直接分配给当前用户。"
-                           Classes="SectionDescription" />
-            </StackPanel>
+                <TextBlock Grid.Column="1" Text="填写内容与分配选项" Classes="SectionDescription"
+                           ToolTip.Tip="填写问题标题与说明，并选择是否直接分配给当前用户。" />
+            </Grid>
             <u:Form Grid.Row="1" LabelPosition="Left" LabelWidth="70" LabelAlignment="Right">
                 <TextBox Text="{Binding IssueTitle}" u:FormItem.IsRequired="True" u:FormItem.Label="标题" />
                 <TextBox Text="{Binding IssueDesc}" u:FormItem.Label="说明" Classes="TextArea" />

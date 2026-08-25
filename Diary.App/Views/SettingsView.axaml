@@ -14,11 +14,10 @@
     <!-- 内容：DataTemplate 由 Application.DataTemplates 提供 (App.axaml)，与 GenericConfigView 共享 -->
     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
         <Border Classes="PageHeader">
-            <StackPanel Spacing="3">
+            <Grid Classes="PageHeading" ColumnDefinitions="Auto,*">
                 <TextBlock Text="程序设置" Classes="PageTitle" />
-                <TextBlock Text="管理界面、工作流、数据库、更新以及 AI 集成。"
-                           Classes="PageSubtitle" />
-            </StackPanel>
+                <TextBlock Grid.Column="1" Text="界面、工作流、数据库、更新与 AI" Classes="PageSubtitle" />
+            </Grid>
         </Border>
         <Border Grid.Row="1" Classes="DetailPane" Padding="6" ClipToBounds="True">
             <ItemsControl Classes="Settings" MinHeight="0"

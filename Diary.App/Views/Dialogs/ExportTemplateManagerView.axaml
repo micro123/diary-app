@@ -7,11 +7,11 @@
     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
         <Border Classes="PageHeader">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                <StackPanel Spacing="4">
+                <Grid Classes="PageHeading" ColumnDefinitions="Auto,*">
                     <TextBlock Text="数据模板" Classes="PageTitle" />
-                    <TextBlock Text="导入模板文件后，由对应插件校验模板结构并声明所需导出数据。"
-                               Classes="PageSubtitle" />
-                </StackPanel>
+                    <TextBlock Grid.Column="1" Text="插件模板导入与校验" Classes="PageSubtitle"
+                               ToolTip.Tip="导入模板文件后，由对应插件校验模板结构并声明所需导出数据。" />
+                </Grid>
                 <Button Grid.Column="1" Content="导入模板" Command="{Binding ImportCommand}"
                         Classes="Primary" VerticalAlignment="Center" />
             </Grid>

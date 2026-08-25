@@ -127,14 +127,14 @@
             <Border Classes="MasterPane">
             <DockPanel VerticalSpacing="7">
                 <StackPanel DockPanel.Dock="Top" Spacing="6">
-                    <StackPanel Name="DiaryDateHeading" Spacing="2">
+                    <Grid Name="DiaryDateHeading" Classes="SectionHeading" ColumnDefinitions="Auto,*">
                         <TextBlock Name="DiaryDateTitle"
                                    Text="{Binding SelectedDate, StringFormat='{}{0:yyyy年M月d日}'}"
                                    Classes="SectionTitle" />
-                        <TextBlock Name="DiaryDateDescription"
-                                   Text="选择日期并管理当天的工作记录"
+                        <TextBlock Name="DiaryDateDescription" Grid.Column="1"
+                                   Text="当天记录"
                                    TextWrapping="NoWrap" Classes="SectionDescription" />
-                    </StackPanel>
+                    </Grid>
                     <Grid Name="DiaryDateActions" ColumnDefinitions="Auto,*,Auto">
                         <Button Content="回到今天"
                                 HotKey="Ctrl+T" Classes="ActionButton"
@@ -393,6 +393,11 @@
                     <Button Grid.Column="5" Classes="ActionButton" Content="同步工时" HotKey="Ctrl+U"
                             Command="{Binding UploadTimeCommand}" />
                     <Border Name="SelectedWorkStatusPill" Grid.Column="6" Classes="StatusPill"
+                            Classes.StatusWarning="{Binding SelectedWork.IsStatusPillWarning}"
+                            Classes.StatusInfo="{Binding SelectedWork.IsStatusPillInfo}"
+                            Classes.StatusSuccess="{Binding SelectedWork.IsStatusPillSuccess}"
+                            Classes.StatusError="{Binding SelectedWork.IsStatusPillError}"
+                            Classes.StatusUncertain="{Binding SelectedWork.IsStatusPillUncertain}"
                             HorizontalAlignment="Right" IsVisible="{Binding HasItem}">
                         <TextBlock Text="{Binding SelectedWork.StatusSummary}" HorizontalAlignment="Center" />
                     </Border>
