@@ -64,7 +64,7 @@ dotnet run --project Diary.Mcp -- --snapshot "/absolute/path/to/mcp-snapshot.jso
 - `diary_summarize_work_items`：汇总快照内事项数量、工时和标签分组。
 - `diary_validate_script`：只编译或解析请求中提供的 C#、Lua、Python 源码并返回行列诊断，不读取脚本文件，也不执行脚本。
 
-事项查询和汇总只有在生成快照时显式包含事项才有数据；它们不会回查数据库，也不支持 SQL、路径或写操作。
+事项查询和汇总只有在生成快照时显式包含事项才有数据；它们不会回查数据库，也不支持 SQL、路径或写操作。若当前快照未包含事项，这两个工具会返回 `available: false` 和 `work_items_not_disclosed`，提示回到“AI 上下文”显式勾选事项并刷新 MCP 快照；该结果表示未授权，不等于查询结果为空。
 
 校验脚本时传入 `language`（`csharp`、`lua` 或 `python`）和完整 `source`。返回值中的 `succeeded` 表示相应编译/解析阶段是否通过，`diagnostics` 包含 code、message、severity、category、line 和 column。C# 会执行 Roslyn 编译与宿主安全策略但不加载程序集；Lua 只编译代码块；Python 只做语法树和安全策略检查。因此成功结果不代表脚本入口元数据完整，也不保证实际运行成功。源码上限为 256 KiB，服务不会读取调用方提供的本地路径、安装额外依赖或写入编译缓存。
 

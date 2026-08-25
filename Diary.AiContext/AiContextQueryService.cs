@@ -85,7 +85,7 @@ public sealed class AiContextQueryService(AiContextSnapshot snapshot)
     private static void EnsureDisclosed(bool disclosed, string section)
     {
         if (!disclosed)
-            throw new InvalidOperationException($"当前快照未授权 {section} 数据节。");
+            throw new AiContextSectionNotDisclosedException(section);
     }
 
     private static void ValidateDate(string? value, string name)

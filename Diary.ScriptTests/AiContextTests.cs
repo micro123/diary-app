@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Diary.AiContext;
+using Diary.Mcp;
 
 namespace Diary.ScriptTests;
 
@@ -103,9 +105,52 @@ public sealed class AiContextTests
         };
         var service = new AiContextQueryService(snapshot);
 
-        Assert.ThrowsExactly<InvalidOperationException>(() => service.ListTags());
-        Assert.ThrowsExactly<InvalidOperationException>(() =>
+        var tagException = Assert.ThrowsExactly<AiContextSectionNotDisclosedException>(() => service.ListTags());
+        var workItemException = Assert.ThrowsExactly<AiContextSectionNotDisclosedException>(() =>
             service.QueryWorkItems(new AiContextWorkItemQuery()));
+
+        Assert.AreEqual("tags", tagException.Section);
+        Assert.AreEqual("work_items", workItemException.Section);
+    }
+
+    [TestMethod]
+    public void WorkItemTools_ReturnUnavailableResultWhenSectionIsNotDisclosed()
+    {
+        var snapshot = CreateSnapshot() with
+        {
+            Disclosure = CreateSnapshot().Disclosure with { WorkItems = false },
+            WorkItems = [],
+        };
+        var service = new AiContextQueryService(snapshot);
+
+        AssertUnavailableWorkItems(DiaryContextTools.QueryWorkItems(service));
+        AssertUnavailableWorkItems(DiaryContextTools.SummarizeWorkItems(service));
+    }
+
+    [TestMethod]
+    public void WorkItemTools_PreserveSuccessfulResponseShapes()
+    {
+        var service = new AiContextQueryService(CreateSnapshot());
+
+        using var query = JsonDocument.Parse(DiaryContextTools.QueryWorkItems(service, tagIds: [2]));
+        using var summary = JsonDocument.Parse(DiaryContextTools.SummarizeWorkItems(service, tagIds: [2]));
+
+        Assert.AreEqual(JsonValueKind.Array, query.RootElement.ValueKind);
+        Assert.AreEqual(2, query.RootElement[0].GetProperty("id").GetInt32());
+        Assert.AreEqual(JsonValueKind.Object, summary.RootElement.ValueKind);
+        Assert.AreEqual(1, summary.RootElement.GetProperty("count").GetInt32());
+        Assert.IsFalse(summary.RootElement.TryGetProperty("available", out _));
+    }
+
+    private static void AssertUnavailableWorkItems(string result)
+    {
+        using var document = JsonDocument.Parse(result);
+        var root = document.RootElement;
+
+        Assert.IsFalse(root.GetProperty("available").GetBoolean());
+        Assert.AreEqual("work_items_not_disclosed", root.GetProperty("error").GetString());
+        Assert.AreEqual("work_items", root.GetProperty("section").GetString());
+        StringAssert.Contains(root.GetProperty("message").GetString()!, "刷新 MCP 快照");
     }
 
     private static AiContextSnapshot CreateSnapshot() => new()

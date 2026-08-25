@@ -110,6 +110,8 @@ Windows apphost 显式设置 `CETCompat=false`，与主程序、脚本 Worker �
 
 前四项返回对应快照节；事项查询与汇总只能筛选快照中已经披露的事项。查询参数只支持日期、标签 ID、文本、优先级、limit 和 offset，不支持 SQL 或路径。所有结果都返回 JSON，并保留不可信数据标记。
 
+事项节未披露时，`diary_query_work_items` 和 `diary_summarize_work_items` 不得抛出通用工具异常，也不得返回空数组或零汇总，以免调用方把“未授权”误判为“已授权但无数据”。两者返回正常 MCP 文本结果，正文为 `available=false`、`error=work_items_not_disclosed`、`section=work_items` 和引导用户显式包含事项后刷新快照的消息；事项已披露时继续保持原有数组或汇总对象结构。
+
 `diary_validate_script` 接受 `language` 和 `source`，语言限 `csharp`、`lua`、`python`，源码 UTF-8 最大 256 KiB，单次最多返回 100 条诊断，超时 10 秒且最多并行处理两个请求。服务端使用固定虚拟文件名，不读取调用方提供的路径：C# 只通过 Roslyn 执行策略检查并 Emit 到内存，不加载程序集、不反射类型、不实例化入口且不写缓存；Lua 只调用 `LoadString` 编译代码块；Python 只在隔离解释器中执行 `ast.parse` 和固定安全策略。该工具只能确认源码通过相应编译/解析阶段，不能保证入口元数据完整或运行时成功。
 
 stdio 进程继承环境变量是常见风险。用户配置 Agent 时应使用最小环境；Diary.Mcp 本身不读取凭据环境变量，也不会在日志中打印快照正文。
@@ -123,7 +125,7 @@ App 日志只记录 schema version、启用节、各节数量、截断数量、�
 - schema/version 不受支持；
 - 快照超过 2 MiB或 JSON 无效；
 - 日期格式不是 `yyyy-MM-dd`、范围反转或 limit 超限；
-- 快照未包含请求的数据节；
+- 快照未包含标签、附加字段、模板或 Tracker 等请求的数据节；事项查询与汇总按第 6 节返回结构化不可用结果；
 - 快照文件不存在或无读取权限。
 - 校验语言不受支持、源码为空或超过 256 KiB；
 - 脚本编译/解析失败、运行时不可用或校验超时。
@@ -136,7 +138,7 @@ App 日志只记录 schema version、启用节、各节数量、截断数量、�
 - 快照读取拒绝超限、未知 schema 和无效 JSON；
 - MCP 只列出七个白名单工具，查询不能越过快照内容，脚本校验不能读取路径或执行源码；
 - 三种语言分别验证成功与失败诊断；C# 使用会抛异常的静态构造函数证明校验过程不加载或实例化程序集；
-- Linux 使用 JSON-RPC stdio 探针完成 initialize、tools/list、快照查询和 `diary_validate_script` 调用；
+- Linux 使用 JSON-RPC stdio 探针完成 initialize、tools/list、快照查询和 `diary_validate_script` 调用，并验证未披露事项时查询与汇总不会成为工具错误；
 - App 构建、相关单元测试和脚本管理页 Headless/CDP 回归通过。
 - 配置生成使用绝对路径、合法 JSON 且不包含 `env` 或快照正文；程序设置 CDP 回归验证复制两种格式和跳转到 AI 上下文。
 

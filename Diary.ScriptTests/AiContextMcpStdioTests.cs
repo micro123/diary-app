@@ -140,6 +140,79 @@ public sealed class AiContextMcpStdioTests
         }
     }
 
+    [TestMethod]
+    [Timeout(30_000)]
+    public async Task StdioServer_ReturnsUnavailableResultWhenWorkItemsAreNotDisclosed()
+    {
+        var root = FindRepositoryRoot();
+        var snapshotPath = Path.Combine(Path.GetTempPath(), $"diary-mcp-{Guid.NewGuid():N}.json");
+        var snapshot = CreateSnapshot() with
+        {
+            Disclosure = CreateSnapshot().Disclosure with { WorkItems = false },
+            WorkItems = [],
+            Audit = new AiContextAudit(["tags"], 2, 0, 0, 0, 0, 0, 0),
+        };
+        await AiContextSerializer.SaveAsync(snapshotPath, snapshot);
+        using var process = StartServer(root, snapshotPath);
+        try
+        {
+            await SendAsync(process, new
+            {
+                jsonrpc = "2.0",
+                id = 1,
+                method = "initialize",
+                @params = new
+                {
+                    protocolVersion = "2025-11-25",
+                    capabilities = new { },
+                    clientInfo = new { name = "diary-tests", version = "1.0" },
+                },
+            });
+            using var initialize = await ReadResponseAsync(process, 1);
+            Assert.IsTrue(initialize.RootElement.TryGetProperty("result", out _));
+
+            await SendAsync(process, new
+            {
+                jsonrpc = "2.0",
+                method = "notifications/initialized",
+                @params = new { },
+            });
+
+            foreach (var (id, toolName) in new[]
+            {
+                (2, "diary_query_work_items"),
+                (3, "diary_summarize_work_items"),
+            })
+            {
+                await SendAsync(process, new
+                {
+                    jsonrpc = "2.0",
+                    id,
+                    method = "tools/call",
+                    @params = new { name = toolName, arguments = new { } },
+                });
+                using var response = await ReadResponseAsync(process, id);
+                Assert.IsFalse(response.RootElement.TryGetProperty("error", out _));
+                var result = response.RootElement.GetProperty("result");
+                if (result.TryGetProperty("isError", out var isError))
+                    Assert.IsFalse(isError.GetBoolean());
+                var content = result.GetProperty("content")[0].GetProperty("text").GetString();
+                using var unavailable = JsonDocument.Parse(content!);
+                Assert.IsFalse(unavailable.RootElement.GetProperty("available").GetBoolean());
+                Assert.AreEqual(
+                    "work_items_not_disclosed",
+                    unavailable.RootElement.GetProperty("error").GetString());
+            }
+        }
+        finally
+        {
+            await process.StandardInput.DisposeAsync();
+            if (!process.WaitForExit(5_000))
+                process.Kill(true);
+            File.Delete(snapshotPath);
+        }
+    }
+
     private static Process StartServer(string root, string snapshotPath)
     {
         var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent?.Name ?? "Debug";

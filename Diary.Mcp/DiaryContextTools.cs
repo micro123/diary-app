@@ -43,7 +43,7 @@ public sealed class DiaryContextTools
         int limit = 50,
         [Description("结果偏移，0 到 10000，默认 0。")]
         int offset = 0) =>
-        Serialize(context.QueryWorkItems(new AiContextWorkItemQuery(
+        SerializeWorkItemResult(() => context.QueryWorkItems(new AiContextWorkItemQuery(
             startDate, endDate, tagIds, text, priority, limit, offset)));
 
     [McpServerTool(Name = "diary_summarize_work_items", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
@@ -60,9 +60,31 @@ public sealed class DiaryContextTools
         string? text = null,
         [Description("优先级整数。可省略。")]
         int? priority = null) =>
-        Serialize(context.SummarizeWorkItems(new AiContextWorkItemQuery(
+        SerializeWorkItemResult(() => context.SummarizeWorkItems(new AiContextWorkItemQuery(
             startDate, endDate, tagIds, text, priority, AiContextSchema.MaxWorkItems, 0)));
+
+    private static string SerializeWorkItemResult<T>(Func<T> action)
+    {
+        try
+        {
+            return Serialize(action());
+        }
+        catch (AiContextSectionNotDisclosedException exception) when (exception.Section == "work_items")
+        {
+            return Serialize(new ToolUnavailableResult(
+                false,
+                "work_items_not_disclosed",
+                exception.Section,
+                "当前 MCP 快照未包含事项数据。请在 DiaryApp 的 AI 上下文中显式包含事项，并刷新 MCP 快照。"));
+        }
+    }
 
     private static string Serialize<T>(T value) =>
         JsonSerializer.Serialize(value, AiContextSerializer.JsonOptions);
+
+    private sealed record ToolUnavailableResult(
+        bool Available,
+        string Error,
+        string Section,
+        string Message);
 }
