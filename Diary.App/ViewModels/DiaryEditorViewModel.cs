@@ -134,16 +134,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
     {
         if (!TryCreateNewWorkItem() || SelectedWork is null)
             return;
-        // apply template
-        if (!string.IsNullOrWhiteSpace(template.DefaultTitle))
-            SelectedWork.Comment = template.DefaultTitle;
-        if (template.DefaultTime > 0)
-            SelectedWork.Time = template.DefaultTime;
-        var tags = template.DefaultWorkTags
-            .Select(tagId => SelectedWork.AllTags.FirstOrDefault(tag => tag.Id == tagId))
-            .Where(tag => tag is not null)
-            .Cast<WorkTag>();
-        SelectedWork.AddTags(tags, TagAddSource.Template);
+        SelectedWork.ApplyTemplate(template);
     }
 
     [RelayCommand(CanExecute = nameof(CanSave))]
@@ -742,6 +733,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
             Templates.Add(template);
         }
 
+        SelectedWork?.RefreshTemplates();
         CanUseTemplates = Templates.Count > 0;
     }
 

@@ -6,6 +6,7 @@ using Diary.App.Models;
 using Diary.App.ViewModels;
 using Diary.App.ViewModels.Dialogs;
 using Diary.Core;
+using Diary.Core.Data.App;
 using Diary.Core.Data.Base;
 using Diary.Database;
 using Diary.Db.SQLite;
@@ -243,6 +244,135 @@ public sealed class WorkEditorViewModelTests
         Assert.AreEqual(2, viewModel.Time, 0.0001);
         Assert.AreEqual("invalid", viewModel.TimeInput);
     }
+    [TestMethod]
+    public void ApplyTemplateOverwritesFieldsAndReplacesAllTags()
+    {
+        var currentTag = new WorkTag { Id = 1, Name = "当前标签", Level = TagLevels.Primary };
+        var templateTag = new WorkTag { Id = 2, Name = "模板标签", Level = TagLevels.Primary };
+        var viewModel = CreateViewModel();
+        viewModel.AllTags.Add(currentTag);
+        viewModel.AllTags.Add(templateTag);
+        viewModel.Comment = "当前标题";
+        viewModel.Time = 2;
+        viewModel.AddTags([currentTag], TagAddSource.User);
+        var template = new Template
+        {
+            Name = "覆盖模板",
+            DefaultTitle = "模板标题",
+            DefaultTime = 1.5,
+            DefaultWorkTags = [templateTag.Id],
+        };
+
+        viewModel.ApplyTemplate(template);
+
+        Assert.AreEqual("模板标题", viewModel.Comment);
+        Assert.AreEqual(1.5, viewModel.Time, 0.0001);
+        CollectionAssert.AreEqual(new[] { templateTag }, viewModel.WorkTags.ToArray());
+
+        viewModel.ApplyTemplate(new Template { Name = "空模板" });
+
+        Assert.AreEqual(string.Empty, viewModel.Comment);
+        Assert.AreEqual(0, viewModel.Time, 0.0001);
+        Assert.IsEmpty(viewModel.WorkTags);
+    }
+
+    [TestMethod]
+    public void UpdateFromTemplateOnlyFillsMissingFieldsAndRequiresNoExistingTags()
+    {
+        var currentTag = new WorkTag { Id = 1, Name = "当前标签", Level = TagLevels.Primary };
+        var templateTag = new WorkTag { Id = 2, Name = "模板标签", Level = TagLevels.Primary };
+        var template = new Template
+        {
+            Name = "更新模板",
+            DefaultTitle = "模板标题",
+            DefaultTime = 1.5,
+            DefaultWorkTags = [templateTag.Id],
+        };
+        var filled = CreateViewModel();
+        filled.AllTags.Add(currentTag);
+        filled.AllTags.Add(templateTag);
+        filled.Comment = "已有标题";
+        filled.Time = 2;
+        filled.AddTags([currentTag], TagAddSource.User);
+
+        filled.UpdateFromTemplate(template);
+
+        Assert.AreEqual("已有标题", filled.Comment);
+        Assert.AreEqual(2, filled.Time, 0.0001);
+        CollectionAssert.AreEqual(new[] { currentTag }, filled.WorkTags.ToArray());
+
+        var empty = CreateViewModel();
+        empty.AllTags.Add(templateTag);
+
+        empty.UpdateFromTemplate(template);
+
+        Assert.AreEqual("模板标题", empty.Comment);
+        Assert.AreEqual(1.5, empty.Time, 0.0001);
+        CollectionAssert.AreEqual(new[] { templateTag }, empty.WorkTags.ToArray());
+    }
+
+    [TestMethod]
+    public void ApplyTemplateReplacesPersistedTagsInDatabase()
+    {
+        using var database = CreateDatabase();
+        var currentTag = database.CreateWorkTag("当前标签", true, 0);
+        var templateTag = database.CreateWorkTag("模板标签", true, 1);
+        var item = database.CreateWorkItem("2026-08-25", "当前标题");
+        Assert.IsTrue(database.WorkItemAddTag(item, currentTag));
+        var viewModel = CreateViewModel(database: database);
+        viewModel.AllTags.Add(currentTag);
+        viewModel.AllTags.Add(templateTag);
+        LoadExistingItem(viewModel, item);
+        viewModel.WorkTags.Add(currentTag);
+        var template = new Template
+        {
+            Name = "持久化模板",
+            DefaultTitle = "替换标题",
+            DefaultTime = 1,
+            DefaultWorkTags = [templateTag.Id],
+        };
+
+        viewModel.ApplyTemplate(template);
+
+        CollectionAssert.AreEqual(
+            new[] { templateTag.Id },
+            database.GetWorkItemTags(item).Select(tag => tag.Id).ToArray());
+        CollectionAssert.AreEqual(new[] { templateTag }, viewModel.WorkTags.ToArray());
+    }
+    [TestMethod]
+    public void LockedItemIgnoresTemplateOperations()
+    {
+        var currentTag = new WorkTag { Id = 1, Name = "当前标签", Level = TagLevels.Primary };
+        var templateTag = new WorkTag { Id = 2, Name = "模板标签", Level = TagLevels.Primary };
+        var viewModel = CreateViewModel();
+        viewModel.AllTags.Add(currentTag);
+        viewModel.AllTags.Add(templateTag);
+        LoadExistingItem(viewModel, new WorkItem
+        {
+            Id = 42,
+            CreateDate = "2026-08-25",
+            Comment = "锁定标题",
+            Time = 2,
+            IsReadOnly = true,
+        });
+        viewModel.WorkTags.Add(currentTag);
+        var template = new Template
+        {
+            Name = "锁定模板",
+            DefaultTitle = "模板标题",
+            DefaultTime = 1,
+            DefaultWorkTags = [templateTag.Id],
+        };
+
+        viewModel.ApplyTemplate(template);
+        viewModel.UpdateFromTemplate(template);
+
+        Assert.AreEqual("锁定标题", viewModel.Comment);
+        Assert.AreEqual(2, viewModel.Time, 0.0001);
+        CollectionAssert.AreEqual(new[] { currentTag }, viewModel.WorkTags.ToArray());
+    }
+
+
 
     [TestMethod]
     public void DeleteFailureKeepsPersistedWorkItemInEditor()

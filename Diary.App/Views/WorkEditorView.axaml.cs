@@ -19,4 +19,22 @@ public partial class WorkEditorView : UserControl
             viewModel.ApplyTimeInputCommand.Execute(null);
         }
     }
+
+    private void OnUpdateFromTemplateClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not SplitButton button || DataContext is not WorkEditorViewModel viewModel)
+            return;
+
+        var menu = new MenuFlyout
+        {
+            ItemsSource = viewModel.Templates.Select(template => new MenuItem
+            {
+                Header = template.Name,
+                Command = viewModel.UpdateFromTemplateCommand,
+                CommandParameter = template,
+            }).ToArray(),
+        };
+        menu.ShowAt(button);
+    }
+
 }

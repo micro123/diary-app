@@ -6,6 +6,7 @@
              xmlns:u="https://irihi.tech/ursa"
              xmlns:i="https://github.com/projektanker/icons.avalonia"
              xmlns:base="clr-namespace:Diary.Core.Data.Base;assembly=Diary.Core"
+             xmlns:appData="clr-namespace:Diary.Core.Data.App;assembly=Diary.Core"
              xmlns:display="clr-namespace:Diary.RedMine.Models;assembly=Diary.RedMine"
              xmlns:redMine="clr-namespace:Diary.RedMine.Models;assembly=Diary.RedMine"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
@@ -42,7 +43,7 @@
               RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="7"
               IsEnabled="{Binding !IsLocked}">
             <TextBlock Grid.Row="0" Grid.Column="0" Text="日期" Classes="FieldLabel" />
-            <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8">
+            <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="Auto,Auto,Auto,*" ColumnSpacing="8">
                 <CalendarDatePicker Name="WorkDatePicker" Grid.Column="0" HorizontalAlignment="Left"
                                     SelectedDate="{Binding Date, Converter={StaticResource DateConvert}}" />
                 <SplitButton Name="UseTodayButton" Grid.Column="1" Content="使用今天"
@@ -51,6 +52,27 @@
                         <MenuFlyout>
                             <MenuItem Header="使用昨天" Command="{Binding QuickDateCommand}" CommandParameter="-1" />
                             <MenuItem Header="使用明天" Command="{Binding QuickDateCommand}" CommandParameter="+1" />
+                        </MenuFlyout>
+                    </SplitButton.Flyout>
+                </SplitButton>
+                <SplitButton Name="TemplateActionButton" Grid.Column="2" Content="从模板更新"
+                             IsEnabled="{Binding CanUseTemplates}"
+                             Click="OnUpdateFromTemplateClick"
+                             ToolTip.Tip="主按钮只补充未填写内容；下拉菜单可无条件应用模板">
+                    <SplitButton.Flyout>
+                        <MenuFlyout ShowMode="Transient">
+                            <MenuItem Header="应用模板" ItemsSource="{Binding Templates}">
+                                <MenuItem.ItemContainerTheme>
+                                    <ControlTheme TargetType="MenuItem"
+                                                  BasedOn="{StaticResource {x:Type MenuItem}}"
+                                                  x:DataType="appData:Template">
+                                        <Setter Property="Header" Value="{Binding Name}" />
+                                        <Setter Property="Command"
+                                                Value="{Binding #EditPanel.((viewModels:WorkEditorViewModel)DataContext).ApplyTemplateCommand}" />
+                                        <Setter Property="CommandParameter" Value="{Binding}" />
+                                    </ControlTheme>
+                                </MenuItem.ItemContainerTheme>
+                            </MenuItem>
                         </MenuFlyout>
                     </SplitButton.Flyout>
                 </SplitButton>

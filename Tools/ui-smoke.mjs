@@ -482,6 +482,14 @@ async function main() {
         if (!todayButton)
             throw new Error('找不到 UseTodayButton');
         started = performance.now();
+        const templateActionButton = findByName(tree, 'TemplateActionButton');
+        if (!templateActionButton || !typeOf(templateActionButton).includes('SplitButton'))
+            throw new Error('事项编辑器模板操作未使用单个分段按钮');
+        if (textOf(templateActionButton) !== '从模板更新')
+            throw new Error('事项编辑器模板主操作不是“从模板更新”');
+        functional.tagsAndTemplates.editorTemplateActionsVisible = true;
+        functional.tagsAndTemplates.editorTemplateActionUsesSplitButton = true;
+
         await clickNode(todayButton);
         const expectedToday = localDateText();
         await waitForTree(current => {

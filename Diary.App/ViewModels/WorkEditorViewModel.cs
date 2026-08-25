@@ -6,8 +6,9 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
-using Diary.App.ViewModels.Dialogs;
 using Diary.App.Services;
+using Diary.App.ViewModels.Dialogs;
+using Diary.Core.Data.App;
 using Diary.Core.Data.Base;
 using Diary.Database;
 using Diary.GUIBase;
@@ -96,6 +97,8 @@ public partial class WorkEditorViewModel : ViewModelBase
     public bool HasAvailableTags => !IsLocked && AvailableTags.Count > 0;
     public bool HasExtraFields => _extraFields.Count > 0;
     public bool ShowExtraFieldsButton => HasExtraFields && !IsImportedReadOnly;
+    public ICollection<Template> Templates => TemplateManager.Instance.Templates;
+    public bool CanUseTemplates => !IsLocked && Templates.Count > 0;
     public bool CanOpenExtraFields => ShowExtraFieldsButton;
     public bool IsExtraFieldsReadOnly => IsLocked;
     public string ExtraFieldsButtonText => IsExtraFieldsReadOnly ? "查看附加信息" : "附加信息";
@@ -118,7 +121,8 @@ public partial class WorkEditorViewModel : ViewModelBase
     public bool HasUploadedTracker => Extensions.Any(extension => extension.IsLocked);
 
     /// <summary>是否锁住 generic 编辑字段（任一 tracker 区已上传到远程即锁定）。</summary>
-    [ObservableProperty] private bool _isLocked;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanUseTemplates))] private bool _isLocked;
 
     public string LocalSaveStatusText => IsNewItem ? "未保存" : "本地已保存";
 
@@ -771,6 +775,75 @@ public partial class WorkEditorViewModel : ViewModelBase
         var formatted = value.ToString("0.######", CultureInfo.InvariantCulture);
         _committedTimeInput = formatted;
         TimeInput = formatted;
+    }
+
+    [RelayCommand]
+    public void ApplyTemplate(Template template)
+    {
+        ArgumentNullException.ThrowIfNull(template);
+        if (IsLocked || !TryClearTagsForTemplate())
+            return;
+
+        Comment = template.DefaultTitle;
+        Time = template.DefaultTime;
+        AddTags(ResolveTemplateTags(template), TagAddSource.Template);
+    }
+
+    [RelayCommand]
+    public void UpdateFromTemplate(Template template)
+    {
+        ArgumentNullException.ThrowIfNull(template);
+        if (IsLocked)
+            return;
+
+        if (string.IsNullOrWhiteSpace(Comment))
+            Comment = template.DefaultTitle;
+        if (Time <= 0)
+            Time = template.DefaultTime;
+        if (WorkTags.Count == 0)
+            AddTags(ResolveTemplateTags(template), TagAddSource.Template);
+    }
+
+    public void RefreshTemplates()
+    {
+        OnPropertyChanged(nameof(Templates));
+        OnPropertyChanged(nameof(CanUseTemplates));
+    }
+
+    private IReadOnlyList<WorkTag> ResolveTemplateTags(Template template)
+    {
+        var tagsById = AllTags.ToDictionary(tag => tag.Id);
+        return template.DefaultWorkTags
+            .Where(tagsById.ContainsKey)
+            .Distinct()
+            .Select(tagId => tagsById[tagId])
+            .ToArray();
+    }
+
+    private bool TryClearTagsForTemplate()
+    {
+        if (WorkTags.Count > 0
+            && WorkItem is { Id: > 0 } item
+            && Db?.WorkItemCleanTags(item) != true)
+        {
+            EventDispatcher.ShowToast("应用模板前清空标签失败，请刷新后重试。");
+            return false;
+        }
+
+        _syncing_tags = true;
+        try
+        {
+            WorkTags.Clear();
+            _pendingTagAutomation.Clear();
+        }
+        finally
+        {
+            _syncing_tags = false;
+        }
+
+        UpdateAvailableTags();
+        RefreshExtraFieldsSnapshot();
+        return true;
     }
 
     [RelayCommand]
