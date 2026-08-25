@@ -203,14 +203,16 @@ foreach (var item in items)
 
 返回的 `ScriptWorkItemQueryResult` 包含 `Succeeded`、`Items`、`NormalizedQuery` 和 `Error`，另有计算属性 `ApiError`（`ScriptApiError?`，由 `Error.ToApiError()` 计算，提供稳定大写错误码）。`NormalizedQuery` 是宿主规范化后的参数回显：`Limit` 补全默认值 100、`Offset` 补全 0、`TagFilter` 补全 `Ignore`，`Range` 快捷值已被解析为 `StartDate`/`EndDate` 不再回显。`ScriptWorkItem` 仅是安全 DTO：`Id`、`Date`、`Comment`、`Hours`、`Priority`、`Note`、`Tags` 和只读 `ExtraFields`。该 API 没有更新或删除方法。
 
-每个 `ExtraFields` 项包含 `FieldId`、全局唯一的 `FieldKey`、标签信息、`Label`、`Type` 和 `Value`。脚本应通过稳定的 `FieldKey` 读取，例如：
+每个 `ExtraFields` 项包含 `FieldId`、全局唯一的 `FieldKey`、标签信息、`Label`、`Type`、事项实际值 `Value` 和字段定义默认值 `DefaultValue`。脚本应通过稳定的 `FieldKey` 读取，例如：
 
 ```csharp
 var participants = item.GetExtraFieldValue("meeting.participants");
+var defaultParticipants = item.GetExtraFieldDefaultValue("meeting.participants");
 var field = item.GetExtraField("meeting.participants");
+Console.WriteLine($"实际值={field?.Value}，默认值={field?.DefaultValue}");
 ```
 
-附加字段是只读数据；编辑字段不会触发脚本执行。
+`Value` 始终表示该事项实际保存的值，`DefaultValue` 仅描述标签字段定义，不会替代空的历史值。附加字段是只读数据；编辑字段不会触发脚本执行。
 
 ### 流式查询大量明细
 
@@ -669,7 +671,8 @@ Lua 与 Python 的入口返回值约定不同，见各自语言文档的类型�
 
 ## 附录 C. DTO 字段总表
 
-- `ScriptWorkItem`：`Id`(int)、`Date`、`Comment`、`Hours`(double)、`Priority`(int，0-9)、`Note`(string?)、`Tags`(ImmutableArray&lt;ScriptWorkTag&gt;)。
+- `ScriptWorkItem`：`Id`(int)、`Date`、`Comment`、`Hours`(double)、`Priority`(int，0-9)、`Note`(string?)、`Tags`(ImmutableArray&lt;ScriptWorkTag&gt;)、`ExtraFields`(ImmutableArray&lt;ScriptWorkItemExtraField&gt;)；提供 `GetExtraField`、`GetExtraFieldValue` 和 `GetExtraFieldDefaultValue`。
+- `ScriptWorkItemExtraField`：`FieldId`、`FieldKey`、`TagId`、`TagName`、`Label`、`Type`、`Value`、`DefaultValue`；`Value` 是事项实际值，`DefaultValue` 是字段定义默认值。
 - `ScriptWorkTag`：`Id`(int)、`Name`、`Color`(int)、`Level`(int)、`IsPrimary`(bool)、`Disabled`(bool)、`Metadata`(IReadOnlyDictionary&lt;string, string&gt;)。`Metadata` 是标签的只读字符串键值元数据，推荐使用 `projectNumber` 保存项目编号；推荐使用 `IsPrimary` 判断主标签，`Level` 保留用于兼容。
 - `ScriptTrackerInstance`：`PluginId`、`InstanceId`、`DisplayName`、`Icon`、`IsConfigured`(bool)。
 - `ScriptTemplateInfo`：`Id`、`Name`、`DefaultTitle`、`DefaultHours`(double)、`DefaultWorkTagIds`(IReadOnlyCollection&lt;int&gt;)。

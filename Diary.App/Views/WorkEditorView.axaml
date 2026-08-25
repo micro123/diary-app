@@ -22,6 +22,13 @@
                 <Setter Property="Foreground" Value="{DynamicResource ButtonDefaultPrimaryForeground}" />
             </Style>
         </Style>
+        <Style Selector="Border#TrackerAssociationCard TextBlock.SectionTitle">
+            <Setter Property="FontSize" Value="16" />
+        </Style>
+        <Style Selector="Border#TrackerAssociationCard TabItem">
+            <Setter Property="MinHeight" Value="28" />
+            <Setter Property="Padding" Value="6,3" />
+        </Style>
     </UserControl.Styles>
 
     <DockPanel Name="EditPanel" VerticalSpacing="7">
@@ -163,14 +170,15 @@
         </Border>
         <!-- tracker 扩展区（RedMine 等，可多个）：按实例切换，每个扩展由全局 ViewLocator 渲染 -->
         <Border Name="TrackerAssociationCard" DockPanel.Dock="Top"
-                IsVisible="{Binding HasTrackerEditors}" Classes="SectionCard">
-        <StackPanel Spacing="8">
+                IsVisible="{Binding HasTrackerEditors}" Classes="SectionCard" Padding="6">
+        <StackPanel Spacing="4">
             <Grid Classes="SectionHeading" ColumnDefinitions="Auto,*">
                 <TextBlock Text="Tracker 关联" Classes="SectionTitle" />
-                <TextBlock Grid.Column="1" Text="远程关联与同步状态" Classes="SectionDescription" />
+                <TextBlock Grid.Column="1" Text="关联与同步状态" Classes="SectionDescription" />
             </Grid>
         <TabControl ItemsSource="{Binding TrackerTabs}"
-                    TabStripPlacement="Top" Theme="{DynamicResource LineTabControl}">
+                    TabStripPlacement="Top" Theme="{DynamicResource LineTabControl}"
+                    HorizontalContentAlignment="Stretch">
             <TabControl.ItemTemplate>
                 <DataTemplate DataType="viewModels:TrackerEditorTabItem">
                     <TextBlock Text="{Binding Header}" ToolTip.Tip="{Binding Identity}" />
@@ -179,9 +187,12 @@
             <TabControl.ContentTemplate>
                 <DataTemplate DataType="viewModels:TrackerEditorTabItem">
                     <Border Name="TrackerEditorContentHost"
-                            IsEnabled="{Binding !IsHostReadOnly}">
+                            IsEnabled="{Binding !IsHostReadOnly}"
+                            HorizontalAlignment="Stretch">
                         <ContentControl Content="{Binding Extension.View}"
-                                        IsEnabled="{Binding !Extension.IsLocked}" />
+                                        IsEnabled="{Binding !Extension.IsLocked}"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Stretch" />
                     </Border>
                 </DataTemplate>
             </TabControl.ContentTemplate>

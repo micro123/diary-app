@@ -70,7 +70,10 @@ public sealed class WorkItemQueryScriptApi(
                 ExtraFields = extraFields.TryGetValue(item.Id, out var itemFields)
                         ? [.. itemFields.Select(field => new ScriptWorkItemExtraField(
                             field.FieldId, field.FieldKey, field.TagId, field.TagName,
-                            field.Label, field.Type, field.Value))]
+                            field.Label, field.Type, field.Value)
+                        {
+                            DefaultValue = field.DefaultValue,
+                        })]
                         : ImmutableArray<ScriptWorkItemExtraField>.Empty,
             }).ToImmutableArray();
             return ValueTask.FromResult(ScriptWorkItemQueryResult.Success(result, normalized));

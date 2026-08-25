@@ -173,6 +173,7 @@ public sealed class WorkItemQueryScriptApiTests
             TagId = tag.Id,
             Label = "参会人",
             Type = TagExtraFieldType.Text,
+            DefaultValue = "未指定",
         };
         Assert.IsTrue(db.CreateTagExtraFieldDefinition(definition));
         var item = db.CreateWorkItem("2026-08-17", "会议记录");
@@ -193,8 +194,10 @@ public sealed class WorkItemQueryScriptApiTests
         Assert.IsTrue(result.Succeeded, result.Error?.Message);
         var mapped = result.Items.Single();
         Assert.AreEqual("张三、李四", mapped.GetExtraFieldValue("meeting.participants"));
+        Assert.AreEqual("未指定", mapped.GetExtraFieldDefaultValue("meeting.participants"));
         Assert.AreEqual(TagExtraFieldType.Text, mapped.GetExtraField("meeting.participants")!.Type);
         Assert.AreEqual("会议", mapped.GetExtraField("meeting.participants")!.TagName);
+        Assert.AreEqual("未指定", mapped.GetExtraField("meeting.participants")!.DefaultValue);
     }
 
     [TestMethod]

@@ -96,17 +96,18 @@ result = context.diary.work_items.query({"limit": 100}, text="Worker")
 }
 ```
 
-查询是只读的。返回的字典是 JSON 数据，不是可写入宿主数据库的对象。每个工作项还可能包含 `extraFields` 数组；字段项提供 `fieldId`、全局唯一 `fieldKey`、`tagId`、`tagName`、`label`、`type` 和 `value`。脚本可以这样按 `fieldKey` 读取：
+查询是只读的。返回的字典是 JSON 数据，不是可写入宿主数据库的对象。每个工作项还可能包含 `extraFields` 数组；字段项提供 `fieldId`、全局唯一 `fieldKey`、`tagId`、`tagName`、`label`、`type`、事项实际值 `value` 和字段定义默认值 `defaultValue`。脚本可以这样按 `fieldKey` 读取：
 
 ```python
 participants = next(
-    (field["value"] for field in item.get("extraFields", [])
+    ((field["value"], field["defaultValue"])
+     for field in item.get("extraFields", [])
      if field["fieldKey"] == "meeting.participants"),
     None,
 )
 ```
 
-附加字段只读，编辑字段不会触发脚本执行。
+`value` 为空时不会自动替换成 `defaultValue`，脚本可以自行决定是否采用默认值。附加字段只读，编辑字段不会触发脚本执行。
 
 `normalizedQuery` 是宿主规范化后的查询参数回显，字段与查询参数一致：`limit` 补全默认值 100，`offset` 补全 0，`tagFilter` 补全 `Ignore`；`range` 快捷值已被解析为 `startDate`/`endDate`，不再回显 `range`。可以用它确认宿主实际生效的过滤条件。
 
@@ -464,7 +465,7 @@ Python 自动化脚本的上下文额外提供 `context.automation` 字典：
 ## 附录 C. DTO 字段总表
 
 - `item`（工作项）：`id`(int)、`date`、`comment`、`hours`(float)、`priority`(int，0-9)、`note`(str 或 None)、`tags`(list)、`extraFields`(list)。
-- `extraField`：`fieldId`、`fieldKey`、`tagId`、`tagName`、`label`、`type`、`value`；通过 `fieldKey` 访问，不需要脚本记忆 GUID。
+- `extraField`：`fieldId`、`fieldKey`、`tagId`、`tagName`、`label`、`type`、`value`、`defaultValue`；`value` 是事项实际值，`defaultValue` 是字段定义默认值，通过 `fieldKey` 访问，不需要脚本记忆 GUID。
 - `tag`：`id`(int)、`name`、`color`(int)、`level`(int)、`isPrimary`(bool)、`disabled`(bool)、`metadata`(dict[str, str])。`metadata` 是只读字符串键值对，推荐使用 `projectNumber` 保存项目编号；推荐使用 `isPrimary` 判断主标签，`level` 保留用于兼容。
 - `instance`（Tracker 实例）：`pluginId`、`instanceId`、`displayName`、`icon`、`isConfigured`(bool)。
 - `template`：`id`、`name`、`defaultTitle`、`defaultHours`(float)、`defaultWorkTagIds`(list[int])。

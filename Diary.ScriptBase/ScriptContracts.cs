@@ -266,6 +266,8 @@ public sealed record ScriptWorkItem(
             string.Equals(field.FieldKey, fieldKey, StringComparison.OrdinalIgnoreCase));
 
     public string? GetExtraFieldValue(string fieldKey) => GetExtraField(fieldKey)?.Value;
+
+    public string? GetExtraFieldDefaultValue(string fieldKey) => GetExtraField(fieldKey)?.DefaultValue;
 }
 
 public sealed record ScriptWorkItemExtraField(
@@ -275,7 +277,10 @@ public sealed record ScriptWorkItemExtraField(
     string TagName,
     string Label,
     TagExtraFieldType Type,
-    string Value);
+    string Value)
+{
+    public string DefaultValue { get; init; } = string.Empty;
+}
 
 public sealed record ScriptEditorTarget(
     ScriptEditorTargetKind Kind,

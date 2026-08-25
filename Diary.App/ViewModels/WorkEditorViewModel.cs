@@ -204,34 +204,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         Time = 0.0;
         Priority = WorkPriorities.P0;
 
-        // 解析全部已注册 tracker，为每个创建一个编辑器扩展。
-        var trackers = _trackerRegistry.Contributions;
-        foreach (var t in trackers)
-        {
-            try
-            {
-                var ext = t.CreateEditorExtension(t.Instance.InstanceId);
-                if (ext is not null && Extensions.All(existing => existing.Key != ext.Key))
-                {
-                    Extensions.Add(ext);
-                    TrackerTabs.Add(new TrackerEditorTabItem(
-                        ext,
-                        GetTrackerTabHeader(t.Instance)));
-                }
-            }
-            catch (Exception ex)
-            {
-                LastTagAutomationResult = new TagAutomationResult([
-                    new TagAutomationInstanceResult(
-                        new TrackerKey(t.PluginId, t.Instance.InstanceId),
-                        false,
-                        Array.Empty<string>(),
-                        Array.Empty<TrackerTagDefaultConflict>(),
-                        Array.Empty<TrackerTagDefaultInvalidTarget>(),
-                        $"创建编辑扩展失败: {ex.Message}")
-                ]);
-            }
-        }
+        CreateTrackerEditors();
 
         WorkTags.CollectionChanged += (_, _) =>
         {
@@ -239,6 +212,38 @@ public partial class WorkEditorViewModel : ViewModelBase
                 return;
             UpdateAvailableTags();
         };
+    }
+
+    public void RefreshTrackerEditors(
+        IReadOnlyDictionary<TrackerKey, IDictionary<int, object?>?>? bindingsByTracker = null)
+    {
+        var previousEditors = Extensions
+            .GroupBy(extension => extension.Key)
+            .ToDictionary(group => group.Key, group => group.First());
+
+        Extensions.Clear();
+        TrackerTabs.Clear();
+        CreateTrackerEditors();
+
+        foreach (var extension in Extensions)
+        {
+            try
+            {
+                LoadTrackerEditor(extension, bindingsByTracker);
+                if (previousEditors.TryGetValue(extension.Key, out var previous)
+                    && previous.HasChanges)
+                {
+                    previous.CloneTo(extension);
+                }
+            }
+            catch (Exception ex)
+            {
+                SetTrackerEditorError(extension.Key, "刷新编辑扩展失败", ex);
+            }
+        }
+
+        OnPropertyChanged(nameof(HasTrackerEditors));
+        RecomputeIsLocked();
     }
 
     public void RefreshTrackerTabHeaders()
@@ -251,6 +256,61 @@ public partial class WorkEditorViewModel : ViewModelBase
             if (contribution is not null)
                 tab.Header = GetTrackerTabHeader(contribution.Instance);
         }
+    }
+
+    private void CreateTrackerEditors()
+    {
+        foreach (var contribution in _trackerRegistry.Contributions)
+        {
+            try
+            {
+                var extension = contribution.CreateEditorExtension(contribution.Instance.InstanceId);
+                if (extension is null || Extensions.Any(existing => existing.Key == extension.Key))
+                    continue;
+
+                Extensions.Add(extension);
+                TrackerTabs.Add(new TrackerEditorTabItem(
+                    extension,
+                    GetTrackerTabHeader(contribution.Instance)));
+            }
+            catch (Exception ex)
+            {
+                SetTrackerEditorError(
+                    new TrackerKey(contribution.PluginId, contribution.Instance.InstanceId),
+                    "创建编辑扩展失败",
+                    ex);
+            }
+        }
+    }
+
+    private void LoadTrackerEditor(
+        ITrackerEditorExtension extension,
+        IReadOnlyDictionary<TrackerKey, IDictionary<int, object?>?>? bindingsByTracker)
+    {
+        if (WorkItem is { Id: > 0 } item
+            && bindingsByTracker is not null
+            && bindingsByTracker.TryGetValue(extension.Key, out var perTracker))
+        {
+            object? binding = null;
+            perTracker?.TryGetValue(item.Id, out binding);
+            extension.LoadFromBatch(item, binding);
+            return;
+        }
+
+        extension.Load(WorkItem);
+    }
+
+    private void SetTrackerEditorError(TrackerKey key, string action, Exception exception)
+    {
+        LastTagAutomationResult = new TagAutomationResult([
+            new TagAutomationInstanceResult(
+                key,
+                false,
+                Array.Empty<string>(),
+                Array.Empty<TrackerTagDefaultConflict>(),
+                Array.Empty<TrackerTagDefaultInvalidTarget>(),
+                $"{action}: {exception.Message}")
+        ]);
     }
 
     private static string GetTrackerTabHeader(ITrackerInstance instance)

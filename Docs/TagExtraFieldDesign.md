@@ -111,14 +111,15 @@ Tooltip 只提供截断后的摘要，完整内容通过独立对话框查看。
 
 ## 6. 脚本只读访问
 
-`ScriptWorkItem` 暴露 `ExtraFields`，每项包含 `FieldId`、`FieldKey`、标签信息、显示名称、字段类型和事项实际值，并提供：
+`ScriptWorkItem` 暴露 `ExtraFields`，每项包含 `FieldId`、`FieldKey`、标签信息、显示名称、字段类型、事项实际值 `Value` 和字段定义默认值 `DefaultValue`，并提供：
 
 ```csharp
 workItem.GetExtraFieldValue("meeting.participants");
+workItem.GetExtraFieldDefaultValue("meeting.participants");
 workItem.GetExtraField("meeting.participants");
 ```
 
-查询脚本结果和工作项编辑器中的脚本目标都携带附加字段。脚本不能新增、修改或删除字段定义和值，字段编辑也不会触发脚本执行。
+查询脚本结果和工作项编辑器中的脚本目标都携带附加字段。实际值为空时宿主不会用默认值替代，避免把字段定义误认为历史事项数据；脚本可以显式读取默认值并自行决定回退策略。脚本不能新增、修改或删除字段定义和值，字段编辑也不会触发脚本执行。
 
 MCP 的 `diary_list_extra_fields` 属于字段定义查询，会披露配置的 `default_value`；工作项查询仍只披露事项实际保存值，不使用默认值虚拟回填历史事项。
 

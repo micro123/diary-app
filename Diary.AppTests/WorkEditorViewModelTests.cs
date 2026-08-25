@@ -69,6 +69,60 @@ public sealed class WorkEditorViewModelTests
     }
 
     [TestMethod]
+    public void RefreshTrackerEditorsUpdatesVisibilityAfterRegistryChanges()
+    {
+        var registry = new TrackerUiContributionRegistry();
+        var viewModel = CreateViewModel(registry);
+        var changedProperties = new List<string?>();
+        viewModel.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName);
+
+        registry.Register([new CloneTrackerContributionFactory()], [new CloneTrackerInstance()]);
+        viewModel.RefreshTrackerEditors();
+
+        Assert.IsTrue(viewModel.HasTrackerEditors);
+        Assert.HasCount(1, viewModel.Extensions);
+        Assert.HasCount(1, viewModel.TrackerTabs);
+        CollectionAssert.Contains(changedProperties, nameof(viewModel.HasTrackerEditors));
+
+        registry.Register([], []);
+        viewModel.RefreshTrackerEditors();
+
+        Assert.IsFalse(viewModel.HasTrackerEditors);
+        Assert.IsEmpty(viewModel.Extensions);
+        Assert.IsEmpty(viewModel.TrackerTabs);
+    }
+
+    [TestMethod]
+    public void RefreshTrackerEditorsUsesBatchBindingAndPreservesUnsavedSelection()
+    {
+        var registry = CreateCloneTrackerRegistry();
+        var viewModel = CreateViewModel(registry);
+        LoadExistingItem(viewModel, new WorkItem
+        {
+            Id = 42,
+            CreateDate = "2026-08-25",
+            Comment = "刷新 Tracker",
+        });
+        var previous = (CloneTrackerExtension)viewModel.Extensions.Single();
+        previous.Selection = "ISSUE-42";
+        var binding = new object();
+
+        registry.Register([new CloneTrackerContributionFactory()], [new CloneTrackerInstance()]);
+        viewModel.RefreshTrackerEditors(new Dictionary<TrackerKey, IDictionary<int, object?>?>
+        {
+            [previous.Key] = new Dictionary<int, object?> { [42] = binding },
+        });
+
+        var refreshed = (CloneTrackerExtension)viewModel.Extensions.Single();
+        Assert.AreNotSame(previous, refreshed);
+        Assert.AreEqual(1, refreshed.BatchLoadCallCount);
+        Assert.AreSame(binding, refreshed.LastBatchBinding);
+        Assert.IsTrue(refreshed.OptionsLoadedWhenCloned);
+        Assert.AreEqual("ISSUE-42", refreshed.Selection);
+        Assert.AreEqual(1, previous.CloneCallCount);
+    }
+
+    [TestMethod]
     public void ImportedExtraFieldsAreReadOnlyInDialog()
     {
         var field = new WorkItemExtraField

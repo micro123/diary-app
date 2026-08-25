@@ -121,7 +121,7 @@ public partial class MainWindowViewModel : ViewModelBase
             if (_fixedPages.FirstOrDefault(page => page.Name == PageNames.DiaryEditor)?.ViewModel
                 is DiaryEditorViewModel diaryEditor)
             {
-                diaryEditor.RefreshTrackerTabHeaders();
+                diaryEditor.RefreshTrackerEditors();
             }
             _fixedPages = BuildFixedPages();
             Pages.Clear();

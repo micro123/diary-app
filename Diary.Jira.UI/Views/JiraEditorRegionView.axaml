@@ -3,11 +3,13 @@
              xmlns:viewModels="clr-namespace:Diary.Jira.UI.ViewModels"
              xmlns:jira="clr-namespace:Diary.Jira;assembly=Diary.Jira"
              x:Class="Diary.Jira.UI.Views.JiraEditorRegionView"
-             x:DataType="viewModels:JiraEditorRegionViewModel"
-             Padding="0 4 0 0">
-    <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="110,*,Auto" RowSpacing="6" ColumnSpacing="8">
+             x:DataType="viewModels:JiraEditorRegionViewModel">
+    <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="72,*,Auto"
+          RowSpacing="4" ColumnSpacing="6" HorizontalAlignment="Stretch">
         <TextBlock Text="Jira Issue" Classes="FieldLabel" />
-        <ComboBox Grid.Column="1" ItemsSource="{Binding Issues}" SelectedIndex="{Binding IssueIndex}" Text="{Binding IssueText}">
+        <ComboBox Grid.Column="1" ItemsSource="{Binding Issues}"
+                  SelectedIndex="{Binding IssueIndex}" Text="{Binding IssueText}"
+                  HorizontalAlignment="Stretch" MinWidth="160">
             <ComboBox.ItemTemplate>
                 <DataTemplate DataType="{x:Type jira:JiraIssueDisplay}">
                     <StackPanel Orientation="Horizontal" Spacing="4">

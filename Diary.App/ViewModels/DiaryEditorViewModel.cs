@@ -745,12 +745,34 @@ public partial class DiaryEditorViewModel : ViewModelBase
         CanUseTemplates = Templates.Count > 0;
     }
 
-    public void RefreshTrackerTabHeaders()
+    public void RefreshTrackerEditors()
     {
-        foreach (var work in DailyWorks)
-            work.RefreshTrackerTabHeaders();
-        if (SelectedWork is not null && !DailyWorks.Contains(SelectedWork))
-            SelectedWork.RefreshTrackerTabHeaders();
+        var editors = DailyWorks.ToList();
+        if (SelectedWork is not null && !editors.Contains(SelectedWork))
+            editors.Add(SelectedWork);
+
+        IReadOnlyDictionary<TrackerKey, IDictionary<int, object?>?>? bindingsByTracker = null;
+        var workItemIds = editors
+            .Select(editor => editor.WorkId)
+            .Where(id => id > 0)
+            .Distinct()
+            .ToArray();
+        if (workItemIds.Length > 0)
+        {
+            bindingsByTracker = App.Instance.Services
+                .GetRequiredService<TrackerUiContributionRegistry>()
+                .Contributions
+                .ToDictionary(
+                    contribution => new TrackerKey(
+                        contribution.PluginId,
+                        contribution.Instance.InstanceId),
+                    contribution => contribution.Instance.LoadBindingsByDate(
+                        CurrentDateString,
+                        workItemIds));
+        }
+
+        foreach (var editor in editors)
+            editor.RefreshTrackerEditors(bindingsByTracker);
     }
 
     private void FetchWorks()
@@ -1274,7 +1296,10 @@ public partial class DiaryEditorViewModel : ViewModelBase
             { Metadata = new Dictionary<string, string>(tag.Metadata, StringComparer.Ordinal) })])
         {
             ExtraFields = [.. workItem.GetExtraFieldsSnapshot().Select(field => new ScriptWorkItemExtraField(
-                field.FieldId, field.FieldKey, field.TagId, field.TagName, field.Label, field.Type, field.Value))],
+                field.FieldId, field.FieldKey, field.TagId, field.TagName, field.Label, field.Type, field.Value)
+            {
+                DefaultValue = field.DefaultValue,
+            })],
         };
 
     private void FillDayMenus(DateTime date)

@@ -154,17 +154,18 @@ end
 }
 ```
 
-查询是只读的。结果中的工作项和标签都是普通 Lua 表，不能通过 API 修改或删除。每个工作项还可能包含 `extraFields` 数组；字段项提供 `fieldId`、全局唯一 `fieldKey`、`tagId`、`tagName`、`label`、`type` 和 `value`。脚本通过 `fieldKey` 读取，例如：
+查询是只读的。结果中的工作项和标签都是普通 Lua 表，不能通过 API 修改或删除。每个工作项还可能包含 `extraFields` 数组；字段项提供 `fieldId`、全局唯一 `fieldKey`、`tagId`、`tagName`、`label`、`type`、事项实际值 `value` 和字段定义默认值 `defaultValue`。脚本通过 `fieldKey` 读取，例如：
 
 ```lua
 for _, field in ipairs(item.extraFields or {}) do
     if field.fieldKey == "meeting.participants" then
-        print(field.value)
+        print("实际值=" .. field.value)
+        print("默认值=" .. field.defaultValue)
     end
 end
 ```
 
-附加字段只读，编辑字段不会触发脚本执行。
+`value` 为空时不会自动替换成 `defaultValue`，脚本可以自行决定是否采用默认值。附加字段只读，编辑字段不会触发脚本执行。
 
 `normalizedQuery` 是宿主规范化后的查询参数回显，字段与查询参数一致：`limit` 补全默认值 100，`offset` 补全 0，`tagFilter` 补全 `Ignore`；`range` 快捷值已被解析为 `startDate`/`endDate`，不再回显 `range`。可以用它确认宿主实际生效的过滤条件。
 
@@ -552,7 +553,8 @@ Lua 自动化脚本的上下文额外提供 `context.automation` 表：
 
 ## 附录 C. DTO 字段总表
 
-- `item`（工作项）：`id`(number)、`date`、`comment`、`hours`(number)、`priority`(number，0-9)、`note`(string 或 nil)、`tags`(数组)。
+- `item`（工作项）：`id`(number)、`date`、`comment`、`hours`(number)、`priority`(number，0-9)、`note`(string 或 nil)、`tags`(数组)、`extraFields`(数组)。
+- `extraField`：`fieldId`、`fieldKey`、`tagId`、`tagName`、`label`、`type`、`value`、`defaultValue`；`value` 是事项实际值，`defaultValue` 是字段定义默认值。
 - `tag`：`id`(number)、`name`、`color`(number)、`level`(number)、`isPrimary`(boolean)、`disabled`(boolean)、`metadata`(table&lt;string, string&gt;)。`metadata` 是只读字符串键值表，推荐使用 `projectNumber` 保存项目编号；推荐使用 `isPrimary` 判断主标签，`level` 保留用于兼容。
 - `instance`（Tracker 实例）：`pluginId`、`instanceId`、`displayName`、`icon`、`isConfigured`(boolean)。
 - `template`：`id`、`name`、`defaultTitle`、`defaultHours`(number)、`defaultWorkTagIds`(number[])。

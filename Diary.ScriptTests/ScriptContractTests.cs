@@ -106,13 +106,30 @@ public sealed class ScriptContractTests
     public void ScriptDtos_AreImmutableAndContainNoSensitiveSurface()
     {
         var sourceTags = ImmutableArray.Create(new ScriptWorkTag(1, "tag", 2, 0, false));
-        var item = new ScriptWorkItem(3, "2026-08-01", "work", 1.5, 2, "note", sourceTags);
+        var item = new ScriptWorkItem(3, "2026-08-01", "work", 1.5, 2, "note", sourceTags)
+        {
+            ExtraFields =
+            [
+                new ScriptWorkItemExtraField(
+                    "field-id", "project.stage", 1, "项目", "阶段",
+                    Diary.Core.Data.Base.TagExtraFieldType.Choice, "测试")
+                {
+                    DefaultValue = "开发",
+                },
+            ],
+        };
         sourceTags = sourceTags.Add(new ScriptWorkTag(2, "other", 3, 1, false));
 
         Assert.AreEqual(1, item.Tags.Length);
+        Assert.AreEqual("测试", item.GetExtraFieldValue("PROJECT.STAGE"));
+        Assert.AreEqual("开发", item.GetExtraFieldDefaultValue("PROJECT.STAGE"));
         Assert.IsTrue(item.Tags[0].IsPrimary);
         Assert.IsFalse(sourceTags[1].IsPrimary);
-        foreach (var type in new[] { typeof(ScriptWorkItem), typeof(ScriptWorkTag), typeof(ScriptWorkItemQuery) })
+        foreach (var type in new[]
+                 {
+                     typeof(ScriptWorkItem), typeof(ScriptWorkItemExtraField),
+                     typeof(ScriptWorkTag), typeof(ScriptWorkItemQuery),
+                 })
         {
             Assert.IsTrue(type.IsSealed);
             foreach (var property in type.GetProperties(BindingFlags.Instance | BindingFlags.Public))

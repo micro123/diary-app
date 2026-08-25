@@ -32,6 +32,33 @@ public sealed class WorkerQueryDispatcherTests
     }
 
     [TestMethod]
+    public async Task DispatchAsync_SerializesExtraFieldDefaultValueForDynamicWorkers()
+    {
+        var item = new ScriptWorkItem(1, "2026-08-25", "默认值", 1, 0, null, [])
+        {
+            ExtraFields =
+            [
+                new ScriptWorkItemExtraField(
+                    "field-id", "project.stage", 1, "项目", "阶段",
+                    Diary.Core.Data.Base.TagExtraFieldType.Choice, "测试")
+                {
+                    DefaultValue = "开发",
+                },
+            ],
+        };
+        var dispatcher = new WorkItemQueryWorkerDispatcher(
+            () => new FixedQueryApi([item]));
+
+        var result = await dispatcher.DispatchAsync("exec", new(
+            "workItems.query", JsonSerializer.SerializeToElement(new ScriptWorkItemQuery())));
+
+        Assert.IsTrue(result.Success);
+        var field = result.Result!.Value.GetProperty("items")[0].GetProperty("extraFields")[0];
+        Assert.AreEqual("测试", field.GetProperty("value").GetString());
+        Assert.AreEqual("开发", field.GetProperty("defaultValue").GetString());
+    }
+
+    [TestMethod]
     public async Task DispatchAsync_UsesApiWithoutPermissionGate()
     {
         var dispatcher = new WorkItemQueryWorkerDispatcher(() => new FakeQueryApi());
