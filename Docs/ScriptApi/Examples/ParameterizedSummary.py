@@ -2,6 +2,7 @@ def query_main(context):
     range_name = context.arguments["range"]
     minimum_hours = float(context.arguments["minimumHours"])
     include_zero = context.arguments["includeZero"] == "true"
+    title_prefix = context.arguments["titlePrefix"]
     count = 0
     total_hours = 0.0
 
@@ -13,5 +14,5 @@ def query_main(context):
         total_hours += hours
 
     context.log.info(
-        f"范围：{range_name}；事项：{count}；工时：{total_hours:.2f}")
+        f"{title_prefix}：范围 {range_name}；事项 {count}；工时 {total_hours:.2f}")
     return None

@@ -1,6 +1,6 @@
 # Lua 脚本 API Reference
 
-Lua 支持 `ScriptApiVersion.V1` 和 `V2`。脚本在独立 Lua Worker 中执行，通过全局 `diary` 表访问宿主 API。V1 保留自由字符串参数；V2 的参数契约必须在相邻 metadata 或包 manifest 中声明，宿主不执行 Lua 源码来发现参数。公共门面统一使用 snake_case（如 `work_items`、`get_date_range()`）；请求和结果 DTO 保持宿主协议字段。旧 camelCase 门面保留为兼容别名，新脚本不再推荐。所有宿主调用参数和返回值都是 JSON 可转换的 Lua 值。
+Lua 支持 `ScriptApiVersion.V1` 和 `V2`。新建向导默认选择 V2，也可以创建 V1；V1 保留自由字符串参数，V2 的参数契约必须在相邻 metadata 或包 manifest 中声明。两个版本使用相同的 Host API 和权限边界，宿主不会执行 Lua 源码来发现参数。公共门面统一使用 snake_case（如 `work_items`、`get_date_range()`）；请求和结果 DTO 保持宿主协议字段。旧 camelCase 门面保留为兼容别名，新脚本不再推荐。版本更新、差异和迁移方法见 [脚本 API V1 与 V2](Versioning.md)。所有宿主调用参数和返回值都是 JSON 可转换的 Lua 值。
 
 ## 1. 脚本入口和上下文
 
@@ -81,7 +81,7 @@ V2 metadata 示例：
 }
 ```
 
-参数支持 String、MultilineString、Integer、Number、Boolean、Date、DateTime 和 Choice。宿主在进入 Worker 前合并默认值并校验，脚本从 `context.arguments` 读取规范化字符串；V2 未声明的参数会被拒绝。当前管理页仍使用 `key=value` 文本输入。
+参数支持 String、MultilineString、Integer、Number、Boolean、Date、DateTime 和 Choice。`constraints` 可声明 `minimum`、`maximum`、`step`、`minLength`、`maxLength`、`suggestions` 和 `unit`；Choice 是严格候选，Suggestions 允许自由输入。宿主在进入 Worker 前合并并校验源码默认值、metadata `defaultArguments` 和本次参数，脚本从 `context.arguments` 读取规范化字符串；V2 未声明的参数会被拒绝。管理页和 Editor 入口会按契约显示类型化表单。
 
 取消状态只在脚本主动轮询时可见；宿主调用仍会由 Worker 绑定当前执行的取消生命周期。长循环应在批次之间检查：
 
@@ -506,7 +506,7 @@ Lua 自动化脚本的上下文额外提供 `context.automation` 表：
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `trigger` | string | `Scheduled`、`Startup`、`WorkItemCreated`、`WorkItemSaved`、`TagAdded` 或 `Unknown`。 |
-| `eventData` | table | 事件数据（当前为执行参数字典）。 |
+| `eventData` | table | 独立事件数据；V1 还会镜像到 `arguments`，V2 不会。 |
 | `idempotencyKey` | string 或 nil | 自动化执行幂等键。 |
 
 自动化脚本放 `application` 目录，metadata 的 `entryKind` 写 `Automation`；`schedule` 字段（`"daily HH:mm"`）配置每日定时，`runOnStartup`（true/false）配置启动补跑，`triggers` 数组配置 `WorkItemCreated`、`WorkItemSaved`、`TagAdded`。事件型自动化可省略 `schedule`；事件数据通过 `context.automation.eventData` 提供，工作项事件包含 `workItemId`、`date`、`comment`、`time`、`priority`，标签事件额外包含 `tagId`、`tagName`、`tagLevel`、`tagSource`、`sequence`。

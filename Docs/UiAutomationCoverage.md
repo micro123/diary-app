@@ -101,7 +101,7 @@
 | 7.1–7.3 | 工作台、列表、详情、搜索、筛选和重载 | `Automated` | extended 覆盖导航、结构和刷新 |
 | 7.4 | 执行历史、运行日志和 API Reference | `Automated` | extended 打开并验证内容 |
 | 7.4 | AI 上下文默认授权、显式事项范围、预览和 MCP 快照 | `Automated` | extended 验证事项默认关闭、日期控件按授权显示、结构与事项预览、不可信数据标记、快照 schema/范围及无标签 metadata；Linux CDP 同时生成手册截图 |
-| 7.5 | C#/Lua/Python 新建脚本 | `Automated` | extended 创建三种脚本 |
+| 7.5 | C#/Lua/Python 新建脚本 | `Automated` | extended 检查 V1/V2 版本说明并以默认 V2 创建三种脚本；版本生成由 ViewModel 定向测试覆盖 |
 | 7.6 | 手动运行和 Preview | `Automated` | extended 运行 C# Preview 并验证结果 |
 | 7.7 | 独立编辑器、代码区和编译检查 | `Automated` | script-editor 验证成功状态与诊断区共存 |
 | 7.7 | 补全、悬停、重构和外部 LSP | `Unit/Integration` | 语言服务有定向测试；部分能力仍在 TODO |

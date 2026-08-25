@@ -1,6 +1,6 @@
 # C# 脚本 5 分钟入门
 
-C# 是 DiaryApp 的主推脚本语言。新脚本优先从“脚本管理 → 新建脚本”创建，宿主会生成正确的基类、descriptor 和入口签名。
+C# 是 DiaryApp 的主推脚本语言。新脚本优先从“脚本管理 → 新建脚本”创建，向导默认选择 V2 并生成对应基类、descriptor 和入口签名，也允许选择 V1。V1 当前仍可创建和运行；版本更新与迁移方法见 [脚本 API V1 与 V2](Versioning.md)。
 
 如果让外部 AI 协助编写脚本，可先在“脚本管理 → AI 上下文”中生成 Markdown/JSON，或刷新只读 stdio MCP 快照。它会提供当前标签、附加字段、模板等结构信息，但默认不包含事项正文；AI 还可调用 `diary_validate_script` 做不会加载程序集或执行脚本的编译校验。详见 [AI 脚本上下文使用指南](../AiScriptContextGuide.md)。
 
@@ -49,12 +49,11 @@ var item = (await context.Api().Diary.CreateLogItemAsync(
 
 ## 4. 运行参数、超时与预览
 
-从脚本管理页点击“运行”后，可设置：
+从脚本管理页点击“运行”后，可设置幂等键、1–3600 秒超时和 Preview。参数界面取决于脚本版本：
 
-- 每行一个 `key=value` 的参数；脚本从 `context.Arguments` 读取。
-- 本次执行的幂等键。
-- 1–3600 秒超时。
-- Preview。
+- V2 根据脚本的 `Parameters` 生成类型化表单，并在启动 Worker 前校验；
+- V1 保留每行一个 `key=value` 的自由文本框；
+- 两个版本的脚本都从 `context.Arguments` 读取最终字符串值。
 
 Preview 由宿主强制执行，脚本不需要相信或转发请求中的预览标志：
 
@@ -63,7 +62,7 @@ Preview 由宿主强制执行，脚本不需要相信或转发请求中的预览
 - 导出自动执行完整参数、格式、模板和绑定校验，但不创建文件。
 - 写剪贴板、打开导出文件等外部副作用会被拒绝。
 
-`QueryScript` 是只读入口；即使脚本直接调用写 API，宿主也会拒绝。查询脚本在 Preview 下可以执行导出预检，但不会落盘。
+`QueryScriptV2` 是新脚本使用的只读入口；即使脚本直接调用写 API，宿主也会拒绝。V1 的 `QueryScript` 保持兼容。查询脚本在 Preview 下可以执行导出预检，但不会落盘。
 
 ## 5. metadata 只放运行配置
 
@@ -81,7 +80,7 @@ C# 的 `Id`、`Name`、`Description`、作用域、入口类型和编辑器目�
 }
 ~~~
 
-普通应用/编辑器/查询脚本不能配置自动化调度字段；`AutomationScript` 至少需要 schedule、启动触发或事件触发之一。
+普通应用/编辑器/查询脚本不能配置自动化调度字段；`AutomationScriptV2` 至少需要 schedule、启动触发或事件触发之一，V1 的 `AutomationScript` 规则相同。
 
 ## 6. 导出骨架
 

@@ -193,6 +193,126 @@ public sealed class ScriptParameterBinderTests
             diagnostics.Select(item => item.Code).ToArray());
     }
 
+    [TestMethod]
+    public void ValidateDescriptor_RejectsInvalidConstraintSchemas()
+    {
+        var descriptor = CreateDescriptor(
+            ScriptApiVersion.V2,
+            new(
+                "range",
+                "Range",
+                ScriptParameterType.Integer,
+                Constraints: new(Minimum: "10", Maximum: "1")),
+            new(
+                "text",
+                "Text",
+                ScriptParameterType.String,
+                Constraints: new(Step: "1")),
+            new(
+                "choice",
+                "Choice",
+                ScriptParameterType.Choice,
+                Choices: [new("a", "A")],
+                Constraints: new(Suggestions: [new("b", "B")])));
+
+        var diagnostics = ScriptParameterBinder.ValidateDescriptor(descriptor);
+
+        Assert.HasCount(3, diagnostics);
+        Assert.IsTrue(diagnostics.All(item => item.Code == "SCRIPT_PARAMETER_CONSTRAINT_INVALID"));
+    }
+
+    [TestMethod]
+    public void ValidateDescriptor_RejectsDefaultThatViolatesConstraint()
+    {
+        var descriptor = CreateDescriptor(
+            ScriptApiVersion.V2,
+            new ScriptParameterDefinition(
+                "hours",
+                "Hours",
+                ScriptParameterType.Number,
+                DefaultValue: "25",
+                Constraints: new(Minimum: "0", Maximum: "24", Step: "0.5")));
+
+        var diagnostics = ScriptParameterBinder.ValidateDescriptor(descriptor);
+
+        Assert.AreEqual("SCRIPT_PARAMETER_DEFAULT_INVALID", diagnostics.Single().Code);
+    }
+
+    [TestMethod]
+    public void Bind_EnforcesRangeStepLengthAndDateBounds()
+    {
+        var descriptor = CreateDescriptor(
+            ScriptApiVersion.V2,
+            new(
+                "hours",
+                "Hours",
+                ScriptParameterType.Number,
+                Constraints: new(Minimum: "0", Maximum: "24", Step: "0.5")),
+            new(
+                "title",
+                "Title",
+                ScriptParameterType.String,
+                Constraints: new(MinLength: 2, MaxLength: 3)),
+            new(
+                "date",
+                "Date",
+                ScriptParameterType.Date,
+                Constraints: new(Minimum: "2026-08-01", Maximum: "2026-08-31")));
+
+        var result = ScriptParameterBinder.Bind(
+            descriptor,
+            null,
+            new Dictionary<string, string>
+            {
+                ["hours"] = "2.25",
+                ["title"] = "A",
+                ["date"] = "2026-09-01",
+            });
+
+        Assert.IsFalse(result.Succeeded);
+        CollectionAssert.AreEquivalent(
+            new[]
+            {
+                "SCRIPT_ARGUMENT_STEP_INVALID",
+                "SCRIPT_ARGUMENT_LENGTH_INVALID",
+                "SCRIPT_ARGUMENT_RANGE_INVALID",
+            },
+            result.Diagnostics.Select(item => item.Code).ToArray());
+        CollectionAssert.AreEquivalent(
+            new[] { "hours", "title", "date" },
+            result.Issues.Select(item => item.ParameterName).ToArray());
+    }
+
+    [TestMethod]
+    public void Bind_CountsUnicodeScalarsAndTreatsSuggestionsAsSoftCandidates()
+    {
+        var descriptor = CreateDescriptor(
+            ScriptApiVersion.V2,
+            new(
+                "emoji",
+                "Emoji",
+                ScriptParameterType.String,
+                Constraints: new(MinLength: 1, MaxLength: 1)),
+            new(
+                "project",
+                "Project",
+                ScriptParameterType.String,
+                Constraints: new(Suggestions: [new("Diary", "DiaryApp")])));
+
+        var result = ScriptParameterBinder.Bind(
+            descriptor,
+            null,
+            new Dictionary<string, string>
+            {
+                ["emoji"] = "😀",
+                ["project"] = "CustomProject",
+            });
+
+        Assert.IsTrue(result.Succeeded, JoinDiagnostics(result));
+        Assert.AreEqual("😀", result.Arguments["emoji"]);
+        Assert.AreEqual("CustomProject", result.Arguments["project"]);
+    }
+
     private static ScriptDescriptor CreateDescriptor(
         ScriptApiVersion apiVersion,
         params ScriptParameterDefinition[] parameters) =>

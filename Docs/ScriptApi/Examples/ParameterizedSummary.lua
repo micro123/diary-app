@@ -2,6 +2,7 @@ function query_main(context)
     local range = context.arguments.range
     local minimumHours = tonumber(context.arguments.minimumHours)
     local includeZero = context.arguments.includeZero == "true"
+    local titlePrefix = context.arguments.titlePrefix
     local count = 0
     local totalHours = 0
 
@@ -13,7 +14,8 @@ function query_main(context)
     end
 
     diary.log.info(string.format(
-        "范围：%s；事项：%d；工时：%.2f",
+        "%s：范围 %s；事项 %d；工时 %.2f",
+        titlePrefix,
         range,
         count,
         totalHours))

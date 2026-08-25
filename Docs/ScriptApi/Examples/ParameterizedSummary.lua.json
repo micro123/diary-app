@@ -22,13 +22,32 @@
       "name": "minimumHours",
       "label": "最低工时",
       "type": "Number",
-      "defaultValue": "0"
+      "defaultValue": "0",
+      "constraints": {
+        "minimum": "0",
+        "maximum": "24",
+        "step": "0.5",
+        "unit": "小时"
+      }
     },
     {
       "name": "includeZero",
       "label": "包含零工时事项",
       "type": "Boolean",
       "defaultValue": "false"
+    },
+    {
+      "name": "titlePrefix",
+      "label": "标题前缀",
+      "type": "String",
+      "defaultValue": "工时汇总",
+      "constraints": {
+        "maxLength": 20,
+        "suggestions": [
+          { "value": "工时汇总", "label": "工时汇总" },
+          { "value": "团队周报", "label": "团队周报" }
+        ]
+      }
     }
   ]
 }

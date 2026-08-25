@@ -6,7 +6,6 @@
 
 ## 非 Tracker TODO
 
-- [ ] 接入脚本 API V2 类型化参数 UI：脚本管理页和 Editor 入口按描述符生成紧凑表单，显示字段级错误，并在 UI 回归完成后让创建向导默认生成 V2；核心加载、绑定、Worker 和 V1 兼容已经完成。设计见 [`ScriptApiV2ParameterDesign.md`](ScriptApiV2ParameterDesign.md)。
 - [ ] 让脚本执行日志支持选择和复制；该项与 V2 参数协议保持独立。
 - [ ] 完成 Linux 下中文、Emoji 和中英文 2:1 等宽字体回退验证；Windows 构建、随包字体、系统字体、外部字体文件及运行时切换已经验收。
 - [ ] 完成应用更新第二阶段：客户端逐 Blob 增量下载、缓存和并发控制；服务端事务恢复、下载租约和完整管理鉴权；Windows standard 的 local 真实更新已验收，继续完成 Windows Python flavor、Linux 的真实更新以及各平台回滚门禁。

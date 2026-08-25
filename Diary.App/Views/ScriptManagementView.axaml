@@ -89,7 +89,21 @@
                                             IsVisible="{Binding !IsSvgLanguage}" />
                                 </Grid>
                                 <StackPanel Grid.Column="1" Spacing="3">
-                                    <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center" />
+                                        <Border Padding="6,1" CornerRadius="8"
+                                                VerticalAlignment="Center"
+                                                Background="{DynamicResource SemiColorPrimaryBrush}"
+                                                BorderBrush="{DynamicResource SemiColorPrimaryBrush}"
+                                                BorderThickness="1"
+                                                ToolTip.Tip="{Binding ApiVersionDescription}">
+                                            <TextBlock Text="{Binding ApiVersionLabel}" FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource ButtonDefaultPrimaryForeground}" />
+                                        </Border>
+                                    </StackPanel>
                                     <TextBlock Text="{Binding Id}" Opacity="0.58" />
                                      <StackPanel Orientation="Horizontal" Spacing="8">
                                           <TextBlock Text="{Binding Language}" Opacity="0.68" />
@@ -162,9 +176,22 @@
                                 <TextBlock Text="C# 脚本的 ID、名称、描述和入口类型以源码为准。"
                                            FontSize="12" Opacity="0.62"
                                            IsVisible="{Binding SelectedScript.IsCSharp}" />
-                                <TextBlock Text="默认执行参数" />
-                                <TextBox Text="{Binding DefaultArgumentsText, Mode=TwoWay}" AcceptsReturn="True"
-                                         TextWrapping="NoWrap" Height="90" Watermark="每行 key=value" />
+                                <StackPanel IsVisible="{Binding UsesLegacyDefaultParameters}" Spacing="4">
+                                    <TextBlock Text="默认执行参数" />
+                                    <TextBox Text="{Binding DefaultArgumentsText, Mode=TwoWay}" AcceptsReturn="True"
+                                             TextWrapping="NoWrap" Height="90" Watermark="每行 key=value" />
+                                </StackPanel>
+                                <StackPanel IsVisible="{Binding UsesTypedDefaultParameters}" Spacing="4">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Text="默认参数" FontWeight="SemiBold" />
+                                        <Button Grid.Column="1" Content="{Binding DefaultParameterForm.ResetLabel}"
+                                                Command="{Binding DefaultParameterForm.ResetDefaultsCommand}" />
+                                    </Grid>
+                                    <views:ScriptParameterFormView x:Name="DefaultParameterFormView"
+                                                                   DataContext="{Binding DefaultParameterForm}" />
+                                    <TextBlock Text="只保存与脚本默认值不同的覆盖项，不会使用上次运行参数。"
+                                               FontSize="12" Opacity="0.62" TextWrapping="Wrap" />
+                                </StackPanel>
                                 <TextBlock Text="默认超时时间（秒）" />
                                 <NumericUpDown Value="{Binding DefaultTimeoutSeconds, Mode=TwoWay}"
                                                Minimum="1" Maximum="3600" Increment="10" />
@@ -181,6 +208,7 @@
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Button Content="保存" Classes="Primary" Command="{Binding SaveMetadataSettingsCommand}"
+                                            Click="OnSaveMetadataSettingsClicked"
                                             IsEnabled="{Binding CanSaveMetadataSettings}" />
                                 </StackPanel>
                                 <TextBlock Text="{Binding MetadataSettingsError}" Foreground="IndianRed"

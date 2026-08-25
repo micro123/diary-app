@@ -4,25 +4,28 @@
 
 ```csharp
 using System.Collections.Immutable;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Diary.ScriptBase;
 using Diary.ScriptHost;
 
-public sealed class DailySummaryScript : ApplicationScript
+public sealed class DailySummaryScript : ApplicationScriptV2
 {
     public override string Id => "daily-summary";
     public override string Name => "每日摘要";
     public override string? Description => "查询当天工作项并追加一条摘要记录";
+    public override IReadOnlyList<ScriptParameterDefinition> Parameters =>
+    [
+        new("date", "日期", ScriptParameterType.Date, Required: true),
+    ];
 
     public override async ValueTask<ScriptExecutionResult> ExecuteAsync(
         IScriptApplicationContext context,
         CancellationToken cancellationToken = default)
     {
         var diary = context.GetRequiredApi<IDiaryApi>();
-        var date = context.Arguments.TryGetValue("date", out var requestedDate)
-            ? requestedDate
-            : "2026-08-09";
+        var date = context.Arguments["date"];
 
         var query = await diary.QueryAsync(new ScriptWorkItemQuery
         {
@@ -62,7 +65,7 @@ public sealed class DailySummaryScript : ApplicationScript
 
 使用说明：
 
-- 通过执行参数传入 `date`；未传入时示例使用 `2026-08-09`，实际使用时应改成目标日期。
+- 示例是 V2 脚本，管理页会根据 `Parameters` 显示必填日期控件，并在执行前校验输入。
 - `QueryAsync` 只读查询；`CreateLogItemAsync` 只追加新记录，不修改或删除历史记录。
 - `IdempotencyKey` 用业务动作和日期组成，重复执行会返回已提交结果而不再次追加。
 - 预览执行通过请求的 `Preview` 标志传播到 API，只返回投影记录和副作用摘要。

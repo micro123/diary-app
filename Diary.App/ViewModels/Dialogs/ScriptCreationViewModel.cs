@@ -9,6 +9,11 @@ using Irihi.Avalonia.Shared.Contracts;
 
 namespace Diary.App.ViewModels.Dialogs;
 
+public sealed record ScriptApiVersionOption(
+    ScriptApiVersion Version,
+    string Label,
+    string Description);
+
 [DiAutoRegister]
 public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
 {
@@ -37,6 +42,17 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
             YearTargetTemplate,
             WorkItemTargetTemplate,
         ];
+    private static readonly IReadOnlyList<ScriptApiVersionOption> SupportedApiVersions =
+        [
+            new(
+                ScriptApiVersion.V2,
+                "V2（推荐）",
+                "声明参数类型、默认值和约束，由界面生成表单并在执行前校验。"),
+            new(
+                ScriptApiVersion.V1,
+                "V1（兼容）",
+                "使用自由 key=value 参数，适合兼容旧脚本；未来可能逐步弃用。"),
+        ];
 
     public ScriptCreationViewModel(string? scriptRoot = null)
     {
@@ -45,6 +61,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
 
     public IReadOnlyList<string> Scopes { get; } = ["应用脚本", "编辑器脚本"];
     public IReadOnlyList<string> Languages { get; } = ["C#", "Lua", "Python"];
+    public IReadOnlyList<ScriptApiVersionOption> ApiVersionOptions => SupportedApiVersions;
     public IReadOnlyList<string> Templates => IsEditorScope ? EditorTemplates : ApplicationTemplates;
 
     [ObservableProperty]
@@ -56,6 +73,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
     [ObservableProperty] private string _description = string.Empty;
     [ObservableProperty] private string _selectedScope = "应用脚本";
     [ObservableProperty] private string _selectedLanguage = "C#";
+    [ObservableProperty] private ScriptApiVersionOption _selectedApiVersionOption = SupportedApiVersions[0];
     [ObservableProperty] private string _selectedTemplate = BlankTemplate;
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CreateCommand))]
@@ -157,7 +175,7 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
                     TimeoutSeconds = 300,
                 }, new JsonSerializerOptions { WriteIndented = true })
                 : JsonSerializer.Serialize(new ScriptFileMetadata(
-                    ApiVersion: ScriptApiVersion.V1,
+                    ApiVersion: SelectedApiVersionOption.Version,
                     Id: Id,
                     Name: Name,
                     Description: Description,
@@ -318,11 +336,14 @@ public partial class ScriptCreationViewModel : ViewModelBase, IDialogContext
         if ((SelectedTemplate == WorkItemQueryTemplate && scope == ScriptScope.Application)
             || SelectedTemplate == QueryScriptTemplate)
             lines.Add("using Diary.ScriptHost;");
+        var versionSuffix = SelectedApiVersionOption.Version == ScriptApiVersion.V2 ? "V2" : string.Empty;
         var baseType = SelectedTemplate == QueryScriptTemplate
-            ? "QueryScript"
+            ? $"QueryScript{versionSuffix}"
             : SelectedTemplate == AutomationScriptTemplate
-                ? "AutomationScript"
-                : scope == ScriptScope.Editor ? "EditorScript" : "ApplicationScript";
+                ? $"AutomationScript{versionSuffix}"
+                : scope == ScriptScope.Editor
+                    ? $"EditorScript{versionSuffix}"
+                    : $"ApplicationScript{versionSuffix}";
         var contextType = SelectedTemplate == QueryScriptTemplate
             ? "IScriptApplicationContext"
             : SelectedTemplate == AutomationScriptTemplate

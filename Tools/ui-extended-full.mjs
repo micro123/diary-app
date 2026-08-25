@@ -27,6 +27,42 @@ const scripts = [
     { language: 'Python', name: 'UI Python ' + stamp, id: 'ui-python-' + stamp },
 ];
 
+function parameterizedCSharpSource(item) {
+    const className = item.id.split('-')
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+        .join('');
+    return `#nullable enable
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using Diary.ScriptBase;
+
+namespace Diary.UserScripts;
+
+public sealed class ${className} : ApplicationScriptV2
+{
+    public override string Id => "${item.id}";
+    public override string Name => "${item.name}";
+    public override IReadOnlyList<ScriptParameterDefinition> Parameters =>
+    [
+        new("range", "统计范围", ScriptParameterType.Choice, Required: true,
+            DefaultValue: "week", Choices: [new("week", "本周"), new("month", "本月")]),
+        new("minimumHours", "最低工时", ScriptParameterType.Number, DefaultValue: "0",
+            Constraints: new(Minimum: "0", Maximum: "24", Step: "0.5", Unit: "小时")),
+        new("titlePrefix", "标题前缀", ScriptParameterType.String, DefaultValue: "工时汇总",
+            Constraints: new(MaxLength: 20,
+                Suggestions: [new("工时汇总", "工时汇总"), new("团队周报", "团队周报")])),
+        new("includeZero", "包含零工时", ScriptParameterType.Boolean, DefaultValue: "false"),
+    ];
+
+    public override ValueTask<ScriptExecutionResult> ExecuteAsync(
+        IScriptApplicationContext context,
+        CancellationToken cancellationToken = default) =>
+        ValueTask.FromResult(ScriptExecutionResult.Succeeded());
+}
+`;
+}
+
 function rootOf(tree, typeName) {
     return tree.entries.find(entry => isVisible(entry) && typeOf(entry).includes(typeName));
 }
@@ -52,7 +88,7 @@ function aiPreviewText(tree, root) {
 function boundsOf(entry) {
     const parts = String(entry?.a?.Bounds ?? '').split(',').map(Number);
     assertUi(parts.length === 4 && parts.every(Number.isFinite), 'AI 预览框缺少有效 Bounds');
-    return { width: parts[2], height: parts[3] };
+    return { x: parts[0], y: parts[1], width: parts[2], height: parts[3] };
 }
 
 async function activate(connection, entry) {
@@ -127,6 +163,9 @@ async function createScript(connection, item) {
         '新建脚本对话框未出现');
     let tree = opened.tree;
     let root = opened.value;
+    assertUi(textWithin(tree, root, 'V2（推荐）'), '新建脚本向导缺少 V2 推荐说明');
+    assertUi(textWithin(tree, root, 'V1（兼容）'), '新建脚本向导缺少 V1 兼容选项');
+    assertUi(textWithin(tree, root, '参数契约与兼容行为', true), '新建脚本向导缺少版本差异说明');
     const inputs = descendants(tree, root, entry => isVisible(entry)
         && typeOf(entry).includes('TextBox') && Number(entry.a.Width) > 100);
     assertUi(inputs.length >= 3, '新建脚本输入框不完整');
@@ -296,7 +335,32 @@ await runUiSuite({ name: 'ui-extended-full', scenario: 'extended', timeoutMs: 12
         for (const text of ['AI 与 MCP', '打开 AI 上下文', '复制 AI 说明',
             '复制 MCP JSON', '打开使用文档'])
             assertUi(textWithin(tree, root, text), 'AI 与 MCP 设置缺少：' + text);
-        assertUi(textWithin(tree, root, 'MCP 快照已生成', true), '设置页未识别已生成的 MCP 快照');
+        const settingsBounds = boundsOf(root);
+        for (let index = 0; index < 5; index++) {
+            await connection.client.send('Input.dispatchMouseEvent', {
+                type: 'mouseWheel',
+                x: settingsBounds.x + settingsBounds.width / 2,
+                y: settingsBounds.y + Math.min(settingsBounds.height - 80, 560),
+                deltaX: 0,
+                deltaY: 420,
+            });
+            await delay(30);
+        }
+        tree = await connection.getTree();
+        root = rootOf(tree, 'SettingsView');
+        const scriptGroupText = textWithin(tree, root, '脚本');
+        assertUi(scriptGroupText, '程序设置缺少脚本分组');
+        const scriptGroup = ancestor(tree, scriptGroupText, entry => typeOf(entry).includes('Expander'));
+        assertUi(scriptGroup, '脚本设置分组不可展开');
+        const scriptGroupHeader = descendants(tree, scriptGroup)
+            .find(entry => nameOf(entry) === 'ExpanderHeader');
+        assertUi(scriptGroupHeader, '脚本设置分组缺少可聚焦标题');
+        await activate(connection, scriptGroupHeader);
+        await connection.waitForTree(current => {
+            const currentRoot = rootOf(current, 'SettingsView');
+            return currentRoot && textWithin(current, currentRoot, '清除参数历史');
+        }, 3000, '程序设置缺少清除参数历史入口');
+        assertUi(textWithin(tree, root, '已生成 ·', true), '设置页未识别已生成的 MCP 快照');
         const guideText = textWithin(tree, root, '打开使用文档');
         const guideButton = guideText && controlForText(tree, guideText);
         assertUi(guideButton, 'AI 与 MCP 设置缺少使用文档按钮');
@@ -335,6 +399,11 @@ await runUiSuite({ name: 'ui-extended-full', scenario: 'extended', timeoutMs: 12
             '创建 ' + item.language + ' 脚本', async () => createScript(connection, item));
     }
 
+    await fs.writeFile(
+        path.join(connection.state.profile, 'config', 'scripts', 'application', scripts[0].id + '.cs'),
+        parameterizedCSharpSource(scripts[0]),
+        'utf8');
+
     await runStep('scripts.filter-reload', '脚本搜索、筛选和重新加载', async () => {
         let tree = await connection.getTree();
         const root = rootOf(tree, 'ScriptManagementView');
@@ -352,6 +421,12 @@ await runUiSuite({ name: 'ui-extended-full', scenario: 'extended', timeoutMs: 12
         await connection.replaceText(currentSearch, '');
         await connection.waitForTree(current => scripts.every(item => scriptRow(current, item.name)), 5000,
             '清空搜索后脚本没有恢复');
+        tree = await connection.getTree();
+        for (const item of scripts) {
+            const row = scriptRow(tree, item.name);
+            assertUi(row && descendants(tree, row).some(entry => textOf(entry) === 'V2'),
+                '脚本列表缺少 V2 标识：' + item.name);
+        }
         await activateText(connection, 'ScriptManagementView', '重新加载');
         const reloaded = await connection.waitForTree(current => findByTextContains(current, '已加载 3 个脚本'),
             30000, '脚本目录重新加载失败');
@@ -364,7 +439,10 @@ await runUiSuite({ name: 'ui-extended-full', scenario: 'extended', timeoutMs: 12
         await activateText(connection, 'ScriptManagementView', '运行');
         const dialog = await connection.waitForTree(tree => rootOf(tree, 'ScriptRunDialogView'), 8000,
             '脚本运行对话框未出现');
-        const previewText = textWithin(dialog.tree, dialog.value, '预览执行（宿主强制阻止持久写入和真实文件导出）');
+        for (const text of ['统计范围 *', '最低工时', '标题前缀', '包含零工时', '小时'])
+            assertUi(textWithin(dialog.tree, dialog.value, text), 'V2 类型化参数表单缺少：' + text);
+        assertUi(textWithin(dialog.tree, dialog.value, '脚本默认', true), 'V2 参数值来源提示缺失');
+        const previewText = textWithin(dialog.tree, dialog.value, '预览执行');
         const preview = previewText && controlForText(dialog.tree, previewText);
         assertUi(preview, '预览执行选项缺失');
         await connection.clickNode(preview);

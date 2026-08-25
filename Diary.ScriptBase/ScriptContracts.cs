@@ -82,6 +82,15 @@ public sealed record ScriptParameterChoice(
     string Value,
     string Label);
 
+public sealed record ScriptParameterConstraints(
+    string? Minimum = null,
+    string? Maximum = null,
+    string? Step = null,
+    int? MinLength = null,
+    int? MaxLength = null,
+    IReadOnlyList<ScriptParameterChoice>? Suggestions = null,
+    string? Unit = null);
+
 public sealed record ScriptParameterDefinition(
     string Name,
     string Label,
@@ -90,7 +99,8 @@ public sealed record ScriptParameterDefinition(
     string? Description = null,
     string? DefaultValue = null,
     IReadOnlyList<ScriptParameterChoice>? Choices = null,
-    string? Placeholder = null);
+    string? Placeholder = null,
+    ScriptParameterConstraints? Constraints = null);
 
 public sealed record ScriptDescriptor(
     string Id,

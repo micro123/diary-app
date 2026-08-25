@@ -1,4 +1,5 @@
 using Diary.App.ViewModels;
+using Diary.Script.Runtime;
 using Diary.ScriptBase;
 
 namespace Diary.AppTests;
@@ -31,6 +32,35 @@ public sealed class ScriptListItemTests
         Assert.AreEqual("自动化入口", automation.EntryKindLabel);
         Assert.AreEqual("查询入口", query.EntryKindLabel);
         Assert.AreEqual("应用入口", application.EntryKindLabel);
+    }
+
+    [TestMethod]
+    public void ApiVersionLabel_PrefersDescriptorAndSupportsFutureVersions()
+    {
+        var legacy = Create(ScriptScope.Application, buildSucceeded: true);
+        var metadataV2 = legacy with { Metadata = new ScriptFileMetadata(ApiVersion: ScriptApiVersion.V2) };
+        var descriptorV2 = metadataV2 with
+        {
+            Descriptor = new ScriptDescriptor(
+                "sample",
+                "示例脚本",
+                ScriptApiVersion.V2,
+                ScriptScope.Application),
+        };
+        var future = legacy with
+        {
+            Descriptor = new ScriptDescriptor(
+                "sample",
+                "示例脚本",
+                (ScriptApiVersion)3,
+                ScriptScope.Application),
+        };
+
+        Assert.AreEqual("V1", legacy.ApiVersionLabel);
+        Assert.AreEqual("V2", metadataV2.ApiVersionLabel);
+        Assert.AreEqual("V2", descriptorV2.ApiVersionLabel);
+        Assert.AreEqual("V3", future.ApiVersionLabel);
+        Assert.AreEqual("脚本 API V3", future.ApiVersionDescription);
     }
 
     [TestMethod]

@@ -1,6 +1,6 @@
 # C# 脚本 API Reference
 
-本文覆盖 `ScriptApiVersion.V1` 和 `V2`。C# 是主推脚本语言，统一在独立 Worker 中执行，使用 `Diary.ScriptBase` 契约和 `Diary.ScriptHost` API。V1 保留自由字符串参数；V2 可在源码 descriptor 中声明加载期强类型参数。宿主只注册已经实现的 API，脚本不需要声明或申请 capability。首次使用建议先阅读 [C# 脚本 5 分钟入门](CSharpQuickStart.md)。
+本文覆盖 `ScriptApiVersion.V1` 和 `V2`。C# 是主推脚本语言，统一在独立 Worker 中执行，使用 `Diary.ScriptBase` 契约和 `Diary.ScriptHost` API。新建向导默认选择 V2，也可以创建 V1；V1 保留自由字符串参数，V2 可在源码 descriptor 中声明加载期强类型参数。两个版本使用相同的 Host API 和权限边界。首次使用建议先阅读 [C# 脚本 5 分钟入门](CSharpQuickStart.md)，版本更新、选择和迁移方法见 [脚本 API V1 与 V2](Versioning.md)。
 
 ## 1. 最小脚本
 
@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 using Diary.ScriptBase;
 using Diary.ScriptHost;
 
-public sealed class DemoScript : ApplicationScript
+public sealed class DemoScript : ApplicationScriptV2
 {
     public override string Id => "demo";
     public override string Name => "示例";
@@ -27,7 +27,7 @@ public sealed class DemoScript : ApplicationScript
 }
 ~~~
 
-编辑器脚本继承 `EditorScript`，自动化脚本继承 `AutomationScript`。底层 `IScriptProgramV1.ExecuteAsync` 由 Worker 适配器使用，不是普通脚本作者必须实现的唯一入口。
+新脚本的编辑器、自动化和查询入口分别继承 `EditorScriptV2`、`AutomationScriptV2` 和 `QueryScriptV2`。无参数 V2 脚本不需要重写 `Parameters`。旧版 `ApplicationScript`、`EditorScript`、`AutomationScript` 和 `QueryScript` 继续用于兼容 V1。底层 `IScriptProgramV1.ExecuteAsync` 由 Worker 适配器使用，不是普通脚本作者必须实现的入口。
 
 脚本不能访问 `IServiceProvider`、数据库对象或 UI 对象；宿主 API 只能通过上下文获取。
 
@@ -78,6 +78,13 @@ public sealed class SummaryScript : QueryScriptV2
             Required: true,
             DefaultValue: "thisWeek",
             Choices: [new("thisWeek", "本周"), new("thisMonth", "本月")]),
+        new("minimumHours", "最低工时", ScriptParameterType.Number,
+            DefaultValue: "0",
+            Constraints: new(Minimum: "0", Maximum: "24", Step: "0.5", Unit: "小时")),
+        new("titlePrefix", "标题前缀", ScriptParameterType.String,
+            DefaultValue: "工时汇总",
+            Constraints: new(MaxLength: 20,
+                Suggestions: [new("工时汇总", "工时汇总"), new("团队周报", "团队周报")])),
         new("includeZero", "包含零工时", ScriptParameterType.Boolean, DefaultValue: "false"),
     ];
 
@@ -92,7 +99,9 @@ public sealed class SummaryScript : QueryScriptV2
 }
 ~~~
 
-完整三语言示例见 [V2 参数化工时汇总](Examples/ParameterizedSummary.md)。当前管理页仍使用 `key=value` 文本输入；类型化参数表单将在后续 UI 阶段接入。
+`Choice` 是严格候选，`Suggestions` 是允许候选外文本的软提示。`Minimum`/`Maximum` 可用于 Integer、Number、Date 和 DateTime，`Step` 用于 Integer/Number，`MinLength`/`MaxLength` 用于 String/MultilineString，`Unit` 只作为数值界面提示。默认值、metadata 覆盖值和本次输入都会由同一个 Binder 校验。
+
+完整三语言示例见 [V2 参数化工时汇总](Examples/ParameterizedSummary.md)。管理页和 Editor 入口会显示类型化表单；管理页“默认参数”只保存相对源码 descriptor 的 metadata 覆盖项。
 
 ## 3. 执行请求和上下文
 
@@ -510,7 +519,7 @@ if (!result.Succeeded)
 
 当前实现已接线：执行来源为 `Automation` 时注入 `Scheduled`，来源为 `Startup` 时注入 `Startup`，其余三种事件来源分别注入同名触发器；手动、编辑器等非自动化来源为 `Unknown`。
 
-自动化脚本（`AutomationScript`）放 `application` 目录，入口类型由源码基类确定；metadata 的 `schedule` 字段（`"daily HH:mm"`）配置每日定时，`runOnStartup`（true/false）配置启动补跑，`triggers` 数组配置 `WorkItemCreated`、`WorkItemSaved`、`TagAdded`。事件型自动化可省略 `schedule`；事件执行的 `eventData` 包含工作项字段，`TagAdded` 额外包含标签字段，详见 `IScriptAutomationContext.EventData`。到点、补跑或事件发生时宿主自动执行，可在管理页执行历史中按来源筛选。
+自动化脚本（新脚本使用 `AutomationScriptV2`，V1 使用 `AutomationScript`）放 `application` 目录，入口类型由源码基类确定；metadata 的 `schedule` 字段（`"daily HH:mm"`）配置每日定时，`runOnStartup`（true/false）配置启动补跑，`triggers` 数组配置 `WorkItemCreated`、`WorkItemSaved`、`TagAdded`。事件型自动化可省略 `schedule`；事件执行的 `Automation.EventData` 包含工作项字段，`TagAdded` 额外包含标签字段。V1 为兼容旧脚本还会把这些字段镜像到 `Arguments`，V2 只通过独立事件数据提供。到点、补跑或事件发生时宿主自动执行，可在管理页执行历史中按来源筛选。
 
 ### 13.2 ScriptEditorTarget
 
@@ -546,17 +555,18 @@ if (!result.Succeeded)
 
 ### 13.4 SDK 基类
 
-`ApplicationScript`、`EditorScript`、`AutomationScript` 定义在 `Diary.ScriptBase`：
+V1 的 `ApplicationScript`、`EditorScript`、`AutomationScript`、`QueryScript` 与 V2 对应的 `*ScriptV2` 基类均定义在 `Diary.ScriptBase`：
 
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
 | `Id` | `abstract string` | 稳定的脚本 ID。 |
 | `Name` | `abstract string` | UI 展示名称。 |
 | `Description` | `virtual string?` | 默认 null。 |
-| `SupportedTargets` | `virtual IReadOnlyList<ScriptEditorTargetKind>?`（仅 `EditorScript`） | 返回 null 表示支持全部六种目标。 |
+| `SupportedTargets` | `virtual IReadOnlyList<ScriptEditorTargetKind>?`（仅 Editor 基类） | 返回 null 表示支持全部六种目标。 |
+| `Parameters` | `virtual IReadOnlyList<ScriptParameterDefinition>`（仅 V2） | 默认空列表；声明后由宿主生成参数表单并执行绑定校验。 |
 | `ExecuteAsync` | 抽象方法 | 按基类签名：`ExecuteAsync(IScriptApplicationContext context, CancellationToken ct = default)` / `ExecuteAsync(IScriptEditorContext context, ...)` / `ExecuteAsync(IScriptAutomationContext context, ...)`，返回 `ValueTask<ScriptExecutionResult>`。 |
 
-`Descriptor` 由基类自动生成（`ApiVersion = V1`、对应 Scope 与 EntryKind），脚本不需要手写。`QueryScript` 基类同样可用（`ScriptScope.Application` + `EntryKind = Query`，上下文为 `IScriptApplicationContext`），对应 Lua/Python 的 `query_main` 入口。
+`Descriptor` 由基类自动生成，并写入对应的 API 版本、Scope 与 EntryKind，脚本不需要手写。V1/V2 的执行上下文和 Host API 相同，差异集中在参数契约和 Automation 事件数据兼容行为。Query 基类使用 `ScriptScope.Application`、`EntryKind = Query` 和 `IScriptApplicationContext`，对应 Lua/Python 的 `query_main` 入口。
 
 ### 13.5 宿主 API 接口签名
 
@@ -624,7 +634,7 @@ Lua 与 Python 的入口返回值约定不同，见各自语言文档的类型�
 
 | 枚举 | 值 |
 | --- | --- |
-| `ScriptApiVersion` | `V1`。 |
+| `ScriptApiVersion` | `V1`、`V2`；当前版本为 `V2`。 |
 | `ScriptScope` | `Application`、`Editor`。 |
 | `ScriptDiagnosticSeverity` | `Info`、`Warning`、`Error`。 |
 | `ScriptDiagnosticCategory` | `Syntax`、`Validation`、`Security`、`Engine`、`Runtime`、`Host`。 |

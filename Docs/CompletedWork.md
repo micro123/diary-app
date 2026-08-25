@@ -4,12 +4,29 @@
 
 本文件只记录完成结果，不作为当前待办列表。
 
+## 2026-08-25 脚本 API 版本文档整理
+
+- [x] 新建脚本向导默认选择 V2，同时允许创建 V1；向导内展示参数契约、兼容用途和未来可能弃用的简要说明，三语言按选择生成对应 C# 基类或 metadata。
+- [x] 增加统一的 V1/V2 更新内容、差异、版本声明、迁移步骤和未来兼容策略，明确 V1 当前仍可创建和运行，以及两个版本共享 Host API 与权限边界。
+- [x] 用户手册增加版本速查；C#、Lua、Python Reference 建立统一入口，并修正 C# 快速入门的参数 UI、SDK 基类和版本枚举等过时说明。
+- [x] C#、Lua、Python 快速入门示例迁移到 V2 参数契约和当前推荐 API 命名，避免向导创建 V2 后继续按未声明自由参数运行。
+
+## 2026-08-25 脚本 API V2 参数 UI 完成
+
+- [x] 脚本管理列表在脚本名称右侧显示紧凑 API 版本标识，当前为 V1/V2；标签按枚举数值生成，后续新增版本无需补充 UI 分支。
+- [x] 管理页手动运行、Editor 入口和管理页默认参数配置复用同一套 V2 类型化表单；V1 继续使用自由 `key=value`，无参数 Editor 脚本继续立即执行。
+- [x] 管理页 `defaultArguments` 只保存相对 descriptor 默认值的 metadata 覆盖项，支持脚本默认、配置覆盖、上次值、本次输入和已清空来源提示，以及单字段/整体恢复默认值；Automation 必填默认值不完整时显示“待配置”且不进入调度。
+- [x] 有人值守参数按脚本、入口和 Editor 目标类型保存到独立原子本地文件，支持 schema 迁移、容量限制、当前作用域清除、删除脚本联动清理和设置页全局清除；后台 Automation 不读写参数历史。
+- [x] Suggestions 改为同行软候选，Date/DateTime 应用控件边界并处理本地夏令时跳空/重复偏移，数值显示单位与步长，文本接近上限时按 Unicode 字符显示计数；Binder 继续作为最终校验源并提供字段级范围、步长和长度错误。
+- [x] 点击运行/保存后聚焦首个错误；运行对话框支持单行 Enter、Ctrl+Enter 和 Escape，管理页默认参数支持 Ctrl+Enter 保存，错误文本使用可访问性 live region。
+- [x] App 参数表单/历史定向回归 16 项和脚本参数/目录/示例/文档定向回归 36 项通过；Linux X11 1280×800 `ui-extended-full` 11/11 通过并覆盖真实 V2 类型化表单、参数执行、设置入口和执行历史，32 参数由 ViewModel 回归覆盖。平台 DPI/主题视觉抽样继续归入全局 UI 发布检查单。
+
 ## 2026-08-25 脚本 API V2 加载期参数契约
 
 - [x] 增加 String、MultilineString、Integer、Number、Boolean、Date、DateTime 和 Choice 八种参数定义；C# 通过四类 V2 SDK 基类声明，Lua/Python 通过相邻 metadata 或包 manifest 声明，脚本加载后即可从 Catalog 读取完整契约。
 - [x] 宿主在进入 Worker 前统一合并 descriptor 默认值、metadata `defaultArguments` 和本次输入，完成必填、未知参数、类型、Choice、长度与总大小校验，并向三种语言传递规范化字符串值。
 - [x] C#、Lua、Python Worker 同时支持 V1/V2 和混合版本执行；Automation 用户参数与事件数据已分离，V1 保留兼容镜像，V2 不再让事件字段污染 `Arguments`。
-- [x] 增加参数 Binder、目录加载、执行上下文、三语言引擎、共享包和真实 Worker 进程回归测试，并提供三语言参数化汇总示例；类型化参数 UI、创建向导默认 V2 和日志复制保留在 TODO。
+- [x] 增加参数 Binder、目录加载、执行上下文、三语言引擎、共享包和真实 Worker 进程回归测试，并提供三语言参数化汇总示例；类型化参数 UI 和创建向导默认 V2 已在后续工作完成，日志复制保持独立 TODO。
 
 ## 2026-08-25 界面密度、日历与 Redmine 回归修复
 
@@ -455,3 +472,12 @@
 - [x] 自动化脚本 Scheduled+Startup 已实现：`ScriptFileMetadata`/`ScriptPackageManifest` 新增 `Schedule`（"daily HH:mm"，仅 Automation 入口合法）与 `RunOnStartup`，`ScriptDirectoryEntry` 新增 `Metadata`，加载时校验，非法（或非 Automation 入口携带）→`SCRIPT_SCHEDULE_INVALID` 构建失败不注册；新增 `ScriptAutomationSchedule`（TryParse+GetNextDue，lastRun 为空且当天已过→立即到期）；`ScriptAutomationContextFactory.FromRequest` 按 Source 生成 Trigger（Automation→Scheduled、Startup→Startup），替换 worker 内联三元式，Lua/Python worker 的 context 新增 `automation`（trigger/eventData/idempotencyKey）；`ScriptAutomationScheduler` 以 30 秒 tick + `SemaphoreSlim` 串行 + 内存 last-run 表防重调度，启动补跑一轮 RunOnStartup 与今日到期脚本，并生成请求级幂等键（Scheduled=`auto:{scriptId}:{yyyy-MM-dd HH:mm}`、Startup=`startup:{scriptId}:{yyyy-MM-dd}`）；新建向导提供「自动化脚本」模板（EntryKind=Automation、Schedule="daily 09:00"）。metadata/manifest 已支持 `Triggers`（WorkItemCreated、WorkItemSaved、TagAdded），事件型自动化可不配置 schedule；调度器按 `scriptId + trigger + eventId` 防重并生成事件幂等键，工作项创建/保存和标签添加入口已接入，草稿标签在首次保存后按顺序补发；新建向导和管理页均可配置三种事件触发。
 - [x] Query 入口已落地：ScriptBase 新增 `IQueryScriptV1` 接口与 `QueryScript` 抽象基类（Scope=Application、EntryKind=Query、上下文 `IScriptApplicationContext`），`ScriptProgramAdapter` 三处增加 Query 分支，C# 引擎类型识别支持 `IQueryScriptV1`；创建向导提供「查询脚本」模板（Lua/Python 使用 `query_main`、C# 使用 `QueryScript` 子类），管理页可直接运行（CanRun 已放行 Application scope）。
 - [x] 决策记录：执行历史与执行进度保持会话内存态（历史 30 条、进度最近 20 次），持久化经用户决策明确延期。
+
+## 阶段 10.1：脚本 API V2 参数 UI 第一阶段
+
+完成日期：2026-08-25。设计见 [`ScriptApiV2ParameterDesign.md`](ScriptApiV2ParameterDesign.md) 和 [`ScriptApiV2ParameterUiDesign.md`](ScriptApiV2ParameterUiDesign.md)。
+
+- [x] V2 参数契约增加 Suggestions、数值/日期范围、步长、文本长度和单位提示，加载期 schema 与执行前 Binder 统一强制校验并返回字段归属 Issue。
+- [x] 管理页手动运行和 Editor 入口接入 V1/V2 双模式类型化表单；Editor 有参数菜单显示省略号并按 Day/Week/Month/Quarter/Year/WorkItem 隔离历史值。
+- [x] 有人值守运行参数使用独立本地原子文件保存，支持 schema 指纹迁移、200 项/4 MiB 限制、当前作用域清除和删除脚本联动清理；取消、校验失败和 Rejected 不覆盖旧记录。
+- [x] Automation 必填默认值不完整时保留 descriptor 并进入“待配置”，不注册调度；创建向导默认选择 V2，同时允许生成 V1/V2 对应基类或 metadata。

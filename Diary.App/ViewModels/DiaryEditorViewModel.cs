@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.App.Models;
+using Diary.App.Services;
 using Diary.App.ViewModels.Dialogs;
 using Diary.Core.Constants;
 using Diary.Core.Data.App;
@@ -1122,10 +1123,57 @@ public partial class DiaryEditorViewModel : ViewModelBase
         ScriptEditorTarget target) =>
         new AsyncRelayCommand(async () =>
         {
+            if (!_scriptCatalog.TryGet(scriptId, out var program) || program is null)
+            {
+                EventDispatcher.ShowToast($"脚本 {scriptId} 已不可用，请重新加载脚本目录");
+                return;
+            }
+
+            var descriptor = program.Descriptor;
             var request = EditorScriptMenuPolicy.CreateRequest(target);
+            ScriptRunOptions? options = null;
+            ScriptLastArgumentsScope? lastScope = null;
+            var lastStore = _serviceProvider.GetService<IScriptLastArgumentsStore>();
+            if (descriptor.ApiVersion == ScriptApiVersion.V2
+                && descriptor.Parameters is { Count: > 0 })
+            {
+                lastScope = new ScriptLastArgumentsScope(scriptId, ScriptEntryKind.Editor, target.Kind);
+                var last = lastStore is null ? null : await lastStore.GetAsync(lastScope, descriptor);
+                _scriptCatalog.TryGetSource(scriptId, out var source);
+                var dialog = _serviceProvider.GetRequiredService<ScriptRunDialogViewModel>();
+                dialog.Initialize(
+                    descriptor,
+                    new ScriptFileMetadata(DefaultArguments: source?.DefaultArguments),
+                    last?.Arguments,
+                    null,
+                    showExecutionOptions: false,
+                    clearRememberedArguments: lastStore is null
+                        ? null
+                        : () => lastStore.ClearAsync(lastScope));
+                options = await OverlayDialog.ShowCustomModal<ScriptRunOptions>(
+                    dialog,
+                    options: new OverlayDialogOptions
+                    {
+                        CanDragMove = false,
+                        CanResize = false,
+                        CanLightDismiss = false,
+                        IsCloseButtonVisible = false,
+                    });
+                if (options is null)
+                    return;
+                request = request with { Arguments = options.Arguments };
+            }
+
             var outcome = await Task.Run(async () => await _scriptManager.ExecuteAsync(
                 scriptId,
                 request));
+            if (lastStore is not null
+                && lastScope is not null
+                && options is not null
+                && outcome.Result.Status != ScriptExecutionStatus.Rejected)
+            {
+                await lastStore.SaveV2Async(lastScope, descriptor, options.Arguments);
+            }
             EventDispatcher.ShowToast(
                 outcome.Result.Status switch
                 {
@@ -1140,7 +1188,9 @@ public partial class DiaryEditorViewModel : ViewModelBase
     {
         var actions = EditorScriptMenuPolicy.GetRunnableScripts(_scriptCatalog, ScriptEditorTargetKind.WorkItem)
             .Select(program => new WorkEditorScriptMenuItem(
-                workItem.WorkId > 0 ? program.Descriptor.Name : $"{program.Descriptor.Name}（请先保存）",
+                workItem.WorkId > 0
+                    ? FormatEditorScriptMenuName(program.Descriptor)
+                    : $"{program.Descriptor.Name}（请先保存）",
                 CreateEditorScriptCommand(
                     program.Descriptor.Id,
                     ScriptEditorTarget.ForWorkItem(ToScriptWorkItem(workItem))),
@@ -1168,13 +1218,18 @@ public partial class DiaryEditorViewModel : ViewModelBase
         {
             scriptMenu.Children.Add(new DayMenuItem
             {
-                Header = $"对{EditorScriptMenuPolicy.GetRangeLabel(target.Kind)}运行：{script.Descriptor.Name}",
+                Header = $"对{EditorScriptMenuPolicy.GetRangeLabel(target.Kind)}运行：{FormatEditorScriptMenuName(script.Descriptor)}",
                 Command = CreateEditorScriptCommand(script.Descriptor.Id, target),
                 Enabled = true,
             });
         }
         QuickMenuItems.Add(scriptMenu);
     }
+
+    private static string FormatEditorScriptMenuName(ScriptDescriptor descriptor) =>
+        descriptor.ApiVersion == ScriptApiVersion.V2 && descriptor.Parameters is { Count: > 0 }
+            ? $"{descriptor.Name}…"
+            : descriptor.Name;
 
     private static DateTime StartOfWeek(DateTime date)
     {

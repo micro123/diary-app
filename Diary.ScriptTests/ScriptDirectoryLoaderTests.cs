@@ -323,8 +323,10 @@ public sealed class ScriptDirectoryLoaderTests
         var result = await loader.LoadAsync(_root);
 
         var entry = result.Entries.Single();
-        Assert.IsFalse(entry.BuildResult!.Succeeded);
-        Assert.AreEqual("SCRIPT_ARGUMENT_REQUIRED", entry.BuildResult.Diagnostics.Single().Code);
+        Assert.IsTrue(entry.BuildResult!.Succeeded);
+        Assert.AreEqual(ScriptConfigurationState.NeedsConfiguration, entry.ConfigurationState);
+        Assert.AreEqual("SCRIPT_ARGUMENT_REQUIRED", entry.ConfigurationDiagnostics.Single().Code);
+        Assert.AreEqual("automation-v2", entry.DiscoveredDescriptor!.Id);
         Assert.IsFalse(catalog.TryGet("automation-v2", out _));
     }
 

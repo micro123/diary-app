@@ -1,0 +1,110 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="using:Diary.App.Models"
+             x:Class="Diary.App.Views.ScriptParameterFormView"
+             x:DataType="models:ScriptParameterFormViewModel">
+    <ItemsControl ItemsSource="{Binding Fields}">
+        <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="models:ScriptParameterFieldViewModel">
+                <Grid ColumnDefinitions="150,*" ColumnSpacing="8" Margin="0 2">
+                    <StackPanel VerticalAlignment="Center" Spacing="1"
+                                ToolTip.Tip="{Binding Description}">
+                        <TextBlock Text="{Binding DisplayLabel}"
+                                   AutomationProperties.Name="{Binding DisplayLabel}" />
+                        <TextBlock Text="{Binding TypeLabel}" FontSize="11" Opacity="0.55" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Spacing="2">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
+                            <Grid>
+                            <Grid IsVisible="{Binding UsesTextEditor}" ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                <TextBox Text="{Binding Value, Mode=TwoWay}"
+                                         Watermark="{Binding Placeholder}"
+                                         ToolTip.Tip="{Binding Description}" />
+                                <ComboBox Grid.Column="1" Width="136"
+                                          IsVisible="{Binding HasSuggestions}"
+                                          ItemsSource="{Binding Suggestions}"
+                                          SelectedItem="{Binding SelectedSuggestion, Mode=TwoWay}"
+                                          PlaceholderText="常用候选"
+                                          ToolTip.Tip="候选仅用于快速填写，也可以输入其他值。">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Label}" ToolTip.Tip="{Binding Value}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </Grid>
+                            <TextBox IsVisible="{Binding UsesMultilineEditor}"
+                                     Text="{Binding Value, Mode=TwoWay}"
+                                     Watermark="{Binding Placeholder}"
+                                     AcceptsReturn="True" TextWrapping="Wrap" MinHeight="88" />
+                            <Grid IsVisible="{Binding UsesIntegerEditor}" ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                <NumericUpDown Value="{Binding NumericValue, Mode=TwoWay}"
+                                               Minimum="{Binding Minimum}" Maximum="{Binding Maximum}"
+                                               Increment="{Binding Increment}" FormatString="0"
+                                               ParsingNumberStyle="Integer" Watermark="未设置" />
+                                <TextBlock Grid.Column="1" Text="{Binding Unit}" IsVisible="{Binding HasUnit}"
+                                           VerticalAlignment="Center" Opacity="0.7" />
+                            </Grid>
+                            <Grid IsVisible="{Binding UsesNumberEditor}" ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                <NumericUpDown Value="{Binding NumericValue, Mode=TwoWay}"
+                                               Minimum="{Binding Minimum}" Maximum="{Binding Maximum}"
+                                               Increment="{Binding Increment}" Watermark="未设置" />
+                                <TextBlock Grid.Column="1" Text="{Binding Unit}" IsVisible="{Binding HasUnit}"
+                                           VerticalAlignment="Center" Opacity="0.7" />
+                            </Grid>
+                            <ComboBox IsVisible="{Binding UsesBooleanEditor}"
+                                      ItemsSource="{Binding BooleanOptions}"
+                                      SelectedItem="{Binding BooleanSelection, Mode=TwoWay}" />
+                            <CalendarDatePicker IsVisible="{Binding UsesDateEditor}"
+                                                SelectedDate="{Binding DateValue, Mode=TwoWay}"
+                                                DisplayDateStart="{Binding DateMinimum}"
+                                                DisplayDateEnd="{Binding DateMaximum}" />
+                            <Grid IsVisible="{Binding UsesDateTimeEditor}"
+                                  ColumnDefinitions="*,*,Auto,Auto" ColumnSpacing="6">
+                                <CalendarDatePicker SelectedDate="{Binding DateTimeDateValue, Mode=TwoWay}"
+                                                    DisplayDateStart="{Binding DateTimeMinimumDate}"
+                                                    DisplayDateEnd="{Binding DateTimeMaximumDate}" />
+                                <TimePicker Grid.Column="1" SelectedTime="{Binding DateTimeTimeValue, Mode=TwoWay}" />
+                                <TextBlock Grid.Column="2" Text="{Binding DateTimeZoneSummary}"
+                                           IsVisible="{Binding HasDateTimeZoneSummary}"
+                                           VerticalAlignment="Center" FontSize="12" Opacity="0.68"
+                                           ToolTip.Tip="最终传给脚本的是带 UTC 偏移的 ISO 8601 时间。" />
+                                <ComboBox Grid.Column="3" Width="106"
+                                          IsVisible="{Binding HasAmbiguousOffsets}"
+                                          ItemsSource="{Binding AmbiguousOffsetOptions}"
+                                          SelectedItem="{Binding SelectedDateTimeOffsetOption, Mode=TwoWay}"
+                                          ToolTip.Tip="该本地时间出现两次，请选择传给脚本的 UTC 偏移。">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Label}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </Grid>
+                            <ComboBox IsVisible="{Binding UsesChoiceEditor}"
+                                      ItemsSource="{Binding Choices}"
+                                      SelectedItem="{Binding SelectedChoice, Mode=TwoWay}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Label}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            </Grid>
+                            <Button Grid.Column="1" Width="30" MinWidth="30" Padding="4"
+                                    Content="↶" IsVisible="{Binding HasChanged}"
+                                    Command="{Binding ResetFieldCommand}"
+                                    ToolTip.Tip="恢复此参数的默认值" />
+                        </Grid>
+                        <TextBlock Text="{Binding LengthSummary}" IsVisible="{Binding ShowLengthSummary}"
+                                   HorizontalAlignment="Right" FontSize="11" Opacity="0.62" />
+                        <TextBlock Text="{Binding Error}" IsVisible="{Binding HasError}"
+                                   Foreground="{DynamicResource SystemControlErrorTextForeground}"
+                                   AutomationProperties.LiveSetting="Polite"
+                                   FontSize="12" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Grid>
+            </DataTemplate>
+        </ItemsControl.ItemTemplate>
+    </ItemsControl>
+</UserControl>

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.Collections.Immutable;
 using System.ComponentModel;
 using System.Text.Json;
 using Avalonia.Controls;
@@ -34,7 +35,9 @@ public sealed record ScriptListItem(
     IReadOnlyList<ScriptDiagnosticListItem> DiagnosticDetails,
     string Description = "",
     ScriptEntryKind EntryKind = ScriptEntryKind.Application,
-    ScriptFileMetadata? Metadata = null)
+    ScriptFileMetadata? Metadata = null,
+    ScriptDescriptor? Descriptor = null,
+    ScriptConfigurationState ConfigurationState = ScriptConfigurationState.Ready)
 {
     public string Language => Path.GetExtension(SourcePath).ToLowerInvariant() switch
     {
@@ -60,6 +63,14 @@ public sealed record ScriptListItem(
 
     public bool IsSvgLanguage => IsCSharp || IsPython || IsLua;
 
+    public ScriptApiVersion ApiVersion => Descriptor?.ApiVersion
+        ?? Metadata?.ApiVersion
+        ?? ScriptApiVersion.V1;
+
+    public string ApiVersionLabel => $"V{(int)ApiVersion}";
+
+    public string ApiVersionDescription => $"脚本 API {ApiVersionLabel}";
+
     public string ScopeLabel => Scope switch
     {
         ScriptScope.Application => "应用脚本",
@@ -77,7 +88,11 @@ public sealed record ScriptListItem(
 
     public bool IsLoadFailed => !BuildSucceeded;
 
-    public bool IsRunnable => BuildSucceeded && Scope == ScriptScope.Application;
+    public bool IsRunnable => BuildSucceeded
+        && ConfigurationState == ScriptConfigurationState.Ready
+        && Scope == ScriptScope.Application;
+
+    public bool NeedsConfiguration => ConfigurationState == ScriptConfigurationState.NeedsConfiguration;
 
     public bool IsAutomation => EntryKind == ScriptEntryKind.Automation;
 
@@ -177,6 +192,7 @@ public partial class ScriptManagementViewModel(
     ScriptProgressTracker progressTracker,
     ScriptAutomationScheduler scheduler,
     ScriptSharePackageService sharePackageService,
+    IScriptLastArgumentsStore lastArgumentsStore,
     AiScriptContextViewModel aiContext,
     ILogger logger,
     IServiceProvider services) : ViewModelBase
@@ -236,6 +252,9 @@ public partial class ScriptManagementViewModel(
     private string _defaultArgumentsText = string.Empty;
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveMetadataSettingsCommand))]
+    private ScriptParameterFormViewModel? _defaultParameterForm;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveMetadataSettingsCommand))]
     private int _defaultTimeoutSeconds = 300;
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveMetadataSettingsCommand))]
@@ -248,6 +267,8 @@ public partial class ScriptManagementViewModel(
     public bool HasProgress => IsExecuting && !string.IsNullOrWhiteSpace(ProgressMessage);
     public bool HasMetadataSettingsError => !string.IsNullOrWhiteSpace(MetadataSettingsError);
     public bool CanEditMetadataIdentity => SelectedScript?.IsCSharp == false;
+    public bool UsesTypedDefaultParameters => DefaultParameterForm is not null;
+    public bool UsesLegacyDefaultParameters => !UsesTypedDefaultParameters;
 
     public bool CanSaveMetadataSettings =>
         SelectedScript is { BuildSucceeded: true } && !IsExecuting;
@@ -289,6 +310,12 @@ public partial class ScriptManagementViewModel(
 
     partial void OnSelectedHistorySourceFilterChanged(string value) => RefreshVisibleHistory();
 
+    partial void OnDefaultParameterFormChanged(ScriptParameterFormViewModel? value)
+    {
+        OnPropertyChanged(nameof(UsesTypedDefaultParameters));
+        OnPropertyChanged(nameof(UsesLegacyDefaultParameters));
+    }
+
     partial void OnSelectedDetailTabIndexChanged(int value)
     {
         if (value == 6)
@@ -309,6 +336,12 @@ public partial class ScriptManagementViewModel(
                 .OrderBy(pair => pair.Key, StringComparer.Ordinal)
                 .Select(pair => $"{pair.Key}={pair.Value}")
             ?? []);
+        DefaultParameterForm = value?.Descriptor is { ApiVersion: ScriptApiVersion.V2 } descriptor
+            ? new ScriptParameterFormViewModel(
+                descriptor,
+                value.Metadata?.DefaultArguments,
+                mode: ScriptParameterFormMode.MetadataDefaults)
+            : null;
         DefaultTimeoutSeconds = value?.Metadata?.TimeoutSeconds is > 0 and <= 3600
             ? value.Metadata.TimeoutSeconds.Value
             : 300;
@@ -393,7 +426,7 @@ public partial class ScriptManagementViewModel(
             var loadedScripts = new List<ScriptListItem>();
             foreach (var entry in result.Entries)
             {
-                var descriptor = entry.BuildResult?.Program?.Descriptor;
+                var descriptor = entry.DiscoveredDescriptor ?? entry.BuildResult?.Program?.Descriptor;
                 var entryKind = descriptor is null
                     ? ScriptEntryKind.Application
                     : ScriptEntryKindResolver.Resolve(descriptor);
@@ -404,11 +437,13 @@ public partial class ScriptManagementViewModel(
                     entry.Scope,
                     entry.BuildResult?.Succeeded == true,
                     FormatStatus(entry),
-                    FormatDiagnostics(entry.BuildResult?.Diagnostics),
-                     FormatDiagnosticDetails(entry.BuildResult?.Diagnostics),
+                    FormatDiagnostics((entry.BuildResult?.Diagnostics ?? []).AddRange(entry.ConfigurationDiagnostics)),
+                     FormatDiagnosticDetails((entry.BuildResult?.Diagnostics ?? []).AddRange(entry.ConfigurationDiagnostics)),
                      descriptor?.Description ?? string.Empty,
                      entryKind,
-                     entry.Metadata));
+                     entry.Metadata,
+                     descriptor,
+                     entry.ConfigurationState));
             }
             Scripts.ReplaceAll(loadedScripts);
             RefreshVisibleScripts();
@@ -445,7 +480,7 @@ public partial class ScriptManagementViewModel(
 
     private bool CanRun() =>
         !IsExecuting
-        && SelectedScript is { BuildSucceeded: true }
+        && SelectedScript is { BuildSucceeded: true, ConfigurationState: ScriptConfigurationState.Ready }
         && SelectedScript.Scope == ScriptScope.Application;
 
     private bool CanCancel() => IsExecuting;
@@ -454,10 +489,17 @@ public partial class ScriptManagementViewModel(
     private async Task Run()
     {
         var script = SelectedScript;
-        if (script is null)
+        if (script?.Descriptor is not { } descriptor)
             return;
+        var scope = new ScriptLastArgumentsScope(script.Id, script.EntryKind);
+        var lastArguments = await lastArgumentsStore.GetAsync(scope, descriptor);
         var runDialog = services.GetRequiredService<ScriptRunDialogViewModel>();
-        runDialog.Initialize(script.Name, script.Metadata);
+        runDialog.Initialize(
+            descriptor,
+            script.Metadata,
+            lastArguments?.Arguments,
+            lastArguments?.LegacyArgumentsText,
+            clearRememberedArguments: () => lastArgumentsStore.ClearAsync(scope));
         var options = await OverlayDialog.ShowCustomModal<ScriptRunOptions>(
             runDialog,
             options: new OverlayDialogOptions
@@ -480,6 +522,13 @@ public partial class ScriptManagementViewModel(
                 CreateExecutionRequest(options),
                 options.Timeout,
                 cancellation.Token), cancellation.Token);
+            if (outcome.Result.Status != ScriptExecutionStatus.Rejected)
+            {
+                if (options.ApiVersion == ScriptApiVersion.V2)
+                    await lastArgumentsStore.SaveV2Async(scope, descriptor, options.Arguments);
+                else
+                    await lastArgumentsStore.SaveV1Async(scope, options.LegacyArgumentsText ?? string.Empty);
+            }
             Status = FormatExecutionStatus(
                 script.Name, outcome.Result.Status, outcome.Result.Diagnostics, outcome.Duration, outcome.Result.Effects);
             NotificationManager?.Show(
@@ -524,11 +573,24 @@ public partial class ScriptManagementViewModel(
             return;
         try
         {
-            if (!ScriptRunDialogViewModel.TryParseArguments(
-                    DefaultArgumentsText,
-                    out var defaultArguments,
-                    out var argumentError))
+            ImmutableDictionary<string, string> defaultArguments;
+            if (DefaultParameterForm is not null)
+            {
+                if (!DefaultParameterForm.TryBuildMetadataOverrides(
+                        requireRequired: script.IsAutomation,
+                        out defaultArguments,
+                        out var formError))
+                {
+                    throw new ArgumentException(formError, nameof(DefaultParameterForm));
+                }
+            }
+            else if (!ScriptRunDialogViewModel.TryParseArguments(
+                         DefaultArgumentsText,
+                         out defaultArguments,
+                         out var argumentError))
+            {
                 throw new ArgumentException(argumentError, nameof(DefaultArgumentsText));
+            }
             await ScriptMetadataEditor.WriteAsync(
                 script.SourcePath,
                 MetadataName,
@@ -569,9 +631,13 @@ public partial class ScriptManagementViewModel(
         if (entry.BuildResult is null)
             return "未加载";
         if (entry.BuildResult.Succeeded)
+        {
+            if (entry.ConfigurationState == ScriptConfigurationState.NeedsConfiguration)
+                return "待配置";
             return entry.BuildResult.Diagnostics.Any(item => item.Code == "SCRIPT_CACHE_HIT")
                 ? "已加载（缓存）"
                 : "已加载";
+        }
         return "加载失败";
     }
 
@@ -858,6 +924,7 @@ public partial class ScriptManagementViewModel(
                 if (File.Exists(metadataPath))
                     File.Delete(metadataPath);
             }
+            await lastArgumentsStore.ClearScriptAsync(script.Id);
             await ReloadAsync(forceReload: true);
             Status = $"脚本已删除：{script.Name}";
         }

@@ -42,7 +42,17 @@ public sealed record ScriptDirectoryEntry(
     string SourcePath,
     ScriptScope Scope,
     ScriptBuildResult? BuildResult = null,
-    ScriptFileMetadata? Metadata = null);
+    ScriptFileMetadata? Metadata = null,
+    ScriptDescriptor? DiscoveredDescriptor = null,
+    ScriptConfigurationState ConfigurationState = ScriptConfigurationState.Ready,
+    ImmutableArray<ScriptDiagnostic> ConfigurationDiagnostics = default);
+
+public enum ScriptConfigurationState
+{
+    Invalid = 0,
+    Ready = 1,
+    NeedsConfiguration = 2,
+}
 
 public sealed record ScriptDirectoryLoadResult(
     ImmutableArray<ScriptDirectoryEntry> Entries,
@@ -141,6 +151,7 @@ public sealed class ScriptDirectoryLoader(
                                     metadata.Parameters)),
                             cancellationToken);
                     }
+
                     catch (IOException)
                     {
                         result = Failure(
@@ -155,6 +166,12 @@ public sealed class ScriptDirectoryLoader(
                             "The script source could not be read.",
                             sourcePath);
                     }
+
+                    var discoveredDescriptor = result.Program?.Descriptor;
+                    var configurationState = result.Succeeded
+                        ? ScriptConfigurationState.Ready
+                        : ScriptConfigurationState.Invalid;
+                    var configurationDiagnostics = ImmutableArray<ScriptDiagnostic>.Empty;
 
                     if (result.Succeeded && result.Program is not null)
                     {
@@ -177,11 +194,26 @@ public sealed class ScriptDirectoryLoader(
                             metadata.DefaultArguments,
                             null,
                             sourcePath,
-                            requireRequired: entryKind == ScriptEntryKind.Automation);
+                            requireRequired: false);
                         if (!binding.Succeeded)
                         {
                             DisposeProgram(result.Program);
                             result = new ScriptBuildResult(false, null, result.Diagnostics.AddRange(binding.Diagnostics));
+                            configurationState = ScriptConfigurationState.Invalid;
+                        }
+                        else if (entryKind == ScriptEntryKind.Automation)
+                        {
+                            var completeBinding = ScriptParameterBinder.Bind(
+                                result.Program.Descriptor,
+                                metadata.DefaultArguments,
+                                null,
+                                sourcePath,
+                                requireRequired: true);
+                            if (!completeBinding.Succeeded)
+                            {
+                                configurationState = ScriptConfigurationState.NeedsConfiguration;
+                                configurationDiagnostics = completeBinding.Diagnostics;
+                            }
                         }
                     }
 
@@ -201,7 +233,8 @@ public sealed class ScriptDirectoryLoader(
                                 sourcePath)));
                     }
 
-                    if (result.Succeeded && result.Program is not null)
+                    if (result.Succeeded && result.Program is not null
+                        && configurationState == ScriptConfigurationState.Ready)
                     {
                         if (!MatchesMetadata(result.Program.Descriptor, metadata, result.EngineName))
                         {
@@ -241,13 +274,29 @@ public sealed class ScriptDirectoryLoader(
                         }
                     }
 
-                    entries.Add(new ScriptDirectoryEntry(sourcePath, scope, result, metadata));
+                    if (configurationState == ScriptConfigurationState.NeedsConfiguration
+                        && result.Program is not null)
+                    {
+                        DisposeProgram(result.Program);
+                        result = result with { Program = null };
+                    }
+
+                    entries.Add(new ScriptDirectoryEntry(
+                        sourcePath,
+                        scope,
+                        result,
+                        metadata,
+                        discoveredDescriptor,
+                        configurationState,
+                        configurationDiagnostics));
                     diagnostics.AddRange(result.Diagnostics);
+                    diagnostics.AddRange(configurationDiagnostics);
                 }
             }
 
             var currentIds = entries
-                .Where(entry => entry.BuildResult?.Succeeded == true)
+                .Where(entry => entry.ConfigurationState == ScriptConfigurationState.Ready
+                    && entry.BuildResult?.Program is not null)
                 .Select(entry => entry.BuildResult!.Program!.Descriptor.Id)
                 .ToHashSet(StringComparer.Ordinal);
             foreach (var staleId in _registeredIds.Except(currentIds, StringComparer.Ordinal).ToArray())

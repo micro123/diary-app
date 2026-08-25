@@ -138,7 +138,7 @@
             <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,Auto,*" VerticalAlignment="Center">
                 <TextBlock Classes="SettingLineCaption" />
                 <TextBlock Grid.Column="1" Width="400" FontSize="18"
-                           Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                           Text="{Binding Status}" TextWrapping="NoWrap" VerticalAlignment="Center" />
                 <Border Grid.Column="2"
                         IsVisible="{Binding HasHelp}" ToolTip.Tip="{Binding HelpTip}"
                         Classes="HelperIcon"/>

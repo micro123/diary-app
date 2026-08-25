@@ -1,6 +1,6 @@
 # Python 脚本 API Reference
 
-Python 支持 `ScriptApiVersion.V1` 和 `V2`。脚本在独立 Python Worker 中执行，通过 `context.diary` 访问宿主 API。V1 保留自由字符串参数；V2 的参数契约必须在相邻 metadata 或包 manifest 中声明，宿主不执行 Python 源码来发现参数。公共门面遵循 Python 习惯使用 snake_case（如 `work_items`、`get_date_range()`）；请求和结果 DTO 仍使用宿主协议的 camelCase 字段。旧 camelCase 门面保留为兼容别名，新脚本不再推荐。入口必须是同步函数，Worker 不支持 `async def` 或返回 awaitable。
+Python 支持 `ScriptApiVersion.V1` 和 `V2`。新建向导默认选择 V2，也可以创建 V1；V1 保留自由字符串参数，V2 的参数契约必须在相邻 metadata 或包 manifest 中声明。两个版本使用相同的 Host API 和权限边界，宿主不会执行 Python 源码来发现参数。公共门面遵循 Python 习惯使用 snake_case（如 `work_items`、`get_date_range()`）；请求和结果 DTO 仍使用宿主协议的 camelCase 字段。旧 camelCase 门面保留为兼容别名，新脚本不再推荐。版本更新、差异和迁移方法见 [脚本 API V1 与 V2](Versioning.md)。入口必须是同步函数，Worker 不支持 `async def` 或返回 awaitable。
 
 ## 1. 脚本入口和上下文
 
@@ -43,7 +43,7 @@ def application_main(context):
 | `log` | 调试日志 API。 |
 | `automation` | 自动化触发类型、独立事件数据和幂等键；V2 事件字段不会进入 `arguments`。 |
 
-V2 metadata 与 Lua 使用同一结构，包含 `apiVersion: "V2"` 和静态 `parameters` 数组。支持 String、MultilineString、Integer、Number、Boolean、Date、DateTime 和 Choice。宿主在进入 Worker 前合并默认值并校验，脚本从 `context.arguments` 读取规范化字符串；V2 未声明的参数会被拒绝。完整 metadata 见 [`ParameterizedSummary.py.json`](Examples/ParameterizedSummary.py.json)。当前管理页仍使用 `key=value` 文本输入。
+V2 metadata 与 Lua 使用同一结构，包含 `apiVersion: "V2"` 和静态 `parameters` 数组。支持 String、MultilineString、Integer、Number、Boolean、Date、DateTime 和 Choice；`constraints` 可声明范围、步长、文本长度、Suggestions 和数值单位。Choice 是严格候选，Suggestions 允许自由输入。宿主在进入 Worker 前合并并校验源码默认值、metadata `defaultArguments` 和本次参数，脚本从 `context.arguments` 读取规范化字符串；V2 未声明的参数会被拒绝。完整 metadata 见 [`ParameterizedSummary.py.json`](Examples/ParameterizedSummary.py.json)。管理页和 Editor 入口会按契约显示类型化表单。
 
 请求、参数和结果字段使用 camelCase，例如 `startDate`、`endDate`、`normalizedQuery`。脚本自动化只能追加工作记录，不提供删除或直接改写历史记录；真实写入使用 provider 事务，失败时回滚；`preview=True` 在数据库访问前返回投影且不修改数据库或幂等存储；`idempotencyKey` 对已提交结果持久有效。
 
@@ -415,7 +415,7 @@ Python 自动化脚本的上下文额外提供 `context.automation` 字典：
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `trigger` | str | `Scheduled`、`Startup`、`WorkItemCreated`、`WorkItemSaved`、`TagAdded` 或 `Unknown`。 |
-| `eventData` | dict | 事件数据（当前为执行参数字典）。 |
+| `eventData` | dict | 独立事件数据；V1 还会镜像到 `arguments`，V2 不会。 |
 | `idempotencyKey` | str 或 None | 自动化执行幂等键。 |
 
 自动化脚本放 `application` 目录，metadata 的 `entryKind` 写 `Automation`；`schedule` 字段（`"daily HH:mm"`）配置每日定时，`runOnStartup`（true/false）配置启动补跑，`triggers` 数组配置 `WorkItemCreated`、`WorkItemSaved`、`TagAdded`。事件型自动化可省略 `schedule`；事件数据通过 `context.automation["eventData"]` 提供，工作项事件包含 `workItemId`、`date`、`comment`、`time`、`priority`，标签事件额外包含 `tagId`、`tagName`、`tagLevel`、`tagSource`、`sequence`。

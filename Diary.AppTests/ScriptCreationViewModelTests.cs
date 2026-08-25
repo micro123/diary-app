@@ -11,11 +11,25 @@ namespace Diary.AppTests;
 public sealed class ScriptCreationViewModelTests
 {
     [TestMethod]
+    public void ApiVersionOptions_DefaultToV2AndKeepV1Available()
+    {
+        var viewModel = new ScriptCreationViewModel();
+
+        Assert.AreEqual(ScriptApiVersion.V2, viewModel.SelectedApiVersionOption.Version);
+        CollectionAssert.AreEqual(
+            new[] { ScriptApiVersion.V2, ScriptApiVersion.V1 },
+            viewModel.ApiVersionOptions.Select(option => option.Version).ToArray());
+        StringAssert.Contains(viewModel.ApiVersionOptions[0].Label, "推荐");
+        StringAssert.Contains(viewModel.ApiVersionOptions[1].Label, "兼容");
+        StringAssert.Contains(viewModel.ApiVersionOptions[1].Description, "未来");
+    }
+
+    [TestMethod]
     public async Task CreateCommand_GeneratesLoadableTemplateForEachLanguage()
     {
         foreach (var (language, extension, engine, marker) in new[]
                  {
-                     ("C#", ".cs", "csharp", "EditorScript"),
+                     ("C#", ".cs", "csharp", "EditorScriptV2"),
                      ("Lua", ".lua", "lua", "function editor_main(context)"),
                      ("Python", ".py", "python", "def editor_main(context):"),
                  })
@@ -46,12 +60,119 @@ public sealed class ScriptCreationViewModelTests
                 {
                     Assert.IsNull(metadata.Engine);
                     Assert.IsNull(metadata.Scope);
+                    var source = await File.ReadAllTextAsync(sourcePath);
+                    var build = await new CSharpEngine().BuildAsync(new ScriptBuildRequest(sourcePath, source));
+                    Assert.IsTrue(
+                        build.Succeeded,
+                        string.Join(Environment.NewLine, build.Diagnostics.Select(diagnostic => diagnostic.Message)));
+                    Assert.AreEqual(ScriptApiVersion.V2, build.Program!.Descriptor.ApiVersion);
                 }
                 else
                 {
                     Assert.AreEqual(engine, metadata.Engine);
                     Assert.AreEqual(ScriptScope.Editor, metadata.Scope);
+                    Assert.AreEqual(ScriptApiVersion.V2, metadata.ApiVersion);
                 }
+            }
+            finally
+            {
+                if (Directory.Exists(root))
+                    Directory.Delete(root, true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public async Task CreateCommand_GeneratesV1TemplateForEachLanguage()
+    {
+        foreach (var (language, engine, marker) in new[]
+                 {
+                     ("C#", "csharp", ": ApplicationScript"),
+                     ("Lua", "lua", "function application_main(context)"),
+                     ("Python", "python", "def application_main(context):"),
+                 })
+        {
+            var root = CreateRoot();
+            try
+            {
+                var viewModel = new ScriptCreationViewModel(root)
+                {
+                    Name = "V1 示例脚本",
+                    Id = $"v1-sample-{engine}",
+                    SelectedLanguage = language,
+                };
+                viewModel.SelectedApiVersionOption = viewModel.ApiVersionOptions.Single(
+                    option => option.Version == ScriptApiVersion.V1);
+                object? createdPath = null;
+                viewModel.RequestClose += (_, value) => createdPath = value;
+
+                await Assert.IsInstanceOfType<IAsyncRelayCommand>(viewModel.CreateCommand).ExecuteAsync(null);
+
+                var sourcePath = Assert.IsInstanceOfType<string>(createdPath);
+                var source = await File.ReadAllTextAsync(sourcePath);
+                StringAssert.Contains(source, marker);
+                var metadata = JsonSerializer.Deserialize<ScriptFileMetadata>(
+                    await File.ReadAllTextAsync(sourcePath + ".json"));
+                Assert.IsNotNull(metadata);
+                if (language == "C#")
+                {
+                    Assert.IsFalse(source.Contains("ApplicationScriptV2", StringComparison.Ordinal));
+                    var build = await new CSharpEngine().BuildAsync(new ScriptBuildRequest(sourcePath, source));
+                    Assert.IsTrue(
+                        build.Succeeded,
+                        string.Join(Environment.NewLine, build.Diagnostics.Select(diagnostic => diagnostic.Message)));
+                    Assert.AreEqual(ScriptApiVersion.V1, build.Program!.Descriptor.ApiVersion);
+                }
+                else
+                {
+                    Assert.AreEqual(ScriptApiVersion.V1, metadata.ApiVersion);
+                }
+            }
+            finally
+            {
+                if (Directory.Exists(root))
+                    Directory.Delete(root, true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public async Task CreateCommand_GeneratesV1CSharpBaseForEveryEntryKind()
+    {
+        foreach (var (scope, template, expectedBase) in new[]
+                 {
+                     ("应用脚本", "空白脚本", "ApplicationScript"),
+                     ("编辑器脚本", "空白脚本", "EditorScript"),
+                     ("应用脚本", "查询脚本", "QueryScript"),
+                     ("应用脚本", "自动化脚本", "AutomationScript"),
+                 })
+        {
+            var root = CreateRoot();
+            try
+            {
+                var viewModel = new ScriptCreationViewModel(root)
+                {
+                    Name = $"V1 {expectedBase}",
+                    Id = $"v1-{expectedBase.ToLowerInvariant()}",
+                    SelectedScope = scope,
+                    SelectedTemplate = template,
+                };
+                viewModel.SelectedApiVersionOption = viewModel.ApiVersionOptions.Single(
+                    option => option.Version == ScriptApiVersion.V1);
+                object? createdPath = null;
+                viewModel.RequestClose += (_, value) => createdPath = value;
+
+                await Assert.IsInstanceOfType<IAsyncRelayCommand>(viewModel.CreateCommand).ExecuteAsync(null);
+
+                var sourcePath = Assert.IsInstanceOfType<string>(createdPath);
+                var source = await File.ReadAllTextAsync(sourcePath);
+                StringAssert.Contains(source, $": {expectedBase}");
+                Assert.IsFalse(source.Contains($"{expectedBase}V2", StringComparison.Ordinal));
+                var build = await new CSharpEngine().BuildAsync(new ScriptBuildRequest(sourcePath, source));
+                Assert.IsTrue(
+                    build.Succeeded,
+                    string.Join(Environment.NewLine, build.Diagnostics.Select(diagnostic => diagnostic.Message)));
+                Assert.AreEqual(ScriptApiVersion.V1, build.Program!.Descriptor.ApiVersion);
             }
             finally
             {
@@ -105,7 +226,7 @@ public sealed class ScriptCreationViewModelTests
     {
         foreach (var (language, engine, marker) in new[]
                  {
-                     ("C#", "csharp", ": QueryScript"),
+                     ("C#", "csharp", ": QueryScriptV2"),
                      ("Lua", "lua", "function query_main(context)"),
                      ("Python", "python", "def query_main(context):"),
                  })
@@ -159,7 +280,7 @@ public sealed class ScriptCreationViewModelTests
     {
         foreach (var (language, engine, marker) in new[]
                  {
-                     ("C#", "csharp", ": AutomationScript"),
+                     ("C#", "csharp", ": AutomationScriptV2"),
                      ("Lua", "lua", "function automation_main(context)"),
                      ("Python", "python", "def automation_main(context):"),
                  })

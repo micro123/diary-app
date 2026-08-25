@@ -32,12 +32,25 @@ public sealed class ParameterizedSummaryScript : QueryScriptV2
             "minimumHours",
             "最低工时",
             ScriptParameterType.Number,
-            DefaultValue: "0"),
+            DefaultValue: "0",
+            Constraints: new(Minimum: "0", Maximum: "24", Step: "0.5", Unit: "小时")),
         new(
             "includeZero",
             "包含零工时事项",
             ScriptParameterType.Boolean,
             DefaultValue: "false"),
+        new(
+            "titlePrefix",
+            "标题前缀",
+            ScriptParameterType.String,
+            DefaultValue: "工时汇总",
+            Constraints: new(
+                MaxLength: 20,
+                Suggestions:
+                [
+                    new("工时汇总", "工时汇总"),
+                    new("团队周报", "团队周报"),
+                ])),
     ];
 
     public override async ValueTask<ScriptExecutionResult> ExecuteAsync(
@@ -48,6 +61,7 @@ public sealed class ParameterizedSummaryScript : QueryScriptV2
         var range = context.Arguments["range"];
         var minimumHours = double.Parse(context.Arguments["minimumHours"], CultureInfo.InvariantCulture);
         var includeZero = context.Arguments["includeZero"] == "true";
+        var titlePrefix = context.Arguments["titlePrefix"];
         var count = 0;
         var totalHours = 0d;
 
@@ -63,7 +77,7 @@ public sealed class ParameterizedSummaryScript : QueryScriptV2
         }
 
         await api.Log.InfoAsync(
-            $"范围：{range}；事项：{count}；工时：{totalHours.ToString("0.##", CultureInfo.InvariantCulture)}",
+            $"{titlePrefix}：范围 {range}；事项 {count}；工时 {totalHours.ToString("0.##", CultureInfo.InvariantCulture)}",
             cancellationToken);
         return ScriptExecutionResult.Succeeded();
     }

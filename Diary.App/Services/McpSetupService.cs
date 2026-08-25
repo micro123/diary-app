@@ -21,16 +21,16 @@ public sealed class McpSetupService(AiContextSnapshotService snapshotService)
         get
         {
             if (!SnapshotExists)
-                return "尚未生成 MCP 快照；请先确认披露范围。";
+                return "未生成 · 请先确认披露范围";
             try
             {
                 var updatedAt = File.GetLastWriteTime(SnapshotPath)
-                    .ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
-                return $"MCP 快照已生成；最后更新：{updatedAt}";
+                    .ToString("yyyy-MM-dd\u00a0HH:mm:ss", CultureInfo.InvariantCulture);
+                return $"已生成 · {updatedAt}";
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
-                return $"MCP 快照已生成；无法读取更新时间：{exception.Message}";
+                return $"已生成 · 更新时间不可用（{exception.Message}）";
             }
         }
     }

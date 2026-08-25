@@ -1,6 +1,6 @@
 # 脚本系统设计
 
-脚本加载期强类型参数契约见 [`ScriptApiV2ParameterDesign.md`](ScriptApiV2ParameterDesign.md)。V2 核心运行时已实现：三语言可在加载期暴露参数定义，宿主在进入 Worker 前统一绑定和校验，同时保留 V1 行为；类型化参数 UI 尚待接入。
+脚本加载期强类型参数契约见 [`ScriptApiV2ParameterDesign.md`](ScriptApiV2ParameterDesign.md)。V2 核心协议、静态约束、类型化运行与默认参数表单、参数记忆、Editor 目标隔离、Automation“待配置”和参数历史清理均已实现，同时保留 V1 行为；最终交互见 [`ScriptApiV2ParameterUiDesign.md`](ScriptApiV2ParameterUiDesign.md)。
 
 ## 1. 文档范围
 
@@ -153,7 +153,7 @@ IScriptValidatorV1
 
 ### 5.4 查询入口和模板边界
 
-Query 入口已落地：ScriptBase 提供 V1 的 `IQueryScriptV1` / `QueryScript` 和 V2 的 `IQueryScriptV2` / `QueryScriptV2`（Scope=Application、EntryKind=Query、上下文 `IScriptApplicationContext`），`ScriptProgramAdapter` 与 C# 引擎类型识别均已支持；创建向导当前仍默认生成 V1 查询脚本，Lua/Python 使用 `query_main` 入口，管理页可直接运行。模板和已启用 Tracker 实例提供只读发现 API；模板的选择、读取、应用和持久化仍由编辑器或宿主完成，脚本不能创建、修改、删除或直接应用模板。
+Query 入口已落地：ScriptBase 提供 V1 的 `IQueryScriptV1` / `QueryScript` 和 V2 的 `IQueryScriptV2` / `QueryScriptV2`（Scope=Application、EntryKind=Query、上下文 `IScriptApplicationContext`），`ScriptProgramAdapter` 与 C# 引擎类型识别均已支持；创建向导默认选择 V2，但允许选择 V1，并为 C# 生成对应基类、为 Lua/Python 写入对应 metadata，后两者均使用 `query_main` 入口，管理页可直接运行。模板和已启用 Tracker 实例提供只读发现 API；模板的选择、读取、应用和持久化仍由编辑器或宿主完成，脚本不能创建、修改、删除或直接应用模板。
 
 脚本生命周期为：
 
@@ -358,7 +358,7 @@ C# 脚本尤其需要限制引用和宿主对象。不能将 `App`、数据库�
 
 ## 11. 脚本 API
 
-V1 使用按领域拆分的宿主 API：
+V1 和 V2 共用按领域拆分的宿主 API；版本号不增加权限，也不改变 HostCall 白名单。两个版本的差异集中在参数契约、参数绑定和 Automation 事件数据兼容行为，详见[脚本 API V1 与 V2](ScriptApi/Versioning.md)：
 
 ```text
 IScriptExecutionContext
@@ -384,7 +384,7 @@ IScriptExecutionContext
 ITrackerScriptApi? GetTracker(string pluginId, string instanceId);
 ```
 
-（注：上述建议已以不同形状落地。早期遗留的 `IScriptApi.GetTracker(string pluginId)`（`Diary.ScriptBase/IScriptApi.cs`）连同整个遗留接口族已移除，当前 V1 脚本 API 使用多实例的 `ITrackerApi.GetInstance(pluginId, instanceId)`（`Diary.ScriptHost/ScriptApis.cs`），配合 `trackerInstances.get`/`trackerInstances.list` HostCall 定位实例；上面的扩展签名仅作为历史设计记录保留。）
+（注：上述建议已以不同形状落地。早期遗留的 `IScriptApi.GetTracker(string pluginId)`（`Diary.ScriptBase/IScriptApi.cs`）连同整个遗留接口族已移除，当前 V1/V2 共用多实例的 `ITrackerApi.GetInstance(pluginId, instanceId)`（`Diary.ScriptHost/ScriptApis.cs`），配合 `trackerInstances.get`/`trackerInstances.list` HostCall 定位实例；上面的扩展签名仅作为历史设计记录保留。）
 
 Tracker 脚本 API 至少应包含：
 
@@ -631,7 +631,7 @@ NuGet 包按 RID 提供）：
 - 增加权限能力模型。
 - 增加用户授权和权限拒绝诊断。
 - 限制 C# 引用和宿主对象。
-- 审查所有 V1 脚本 API（`Diary.ScriptHost` 各 `IScriptApiV1` 实现）的写入和 UI 操作。
+- 审查所有脚本 Host API 的写入和 UI 操作，确保 V1/V2 使用相同的权限与副作用边界。
 
 ### 第四阶段：多语言
 

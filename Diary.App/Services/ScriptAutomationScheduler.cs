@@ -44,6 +44,7 @@ public sealed class ScriptAutomationScheduler(
             {
                 if (entry.Metadata is not { } metadata
                     || entry.BuildResult?.Succeeded != true
+                    || entry.ConfigurationState != ScriptConfigurationState.Ready
                     || metadata.EntryKind != ScriptEntryKind.Automation
                     || entry.BuildResult.Program is null)
                     continue;

@@ -25,6 +25,7 @@ public partial class SettingsViewModel : ViewModelBase, IDialogContext
     private readonly DiagnosticLogExportService _logExport;
     private readonly AppFontService _fontService;
     private readonly McpSetupService _mcpSetupService;
+    private readonly IScriptLastArgumentsStore _scriptLastArgumentsStore;
     private McpStatusSetting _mcpStatusSetting = null!;
     private McpActionSetting _copyAiInstructionsSetting = null!;
     private McpActionSetting _copyGenericConfigurationSetting = null!;
@@ -37,12 +38,14 @@ public partial class SettingsViewModel : ViewModelBase, IDialogContext
         DiagnosticLogExportService logExport,
         AppFontService fontService,
         McpSetupService mcpSetupService,
+        IScriptLastArgumentsStore scriptLastArgumentsStore,
         IEnumerable<ITrackerConfigurationProvider> configurationProviders)
     {
         _logger = logger;
         _logExport = logExport;
         _fontService = fontService;
         _mcpSetupService = mcpSetupService;
+        _scriptLastArgumentsStore = scriptLastArgumentsStore;
         _logger.LogDebug("Tracker 配置提供者：{Count} 个", configurationProviders.Count());
         BuildTree();
         RefreshMcpStatus();
@@ -87,6 +90,15 @@ public partial class SettingsViewModel : ViewModelBase, IDialogContext
             "打开使用文档",
             OpenMcpGuideCommand));
         SettingsTree.Children.Add(mcpGroup);
+        var scriptGroup = new SettingGroup(
+            "脚本",
+            "管理脚本执行时保存在本机的辅助状态；不会修改脚本文件或运行配置。");
+        scriptGroup.Children.Add(new McpActionSetting(
+            "执行参数历史",
+            "清除所有脚本在管理页和编辑器入口中记住的上次运行参数。",
+            "清除参数历史",
+            ClearScriptArgumentHistoryCommand));
+        SettingsTree.Children.Add(scriptGroup);
         SettingsTree.Load();
     }
 
@@ -169,6 +181,27 @@ public partial class SettingsViewModel : ViewModelBase, IDialogContext
         NotificationManager?.Show(
             path is null ? "没有可导出的日志" : $"日志已导出：{path}",
             path is null ? NotificationType.Information : NotificationType.Success);
+    }
+
+    [RelayCommand]
+    private async Task ClearScriptArgumentHistory()
+    {
+        if (!await EventDispatcher.Confirm(
+                "清除脚本执行参数历史",
+                "将清除所有脚本和入口记住的上次运行参数。脚本默认参数和 metadata 配置不会改变，是否继续？"))
+        {
+            return;
+        }
+        try
+        {
+            await _scriptLastArgumentsStore.ClearAllAsync();
+            NotificationManager?.Show("脚本执行参数历史已清除", NotificationType.Success);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "清除脚本执行参数历史失败");
+            NotificationManager?.Show("清除脚本执行参数历史失败，请查看日志", NotificationType.Error);
+        }
     }
 
     [RelayCommand]
