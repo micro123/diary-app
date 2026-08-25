@@ -60,7 +60,10 @@ public sealed class AiContextSnapshotService(
                 .ThenBy(field => field.FieldKey, StringComparer.Ordinal)
                 .Select(field => new AiContextExtraFieldDefinition(
                     field.FieldId, field.FieldKey, field.TagId, field.Label, field.Type.ToString(),
-                    field.Description, field.SortOrder, field.Options.ToArray()))
+                    field.Description, field.SortOrder, field.Options.ToArray())
+                {
+                    DefaultValue = field.DefaultValue,
+                })
                 .ToArray()
             : [];
         var templates = options.IncludeTemplates

@@ -1,4 +1,6 @@
+using System.Text.Json.Nodes;
 using Diary.App.Services;
+using Diary.Core;
 using Diary.Core.Data.Base;
 using Diary.Database;
 using Diary.Db.SQLite;
@@ -33,6 +35,7 @@ public sealed class TagSharePackageServiceTests
                 Type = TagExtraFieldType.Choice,
                 SortOrder = 10,
                 Options = ["开发", "测试"],
+                DefaultValue = "开发",
             }));
 
             var service = new TagSharePackageService();
@@ -59,6 +62,7 @@ public sealed class TagSharePackageServiceTests
             Assert.AreEqual("project.stage", field.FieldKey);
             Assert.AreEqual(TagExtraFieldType.Choice, field.Type);
             CollectionAssert.AreEqual(new[] { "开发", "测试" }, field.Options.ToArray());
+            Assert.AreEqual("开发", field.DefaultValue);
         }
         finally
         {
@@ -200,11 +204,102 @@ public sealed class TagSharePackageServiceTests
         }
     }
 
+    [TestMethod]
+    public async Task Import_OldVersionOnePackageWithoutDefaultValueUsesEmptyDefault()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"diary-tags-{Guid.NewGuid():N}.diarytags");
+        try
+        {
+            using var source = CreateDatabase();
+            var tag = source.CreateWorkTag("旧标签包", true, 0);
+            Assert.IsTrue(source.CreateTagExtraFieldDefinition(new TagExtraFieldDefinition
+            {
+                FieldKey = "legacy.field",
+                TagId = tag.Id,
+                Label = "旧字段",
+                Type = TagExtraFieldType.Text,
+                DefaultValue = "新版本默认值",
+            }));
+            var service = new TagSharePackageService();
+            await service.ExportAsync(path, source, Array.Empty<ITagRuleEditorContribution>());
+            var document = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+            document["tags"]!.AsArray()[0]!["extraFields"]!.AsArray()[0]!.AsObject()
+                .Remove("defaultValue");
+            await File.WriteAllTextAsync(path, document.ToJsonString());
+
+            using var target = CreateDatabase();
+            var preview = await service.PreviewImportAsync(path, target);
+            service.Import(
+                preview,
+                target,
+                preview.Items.Select(item => item.Key).ToHashSet(StringComparer.Ordinal),
+                new Dictionary<string, ITagRuleEditorContribution>());
+
+            var importedTag = target.AllWorkTags().Single();
+            Assert.AreEqual(string.Empty,
+                target.GetTagExtraFieldDefinitions(importedTag.Id, includeDisabled: true)
+                    .Single().DefaultValue);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [TestMethod]
+    public async Task PreviewImport_RejectsChoiceDefaultOutsideOptions()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"diary-tags-{Guid.NewGuid():N}.diarytags");
+        try
+        {
+            await File.WriteAllTextAsync(path,
+                """
+                {
+                  "format": "diary-tags",
+                  "version": 1,
+                  "tags": [
+                    {
+                      "key": "invalid-choice",
+                      "name": "非法默认值",
+                      "color": 0,
+                      "level": "primary",
+                      "metadata": {},
+                      "extraFields": [
+                        {
+                          "fieldKey": "invalid.choice",
+                          "label": "非法选项",
+                          "type": "choice",
+                          "description": "",
+                          "sortOrder": 0,
+                          "options": ["开发", "测试"],
+                          "defaultValue": "不存在",
+                          "enabled": true
+                        }
+                      ]
+                    }
+                  ],
+                  "trackers": []
+                }
+                """);
+            using var database = CreateDatabase();
+            var service = new TagSharePackageService();
+
+            await Assert.ThrowsExactlyAsync<InvalidDataException>(
+                () => service.PreviewImportAsync(path, database));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     private static SQLiteDb CreateDatabase()
     {
         var database = new SQLiteDb(new TestSqliteFactory());
         Assert.IsTrue(database.Connect());
         Assert.IsTrue(database.Initialized());
+        var migration = database.MigrateTo(DataVersion.VersionCode, new DbMigrationOptions(CreateBackup: false));
+        Assert.IsTrue(migration.Success, migration.Error);
         return database;
     }
 
@@ -214,7 +309,7 @@ public sealed class TagSharePackageServiceTests
         public string Name => "SQLite";
         public bool Usable => true;
         public DbInterfaceBase Create() => new SQLiteDb(this);
-        public Migration? GetMigration(uint version) => null;
+        public Migration? GetMigration(uint version) => new SQLiteFactory().GetMigration(version);
         public object GetConfig() => _config;
     }
 

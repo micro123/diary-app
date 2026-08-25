@@ -20,6 +20,7 @@
 - `Description`：字段说明；
 - `SortOrder`：对话框显示顺序；
 - `Options`：`Choice` 类型的选项；
+- `DefaultValue`：新建工作项或给已有工作项新增该标签时使用的预填值；
 - `Enabled`：是否继续在编辑器中显示。
 
 第一版字段类型为：`Text`、`MultilineText`、`Integer`、`Decimal`、`Boolean`、`Date`、`Time`、`DateTime` 和 `Choice`。
@@ -33,7 +34,7 @@
 
 ## 3. 数据存储
 
-核心数据库初始化时幂等创建两张表，不新增版本化 migration：
+核心数据库的 `1.0.0` 初始化结构仍幂等创建两张基础表；`1.0.1` 通过正式 migration 为字段定义增加默认值列，不直接改写旧版初始化 SQL：
 
 ```text
 tag_extra_field_definitions
@@ -45,6 +46,7 @@ tag_extra_field_definitions
 - description
 - sort_order
 - options_json
+- default_value
 - enabled
 
 work_item_extra_field_values
@@ -64,8 +66,10 @@ Tracker 自动化操作保留现有 `ITagRuleEditorContribution` 扩展入口，
 
 “附加字段”页签只展示字段摘要列表，不在主页面展开完整表单。新增或编辑字段时打开二级“附加字段编辑器”对话框；二级对话框确认后只更新主编辑器的内存草稿，最终由主标签编辑器的“保存更改”统一提交。取消二级对话框不会修改字段列表。
 
-字段管理支持新增、编辑显示名称/描述/排序、启用或禁用，以及维护下拉选项。
+字段管理支持新增、编辑显示名称/描述/排序、启用或禁用、维护下拉选项，以及配置可清空的类型化默认值。
 编辑已有字段时，`FieldKey` 和 `Type` 控件不可修改；数据库 provider 也会拒绝变更这两个属性，避免绕过 UI 造成脚本和历史值不兼容。
+
+默认值使用与工作项字段相同的类型化编辑器和校验规则。`Choice` 默认值必须属于当前候选列表；字段类型变化时清空草稿默认值。空默认值表示不预填。
 
 标签导入导出会携带字段定义但不携带工作项字段值。导入按全局大小写不敏感的 `FieldKey` 匹配；只有所属标签和类型一致时才能更新显示名称、说明、排序、选项和启用状态，所属标签或类型不一致时在导入预览中标记为冲突。完整流程见 [`TagImportExportDesign.md`](TagImportExportDesign.md)。
 
@@ -84,6 +88,8 @@ Tracker 自动化操作保留现有 `ITagRuleEditorContribution` 扩展入口，
 ```
 
 字段按当前工作项的标签分组，空值合法。已保存工作项点击对话框“保存”后独立写入字段值；新工作项暂存字段值，在工作项首次保存时随本地事务写入。
+
+新建工作项添加标签时，非空默认值进入事项草稿；已有工作项新增标签时，只为本次新增标签的字段写入默认值。历史事项和已有标签不会回填，用户显式清空后也不会再次自动套用默认值。
 
 工作项附加字段按定义类型提供对应编辑器，同时保持所有类型均可清空：
 
@@ -105,7 +111,7 @@ Tooltip 只提供截断后的摘要，完整内容通过独立对话框查看。
 
 ## 6. 脚本只读访问
 
-`ScriptWorkItem` 暴露 `ExtraFields`，每项包含 `FieldId`、`FieldKey`、标签信息、显示名称、字段类型和值，并提供：
+`ScriptWorkItem` 暴露 `ExtraFields`，每项包含 `FieldId`、`FieldKey`、标签信息、显示名称、字段类型和事项实际值，并提供：
 
 ```csharp
 workItem.GetExtraFieldValue("meeting.participants");
@@ -114,20 +120,26 @@ workItem.GetExtraField("meeting.participants");
 
 查询脚本结果和工作项编辑器中的脚本目标都携带附加字段。脚本不能新增、修改或删除字段定义和值，字段编辑也不会触发脚本执行。
 
+MCP 的 `diary_list_extra_fields` 属于字段定义查询，会披露配置的 `default_value`；工作项查询仍只披露事项实际保存值，不使用默认值虚拟回填历史事项。
+
 ## 7. 事务和兼容性
 
 工作项首次创建时，标签和草稿附加字段值在同一个本地事务中保存。已保存工作项从附加字段对话框保存时，provider 为当前工作项的启用字段值执行独立事务写入；空值删除当前启用字段的值，禁用字段历史值保留。
 
-旧数据库打开时由 SQLite/PostgreSQL 的 `Initialized()` 幂等创建基础表；随后由核心数据库兼容性检查确认字段、索引和外键均符合 schema contract。新增附加字段结构不能只依赖 `IF NOT EXISTS`，必须由结构指纹和正式迁移共同保证，不改变已有核心数据和历史值。
+旧数据库打开时由 SQLite/PostgreSQL 的 `Initialized()` 幂等创建 `1.0.0` 基础表；随后执行 `0x00010000 -> 0x00010001` 正式迁移，新增 `default_value TEXT NOT NULL DEFAULT ''`。核心数据库兼容性检查继续确认字段、索引和外键符合 schema contract；迁移不回填已有工作项字段值。
 
 ## 8. 测试要求
 
 - SQLite/PostgreSQL 字段定义 CRUD 契约一致；
+- `1.0.0 -> 1.0.1` 迁移保留旧字段定义并将其默认值初始化为空；
+- 默认值按类型往返，非法 `Choice` 默认值被拒绝；
 - `FieldKey` 全局唯一且不区分大小写；
 - 已有字段不能修改类型或 Key；
 - 禁用字段保留定义和历史值；
 - 工作项字段值保存、清空和按当前标签读取正确；
+- 新建事项和新增标签应用默认值，历史标签不回填，显式清空不被覆盖；
 - 脚本查询可以通过 `FieldKey` 读取字段；
+- MCP 字段定义查询披露默认值但不伪造事项实际值；
 - 字段编辑不触发字段脚本事件；
 - 旧数据库初始化可以重复执行；
 - 迁移工具和只读工作项不因附加字段写入而绕过只读边界；迁移导入工作项不显示附加字段入口。

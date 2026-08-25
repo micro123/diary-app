@@ -191,6 +191,12 @@ provider 的 `Initialized()` 仍可用于空库和向后兼容的幂等基础设
 这样可以明确区分“数据库来自更新版本”“结构被手动修改”“迁移链缺失”和“数据损坏”，避免所有问题都被归类为
 “版本不一致”。
 
+### 9.1 当前核心迁移
+
+当前核心数据版本为 `1.0.1`（`0x00010001`）。SQLite 与 PostgreSQL 均登记
+`0x00010000 -> 0x00010001` 迁移，为 `tag_extra_field_definitions` 增加
+`default_value TEXT NOT NULL DEFAULT ''`，并写入版本码 `65537`。旧版初始化 SQL保持 `1.0.0` 原貌，确保迁移测试真实覆盖旧结构；迁移不修改工作项历史值。
+
 ## 10. 测试要求
 
 数据库契约测试至少覆盖：
@@ -202,6 +208,7 @@ provider 的 `Initialized()` 仍可用于空库和向后兼容的幂等基础设
 - provider、元数据版本或 fingerprint 不匹配时拒绝迁移和写入；
 - `Running`/`Failed` 元数据在重启检查时识别为 `MigrationIncomplete`；
 - 连续迁移逐步提交，并逐条校验成功/失败迁移历史、checksum 和最终 `Stable` 元数据；
+- SQLite/PostgreSQL 的正式 `1.0.0 -> 1.0.1` 迁移新增默认值列、保留旧字段定义并写入空默认值；
 - 第二步迁移失败时保留第一步提交，失败步骤回滚并写入 `Failed` 元数据；
 - 迁移返回失败、抛异常或不推进版本时回滚并留下失败历史；
 - SQLite 和 PostgreSQL 的逻辑 schema fingerprint 在各自 provider 内稳定；

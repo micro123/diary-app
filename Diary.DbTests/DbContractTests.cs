@@ -14,6 +14,7 @@ namespace Diary.DbTests;
 public abstract class DbContractTests
 {
     protected abstract DbInterfaceBase CreateDb(Func<uint, Migration?>? getMigration = null);
+    protected abstract Migration? GetProductionMigration(uint version);
 
     protected static IRedMineDb GetRedMine(DbInterfaceBase db, string instanceId = "redmine.default")
         => db.GetExtension<IRedMineDb>(instanceId, new RedMinePlugin().GetMigrations())!;
@@ -196,6 +197,55 @@ public abstract class DbContractTests
         var disabled = db.GetTagExtraFieldDefinitions(tag.Id, includeDisabled: true).Single();
         Assert.IsFalse(disabled.Enabled);
         Assert.AreEqual("project.number", disabled.FieldKey);
+    }
+
+    [TestMethod]
+    public void TagExtraFieldDefinition_DefaultValueRoundTripsAndValidatesChoice()
+    {
+        using var db = CreateDb();
+        var tag = db.CreateWorkTag("默认值", true, 0);
+        var definition = new TagExtraFieldDefinition
+        {
+            FieldKey = "default.stage",
+            TagId = tag.Id,
+            Label = "默认阶段",
+            Type = TagExtraFieldType.Choice,
+            Options = ["开发", "测试"],
+            DefaultValue = "开发",
+        };
+
+        Assert.IsTrue(db.CreateTagExtraFieldDefinition(definition));
+        var created = db.GetTagExtraFieldDefinitions(tag.Id, includeDisabled: true).Single();
+        Assert.AreEqual("开发", created.DefaultValue);
+
+        definition.DefaultValue = "测试";
+        Assert.IsTrue(db.UpdateTagExtraFieldDefinition(definition));
+        Assert.AreEqual("测试",
+            db.GetTagExtraFieldDefinitions(tag.Id, includeDisabled: true).Single().DefaultValue);
+
+        definition.DefaultValue = "不存在";
+        Assert.IsFalse(db.UpdateTagExtraFieldDefinition(definition));
+        Assert.AreEqual("测试",
+            db.GetTagExtraFieldDefinitions(tag.Id, includeDisabled: true).Single().DefaultValue);
+    }
+
+    [TestMethod]
+    public void ProductionMigration_AddsDefaultValueWithoutChangingExistingDefinitions()
+    {
+        using var db = CreateDb(GetProductionMigration);
+        var tag = db.CreateWorkTag("旧版本字段", true, 0);
+        Assert.IsTrue(db.ExecRaw(
+            "INSERT INTO tag_extra_field_definitions " +
+            "(field_id, field_key, tag_id, label, field_type, description, sort_order, options_json, enabled) " +
+            $"VALUES ('legacy-default-field', 'legacy.default', {tag.Id}, '旧字段', 0, '', 0, '[]', TRUE);"));
+
+        var result = db.MigrateTo(DataVersion.VersionCode, new DbMigrationOptions(CreateBackup: false));
+
+        Assert.IsTrue(result.Success, result.Error);
+        Assert.AreEqual(DataVersion.VersionCode, db.GetDataVersion());
+        var definition = db.GetTagExtraFieldDefinitions(tag.Id, includeDisabled: true).Single();
+        Assert.AreEqual(string.Empty, definition.DefaultValue);
+        Assert.IsTrue(result.AppliedMigrations.Contains("00010000-00010001"));
     }
 
     [TestMethod]
@@ -1009,7 +1059,8 @@ public abstract class DbContractTests
     public void Compatibility_NewerDataVersion_IsRejectedBeforeWrite()
     {
         using var db = CreateDb();
-        Assert.IsTrue(db.ExecRaw("INSERT INTO data_versions VALUES(999999);"));
+        Assert.IsTrue(db.ExecRaw("DELETE FROM diary_schema_metadata;"));
+        Assert.IsTrue(db.ExecRaw("DELETE FROM data_versions; INSERT INTO data_versions VALUES(999999);"));
 
         var report = db.CheckCompatibility(DataVersion.VersionCode);
         Assert.AreEqual(DbCompatibilityState.NewerThanApplication, report.State);
@@ -1077,11 +1128,10 @@ public abstract class DbContractTests
     [TestMethod]
     public void Compatibility_MetadataVersionMismatch_BlocksMigration()
     {
-        using var db = CreateDb(_ =>
-            new TestMigration(0x0FFFF, 0x10000, MigrationResult.Success));
+        using var db = CreateDb();
         var stable = db.CheckCompatibility(DataVersion.VersionCode);
         Assert.IsTrue(db.PersistCompatibilityMetadata(stable));
-        Assert.IsTrue(db.ExecRaw("UPDATE data_versions SET version_code=65535;"));
+        Assert.IsTrue(db.ExecRaw("DELETE FROM data_versions; INSERT INTO data_versions VALUES(65535);"));
 
         var report = db.CheckCompatibility(DataVersion.VersionCode);
 
@@ -1180,14 +1230,19 @@ public abstract class DbContractTests
     [TestMethod]
     public void Compatibility_RegisteredFingerprintDrift_BlocksMigration()
     {
-        using var db = CreateDb(_ =>
-            new TestMigration(0x0FFFF, 0x10000, MigrationResult.Success));
+        using var db = CreateDb(version => version switch
+        {
+            0x0FFFF => new TestMigration(0x0FFFF, 0x10000, MigrationResult.Success),
+            _ => GetProductionMigration(version),
+        });
+        var migration = db.MigrateTo(DataVersion.VersionCode, new DbMigrationOptions(CreateBackup: false));
+        Assert.IsTrue(migration.Success, migration.Error);
 
         var stable = db.CheckCompatibility(DataVersion.VersionCode);
         Assert.AreEqual(DbCompatibilityState.Compatible, stable.State, stable.ToUserMessage());
         Assert.IsTrue(db.PersistCompatibilityMetadata(stable));
         Assert.IsTrue(db.ExecRaw("DROP INDEX IF EXISTS idx_work_items_date;"));
-        Assert.IsTrue(db.ExecRaw("UPDATE data_versions SET version_code=65535;"));
+        Assert.IsTrue(db.ExecRaw("DELETE FROM data_versions; INSERT INTO data_versions VALUES(65535);"));
 
         var report = db.CheckCompatibility(DataVersion.VersionCode);
         Assert.AreEqual(DbCompatibilityState.SchemaDrift, report.State, report.ToUserMessage());
@@ -1195,10 +1250,10 @@ public abstract class DbContractTests
     }
 
     [TestMethod]
-    public void GetDataVersion_DefaultIsInitialCode()
+    public void GetDataVersion_DefaultDatabaseIsMigratedToCurrentVersion()
     {
         using var db = CreateDb();
-        Assert.AreEqual(0x10000u, db.GetDataVersion());
+        Assert.AreEqual(DataVersion.VersionCode, db.GetDataVersion());
     }
 
     [TestMethod]
@@ -1382,7 +1437,7 @@ public abstract class DbContractTests
         using var db = CreateDb();
 
         Assert.IsFalse(db.UpdateTables(0x0FFFF));
-        Assert.AreEqual(0x10000u, db.GetDataVersion());
+        Assert.AreEqual(DataVersion.VersionCode, db.GetDataVersion());
     }
 
     [TestMethod]
@@ -1455,6 +1510,13 @@ public abstract class DbContractTests
             onUp?.Invoke();
             if (result == MigrationResult.NoVersionWrite)
                 return true;
+
+            if (VersionFrom == 0x10000 && VersionTo == 0x10001)
+            {
+                db.ExecRaw(
+                    "ALTER TABLE tag_extra_field_definitions " +
+                    "ADD COLUMN default_value TEXT NOT NULL DEFAULT '';");
+            }
 
             db.ExecRaw($"INSERT INTO data_versions VALUES({VersionTo});");
             return result switch

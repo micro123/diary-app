@@ -71,7 +71,7 @@ public sealed class CoreOnlyStartupAcceptanceTests
         public string Name => "SQLite";
         public bool Usable => true;
         public DbInterfaceBase Create() => new SQLiteDb(this);
-        public Migration? GetMigration(uint version) => null;
+        public Migration? GetMigration(uint version) => new SQLiteFactory().GetMigration(version);
         public object GetConfig() => _config;
     }
 }

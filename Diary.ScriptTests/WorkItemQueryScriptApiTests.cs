@@ -1,3 +1,4 @@
+using Diary.Core;
 using Diary.ScriptBase;
 using Diary.Core.Data.Base;
 using Diary.Database;
@@ -267,7 +268,7 @@ internal sealed class TestDatabaseFactory : IDbFactory
     public string Name => "SQLite";
     public bool Usable => true;
     public DbInterfaceBase Create() => new SQLiteDb(this);
-    public Migration? GetMigration(uint version) => null;
+    public Migration? GetMigration(uint version) => new SQLiteFactory().GetMigration(version);
     public object GetConfig() => _config;
 }
 
@@ -278,6 +279,8 @@ internal static class TestDatabase
         var database = new SQLiteDb(new TestDatabaseFactory());
         Assert.IsTrue(database.Connect());
         Assert.IsTrue(database.Initialized());
+        var migration = database.MigrateTo(DataVersion.VersionCode, new DbMigrationOptions(CreateBackup: false));
+        Assert.IsTrue(migration.Success, migration.Error);
         return database;
     }
 }

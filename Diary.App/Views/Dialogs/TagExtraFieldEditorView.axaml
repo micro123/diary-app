@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
+             xmlns:models="clr-namespace:Diary.App.Models"
              mc:Ignorable="d"
              x:Class="Diary.App.Views.Dialogs.TagExtraFieldEditorView"
              x:Name="TagExtraFieldEditorRoot"
@@ -71,6 +72,82 @@
                              AcceptsReturn="True"
                              TextWrapping="Wrap"
                              MinHeight="90" />
+                </StackPanel>
+
+                <StackPanel Spacing="4">
+                    <TextBlock Text="默认值" />
+                    <ContentControl Content="{Binding Field.DefaultValueEditor}">
+                        <ContentControl.DataTemplates>
+                            <DataTemplate DataType="models:EditableWorkItemExtraField">
+                                <Grid>
+                                    <TextBox Name="ExtraFieldDefaultTextInput"
+                                             IsVisible="{Binding UsesTextEditor}"
+                                             Text="{Binding Value, Mode=TwoWay}"
+                                             Watermark="不设置默认值" />
+                                    <TextBox Name="ExtraFieldDefaultMultilineInput"
+                                             IsVisible="{Binding UsesMultilineTextEditor}"
+                                             Text="{Binding Value, Mode=TwoWay}"
+                                             AcceptsReturn="True" TextWrapping="Wrap"
+                                             MinHeight="64" Watermark="不设置默认值" />
+                                    <NumericUpDown Name="ExtraFieldDefaultIntegerInput"
+                                                   IsVisible="{Binding UsesIntegerEditor}"
+                                                   Value="{Binding NumericValue, Mode=TwoWay}"
+                                                   Minimum="-2147483648" Maximum="2147483647"
+                                                   Increment="1" FormatString="0" ParsingNumberStyle="Integer"
+                                                   Watermark="不设置默认值" />
+                                    <NumericUpDown Name="ExtraFieldDefaultDecimalInput"
+                                                   IsVisible="{Binding UsesDecimalEditor}"
+                                                   Value="{Binding NumericValue, Mode=TwoWay}"
+                                                   Increment="0.1" Watermark="不设置默认值" />
+                                    <CheckBox Name="ExtraFieldDefaultBooleanInput"
+                                              IsVisible="{Binding UsesBooleanEditor}"
+                                              IsChecked="{Binding BooleanValue, Mode=TwoWay}"
+                                              IsThreeState="True"
+                                              Content="{Binding BooleanDisplay}"
+                                              VerticalAlignment="Center" />
+                                    <CalendarDatePicker Name="ExtraFieldDefaultDateInput"
+                                                        IsVisible="{Binding UsesDateEditor}"
+                                                        SelectedDate="{Binding DateValue, Mode=TwoWay}"
+                                                        Watermark="不设置默认值" />
+                                    <Grid Name="ExtraFieldDefaultTimeEditor"
+                                          IsVisible="{Binding UsesTimeEditor}"
+                                          ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                        <TimePicker Name="ExtraFieldDefaultTimeInput"
+                                                    SelectedTime="{Binding TimeValue, Mode=TwoWay}"
+                                                    ClockIdentifier="24HourClock" MinuteIncrement="1" />
+                                        <Button Grid.Column="1" Content="清空"
+                                                Command="{Binding ClearValueCommand}" />
+                                    </Grid>
+                                    <Grid Name="ExtraFieldDefaultDateTimeEditor"
+                                          IsVisible="{Binding UsesDateTimeEditor}"
+                                          ColumnDefinitions="150,Auto,*,Auto" ColumnSpacing="6">
+                                        <CalendarDatePicker Name="ExtraFieldDefaultDateTimeDateInput"
+                                                            SelectedDate="{Binding DateTimeDateValue, Mode=TwoWay}"
+                                                            Watermark="日期" />
+                                        <TextBlock Grid.Column="1" Text="·" VerticalAlignment="Center" />
+                                        <TimePicker Name="ExtraFieldDefaultDateTimeTimeInput"
+                                                    Grid.Column="2"
+                                                    SelectedTime="{Binding DateTimeTimeValue, Mode=TwoWay}"
+                                                    ClockIdentifier="24HourClock" MinuteIncrement="1" />
+                                        <Button Grid.Column="3" Content="清空"
+                                                Command="{Binding ClearValueCommand}" />
+                                    </Grid>
+                                    <Grid Name="ExtraFieldDefaultChoiceEditor"
+                                          IsVisible="{Binding UsesChoiceEditor}"
+                                          ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                        <ComboBox Name="ExtraFieldDefaultChoiceInput"
+                                                  ItemsSource="{Binding Options}"
+                                                  SelectedItem="{Binding SelectedChoice, Mode=TwoWay}"
+                                                  PlaceholderText="不设置默认值" />
+                                        <Button Grid.Column="1" Content="清空"
+                                                Command="{Binding ClearValueCommand}" />
+                                    </Grid>
+                                </Grid>
+                            </DataTemplate>
+                        </ContentControl.DataTemplates>
+                    </ContentControl>
+                    <TextBlock Text="仅在新建工作项或新增标签时预填，不回填历史数据。"
+                               Opacity="0.65" FontSize="12" TextWrapping="Wrap" />
                 </StackPanel>
 
                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">

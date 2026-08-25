@@ -108,7 +108,7 @@ Windows apphost 显式设置 `CETCompat=false`，与主程序、脚本 Worker �
 - `diary_query_work_items`
 - `diary_validate_script`
 
-前四项返回对应快照节；事项查询与汇总只能筛选快照中已经披露的事项。查询参数只支持日期、标签 ID、文本、优先级、limit 和 offset，不支持 SQL 或路径。所有结果都返回 JSON，并保留不可信数据标记。
+前四项返回对应快照节；`diary_list_extra_fields` 的字段定义包含配置的 `default_value`，但不包含或推导事项实际字段值。事项查询与汇总只能筛选快照中已经披露的事项。查询参数只支持日期、标签 ID、文本、优先级、limit 和 offset，不支持 SQL 或路径。所有结果都返回 JSON，并保留不可信数据标记。
 
 事项节未披露时，`diary_query_work_items` 和 `diary_summarize_work_items` 不得抛出通用工具异常，也不得返回空数组或零汇总，以免调用方把“未授权”误判为“已授权但无数据”。两者返回正常 MCP 文本结果，正文为 `available=false`、`error=work_items_not_disclosed`、`section=work_items` 和引导用户显式包含事项后刷新快照的消息；事项已披露时继续保持原有数组或汇总对象结构。
 

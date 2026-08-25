@@ -60,6 +60,7 @@ public static class CoreSchemaContract
             Column("description", "string", false),
             Column("sort_order", "integer", false),
             Column("options_json", "string", false),
+            Column("default_value", "string", false),
             Column("enabled", "boolean", false),
         ],
         [

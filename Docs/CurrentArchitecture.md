@@ -274,9 +274,9 @@ Jira：plugin_data_versions（与 Redmine 共用同一张表）、jira_projects�
 `diary_schema_metadata`，成功步骤写入 `diary_schema_migrations`，每个已提交步骤会先把新版本写回 `Running` 状态，
 全部步骤完成后必须重新读取结构并通过兼容性复检，最后才写入 `Stable` 状态。
 
-当前核心数据版本仍为 `1.0.0`（`0x10000`），与上一正式版本一致，因此两个 provider 的
-`DbRecords.GetMigration()` 在当前版本返回 `null`。`ProviderMigrationRegistrationTests` 锁定这一契约：
-未来提升 `DataVersion.VersionCode` 时，必须同时登记 SQLite/PostgreSQL 迁移并更新上一正式版本基线。
+当前核心数据版本为 `1.0.1`（`0x10001`）。两个 provider 均登记 `0x10000 -> 0x10001` 正式迁移，
+为标签附加字段定义增加 `default_value` 列；旧版初始化 SQL保持 `1.0.0` 结构，不通过修改初始建表语句绕过迁移。
+`ProviderMigrationRegistrationTests` 锁定当前版本与 SQLite/PostgreSQL 迁移链，后续提升版本时仍必须同步更新两个 provider 和上一正式版本基线。
 共享 `DbContractTests` 还验证成功迁移保留工作项、标签和备注，失败迁移回滚版本写入且不丢失原业务数据。
 迁移开始前，SQLite 使用在线备份 API 在数据库同目录的 `Backups` 下生成带源/目标版本的独立快照，
 备份失败会阻止迁移。数据库设置还提供 SQLite 手动备份、校验和还原入口：还原任务先暂存，下一次启动时替换数据库文件，
@@ -423,13 +423,13 @@ Redmine 实例设置页和核心标签编辑器复用规则编辑 ViewModel，�
 ## 15. 标签附加字段
 
 核心标签可以定义多个可选附加字段。字段定义保存在 `tag_extra_field_definitions`，工作项值保存在
-`work_item_extra_field_values`；SQLite 和 PostgreSQL 在 `Initialized()` 中幂等创建对应表，
-不新增版本化 migration。字段的 `FieldKey` 全局唯一且创建后不可修改，字段类型在创建时固定；
+`work_item_extra_field_values`；SQLite 和 PostgreSQL 的 `1.0.0` 初始化 SQL幂等创建基础表，`1.0.1`
+通过正式 migration 为字段定义增加 `default_value`。字段的 `FieldKey` 全局唯一且创建后不可修改，字段类型在创建时固定；
 字段停用而非物理删除，历史字段值保留。
 
 标签编辑器采用左侧标签导航和右侧详情页签，基础信息、元数据、Tracker 自动化操作、附加字段分别维护。标签页内的 Redmine 自动化规则按“启用、活动、问题、删除”水平排列，并复用外层当前标签，不重复显示标签选择；Tracker 全局设置中的规则编辑器仍保留标签选择。附加字段页签只显示字段摘要；新增或编辑字段通过二级对话框完成，确认后回填主页面草稿，主页面保存时统一提交。
 
-日志编辑器不展开附加字段，只提供独立“附加信息”对话框，并按标签分组编辑；文本、多行文本、整数、小数、三态布尔、日期、时间、日期时间和选项字段分别使用对应控件，所有类型均保留空值语义，只读工作项禁用编辑。按钮 Tooltip 显示截断预览。附加字段编辑不触发脚本执行，脚本查询 DTO 通过 `FieldKey` 只读访问字段值。
+日志编辑器不展开附加字段，只提供独立“附加信息”对话框，并按标签分组编辑；文本、多行文本、整数、小数、三态布尔、日期、时间、日期时间和选项字段分别使用对应控件，所有类型均保留空值语义，只读工作项禁用编辑。字段定义可配置同类型默认值，只在新建事项或新增标签时预填，不回填历史数据。按钮 Tooltip 显示截断预览。附加字段编辑不触发脚本执行，脚本查询 DTO 通过 `FieldKey` 只读访问事项实际值；MCP 字段定义查询额外披露配置默认值。
 
 详细设计见 [`TagExtraFieldDesign.md`](TagExtraFieldDesign.md)。
 

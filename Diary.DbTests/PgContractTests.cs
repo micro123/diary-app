@@ -9,6 +9,9 @@ namespace Diary.DbTests;
 [TestClass]
 public class PgContractTests : DbContractTests
 {
+    protected override Migration? GetProductionMigration(uint version)
+        => new PostgreSQLFactory().GetMigration(version);
+
     protected override DbInterfaceBase CreateDb(Func<uint, Migration?>? getMigration = null)
     {
         var factory = PgContainerFixture.CreateFactory(getMigration);
@@ -20,12 +23,20 @@ public class PgContractTests : DbContractTests
         var db = factory.Create();
         Assert.IsTrue(db.Connect(), "Pg Connect 失败");
         Assert.IsTrue(db.Initialized(), "Pg Initialized 失败");
+        Assert.IsTrue(db.ExecRaw(
+            "ALTER TABLE tag_extra_field_definitions DROP COLUMN IF EXISTS default_value;"),
+            "Pg 旧版本 schema 重置失败");
         Assert.IsTrue(db.ExecRaw("DELETE FROM data_versions; INSERT INTO data_versions VALUES(65536);"),
             "Pg data_versions 重置失败");
         Assert.IsTrue(db.ExecRaw("DELETE FROM diary_schema_metadata; DELETE FROM diary_schema_migrations;"),
             "Pg 兼容性元数据重置失败");
         Assert.IsTrue(db.DropData(), "Pg DropData 失败（每测清空数据）");
         Assert.IsTrue(GetRedMine(db).ClearData(), "RedMine DropData 失败（每测清空数据）");
+        if (getMigration is null)
+        {
+            var migration = db.MigrateTo(DataVersion.VersionCode, new DbMigrationOptions(CreateBackup: false));
+            Assert.IsTrue(migration.Success, migration.Error);
+        }
         return db;
     }
 

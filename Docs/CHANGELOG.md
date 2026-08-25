@@ -1,10 +1,11 @@
 # CHANGELOG
 
-发布说明（Release Notes）。版本号为 `1.0.0-r{CommitCount}`：`1.0.0` 为数据格式版本（`Diary.Core/DataVersion.cs`），`rN` 为发布时的 Git 提交计数（构建脚本 `Diary.App/Scripts/gen_version.sh` 自动生成）。正式发布通过推送 `v*` 标签触发 CI（`.github/workflows/release-on-tags.yml`），Release body 自动引用本文件对应版本章节——各版本标题需保持 `## 版本号` 格式；内部验证标签可不带 `rN`（如 `v1.0.0-alpha1`），对应本文件独立小节。
+发布说明（Release Notes）。版本号为 `1.0.1-r{CommitCount}`：`1.0.1` 为数据格式版本（`Diary.Core/DataVersion.cs`），`rN` 为发布时的 Git 提交计数（构建脚本 `Diary.App/Scripts/gen_version.sh` 自动生成）。正式发布通过推送 `v*` 标签触发 CI（`.github/workflows/release-on-tags.yml`），Release body 自动引用本文件对应版本章节——各版本标题需保持 `## 版本号` 格式；内部验证标签可不带 `rN`（如 `v1.0.1-alpha1`），对应本文件独立小节。
 
 ## 未发布
 
 日期：2026-08-25
+- 标签附加字段支持类型化默认值：新建事项或给已有事项新增标签时预填，不回填历史标签，用户可修改或清空；标签共享包和 MCP 字段定义查询同步携带默认值。核心数据版本提升到 `1.0.1`，SQLite/PostgreSQL 通过正式 `1.0.0 -> 1.0.1` migration 增加字段定义默认值列，保留旧版初始化 SQL，并补充双 provider、导入导出、工作项和 MCP 回归测试。
 - 脚本 API V2 核心运行时支持加载期强类型参数契约：C# 可通过 V2 SDK 基类声明参数，Lua/Python 可通过 metadata 或包 manifest 声明；宿主在进入 Worker 前统一合并默认值、校验并规范化八种参数类型，严格拒绝未知或非法参数，同时保持 V1 自由参数兼容。Automation 用户参数与事件数据已分离，三语言 Worker 支持 V1/V2 混合执行，并新增参数化示例和真实进程回归测试；类型化参数 UI 后续接入。
 - 日历右键菜单新增“同步本周工时”和“同步本月工时”：执行前自动保存当前事项，按范围批量预取事项及 Tracker 绑定，跳过导入、已同步、同步中/结果待确认、0 工时和 Tracker 信息不完整记录；同步期间显示进度，遇到首个 Tracker 或事项失败立即终止，结束后汇总成功、跳过、失败、未处理数量及失败位置。
 - 收紧统一界面密度：在不改变页面布局、功能入口和视觉层级的前提下，统一缩小页面外边距、页面头与卡片内边距、主从面板、设置分组、表单、工具栏、对话框和按钮组间距；主窗口页面四周合计约 4px，同级主卡片间距收敛到 6px，小型列表卡片收敛到 4px；日记页左右卡片直接使用 4px 间距并移除重复分隔线，日记、查询、统计、Survey、脚本、标签、模板及 Tracker 页面在 1280×800 下可展示更多内容。

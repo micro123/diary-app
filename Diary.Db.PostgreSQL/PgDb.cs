@@ -292,7 +292,7 @@ public sealed partial class PgDb(IDbFactory factory) : DbInterfaceBase(factory),
     {
         var sql = """
                   SELECT field_id, field_key, tag_id, label, field_type, description,
-                         sort_order, options_json, enabled
+                         sort_order, options_json, default_value, enabled
                   FROM tag_extra_field_definitions
                   WHERE tag_id=$1
                   """ + (includeDisabled ? string.Empty : " AND enabled=TRUE") +
@@ -305,7 +305,7 @@ public sealed partial class PgDb(IDbFactory factory) : DbInterfaceBase(factory),
     {
         var sql = """
                   SELECT field_id, field_key, tag_id, label, field_type, description,
-                         sort_order, options_json, enabled
+                         sort_order, options_json, default_value, enabled
                   FROM tag_extra_field_definitions
                   """ + (includeDisabled ? string.Empty : " WHERE enabled=TRUE") +
                   " ORDER BY tag_id, sort_order, field_key;";
@@ -318,13 +318,18 @@ public sealed partial class PgDb(IDbFactory factory) : DbInterfaceBase(factory),
             || !TagExtraFieldKeyRules.IsValid(definition.FieldKey)
             || string.IsNullOrWhiteSpace(definition.Label)
             || string.IsNullOrWhiteSpace(definition.FieldId)
+            || !TagExtraFieldValueValidator.TryValidate(
+                definition.Type,
+                definition.DefaultValue?.Trim() ?? string.Empty,
+                definition.Options,
+                out _)
             || !IsTagExtraFieldKeyAvailable(definition.FieldKey))
             return false;
         const string sql = """
                            INSERT INTO tag_extra_field_definitions
                               (field_id, field_key, tag_id, label, field_type, description,
-                               sort_order, options_json, enabled)
-                           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                               sort_order, options_json, default_value, enabled)
+                           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                            ON CONFLICT DO NOTHING;
                            """;
         return Execute(sql,
@@ -336,17 +341,23 @@ public sealed partial class PgDb(IDbFactory factory) : DbInterfaceBase(factory),
             ("$6", definition.Description ?? string.Empty),
             ("$7", definition.SortOrder),
             ("$8", SerializeTagExtraFieldOptions(definition.Options)),
-            ("$9", definition.Enabled)) > 0;
+            ("$9", definition.DefaultValue?.Trim() ?? string.Empty),
+            ("$10", definition.Enabled)) > 0;
     }
 
     public override bool UpdateTagExtraFieldDefinition(TagExtraFieldDefinition definition)
     {
         if (string.IsNullOrWhiteSpace(definition.FieldId)
             || !TagExtraFieldKeyRules.IsValid(definition.FieldKey)
-            || string.IsNullOrWhiteSpace(definition.Label))
+            || string.IsNullOrWhiteSpace(definition.Label)
+            || !TagExtraFieldValueValidator.TryValidate(
+                definition.Type,
+                definition.DefaultValue?.Trim() ?? string.Empty,
+                definition.Options,
+                out _))
             return false;
         var current = QueryFirst(
-            "SELECT field_id, field_key, tag_id, label, field_type, description, sort_order, options_json, enabled " +
+            "SELECT field_id, field_key, tag_id, label, field_type, description, sort_order, options_json, default_value, enabled " +
             "FROM tag_extra_field_definitions WHERE field_id=$1;",
             MapTagExtraFieldDefinition,
             ("$1", definition.FieldId));
@@ -358,16 +369,17 @@ public sealed partial class PgDb(IDbFactory factory) : DbInterfaceBase(factory),
         const string sql = """
                            UPDATE tag_extra_field_definitions
                            SET label=$1, description=$2, sort_order=$3,
-                               options_json=$4, enabled=$5
-                           WHERE field_id=$6;
+                               options_json=$4, default_value=$5, enabled=$6
+                           WHERE field_id=$7;
                            """;
         return Execute(sql,
             ("$1", definition.Label.Trim()),
             ("$2", definition.Description ?? string.Empty),
             ("$3", definition.SortOrder),
             ("$4", SerializeTagExtraFieldOptions(definition.Options)),
-            ("$5", definition.Enabled),
-            ("$6", definition.FieldId)) > 0;
+            ("$5", definition.DefaultValue?.Trim() ?? string.Empty),
+            ("$6", definition.Enabled),
+            ("$7", definition.FieldId)) > 0;
     }
 
     public override bool IsTagExtraFieldKeyAvailable(string fieldKey, string? excludingFieldId = null)
@@ -394,7 +406,7 @@ public sealed partial class PgDb(IDbFactory factory) : DbInterfaceBase(factory),
         const string sql = """
                            SELECT d.field_id, d.field_key, d.tag_id, t.tag_name, d.label,
                                   d.field_type, d.description, d.sort_order, d.options_json,
-                                  d.enabled, v.value_json
+                                  d.default_value, d.enabled, v.value_json
                            FROM work_item_tags wit
                            INNER JOIN tag_extra_field_definitions d
                               ON d.tag_id=wit.tag_id
@@ -426,7 +438,7 @@ public sealed partial class PgDb(IDbFactory factory) : DbInterfaceBase(factory),
             var sql = $"""
                        SELECT wit.work_id, d.field_id, d.field_key, d.tag_id, t.tag_name, d.label,
                               d.field_type, d.description, d.sort_order, d.options_json,
-                              d.enabled, v.value_json
+                              d.default_value, d.enabled, v.value_json
                        FROM work_item_tags wit
                        INNER JOIN tag_extra_field_definitions d ON d.tag_id=wit.tag_id
                        INNER JOIN work_tags t ON t.id=d.tag_id

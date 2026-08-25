@@ -6,37 +6,39 @@ using Diary.Db.SQLite;
 namespace Diary.DbTests;
 
 /// <summary>
-/// 正式发布数据版本契约：当前已发布数据版本没有待执行迁移。
-/// 提升 <see cref="DataVersion.VersionCode"/> 时必须先更新本契约，
-/// 并为 SQLite 与 PostgreSQL 同步登记从上一正式数据版本开始的迁移。
+/// 正式发布数据版本契约：当前数据版本必须具备从上一正式版本升级的完整迁移链。
 /// </summary>
 [TestClass]
 public sealed class ProviderMigrationRegistrationTests
 {
-    private const uint LastReleasedDataVersion = 0x10000;
+    private const uint PreviousReleasedDataVersion = 0x10000;
+    private const uint CurrentDataVersion = 0x10001;
 
     [TestMethod]
-    public void CurrentCoreDataVersion_RemainsAtLastReleasedVersion()
+    public void CurrentCoreDataVersion_IsExpectedVersion()
     {
         var currentVersion = (uint)typeof(DataVersion)
             .GetField(nameof(DataVersion.VersionCode))!
             .GetRawConstantValue()!;
         Assert.AreEqual(
-            LastReleasedDataVersion,
+            CurrentDataVersion,
             currentVersion,
-            "提升核心数据版本前必须同步登记 SQLite/PostgreSQL 迁移并更新本契约测试。");
+            "核心数据版本与正式迁移契约不一致。");
     }
 
     [TestMethod]
-    public void ProductionProviders_HaveNoPendingMigrationForCurrentVersion()
+    public void ProductionProviders_RegisterMigrationFromPreviousVersion()
     {
         IDbFactory[] factories = [new SQLiteFactory(), new PostgreSQLFactory()];
 
         foreach (var factory in factories)
         {
-            Assert.IsNull(
-                factory.GetMigration(DataVersion.VersionCode),
-                $"{factory.Name} 在当前核心数据版本上不应登记待执行迁移。");
+            var migration = factory.GetMigration(PreviousReleasedDataVersion);
+            Assert.IsNotNull(migration, $"{factory.Name} 缺少从上一正式版本开始的迁移。");
+            Assert.AreEqual(PreviousReleasedDataVersion, migration.VersionFrom);
+            Assert.AreEqual(CurrentDataVersion, migration.VersionTo);
+            Assert.IsNull(factory.GetMigration(CurrentDataVersion),
+                $"{factory.Name} 不应在当前版本之后登记未知迁移。");
         }
     }
 }

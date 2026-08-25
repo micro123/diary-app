@@ -14,7 +14,7 @@ internal sealed class TestPgFactory : IDbFactory
     public TestPgFactory(Config config, Func<uint, Migration?>? getMigration = null)
     {
         _config = config;
-        _getMigration = getMigration ?? (_ => null);
+        _getMigration = getMigration ?? new PostgreSQLFactory().GetMigration;
     }
 
     public string Name => "PostgreSQL";

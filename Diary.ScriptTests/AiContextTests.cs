@@ -142,6 +142,28 @@ public sealed class AiContextTests
         Assert.IsFalse(summary.RootElement.TryGetProperty("available", out _));
     }
 
+    [TestMethod]
+    public void ExtraFieldTool_DisclosesConfiguredDefaultValue()
+    {
+        var snapshot = CreateSnapshot() with
+        {
+            ExtraFieldDefinitions =
+            [
+                new AiContextExtraFieldDefinition(
+                    "f1", "project.stage", 2, "阶段", "Choice", "", 0, ["开发", "测试"])
+                {
+                    DefaultValue = "开发",
+                },
+            ],
+        };
+        var service = new AiContextQueryService(snapshot);
+
+        using var result = JsonDocument.Parse(DiaryContextTools.ListExtraFields(service));
+
+        Assert.AreEqual("开发", result.RootElement[0].GetProperty("default_value").GetString());
+        Assert.IsFalse(result.RootElement[0].TryGetProperty("value", out _));
+    }
+
     private static void AssertUnavailableWorkItems(string result)
     {
         using var document = JsonDocument.Parse(result);

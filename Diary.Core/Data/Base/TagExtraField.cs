@@ -23,6 +23,7 @@ public sealed record TagExtraFieldDefinition
     public string Description { get; set; } = string.Empty;
     public int SortOrder { get; set; }
     public IReadOnlyList<string> Options { get; set; } = Array.Empty<string>();
+    public string DefaultValue { get; set; } = string.Empty;
     public bool Enabled { get; set; } = true;
 }
 
@@ -44,6 +45,7 @@ public sealed record WorkItemExtraField
     public string Description { get; init; } = string.Empty;
     public int SortOrder { get; init; }
     public IReadOnlyList<string> Options { get; init; } = Array.Empty<string>();
+    public string DefaultValue { get; init; } = string.Empty;
     public bool Enabled { get; init; }
     public string Value { get; init; } = string.Empty;
 }

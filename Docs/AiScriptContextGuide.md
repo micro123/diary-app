@@ -57,7 +57,7 @@ dotnet run --project Diary.Mcp -- --snapshot "/absolute/path/to/mcp-snapshot.jso
 ## 可用工具
 
 - `diary_list_tags`：标签目录，不含 metadata。
-- `diary_list_extra_fields`：附加字段定义，不含事项字段值。
+- `diary_list_extra_fields`：附加字段定义，包含配置的默认值，不含事项实际字段值。
 - `diary_list_templates`：模板及默认标签。
 - `diary_list_tracker_instances`：Tracker 实例安全摘要。
 - `diary_query_work_items`：在快照内按日期、标签、文本和优先级筛选。

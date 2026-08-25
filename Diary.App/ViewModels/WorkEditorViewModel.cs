@@ -409,7 +409,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         }
 
         _extraFieldValues.Clear();
-        foreach (var value in values.Where(value => !string.IsNullOrWhiteSpace(value.Value)))
+        foreach (var value in values)
             _extraFieldValues.Add(value with { WorkItemId = WorkId });
         RefreshExtraFieldsSnapshot();
     }
@@ -441,8 +441,11 @@ public partial class WorkEditorViewModel : ViewModelBase
                     Description = definition.Description,
                     SortOrder = definition.SortOrder,
                     Options = definition.Options,
+                    DefaultValue = definition.DefaultValue,
                     Enabled = definition.Enabled,
-                    Value = values.GetValueOrDefault(definition.FieldId, string.Empty),
+                    Value = values.TryGetValue(definition.FieldId, out var value)
+                        ? value
+                        : definition.DefaultValue,
                 });
             }
         }
@@ -584,7 +587,9 @@ public partial class WorkEditorViewModel : ViewModelBase
             _uploadCoordinator,
             _trackerRegistry,
             Comment,
-            _tagAutomation)
+            _tagAutomation,
+            scriptAutomationScheduler: _scriptAutomationScheduler,
+            database: _database)
         {
             WorkItem = null,
             Date = Date,
@@ -612,12 +617,15 @@ public partial class WorkEditorViewModel : ViewModelBase
         {
             result._syncing_tags = true;
             foreach (var tag in WorkTags)
+            {
                 result.WorkTags.Add(tag);
+                result.InitializeExtraFieldDefaultsForNewItem(tag);
+            }
             result._syncing_tags = false;
             result.UpdateAvailableTags();
         }
         foreach (var value in _extraFieldValues)
-            result._extraFieldValues.Add(value with { WorkItemId = 0 });
+            result.SetExtraFieldDraftValue(value with { WorkItemId = 0 });
         result.RefreshExtraFieldsSnapshot();
 
         return result;
@@ -733,6 +741,15 @@ public partial class WorkEditorViewModel : ViewModelBase
                 }
             }
             WorkTags.Add(tag);
+            if (WorkItem is { Id: > 0 } itemWithAddedTag)
+            {
+                if (!ApplyExtraFieldDefaultsForAddedTag(itemWithAddedTag, tag))
+                    EventDispatcher.ShowToast("标签已添加，但保存附加字段默认值失败。");
+            }
+            else
+            {
+                InitializeExtraFieldDefaultsForNewItem(tag);
+            }
             _syncing_tags = false;
             var tagSequence = sequence++;
             LastTagAutomationResult = _tagAutomation.TagAdded(
@@ -747,6 +764,63 @@ public partial class WorkEditorViewModel : ViewModelBase
         }
         UpdateAvailableTags();
         RefreshExtraFieldsSnapshot();
+    }
+
+    private void InitializeExtraFieldDefaultsForNewItem(WorkTag tag)
+    {
+        if (WorkItem is not null || Db is null)
+            return;
+        foreach (var definition in Db.GetTagExtraFieldDefinitions(tag.Id))
+        {
+            if (string.IsNullOrWhiteSpace(definition.DefaultValue)
+                || _extraFieldValues.Any(value => value.FieldId == definition.FieldId))
+            {
+                continue;
+            }
+            SetExtraFieldDraftValue(new WorkItemExtraFieldValue
+            {
+                FieldId = definition.FieldId,
+                Value = definition.DefaultValue,
+            });
+        }
+    }
+
+    private bool ApplyExtraFieldDefaultsForAddedTag(WorkItem item, WorkTag addedTag)
+    {
+        if (Db is null)
+            return false;
+        var fields = Db.GetWorkItemExtraFields(item);
+        if (!fields.Any(field => field.TagId == addedTag.Id
+                                 && string.IsNullOrWhiteSpace(field.Value)
+                                 && !string.IsNullOrWhiteSpace(field.DefaultValue)))
+        {
+            return true;
+        }
+        var values = fields
+            .Select(field => new WorkItemExtraFieldValue
+            {
+                WorkItemId = item.Id,
+                FieldId = field.FieldId,
+                Value = field.TagId == addedTag.Id && string.IsNullOrWhiteSpace(field.Value)
+                    ? field.DefaultValue
+                    : field.Value,
+            })
+            .Where(value => !string.IsNullOrWhiteSpace(value.Value))
+            .ToArray();
+        if (!Db.SaveWorkItemExtraFieldValues(item.Id, values))
+            return false;
+        _extraFieldValues.Clear();
+        foreach (var value in values)
+            _extraFieldValues.Add(value);
+        return true;
+    }
+
+    private void SetExtraFieldDraftValue(WorkItemExtraFieldValue value)
+    {
+        var existing = _extraFieldValues.FirstOrDefault(item => item.FieldId == value.FieldId);
+        if (existing is not null)
+            _extraFieldValues.Remove(existing);
+        _extraFieldValues.Add(value);
     }
 
     [RelayCommand]

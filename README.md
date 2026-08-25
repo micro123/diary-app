@@ -23,7 +23,7 @@
 
 - 默认使用 SQLite，本地即可运行；也支持 PostgreSQL
 - 核心表与 Tracker 插件表共享同一物理数据库，插件 schema 独立迁移（当前 schema 见 [`Docs/diagrams/database-schema.puml`](Docs/diagrams/database-schema.puml)）
-- 当前核心数据版本仍为 `1.0.0`，SQLite/PostgreSQL 暂无待执行核心迁移；提升数据版本时，契约测试要求两个 provider 同步登记迁移。SQLite 支持手动创建、校验和还原完整物理数据库，包含核心表与 Tracker 扩展表；还原任务会在下次启动时执行，失败时自动恢复还原前数据库。SQLite 迁移前也会将一致性快照写入数据库同目录的 `Backups`。PostgreSQL 已接入 custom-format `pg_dump`/`pg_restore`、工具版本检查、最小权限预检和独立目标库还原；具备 `CREATEDB` 时自动创建目标，否则使用设置中配置的已有空数据库。目标不得与当前库相同，启动原貌复检通过后才持久化配置切换。数据库设置已提供 PostgreSQL Client `bin` 目录配置，Windows 必须配置，Linux 未配置时会探测 `PATH`，缺少 `pg_dump`/`pg_restore` 时视为不支持。完整设计见 [`Docs/DatabaseBackupRestoreDesign.md`](Docs/DatabaseBackupRestoreDesign.md)
+- 当前核心数据版本为 `1.0.1`，SQLite/PostgreSQL 均登记 `1.0.0 -> 1.0.1` 正式迁移，为标签附加字段增加默认值；契约测试要求两个 provider 同步维护迁移链。SQLite 支持手动创建、校验和还原完整物理数据库，包含核心表与 Tracker 扩展表；还原任务会在下次启动时执行，失败时自动恢复还原前数据库。SQLite 迁移前也会将一致性快照写入数据库同目录的 `Backups`。PostgreSQL 已接入 custom-format `pg_dump`/`pg_restore`、工具版本检查、最小权限预检和独立目标库还原；具备 `CREATEDB` 时自动创建目标，否则使用设置中配置的已有空数据库。目标不得与当前库相同，启动原貌复检通过后才持久化配置切换。数据库设置已提供 PostgreSQL Client `bin` 目录配置，Windows 必须配置，Linux 未配置时会探测 `PATH`，缺少 `pg_dump`/`pg_restore` 时视为不支持。完整设计见 [`Docs/DatabaseBackupRestoreDesign.md`](Docs/DatabaseBackupRestoreDesign.md)
 
 ## 快速开始
 
@@ -51,7 +51,7 @@ dotnet test --solution DiaryApp.sln --configuration Release
 
 ## 版本
 
-- 版本号为 `1.0.0-r{CommitCount}`：`1.0.0` 是数据格式版本（`Diary.Core/DataVersion.cs`），`rN` 是发布时的 Git 提交计数，由 Windows/Linux 版本生成脚本自动生成
+- 版本号为 `1.0.1-r{CommitCount}`：`1.0.1` 是数据格式版本（`Diary.Core/DataVersion.cs`），`rN` 是发布时的 Git 提交计数，由 Windows/Linux 版本生成脚本自动生成
 - 正式发布：推送 `v*` 标签触发 CI（`.github/workflows/release-on-tags.yml`）；Windows Runner 构建 `win-x64`，Ubuntu Runner 构建 `linux-x64`，全量测试和 Quarto 手册渲染通过后，发布应用包、调试符号、更新 metadata 及用户手册 PDF/HTML
 
 ## 配置文件加密

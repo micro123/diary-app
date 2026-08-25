@@ -35,6 +35,7 @@ public sealed class TagSharePackageExtraField
     public string Description { get; set; } = string.Empty;
     public int SortOrder { get; set; }
     public List<string> Options { get; set; } = [];
+    public string DefaultValue { get; set; } = string.Empty;
     public bool Enabled { get; set; } = true;
 }
 
@@ -138,6 +139,7 @@ public sealed class TagSharePackageService
                         Description = field.Description,
                         SortOrder = field.SortOrder,
                         Options = field.Options.ToList(),
+                        DefaultValue = field.DefaultValue,
                         Enabled = field.Enabled,
                     })
                     .ToList(),
@@ -292,6 +294,7 @@ public sealed class TagSharePackageService
                             Description = sourceField.Description,
                             SortOrder = sourceField.SortOrder,
                             Options = sourceField.Options,
+                            DefaultValue = sourceField.DefaultValue,
                             Enabled = sourceField.Enabled,
                         };
                         if (!database.UpdateTagExtraFieldDefinition(updatedField))
@@ -310,6 +313,7 @@ public sealed class TagSharePackageService
                             Description = sourceField.Description,
                             SortOrder = sourceField.SortOrder,
                             Options = sourceField.Options,
+                            DefaultValue = sourceField.DefaultValue,
                             Enabled = sourceField.Enabled,
                         };
                         if (!database.CreateTagExtraFieldDefinition(newField))
@@ -415,6 +419,16 @@ public sealed class TagSharePackageService
                     throw new InvalidDataException($"额外字段“{field.FieldKey}”包含空选项。");
                 if (field.Type == TagExtraFieldType.Choice && field.Options.Count == 0)
                     throw new InvalidDataException($"选项字段“{field.FieldKey}”没有配置选项。");
+                if (!TagExtraFieldValueValidator.TryValidate(
+                        field.Type,
+                        field.DefaultValue?.Trim() ?? string.Empty,
+                        field.Options,
+                        out var defaultValueError))
+                {
+                    throw new InvalidDataException(
+                        $"额外字段“{field.FieldKey}”的默认值无效：{defaultValueError}");
+                }
+                field.DefaultValue = field.DefaultValue?.Trim() ?? string.Empty;
             }
         }
         if (package.Trackers.Select(tracker => tracker.Key).Distinct(StringComparer.Ordinal).Count()

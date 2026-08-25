@@ -13,7 +13,7 @@ public sealed class DiaryContextTools
     public static string ListTags(AiContextQueryService context) => Serialize(context.ListTags());
 
     [McpServerTool(Name = "diary_list_extra_fields", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
-    [Description("列出用户已授权快照中的标签附加字段定义，不包含事项字段值。")]
+    [Description("列出用户已授权快照中的标签附加字段定义，包含配置的默认值，不包含事项实际字段值。")]
     public static string ListExtraFields(AiContextQueryService context) => Serialize(context.ListExtraFields());
 
     [McpServerTool(Name = "diary_list_templates", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]

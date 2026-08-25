@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Diary.Core.Data.Base;
 
@@ -7,6 +8,8 @@ public partial class EditableTagExtraField : ObservableObject
 {
     private readonly TagExtraFieldDefinition _definition;
     private readonly bool _isNew;
+    private string _defaultValue = string.Empty;
+    private EditableWorkItemExtraField _defaultValueEditor = null!;
 
     public EditableTagExtraField(int tagId)
     {
@@ -21,7 +24,9 @@ public partial class EditableTagExtraField : ObservableObject
         Description = string.Empty;
         OptionsText = string.Empty;
         Type = TagExtraFieldType.Text;
+        DefaultValue = string.Empty;
         Enabled = true;
+        RebuildDefaultValueEditor();
     }
 
     public EditableTagExtraField(TagExtraFieldDefinition definition)
@@ -32,8 +37,10 @@ public partial class EditableTagExtraField : ObservableObject
         Description = definition.Description;
         OptionsText = string.Join(Environment.NewLine, definition.Options);
         Type = definition.Type;
+        DefaultValue = definition.DefaultValue;
         SortOrder = definition.SortOrder;
         Enabled = definition.Enabled;
+        RebuildDefaultValueEditor();
     }
 
     public string FieldId => _definition.FieldId;
@@ -43,6 +50,23 @@ public partial class EditableTagExtraField : ObservableObject
     public bool IsChoice => Type == TagExtraFieldType.Choice;
     public IReadOnlyList<TagExtraFieldType> AvailableTypes { get; } =
         Enum.GetValues<TagExtraFieldType>();
+    public EditableWorkItemExtraField DefaultValueEditor => _defaultValueEditor;
+
+    public string DefaultValue
+    {
+        get => _defaultValue;
+        set
+        {
+            var normalized = value ?? string.Empty;
+            if (!SetProperty(ref _defaultValue, normalized))
+                return;
+            if (_defaultValueEditor is not null
+                && !string.Equals(_defaultValueEditor.Value, normalized, StringComparison.Ordinal))
+            {
+                _defaultValueEditor.Value = normalized;
+            }
+        }
+    }
 
     [ObservableProperty] private string _fieldKey;
     [ObservableProperty] private string _label;
@@ -66,6 +90,7 @@ public partial class EditableTagExtraField : ObservableObject
             Description = Description,
             SortOrder = SortOrder,
             Options = GetOptions(),
+            DefaultValue = DefaultValue,
             Enabled = Enabled,
         });
         return clone;
@@ -79,6 +104,7 @@ public partial class EditableTagExtraField : ObservableObject
         Description = source.Description;
         SortOrder = source.SortOrder;
         OptionsText = source.OptionsText;
+        DefaultValue = source.DefaultValue;
         Enabled = source.Enabled;
     }
 
@@ -96,6 +122,23 @@ public partial class EditableTagExtraField : ObservableObject
         if (label.Length == 0)
         {
             error = "字段名称不能为空。";
+            return false;
+        }
+
+        var options = GetOptions();
+        if (Type == TagExtraFieldType.Choice && options.Length == 0)
+        {
+            error = "选项字段至少需要配置一个选项。";
+            return false;
+        }
+
+        if (!TagExtraFieldValueValidator.TryValidate(
+                Type,
+                DefaultValue.Trim(),
+                options,
+                out var defaultValueError))
+        {
+            error = $"默认值：{defaultValueError}";
             return false;
         }
 
@@ -133,6 +176,7 @@ public partial class EditableTagExtraField : ObservableObject
             Description = Description.Trim(),
             SortOrder = SortOrder,
             Options = GetOptions(),
+            DefaultValue = DefaultValue.Trim(),
             Enabled = Enabled,
         };
 
@@ -151,12 +195,50 @@ public partial class EditableTagExtraField : ObservableObject
         _definition.Description = candidate.Description;
         _definition.SortOrder = candidate.SortOrder;
         _definition.Options = candidate.Options;
+        _definition.DefaultValue = candidate.DefaultValue;
         _definition.Enabled = candidate.Enabled;
         FieldKey = candidate.FieldKey;
         Label = candidate.Label;
         Description = candidate.Description;
         OptionsText = string.Join(Environment.NewLine, candidate.Options);
+        DefaultValue = candidate.DefaultValue;
         return true;
+    }
+
+    partial void OnTypeChanged(TagExtraFieldType oldValue, TagExtraFieldType newValue)
+    {
+        if (_defaultValueEditor is not null && oldValue != newValue)
+            DefaultValue = string.Empty;
+        RebuildDefaultValueEditor();
+    }
+
+    partial void OnOptionsTextChanged(string value) => RebuildDefaultValueEditor();
+
+    private void RebuildDefaultValueEditor()
+    {
+        if (_defaultValueEditor is not null)
+            _defaultValueEditor.PropertyChanged -= OnDefaultValueEditorPropertyChanged;
+        _defaultValueEditor = new EditableWorkItemExtraField(new WorkItemExtraField
+        {
+            FieldId = FieldId,
+            FieldKey = FieldKey,
+            Label = Label,
+            Type = Type,
+            Options = GetOptions(),
+            Enabled = true,
+            Value = DefaultValue,
+        });
+        _defaultValueEditor.PropertyChanged += OnDefaultValueEditorPropertyChanged;
+        OnPropertyChanged(nameof(DefaultValueEditor));
+    }
+
+    private void OnDefaultValueEditorPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName == nameof(EditableWorkItemExtraField.Value)
+            && sender is EditableWorkItemExtraField editor)
+        {
+            DefaultValue = editor.Value;
+        }
     }
 
     private string[] GetOptions() => OptionsText

@@ -1,5 +1,6 @@
 #if DEBUG
 using Diary.App;
+using Diary.Core;
 using Diary.Database;
 using Diary.Db.SQLite;
 using PostgreSqlConfig = Diary.Db.PostgreSQL.Config;
@@ -71,6 +72,8 @@ public sealed class DebugUiAutomationTests
         using var database = new SQLiteDb(new TestSqliteFactory());
         Assert.IsTrue(database.Connect());
         Assert.IsTrue(database.Initialized());
+        var migration = database.MigrateTo(DataVersion.VersionCode, new DbMigrationOptions(CreateBackup: false));
+        Assert.IsTrue(migration.Success, migration.Error);
         var anchor = new DateTime(2026, 8, 24);
 
         Assert.IsTrue(DebugUiAutomation.ApplyDatePerformanceScenario(database, anchor));
@@ -159,7 +162,7 @@ public sealed class DebugUiAutomationTests
         public string Name => "SQLite";
         public bool Usable => true;
         public DbInterfaceBase Create() => new SQLiteDb(this);
-        public Migration? GetMigration(uint version) => null;
+        public Migration? GetMigration(uint version) => new SQLiteFactory().GetMigration(version);
         public object GetConfig() => _config;
     }
 }

@@ -38,7 +38,10 @@ public sealed record AiContextExtraFieldDefinition(
     string Type,
     string Description,
     int SortOrder,
-    IReadOnlyList<string> Options);
+    IReadOnlyList<string> Options)
+{
+    public string DefaultValue { get; init; } = string.Empty;
+}
 
 public sealed record AiContextTemplate(
     string Id,

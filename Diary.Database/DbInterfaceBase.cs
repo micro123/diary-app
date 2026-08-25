@@ -398,7 +398,8 @@ public abstract partial class DbInterfaceBase : IDisposable, IDbExtensionHost
         Description = ReadString(r, 5),
         SortOrder = r.GetInt32(6),
         Options = ParseTagExtraFieldOptions(ReadString(r, 7)),
-        Enabled = Convert.ToBoolean(r.GetValue(8)),
+        DefaultValue = ReadString(r, 8),
+        Enabled = Convert.ToBoolean(r.GetValue(9)),
     };
 
     protected WorkItemExtraField MapWorkItemExtraField(DbDataReader r)
@@ -415,8 +416,9 @@ public abstract partial class DbInterfaceBase : IDisposable, IDbExtensionHost
         Description = ReadString(r, offset + 6),
         SortOrder = r.GetInt32(offset + 7),
         Options = ParseTagExtraFieldOptions(ReadString(r, offset + 8)),
-        Enabled = Convert.ToBoolean(r.GetValue(offset + 9)),
-        Value = r.IsDBNull(offset + 10) ? string.Empty : ReadString(r, offset + 10),
+        DefaultValue = ReadString(r, offset + 9),
+        Enabled = Convert.ToBoolean(r.GetValue(offset + 10)),
+        Value = r.IsDBNull(offset + 11) ? string.Empty : ReadString(r, offset + 11),
     };
 
     protected WorkItem MapWorkItem(DbDataReader r) => new()

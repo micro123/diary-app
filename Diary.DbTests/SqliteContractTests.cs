@@ -11,6 +11,9 @@ public class SqliteContractTests : DbContractTests
     protected override DbInterfaceBase CreateDb(Func<uint, Migration?>? getMigration = null)
         => TestDb.Create(getMigration);
 
+    protected override Migration? GetProductionMigration(uint version)
+        => new SQLiteFactory().GetMigration(version);
+
     [TestMethod]
     public void Connect_ConfiguresDesktopWritePragmas()
     {
@@ -213,7 +216,7 @@ public class SqliteContractTests : DbContractTests
         public string Name => "SQLite";
         public bool Usable => true;
         public DbInterfaceBase Create() => new SQLiteDb(this);
-        public Migration? GetMigration(uint version) => null;
+        public Migration? GetMigration(uint version) => new SQLiteFactory().GetMigration(version);
         public object GetConfig() => _config;
     }
 
@@ -231,6 +234,8 @@ public class SqliteContractTests : DbContractTests
         var db = new SQLiteDb(new FileSqliteFactory(path));
         Assert.IsTrue(db.Connect());
         Assert.IsTrue(db.Initialized());
+        var migration = db.MigrateTo(DataVersion.VersionCode, new DbMigrationOptions(CreateBackup: false));
+        Assert.IsTrue(migration.Success, migration.Error);
         db.CreateWorkItem("2026-08-18", comment);
         var compatibility = db.CheckCompatibility(DataVersion.VersionCode);
         Assert.IsTrue(compatibility.IsUsable, compatibility.ToUserMessage());

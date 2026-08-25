@@ -482,3 +482,12 @@
 - [x] 管理页手动运行和 Editor 入口接入 V1/V2 双模式类型化表单；Editor 有参数菜单显示省略号并按 Day/Week/Month/Quarter/Year/WorkItem 隔离历史值。
 - [x] 有人值守运行参数使用独立本地原子文件保存，支持 schema 指纹迁移、200 项/4 MiB 限制、当前作用域清除和删除脚本联动清理；取消、校验失败和 Rejected 不覆盖旧记录。
 - [x] Automation 必填默认值不完整时保留 descriptor 并进入“待配置”，不注册调度；创建向导默认选择 V2，同时允许生成 V1/V2 对应基类或 metadata。
+
+## 阶段 10.2：标签附加字段默认值与核心数据版本 1.0.1
+
+完成日期：2026-08-25。设计见 [`TagExtraFieldDesign.md`](TagExtraFieldDesign.md)、[`TagImportExportDesign.md`](TagImportExportDesign.md) 和 [`DatabaseCompatibilityDesign.md`](DatabaseCompatibilityDesign.md)。
+
+- [x] 标签附加字段增加类型化默认值编辑与校验；默认值仅用于新建事项或新增标签预填，不回填历史数据，用户可以修改或清空。
+- [x] 核心数据版本提升到 `1.0.1`，SQLite/PostgreSQL 登记 `1.0.0 -> 1.0.1` 正式迁移并保留旧版初始化 SQL。
+- [x] 标签共享包 version 1 携带字段默认值并兼容缺少 `defaultValue` 的旧包；非法类型值和非法单选默认值在导入预览前拒绝。
+- [x] MCP `diary_list_extra_fields` 披露字段定义默认值，工作项查询仍只返回实际保存值；双 provider、工作项预填、克隆、导入导出和 MCP 契约均补充测试。

@@ -5,6 +5,7 @@ using Diary.App;
 using Diary.App.Models;
 using Diary.App.ViewModels;
 using Diary.App.ViewModels.Dialogs;
+using Diary.Core;
 using Diary.Core.Data.Base;
 using Diary.Database;
 using Diary.Db.SQLite;
@@ -374,6 +375,106 @@ public sealed class WorkEditorViewModelTests
     }
 
     [TestMethod]
+    public void NewItemAddedTagInitializesDefaultAndKeepsExplicitClear()
+    {
+        using var database = CreateDatabase();
+        var tag = database.CreateWorkTag("默认字段", true, 0);
+        var definition = new TagExtraFieldDefinition
+        {
+            FieldKey = "new.default",
+            TagId = tag.Id,
+            Label = "默认内容",
+            Type = TagExtraFieldType.Text,
+            DefaultValue = "预填内容",
+        };
+        Assert.IsTrue(database.CreateTagExtraFieldDefinition(definition));
+        var viewModel = CreateViewModel(database: database);
+
+        viewModel.AddTags([tag], TagAddSource.User);
+
+        Assert.AreEqual("预填内容", viewModel.ExtraFieldValues.Single().Value);
+        Assert.AreEqual("预填内容", viewModel.GetExtraFieldsSnapshot().Single().Value);
+
+        viewModel.ExtraFieldValues.Single().Value = string.Empty;
+        viewModel.AddTags([tag], TagAddSource.User);
+
+        Assert.AreEqual(string.Empty, viewModel.GetExtraFieldsSnapshot().Single().Value);
+    }
+
+    [TestMethod]
+    public void ExistingItemAddedTagAppliesOnlyNewTagDefaults()
+    {
+        using var database = CreateDatabase();
+        var oldTag = database.CreateWorkTag("旧标签", true, 0);
+        var newTag = database.CreateWorkTag("新标签", false, 0);
+        var oldDefinition = new TagExtraFieldDefinition
+        {
+            FieldKey = "old.default",
+            TagId = oldTag.Id,
+            Label = "旧默认值",
+            Type = TagExtraFieldType.Text,
+            DefaultValue = "不应回填",
+        };
+        var newDefinition = new TagExtraFieldDefinition
+        {
+            FieldKey = "new.persisted-default",
+            TagId = newTag.Id,
+            Label = "新默认值",
+            Type = TagExtraFieldType.Text,
+            DefaultValue = "应当预填",
+        };
+        Assert.IsTrue(database.CreateTagExtraFieldDefinition(oldDefinition));
+        Assert.IsTrue(database.CreateTagExtraFieldDefinition(newDefinition));
+        var item = database.CreateWorkItem("2026-08-25", "已有事项");
+        Assert.IsTrue(database.WorkItemAddTag(item, oldTag));
+        var viewModel = CreateViewModel(database: database);
+        LoadExistingItem(viewModel, item);
+        viewModel.SyncAll();
+
+        viewModel.AddTags([newTag], TagAddSource.User);
+
+        var fields = database.GetWorkItemExtraFields(item).ToDictionary(field => field.FieldId);
+        Assert.AreEqual(string.Empty, fields[oldDefinition.FieldId].Value);
+        Assert.AreEqual("应当预填", fields[newDefinition.FieldId].Value);
+    }
+
+    [TestMethod]
+    public void CloneSourceValueOverridesInitializedDefaultWithoutDuplicates()
+    {
+        using var database = CreateDatabase();
+        var tag = database.CreateWorkTag("克隆标签", true, 0);
+        var definition = new TagExtraFieldDefinition
+        {
+            FieldKey = "clone.default",
+            TagId = tag.Id,
+            Label = "克隆字段",
+            Type = TagExtraFieldType.Text,
+            DefaultValue = "默认值",
+        };
+        Assert.IsTrue(database.CreateTagExtraFieldDefinition(definition));
+        var item = database.CreateWorkItem("2026-08-25", "克隆来源");
+        Assert.IsTrue(database.WorkItemAddTag(item, tag));
+        Assert.IsTrue(database.SaveWorkItemExtraFieldValues(item.Id,
+        [
+            new WorkItemExtraFieldValue
+            {
+                WorkItemId = item.Id,
+                FieldId = definition.FieldId,
+                Value = "来源值",
+            },
+        ]));
+        var viewModel = CreateViewModel(database: database);
+        LoadExistingItem(viewModel, item);
+        viewModel.SyncAll();
+
+        var clone = viewModel.Clone();
+
+        Assert.AreEqual(1, clone.ExtraFieldValues.Count);
+        Assert.AreEqual("来源值", clone.ExtraFieldValues.Single().Value);
+        Assert.AreEqual("来源值", clone.GetExtraFieldsSnapshot().Single().Value);
+    }
+
+    [TestMethod]
     public void TrackerUploadResultIncludesRecoveryDetails()
     {
         var attemptedAt = new DateTimeOffset(2026, 8, 11, 14, 0, 0, TimeSpan.FromHours(8));
@@ -407,6 +508,8 @@ public sealed class WorkEditorViewModelTests
         var database = new SQLiteDb(new TestSqliteFactory());
         Assert.IsTrue(database.Connect());
         Assert.IsTrue(database.Initialized());
+        var migration = database.MigrateTo(DataVersion.VersionCode, new DbMigrationOptions(CreateBackup: false));
+        Assert.IsTrue(migration.Success, migration.Error);
         return database;
     }
 
@@ -561,7 +664,7 @@ public sealed class WorkEditorViewModelTests
         public string Name => "SQLite";
         public bool Usable => true;
         public DbInterfaceBase Create() => new SQLiteDb(this);
-        public Migration? GetMigration(uint version) => null;
+        public Migration? GetMigration(uint version) => new SQLiteFactory().GetMigration(version);
         public object GetConfig() => _config;
     }
 

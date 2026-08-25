@@ -316,7 +316,7 @@ public sealed partial class SQLiteDb(IDbFactory factory) : DbInterfaceBase(facto
     {
         var sql = """
                   SELECT field_id, field_key, tag_id, label, field_type, description,
-                         sort_order, options_json, enabled
+                         sort_order, options_json, default_value, enabled
                   FROM tag_extra_field_definitions
                   WHERE tag_id=$tag_id
                   """ + (includeDisabled ? string.Empty : " AND enabled=1") +
@@ -329,7 +329,7 @@ public sealed partial class SQLiteDb(IDbFactory factory) : DbInterfaceBase(facto
     {
         var sql = """
                   SELECT field_id, field_key, tag_id, label, field_type, description,
-                         sort_order, options_json, enabled
+                         sort_order, options_json, default_value, enabled
                   FROM tag_extra_field_definitions
                   """ + (includeDisabled ? string.Empty : " WHERE enabled=1") +
                   " ORDER BY tag_id, sort_order, field_key;";
@@ -342,14 +342,19 @@ public sealed partial class SQLiteDb(IDbFactory factory) : DbInterfaceBase(facto
             || !TagExtraFieldKeyRules.IsValid(definition.FieldKey)
             || string.IsNullOrWhiteSpace(definition.Label)
             || string.IsNullOrWhiteSpace(definition.FieldId)
+            || !TagExtraFieldValueValidator.TryValidate(
+                definition.Type,
+                definition.DefaultValue?.Trim() ?? string.Empty,
+                definition.Options,
+                out _)
             || !IsTagExtraFieldKeyAvailable(definition.FieldKey))
             return false;
         const string sql = """
                            INSERT OR IGNORE INTO tag_extra_field_definitions
                               (field_id, field_key, tag_id, label, field_type, description,
-                               sort_order, options_json, enabled)
+                               sort_order, options_json, default_value, enabled)
                            VALUES ($field_id, $field_key, $tag_id, $label, $field_type,
-                                   $description, $sort_order, $options_json, $enabled);
+                                   $description, $sort_order, $options_json, $default_value, $enabled);
                            """;
         return Execute(sql,
             ("$field_id", definition.FieldId),
@@ -360,6 +365,7 @@ public sealed partial class SQLiteDb(IDbFactory factory) : DbInterfaceBase(facto
             ("$description", definition.Description ?? string.Empty),
             ("$sort_order", definition.SortOrder),
             ("$options_json", SerializeTagExtraFieldOptions(definition.Options)),
+            ("$default_value", definition.DefaultValue?.Trim() ?? string.Empty),
             ("$enabled", definition.Enabled ? 1 : 0)) > 0;
     }
 
@@ -367,10 +373,15 @@ public sealed partial class SQLiteDb(IDbFactory factory) : DbInterfaceBase(facto
     {
         if (string.IsNullOrWhiteSpace(definition.FieldId)
             || !TagExtraFieldKeyRules.IsValid(definition.FieldKey)
-            || string.IsNullOrWhiteSpace(definition.Label))
+            || string.IsNullOrWhiteSpace(definition.Label)
+            || !TagExtraFieldValueValidator.TryValidate(
+                definition.Type,
+                definition.DefaultValue?.Trim() ?? string.Empty,
+                definition.Options,
+                out _))
             return false;
         var current = QueryFirst(
-            "SELECT field_id, field_key, tag_id, label, field_type, description, sort_order, options_json, enabled " +
+            "SELECT field_id, field_key, tag_id, label, field_type, description, sort_order, options_json, default_value, enabled " +
             "FROM tag_extra_field_definitions WHERE field_id=$field_id;",
             MapTagExtraFieldDefinition,
             ("$field_id", definition.FieldId));
@@ -382,7 +393,7 @@ public sealed partial class SQLiteDb(IDbFactory factory) : DbInterfaceBase(facto
         const string sql = """
                            UPDATE tag_extra_field_definitions
                            SET label=$label, description=$description, sort_order=$sort_order,
-                               options_json=$options_json, enabled=$enabled
+                               options_json=$options_json, default_value=$default_value, enabled=$enabled
                            WHERE field_id=$field_id;
                            """;
         return Execute(sql,
@@ -390,6 +401,7 @@ public sealed partial class SQLiteDb(IDbFactory factory) : DbInterfaceBase(facto
             ("$description", definition.Description ?? string.Empty),
             ("$sort_order", definition.SortOrder),
             ("$options_json", SerializeTagExtraFieldOptions(definition.Options)),
+            ("$default_value", definition.DefaultValue?.Trim() ?? string.Empty),
             ("$enabled", definition.Enabled ? 1 : 0),
             ("$field_id", definition.FieldId)) > 0;
     }
@@ -414,7 +426,7 @@ public sealed partial class SQLiteDb(IDbFactory factory) : DbInterfaceBase(facto
         const string sql = """
                            SELECT d.field_id, d.field_key, d.tag_id, t.tag_name, d.label,
                                   d.field_type, d.description, d.sort_order, d.options_json,
-                                  d.enabled, v.value_json
+                                  d.default_value, d.enabled, v.value_json
                            FROM work_item_tags wit
                            INNER JOIN tag_extra_field_definitions d
                               ON d.tag_id=wit.tag_id
@@ -446,7 +458,7 @@ public sealed partial class SQLiteDb(IDbFactory factory) : DbInterfaceBase(facto
             var sql = $"""
                        SELECT wit.work_id, d.field_id, d.field_key, d.tag_id, t.tag_name, d.label,
                               d.field_type, d.description, d.sort_order, d.options_json,
-                              d.enabled, v.value_json
+                              d.default_value, d.enabled, v.value_json
                        FROM work_item_tags wit
                        INNER JOIN tag_extra_field_definitions d ON d.tag_id=wit.tag_id
                        INNER JOIN work_tags t ON t.id=d.tag_id

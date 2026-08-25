@@ -113,6 +113,48 @@ public sealed class EditableWorkItemExtraFieldTests
         Assert.AreEqual("历史值", field.Value);
     }
 
+    [TestMethod]
+    public void TagDefinitionDefaultUsesTypedEditorAndCanonicalValue()
+    {
+        var definition = new EditableTagExtraField(new TagExtraFieldDefinition
+        {
+            FieldId = "definition-id",
+            FieldKey = "default.integer",
+            TagId = 1,
+            Label = "整数默认值",
+            Type = TagExtraFieldType.Integer,
+            DefaultValue = "12",
+        });
+
+        Assert.AreEqual(12m, definition.DefaultValueEditor.NumericValue);
+        definition.DefaultValueEditor.NumericValue = 25m;
+
+        Assert.AreEqual("25", definition.DefaultValue);
+        Assert.IsTrue(definition.Validate(out var error), error);
+    }
+
+    [TestMethod]
+    public void TagDefinitionChoiceDefaultMustExistInOptions()
+    {
+        var definition = new EditableTagExtraField(new TagExtraFieldDefinition
+        {
+            FieldId = "choice-definition-id",
+            FieldKey = "default.choice",
+            TagId = 1,
+            Label = "选项默认值",
+            Type = TagExtraFieldType.Choice,
+            Options = ["开发", "测试"],
+            DefaultValue = "不存在",
+        });
+
+        Assert.IsFalse(definition.Validate(out var error));
+        StringAssert.Contains(error, "必须选择已配置的选项");
+
+        definition.DefaultValueEditor.SelectedChoice = "测试";
+        Assert.AreEqual("测试", definition.DefaultValue);
+        Assert.IsTrue(definition.Validate(out error), error);
+    }
+
     private static EditableWorkItemExtraField Create(
         TagExtraFieldType type,
         string value = "",
