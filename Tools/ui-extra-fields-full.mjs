@@ -155,6 +155,23 @@ function textWithinControl(tree, name) {
     return control ? [control, ...descendants(tree, control)].map(textOf).filter(Boolean).join(' ') : '';
 }
 
+function visibleItemsWithin(tree, controlName, itemType) {
+    const control = named(tree, controlName);
+    return control
+        ? descendants(tree, control).filter(entry => isVisible(entry) && typeOf(entry).includes(itemType))
+        : [];
+}
+
+function extraFieldLabelsInDisplayOrder(tree) {
+    const list = named(tree, 'TagExtraFieldsList');
+    if (!list)
+        return [];
+    const expectedLabels = new Set(fields.map(field => field.label));
+    return descendants(tree, list)
+        .map(textOf)
+        .filter(text => expectedLabels.has(text));
+}
+
 function editableText(tree, namedControl) {
     const control = named(tree, namedControl);
     if (!control)
@@ -327,7 +344,7 @@ function assertEditorValue(tree, name, expected, message) {
 await runUiSuite({ name: 'ui-extra-fields-full', scenario: 'extra-fields', timeoutMs: 12000, stopOnFailure: true }, async ({
     connection, runStep,
 }) => {
-    await runStep('extra-fields.definition-create', '创建 9 类字段并校验非法 FieldKey', async () => {
+    await runStep('extra-fields.definition-create', '创建 9 类字段并验证标签过滤与摘要', async () => {
         await openSettingsText(connection, '标签设置', 'TagEditorView');
         let tree = await connection.getTree();
         await connection.replaceText(named(tree, 'TagNameInput'), tagName);
@@ -343,12 +360,43 @@ await runUiSuite({ name: 'ui-extra-fields-full', scenario: 'extra-fields', timeo
         const tagLabel = findByText(tree, tagName, entry => hasAncestorType(tree, entry, 'ListBoxItem'));
         const tagRow = tagLabel && ancestor(tree, tagLabel, entry => typeOf(entry).includes('ListBoxItem'));
         const fieldCount = descendants(tree, tagRow).find(entry => textOf(entry).includes('个字段'));
+        const summary = descendants(tree, tagRow).find(entry => nameOf(entry) === 'TagListSummary');
+        const summaryText = summary
+            ? [summary, ...descendants(tree, summary)].map(textOf).filter(Boolean).join(' ')
+            : '';
+        assertUi(summaryText.includes(String(fields.length)) && summaryText.includes('个字段'),
+            '标签摘要未显示字段数量：' + summaryText);
+        assertUi(summaryText.includes('0') && summaryText.includes('条元数据'),
+            '标签摘要未显示元数据数量：' + summaryText);
         const deleteButton = descendants(tree, tagRow).find(entry => isVisible(entry)
             && typeOf(entry).includes('Button'));
         await assertNoOverlap(connection, tagLabel, fieldCount, '标签名称与字段数量发生重叠');
         await assertNoOverlap(connection, tagLabel, deleteButton, '标签名称与删除按钮发生重叠');
         await assertNoOverlap(connection, fieldCount, deleteButton, '字段数量与删除按钮发生重叠');
-        return { tagName, fieldCount: fields.length, invalidKeyRejected: true, listLayoutNoOverlap: true };
+
+        const filterInput = named(tree, 'TagFilterInput');
+        assertUi(filterInput, '标签编辑器缺少过滤输入框');
+        await connection.replaceText(filterInput, '__不存在的标签__');
+        await connection.waitForTree(current => visibleItemsWithin(current, 'TagList', 'ListBoxItem').length === 0,
+            5000, '无匹配过滤条件下标签列表未清空');
+        tree = await connection.getTree();
+        await connection.replaceText(named(tree, 'TagFilterInput'), tagName);
+        await connection.waitForTree(current => {
+            const items = visibleItemsWithin(current, 'TagList', 'ListBoxItem');
+            return items.length === 1 && textWithinControl(current, 'TagList').includes(tagName);
+        }, 5000, '标签过滤未只保留匹配项');
+        tree = await connection.getTree();
+        await connection.replaceText(named(tree, 'TagFilterInput'), '');
+        await connection.waitForTree(current => findByText(current, tagName,
+            entry => hasAncestorType(current, entry, 'ListBoxItem')), 5000, '清空过滤后测试标签未恢复');
+        return {
+            tagName,
+            fieldCount: fields.length,
+            metadataCount: 0,
+            invalidKeyRejected: true,
+            filterVerified: true,
+            listLayoutNoOverlap: true,
+        };
     });
 
     await runStep('extra-fields.definition-persist', '保存、重开并验证字段定义不可变项', async () => {
@@ -375,14 +423,25 @@ await runUiSuite({ name: 'ui-extra-fields-full', scenario: 'extra-fields', timeo
         assertUi(!isEffectivelyEnabled(editor.tree, typeInput), '已有字段类型仍可编辑');
         await connection.replaceText(named(editor.tree, 'ExtraFieldDescriptionInput'), '单行文本说明-已修改');
         tree = await connection.getTree();
+        await connection.replaceText(editableText(tree, 'ExtraFieldSortOrderInput'), '99');
+        tree = await connection.getTree();
         await activateControl(connection, named(tree, 'SaveExtraFieldButton'));
         await connection.waitForTree(current => !named(current, 'TagExtraFieldEditorRoot'), 8000,
             '字段编辑器未关闭');
-        tree = await connection.getTree();
+        const reordered = await connection.waitForTree(current => {
+            const labels = extraFieldLabelsInDisplayOrder(current);
+            return labels.length === fields.length && labels.at(-1) === fields[0].label ? labels : null;
+        }, 5000, '修改排序值后字段列表未立即重排');
+        tree = reordered.tree;
         await activateControl(connection, named(tree, 'SaveTagSettingsButton'));
         await connection.waitForTree(current => !rootOf(current, 'TagEditorView'), 10000,
             '字段定义未持久化');
-        return { reopened: true, immutableKeyAndType: true, descriptionUpdated: true };
+        return {
+            reopened: true,
+            immutableKeyAndType: true,
+            descriptionUpdated: true,
+            orderReorderedImmediately: true,
+        };
     });
 
     await runStep('extra-fields.editor-types', '事项中呈现 9 类类型化编辑器', async () => {

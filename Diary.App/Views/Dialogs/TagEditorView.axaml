@@ -39,7 +39,7 @@
 
         <Grid Grid.Row="1" ColumnDefinitions="280,*" ColumnSpacing="8">
             <Border Grid.Column="0" Classes="MasterPane">
-                <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="6">
+                <Grid RowDefinitions="Auto,Auto,Auto,Auto,*" RowSpacing="6">
                     <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
                         <TextBlock Text="标签" Classes="SectionTitle" />
                         <Button Grid.Column="1"
@@ -76,9 +76,14 @@
                             </ColorPicker.Palette>
                         </ColorPicker>
                     </Grid>
-                    <ListBox Name="TagList"
+                    <TextBox Name="TagFilterInput"
                              Grid.Row="3"
-                             ItemsSource="{Binding AllTags}"
+                             Text="{Binding TagFilterText}"
+                             Watermark="过滤已有标签"
+                             Classes="ClearButton" />
+                    <ListBox Name="TagList"
+                             Grid.Row="4"
+                             ItemsSource="{Binding VisibleTags}"
                              SelectedItem="{Binding SelectedTag}">
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="{x:Type models:EditableWorkTag}">
@@ -104,10 +109,18 @@
                                                        FontWeight="SemiBold"
                                                        TextTrimming="CharacterEllipsis"
                                                        ToolTip.Tip="{Binding Name}" />
-                                            <TextBlock Grid.Row="1"
-                                                       Text="{Binding ExtraFields.Count, StringFormat='· {0} 个字段'}"
-                                                       Opacity="0.62"
-                                                       FontSize="12" />
+                                            <StackPanel Name="TagListSummary"
+                                                        Grid.Row="1"
+                                                        Orientation="Horizontal"
+                                                        Spacing="3"
+                                                        Opacity="0.62">
+                                                <TextBlock Text="·" FontSize="12" />
+                                                <TextBlock Text="{Binding ExtraFields.Count}" FontSize="12" />
+                                                <TextBlock Text="个字段" FontSize="12" />
+                                                <TextBlock Text="·" FontSize="12" />
+                                                <TextBlock Text="{Binding Metadata.Count}" FontSize="12" />
+                                                <TextBlock Text="条元数据" FontSize="12" />
+                                            </StackPanel>
                                         </Grid>
                                         <TextBlock Grid.Column="2"
                                                    Text="停用"

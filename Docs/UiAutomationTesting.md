@@ -104,7 +104,7 @@ seed 只复制加密配置文件，不应提交到 Git，也不得写入报告�
 | `ui-script-editor` | 4 | 独立脚本编辑器、命令区、编译检查和安全关闭 |
 | `ui-database-error` | 8 | 日记/查询/统计数据库异常状态、重试、设置入口、诊断导出和异常状态性能 |
 | `ui-survey-full` | 8 | v1 查询、v2 能力发现、详情、筛选、三种分组、明细开关、校验错误和性能 |
-| `ui-extra-fields-full` | 8 | 9 类字段定义、类型化编辑、清空、持久化、停用历史值和迁移只读事项；加载 Tracker 时同时验证扩展内容区只读 |
+| `ui-extra-fields-full` | 8 | 标签过滤、字段/元数据数量摘要、字段即时排序、9 类字段定义、类型化编辑、清空、持久化、停用历史值和迁移只读事项；加载 Tracker 时同时验证扩展内容区只读 |
 | `ui-date-performance` | 6 | 25,920 条事项、120 次逐次日期切换、两组高速连按、CPU/内存/进程 I/O；SQLite 检查主文件/WAL，PostgreSQL 检查数据摘要与写入计数 |
 | `ui-redmine-full` | 12 | 多 Tracker 设置、Redmine 管理、项目/Issue、标签规则、工时同步、防重复、删除边界、安全和性能 |
 | `ui-redmine-style` | 5 | Redmine 配置、插件状态、基本信息、问题/项目工具栏截图和 CheckBox 中心线，只读且不触发远程写入 |
@@ -118,6 +118,8 @@ seed 只复制加密配置文件，不应提交到 Git，也不得写入报告�
 同日精简 Redmine 管理页重复标题后，Linux X11 只读 `ui-redmine-style` 仍为 5/5 通过；基本信息截图确认页面直接从页签和用户/活动/已导入问题内容开始，报告为 `ui-redmine-style-2026-08-25T02-13-43-585Z.json`。
 
 同日统一收紧页面、卡片、表单、工具栏和对话框密度，并将同级主卡片/小型列表卡片间距分别收敛到 6px/4px 后，Linux X11 Debug 构建为 0 警告、0 错误；`ui-settings-full` 9/9、`ui-core-full` 14/14、`ui-extended-full` 11/11、`ui-survey-full` 8/8、`ui-database-error` 8/8、`ui-extra-fields-full` 8/8、`ui-redmine-style` 5/5，共 63/63 步通过。最终报告依次为 `ui-settings-full-2026-08-25T02-31-53-524Z.json`、`ui-core-full-2026-08-25T02-32-19-511Z.json`、`ui-extended-full-2026-08-25T02-32-47-991Z.json`、`ui-survey-full-2026-08-25T02-33-24-091Z.json`、`ui-database-error-2026-08-25T02-34-03-376Z.json`、`ui-extra-fields-full-2026-08-25T02-34-38-712Z.json` 和 `ui-redmine-style-2026-08-25T02-35-03-707Z.json`；`compact-diary.png`、`compact-query.png`、`compact-statistics.png`、`compact-settings-final.png`、`compact-survey.png` 及 Redmine 只读截图确认 1280×800 下无裁切或卡片粘连。
+
+同日扩展标签附加字段套件，新增标签名称过滤、字段/元数据数量摘要以及修改 `SortOrder` 后立即重排的断言；Linux X11 隔离场景 `ui-extra-fields-full` 8/8 通过，报告为 `ui-extra-fields-full-2026-08-25T12-34-35-275Z.json`。
 
 继续消除主窗口 `SplitView`、内容宿主和页面根容器的叠加留白后，主页面四周最终约为 4px；日记页左右两张主卡片改为直接保留 4px 间距，并移除已经由卡片边框替代的独立分隔线。最终 `ui-core-full` 仍为 14/14 通过，报告为 `ui-core-full-2026-08-25T02-46-09-454Z.json`，截图 `compact-diary-no-divider.png`、`compact-query-4px.png` 和 `compact-statistics-4px.png` 确认边缘、完整月历、工具栏和表格均未裁切。
 

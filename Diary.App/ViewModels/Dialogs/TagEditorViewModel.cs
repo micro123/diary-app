@@ -34,6 +34,8 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
     [ObservableProperty] private HsvColor _newTagColor = default;
 
     [ObservableProperty] private ObservableCollection<EditableWorkTag> _allTags = new();
+    public ObservableCollection<EditableWorkTag> VisibleTags { get; } = new();
+    [ObservableProperty] private string _tagFilterText = string.Empty;
     [ObservableProperty] private EditableWorkTag? _selectedTag;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsExportSelectionOpen))]
@@ -69,6 +71,8 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
         foreach (var contribution in RuleContributions)
             contribution.SelectTag(value.Tag);
     }
+
+    partial void OnTagFilterTextChanged(string value) => RefreshVisibleTags();
 
     public void Close()
     {
@@ -292,7 +296,7 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
         if (tag.Delete())
         {
             AllTags.Remove(tag);
-            SelectedTag = AllTags.FirstOrDefault();
+            RefreshVisibleTags();
         }
     }
 
@@ -329,6 +333,7 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
             tag.ExtraFields.Add(draft);
         else
             field.CopyFrom(draft);
+        SortExtraFields(tag.ExtraFields);
         _changed = true;
     }
 
@@ -381,6 +386,39 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
         AllTags.Clear();
         foreach (var tag in all)
             AllTags.Add(new EditableWorkTag(tag, App.Instance.UseDb));
-        SelectedTag = AllTags.FirstOrDefault();
+        RefreshVisibleTags();
+    }
+
+    private void RefreshVisibleTags()
+    {
+        var selected = SelectedTag;
+        var filter = TagFilterText.Trim();
+        VisibleTags.Clear();
+        foreach (var tag in AllTags.Where(tag => MatchesTagFilter(tag.Name, filter)))
+        {
+            VisibleTags.Add(tag);
+        }
+
+        SelectedTag = selected is not null && VisibleTags.Contains(selected)
+            ? selected
+            : VisibleTags.FirstOrDefault();
+    }
+
+    internal static bool MatchesTagFilter(string tagName, string filter)
+        => string.IsNullOrWhiteSpace(filter)
+           || tagName.Contains(filter.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    internal static void SortExtraFields(ObservableCollection<EditableTagExtraField> fields)
+    {
+        var sorted = fields
+            .OrderBy(field => field.SortOrder)
+            .ThenBy(field => field.FieldKey, StringComparer.Ordinal)
+            .ToArray();
+        for (var targetIndex = 0; targetIndex < sorted.Length; targetIndex++)
+        {
+            var currentIndex = fields.IndexOf(sorted[targetIndex]);
+            if (currentIndex != targetIndex)
+                fields.Move(currentIndex, targetIndex);
+        }
     }
 }

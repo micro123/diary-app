@@ -19,6 +19,7 @@
   - 同日日记事项备注编辑框已改为随卡片剩余空间自动拉伸，并补充核心 UI 高度与底边间距断言；Linux X11 `ui-core-full` 14/14 通过，该项已归档到 `CompletedWork.md`，不增加新的待办。
   - 同日日记事项编辑器已在没有启用且可用的 Tracker 编辑扩展时隐藏整个“Tracker 关联”卡片；ViewModel 状态测试和 Linux X11 `ui-core-full` 14/14 通过，该项已归档到 `CompletedWork.md`，不增加新的待办。
   - 同日紧凑周历年月按钮已增加年度周次，并复用日期菜单的周次口径；格式单元测试和 Linux X11 `ui-core-full` 14/14 通过，该项已归档到 `CompletedWork.md`，不增加新的待办。
+  - 同日标签编辑器增加按名称即时过滤、字段/元数据数量摘要和附加字段即时排序；ViewModel 定向测试 2/2、Linux X11 `ui-extra-fields-full` 8/8 通过，该项已归档到 `CompletedWork.md`，不增加新的待办。
 - [ ] 在出现明确的实时查询需求后，评估带用户显式启停、短期令牌和本地命名管道/Unix socket 的 MCP 实时会话；当前版本已完成显式授权快照、Markdown/JSON 导出、六个快照数据工具和无执行脚本校验，不允许数据库直连或脚本执行。
 
 ## 阶段 7：代码质量与运行稳定性
