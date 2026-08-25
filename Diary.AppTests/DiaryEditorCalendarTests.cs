@@ -12,4 +12,28 @@ public sealed class DiaryEditorCalendarTests
     {
         Assert.AreEqual(expected, DiaryEditorViewModel.FormatCompactCalendarTitle(new DateTime(year, month, day)));
     }
+
+    [TestMethod]
+    public void TrackerUploadWeekRangeUsesMondayThroughSunday()
+    {
+        var range = DiaryEditorViewModel.GetTrackerUploadRange(
+            new DateTime(2026, 8, 25),
+            Diary.Utils.AdjustPart.Week);
+
+        Assert.AreEqual(new DateTime(2026, 8, 24), range.StartDate);
+        Assert.AreEqual(new DateTime(2026, 8, 30), range.EndDate);
+        Assert.AreEqual("本周", range.PeriodName);
+    }
+
+    [TestMethod]
+    public void TrackerUploadMonthRangeUsesWholeCalendarMonth()
+    {
+        var range = DiaryEditorViewModel.GetTrackerUploadRange(
+            new DateTime(2026, 8, 25),
+            Diary.Utils.AdjustPart.Month);
+
+        Assert.AreEqual(new DateTime(2026, 8, 1), range.StartDate);
+        Assert.AreEqual(new DateTime(2026, 8, 31), range.EndDate);
+        Assert.AreEqual("本月", range.PeriodName);
+    }
 }

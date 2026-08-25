@@ -1,0 +1,37 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
+             x:Class="Diary.App.Views.Dialogs.PeriodTrackerUploadProgressView"
+             x:DataType="dialogs:PeriodTrackerUploadProgressViewModel"
+             mc:Ignorable="d"
+             d:DesignWidth="520"
+             d:DesignHeight="230"
+             MinWidth="480"
+             Margin="8,24,8,8">
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="12">
+        <StackPanel Spacing="2">
+            <TextBlock Text="{Binding Title}" Classes="Header" />
+            <TextBlock Text="{Binding RangeText}" Opacity="0.68" />
+        </StackPanel>
+
+        <ProgressBar Grid.Row="1"
+                     Minimum="0"
+                     Maximum="100"
+                     Value="{Binding Progress}"
+                     IsIndeterminate="{Binding IsIndeterminate}"
+                     Height="6" />
+
+        <TextBlock Grid.Row="2"
+                   Text="{Binding StatusText}"
+                   TextWrapping="Wrap" />
+
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="12">
+            <TextBlock Text="{Binding Completed, StringFormat='已处理 {0}'}" />
+            <TextBlock Grid.Column="1" Text="{Binding Total, StringFormat='共 {0}'}" Opacity="0.68" />
+            <TextBlock Grid.Column="2" Text="{Binding Succeeded, StringFormat='成功 {0}'}" />
+            <TextBlock Grid.Column="3" Text="{Binding Skipped, StringFormat='跳过 {0}'}" />
+        </Grid>
+    </Grid>
+</UserControl>

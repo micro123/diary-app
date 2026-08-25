@@ -30,6 +30,23 @@ public sealed class TrackerUploadCoordinatorTests
     }
 
     [TestMethod]
+    public async Task UploadUntilFailureStopsAfterFirstTrackerFailure()
+    {
+        var first = new FakeExtension(new TrackerKey("tracker.one", "default"),
+            new TrackerOperationResult(false, "network"));
+        var second = new FakeExtension(new TrackerKey("tracker.two", "default"),
+            new TrackerOperationResult(true, remoteId: "42"));
+
+        var result = await new TrackerUploadCoordinator().UploadUntilFailureAsync(
+            new WorkItem { Id = 1 }, new[] { first, second });
+
+        Assert.IsFalse(result.Success);
+        Assert.AreEqual(1, result.Results.Count);
+        Assert.AreEqual(1, first.UploadCount);
+        Assert.AreEqual(0, second.UploadCount);
+    }
+
+    [TestMethod]
     public async Task UploadSkipsLockedTracker()
     {
         var locked = new FakeExtension(

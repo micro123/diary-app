@@ -859,6 +859,264 @@ public partial class DiaryEditorViewModel : ViewModelBase
             EventDispatcher.Msg(new QuickSurveyEvent(date, part));
         });
 
+    private IAsyncRelayCommand CreatePeriodTrackerUploadCommand(DateTime date, AdjustPart part) =>
+        new AsyncRelayCommand(() => UploadPeriodTrackerTime(date, part));
+
+    private async Task UploadPeriodTrackerTime(DateTime anchorDate, AdjustPart part)
+    {
+        var (startDate, endDate, periodName) = GetTrackerUploadRange(anchorDate, part);
+        if (SelectedWork is { ShouldPersistBeforeReplacement: true } && !TrySaveWorkItem())
+        {
+            EventDispatcher.Notify(
+                $"{periodName}工时同步未开始",
+                "当前事项自动保存失败。请先修正本地事项并保存，再重新执行同步。");
+            return;
+        }
+
+        var progressViewModel = new PeriodTrackerUploadProgressViewModel(
+            $"正在同步{periodName}工时",
+            startDate,
+            endDate);
+        var dialogTask = OverlayDialog.ShowCustomModal<PeriodTrackerUploadSummary>(
+            progressViewModel,
+            options: new OverlayDialogOptions
+            {
+                CanDragMove = false,
+                CanResize = false,
+                CanLightDismiss = false,
+                IsCloseButtonVisible = false,
+            });
+        await Task.Yield();
+
+        PeriodTrackerUploadSummary summary;
+        try
+        {
+            var works = LoadPeriodWorks(startDate, endDate);
+            progressViewModel.Begin(works.Count);
+            summary = await UploadPeriodWorksAsync(
+                works,
+                startDate,
+                endDate,
+                progressViewModel.Report);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(
+                exception,
+                "Failed to upload tracker time for period {StartDate} - {EndDate}",
+                startDate,
+                endDate);
+            summary = new PeriodTrackerUploadSummary(
+                startDate,
+                endDate,
+                0,
+                0,
+                0,
+                0,
+                1,
+                new Dictionary<PeriodTrackerUploadSkipKind, int>(),
+                new PeriodTrackerUploadFailure(
+                    0,
+                    startDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    "准备批量同步",
+                    exception.Message));
+        }
+
+        progressViewModel.Complete(summary);
+        await dialogTask;
+        RefreshCurrentDayAfterPeriodUpload();
+        ShowPeriodUploadSummary(periodName, summary);
+    }
+
+    internal static (DateTime StartDate, DateTime EndDate, string PeriodName) GetTrackerUploadRange(
+        DateTime anchorDate,
+        AdjustPart part) => part switch
+        {
+            AdjustPart.Week => (StartOfWeek(anchorDate), StartOfWeek(anchorDate).AddDays(6), "本周"),
+            AdjustPart.Month => (
+                new DateTime(anchorDate.Year, anchorDate.Month, 1),
+                new DateTime(anchorDate.Year, anchorDate.Month, DateTime.DaysInMonth(anchorDate.Year, anchorDate.Month)),
+                "本月"),
+            _ => throw new ArgumentOutOfRangeException(nameof(part), part, "只支持按周或按月同步工时。"),
+        };
+
+    private IReadOnlyList<WorkEditorViewModel> LoadPeriodWorks(DateTime startDate, DateTime endDate)
+    {
+        var db = App.Instance.UseDb
+            ?? throw new InvalidOperationException("数据库尚未连接，无法读取待同步事项。");
+        var works = db.QueryWorkItems(new WorkItemQuery
+        {
+            StartDate = TimeTools.FormatDateTime(startDate),
+            EndDate = TimeTools.FormatDateTime(endDate),
+        }).OrderBy(item => item.CreateDate, StringComparer.Ordinal)
+            .ThenBy(item => item.Id)
+            .ToArray();
+        if (works.Length == 0)
+            return Array.Empty<WorkEditorViewModel>();
+
+        var workItemIds = works.Select(item => item.Id).ToArray();
+        var notesById = db.GetWorkNotesByWorkItemIds(workItemIds);
+        var tagsById = db.GetWorkTagsByWorkItemIds(workItemIds);
+        var extraFieldsById = db.GetWorkItemExtraFieldsByWorkItemIds(workItemIds);
+        var bindingsByTracker = new Dictionary<TrackerKey, IDictionary<int, object?>?>();
+        var trackers = _serviceProvider.GetRequiredService<TrackerUiContributionRegistry>().Contributions;
+        foreach (var tracker in trackers)
+        {
+            var key = new TrackerKey(tracker.PluginId, tracker.Instance.InstanceId);
+            bindingsByTracker[key] = tracker.Instance.LoadBindingsByDate(
+                TimeTools.FormatDateTime(startDate),
+                workItemIds);
+        }
+
+        var result = new List<WorkEditorViewModel>(works.Length);
+        foreach (var item in works)
+        {
+            var editor = WorkEditorViewModel.FromWorkItem(item);
+            editor.SyncFromBatch(notesById, tagsById, bindingsByTracker, extraFieldsById);
+            result.Add(editor);
+        }
+        return result;
+    }
+
+    private static async Task<PeriodTrackerUploadSummary> UploadPeriodWorksAsync(
+        IReadOnlyList<WorkEditorViewModel> works,
+        DateTime startDate,
+        DateTime endDate,
+        Action<PeriodTrackerUploadProgress> reportProgress)
+    {
+        var succeeded = 0;
+        var skipped = 0;
+        var failed = 0;
+        var processed = 0;
+        var skipCounts = new Dictionary<PeriodTrackerUploadSkipKind, int>();
+        PeriodTrackerUploadFailure? failure = null;
+
+        foreach (var work in works)
+        {
+            var eligibility = work.GetPeriodUploadEligibility();
+            if (!eligibility.CanUpload)
+            {
+                ++skipped;
+                ++processed;
+                if (eligibility.SkipKind is { } skipKind)
+                    skipCounts[skipKind] = skipCounts.GetValueOrDefault(skipKind) + 1;
+                reportProgress(new PeriodTrackerUploadProgress(
+                    processed,
+                    works.Count,
+                    succeeded,
+                    skipped,
+                    $"跳过 {FormatWorkLocation(work)}：{eligibility.Detail}"));
+                continue;
+            }
+
+            reportProgress(new PeriodTrackerUploadProgress(
+                processed,
+                works.Count,
+                succeeded,
+                skipped,
+                $"正在同步 {FormatWorkLocation(work)}……"));
+            var (success, error) = await work.UploadUntilFirstTrackerFailure();
+            ++processed;
+            if (success)
+            {
+                ++succeeded;
+                reportProgress(new PeriodTrackerUploadProgress(
+                    processed,
+                    works.Count,
+                    succeeded,
+                    skipped,
+                    $"已同步 {FormatWorkLocation(work)}"));
+                continue;
+            }
+
+            ++failed;
+            failure = new PeriodTrackerUploadFailure(
+                work.WorkId,
+                work.Date,
+                string.IsNullOrWhiteSpace(work.Comment) ? "无标题事项" : work.Comment,
+                string.IsNullOrWhiteSpace(error) ? "Tracker 未返回具体错误" : error);
+            reportProgress(new PeriodTrackerUploadProgress(
+                processed,
+                works.Count,
+                succeeded,
+                skipped,
+                $"同步失败，已在 {FormatWorkLocation(work)} 终止"));
+            break;
+        }
+
+        return new PeriodTrackerUploadSummary(
+            startDate,
+            endDate,
+            works.Count,
+            processed,
+            succeeded,
+            skipped,
+            failed,
+            skipCounts,
+            failure);
+    }
+
+    private static string FormatWorkLocation(WorkEditorViewModel work) =>
+        $"{work.Date} #{work.WorkId} {(
+            string.IsNullOrWhiteSpace(work.Comment) ? "无标题事项" : work.Comment)}";
+
+    private void RefreshCurrentDayAfterPeriodUpload()
+    {
+        var selectedWorkId = SelectedWork?.WorkId ?? 0;
+        FetchWorks();
+        if (selectedWorkId > 0)
+            SelectWorkById(selectedWorkId);
+        UpdateTimeInfos();
+        UploadAllCommand.NotifyCanExecuteChanged();
+        DeleteWorkItemCommand.NotifyCanExecuteChanged();
+    }
+
+    private static void ShowPeriodUploadSummary(
+        string periodName,
+        PeriodTrackerUploadSummary summary)
+    {
+        var body = new StringBuilder();
+        body.AppendLine($"范围：{summary.StartDate:yyyy-MM-dd} 至 {summary.EndDate:yyyy-MM-dd}");
+        body.AppendLine(
+            $"成功 {summary.Succeeded}，跳过 {summary.Skipped}，失败 {summary.Failed}，未处理 {summary.Unprocessed}。");
+
+        if (summary.Skipped > 0)
+        {
+            body.AppendLine();
+            body.AppendLine("跳过明细：");
+            AppendSkipCount(body, summary, PeriodTrackerUploadSkipKind.Imported, "导入记录");
+            AppendSkipCount(body, summary, PeriodTrackerUploadSkipKind.Synchronized, "已同步");
+            AppendSkipCount(body, summary, PeriodTrackerUploadSkipKind.Uncertain, "同步中或结果待确认");
+            AppendSkipCount(body, summary, PeriodTrackerUploadSkipKind.TrackerIncomplete, "Tracker 信息不完整或工时无效");
+        }
+
+        if (summary.Failure is { } failure)
+        {
+            body.AppendLine();
+            body.AppendLine("失败位置：");
+            body.AppendLine(failure.WorkItemId > 0
+                ? $"{failure.Date} #{failure.WorkItemId} {failure.Title}"
+                : failure.Title);
+            body.AppendLine($"原因：{failure.Error}");
+            if (summary.Unprocessed > 0)
+                body.AppendLine($"遇到首个失败后已终止，剩余 {summary.Unprocessed} 条未处理。");
+        }
+
+        EventDispatcher.Notify(
+            summary.Failed == 0 ? $"{periodName}工时同步完成" : $"{periodName}工时同步已终止",
+            body.ToString().TrimEnd());
+    }
+
+    private static void AppendSkipCount(
+        StringBuilder body,
+        PeriodTrackerUploadSummary summary,
+        PeriodTrackerUploadSkipKind kind,
+        string label)
+    {
+        if (summary.SkipCounts.GetValueOrDefault(kind) is > 0 and var count)
+            body.AppendLine($"- {label}：{count}");
+    }
+
     private IAsyncRelayCommand CreateEditorScriptCommand(
         string scriptId,
         ScriptEditorTarget target) =>
@@ -972,6 +1230,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         AddMenuHeader($"今日总工时{TotalTime:0.##}小时，有{TotalTime - UploadedTime:0.##}小时未同步");
         AddMenuSeparator();
         AddMenuAction("同步本日工时", UploadAllCommand);
+        AddMenuAction("同步本周工时", CreatePeriodTrackerUploadCommand(date, AdjustPart.Week));
         AddMenuAction("统计本周工时", CreateStatisticsCommand(date, AdjustPart.Week));
         if (IsSurveyorEnabled)
         {
@@ -996,6 +1255,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         var quarter = (date.Month - 1) / 3 + 1;
         AddMenuHeader($"{date:yyyy年MM月} · 第{quarter}季度 · {date:yyyy}年度");
         AddMenuSeparator();
+        AddMenuAction("同步本月工时", CreatePeriodTrackerUploadCommand(date, AdjustPart.Month));
         AddMenuAction("统计本月工时", CreateStatisticsCommand(date, AdjustPart.Month));
         AddMenuAction("统计本季度工时", CreateStatisticsCommand(date, AdjustPart.Quarter));
         AddMenuAction("统计此年工时", CreateStatisticsCommand(date, AdjustPart.Year));

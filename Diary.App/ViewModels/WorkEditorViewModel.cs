@@ -631,6 +631,22 @@ public partial class WorkEditorViewModel : ViewModelBase
     public bool CanUpload()
         => !IsImportedReadOnly && Extensions.Any(extension => !extension.IsLocked);
 
+    public PeriodTrackerUploadEligibility GetPeriodUploadEligibility()
+    {
+        if (WorkItem is null)
+        {
+            return PeriodTrackerUploadEligibility.Skip(
+                PeriodTrackerUploadSkipKind.TrackerIncomplete,
+                "事项尚未保存");
+        }
+
+        return PeriodTrackerUploadPolicy.Evaluate(
+            WorkItem,
+            IsImportedReadOnly,
+            UploadStatus,
+            Extensions);
+    }
+
     public void SetRecentTagIds(IEnumerable<int> tagIds)
     {
         _recentTagIds = tagIds.Distinct().ToArray();
@@ -801,11 +817,18 @@ public partial class WorkEditorViewModel : ViewModelBase
     }
 
     /// <summary>上传所有 tracker 扩展，聚合结果。任一失败即整体失败。</summary>
-    public async Task<(bool, string?)> Upload()
+    public Task<(bool, string?)> Upload() => UploadCore(stopOnFirstTrackerFailure: false);
+
+    public Task<(bool, string?)> UploadUntilFirstTrackerFailure()
+        => UploadCore(stopOnFirstTrackerFailure: true);
+
+    private async Task<(bool, string?)> UploadCore(bool stopOnFirstTrackerFailure)
     {
         if (WorkItem is null)
             return (false, "工作项尚未保存");
-        var result = await _uploadCoordinator.UploadAsync(WorkItem, Extensions);
+        var result = stopOnFirstTrackerFailure
+            ? await _uploadCoordinator.UploadUntilFailureAsync(WorkItem, Extensions)
+            : await _uploadCoordinator.UploadAsync(WorkItem, Extensions);
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
             UploadResults.Clear();

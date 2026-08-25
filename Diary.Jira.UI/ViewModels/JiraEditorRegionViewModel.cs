@@ -76,6 +76,17 @@ public partial class JiraEditorRegionViewModel : ViewModelBase, ITrackerEditorEx
         jira.IssueText = IssueText;
     }
 
+    public TrackerUploadValidation ValidateUpload(WorkItem item)
+    {
+        if (item.Time <= 0)
+            return TrackerUploadValidation.Invalid("耗时必须大于 0");
+        if (_timeEntry is null || string.IsNullOrWhiteSpace(_timeEntry.IssueKey))
+            return TrackerUploadValidation.Invalid("未设置 Jira Issue");
+        if (IssueIndex < 0 || IssueIndex >= Issues.Count)
+            return TrackerUploadValidation.Invalid("Jira Issue 不存在或已失效");
+        return TrackerUploadValidation.Valid;
+    }
+
     public async Task<TrackerOperationResult> UploadAsync(WorkItem item)
     {
         if (Uploaded) return new TrackerOperationResult(false);

@@ -59,6 +59,11 @@ public interface ITrackerUploadCoordinator
     Task<WorkUploadResult> UploadAsync(
         WorkItem item,
         IReadOnlyCollection<ITrackerEditorExtension> extensions);
+
+    Task<WorkUploadResult> UploadUntilFailureAsync(
+        WorkItem item,
+        IReadOnlyCollection<ITrackerEditorExtension> extensions)
+        => UploadAsync(item, extensions);
 }
 
 [DiAutoRegister(singleton: true, serviceType: typeof(ITrackerUploadCoordinator))]
@@ -67,6 +72,17 @@ public sealed class TrackerUploadCoordinator : ITrackerUploadCoordinator
     public async Task<WorkUploadResult> UploadAsync(
         WorkItem item,
         IReadOnlyCollection<ITrackerEditorExtension> extensions)
+        => await UploadCoreAsync(item, extensions, stopOnFailure: false);
+
+    public async Task<WorkUploadResult> UploadUntilFailureAsync(
+        WorkItem item,
+        IReadOnlyCollection<ITrackerEditorExtension> extensions)
+        => await UploadCoreAsync(item, extensions, stopOnFailure: true);
+
+    private static async Task<WorkUploadResult> UploadCoreAsync(
+        WorkItem item,
+        IReadOnlyCollection<ITrackerEditorExtension> extensions,
+        bool stopOnFailure)
     {
         var results = new List<TrackerUploadResult>(extensions.Count);
         foreach (var extension in extensions)
@@ -94,6 +110,8 @@ public sealed class TrackerUploadCoordinator : ITrackerUploadCoordinator
                     result.RemoteId,
                     result.State,
                     extension.UploadAttemptedAt ?? attemptedAt));
+                if (stopOnFailure && !result.Success)
+                    break;
             }
             catch (Exception ex)
             {
@@ -104,6 +122,8 @@ public sealed class TrackerUploadCoordinator : ITrackerUploadCoordinator
                     ex.Message,
                     State: TrackerUploadState.Uncertain,
                     AttemptedAt: extension.UploadAttemptedAt ?? attemptedAt));
+                if (stopOnFailure)
+                    break;
             }
         }
 

@@ -91,6 +91,23 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
         redmine.ActivityIndex = ActivityIndex;
     }
 
+    public TrackerUploadValidation ValidateUpload(WorkItem item)
+    {
+        if (item.Time <= 0)
+            return TrackerUploadValidation.Invalid("耗时必须大于 0");
+        if (TimeEntry is null)
+            return TrackerUploadValidation.Invalid("未设置 Redmine 问题或活动");
+        if (IssueIndex < 0 || IssueIndex >= RedMineIssues.Count)
+            return TrackerUploadValidation.Invalid("未设置 Redmine 问题");
+        if (ActivityIndex < 0 || ActivityIndex >= RedMineActivities.Count)
+            return TrackerUploadValidation.Invalid("未设置 Redmine 活动");
+        if (RedMineIssues[IssueIndex].Disabled || RedMineIssues[IssueIndex].Invalid)
+            return TrackerUploadValidation.Invalid("Redmine 问题已失效");
+        if (RedMineActivities[ActivityIndex].Invalid)
+            return TrackerUploadValidation.Invalid("Redmine 活动已失效");
+        return TrackerUploadValidation.Valid;
+    }
+
     public async Task<TrackerOperationResult> UploadAsync(WorkItem item)
     {
         if (Uploaded)

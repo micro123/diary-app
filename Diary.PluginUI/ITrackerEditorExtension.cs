@@ -4,6 +4,16 @@ using Diary.PluginBase;
 
 namespace Diary.PluginUI;
 
+public sealed record TrackerUploadValidation(bool CanUpload, string? Error = null)
+{
+    public static TrackerUploadValidation Valid { get; } = new(true);
+    public static TrackerUploadValidation Unsupported { get; } = new(
+        false,
+        "Tracker 未提供快捷批量同步所需的完整性校验");
+
+    public static TrackerUploadValidation Invalid(string error) => new(false, error);
+}
+
 /// <summary>
 /// 工作项编辑器扩展区（文档 §10）。一个 tracker 实例贡献一个扩展，编辑器聚合多个。
 /// 替代现有 <c>ITrackerEditorRegion</c>（迁入后该接口废弃）。
@@ -51,6 +61,12 @@ public interface ITrackerEditorExtension
 
     /// <summary>Tracker 扩展是否允许无确认删除；核心编辑器删除时仍需根据上传状态提示用户。</summary>
     bool CanDelete { get; }
+
+    /// <summary>
+    /// 在执行无需人工确认的批量同步前检查当前本地绑定是否具备远程上传所需信息。
+    /// 默认不参与快捷批量同步；Tracker 必须显式覆盖并校验自己的必填字段和失效值。
+    /// </summary>
+    TrackerUploadValidation ValidateUpload(WorkItem item) => TrackerUploadValidation.Unsupported;
 
     /// <summary>上传到远程，返回统一结果。</summary>
     Task<TrackerOperationResult> UploadAsync(WorkItem item);
