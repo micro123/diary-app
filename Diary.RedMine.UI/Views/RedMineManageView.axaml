@@ -7,7 +7,7 @@
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="Diary.RedMine.UI.Views.RedMineManageView"
              x:DataType="viewModels:RedMineManageViewModel">
-    <Grid Margin="8">
+    <Grid>
         <StackPanel IsVisible="{Binding !ServerOk}" HorizontalAlignment="Center"
                     VerticalAlignment="Center" Spacing="6">
             <TextBlock Text="无法连接 Redmine 服务器" Classes="EmptyStateTitle" />
@@ -17,7 +17,7 @@
         <Border Classes="DetailPane" IsVisible="{Binding ServerOk}">
         <TabControl ItemsSource="{Binding Tabs}"
                     TabStripPlacement="Top" Theme="{DynamicResource LineTabControl}"
-                    Margin="12,4,12,12">
+                    Margin="8,2,8,8">
             <TabControl.ItemTemplate>
                 <DataTemplate>
                     <StackPanel Orientation="Horizontal" Spacing="6">

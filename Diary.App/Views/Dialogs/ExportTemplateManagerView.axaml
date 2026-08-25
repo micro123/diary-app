@@ -3,10 +3,10 @@
              xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
              x:Class="Diary.App.Views.Dialogs.ExportTemplateManagerView"
              x:DataType="dialogs:ExportTemplateManagerViewModel"
-             Width="900" Height="620" Padding="16">
-    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
+             Width="900" Height="620" Padding="10">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
         <Border Classes="PageHeader">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                 <StackPanel Spacing="4">
                     <TextBlock Text="数据模板" Classes="PageTitle" />
                     <TextBlock Text="导入模板文件后，由对应插件校验模板结构并声明所需导出数据。"
@@ -16,7 +16,7 @@
                         Classes="Primary" VerticalAlignment="Center" />
             </Grid>
         </Border>
-        <Border Grid.Row="1" Classes="DetailPane" Padding="14">
+        <Border Grid.Row="1" Classes="DetailPane" Padding="8">
         <Grid>
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6"
                         IsVisible="{Binding IsEmpty}">
@@ -28,8 +28,8 @@
                 <ItemsControl ItemsSource="{Binding Templates}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="dialogs:ExportTemplateItemViewModel">
-                            <Border Classes="SectionCard" Margin="0 0 0 10">
-                                <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8">
+                            <Border Classes="SectionCard" Margin="0 0 0 6">
+                                <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="6">
                                     <Grid ColumnDefinitions="*,Auto">
                                         <StackPanel Spacing="3">
                                             <TextBlock Text="{Binding DisplayName}" FontSize="16"
@@ -63,7 +63,7 @@
             </ScrollViewer>
         </Grid>
         </Border>
-        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="8">
             <Border Classes="StatusPill" HorizontalAlignment="Left">
                 <TextBlock Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center" />
             </Border>

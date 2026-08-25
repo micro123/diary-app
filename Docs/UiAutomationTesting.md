@@ -99,7 +99,7 @@ seed 只复制加密配置文件，不应提交到 Git，也不得写入报告�
 | --- | ---: | --- |
 | `ui-settings-full` | 9 | 首次引导、设置分组、保存/丢弃、导航动态重建、数据库/迁移对话框、运行日志导出、更新检查、设置性能 |
 | `ui-smoke` | 单独断言集 | 标签、模板、主题、新建草稿、`新建 -> 修改 -> 新建`、模板替换前草稿保留、视觉树和截图性能 |
-| `ui-core-full` | 14 | 主外壳、状态栏、版本菜单、应用菜单、`Alt+数字`、日期操作按钮左右对齐、固定一周日历、滚轮逐周浏览、非选中日期真实右键选中并打开日/周菜单、今天/选中状态分离、月份标题月/季度/年度菜单、完整月历自然尺寸与边框防裁切、跨月回到今天、编辑器字段对齐、复制、快捷键、查询、统计和核心性能 |
+| `ui-core-full` | 14 | 主外壳、状态栏、版本菜单、应用菜单、`Alt+数字`、日期操作按钮左右对齐、固定一周日历、滚轮逐周浏览、非选中日期真实右键选中并打开日/周菜单、今天/选中状态分离、月份标题月/季度/年度菜单、完整月历自然尺寸与边框防裁切、重新展开恢复月视图、相邻月份日期精确选择并自动关闭、跨月回到今天、编辑器字段对齐、复制、快捷键、查询、统计和核心性能 |
 | `ui-extended-full` | 11 | AI 上下文默认/显式授权、预览、MCP 快照和手册截图，程序设置标准分组布局、配置生成/复制和跳转，以及 C#/Lua/Python 脚本创建、筛选、重新加载、预览运行、执行历史、日志、API Reference、删除、性能 |
 | `ui-script-editor` | 4 | 独立脚本编辑器、命令区、编译检查和安全关闭 |
 | `ui-database-error` | 8 | 日记/查询/统计数据库异常状态、重试、设置入口、诊断导出和异常状态性能 |
@@ -116,6 +116,16 @@ seed 只复制加密配置文件，不应提交到 Git，也不得写入报告�
 2026-08-25 在 Linux X11 使用原始套件完成回归：`ui-core-full` 14/14 通过，确认月份标题的鼠标右键、`Shift+F10` 和系统上下文请求可打开月/季度/年度菜单；`ui-redmine-full` 12/12 通过，确认空关键字项目列表可直接读取 `/projects.json`，Issue 启停无需重新抓取即可即时更新。报告分别为 `ui-core-full-2026-08-25T02-01-04-386Z.json` 和 `ui-redmine-full-2026-08-25T02-01-27-676Z.json`。
 
 同日精简 Redmine 管理页重复标题后，Linux X11 只读 `ui-redmine-style` 仍为 5/5 通过；基本信息截图确认页面直接从页签和用户/活动/已导入问题内容开始，报告为 `ui-redmine-style-2026-08-25T02-13-43-585Z.json`。
+
+同日统一收紧页面、卡片、表单、工具栏和对话框密度，并将同级主卡片/小型列表卡片间距分别收敛到 6px/4px 后，Linux X11 Debug 构建为 0 警告、0 错误；`ui-settings-full` 9/9、`ui-core-full` 14/14、`ui-extended-full` 11/11、`ui-survey-full` 8/8、`ui-database-error` 8/8、`ui-extra-fields-full` 8/8、`ui-redmine-style` 5/5，共 63/63 步通过。最终报告依次为 `ui-settings-full-2026-08-25T02-31-53-524Z.json`、`ui-core-full-2026-08-25T02-32-19-511Z.json`、`ui-extended-full-2026-08-25T02-32-47-991Z.json`、`ui-survey-full-2026-08-25T02-33-24-091Z.json`、`ui-database-error-2026-08-25T02-34-03-376Z.json`、`ui-extra-fields-full-2026-08-25T02-34-38-712Z.json` 和 `ui-redmine-style-2026-08-25T02-35-03-707Z.json`；`compact-diary.png`、`compact-query.png`、`compact-statistics.png`、`compact-settings-final.png`、`compact-survey.png` 及 Redmine 只读截图确认 1280×800 下无裁切或卡片粘连。
+
+继续消除主窗口 `SplitView`、内容宿主和页面根容器的叠加留白后，主页面四周最终约为 4px；日记页左右两张主卡片改为直接保留 4px 间距，并移除已经由卡片边框替代的独立分隔线。最终 `ui-core-full` 仍为 14/14 通过，报告为 `ui-core-full-2026-08-25T02-46-09-454Z.json`，截图 `compact-diary-no-divider.png`、`compact-query-4px.png` 和 `compact-statistics-4px.png` 确认边缘、完整月历、工具栏和表格均未裁切。
+
+Survey 由 Grid 统一行间距改为各条件卡显式 8px 外边距，修复扩展条件卡隐藏后查询配置与调查结果之间叠加为双倍间距的问题。兼容模式与扩展模式截图 `survey-spacing-compatible.png`、`survey-spacing-extended.png` 的相邻卡片间距一致，`ui-survey-full` 8/8 通过，报告为 `ui-survey-full-2026-08-25T02-49-15-629Z.json`。
+
+脚本工作台 AI 上下文预览框显式设置水平/垂直拉伸和顶部内容对齐；`ui-extended-full` 新增预览框初始高度至少 200px、生成前后高度偏差不超过 1px 的断言，11/11 通过，报告为 `ui-extended-full-2026-08-25T02-57-21-653Z.json`。截图 `manual-ai-context-default.png` 和 `manual-ai-context-work-items.png` 确认预览区域不再随内容高度居中缩放。
+
+完整月历选择链路改为读取 Calendar 已提交的选中日期，并解除显示月份与紧凑周历锚点之间的持续绑定，避免选中相邻月份日期时业务层与 Calendar 内部翻月互相推进；选中日期仍保持双向同步以保留键盘操作。Flyout 每次打开显式恢复月视图和当前选中月份，日期点击后立即关闭。Linux X11 `ui-core-full` 14/14 通过，真实验证从 2026 年 8 月点击相邻月“3”后选中 2026 年 9 月 3 日，并覆盖年份视图关闭后重新展开恢复月视图，报告为 `ui-core-full-2026-08-25T03-24-11-830Z.json`。
 
 ## 4. 单套件调试
 

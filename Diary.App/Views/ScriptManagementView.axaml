@@ -8,16 +8,15 @@
               xmlns:i="https://github.com/projektanker/icons.avalonia"
              x:Class="Diary.App.Views.ScriptManagementView"
              x:DataType="vm:ScriptManagementViewModel"
-             mc:Ignorable="d" d:DesignWidth="960" d:DesignHeight="640"
-             Padding="16">
-    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="12">
-        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+             mc:Ignorable="d" d:DesignWidth="960" d:DesignHeight="640">
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="8">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
             <StackPanel>
                 <TextBlock Text="脚本工作台" Classes="PageTitle" />
                 <TextBlock Text="管理本机脚本，支持应用自动化和编辑器操作。"
                            Classes="PageSubtitle" />
             </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
                 <Button Content="新建脚本" Command="{Binding CreateScriptCommand}" Classes="Primary" />
                 <Button Content="导出共享包" Command="{Binding ExportScriptsCommand}"
                         IsEnabled="{Binding CanExportScripts}" />
@@ -27,7 +26,7 @@
             </StackPanel>
         </Grid>
 
-        <Border Grid.Row="1" Padding="12" CornerRadius="8"
+        <Border Grid.Row="1" Padding="8" CornerRadius="8"
                 Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
             <TextBlock Text="{Binding Status}" />
         </Border>
@@ -40,7 +39,7 @@
                       SelectedItem="{Binding SelectedStatusFilter, Mode=TwoWay}" />
         </Grid>
 
-        <Grid Grid.Row="3" ColumnDefinitions="2*,3*" ColumnSpacing="16">
+        <Grid Grid.Row="3" ColumnDefinitions="2*,3*" ColumnSpacing="10">
             <Grid>
                 <ListBox ItemsSource="{Binding VisibleScripts}" SelectedItem="{Binding SelectedScript}">
                     <ListBox.ItemContainerTheme>
@@ -51,9 +50,9 @@
                     </ListBox.ItemContainerTheme>
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:ScriptListItem">
-                            <Grid Margin="8" HorizontalAlignment="Stretch"
+                            <Grid Margin="6" HorizontalAlignment="Stretch"
                                   Background="Transparent"
-                                  ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                  ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                                 <Grid.ContextMenu>
                                     <ContextMenu>
                                         <MenuItem Header="打开源码"
@@ -334,8 +333,11 @@
                                            FontSize="11" Opacity="0.68" TextWrapping="Wrap" />
                             </StackPanel>
                         </Border>
-                        <TextBox Grid.Row="2" Text="{Binding Preview}" IsReadOnly="True"
+                        <TextBox Name="AiContextPreviewTextBox" Grid.Row="2"
+                                 Text="{Binding Preview}" IsReadOnly="True"
                                  AcceptsReturn="True" TextWrapping="NoWrap"
+                                 HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                 VerticalContentAlignment="Top"
                                  FontFamily="Cascadia Code,Consolas,Menlo,Monospace"
                                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
                                  ScrollViewer.VerticalScrollBarVisibility="Auto" />
@@ -364,7 +366,7 @@
                                 <ItemsControl ItemsSource="{Binding ApiReference.Blocks}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:ScriptApiReferenceBlock">
-                                            <StackPanel Spacing="6" Margin="0,0,0,14">
+                                            <StackPanel Spacing="6" Margin="0,0,0,6">
                                                 <TextBlock Text="{Binding Text}" FontSize="{Binding FontSize}"
                                                            FontWeight="{Binding FontWeight}" TextWrapping="Wrap"
                                                            IsVisible="{Binding IsHeading}" />
@@ -390,7 +392,7 @@
             </TabControl>
         </Grid>
 
-        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
                         IsVisible="{Binding HasProgress}">
                 <ProgressBar Width="180" Minimum="0" Maximum="1" Value="{Binding ProgressFraction}" />

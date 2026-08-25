@@ -4,8 +4,8 @@
              xmlns:models="clr-namespace:Diary.App.ViewModels.Dialogs"
              x:Class="Diary.App.Views.Dialogs.BatchUploadPreviewView"
              x:DataType="dialogs:BatchUploadPreviewViewModel"
-             Width="900" Height="560" Padding="16">
-    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
+             Width="900" Height="560" Padding="10">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
         <StackPanel Spacing="4">
             <TextBlock Text="同步工时" Classes="Header" />
             <TextBlock Text="确认后才会执行远程操作；已同步和结果不确定的记录不会自动选中。"
@@ -40,7 +40,7 @@
             </ItemsControl>
         </ScrollViewer>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12">
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
             <Button Content="取消" Command="{Binding CancelCommand}" />
             <Button Classes="Primary" Content="确认同步" Command="{Binding ConfirmCommand}" />
         </StackPanel>

@@ -9,8 +9,8 @@
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:DataType="pages1:RedMineInfoViewModel"
              x:Class="Diary.RedMine.UI.Views.Pages.RedMineInfoView"
-             Padding="8">
-    <Grid RowDefinitions="Auto,Auto,*" RowSpacing="10">
+             Padding="6">
+    <Grid RowDefinitions="Auto,Auto,*" RowSpacing="6">
         <Expander Classes="WorkspaceSection" IsExpanded="False" Header="用户信息">
             <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="4" ColumnSpacing="4">
                 <TextBlock Grid.Column="0" Grid.Row="0" Text="用户ID：" />
@@ -22,10 +22,10 @@
             </Grid>
         </Expander>
         <Expander Grid.Row="1" Classes="WorkspaceSection" IsExpanded="False" Header="活动列表">
-            <StackPanel Orientation="Vertical" Spacing="16" HorizontalAlignment="Left">
+            <StackPanel Orientation="Vertical" Spacing="8" HorizontalAlignment="Left">
                 <ItemsControl ItemsSource="{Binding Activities}">
                     <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate><StackPanel Orientation="Vertical" Spacing="8" /></ItemsPanelTemplate>
+                        <ItemsPanelTemplate><StackPanel Orientation="Vertical" Spacing="6" /></ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.DataTemplates>
                         <DataTemplate DataType="{x:Type redMine:RedMineActivity}">
@@ -48,8 +48,8 @@
             </StackPanel>
         </Expander>
         <Border Grid.Row="2" Classes="SectionCard">
-        <Grid RowDefinitions="Auto,*" RowSpacing="10">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+        <Grid RowDefinitions="Auto,*" RowSpacing="8">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                 <StackPanel Spacing="2">
                     <TextBlock Text="已导入的问题" Classes="SectionTitle" />
                     <TextBlock Text="同步远程状态，或重新抓取已导入的问题详情。" Classes="SectionDescription" />

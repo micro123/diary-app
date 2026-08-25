@@ -9,11 +9,11 @@
              x:Class="Diary.App.Views.WorkItemQueryView"
              x:DataType="viewModels:WorkItemQueryViewModel"
              mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700">
-    <Grid RowDefinitions="Auto,*" Margin="12" RowSpacing="12">
+    <Grid RowDefinitions="Auto,*" RowSpacing="8">
         <Border Grid.Row="0" Classes="PageHeader">
-            <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="14">
-                <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                    <StackPanel Orientation="Horizontal" Spacing="10">
+            <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="10">
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
                         <Border Width="40" Height="40" CornerRadius="10" Background="{DynamicResource SemiColorPrimaryBrush}">
                             <i:Icon Value="fa-magnifying-glass" FontSize="20" HorizontalAlignment="Center"
                                     VerticalAlignment="Center" Foreground="White" />
@@ -64,7 +64,7 @@
 
                 <Border Grid.Row="2" Classes="SectionCard" IsVisible="{Binding #FilterToggle.IsChecked}">
                     <Grid IsVisible="{Binding #FilterToggle.IsChecked}" RowDefinitions="Auto,Auto"
-                          RowSpacing="10">
+                          RowSpacing="6">
                         <Grid Grid.Row="0" ColumnDefinitions="Auto,155,Auto,155,Auto,*" ColumnSpacing="8">
                             <TextBlock Text="日期范围" Classes="FieldLabel" />
                             <CalendarDatePicker Grid.Column="1" SelectedDate="{Binding StartDate}" />
@@ -106,7 +106,7 @@
                     </Grid>
                 </Border>
 
-                <Grid Grid.Row="3" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <Grid Grid.Row="3" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <StackPanel Spacing="2">
                         <TextBlock Text="{Binding SavedQueryStatus}" Opacity="0.7" IsVisible="{Binding HasSavedQueryStatus}" />
                         <TextBlock Text="{Binding ResultSummary}" FontWeight="SemiBold" />
@@ -124,7 +124,7 @@
 
         <Border Grid.Row="1" Classes="DetailPane">
             <Grid RowDefinitions="Auto,*">
-                <Border Grid.Row="0" Background="{DynamicResource SemiColorFill2}" Margin="1" Padding="12,8">
+                <Border Grid.Row="0" Background="{DynamicResource SemiColorFill2}" Margin="1" Padding="8,6">
                     <Grid ColumnDefinitions="110,*,100,90,220,70">
                         <TextBlock Grid.Column="0" Text="日期" FontWeight="SemiBold" />
                         <TextBlock Grid.Column="1" Text="事项" FontWeight="SemiBold" />
@@ -138,7 +138,7 @@
                     <ItemsControl ItemsSource="{Binding Results}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="viewModels:WorkItemQueryResult">
-                                <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SemiColorBorder}" Padding="12,9">
+                                <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SemiColorBorder}" Padding="8,6">
                                     <Grid ColumnDefinitions="110,*,100,90,220,70">
                                         <TextBlock Grid.Column="0" Text="{Binding Date}" />
                                         <TextBlock Grid.Column="1" Text="{Binding Comment}" TextTrimming="CharacterEllipsis" />

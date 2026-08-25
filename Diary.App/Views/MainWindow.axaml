@@ -178,7 +178,7 @@
         <!-- 状态栏 -->
         <views:StatusBarView Name="StatusBarView" DockPanel.Dock="Bottom" DataContext="{Binding StatusBar}"/>
         <!-- 主内容 -->
-        <SplitView Padding="4" DisplayMode="CompactOverlay" OpenPaneLength="256" CompactPaneLength="64"
+        <SplitView Padding="2" DisplayMode="CompactOverlay" OpenPaneLength="256" CompactPaneLength="64"
                    IsPaneOpen="{Binding #PanelOpen.IsChecked, Mode=TwoWay}"
                    PanePlacement="Left">
             <SplitView.Pane>
@@ -211,7 +211,7 @@
                 </Grid>
             </SplitView.Pane>
             <ContentControl Content="{Binding CurrentPageModel}"
-                            Padding="8">
+                            Padding="6">
                 <ContentControl.ContentTemplate>
                     <guiBase:ViewLocator />
                 </ContentControl.ContentTemplate>

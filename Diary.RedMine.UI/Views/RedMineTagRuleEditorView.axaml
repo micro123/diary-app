@@ -3,7 +3,7 @@
              xmlns:viewModels="clr-namespace:Diary.RedMine.UI.ViewModels"
              x:Class="Diary.RedMine.UI.Views.RedMineTagRuleEditorView"
              x:DataType="viewModels:RedMineTagRuleEditorViewModel">
-    <StackPanel Spacing="10">
+    <StackPanel Spacing="6">
         <TextBlock Text="{Binding Title}" Classes="SectionTitle" />
         <StackPanel Classes="CompactActions">
             <Button Content="添加规则" Classes="Primary" HorizontalAlignment="Left" Command="{Binding AddTagRuleCommand}" />
@@ -14,8 +14,8 @@
         <ItemsControl ItemsSource="{Binding TagRules}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="viewModels:RedMineTagRuleViewModel">
-                    <Border Classes="SubtleCard" Margin="0,0,0,6" HorizontalAlignment="Stretch">
-                        <Grid ColumnDefinitions="Auto,Auto,*,2*,Auto" ColumnSpacing="12">
+                    <Border Classes="SubtleCard" Margin="0,0,0,4" HorizontalAlignment="Stretch">
+                        <Grid ColumnDefinitions="Auto,Auto,*,2*,Auto" ColumnSpacing="8">
                             <CheckBox Content="启用"
                                       IsChecked="{Binding Enabled}"
                                       VerticalAlignment="Center" />

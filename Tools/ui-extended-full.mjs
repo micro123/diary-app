@@ -49,6 +49,12 @@ function aiPreviewText(tree, root) {
     return textOf(preview);
 }
 
+function boundsOf(entry) {
+    const parts = String(entry?.a?.Bounds ?? '').split(',').map(Number);
+    assertUi(parts.length === 4 && parts.every(Number.isFinite), 'AI 预览框缺少有效 Bounds');
+    return { width: parts[2], height: parts[3] };
+}
+
 async function activate(connection, entry) {
     assertUi(entry, '不能激活空控件');
     await connection.client.send('DOM.focus', { nodeId: entry.nodeId });
@@ -214,6 +220,9 @@ await runUiSuite({ name: 'ui-extended-full', scenario: 'extended', timeoutMs: 12
         const defaultStartText = textWithin(tree, root, '开始');
         assertUi(defaultStartText && !isEffectivelyVisible(tree, defaultStartText),
             '默认状态不应显示事项日期范围');
+        const previewBefore = findByName(tree, 'AiContextPreviewTextBox');
+        const previewBoundsBefore = boundsOf(previewBefore);
+        assertUi(previewBoundsBefore.height >= 200, 'AI 预览框没有填满剩余区域');
 
         await activateText(connection, 'ScriptManagementView', '生成预览');
         await connection.waitForTree(current => findByTextContains(current, '预览已生成：标签 1，字段 1'),
@@ -221,6 +230,9 @@ await runUiSuite({ name: 'ui-extended-full', scenario: 'extended', timeoutMs: 12
         tree = await connection.getTree();
         root = rootOf(tree, 'ScriptManagementView');
         let previewText = aiPreviewText(tree, root);
+        const previewBoundsAfter = boundsOf(findByName(tree, 'AiContextPreviewTextBox'));
+        assertUi(Math.abs(previewBoundsAfter.height - previewBoundsBefore.height) <= 1,
+            '生成预览后文本框高度发生跳变');
         assertUi(previewText.includes('diary.ai_context'), '预览缺少 schema 标识');
         assertUi(previewText.includes('AI\\u4E0A\\u4E0B\\u6587\\u793A\\u4F8B\\u9879\\u76EE'),
             '预览缺少示例标签');

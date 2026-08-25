@@ -31,7 +31,7 @@
         </Style>
     </UserControl.Styles>
     <Panel>
-        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14"
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="9"
                     MaxWidth="560"
                     IsVisible="{Binding !DatabaseOk, Source={x:Static app:App.Instance}}">
             <TextBlock Text="数据库连接不可用" Classes="EmptyStateTitle" />
@@ -47,7 +47,7 @@
         </StackPanel>
         <TabControl ItemsSource="{Binding Tabs}" TabStripPlacement="Top"
                     Theme="{DynamicResource ScrollTabControl}" SelectedIndex="{Binding SelectedTabIndex}"
-                    Margin="12"
+                    Margin="0"
                     IsVisible="{Binding DatabaseOk, Source={x:Static app:App.Instance}}">
             <TabControl.ItemTemplate>
                 <DataTemplate DataType="models:StatisticsTabData">
@@ -66,9 +66,9 @@
             </TabControl.ItemTemplate>
             <TabControl.ContentTemplate>
                 <DataTemplate DataType="models:StatisticsTabData">
-                    <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="10">
+                    <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="7">
                         <Border Grid.Row="0" Classes="PageHeader">
-                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="{Binding Name}" Classes="PageTitle" />
                                     <TextBlock Text="查看工时分布、标签占比和分层明细" Classes="PageSubtitle" />
@@ -98,7 +98,7 @@
                             </Grid>
                         </Border>
 
-                        <Border Grid.Row="2" Classes="SectionCard" Padding="12,8">
+                        <Border Grid.Row="2" Classes="SectionCard" Padding="8,6">
                             <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8">
                                 <CheckBox Content="使用自定义总时间" IsChecked="{Binding UseCustomTime}"
                                           VerticalAlignment="Center" />
@@ -112,7 +112,7 @@
                             </Grid>
                         </Border>
 
-                        <Grid Grid.Row="3" ColumnDefinitions="1.15*,1*" ColumnSpacing="10">
+                        <Grid Grid.Row="3" ColumnDefinitions="1.15*,1*" ColumnSpacing="7">
                             <Border Grid.Column="0" Classes="SectionCard">
                                 <Grid RowDefinitions="Auto,*" RowSpacing="8">
                                     <Grid ColumnDefinitions="*,Auto">
@@ -120,7 +120,7 @@
                                             <TextBlock Text="工时分布" Classes="SectionTitle" />
                                             <TextBlock Text="按当前统计维度比较各项耗时" Classes="SectionDescription" />
                                         </StackPanel>
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
                                             <TextBlock Text="{Binding StatisticsTotal, StringFormat='合计 {0:0.##} 小时'}"
                                                        Opacity="0.7" VerticalAlignment="Center" />
                                             <ToggleSwitch Name="StatisticsChartTypeToggle"

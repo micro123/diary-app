@@ -8,7 +8,7 @@
              x:DataType="dialogs:TagShareImportDialogViewModel"
              Width="760"
              Height="620">
-    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12" Margin="20">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8" Margin="12">
         <StackPanel Spacing="4">
             <TextBlock Text="导入标签" Classes="Header" />
             <TextBlock Text="选择要导入的标签，并决定导出包中的 Tracker 规则关联到哪个本地实例。无效或无法验证的规则不会导入。"
@@ -17,8 +17,8 @@
         </StackPanel>
 
         <ScrollViewer Grid.Row="1">
-            <StackPanel Spacing="14">
-                <Border Padding="12" Background="{DynamicResource SemiColorFill1}">
+            <StackPanel Spacing="9">
+                <Border Padding="8" Background="{DynamicResource SemiColorFill1}">
                     <StackPanel Spacing="8">
                         <Grid ColumnDefinitions="*,Auto">
                             <TextBlock Text="标签" FontWeight="SemiBold" FontSize="16" />
@@ -41,10 +41,10 @@
                     </StackPanel>
                 </Border>
 
-                <Border Padding="12"
+                <Border Padding="8"
                         Background="{DynamicResource SemiColorFill1}"
                         IsVisible="{Binding HasTrackers}">
-                    <StackPanel Spacing="10">
+                    <StackPanel Spacing="6">
                         <TextBlock Text="Tracker 规则关联" FontWeight="SemiBold" FontSize="16" />
                         <ItemsControl ItemsSource="{Binding Trackers}">
                             <ItemsControl.ItemTemplate>

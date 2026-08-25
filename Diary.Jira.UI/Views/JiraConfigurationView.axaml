@@ -3,10 +3,10 @@
              xmlns:viewModels="clr-namespace:Diary.Jira.UI.ViewModels"
              x:Class="Diary.Jira.UI.Views.JiraConfigurationView"
              x:DataType="viewModels:JiraConfigurationViewModel"
-             Padding="8">
-    <Grid RowDefinitions="Auto,*" RowSpacing="12">
+             Padding="6">
+    <Grid RowDefinitions="Auto,*" RowSpacing="8">
         <Border Classes="PageHeader">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                 <StackPanel Spacing="3">
                     <TextBlock Text="Jira 工时 Tracker 实例" Classes="SectionTitle" />
                     <TextBlock Text="维护 Jira 服务实例、认证参数和工时连接。" Classes="SectionDescription" />
@@ -15,14 +15,14 @@
                         Command="{Binding AddInstanceCommand}" VerticalAlignment="Center" />
             </Grid>
         </Border>
-        <Grid Grid.Row="1" ColumnDefinitions="260,*" ColumnSpacing="12">
+        <Grid Grid.Row="1" ColumnDefinitions="260,*" ColumnSpacing="8">
             <Border Classes="MasterPane">
-            <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
+            <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
                 <TextBlock Text="实例" Classes="SectionTitle" />
                 <ListBox Grid.Row="1" ItemsSource="{Binding Instances}" SelectedItem="{Binding SelectedInstance}">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <StackPanel Spacing="3" Margin="4,6">
+                        <StackPanel Spacing="2" Margin="3,4">
                             <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
                             <TextBlock Text="{Binding InstanceId}" FontSize="11" FontFamily="monospace" Opacity="0.6" />
                         </StackPanel>
@@ -35,7 +35,7 @@
             </Border>
             <Border Grid.Column="1" Classes="DetailPane">
             <ScrollViewer IsVisible="{Binding HasSelectedInstance}">
-                <StackPanel Spacing="14" Margin="16">
+                <StackPanel Spacing="9" Margin="10">
                     <StackPanel Spacing="3">
                         <TextBlock Text="实例配置" Classes="SectionTitle" />
                         <TextBlock Text="连接信息与认证数据仅用于当前 Jira 实例。" Classes="SectionDescription" />
@@ -44,7 +44,7 @@
                         <ItemsControl Classes="Settings" ItemsSource="{Binding InstanceSettings.Children}" />
                     </Expander>
                     <Border Classes="SectionCard">
-                    <StackPanel Spacing="8">
+                    <StackPanel Spacing="6">
                         <TextBlock Text="连接检查" FontWeight="SemiBold" />
                         <Button Content="测试连接" Classes="Primary" Command="{Binding TestConnectionCommand}"
                                 IsEnabled="{Binding !TestingConnection}" HorizontalAlignment="Left" />

@@ -3,10 +3,10 @@
              xmlns:viewModels="clr-namespace:Diary.RedMine.UI.ViewModels"
              x:Class="Diary.RedMine.UI.Views.RedMineConfigurationView"
              x:DataType="viewModels:RedMineConfigurationViewModel"
-             Padding="8">
-    <Grid RowDefinitions="Auto,*" RowSpacing="12">
+             Padding="6">
+    <Grid RowDefinitions="Auto,*" RowSpacing="8">
         <Border Classes="PageHeader">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                 <StackPanel Spacing="3">
                     <TextBlock Text="Redmine Tracker 实例" Classes="SectionTitle" />
                     <TextBlock Text="维护 Redmine 服务实例、连接参数与标签自动化规则。" Classes="SectionDescription" />
@@ -15,14 +15,14 @@
                         Command="{Binding AddInstanceCommand}" VerticalAlignment="Center" />
             </Grid>
         </Border>
-        <Grid Grid.Row="1" ColumnDefinitions="260,*" ColumnSpacing="12">
+        <Grid Grid.Row="1" ColumnDefinitions="260,*" ColumnSpacing="8">
             <Border Classes="MasterPane">
-            <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
+            <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
                 <TextBlock Text="实例" Classes="SectionTitle" />
                 <ListBox Grid.Row="1" ItemsSource="{Binding Instances}" SelectedItem="{Binding SelectedInstance}">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <StackPanel Spacing="3" Margin="4,6">
+                        <StackPanel Spacing="2" Margin="3,4">
                             <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
                             <TextBlock Text="{Binding InstanceId}" FontSize="11" FontFamily="monospace" Opacity="0.6" />
                         </StackPanel>
@@ -35,7 +35,7 @@
             </Border>
             <Border Grid.Column="1" Classes="DetailPane">
             <ScrollViewer IsVisible="{Binding HasSelectedInstance}">
-                <StackPanel Spacing="14" Margin="16">
+                <StackPanel Spacing="9" Margin="10">
                     <StackPanel Spacing="3">
                         <TextBlock Text="实例配置" Classes="SectionTitle" />
                         <TextBlock Text="分别维护连接参数与自动关联工作标签的规则。" Classes="SectionDescription" />

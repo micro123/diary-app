@@ -3,8 +3,8 @@
              xmlns:dialogs="using:Diary.App.ViewModels.Dialogs"
              x:Class="Diary.App.Views.Dialogs.ScriptShareExportDialogView"
              x:DataType="dialogs:ScriptShareExportDialogViewModel"
-             Width="680" MinHeight="430" MaxHeight="680" Padding="24">
-    <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="14">
+             Width="680" MinHeight="430" MaxHeight="680" Padding="14">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="9">
         <StackPanel Spacing="4">
             <TextBlock Text="导出脚本共享包" FontSize="24" FontWeight="Bold" />
             <TextBlock Text="选择要共享的脚本；源码和同目录运行配置会一起导出。"

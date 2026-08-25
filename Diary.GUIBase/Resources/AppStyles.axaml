@@ -41,7 +41,7 @@
     <Style Selector="Grid.SettingLineBox">
         <Setter Property="MinWidth" Value="450" />
         <Setter Property="ColumnSpacing" Value="4" />
-        <Setter Property="Margin" Value="8 2" />
+        <Setter Property="Margin" Value="4 1" />
     </Style>
     <Style Selector="TextBlock.SettingLineCaption">
         <Setter Property="Width" Value="150" />
@@ -67,12 +67,14 @@
     </Style>
     <Style Selector="Expander.Settings:down /template/ Border#ExpanderContent">
         <Setter Property="BorderThickness" Value="0 0 0 1" />
+        <Setter Property="Padding" Value="6,4" />
         <Style Selector="^:expanded /template/ Border#ExpanderContent">
             <Setter Property="BorderBrush" Value="{DynamicResource SemiColorBorder}" />
         </Style>
     </Style>
     <Style Selector="Expander.Settings:down /template/ ToggleButton#ExpanderHeader">
         <Setter Property="FontSize" Value="{StaticResource SemiFontSizeHeader3}"/>
+        <Setter Property="Padding" Value="8,4" />
     </Style>
     <Style Selector="ItemsControl.Settings">
         <Setter Property="Template">
@@ -111,7 +113,7 @@
     <Style Selector="StackPanel.DialogFooter">
         <Setter Property="Orientation" Value="Horizontal" />
         <Setter Property="HorizontalAlignment" Value="Right" />
-        <Setter Property="Spacing" Value="10" />
+        <Setter Property="Spacing" Value="6" />
     </Style>
     <Style Selector="TextBlock.PaginationText">
         <Setter Property="VerticalAlignment" Value="Center" />
@@ -123,42 +125,42 @@
     <Style Selector="Expander.WorkspaceSection">
         <Setter Property="HorizontalAlignment" Value="Stretch" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-        <Setter Property="Margin" Value="0,0,0,6" />
+        <Setter Property="Margin" Value="0,0,0,2" />
         <Style Selector="^:down /template/ ToggleButton#ExpanderHeader">
             <Setter Property="FontSize" Value="16" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="Padding" Value="8,5" />
         </Style>
         <Style Selector="^:down /template/ Border#ExpanderContent">
-            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="Padding" Value="8,6" />
         </Style>
     </Style>
     <Style Selector="Border.WorkspaceToolbar">
-        <Setter Property="Padding" Value="10" />
+        <Setter Property="Padding" Value="6" />
         <Setter Property="CornerRadius" Value="8" />
         <Setter Property="Background" Value="{DynamicResource SemiColorFill2}" />
     </Style>
     <Style Selector="Border.PageHeader">
-        <Setter Property="Padding" Value="16" />
+        <Setter Property="Padding" Value="12" />
         <Setter Property="CornerRadius" Value="10" />
         <Setter Property="Background" Value="{DynamicResource SemiColorFill2}" />
         <Setter Property="BorderBrush" Value="{DynamicResource SemiColorBorder}" />
         <Setter Property="BorderThickness" Value="1" />
     </Style>
     <Style Selector="Border.SectionCard">
-        <Setter Property="Padding" Value="14" />
+        <Setter Property="Padding" Value="10" />
         <Setter Property="CornerRadius" Value="8" />
         <Setter Property="Background" Value="{DynamicResource SemiColorFill1}" />
         <Setter Property="BorderBrush" Value="{DynamicResource SemiColorBorder}" />
         <Setter Property="BorderThickness" Value="1" />
     </Style>
     <Style Selector="Border.SubtleCard">
-        <Setter Property="Padding" Value="12" />
+        <Setter Property="Padding" Value="8" />
         <Setter Property="CornerRadius" Value="8" />
         <Setter Property="Background" Value="{DynamicResource SemiColorFill2}" />
     </Style>
     <Style Selector="Border.MasterPane">
-        <Setter Property="Padding" Value="12" />
+        <Setter Property="Padding" Value="6" />
         <Setter Property="CornerRadius" Value="10" />
         <Setter Property="Background" Value="{DynamicResource SemiColorFill1}" />
         <Setter Property="BorderBrush" Value="{DynamicResource SemiColorBorder}" />
@@ -171,14 +173,14 @@
         <Setter Property="BorderThickness" Value="1" />
     </Style>
     <Style Selector="Border.DetailHeader">
-        <Setter Property="Padding" Value="16,12" />
+        <Setter Property="Padding" Value="12,8" />
         <Setter Property="Background" Value="{DynamicResource SemiColorFill2}" />
         <Setter Property="BorderBrush" Value="{DynamicResource SemiColorBorder}" />
         <Setter Property="BorderThickness" Value="0,0,0,1" />
     </Style>
     <Style Selector="Border.StatusPill">
         <Setter Property="MinWidth" Value="72" />
-        <Setter Property="Padding" Value="10,4" />
+        <Setter Property="Padding" Value="8,3" />
         <Setter Property="CornerRadius" Value="12" />
         <Setter Property="Background" Value="{DynamicResource SemiColorFill2}" />
     </Style>
@@ -196,17 +198,17 @@
     </Style>
     <Style Selector="StackPanel.PageActions">
         <Setter Property="Orientation" Value="Horizontal" />
-        <Setter Property="Spacing" Value="8" />
+        <Setter Property="Spacing" Value="6" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
     <Style Selector="StackPanel.CompactActions">
         <Setter Property="Orientation" Value="Horizontal" />
-        <Setter Property="Spacing" Value="6" />
+        <Setter Property="Spacing" Value="4" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
     <Style Selector="Button.IconAction">
         <Setter Property="MinWidth" Value="36" />
-        <Setter Property="Padding" Value="8" />
+        <Setter Property="Padding" Value="6" />
     </Style>
     <Style Selector="TextBlock.GridText">
         <Setter Property="VerticalAlignment" Value="Center"/>

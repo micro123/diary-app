@@ -24,18 +24,18 @@
         </Style>
     </UserControl.Styles>
 
-    <DockPanel Name="EditPanel" VerticalSpacing="10">
+    <DockPanel Name="EditPanel" VerticalSpacing="7">
         <Border DockPanel.Dock="Top" Classes="SectionCard">
-        <StackPanel Spacing="10">
+        <StackPanel Spacing="7">
         <StackPanel Spacing="2">
             <TextBlock Text="一般信息" Classes="SectionTitle" />
             <TextBlock Text="记录日期、工作内容、耗时和优先级" Classes="SectionDescription" />
         </StackPanel>
         <Grid ColumnDefinitions="72,*"
-              RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="10"
+              RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="7"
               IsEnabled="{Binding !IsLocked}">
             <TextBlock Grid.Row="0" Grid.Column="0" Text="日期" Classes="FieldLabel" />
-            <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="Auto,Auto,*" ColumnSpacing="12">
+            <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8">
                 <CalendarDatePicker Name="WorkDatePicker" Grid.Column="0" HorizontalAlignment="Left"
                                     SelectedDate="{Binding Date, Converter={StaticResource DateConvert}}" />
                 <SplitButton Name="UseTodayButton" Grid.Column="1" Content="使用今天"
@@ -54,7 +54,7 @@
                      Text="{Binding Comment}" Classes="ClearButton" />
 
             <TextBlock Grid.Row="2" Grid.Column="0" Text="耗时" Classes="FieldLabel" />
-            <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="220,Auto,Auto,120,*" ColumnSpacing="12">
+            <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="220,Auto,Auto,120,*" ColumnSpacing="8">
                 <TextBox Name="WorkTimeInput" Grid.Column="0"
                          HorizontalAlignment="Stretch" HorizontalContentAlignment="Right"
                          Text="{Binding TimeInput}"
@@ -88,7 +88,7 @@
         </StackPanel>
         </Border>
         <Border DockPanel.Dock="Top" Classes="SectionCard">
-        <StackPanel Spacing="10">
+        <StackPanel Spacing="7">
         <StackPanel Spacing="2">
             <TextBlock Text="标签与附加信息" Classes="SectionTitle" />
             <TextBlock Text="使用标签分类记录，并维护标签提供的附加字段" Classes="SectionDescription" />
@@ -97,7 +97,7 @@
         <ItemsControl ItemsSource="{Binding WorkTags}" DockPanel.Dock="Top" IsEnabled="{Binding !IsLocked}">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
-                    <WrapPanel ItemSpacing="8" Orientation="Horizontal" />
+                    <WrapPanel ItemSpacing="6" Orientation="Horizontal" />
                 </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
@@ -193,7 +193,7 @@
                 <ItemsControl ItemsSource="{Binding UploadResults}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="{Binding TrackerLabel}" FontWeight="SemiBold" />
                                     <TextBlock Text="{Binding ResultSummary}" Opacity="0.75"

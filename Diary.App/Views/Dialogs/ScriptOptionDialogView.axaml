@@ -3,8 +3,8 @@
              xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
              x:Class="Diary.App.Views.Dialogs.ScriptOptionDialogView"
              x:DataType="dialogs:ScriptOptionDialogViewModel"
-             Width="480" MinHeight="180" Padding="20">
-    <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="14">
+             Width="480" MinHeight="180" Padding="12">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="9">
         <TextBlock Text="{Binding DialogTitle}" Classes="Header" />
         <TextBlock Grid.Row="1" Text="{Binding Message}" TextWrapping="Wrap" />
         <ItemsControl Grid.Row="2" ItemsSource="{Binding Options}">

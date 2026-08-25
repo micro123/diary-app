@@ -27,7 +27,7 @@
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
-    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
         <Border Grid.Row="0" Classes="PageHeader">
             <StackPanel Spacing="3">
                 <TextBlock Text="{Binding Title}" Classes="PageTitle" />
@@ -36,9 +36,9 @@
             </StackPanel>
         </Border>
 
-        <Grid Grid.Row="1" ColumnDefinitions="280,*" ColumnSpacing="12">
+        <Grid Grid.Row="1" ColumnDefinitions="280,*" ColumnSpacing="8">
             <Border Grid.Column="0" Classes="MasterPane">
-                <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="10">
+                <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="6">
                     <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
                         <TextBlock Text="标签" Classes="SectionTitle" />
                         <Button Grid.Column="1"
@@ -132,7 +132,7 @@
             <Border Grid.Column="1" Classes="DetailPane">
             <Grid RowDefinitions="Auto,*">
                 <Border Grid.Row="0" Classes="DetailHeader">
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                         <StackPanel Spacing="3">
                             <TextBlock Text="{Binding SelectedTag.Name}"
                                        FontSize="20"
@@ -146,15 +146,15 @@
                     </Grid>
                 </Border>
 
-                <TabControl Grid.Row="1" Theme="{DynamicResource LineTabControl}" Margin="12,6,12,12">
+                <TabControl Grid.Row="1" Theme="{DynamicResource LineTabControl}" Margin="8,4,8,8">
                     <TabItem Header="基础信息">
                         <ScrollViewer>
-                            <StackPanel Margin="16" Spacing="12">
+                            <StackPanel Margin="10" Spacing="8">
                                 <TextBlock Text="标签名称" Classes="FieldLabel" />
                                 <TextBox Text="{Binding SelectedTag.Name}"
                                          Classes="ClearButton" />
 
-                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
                                     <StackPanel Spacing="4">
                                         <TextBlock Text="标签颜色" Classes="FieldLabel" />
                                         <ColorPicker HsvColor="{Binding SelectedTag.Color, Converter={StaticResource Hsv2Int}}"
@@ -166,7 +166,7 @@
                                             </ColorPicker.Palette>
                                         </ColorPicker>
                                     </StackPanel>
-                                    <StackPanel Grid.Column="1" Spacing="10">
+                                    <StackPanel Grid.Column="1" Spacing="7">
                                         <TextBlock Text="标签状态" Classes="FieldLabel" />
                                         <Grid ColumnDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8">
                                             <TextBlock Text="主标签" VerticalAlignment="Center" />
@@ -201,7 +201,7 @@
                     </TabItem>
 
                     <TabItem Header="元数据">
-                        <Grid RowDefinitions="Auto,*" Margin="16" RowSpacing="10">
+                        <Grid RowDefinitions="Auto,*" Margin="10" RowSpacing="7">
                             <Grid ColumnDefinitions="*,Auto">
                                 <StackPanel Spacing="3">
                                     <TextBlock Text="元数据" FontSize="16" FontWeight="SemiBold" />
@@ -218,7 +218,7 @@
                                         <DataTemplate DataType="{x:Type models:EditableWorkTagMetadata}">
                                             <Grid ColumnDefinitions="180,*,Auto"
                                                   ColumnSpacing="8"
-                                                  Margin="0 0 0 8">
+                                                  Margin="0 0 0 5">
                                                 <TextBox Text="{Binding Key}" Watermark="键" />
                                                 <TextBox Grid.Column="1"
                                                          Text="{Binding Value}"
@@ -239,7 +239,7 @@
 
                     <TabItem Name="TagAutomationTab" Header="自动化操作">
                         <ScrollViewer>
-                            <StackPanel Margin="16" Spacing="10">
+                            <StackPanel Margin="10" Spacing="7">
                                 <StackPanel Spacing="3">
                                     <TextBlock Text="Tracker 自动化操作"
                                                FontSize="16"
@@ -251,7 +251,7 @@
                                 <ItemsControl ItemsSource="{Binding RuleContributions}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Classes="SubtleCard" Margin="0 0 0 8">
+                                            <Border Classes="SubtleCard" Margin="0 0 0 5">
                                                 <ContentControl Content="{Binding View}" />
                                             </Border>
                                         </DataTemplate>
@@ -262,7 +262,7 @@
                     </TabItem>
 
                     <TabItem Name="TagExtraFieldsTab" Header="附加字段">
-                        <Grid RowDefinitions="Auto,*" Margin="16" RowSpacing="10">
+                        <Grid RowDefinitions="Auto,*" Margin="10" RowSpacing="7">
                             <Grid ColumnDefinitions="*,Auto">
                                 <StackPanel Spacing="3">
                                     <TextBlock Text="附加字段" FontSize="16" FontWeight="SemiBold" />
@@ -280,8 +280,8 @@
                                               ItemsSource="{Binding SelectedTag.ExtraFields}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate DataType="{x:Type models:EditableTagExtraField}">
-                                            <Border Padding="10"
-                                                    Margin="0 0 0 8"
+                                            <Border Padding="8"
+                                                    Margin="0 0 0 5"
                                                     Background="{DynamicResource SemiColorFill1}">
                                                 <Grid RowDefinitions="Auto,Auto,Auto"
                                                       ColumnDefinitions="*,Auto,Auto"

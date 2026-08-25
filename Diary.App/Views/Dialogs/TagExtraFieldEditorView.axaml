@@ -10,7 +10,7 @@
              Width="520"
              MinHeight="460"
              Margin="8 24 8 8">
-    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
         <StackPanel Grid.Row="0" Spacing="3">
             <TextBlock Text="{Binding Title}" Classes="Header" />
             <TextBlock Text="字段值为可选项；FieldKey 和类型创建后不可修改。"
@@ -19,7 +19,7 @@
         </StackPanel>
 
         <ScrollViewer Grid.Row="1">
-            <StackPanel Spacing="10">
+            <StackPanel Spacing="6">
                 <TextBlock Text="显示名称" />
                 <TextBox Name="ExtraFieldLabelInput"
                          Text="{Binding Field.Label}"
@@ -96,4 +96,3 @@
         </StackPanel>
     </Grid>
 </UserControl>
-

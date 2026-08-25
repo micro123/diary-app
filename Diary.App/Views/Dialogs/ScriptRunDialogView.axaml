@@ -3,14 +3,14 @@
              xmlns:dialogs="using:Diary.App.ViewModels.Dialogs"
              x:Class="Diary.App.Views.Dialogs.ScriptRunDialogView"
              x:DataType="dialogs:ScriptRunDialogViewModel"
-             Width="560" MinHeight="430" MaxHeight="660" Padding="24">
-    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="16">
+             Width="560" MinHeight="430" MaxHeight="660" Padding="14">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
         <StackPanel Spacing="4">
             <TextBlock Text="运行脚本" FontSize="24" FontWeight="Bold" />
             <TextBlock Text="{Binding ScriptName}" Opacity="0.68" />
         </StackPanel>
         <ScrollViewer Grid.Row="1">
-            <StackPanel Spacing="10">
+            <StackPanel Spacing="6">
                 <TextBlock Text="执行参数" FontWeight="SemiBold" />
                 <TextBox Text="{Binding ArgumentsText, Mode=TwoWay}" AcceptsReturn="True"
                          TextWrapping="NoWrap" Height="170"

@@ -6,10 +6,10 @@
              xmlns:pages1="clr-namespace:Diary.RedMine.UI.ViewModels.Pages"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="Diary.RedMine.UI.Views.Pages.RedMineProjectView"
-             x:DataType="pages1:RedMineProjectViewModel" Padding="8">
-    <Grid RowDefinitions="Auto,*" RowSpacing="10">
+             x:DataType="pages1:RedMineProjectViewModel" Padding="6">
+    <Grid RowDefinitions="Auto,*" RowSpacing="8">
         <Border Classes="PageHeader">
-            <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+            <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
                 <StackPanel Spacing="2">
                     <TextBlock Text="项目管理" Classes="SectionTitle" />
                     <TextBlock Text="搜索 Redmine 项目、查看项目说明并在目标项目中新建问题。"
@@ -21,7 +21,7 @@
                     </TextBox>
                     <Button Grid.Column="1" Classes="Primary" Content="搜索" Command="{Binding SearchCommand}" />
                 </Grid>
-                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8">
+                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6">
                     <Button Content="首页" Command="{Binding FirstPageCommand}" />
                     <Button Content="上一页" Command="{Binding PrevPageCommand}" />
                     <TextBlock Classes="PaginationText" Text="{Binding CurrentPage, StringFormat='第{0}页'}" />
@@ -32,7 +32,7 @@
                 </StackPanel>
             </Grid>
         </Border>
-        <Border Grid.Row="1" Classes="DetailPane" Padding="8">
+        <Border Grid.Row="1" Classes="DetailPane" Padding="6">
         <DataGrid ItemsSource="{Binding SearchResults}" IsReadOnly="True" x:Name="ResultList">
             <DataGrid.Columns>
                 <DataGridTextColumn Binding="{Binding Id}" Width="Auto" Header="ID" />

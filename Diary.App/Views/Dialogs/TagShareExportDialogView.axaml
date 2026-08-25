@@ -3,9 +3,9 @@
              xmlns:dialogs="using:Diary.App.ViewModels.Dialogs"
              x:Class="Diary.App.Views.Dialogs.TagShareExportDialogView"
              x:DataType="dialogs:TagShareExportDialogViewModel"
-             Width="720" Height="440" MaxHeight="520" Padding="24"
+             Width="720" Height="440" MaxHeight="520" Padding="14"
              HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
-    <Grid RowDefinitions="Auto,Auto,180,Auto" RowSpacing="14">
+    <Grid RowDefinitions="Auto,Auto,180,Auto" RowSpacing="9">
         <StackPanel Spacing="4">
             <TextBlock Text="导出标签共享包" FontSize="24" FontWeight="Bold" />
             <TextBlock Text="选择要导出的标签；对应的元数据、附加字段和 Tracker 规则会一起导出。"

@@ -6,13 +6,13 @@
              xmlns:viewModels="clr-namespace:Diary.App.ViewModels"
              x:Class="Diary.App.Views.SettingsView"
              x:DataType="viewModels:SettingsViewModel"
-             Width="800" Height="680" Margin="8 28 8 8" Padding="12">
+             Width="800" Height="680" Margin="8 28 8 8" Padding="8">
     <Design.DataContext>
         <viewModels:SettingsViewModel/>
     </Design.DataContext>
 
     <!-- 内容：DataTemplate 由 Application.DataTemplates 提供 (App.axaml)，与 GenericConfigView 共享 -->
-    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
         <Border Classes="PageHeader">
             <StackPanel Spacing="3">
                 <TextBlock Text="程序设置" Classes="PageTitle" />
@@ -20,7 +20,7 @@
                            Classes="PageSubtitle" />
             </StackPanel>
         </Border>
-        <Border Grid.Row="1" Classes="DetailPane" Padding="8" ClipToBounds="True">
+        <Border Grid.Row="1" Classes="DetailPane" Padding="6" ClipToBounds="True">
             <ItemsControl Classes="Settings" MinHeight="0"
                           ItemsSource="{Binding SettingsTree.Children}" />
         </Border>

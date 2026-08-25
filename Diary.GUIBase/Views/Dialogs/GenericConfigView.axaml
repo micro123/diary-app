@@ -4,7 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:dialogs1="clr-namespace:Diary.GUIBase.ViewModels.Dialogs"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-             Margin="32" x:DataType="dialogs1:GenericConfigViewModel"
+             Margin="16" x:DataType="dialogs1:GenericConfigViewModel"
              x:Class="Diary.GUIBase.Views.Dialogs.GenericConfigView">
     <Grid RowSpacing="8" RowDefinitions="Auto,Auto,*,Auto">
         <TextBlock Grid.Row="0" Text="{Binding Title}" Classes="Header" />

@@ -380,8 +380,60 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         assertUi(fullCalendarBounds.width >= calendarItemBounds.width
             && fullCalendarBounds.height >= calendarItemBounds.height,
         '完整月历尺寸小于内部模板，边框会被裁切');
+
+        const fullCalendarHeader = findByName(fullCalendar.tree, 'PART_HeaderButton');
+        const fullCalendarHeaderText = textOf(fullCalendarHeader);
+        assertUi(fullCalendarHeader && /^\d{4}年\d{1,2}月$/.test(fullCalendarHeaderText),
+            '完整月历缺少可识别的月份标题');
+        await connection.clickNode(fullCalendarHeader);
+        await connection.waitForTree(current => {
+            const calendar = findByName(current, 'DiaryCalendar');
+            const monthButtons = calendar && descendants(current, calendar).filter(entry =>
+                isVisible(entry) && typeOf(entry).includes('CalendarButton')
+                && boundsOf(entry).width > 0);
+            return monthButtons?.length === 12 ? calendar : null;
+        }, 3000, '完整月历没有进入年份选择视图');
         await connection.pressKey('Escape', 'Escape', 27);
-        await connection.pressKey('Escape', 'Escape', 27);
+        await connection.waitForTree(current => !findByName(current, 'DiaryCalendar'),
+            3000, '完整月历 Flyout 没有关闭');
+
+        await connection.clickByName('CompactCalendarHeader');
+        const reopenedCalendar = await connection.waitForTree(current => {
+            const calendar = findByName(current, 'DiaryCalendar');
+            if (!calendar || !isVisible(calendar))
+                return null;
+            const entries = descendants(current, calendar);
+            const weekdayCount = entries.filter(entry => typeOf(entry).includes('TextBlock')
+                && textOf(entry).startsWith('周') && boundsOf(entry).width > 0).length;
+            const visibleDayCount = entries.filter(entry => typeOf(entry).includes('CalendarDayButton')
+                && boundsOf(entry).width > 0).length;
+            return textOf(findByName(current, 'PART_HeaderButton')) === fullCalendarHeaderText
+                && weekdayCount === 7 && visibleDayCount >= 35 ? calendar : null;
+        }, 3000, '完整月历重新展开后没有恢复月视图');
+
+        const visibleCalendarDays = descendants(reopenedCalendar.tree, reopenedCalendar.value)
+            .filter(entry => isVisible(entry) && typeOf(entry).includes('CalendarDayButton')
+                && boundsOf(entry).width > 0)
+            .sort((left, right) => boundsOf(left).y - boundsOf(right).y
+                || boundsOf(left).x - boundsOf(right).x);
+        const currentMonthStart = visibleCalendarDays.findIndex(entry => textOf(entry) === '1');
+        const [, calendarYearText, calendarMonthText] = fullCalendarHeaderText.match(/^(\d{4})年(\d{1,2})月$/);
+        const calendarYear = Number(calendarYearText);
+        const calendarMonth = Number(calendarMonthText);
+        const currentMonthDays = new Date(calendarYear, calendarMonth, 0).getDate();
+        const nextMonthDayThree = visibleCalendarDays[currentMonthStart + currentMonthDays + 2];
+        const expectedSelectedDate = new Date(calendarYear, calendarMonth, 3);
+        assertUi(currentMonthStart >= 0 && textOf(nextMonthDayThree) === '3',
+            '完整月历缺少可验证的相邻月份 3 日');
+        await connection.clickNode(nextMonthDayThree);
+        const selectedAdjacentDate = await connection.waitForTree(current => {
+            const title = findByName(current, 'DiaryDateTitle');
+            return !findByName(current, 'DiaryCalendar')
+                && title && isCurrentDateText(textOf(title), expectedSelectedDate) ? title : null;
+        }, 3000, '点击相邻月份日期后没有选中该日期并关闭 Flyout');
+        const expectedCalendarHeader = `${expectedSelectedDate.getFullYear()}年${expectedSelectedDate.getMonth() + 1}月`;
+        assertUi(textOf(findByName(selectedAdjacentDate.tree, 'CompactCalendarHeader')) === expectedCalendarHeader,
+            '点击相邻月份日期后周历标题没有切换到目标月份');
 
         for (let index = 0; index < 5; index += 1)
             await connection.clickByName('PreviousCalendarPeriodButton');
@@ -413,6 +465,9 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
             fullCalendarHeight: fullCalendarBounds.height,
             calendarItemWidth: calendarItemBounds.width,
             calendarItemHeight: calendarItemBounds.height,
+            fullCalendarResetsToMonth: true,
+            adjacentMonthSelectionClosesFlyout: true,
+            adjacentMonthSelectedDate: textOf(selectedAdjacentDate.value),
             wheelWeekBrowsing: true,
             previousPeriodHeader: textOf(previousPeriod.value),
             todayHeader: textOf(returnedToday.value),

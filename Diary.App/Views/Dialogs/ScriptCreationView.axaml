@@ -3,14 +3,14 @@
              xmlns:dialogs="using:Diary.App.ViewModels.Dialogs"
              x:Class="Diary.App.Views.Dialogs.ScriptCreationView"
              x:DataType="dialogs:ScriptCreationViewModel"
-             MinWidth="520" MinHeight="520" MaxHeight="640" Padding="24">
-    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="18">
+             MinWidth="520" MinHeight="520" MaxHeight="640" Padding="14">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
         <StackPanel Spacing="4">
             <TextBlock Text="新建脚本" FontSize="24" FontWeight="Bold" />
             <TextBlock Text="创建一个可立即加载的脚本模板。" Opacity="0.68" />
         </StackPanel>
         <ScrollViewer Grid.Row="1">
-            <StackPanel Spacing="12">
+            <StackPanel Spacing="8">
                 <TextBlock Text="脚本名称" />
                 <TextBox Text="{Binding Name, Mode=TwoWay}" Watermark="例如：每日摘要" />
                 <TextBlock Text="稳定 ID" />

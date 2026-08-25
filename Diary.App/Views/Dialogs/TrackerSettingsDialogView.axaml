@@ -3,8 +3,8 @@
              xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
              x:Class="Diary.App.Views.Dialogs.TrackerSettingsDialogView"
              x:DataType="dialogs:TrackerSettingsDialogViewModel"
-             Width="950" Height="650" Padding="16">
-    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
+             Width="950" Height="650" Padding="10">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
         <Border Classes="PageHeader">
             <StackPanel Spacing="3">
                 <TextBlock Text="Tracker 设置" Classes="PageTitle" />
@@ -14,7 +14,7 @@
         </Border>
         <TabControl Grid.Row="1" Theme="{DynamicResource LineTabControl}">
             <TabItem Header="Tracker 配置">
-                <TabControl ItemsSource="{Binding ProviderPages}" Margin="0,8,0,0">
+                <TabControl ItemsSource="{Binding ProviderPages}" Margin="0,4,0,0">
                     <TabControl.ItemTemplate>
                         <DataTemplate x:DataType="dialogs:TrackerSettingsPageItem">
                             <TextBlock Text="{Binding Header}" />
@@ -28,7 +28,7 @@
                 </TabControl>
             </TabItem>
             <TabItem Header="插件状态">
-                <ContentControl Content="{Binding Diagnostics}" Margin="0,8,0,0" />
+                <ContentControl Content="{Binding Diagnostics}" Margin="0,4,0,0" />
             </TabItem>
         </TabControl>
         <StackPanel Grid.Row="2" Classes="DialogFooter">

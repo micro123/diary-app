@@ -12,7 +12,7 @@
         <Style Selector="TextBox"><Setter Property="Width" Value="360" /></Style>
     </UserControl.Styles>
     <Border Classes="SectionCard">
-        <Grid RowDefinitions="Auto,Auto" RowSpacing="10">
+        <Grid RowDefinitions="Auto,Auto" RowSpacing="6">
             <StackPanel Spacing="2">
                 <TextBlock Text="新建 Redmine 问题" Classes="SectionTitle" />
                 <TextBlock Text="填写问题标题与说明，并选择是否直接分配给当前用户。"

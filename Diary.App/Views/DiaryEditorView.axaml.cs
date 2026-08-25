@@ -1,11 +1,18 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Diary.App.ViewModels;
 
 namespace Diary.App.Views;
 
 public partial class DiaryEditorView : UserControl
 {
+    private bool _diaryCalendarPointerHandlerAttached;
+
     public DiaryEditorView()
     {
         InitializeComponent();
@@ -42,6 +49,54 @@ public partial class DiaryEditorView : UserControl
             OpenCompactCalendarPeriodContextMenu(vm, control, contextMenu);
             args.Handled = true;
         }
+    }
+
+    private void OnDiaryCalendarFlyoutOpened(object? sender, EventArgs args)
+    {
+        if (DataContext is not DiaryEditorViewModel vm
+            || this.FindControl<Calendar>("DiaryCalendar") is not { } calendar)
+        {
+            return;
+        }
+
+        if (!_diaryCalendarPointerHandlerAttached)
+        {
+            calendar.AddHandler(
+                InputElement.PointerReleasedEvent,
+                OnDiaryCalendarPointerReleased,
+                RoutingStrategies.Bubble,
+                handledEventsToo: true);
+            _diaryCalendarPointerHandlerAttached = true;
+        }
+
+        ResetDiaryCalendar(calendar, vm.SelectedDate);
+    }
+
+    private void OnDiaryCalendarPointerReleased(object? sender, PointerReleasedEventArgs args)
+    {
+        if (sender is not Calendar calendar
+            || args.Source is not Visual source
+            || source.FindAncestorOfType<CalendarDayButton>(includeSelf: true) is null
+            || calendar.SelectedDate is not { } selectedDate
+            || DataContext is not DiaryEditorViewModel vm)
+        {
+            return;
+        }
+
+        vm.SelectCompactCalendarDateCommand.Execute(selectedDate.Date);
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            ResetDiaryCalendar(calendar, vm.SelectedDate);
+            this.FindControl<Button>("CompactCalendarHeader")?.Flyout?.Hide();
+        });
+    }
+
+    private static void ResetDiaryCalendar(Calendar calendar, DateTime selectedDate)
+    {
+        calendar.DisplayMode = CalendarMode.Month;
+        calendar.SetCurrentValue(Calendar.DisplayDateProperty, selectedDate.Date);
+        calendar.SetCurrentValue(Calendar.SelectedDateProperty, selectedDate.Date);
     }
 
     private static void OpenCompactCalendarPeriodContextMenu(

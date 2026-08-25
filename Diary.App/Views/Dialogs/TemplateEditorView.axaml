@@ -18,7 +18,7 @@
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
     </UserControl.Styles>
-    <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8">
         <Border Classes="PageHeader">
             <StackPanel Spacing="3">
                 <TextBlock Classes="PageTitle" Text="模板编辑" />
@@ -46,7 +46,7 @@
                 </Grid>
             </Grid>
         </Border>
-        <Border Grid.Row="2" Classes="DetailPane" Padding="12" ClipToBounds="True">
+        <Border Grid.Row="2" Classes="DetailPane" Padding="8" ClipToBounds="True">
         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
             <ItemsControl ItemsSource="{Binding Templates}" x:Name="TemplatesView"
                           Classes="Reorderable" MinWidth="0">
@@ -55,7 +55,7 @@
                         <Expander Name="TemplateItemExpander" Classes="WorkspaceSection"
                                   Header="{Binding Name}" IsExpanded="False">
                             <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="110,*,190"
-                                  RowSpacing="10" ColumnSpacing="8">
+                                  RowSpacing="7" ColumnSpacing="8">
                                 <TextBlock Grid.Column="0" Grid.Row="0" Text="模板 ID" Classes="FieldLabel" />
                                 <TextBlock Grid.Column="1" Grid.Row="0" Text="{Binding Id}"
                                            MinWidth="0" FontFamily="monospace" Opacity="0.72"
@@ -104,7 +104,7 @@
                                               ItemsSource="{Binding Tags}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
-                                            <WrapPanel ItemSpacing="8" Orientation="Horizontal" />
+                                            <WrapPanel ItemSpacing="6" Orientation="Horizontal" />
                                         </ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
