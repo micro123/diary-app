@@ -58,6 +58,8 @@ jobs:
         env:
           DIARY_REQUIRE_POSTGRES_TESTS: ${{ runner.os == 'Linux' && '1' || '0' }}
           DIARY_REQUIRE_PYTHON_TESTS: '1'
+      - name: Run packaging tool tests
+        run: python -m unittest discover -s Tools/tests -p 'test_*.py'
 
   user-manual:
     name: Build user manual

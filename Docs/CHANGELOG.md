@@ -35,6 +35,7 @@
 - 应用日志只按文件大小滚动，基础文件名固定为 `Diary.App.log`，达到 16 MiB 后写入 `_001` 等可预测序号文件，总保留数限制为最近 4 个且文件名不再包含日期；首次使用新策略时清理旧日期格式日志，当前日志定位和手动导出兼容全部滚动文件。终止性托管崩溃在生成 Triage Dump 后还会尽力把当前保留日志归档为同名 `.logs.zip`，崩溃提示分别显示 Dump 和日志收集结果，旧 Dump 清理时同步删除日志归档。
 - 脚本管理新增 AI 上下文页，可选择并预览标签、附加字段、模板、Tracker 安全摘要、保存查询和只读 Host 能力，导出 Markdown/JSON；事项正文默认关闭并受日期、数量和文本预算限制。新增版本化只读快照与独立 stdio MCP，在用户授权快照内提供六个数据工具，并提供不会加载或执行源码的 `diary_validate_script` C#/Lua/Python 编译校验工具；不连接数据库或暴露写 API、凭据和标签 metadata。程序设置以统一的标准设置分组和设置行显示快照状态、复制通用 JSON 或可直接交给 AI 的配置说明，并保存设置后跳转到 AI 上下文。MCP 及全部显式 Exe/WinExe 测试 Runner 统一关闭 Windows apphost CET 标记。补充 Linux CDP 的授权、预览、快照、标准设置布局和配置复制回归，并将隔离示例数据截图加入用户手册。
 - 修复 MCP 快照未披露事项时 `diary_query_work_items` 和 `diary_summarize_work_items` 抛出工具错误的问题；现在返回带固定错误码的结构化不可用结果，明确区分“未授权”和“已授权但无数据”，已披露事项时的成功响应结构保持不变。
+- 修复发布包只包含脚本 API 顶层 Markdown、遗漏 `Docs/ScriptApi/Examples` 的问题；应用发布现在递归携带全部说明和 C#/Lua/Python 示例源码，本地打包、local 更新、手动 CI 与 Tag CI 统一校验脚本文档入口及其引用目标。
 - 新增 Linux Debug UI/CDP 生命周期工具，支持 X11 或自动管理 Xvfb、隔离 profile、场景/插件 seed、`start/status/smoke/run/stop` 和日志定位；统一点击焦点与快捷键字符注入语义，核心套件日期断言不再依赖区域格式，Linux X11 下 core 14/14、smoke 与 extended 11/11 已通过。
 - 修复年份菜单错误使用周范围、标签重命名不落库，以及数据库删除失败后 UI 仍移除工作项或标签的问题。
 - 退出清理失败后可再次尝试；未知 UI 未处理异常不再被全局吞掉；统计刷新使用后台快照和 generation 防止旧结果覆盖；自动化事件去重缓存改为有界。

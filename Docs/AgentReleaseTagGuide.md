@@ -47,7 +47,7 @@ on:
 
 1. **Verify**：Ubuntu 和 Windows 分别执行 Release 构建与全量测试；
 2. **Build Docs**：使用固定版本 Quarto 渲染用户手册 PDF/HTML，同时生成 Release 附件名和应用包内稳定路径副本；
-3. **Publish / Package**：等待 Verify 与 Build Docs，通过 artifact 下载手册，生成 `win-x64` 与 `linux-x64` 自包含发布目录，把 HTML/PDF 复制到 `Docs/UserManual/`，检查应用、脚本 Worker、DiagnosticsClient 依赖、Jira/RedMine 插件和手册是否齐全，将 PDB 按原相对路径移入独立调试符号包，再生成普通运行包；
+3. **Publish / Package**：等待 Verify 与 Build Docs，通过 artifact 下载手册，生成 `win-x64` 与 `linux-x64` 自包含发布目录，把 HTML/PDF 复制到 `Docs/UserManual/`，递归携带 `Docs/ScriptApi/` 的 Reference、说明和三语言示例源码，检查应用、脚本 Worker、DiagnosticsClient 依赖、Jira/RedMine 插件及文档是否齐全，将 PDB 按原相对路径移入独立调试符号包，再生成普通运行包；
 4. **Create Release**：下载两个平台的运行包、调试符号包、Windows Python 运行时包和版本化手册附件，从 `Docs/CHANGELOG.md` 提取发布说明，生成不含发布说明正文的机器可读源资产 metadata，并创建 GitHub Release。
 
 任一 Verify、Publish 或 Build Docs 阶段失败，`create-release` 都不会执行。

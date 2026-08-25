@@ -158,6 +158,7 @@
 | 16 | 敏感配置加密和日志脱敏 | `Automated` | Redmine 安全步骤覆盖 |
 | 16 | Release 不包含 CDP | `Unit/Integration` | 由 Release restore、构建和发布包内容校验承担，不在 Release 运行 CDP |
 | 16 | Release 应用 ZIP 携带用户手册 | `Unit/Integration` | Tag/手动发布等待文档构建，复制稳定路径的 HTML/PDF 后再压缩；发布包校验器使用 `--require-user-manual` 拒绝缺失文件的 ZIP |
+| 16 | Release 应用 ZIP 携带脚本文档和示例 | `Unit/Integration` | App 发布递归复制 `Docs/ScriptApi/`；发布包校验器使用 `--require-script-api` 检查入口文档及其本地引用，工具单元测试覆盖示例存在和缺失两种结果 |
 
 ## 4. 仍需保留的发布前人工检查
 

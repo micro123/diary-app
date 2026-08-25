@@ -174,6 +174,7 @@ DiaryAppNG-<TAG>-linux-x64-dbg.zip
 
 - Windows 和 Linux 应用包均为自包含包；
 - 每个应用包都包含目标 RID 的裁剪后 `Diary.Updater` 自包含单文件 CLI；
+- 每个应用包都递归包含 `Docs/ScriptApi/` 及文档引用的 `Examples/` 说明和三语言示例源码；
 - 普通运行包不包含 PDB；
 - Windows Python 包只用于 `win-x64/python313`；
 - 包内不能包含指向外部路径的符号链接、重解析点或硬链接；
@@ -1134,7 +1135,7 @@ Blob 和完整包可以从 GitHub 源 ZIP 重建；当前策略只保留各发�
 
 ## 20. 第一版决策与后续事项
 
-第一版已经确定：使用文件系统保存索引和快照；客户端 API 使用可配置的 HTTP/HTTPS 根地址；Release metadata 由 CI 作为额外资产上传；完整包复用校验后的 GitHub 源 ZIP；每份 metadata 必须包含完整三维运行资产矩阵；本机工具可用独立 Token 将 `win-x64/standard` 或 `win-x64/python313` 包发布到 `local`，并复用相同验证与存储模型。local 运行包与 CI 一样必须包含稳定路径的 HTML/PDF 用户手册并通过 `validate-release-package.py --require-user-manual`，但不要求生成仅供 GitHub 附件使用的调试符号包、metadata 和版本化手册副本。Windows 开发机可直接使用 PowerShell + Python 原生运行服务，Linux/WSL 仍可使用 Bash + Docker。以下事项仍需后续确定或实现：
+第一版已经确定：使用文件系统保存索引和快照；客户端 API 使用可配置的 HTTP/HTTPS 根地址；Release metadata 由 CI 作为额外资产上传；完整包复用校验后的 GitHub 源 ZIP；每份 metadata 必须包含完整三维运行资产矩阵；本机工具可用独立 Token 将 `win-x64/standard` 或 `win-x64/python313` 包发布到 `local`，并复用相同验证与存储模型。local 运行包与 CI 一样必须包含稳定路径的 HTML/PDF 用户手册和完整脚本 API 文档/示例，并通过 `validate-release-package.py --require-user-manual --require-script-api`，但不要求生成仅供 GitHub 附件使用的调试符号包、metadata 和版本化手册副本。Windows 开发机可直接使用 PowerShell + Python 原生运行服务，Linux/WSL 仍可使用 Bash + Docker。以下事项仍需后续确定或实现：
 
 - 局域网客户端是否需要 IP allowlist、反向代理认证或应用级 Token；
 - 元数据规模和审计要求增长后是否引入 SQLite 或 PostgreSQL；

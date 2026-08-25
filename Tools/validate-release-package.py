@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import posixpath
 import re
 import stat
 import sys
@@ -14,6 +15,17 @@ MAX_FILE_COUNT = 10_000
 MAX_SINGLE_FILE_SIZE = 1024 * 1024 * 1024
 MAX_TOTAL_SIZE = 4 * 1024 * 1024 * 1024
 MAX_COMPRESSION_RATIO = 1000
+SCRIPT_API_ROOT = "Docs/ScriptApi/"
+PACKAGED_DOCS_ROOT = "Docs/"
+SCRIPT_API_ENTRY_DOCUMENTS = {
+    f"{SCRIPT_API_ROOT}CSharp.md",
+    f"{SCRIPT_API_ROOT}Lua.md",
+    f"{SCRIPT_API_ROOT}Python.md",
+    f"{SCRIPT_API_ROOT}Export.md",
+    f"{SCRIPT_API_ROOT}MustacheExport.md",
+}
+MARKDOWN_LINK_PATTERN = re.compile(r"\[[^\]]*\]\(([^)\s]+)(?:\s+[^)]*)?\)")
+PACKAGED_PATH_PATTERN = re.compile(r"`(Docs/ScriptApi/[^`]+)`")
 
 
 def configure_standard_streams() -> None:
@@ -33,6 +45,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="要求 ZIP 包含发布版内置 HTML/PDF 用户手册。",
     )
+    parser.add_argument(
+        "--require-script-api",
+        action="store_true",
+        help="要求 ZIP 包含脚本 API 文档及文档引用的示例文件。",
+    )
     return parser.parse_args()
 
 
@@ -48,6 +65,47 @@ def normalized_name(name: str) -> str:
     if any(part in ("", ".", "..") for part in path.parts):
         fail(f"ZIP 包含非法路径段：{name!r}")
     return normalized
+
+
+def resolve_script_api_reference(document_name: str, reference: str) -> str | None:
+    reference = reference.split("#", 1)[0].split("?", 1)[0]
+    if not reference or reference.startswith(("/", "//")):
+        return None
+    if re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", reference):
+        return None
+    if reference.startswith(SCRIPT_API_ROOT):
+        resolved = posixpath.normpath(reference)
+    else:
+        resolved = posixpath.normpath(posixpath.join(posixpath.dirname(document_name), reference))
+    if not resolved.startswith(PACKAGED_DOCS_ROOT):
+        fail(f"脚本文档引用超出随包 Docs 目录：{document_name} -> {reference}")
+    return resolved
+
+
+def validate_script_api(archive: zipfile.ZipFile, name_set: set[str]) -> None:
+    missing_entries = sorted(SCRIPT_API_ENTRY_DOCUMENTS - name_set)
+    if missing_entries:
+        fail(f"ZIP 缺少脚本 API 入口文档：{', '.join(missing_entries)}")
+
+    markdown_documents = sorted(
+        name
+        for name in name_set
+        if name.startswith(SCRIPT_API_ROOT) and name.casefold().endswith(".md")
+    )
+    missing_references: list[str] = []
+    for document_name in markdown_documents:
+        try:
+            content = archive.read(document_name).decode("utf-8")
+        except UnicodeDecodeError as exception:
+            fail(f"脚本文档不是有效 UTF-8：{document_name}：{exception}")
+        references = MARKDOWN_LINK_PATTERN.findall(content)
+        references.extend(PACKAGED_PATH_PATTERN.findall(content))
+        for reference in references:
+            resolved = resolve_script_api_reference(document_name, reference)
+            if resolved is not None and resolved not in name_set:
+                missing_references.append(f"{document_name} -> {resolved}")
+    if missing_references:
+        fail(f"ZIP 缺少脚本文档引用文件：{', '.join(sorted(set(missing_references)))}")
 
 
 def validate() -> None:
@@ -77,12 +135,14 @@ def validate() -> None:
         if total_size > MAX_TOTAL_SIZE:
             fail(f"ZIP 解压后总大小超过上限：{total_size}")
 
-    if len(names) != len(set(names)):
-        fail("ZIP 包含重复路径。")
-    if args.rid == "win-x64" and len(names) != len({name.casefold() for name in names}):
-        fail("Windows ZIP 包含仅大小写不同的冲突路径。")
+        if len(names) != len(set(names)):
+            fail("ZIP 包含重复路径。")
+        if args.rid == "win-x64" and len(names) != len({name.casefold() for name in names}):
+            fail("Windows ZIP 包含仅大小写不同的冲突路径。")
+        name_set = set(names)
+        if args.require_script_api:
+            validate_script_api(archive, name_set)
 
-    name_set = set(names)
     app_entry = "Diary.App.exe" if args.rid == "win-x64" else "Diary.App"
     worker_entry = "Diary.Script.Worker.exe" if args.rid == "win-x64" else "Diary.Script.Worker"
     updater_entry = "Diary.Updater.exe" if args.rid == "win-x64" else "Diary.Updater"

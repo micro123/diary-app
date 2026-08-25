@@ -254,13 +254,13 @@ jobs:
             if ($zipExitCode -ne 0) { exit $zipExitCode }
             Assert-RuntimeDirectories $archive $rid
             Assert-NoPdbEntries $archive
-            python Tools/validate-release-package.py --archive $archive --rid $rid --flavor standard --require-user-manual
+            python Tools/validate-release-package.py --archive $archive --rid $rid --flavor standard --require-user-manual --require-script-api
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           } else {
             Compress-Archive -Path (Join-Path $out '*') -DestinationPath $archive -CompressionLevel Optimal
             Assert-RuntimeDirectories $archive $rid
             Assert-NoPdbEntries $archive
-            python Tools/validate-release-package.py --archive $archive --rid $rid --flavor standard --require-user-manual
+            python Tools/validate-release-package.py --archive $archive --rid $rid --flavor standard --require-user-manual --require-script-api
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
           Get-Item $archive, $debugArchive | Format-List Name, Length

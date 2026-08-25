@@ -38,7 +38,9 @@
                  CopyToPublishDirectory="PreserveNewest" />
         <Content Include="..\Docs\SurveyUserGuide.md" Link="Docs\SurveyUserGuide.md"
                  CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-        <Content Include="..\Docs\ScriptApi\*.md" Link="Docs\ScriptApi\%(Filename)%(Extension)"
+        <Content Include="..\Docs\ExportTemplateGuide.md" Link="Docs\ExportTemplateGuide.md"
+                 CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+        <Content Include="..\Docs\ScriptApi\**\*" Link="Docs\ScriptApi\%(RecursiveDir)%(Filename)%(Extension)"
                  CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
         <Content Include="..\Docs\AiScriptContextDesign.md" Link="Docs\AiScriptContextDesign.md"
                  CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

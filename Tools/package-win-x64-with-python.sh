@@ -404,7 +404,8 @@ python3 "$repository_root/Tools/validate-release-package.py" \
     --archive "$temporary_archive" \
     --rid "$RID" \
     --flavor python313 \
-    --require-user-manual
+    --require-user-manual \
+    --require-script-api
 
 mv -f -- "$temporary_archive" "$archive_path"
 

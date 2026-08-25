@@ -382,7 +382,7 @@ function Build-UpdatePackage([long] $BuildSequence) {
         $temporaryArchive,
         [System.IO.Compression.CompressionLevel]::Optimal,
         $false)
-    Invoke-Native $python @((Join-Path $RepositoryRoot 'Tools\validate-release-package.py'), '--archive', $temporaryArchive, '--rid', $Rid, '--flavor', $Flavor, '--require-user-manual')
+    Invoke-Native $python @((Join-Path $RepositoryRoot 'Tools\validate-release-package.py'), '--archive', $temporaryArchive, '--rid', $Rid, '--flavor', $Flavor, '--require-user-manual', '--require-script-api')
     Move-Item -LiteralPath $temporaryArchive -Destination $archivePath -Force
     return $archivePath
 }
