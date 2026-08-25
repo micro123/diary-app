@@ -164,8 +164,6 @@ async function createScript(connection, item) {
     let tree = opened.tree;
     let root = opened.value;
     assertUi(textWithin(tree, root, 'V2（推荐）'), '新建脚本向导缺少 V2 推荐说明');
-    assertUi(textWithin(tree, root, 'V1（兼容）'), '新建脚本向导缺少 V1 兼容选项');
-    assertUi(textWithin(tree, root, '参数契约与兼容行为', true), '新建脚本向导缺少版本差异说明');
     const inputs = descendants(tree, root, entry => isVisible(entry)
         && typeOf(entry).includes('TextBox') && Number(entry.a.Width) > 100);
     assertUi(inputs.length >= 3, '新建脚本输入框不完整');
@@ -178,13 +176,59 @@ async function createScript(connection, item) {
     await selectComboValue(connection, 'ScriptCreationView', 'C#', item.language);
     tree = await connection.getTree();
     root = rootOf(tree, 'ScriptCreationView');
+    let manualScreenshot;
+    let dialogBounds;
+    if (item.language === 'C#') {
+        let manualInputs = descendants(tree, root, entry => isVisible(entry)
+            && typeOf(entry).includes('TextBox') && Number(entry.a.Width) > 100);
+        await connection.replaceText(manualInputs[0], '每日摘要');
+        tree = await connection.getTree();
+        root = rootOf(tree, 'ScriptCreationView');
+        manualInputs = descendants(tree, root, entry => isVisible(entry)
+            && typeOf(entry).includes('TextBox') && Number(entry.a.Width) > 100);
+        await connection.replaceText(manualInputs[1], 'daily-summary');
+        tree = await connection.getTree();
+        root = rootOf(tree, 'ScriptCreationView');
+        const versionText = textWithin(tree, root, 'V2（推荐）');
+        const versionCombo = versionText && ancestor(tree, versionText,
+            entry => typeOf(entry).includes('ComboBox'));
+        assertUi(versionCombo, '找不到脚本 API 版本下拉框');
+        await connection.clickNode(versionCombo);
+        const expanded = await connection.waitForTree(current =>
+            findByText(current, 'V1（兼容）')
+            && findByTextContains(current, '适合兼容旧脚本'),
+        3000, '脚本 API 版本选项没有展开或缺少说明');
+        tree = expanded.tree;
+        assertUi(findByTextContains(tree, '执行前校验'), 'V2 选项缺少参数契约说明');
+        manualScreenshot = await connection.screenshot('manual-script-creation-api-version.png');
+        dialogBounds = boundsOf(root);
+        await connection.pressKey('Escape', 'Escape', 27);
+        await connection.waitForTree(current => !findByText(current, 'V1（兼容）'),
+            3000, '脚本 API 版本下拉框没有关闭');
+        tree = await connection.getTree();
+        root = rootOf(tree, 'ScriptCreationView');
+        manualInputs = descendants(tree, root, entry => isVisible(entry)
+            && typeOf(entry).includes('TextBox') && Number(entry.a.Width) > 100);
+        await connection.replaceText(manualInputs[0], item.name);
+        tree = await connection.getTree();
+        root = rootOf(tree, 'ScriptCreationView');
+        manualInputs = descendants(tree, root, entry => isVisible(entry)
+            && typeOf(entry).includes('TextBox') && Number(entry.a.Width) > 100);
+        await connection.replaceText(manualInputs[1], item.id);
+        tree = await connection.getTree();
+        root = rootOf(tree, 'ScriptCreationView');
+    }
     const createText = textWithin(tree, root, '创建');
     const createButton = createText && controlForText(tree, createText);
     assertUi(createButton && isEnabled(createButton), '创建按钮未启用：' + item.language);
     await activate(connection, createButton);
     const created = await connection.waitForTree(current => !rootOf(current, 'ScriptCreationView')
         && findByText(current, item.name), 30000, '脚本创建或检查未完成：' + item.name);
-    return { dialogMs: opened.elapsedMs, createMs: created.elapsedMs };
+    return {
+        dialogMs: opened.elapsedMs,
+        createMs: created.elapsedMs,
+        ...(manualScreenshot ? { manualScreenshot, dialogBounds } : {}),
+    };
 }
 
 function scriptRow(tree, name) {

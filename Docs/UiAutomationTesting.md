@@ -125,6 +125,8 @@ Survey 由 Grid 统一行间距改为各条件卡显式 8px 外边距，修复�
 
 脚本工作台 AI 上下文预览框显式设置水平/垂直拉伸和顶部内容对齐；`ui-extended-full` 新增预览框初始高度至少 200px、生成前后高度偏差不超过 1px 的断言，11/11 通过，报告为 `ui-extended-full-2026-08-25T02-57-21-653Z.json`。截图 `manual-ai-context-default.png` 和 `manual-ai-context-work-items.png` 确认预览区域不再随内容高度居中缩放。
 
+新建脚本向导的 CDP 扩展回归会展开 API 版本下拉框，确认 V1/V2 选项内包含对应说明，再在创建 C# 脚本前采集 `manual-script-creation-api-version.png`，并记录 `ScriptCreationView` 的逻辑边界。手册使用该 96 DPI 截图裁切出的 `script-creation-api-version.png`，用于展示默认 V2、可选 V1 和展开项中的版本差异说明。
+
 完整月历选择链路改为读取 Calendar 已提交的选中日期，并解除显示月份与紧凑周历锚点之间的持续绑定，避免选中相邻月份日期时业务层与 Calendar 内部翻月互相推进；选中日期仍保持双向同步以保留键盘操作。Flyout 每次打开显式恢复月视图和当前选中月份，日期点击后立即关闭。Linux X11 `ui-core-full` 14/14 通过，真实验证从 2026 年 8 月点击相邻月“3”后选中 2026 年 9 月 3 日，并覆盖年份视图关闭后重新展开恢复月视图，报告为 `ui-core-full-2026-08-25T03-24-11-830Z.json`。
 
 页面头和区块标题说明统一采用优先横向、底部对齐的紧凑结构；可见说明缩短，长说明通过信息图标或 Tooltip 保留。事项状态胶囊增加语义状态类，核心套件断言新事项为 `StatusWarning`、保存且未配置 Tracker 后恢复中性，同时验证“一般信息”标题与说明左右排列且底边偏差不超过 2px。Linux X11 `ui-core-full` 14/14、`ui-settings-full` 9/9、`ui-extended-full` 11/11、`ui-survey-full` 8/8 通过，报告分别为 `ui-core-full-2026-08-25T03-39-16-779Z.json`、`ui-settings-full-2026-08-25T03-41-00-341Z.json`、`ui-extended-full-2026-08-25T03-40-04-161Z.json` 和 `ui-survey-full-2026-08-25T03-40-20-909Z.json`。

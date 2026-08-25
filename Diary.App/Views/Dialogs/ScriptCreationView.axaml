@@ -23,28 +23,22 @@
                 <TextBlock Text="脚本 API 版本" />
                 <ComboBox ItemsSource="{Binding ApiVersionOptions}"
                           SelectedItem="{Binding SelectedApiVersionOption, Mode=TwoWay}">
-                    <ComboBox.ItemTemplate>
+                    <ComboBox.SelectionBoxItemTemplate>
                         <DataTemplate x:DataType="dialogs:ScriptApiVersionOption">
                             <TextBlock Text="{Binding Label}" />
                         </DataTemplate>
+                    </ComboBox.SelectionBoxItemTemplate>
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="dialogs:ScriptApiVersionOption">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" Margin="2,4">
+                                <TextBlock Text="{Binding Label}" FontWeight="SemiBold"
+                                           VerticalAlignment="Top" />
+                                <TextBlock Grid.Column="1" Text="{Binding Description}"
+                                           TextWrapping="Wrap" Opacity="0.72" />
+                            </Grid>
+                        </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
-                <Border Padding="8" CornerRadius="6"
-                        Background="{DynamicResource SemiColorFill2}">
-                    <ItemsControl ItemsSource="{Binding ApiVersionOptions}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="dialogs:ScriptApiVersionOption">
-                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="0,2">
-                                    <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
-                                    <TextBlock Grid.Column="1" Text="{Binding Description}"
-                                               TextWrapping="Wrap" Opacity="0.72" />
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </Border>
-                <TextBlock Text="V1 与 V2 可使用相同的宿主 API 和权限；这里只决定参数契约与兼容行为。"
-                           FontSize="12" Opacity="0.62" TextWrapping="Wrap" />
                 <TextBlock Text="脚本样板" />
                 <ComboBox ItemsSource="{Binding Templates}" SelectedItem="{Binding SelectedTemplate, Mode=TwoWay}" />
                 <TextBlock Text="描述" />
