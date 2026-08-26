@@ -41,6 +41,8 @@ public class StatisticsManager : SingletonBase<StatisticsManager>
 [DiAutoRegister(singleton: true)]
 public partial class StatisticsViewModel : ViewModelBase
 {
+    public override bool IsViewCacheable => true;
+
     [ObservableProperty] private ObservableCollection<StatisticsTabData> _tabs = new();
 
     [ObservableProperty] private ObservableCollection<AddStatisticOptionItem> _addList = new();

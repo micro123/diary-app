@@ -1,5 +1,4 @@
 using System.Reflection;
-using Avalonia;
 using Avalonia.Headless;
 using Diary.App;
 using Diary.App.Models;
@@ -894,7 +893,5 @@ public sealed class WorkEditorViewModelTests
         public object GetConfig() => _config;
     }
 
-    private sealed class TestApplication : Application
-    {
-    }
+    private sealed class TestApplication : TestBaseApplication;
 }

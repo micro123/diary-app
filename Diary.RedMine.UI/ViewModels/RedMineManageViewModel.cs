@@ -20,6 +20,8 @@ public class RedMineTabItemModel
 [DiAutoRegister(singleton: true)]
 public partial class RedMineManageViewModel : ViewModelBase
 {
+    public override bool IsViewCacheable => true;
+
     private readonly ILogger _logger;
     private readonly IServiceProvider _services;
     private readonly IRedMineApi _api;

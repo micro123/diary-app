@@ -678,7 +678,7 @@ public sealed class ScriptEditorWindowTests
             ValueTask.FromResult(result);
     }
 
-    private sealed class TestApplication : Application
+    private sealed class TestApplication : TestBaseApplication
     {
     }
 }

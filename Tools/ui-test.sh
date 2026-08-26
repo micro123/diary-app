@@ -41,7 +41,7 @@ start 选项：
   --port <port>             CDP 监听端口，默认 9222
   --no-build               跳过 Debug restore/build
   --with-plugins            加载 Tracker 插件
-  --scenario <name>         default、extended、survey、database-error、extra-fields、date-performance 或 plugins
+  --scenario <name>         default、extended、survey、database-error、extra-fields、date-performance、navigation-performance 或 plugins
   --seed-profile <path>     复制已有 profile 的加密配置文件
   --profile-base <path>     将隔离 profile 创建到指定磁盘目录，性能测试可指向 HDD
   --display <display>       使用指定 X11 DISPLAY，例如 :0
@@ -123,7 +123,7 @@ if [[ ! "$port" =~ ^[0-9]+$ ]] || ((port < 1024 || port > 65535)); then
 fi
 
 case "$scenario" in
-    default|extended|survey|database-error|extra-fields|date-performance|plugins) ;;
+    default|extended|survey|database-error|extra-fields|date-performance|navigation-performance|plugins) ;;
     *) fail "不支持的测试场景：$scenario" ;;
 esac
 
@@ -326,7 +326,7 @@ start_ui_test() {
     startup_ready_ms=$(($(date +%s%3N) - started_ms))
 
     UI_PROCESS_ID="$app_pid" UI_APP_PATH="$app_path" UI_PORT="$port" \
-    UI_PROFILE="$profile" UI_STARTUP_MS="$startup_ready_ms" UI_PLUGINS="$with_plugins" \
+    UI_PROFILE="$profile" UI_PROCESS_STARTED_MS="$started_ms" UI_STARTUP_MS="$startup_ready_ms" UI_PLUGINS="$with_plugins" \
     UI_SCENARIO="$scenario" UI_SEEDED="$([[ -n "$seed_profile" ]] && echo true || echo false)" \
     UI_DISPLAY="$display_value" UI_DISPLAY_PID="${xvfb_pid:-}" UI_LOG_PATH="$app_log_path" \
     UI_TARGETS="$targets_json" python3 - "$state_path" <<'PY'
@@ -344,6 +344,7 @@ state = {
     "port": int(os.environ["UI_PORT"]),
     "profile": os.environ["UI_PROFILE"],
     "startedAt": datetime.datetime.now().astimezone().isoformat(),
+    "processStartedAtUnixMs": int(os.environ["UI_PROCESS_STARTED_MS"]),
     "startupReadyMs": int(os.environ["UI_STARTUP_MS"]),
     "withPlugins": boolean("UI_PLUGINS"),
     "scenario": os.environ["UI_SCENARIO"],

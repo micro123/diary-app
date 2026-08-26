@@ -59,6 +59,8 @@ public sealed partial class CompactCalendarDay : ObservableObject
 [DiAutoRegister(singleton: true)]
 public partial class DiaryEditorViewModel : ViewModelBase
 {
+    public override bool IsViewCacheable => true;
+
     private readonly ILogger _logger;
     private readonly IServiceProvider _serviceProvider;
     private readonly IScriptCatalog _scriptCatalog;

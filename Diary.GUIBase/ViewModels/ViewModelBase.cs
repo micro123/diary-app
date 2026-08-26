@@ -9,6 +9,8 @@ namespace Diary.GUIBase.ViewModels;
 
 public class ViewModelBase : ObservableObject, IDisposable
 {
+    public virtual bool IsViewCacheable => false;
+
     public Control? View { get; private set; }
     private WindowNotificationManager? _notificationManager;
     private WindowToastManager? _toastManager;

@@ -32,6 +32,8 @@ public sealed record WorkItemQueryResult(WorkItem Item, string Tags, string Prim
 [DiAutoRegister(singleton: true)]
 public sealed partial class WorkItemQueryViewModel : ViewModelBase
 {
+    public override bool IsViewCacheable => true;
+
     internal const int DefaultResultLimit = 200;
 
     private readonly DbShareData _shareData;

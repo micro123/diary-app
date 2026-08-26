@@ -1,4 +1,3 @@
-using Avalonia;
 using Avalonia.Headless;
 using Diary.App.Models;
 using Diary.Core.Data.Statistics;
@@ -93,5 +92,5 @@ public sealed class StatisticsTabDataTests
         PrimaryTags = [],
     };
 
-    private sealed class TestApplication : Application;
+    private sealed class TestApplication : TestBaseApplication;
 }

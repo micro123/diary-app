@@ -9,7 +9,7 @@ param(
     [int] $Port = 9222,
     [switch] $NoBuild,
     [switch] $WithPlugins,
-    [ValidateSet('default', 'extended', 'survey', 'database-error', 'extra-fields', 'date-performance', 'plugins')]
+    [ValidateSet('default', 'extended', 'survey', 'database-error', 'extra-fields', 'date-performance', 'navigation-performance', 'plugins')]
     [string] $Scenario = 'default',
     [string] $SeedProfile = '',
     [string] $ProfileBase = '',
@@ -113,6 +113,7 @@ function Start-UiTest {
         $env:DIARY_CDP_PORT = "$Port"
         $env:DIARY_UI_TEST_ROOT = $profile
         $env:DIARY_UI_TEST_SCENARIO = $(if ($Scenario -eq 'default') { $null } else { $Scenario })
+        $processStartedAtUnixMs = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
         $stopwatch = [Diagnostics.Stopwatch]::StartNew()
         $startParameters = @{
             FilePath = $appPath
@@ -140,6 +141,7 @@ function Start-UiTest {
             port = $Port
             profile = $profile
             startedAt = [DateTimeOffset]::Now.ToString('O')
+            processStartedAtUnixMs = $processStartedAtUnixMs
             startupReadyMs = $stopwatch.ElapsedMilliseconds
             withPlugins = [bool] $WithPlugins
             scenario = $Scenario

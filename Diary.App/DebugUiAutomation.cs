@@ -30,6 +30,7 @@ internal static class DebugUiAutomation
     internal const string RedmineIssueIdsEnvironmentVariable = "DIARY_UI_TEST_REDMINE_ISSUE_IDS";
     private const string ExtraFieldsScenario = "extra-fields";
     private const string DatePerformanceScenario = "date-performance";
+    private const string NavigationPerformanceScenario = "navigation-performance";
     internal const string DatePerformanceTitlePrefix = "CDP日期性能";
     internal const int DatePerformanceDayCount = 540;
     internal const int DatePerformanceItemsPerDay = 48;
@@ -65,6 +66,7 @@ internal static class DebugUiAutomation
             "database-error" => "database-error",
             ExtraFieldsScenario => ExtraFieldsScenario,
             DatePerformanceScenario => DatePerformanceScenario,
+            NavigationPerformanceScenario => NavigationPerformanceScenario,
             "plugins" => "plugins",
             _ => throw new ArgumentException($"未知 UI 测试场景：{value}", ScenarioEnvironmentVariable),
         };
@@ -86,6 +88,12 @@ internal static class DebugUiAutomation
                 config.ViewSettings.ShowDeveloperFeatures = true;
                 break;
             case "survey":
+                config.SurveySettings.Enabled = true;
+                config.SurveySettings.AsServer = true;
+                config.SurveySettings.ServerAddress = string.Empty;
+                break;
+            case NavigationPerformanceScenario:
+                config.ViewSettings.ShowDeveloperFeatures = true;
                 config.SurveySettings.Enabled = true;
                 config.SurveySettings.AsServer = true;
                 config.SurveySettings.ServerAddress = string.Empty;
@@ -452,7 +460,7 @@ internal static class DebugUiAutomation
 
     public static bool ApplyDatabaseScenario(DbInterfaceBase database)
     {
-        if (_scenario == "extended")
+        if (_scenario is "extended" or NavigationPerformanceScenario)
             return ApplyAiContextScenario(database);
         if (_scenario == DatePerformanceScenario)
             return ApplyDatePerformanceScenario(database, DateTime.Today);

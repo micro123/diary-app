@@ -35,6 +35,7 @@
 | `ui-extra-fields-full` | 8 | 标签过滤与数量摘要、附加字段定义和即时排序、9 类编辑器、持久化、停用历史值和迁移事项入口隐藏 |
 | `ui-redmine-full` | 12 | 多 Tracker、Redmine 管理、标签规则、工时和安全 |
 | `ui-redmine-style` | 5 | Redmine 只读视觉回归、工具栏布局、截图和 CheckBox 中心线 |
+| `ui-navigation-performance` | 4 | 新进程启动、核心与动态导航清单、首次访问、正反向热切换、CPU/内存/I/O；由独立编排器跨进程汇总 |
 
 ## 3. 功能级覆盖
 
@@ -43,6 +44,7 @@
 | 清单 | 功能 | 状态 | 证据或边界 |
 | --- | --- | --- | --- |
 | 2.1 | 固定页、动态 Tracker 页、导航折叠、`Alt+1..9` | `Automated` | core 验证页面切换、折叠和数字快捷键；Redmine 验证动态导航 |
+| 2.1 | 主导航冷切换和热切换性能 | `Automated-Performance` | `navigation-performance` 场景同时开启日记、查询、统计、调查和脚本页，可选加载 Tracker 动态管理页；单进程套件记录可见/稳定延迟与资源增量，跨进程编排器轮换首次访问顺序并生成 JSON/Markdown 汇总；单元测试覆盖每实例 View 复用、缓存资格默认关闭的虚契约、预热生命周期和 `WorkEditorViewModel` 不缓存，不纳入常规全量门禁 |
 | 2.2 | 应用菜单、关于、版本、主题 | `Automated` | core 验证菜单和关于；smoke 验证主题截图差异；复制版本明细仅结构检查 |
 | 2.2 | 发布版用户手册入口 | `Unit/Integration` | 服务测试覆盖 Debug/Release 判定、HTML 优先和 PDF 回退；窗口测试检查命令/可见性绑定；Debug core 确认菜单隐藏；Tag/手动发布包校验强制要求 HTML/PDF。系统默认浏览器或 PDF 阅读器打开行为保留原生人工检查 |
 | 2.2 | 最大化、最小化、重启、退出 | `Manual-Native` | 涉及原生窗口/进程生命周期，未纳入连续套件 |

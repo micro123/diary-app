@@ -172,6 +172,8 @@ public sealed class SurveyCapabilityResult
 [DiAutoRegister(singleton: true)]
 public partial class SurveyViewModel : ViewModelBase
 {
+    public override bool IsViewCacheable => true;
+
     private readonly ILogger _logger;
     private readonly IServiceProvider _serviceProvider;
 

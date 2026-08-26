@@ -197,6 +197,8 @@ public partial class ScriptManagementViewModel(
     ILogger logger,
     IServiceProvider services) : ViewModelBase
 {
+    public override bool IsViewCacheable => true;
+
     public const int AiContextTabIndex = 5;
 
     private readonly string _scriptRoot = Path.Combine(FsTools.GetApplicationConfigDirectory(), "scripts");

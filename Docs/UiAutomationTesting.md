@@ -64,6 +64,7 @@ Linux 默认构建流程先按 Debug 配置执行 restore，再使用 `--no-rest
 | `database-error` | `-Scenario database-error` / `--scenario database-error` | 注入不存在的数据库驱动，验证恢复 UI |
 | `extra-fields` | `-Scenario extra-fields` / `--scenario extra-fields` | 预置迁移只读事项，验证标签附加字段定义、类型化编辑和迁移事项入口隐藏 |
 | `date-performance` | `-Scenario date-performance` / `--scenario date-performance` | 预置 540 天、每日 48 条富工作数据，验证大量日期切换性能和只读导航不写库 |
+| `navigation-performance` | `-Scenario navigation-performance` / `--scenario navigation-performance` | 同时开启调查和开发者功能，测量所有核心导航页及可用 Tracker 管理页的首次访问和重复切换性能 |
 | `plugins` | `-Scenario plugins -WithPlugins` / `--scenario plugins --with-plugins` | 加载 Tracker 插件和动态管理页 |
 
 两种工具的 `start` 都会创建 `.build-tmp/ui-test/profiles/<runId>`，等待 CDP ready，并将 PID、端口、profile、场景和冷启动时间写入 `.build-tmp/ui-test/current.json`。Linux 额外记录 `platform`、`display`、Xvfb PID 和应用日志路径。`stop` 会校验 PID 对应的可执行文件后再终止进程，避免误杀其他 DiaryApp 或 Xvfb 实例。
@@ -228,6 +229,52 @@ Linux 的 `run` 会自动传入当前状态文件，不需要手动拼接 `--sta
 
 测试脚本使用 `Tools/ui-cdp.mjs` 的原始 WebSocket 客户端和稳定 `Name`/控件类型/可见文字定位。关键操作根据控件行为使用鼠标或 `DOM.focus` 配合键盘触发；菜单、列表选择和异步命令会等待可观察状态，并在输入偶发丢失时执行有限重试。导航完成条件是目标 View 已可见，不以点击命令返回作为完成信号。
 
+### 4.1 主导航冷热切换性能
+
+`ui-navigation-performance` 在单个新进程中先访问所有未打开页面，再按正序和倒序重复切换。测试会自动要求日记记录、事项查询、统计工具、调查工具和脚本管理五个核心页面；使用 `--with-plugins` 加载已有 Tracker 配置后，还会把可见的 Tracker 管理页加入清单。每次操作分别记录输入派发、目标页面可见和视觉树连续稳定三个时间，并采集 CPU、工作集及进程 I/O 增量。
+
+单进程调试：
+
+```powershell
+.\Tools\ui-test.ps1 start -NoBuild -Scenario navigation-performance
+.\Tools\ui-test.ps1 run -Suite ui-navigation-performance
+.\Tools\ui-test.ps1 stop
+```
+
+```bash
+./Tools/ui-test.sh start --no-build --scenario navigation-performance --display :0
+./Tools/ui-test.sh run ui-navigation-performance
+./Tools/ui-test.sh stop
+```
+
+正式比较应使用跨进程编排器。它每轮创建新的隔离 profile 和 DiaryApp 进程，轮换首次访问顺序，并生成 JSON 与 Markdown 汇总报告：
+
+```powershell
+node .\Tools\ui-navigation-performance-run.mjs --runs 5 --hot-rounds 5 --mode core
+```
+
+```bash
+node Tools/ui-navigation-performance-run.mjs --runs 5 --hot-rounds 5 --mode core --display :0
+```
+
+`core` 模式不加载 Tracker 插件，适合作为稳定基线。`full` 模式加载插件；需要通过现有加密 profile 提供已启用且带管理页的 Tracker 配置：
+
+```bash
+node Tools/ui-navigation-performance-run.mjs --runs 5 --hot-rounds 5 --mode full \
+  --seed-profile '<encrypted-profile>' --require-dynamic-page
+```
+
+常用参数：
+
+- `--runs <n>`：新进程次数，默认 5；正式计算冷切换 P95 建议至少 20 次。
+- `--hot-rounds <n>`：每个进程内热切换轮数，默认 5；每轮让每个页面恰好成为一次目标页。
+- `--preload-wait-ms <n>`：日记页稳定后等待空闲导航预热的时间，默认 1800 ms；比较缓存优化时应显式使用相同值。
+- `--build`：编排开始前执行一次 Debug 构建；默认要求调用者已构建并以 `--no-build` 启动各轮。
+- `--require-dynamic-page`：要求至少出现一个 Tracker 动态管理页，否则测试失败。
+- `--seed-profile <path>`：只复制已有加密配置文件，不读取正常用户 profile，也不把配置或凭据写入报告。
+
+这里的“冷切换”指新进程内首次把目标 View 挂载到主视觉树，包括首次 XAML/样式加载、相关 JIT、真实父级布局、`OnShow()` 和同步可观察的数据加载；空闲预热可能已经在离屏状态创建并测量该 View。“热切换”复用同一 ViewModel 实例对应的同一 View，不再重复创建控件树。日记页是启动默认页，因此单独报告启动到日记页稳定时间，其后返回日记页的样本不计入其他页面的冷切换汇总。测试不清理操作系统文件缓存，结果属于“新进程冷启动”，不是磁盘完全冷启动。
+
 ## 5. 报告和判定
 
 输出目录：
@@ -253,6 +300,7 @@ node --test Tools/ui-screenshot.test.mjs
 - 功能断言失败、对话框未关闭、目标页面未出现或状态未持久化均为 `failed`。
 - 外部服务配置未提供时为 `blocked-external`，不计作功能通过。
 - 性能值用于同一机器、同一构建方式下的趋势比较，不作为跨机器固定发布阈值。日期性能专项的默认 warning 线为逐次切换 P95 300ms、最大值 1.5s、24 次高速切换 8s、进程写入 1 MiB 和工作集增长 256 MiB。
+- 主导航性能专项暂以核心页面热切换可见 P95 300ms、Tracker 页面 800ms、核心页面首次可见 2s、Tracker 页面 3s 和热切换工作集增长 128 MiB 作为 warning，不作为跨机器硬门禁。
 - 首次页面创建包含视图构造和数据加载，应与预热后的视觉树/动作耗时分开观察。
 - 原生文件选择器、目录选择器、系统托盘和真实备份/还原不由 Avalonia CDP 控制，保留 Windows 原生人工或专用驱动验证。
 
@@ -366,6 +414,38 @@ smoke 在较矮窗口中只渲染前三个列表项，第 4 个模板事项会�
 2026-08-26 用户手册复核使用当前 `1.0.1-r564` Linux X11 Debug 界面重新采集程序设置、标签、附加字段、模板操作和 V2 参数表单。写入手册的新增或替换图片必须从逻辑 1× 原图继续裁到目标控件、卡片或对话框主体，保留识别入口所需的最少上下文，不直接放入完整主窗口；未裁切原图仍只保存在 `.build-tmp/ui-test/screenshots/` 供复核。本轮 smoke 完整通过，`ui-extra-fields-full` 8/8 通过；精简 V2 参数辅助说明后，`ui-extended-full` 11/11 通过并自动生成参数表单原图，手册版本进一步裁切为仅包含运行对话框的关键区域。
 
 同日将标签编辑器页头和当前标签说明从小尺寸信息图标 Tooltip 改为直接显示，并移除备注区与“仅本地”状态重复的说明图标。smoke 重新生成标签基础信息原图并通过；`ui-extra-fields-full` 增加附加字段手册原图输出，菜单入口改为点击实际 `MenuItem` 容器后 8/8 通过；`ui-core-full` 14/14 通过并验证备注区直接显示“仅本地”、不再依赖旧 Tooltip。两张标签图片写入手册前均继续裁到标签对话框关键区域。
+
+### 6.4 2026-08-26 主导航 core 冷热切换基线
+
+Linux X11 Debug 构建使用 `navigation-performance` 场景连续启动 5 个新进程，每个进程执行 3 轮热切换。日记、查询、统计、调查和脚本五个核心页面全部出现，20 次首次访问和 75 次热切换均成功，没有产生性能 warning。该轮只用于验证新工具和建立本机 core 基线，不包含 Tracker 动态管理页。
+
+| 页面 | 冷切换 P50 | 热切换 P50 | 热切换 P95 | 首次访问惩罚 |
+| --- | ---: | ---: | ---: | ---: |
+| 事项查询 | 285.32 ms | 193.98 ms | 250.26 ms | 1.47× |
+| 统计工具 | 489.18 ms | 149.33 ms | 216.80 ms | 3.28× |
+| 调查工具 | 247.90 ms | 165.85 ms | 231.58 ms | 1.49× |
+| 脚本管理 | 304.40 ms | 120.30 ms | 223.74 ms | 2.53× |
+| 日记记录 | 启动默认页 | 134.84 ms | 177.36 ms | — |
+
+CDP Ready P50/P95 为 2,727/2,803 ms，进程启动至日记页视觉树稳定 P50/P95 为 4,158/4,949 ms。每轮 3 次热切换后工作集平均增长约 63.93 MiB，进程数据读取和写入字节均为 0；这包含 Debug、Avalonia/Skia 视觉资源和 View 重建缓存，后续应在 Windows 测试机上使用更多轮数观察增长是否趋稳。
+
+汇总报告：`.build-tmp/ui-test/reports/ui-navigation-performance-aggregate-2026-08-26T03-19-09-497Z.json`。
+
+### 6.5 2026-08-26 每实例 View 缓存优化复测
+
+主窗口导航启用每 ViewModel 实例一个 View 的弱引用缓存，并在窗口打开后空闲预热可缓存主页面；缓存资格默认关闭，`WorkEditorViewModel`、对话框和 Tracker 编辑区域继承默认行为，只有主导航页面显式加入缓存。Linux X11 Debug 构建再次启动 5 个新进程，每个进程等待预热 2200 ms 后执行 3 轮热切换，20 次首次访问和 75 次热切换全部成功。
+
+| 页面 | 优化前冷 P50 | 优化后冷 P50 | 优化前热 P50 | 优化后热 P50 | 热 P50 变化 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 事项查询 | 285.32 ms | 258.20 ms | 193.98 ms | 94.24 ms | -51.4% |
+| 统计工具 | 489.18 ms | 501.09 ms | 149.33 ms | 144.37 ms | -3.3% |
+| 调查工具 | 247.90 ms | 186.52 ms | 165.85 ms | 77.27 ms | -53.4% |
+| 脚本管理 | 304.40 ms | 231.79 ms | 120.30 ms | 85.59 ms | -28.9% |
+| 日记记录 | 启动默认页 | 启动默认页 | 134.84 ms | 89.08 ms | -33.9% |
+
+优化后 CDP Ready P50/P95 为 2,517/2,631 ms，进程启动至日记页稳定 P50/P95 为 4,146/4,317 ms。查询、调查、脚本和返回日记的热切换明显下降；统计页冷切换和热切换变化有限，说明其主要成本仍位于首次接入真实视觉树后的样式、模板、布局或页面刷新。当前方案保持较低生命周期风险，不把全部页面常驻挂载；如果继续优化统计页，应先对首次挂载阶段做细分采样。
+
+优化后汇总报告：`.build-tmp/ui-test/reports/ui-navigation-performance-aggregate-2026-08-26T04-29-17-570Z.json`。缓存资格、实例所有权和预热边界见 [`UiNavigationViewCachingDesign.md`](UiNavigationViewCachingDesign.md)。
 
 ## 7. 当前覆盖边界
 

@@ -41,6 +41,7 @@ public sealed class DebugUiAutomationTests
     [DataRow("database-error", "database-error")]
     [DataRow("extra-fields", "extra-fields")]
     [DataRow("date-performance", "date-performance")]
+    [DataRow("navigation-performance", "navigation-performance")]
     [DataRow("plugins", "plugins")]
     public void NormalizeScenario_AcceptsSupportedValues(string? value, string expected)
     {

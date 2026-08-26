@@ -42,5 +42,3 @@ public sealed partial class TagExtraFieldEditorViewModel : ViewModelBase, IDialo
     private void Cancel() => RequestClose?.Invoke(this, false);
 }
 
-
-
