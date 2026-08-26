@@ -9,123 +9,136 @@
              x:Class="Diary.App.Views.Dialogs.WorkItemExtraFieldsView"
              x:Name="WorkItemExtraFieldsRoot"
              x:DataType="dialogs:WorkItemExtraFieldsViewModel"
-             Width="680" Height="560" Margin="12">
-    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
-        <TextBlock Text="{Binding Title}" Classes="Header" />
-        <ScrollViewer Grid.Row="1">
-            <ItemsControl Name="ExtraFieldGroups" ItemsSource="{Binding Groups}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Border Padding="8" Margin="0 0 0 4"
-                                Background="{DynamicResource SemiColorFill1}">
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="{Binding TagName}" FontWeight="SemiBold" />
-                                <ItemsControl Name="ExtraFieldItems" ItemsSource="{Binding Fields}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate DataType="models:EditableWorkItemExtraField">
-                                            <Grid Name="ExtraFieldRow" ColumnDefinitions="150,*"
-                                                  ColumnSpacing="8" Margin="0 3">
-                                                <StackPanel VerticalAlignment="Center" Spacing="2">
-                                                    <TextBlock Name="ExtraFieldLabel" Text="{Binding Label}"
-                                                               ToolTip.Tip="{Binding Description}" />
-                                                    <TextBlock Text="已停用，仅供查看"
-                                                               IsVisible="{Binding IsDisabled}"
-                                                               FontSize="11" Opacity="0.65" />
-                                                </StackPanel>
-                                                <Grid Grid.Column="1">
-                                                    <TextBox Name="WorkExtraTextInput"
-                                                             IsVisible="{Binding UsesTextEditor}"
-                                                             Text="{Binding Value, Mode=TwoWay}"
-                                                             IsReadOnly="{Binding IsReadOnly}"
-                                                             Watermark="{Binding FieldKey}" />
-                                                    <TextBox Name="WorkExtraMultilineInput"
-                                                             IsVisible="{Binding UsesMultilineTextEditor}"
-                                                             Text="{Binding Value, Mode=TwoWay}"
-                                                             AcceptsReturn="True" TextWrapping="Wrap"
-                                                             IsReadOnly="{Binding IsReadOnly}"
-                                                             MinHeight="72" Watermark="{Binding FieldKey}" />
-                                                    <NumericUpDown Name="WorkExtraIntegerInput"
-                                                                   IsVisible="{Binding UsesIntegerEditor}"
-                                                                   Value="{Binding NumericValue, Mode=TwoWay}"
-                                                                   Minimum="-2147483648" Maximum="2147483647"
-                                                                   Increment="1" FormatString="0" ParsingNumberStyle="Integer"
-                                                                   IsReadOnly="{Binding IsReadOnly}"
-                                                                   Watermark="未填写" />
-                                                    <NumericUpDown Name="WorkExtraDecimalInput"
-                                                                   IsVisible="{Binding UsesDecimalEditor}"
-                                                                   Value="{Binding NumericValue, Mode=TwoWay}"
-                                                                   Increment="0.1"
-                                                                   IsReadOnly="{Binding IsReadOnly}"
-                                                                   Watermark="未填写" />
-                                                    <CheckBox Name="WorkExtraBooleanInput"
-                                                              IsVisible="{Binding UsesBooleanEditor}"
-                                                              IsChecked="{Binding BooleanValue, Mode=TwoWay}"
-                                                              IsThreeState="True"
-                                                              IsEnabled="{Binding !IsReadOnly}"
-                                                              Content="{Binding BooleanDisplay}"
-                                                              VerticalAlignment="Center" />
-                                                    <CalendarDatePicker Name="WorkExtraDateInput"
-                                                                        IsVisible="{Binding UsesDateEditor}"
-                                                                        SelectedDate="{Binding DateValue, Mode=TwoWay}"
-                                                                        IsEnabled="{Binding !IsReadOnly}"
-                                                                        Watermark="未填写" />
-                                                    <Grid Name="WorkExtraTimeEditor"
-                                                          IsVisible="{Binding UsesTimeEditor}"
-                                                          ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                                                        <controls:ClockTimePicker Name="WorkExtraTimeInput"
-                                                                                  SelectedTime="{Binding TimeValue, Mode=TwoWay}"
-                                                                                  IsReadOnly="{Binding IsReadOnly}"
-                                                                                  Watermark="未填写" />
-                                                        <Button Name="ClearWorkExtraTimeButton"
-                                                                Grid.Column="1" Content="清空"
-                                                                Command="{Binding ClearValueCommand}" />
-                                                    </Grid>
-                                                    <Grid Name="WorkExtraDateTimeEditor"
-                                                          IsVisible="{Binding UsesDateTimeEditor}"
-                                                          ColumnDefinitions="170,Auto,*,Auto"
-                                                          ColumnSpacing="6"
-                                                          ClipToBounds="True">
-                                                        <CalendarDatePicker Name="WorkExtraDateTimeDateInput"
-                                                                            SelectedDate="{Binding DateTimeDateValue, Mode=TwoWay}"
+             Width="760" Height="620" Padding="10">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
+        <Border Classes="PageHeader">
+            <Grid Classes="PageHeading" ColumnDefinitions="Auto,*">
+                <TextBlock Text="{Binding Title}" Classes="PageTitle" />
+                <TextBlock Grid.Column="1" Text="填写标签定义的结构化信息"
+                           Classes="PageSubtitle" IsVisible="{Binding !IsReadOnly}" />
+                <TextBlock Grid.Column="1" Text="已同步事项仅供查看，字段值不可修改"
+                           Classes="PageSubtitle" IsVisible="{Binding IsReadOnly}" />
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Classes="DetailPane" Padding="6" ClipToBounds="True">
+            <ScrollViewer>
+                <ItemsControl Name="ExtraFieldGroups" ItemsSource="{Binding Groups}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Classes="SubtleCard" Margin="0,0,0,4">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="{Binding TagName}" Classes="SectionTitle" />
+                                    <ItemsControl Name="ExtraFieldItems" ItemsSource="{Binding Fields}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="models:EditableWorkItemExtraField">
+                                                <Grid Name="ExtraFieldRow" ColumnDefinitions="170,*"
+                                                      ColumnSpacing="10" Margin="0,3">
+                                                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                                                        <TextBlock Name="ExtraFieldLabel" Text="{Binding Label}"
+                                                                   Classes="FieldLabel"
+                                                                   ToolTip.Tip="{Binding Description}" />
+                                                        <TextBlock Text="已停用，仅供查看"
+                                                                   IsVisible="{Binding IsDisabled}"
+                                                                   Classes="PageSubtitle" FontSize="11" />
+                                                    </StackPanel>
+                                                    <Grid Grid.Column="1">
+                                                        <TextBox Name="WorkExtraTextInput"
+                                                                 IsVisible="{Binding UsesTextEditor}"
+                                                                 Text="{Binding Value, Mode=TwoWay}"
+                                                                 IsReadOnly="{Binding IsReadOnly}"
+                                                                 Watermark="{Binding FieldKey}" />
+                                                        <TextBox Name="WorkExtraMultilineInput"
+                                                                 IsVisible="{Binding UsesMultilineTextEditor}"
+                                                                 Text="{Binding Value, Mode=TwoWay}"
+                                                                 AcceptsReturn="True" TextWrapping="Wrap"
+                                                                 IsReadOnly="{Binding IsReadOnly}"
+                                                                 MinHeight="72" Watermark="{Binding FieldKey}" />
+                                                        <NumericUpDown Name="WorkExtraIntegerInput"
+                                                                       IsVisible="{Binding UsesIntegerEditor}"
+                                                                       Value="{Binding NumericValue, Mode=TwoWay}"
+                                                                       Minimum="-2147483648" Maximum="2147483647"
+                                                                       Increment="1" FormatString="0"
+                                                                       ParsingNumberStyle="Integer"
+                                                                       IsReadOnly="{Binding IsReadOnly}"
+                                                                       Watermark="未填写" />
+                                                        <NumericUpDown Name="WorkExtraDecimalInput"
+                                                                       IsVisible="{Binding UsesDecimalEditor}"
+                                                                       Value="{Binding NumericValue, Mode=TwoWay}"
+                                                                       Increment="0.1"
+                                                                       IsReadOnly="{Binding IsReadOnly}"
+                                                                       Watermark="未填写" />
+                                                        <CheckBox Name="WorkExtraBooleanInput"
+                                                                  IsVisible="{Binding UsesBooleanEditor}"
+                                                                  IsChecked="{Binding BooleanValue, Mode=TwoWay}"
+                                                                  IsThreeState="True"
+                                                                  IsEnabled="{Binding !IsReadOnly}"
+                                                                  Content="{Binding BooleanDisplay}"
+                                                                  VerticalAlignment="Center" />
+                                                        <CalendarDatePicker Name="WorkExtraDateInput"
+                                                                            IsVisible="{Binding UsesDateEditor}"
+                                                                            SelectedDate="{Binding DateValue, Mode=TwoWay}"
                                                                             IsEnabled="{Binding !IsReadOnly}"
-                                                                            Watermark="日期" />
-                                                        <TextBlock Grid.Column="1" Text="·" VerticalAlignment="Center" />
-                                                        <controls:ClockTimePicker Name="WorkExtraDateTimeTimeInput"
-                                                                                  Grid.Column="2"
-                                                                                  SelectedTime="{Binding DateTimeTimeValue, Mode=TwoWay}"
-                                                                                  IsReadOnly="{Binding IsReadOnly}"
-                                                                                  Watermark="时间" />
-                                                        <Button Name="ClearWorkExtraDateTimeButton"
-                                                                Grid.Column="3" Content="清空"
-                                                                Command="{Binding ClearValueCommand}" />
-                                                    </Grid>
-                                                    <Grid Name="WorkExtraChoiceEditor"
-                                                          IsVisible="{Binding UsesChoiceEditor}"
-                                                          ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                                                        <ComboBox Name="WorkExtraChoiceInput"
-                                                                  ItemsSource="{Binding Options}"
-                                                                  SelectedItem="{Binding SelectedChoice, Mode=TwoWay}"
-                                                                  PlaceholderText="未选择"
-                                                                  IsEnabled="{Binding !IsReadOnly}" />
-                                                        <Button Name="ClearWorkExtraChoiceButton"
-                                                                Grid.Column="1" Content="清空"
-                                                                Command="{Binding ClearValueCommand}" />
+                                                                            Watermark="未填写" />
+                                                        <Grid Name="WorkExtraTimeEditor"
+                                                              IsVisible="{Binding UsesTimeEditor}"
+                                                              ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                                            <controls:ClockTimePicker Name="WorkExtraTimeInput"
+                                                                                      SelectedTime="{Binding TimeValue, Mode=TwoWay}"
+                                                                                      IsReadOnly="{Binding IsReadOnly}"
+                                                                                      Watermark="未填写" />
+                                                            <Button Name="ClearWorkExtraTimeButton" Grid.Column="1"
+                                                                    Content="清空" Command="{Binding ClearValueCommand}"
+                                                                    IsVisible="{Binding !IsReadOnly}" />
+                                                        </Grid>
+                                                        <Grid Name="WorkExtraDateTimeEditor"
+                                                              IsVisible="{Binding UsesDateTimeEditor}"
+                                                              ColumnDefinitions="170,Auto,*,Auto"
+                                                              ColumnSpacing="6" ClipToBounds="True">
+                                                            <CalendarDatePicker Name="WorkExtraDateTimeDateInput"
+                                                                                SelectedDate="{Binding DateTimeDateValue, Mode=TwoWay}"
+                                                                                IsEnabled="{Binding !IsReadOnly}"
+                                                                                Watermark="日期" />
+                                                            <TextBlock Grid.Column="1" Text="·" VerticalAlignment="Center" />
+                                                            <controls:ClockTimePicker Name="WorkExtraDateTimeTimeInput"
+                                                                                      Grid.Column="2"
+                                                                                      SelectedTime="{Binding DateTimeTimeValue, Mode=TwoWay}"
+                                                                                      IsReadOnly="{Binding IsReadOnly}"
+                                                                                      Watermark="时间" />
+                                                            <Button Name="ClearWorkExtraDateTimeButton" Grid.Column="3"
+                                                                    Content="清空" Command="{Binding ClearValueCommand}"
+                                                                    IsVisible="{Binding !IsReadOnly}" />
+                                                        </Grid>
+                                                        <Grid Name="WorkExtraChoiceEditor"
+                                                              IsVisible="{Binding UsesChoiceEditor}"
+                                                              ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                                            <ComboBox Name="WorkExtraChoiceInput"
+                                                                      ItemsSource="{Binding Options}"
+                                                                      SelectedItem="{Binding SelectedChoice, Mode=TwoWay}"
+                                                                      PlaceholderText="未选择"
+                                                                      IsEnabled="{Binding !IsReadOnly}" />
+                                                            <Button Name="ClearWorkExtraChoiceButton" Grid.Column="1"
+                                                                    Content="清空" Command="{Binding ClearValueCommand}"
+                                                                    IsVisible="{Binding !IsReadOnly}" />
+                                                        </Grid>
                                                     </Grid>
                                                 </Grid>
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </StackPanel>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </ScrollViewer>
-        <StackPanel Grid.Row="2" Spacing="6">
-            <TextBlock Text="{Binding ValidationMessage}" Foreground="{DynamicResource SystemControlErrorTextForeground}"
-                       TextWrapping="Wrap" />
-            <StackPanel Classes="DialogFooter">
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <TextBlock Text="{Binding ValidationMessage}"
+                       Foreground="{DynamicResource SystemControlErrorTextForeground}"
+                       TextWrapping="Wrap" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" Classes="DialogFooter">
                 <Button Name="CancelWorkExtraFieldsButton" Content="取消"
                         IsVisible="{Binding !IsReadOnly}" Command="{Binding CancelCommand}" />
                 <Button Name="CloseWorkExtraFieldsButton" Content="关闭"
@@ -133,6 +146,6 @@
                 <Button Name="SaveWorkExtraFieldsButton" Content="保存" Classes="Primary"
                         IsVisible="{Binding !IsReadOnly}" Command="{Binding SaveCommand}" />
             </StackPanel>
-        </StackPanel>
+        </Grid>
     </Grid>
 </UserControl>

@@ -3,56 +3,95 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:u="https://irihi.tech/ursa"
-             xmlns:dialogs1="clr-namespace:Diary.App.ViewModels.Dialogs"
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-             x:DataType="dialogs1:DbMigrationViewModel"
+             xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
+             mc:Ignorable="d"
+             d:DesignWidth="720" d:DesignHeight="520"
              x:Class="Diary.App.Views.Dialogs.DbMigrationView"
-             MinHeight="400" MinWidth="650" Margin="8 24 8 8">
-    <DockPanel VerticalSpacing="4">
-        <TextBlock Classes="Header" Text="数据迁移向导" DockPanel.Dock="Top" />
-        <Separator DockPanel.Dock="Top" />
-        <Grid ColumnDefinitions="Auto,Auto,*" DockPanel.Dock="Top" ColumnSpacing="4" IsEnabled="{Binding !Working}">
-            <TextBlock Grid.Row="0" Grid.Column="0" Classes="SettingLineCaption" Text="数据库类型:" />
-            <ComboBox Grid.Row="0" Grid.Column="1" Classes="SLV"
-                      ItemsSource="{Binding DbProviders}"
-                      SelectedItem="{Binding DbType}" />
-        </Grid>
-        <StackPanel DockPanel.Dock="Bottom" Classes="DialogFooter" Margin="0,12,16,0">
+             x:DataType="dialogs:DbMigrationViewModel"
+             Width="720" Height="520" Padding="10">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
+        <Border Classes="PageHeader">
+            <Grid Classes="PageHeading" ColumnDefinitions="Auto,*">
+                <TextBlock Text="数据迁移向导" Classes="PageTitle" />
+                <TextBlock Grid.Column="1" Text="将旧数据库内容迁移到当前数据库"
+                           Classes="PageSubtitle" />
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Classes="DetailPane" Padding="12" ClipToBounds="True">
+            <ScrollViewer>
+                <StackPanel Spacing="10">
+                    <Border Classes="SubtleCard">
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="迁移会覆盖当前数据库中的现有数据。开始前请确认已完成备份。"
+                                       FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Text="选择旧数据库来源并填写连接信息，系统会在执行前再次请求确认。"
+                                       Classes="PageSubtitle" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="SectionCard" IsEnabled="{Binding !Working}">
+                        <StackPanel Spacing="10">
+                            <Grid Classes="SectionHeading" ColumnDefinitions="Auto,*">
+                                <TextBlock Text="迁移来源" Classes="SectionTitle" />
+                                <TextBlock Grid.Column="1" Text="支持 SQLite 文件和 PostgreSQL 数据库"
+                                           Classes="SectionDescription" />
+                            </Grid>
+                            <Grid ColumnDefinitions="130,*" ColumnSpacing="10">
+                                <TextBlock Text="数据库类型:" Classes="FieldLabel" />
+                                <ComboBox Grid.Column="1" ItemsSource="{Binding DbProviders}"
+                                          SelectedItem="{Binding DbType}" HorizontalAlignment="Stretch" />
+                            </Grid>
+                            <Grid IsVisible="{Binding SqliteMode}" ColumnDefinitions="130,*" ColumnSpacing="10">
+                                <TextBlock Text="数据库文件:" Classes="FieldLabel" />
+                                <u:PathPicker Grid.Column="1" SelectedPathsText="{Binding SqlitePath}"
+                                              IsClearSelectionOnCancel="False" Title="选择数据库文件"
+                                              AllowMultiple="False" UsePickerType="OpenFile"
+                                              HorizontalAlignment="Stretch" />
+                            </Grid>
+                            <Grid IsVisible="{Binding !SqliteMode}"
+                                  ColumnDefinitions="130,*"
+                                  RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                                  ColumnSpacing="10" RowSpacing="7">
+                                <TextBlock Text="服务器地址:" Classes="FieldLabel" />
+                                <TextBox Grid.Column="1" Classes="ClearButton" Text="{Binding Host}" />
+                                <TextBlock Grid.Row="1" Text="服务端口:" Classes="FieldLabel" />
+                                <u:NumericUShortUpDown Grid.Row="1" Grid.Column="1"
+                                                       Value="{Binding Port}" ShowButtonSpinner="False"
+                                                       HorizontalAlignment="Stretch" />
+                                <TextBlock Grid.Row="2" Text="数据库名称:" Classes="FieldLabel" />
+                                <TextBox Grid.Row="2" Grid.Column="1" Classes="ClearButton"
+                                         Text="{Binding Database}" />
+                                <TextBlock Grid.Row="3" Text="用户名:" Classes="FieldLabel" />
+                                <TextBox Grid.Row="3" Grid.Column="1" Classes="ClearButton"
+                                         Text="{Binding User}" />
+                                <TextBlock Grid.Row="4" Text="密码:" Classes="FieldLabel" />
+                                <TextBox Grid.Row="4" Grid.Column="1"
+                                         Classes="RevealPasswordButton ClearButton"
+                                         Text="{Binding Password}" PasswordChar="*" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="SectionCard" IsVisible="{Binding Working}">
+                        <StackPanel Spacing="8">
+                            <Grid Classes="SectionHeading" ColumnDefinitions="Auto,*">
+                                <TextBlock Text="正在迁移" Classes="SectionTitle" />
+                                <TextBlock Grid.Column="1" Text="请保持程序运行，完成后将自动关闭向导"
+                                           Classes="SectionDescription" />
+                            </Grid>
+                            <ProgressBar Minimum="0" Maximum="100" Value="{Binding Progress}"
+                                         ShowProgressText="True" />
+                            <SelectableTextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <StackPanel Grid.Row="2" Classes="DialogFooter">
             <Button Content="取消" Command="{Binding AbortCommand}" />
             <Button Classes="Primary" Content="迁移" Command="{Binding DoMigrateCommand}" />
         </StackPanel>
-        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="4" IsVisible="{Binding Working}"
-              DockPanel.Dock="Bottom" Margin="32 0">
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="正在迁移中" />
-            <ProgressBar Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding Progress}"
-                         Width="160" ShowProgressText="True" />
-            <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Text="{Binding Message}" VerticalAlignment="Center"
-                       TextAlignment="Left" />
-        </Grid>
-        <Panel IsEnabled="{Binding !Working}">
-            <Grid IsVisible="{Binding SqliteMode}" ColumnDefinitions="Auto,Auto,*"
-                  RowDefinitions="Auto" ColumnSpacing="4" RowSpacing="4">
-                <!-- SQLITE -->
-                <TextBlock Grid.Row="0" Grid.Column="0" Classes="SettingLineCaption" Text="数据库文件:" />
-                <u:PathPicker Grid.Row="0" Grid.Column="1" SelectedPathsText="{Binding SqlitePath}"
-                              IsClearSelectionOnCancel="False" Title="选择数据库文件" AllowMultiple="False"
-                              UsePickerType="OpenFile" Classes="SLV" />
-            </Grid>
-            <Grid IsVisible="{Binding !SqliteMode}" ColumnDefinitions="Auto,Auto,*"
-                  RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="4" RowSpacing="4">
-                <TextBlock Grid.Row="0" Grid.Column="0" Classes="SettingLineCaption" Text="服务器地址:" />
-                <TextBox Grid.Row="" Grid.Column="1" Classes="SLV ClearButton" Text="{Binding Host}" />
-                <TextBlock Grid.Row="1" Grid.Column="0" Classes="SettingLineCaption" Text="服务端口:" />
-                <u:NumericUShortUpDown Grid.Row="1" Grid.Column="1" Value="{Binding Port}"
-                                       Classes="SLV" ShowButtonSpinner="False" />
-                <TextBlock Grid.Row="2" Grid.Column="0" Classes="SettingLineCaption" Text="数据库名称:" />
-                <TextBox Grid.Row="2" Grid.Column="1" Classes="SLV ClearButton" Text="{Binding Database}" />
-                <TextBlock Grid.Row="3" Grid.Column="0" Classes="SettingLineCaption" Text="用户名:" />
-                <TextBox Grid.Row="3" Grid.Column="1" Classes="SLV ClearButton" Text="{Binding User}" />
-                <TextBlock Grid.Row="4" Grid.Column="0" Classes="SettingLineCaption" Text="密码:" />
-                <TextBox Grid.Row="4" Grid.Column="1" Classes="SLV RevealPasswordButton ClearButton" Text="{Binding Password}" 
-                         PasswordChar="*"/>
-            </Grid>
-        </Panel>
-    </DockPanel>
+    </Grid>
 </UserControl>

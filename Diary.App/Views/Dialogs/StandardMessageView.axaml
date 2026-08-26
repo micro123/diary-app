@@ -2,17 +2,28 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:dialogs1="clr-namespace:Diary.App.ViewModels.Dialogs"
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
+             mc:Ignorable="d"
+             d:DesignWidth="560"
+             d:DesignHeight="180"
              x:Class="Diary.App.Views.Dialogs.StandardMessageView"
-             x:DataType="dialogs1:StandardMessageViewModel"
-             MinWidth="450"
-             MinHeight="220">
+             x:DataType="dialogs:StandardMessageViewModel"
+             Width="520"
+             MinWidth="480"
+             MaxHeight="420"
+             Padding="8">
     <Design.DataContext>
-        <dialogs1:StandardMessageViewModel />
+        <dialogs:StandardMessageViewModel />
     </Design.DataContext>
-    <TextBox Text="{Binding Body}" IsReadOnly="True" TextWrapping="Wrap"
-             HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Left"
-             VerticalContentAlignment="Top" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-             ScrollViewer.VerticalScrollBarVisibility="Auto" Classes="TextArea Bordered"/>
+
+    <Border Classes="DetailPane" Padding="12" ClipToBounds="True">
+        <ScrollViewer MaxHeight="340"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <SelectableTextBlock Text="{Binding Body}"
+                                 TextWrapping="Wrap"
+                                 HorizontalAlignment="Stretch"
+                                 VerticalAlignment="Top" />
+        </ScrollViewer>
+    </Border>
 </UserControl>

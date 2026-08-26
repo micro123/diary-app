@@ -9,161 +9,155 @@
              x:Class="Diary.App.Views.Dialogs.TagExtraFieldEditorView"
              x:Name="TagExtraFieldEditorRoot"
              x:DataType="dialogs:TagExtraFieldEditorViewModel"
-             Width="520"
-             MinHeight="460"
-             Margin="8 24 8 8">
+             Width="620" Height="620" Padding="10">
     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
-        <StackPanel Grid.Row="0" Spacing="3">
-            <TextBlock Text="{Binding Title}" Classes="Header" />
-            <TextBlock Text="字段值为可选项；FieldKey 和类型创建后不可修改。"
-                       Opacity="0.72"
-                       TextWrapping="Wrap" />
-        </StackPanel>
+        <Border Classes="PageHeader">
+            <Grid Classes="PageHeading" ColumnDefinitions="Auto,*">
+                <TextBlock Text="{Binding Title}" Classes="PageTitle" />
+                <TextBlock Grid.Column="1" Text="定义标签携带的结构化信息" Classes="PageSubtitle" />
+            </Grid>
+        </Border>
 
         <ScrollViewer Grid.Row="1">
-            <StackPanel Spacing="6">
-                <TextBlock Text="显示名称" />
-                <TextBox Name="ExtraFieldLabelInput"
-                         Text="{Binding Field.Label}"
-                         Watermark="例如：参与人"
-                         Classes="ClearButton" />
-
-                <TextBlock Text="FieldKey" />
-                <TextBox Name="ExtraFieldKeyInput"
-                         Text="{Binding Field.FieldKey}"
-                         IsEnabled="{Binding Field.IsNew}"
-                         Watermark="例如：meeting.participants"
-                         Classes="ClearButton" />
-                <TextBlock Text="只能使用英文、数字、点、下划线和短横线。"
-                           Opacity="0.65"
-                           FontSize="12" />
-
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="类型" />
-                        <ComboBox Name="ExtraFieldTypeInput"
-                                  ItemsSource="{Binding Field.AvailableTypes}"
-                                  SelectedItem="{Binding Field.Type}"
-                                  IsEnabled="{Binding Field.IsNew}" />
+            <StackPanel Spacing="8">
+                <Border Classes="SectionCard">
+                    <StackPanel Spacing="8">
+                        <Grid Classes="SectionHeading" ColumnDefinitions="Auto,*">
+                            <TextBlock Text="基础信息" Classes="SectionTitle" />
+                            <TextBlock Grid.Column="1" Text="名称、稳定标识和字段说明" Classes="SectionDescription" />
+                        </Grid>
+                        <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                              ColumnSpacing="10" RowSpacing="7">
+                            <TextBlock Text="显示名称" Classes="FieldLabel" />
+                            <TextBox Name="ExtraFieldLabelInput" Grid.Column="1"
+                                     Text="{Binding Field.Label}" Watermark="例如：参与人" Classes="ClearButton" />
+                            <TextBlock Grid.Row="1" Text="FieldKey" Classes="FieldLabel" />
+                            <TextBox Name="ExtraFieldKeyInput" Grid.Row="1" Grid.Column="1"
+                                     Text="{Binding Field.FieldKey}" IsEnabled="{Binding Field.IsNew}"
+                                     Watermark="例如：meeting.participants" Classes="ClearButton" />
+                            <TextBlock Grid.Row="2" Grid.Column="1"
+                                       Text="只能使用英文、数字、点、下划线和短横线；创建后不可修改。"
+                                       Classes="PageSubtitle" FontSize="12" />
+                            <TextBlock Grid.Row="3" Text="说明" Classes="FieldLabel"
+                                       VerticalAlignment="Top" Margin="0,6,0,0" />
+                            <TextBox Name="ExtraFieldDescriptionInput" Grid.Row="3" Grid.Column="1"
+                                     Text="{Binding Field.Description}" Watermark="可选，用于 Tooltip 提示"
+                                     AcceptsReturn="True" TextWrapping="Wrap" MinHeight="72" />
+                            <TextBlock Grid.Row="4" Grid.Column="1"
+                                       Text="说明会在事项编辑时作为字段提示显示。"
+                                       Classes="PageSubtitle" FontSize="12" />
+                        </Grid>
                     </StackPanel>
-                    <StackPanel Grid.Column="1" Spacing="4" MinWidth="90">
-                        <TextBlock Text="状态" />
-                        <ToggleSwitch Name="ExtraFieldEnabledInput"
-                                      IsChecked="{Binding Field.Enabled}"
-                                      OnContent="启用"
-                                      OffContent="停用" />
+                </Border>
+
+                <Border Classes="SectionCard">
+                    <StackPanel Spacing="8">
+                        <Grid Classes="SectionHeading" ColumnDefinitions="Auto,*">
+                            <TextBlock Text="字段行为" Classes="SectionTitle" />
+                            <TextBlock Grid.Column="1" Text="类型创建后不可修改，停用后历史值仍可查看"
+                                       Classes="SectionDescription" />
+                        </Grid>
+                        <Grid ColumnDefinitions="110,*,110" ColumnSpacing="10">
+                            <TextBlock Text="类型" Classes="FieldLabel" />
+                            <ComboBox Name="ExtraFieldTypeInput" Grid.Column="1"
+                                      ItemsSource="{Binding Field.AvailableTypes}"
+                                      SelectedItem="{Binding Field.Type}" IsEnabled="{Binding Field.IsNew}" />
+                            <ToggleSwitch Name="ExtraFieldEnabledInput" Grid.Column="2"
+                                          IsChecked="{Binding Field.Enabled}" OnContent="启用" OffContent="停用"
+                                          HorizontalAlignment="Right" />
+                        </Grid>
+                        <Grid ColumnDefinitions="110,*" ColumnSpacing="10" IsVisible="{Binding Field.IsChoice}">
+                            <TextBlock Text="选项" Classes="FieldLabel" VerticalAlignment="Top" Margin="0,6,0,0" />
+                            <TextBox Name="ExtraFieldOptionsInput" Grid.Column="1"
+                                     Text="{Binding Field.OptionsText}" Watermark="每行填写一个选项"
+                                     AcceptsReturn="True" TextWrapping="Wrap" MinHeight="96" />
+                        </Grid>
                     </StackPanel>
-                </Grid>
+                </Border>
 
-                <StackPanel Spacing="4">
-                    <TextBlock Text="说明" />
-                    <TextBox Name="ExtraFieldDescriptionInput"
-                             Text="{Binding Field.Description}"
-                             Watermark="可选，用于 Tooltip 提示"
-                             AcceptsReturn="True"
-                             TextWrapping="Wrap"
-                             MinHeight="64" />
-                </StackPanel>
-
-                <StackPanel Spacing="4" IsVisible="{Binding Field.IsChoice}">
-                    <TextBlock Text="选项" />
-                    <TextBox Name="ExtraFieldOptionsInput"
-                             Text="{Binding Field.OptionsText}"
-                             Watermark="每行填写一个选项"
-                             AcceptsReturn="True"
-                             TextWrapping="Wrap"
-                             MinHeight="90" />
-                </StackPanel>
-
-                <StackPanel Spacing="4">
-                    <TextBlock Text="默认值" />
-                    <ContentControl Content="{Binding Field.DefaultValueEditor}">
-                        <ContentControl.DataTemplates>
-                            <DataTemplate DataType="models:EditableWorkItemExtraField">
-                                <Grid>
-                                    <TextBox Name="ExtraFieldDefaultTextInput"
-                                             IsVisible="{Binding UsesTextEditor}"
-                                             Text="{Binding Value, Mode=TwoWay}"
-                                             Watermark="不设置默认值" />
-                                    <TextBox Name="ExtraFieldDefaultMultilineInput"
-                                             IsVisible="{Binding UsesMultilineTextEditor}"
-                                             Text="{Binding Value, Mode=TwoWay}"
-                                             AcceptsReturn="True" TextWrapping="Wrap"
-                                             MinHeight="64" Watermark="不设置默认值" />
-                                    <NumericUpDown Name="ExtraFieldDefaultIntegerInput"
-                                                   IsVisible="{Binding UsesIntegerEditor}"
-                                                   Value="{Binding NumericValue, Mode=TwoWay}"
-                                                   Minimum="-2147483648" Maximum="2147483647"
-                                                   Increment="1" FormatString="0" ParsingNumberStyle="Integer"
-                                                   Watermark="不设置默认值" />
-                                    <NumericUpDown Name="ExtraFieldDefaultDecimalInput"
-                                                   IsVisible="{Binding UsesDecimalEditor}"
-                                                   Value="{Binding NumericValue, Mode=TwoWay}"
-                                                   Increment="0.1" Watermark="不设置默认值" />
-                                    <CheckBox Name="ExtraFieldDefaultBooleanInput"
-                                              IsVisible="{Binding UsesBooleanEditor}"
-                                              IsChecked="{Binding BooleanValue, Mode=TwoWay}"
-                                              IsThreeState="True"
-                                              Content="{Binding BooleanDisplay}"
-                                              VerticalAlignment="Center" />
-                                    <CalendarDatePicker Name="ExtraFieldDefaultDateInput"
-                                                        IsVisible="{Binding UsesDateEditor}"
-                                                        SelectedDate="{Binding DateValue, Mode=TwoWay}"
-                                                        Watermark="不设置默认值" />
-                                    <Grid Name="ExtraFieldDefaultTimeEditor"
-                                          IsVisible="{Binding UsesTimeEditor}"
-                                          ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                                        <controls:ClockTimePicker Name="ExtraFieldDefaultTimeInput"
-                                                                  SelectedTime="{Binding TimeValue, Mode=TwoWay}"
-                                                                  Watermark="不设置默认值" />
-                                        <Button Grid.Column="1" Content="清空"
-                                                Command="{Binding ClearValueCommand}" />
-                                    </Grid>
-                                    <Grid Name="ExtraFieldDefaultDateTimeEditor"
-                                          IsVisible="{Binding UsesDateTimeEditor}"
-                                          ColumnDefinitions="150,Auto,*,Auto" ColumnSpacing="6">
-                                        <CalendarDatePicker Name="ExtraFieldDefaultDateTimeDateInput"
-                                                            SelectedDate="{Binding DateTimeDateValue, Mode=TwoWay}"
-                                                            Watermark="日期" />
-                                        <TextBlock Grid.Column="1" Text="·" VerticalAlignment="Center" />
-                                        <controls:ClockTimePicker Name="ExtraFieldDefaultDateTimeTimeInput"
-                                                                  Grid.Column="2"
-                                                                  SelectedTime="{Binding DateTimeTimeValue, Mode=TwoWay}"
-                                                                  Watermark="时间" />
-                                        <Button Grid.Column="3" Content="清空"
-                                                Command="{Binding ClearValueCommand}" />
-                                    </Grid>
-                                    <Grid Name="ExtraFieldDefaultChoiceEditor"
-                                          IsVisible="{Binding UsesChoiceEditor}"
-                                          ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                                        <ComboBox Name="ExtraFieldDefaultChoiceInput"
-                                                  ItemsSource="{Binding Options}"
-                                                  SelectedItem="{Binding SelectedChoice, Mode=TwoWay}"
-                                                  PlaceholderText="不设置默认值" />
-                                        <Button Grid.Column="1" Content="清空"
-                                                Command="{Binding ClearValueCommand}" />
-                                    </Grid>
-                                </Grid>
-                            </DataTemplate>
-                        </ContentControl.DataTemplates>
-                    </ContentControl>
-                    <TextBlock Text="仅在新建工作项或新增标签时预填，不回填历史数据。"
-                               Opacity="0.65" FontSize="12" TextWrapping="Wrap" />
-                </StackPanel>
-
-                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                    <TextBlock Text="排序" VerticalAlignment="Center" />
-                    <NumericUpDown Name="ExtraFieldSortOrderInput"
-                                   Grid.Column="1"
-                                   Value="{Binding Field.SortOrder}"
-                                   Minimum="0"
-                                   FormatString="0" />
-                </Grid>
+                <Border Classes="SectionCard">
+                    <StackPanel Spacing="8">
+                        <Grid Classes="SectionHeading" ColumnDefinitions="Auto,*">
+                            <TextBlock Text="默认值与排序" Classes="SectionTitle" />
+                            <TextBlock Grid.Column="1" Text="默认值只用于新建事项或新增标签，不回填历史数据"
+                                       Classes="SectionDescription" />
+                        </Grid>
+                        <Grid ColumnDefinitions="110,*" ColumnSpacing="10">
+                            <TextBlock Text="默认值" Classes="FieldLabel" />
+                            <ContentControl Grid.Column="1" Content="{Binding Field.DefaultValueEditor}">
+                                <ContentControl.DataTemplates>
+                                    <DataTemplate DataType="models:EditableWorkItemExtraField">
+                                        <Grid>
+                                            <TextBox Name="ExtraFieldDefaultTextInput"
+                                                     IsVisible="{Binding UsesTextEditor}"
+                                                     Text="{Binding Value, Mode=TwoWay}" Watermark="不设置默认值" />
+                                            <TextBox Name="ExtraFieldDefaultMultilineInput"
+                                                     IsVisible="{Binding UsesMultilineTextEditor}"
+                                                     Text="{Binding Value, Mode=TwoWay}" AcceptsReturn="True"
+                                                     TextWrapping="Wrap" MinHeight="64" Watermark="不设置默认值" />
+                                            <NumericUpDown Name="ExtraFieldDefaultIntegerInput"
+                                                           IsVisible="{Binding UsesIntegerEditor}"
+                                                           Value="{Binding NumericValue, Mode=TwoWay}"
+                                                           Minimum="-2147483648" Maximum="2147483647"
+                                                           Increment="1" FormatString="0" ParsingNumberStyle="Integer"
+                                                           Watermark="不设置默认值" />
+                                            <NumericUpDown Name="ExtraFieldDefaultDecimalInput"
+                                                           IsVisible="{Binding UsesDecimalEditor}"
+                                                           Value="{Binding NumericValue, Mode=TwoWay}"
+                                                           Increment="0.1" Watermark="不设置默认值" />
+                                            <CheckBox Name="ExtraFieldDefaultBooleanInput"
+                                                      IsVisible="{Binding UsesBooleanEditor}"
+                                                      IsChecked="{Binding BooleanValue, Mode=TwoWay}"
+                                                      IsThreeState="True" Content="{Binding BooleanDisplay}"
+                                                      VerticalAlignment="Center" />
+                                            <CalendarDatePicker Name="ExtraFieldDefaultDateInput"
+                                                                IsVisible="{Binding UsesDateEditor}"
+                                                                SelectedDate="{Binding DateValue, Mode=TwoWay}"
+                                                                Watermark="不设置默认值" />
+                                            <Grid Name="ExtraFieldDefaultTimeEditor" IsVisible="{Binding UsesTimeEditor}"
+                                                  ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                                <controls:ClockTimePicker Name="ExtraFieldDefaultTimeInput"
+                                                                          SelectedTime="{Binding TimeValue, Mode=TwoWay}"
+                                                                          Watermark="不设置默认值" />
+                                                <Button Grid.Column="1" Content="清空" Command="{Binding ClearValueCommand}" />
+                                            </Grid>
+                                            <Grid Name="ExtraFieldDefaultDateTimeEditor"
+                                                  IsVisible="{Binding UsesDateTimeEditor}"
+                                                  ColumnDefinitions="170,Auto,*,Auto" ColumnSpacing="6">
+                                                <CalendarDatePicker Name="ExtraFieldDefaultDateTimeDateInput"
+                                                                    SelectedDate="{Binding DateTimeDateValue, Mode=TwoWay}"
+                                                                    Watermark="日期" />
+                                                <TextBlock Grid.Column="1" Text="·" VerticalAlignment="Center" />
+                                                <controls:ClockTimePicker Name="ExtraFieldDefaultDateTimeTimeInput"
+                                                                          Grid.Column="2"
+                                                                          SelectedTime="{Binding DateTimeTimeValue, Mode=TwoWay}"
+                                                                          Watermark="时间" />
+                                                <Button Grid.Column="3" Content="清空" Command="{Binding ClearValueCommand}" />
+                                            </Grid>
+                                            <Grid Name="ExtraFieldDefaultChoiceEditor" IsVisible="{Binding UsesChoiceEditor}"
+                                                  ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                                <ComboBox Name="ExtraFieldDefaultChoiceInput"
+                                                          ItemsSource="{Binding Options}"
+                                                          SelectedItem="{Binding SelectedChoice, Mode=TwoWay}"
+                                                          PlaceholderText="不设置默认值" />
+                                                <Button Grid.Column="1" Content="清空" Command="{Binding ClearValueCommand}" />
+                                            </Grid>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ContentControl.DataTemplates>
+                            </ContentControl>
+                        </Grid>
+                        <Grid ColumnDefinitions="110,*" ColumnSpacing="10">
+                            <TextBlock Text="排序" Classes="FieldLabel" />
+                            <NumericUpDown Name="ExtraFieldSortOrderInput" Grid.Column="1"
+                                           Value="{Binding Field.SortOrder}" Minimum="0" FormatString="0" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
 
                 <TextBlock Text="{Binding ValidationMessage}"
                            Foreground="{DynamicResource SystemControlErrorTextForeground}"
-                           TextWrapping="Wrap"
-                           IsVisible="{Binding HasValidationMessage}" />
+                           TextWrapping="Wrap" IsVisible="{Binding HasValidationMessage}" />
             </StackPanel>
         </ScrollViewer>
 

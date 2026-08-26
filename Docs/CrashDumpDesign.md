@@ -13,8 +13,8 @@ Dump 和关联滚动日志归档仅保存在本机，不自动上传。Dump 可�
 2. `--capture-crash-dump <request.json>`：独立捕获进程，不初始化正常应用；通过
    `Microsoft.Diagnostics.NETCore.Client.DiagnosticsClient.WriteDump` 对目标 PID 生成 Triage Dump，并以允许原日志文件继续被写入的共享读取方式，将当前保留的滚动日志压缩到 CrashDump 目录。
 3. `--show-crash-report <result.json>`：独立最小 Avalonia 进程，不初始化数据库、插件、脚本或单实例守卫；
-   显示异常类型、简要消息、Dump/日志归档状态和路径，并提供“打开 Dump 文件夹”操作。提示窗口固定顶部说明和底部操作区，
-   中间详情区域在长异常或长路径下滚动，窗口允许调整大小，Dump 与日志归档路径可选择复制。
+   加载与主程序一致的基础主题和公共卡片样式，使用可拖动的应用内标题栏，按错误摘要、Dump、日志归档和敏感信息提示分组，并提供“打开 Dump 文件夹”操作。
+   中间详情区域在长异常或长路径下滚动，底部操作区保持可见，窗口允许调整大小，异常消息、Dump 与日志归档路径可选择复制。
 
 正常进程在最早的 `Program.Main` 阶段注册 `AppDomain.CurrentDomain.UnhandledException` 处理器。
 发生终止性托管未处理异常后，原进程写入请求文件，启动捕获进程并最多等待 30 秒；捕获进程完成后写入结果文件、

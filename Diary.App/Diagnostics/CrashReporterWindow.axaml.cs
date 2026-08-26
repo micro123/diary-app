@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Diary.Utils;
 
@@ -30,6 +31,12 @@ internal sealed partial class CrashReporterWindow : Window
         LogPathText.Text = result.LogArchiveSucceeded
             ? request.LogArchivePath
             : $"日志目录：{request.LogDirectory}";
+    }
+
+    private void OnBeginMoveDrag(object? sender, PointerPressedEventArgs args)
+    {
+        if (args.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            BeginMoveDrag(args);
     }
 
     private void OnOpenDumpFolder(object? sender, RoutedEventArgs args)

@@ -3,42 +3,63 @@
              xmlns:dialogs="using:Diary.App.ViewModels.Dialogs"
              x:Class="Diary.App.Views.Dialogs.TagShareExportDialogView"
              x:DataType="dialogs:TagShareExportDialogViewModel"
-             Width="720" Height="440" MaxHeight="520" Padding="14"
-             HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
-    <Grid RowDefinitions="Auto,Auto,180,Auto" RowSpacing="9">
-        <StackPanel Spacing="4">
-            <TextBlock Text="导出标签共享包" FontSize="24" FontWeight="Bold" />
-            <TextBlock Text="选择要导出的标签；对应的元数据、附加字段和 Tracker 规则会一起导出。"
-                       Opacity="0.68" TextWrapping="Wrap" />
-        </StackPanel>
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
-            <Button Content="全选" Command="{Binding SelectAllCommand}" />
-            <Button Content="清空" Command="{Binding ClearSelectionCommand}" />
-            <TextBlock Text="{Binding SelectedCount, StringFormat='已选择 {0} 个标签'}"
-                       VerticalAlignment="Center" Opacity="0.68" />
-        </StackPanel>
-        <Border Grid.Row="2" Classes="Card" Padding="6" ClipToBounds="True">
-            <ListBox ItemsSource="{Binding Items}" SelectionMode="Single"
+             Width="720"
+             Height="440"
+             MaxHeight="520"
+             Padding="10"
+             HorizontalContentAlignment="Stretch"
+             VerticalContentAlignment="Stretch">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8">
+        <Border Classes="PageHeader">
+            <Grid Classes="PageHeading" ColumnDefinitions="Auto,*">
+                <TextBlock Text="导出标签共享包" Classes="PageTitle" />
+                <TextBlock Grid.Column="1"
+                           Text="选择要包含的标签"
+                           Classes="PageSubtitle" />
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Classes="SubtleCard">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8">
+                <Button Content="全选" Command="{Binding SelectAllCommand}" />
+                <Button Grid.Column="1" Content="清空" Command="{Binding ClearSelectionCommand}" />
+                <TextBlock Grid.Column="2"
+                           Text="对应的元数据、附加字段和 Tracker 规则会一起导出。"
+                           Classes="PageSubtitle"
+                           VerticalAlignment="Center" />
+                <Border Grid.Column="3" Classes="StatusPill StatusInfo">
+                    <TextBlock Text="{Binding SelectedCount, StringFormat='已选择 {0} 个'}" />
+                </Border>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="2" Classes="DetailPane" Padding="6" ClipToBounds="True">
+            <ListBox ItemsSource="{Binding Items}"
+                     SelectionMode="Single"
                      MinHeight="0"
                      ScrollViewer.VerticalScrollBarVisibility="Auto">
                 <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="dialogs:TagShareExportItemViewModel">
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" Margin="2 0">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" Margin="2,1">
                             <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                       VerticalAlignment="Center" />
-                            <StackPanel Grid.Column="1" Spacing="0">
+                            <StackPanel Grid.Column="1" Spacing="1">
                                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                                <TextBlock Text="{Binding Details}" Opacity="0.68" FontSize="12"
-                                           TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding Details}"
+                                           Classes="PageSubtitle"
+                                           FontSize="12" />
                             </StackPanel>
                         </Grid>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
         </Border>
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+
+        <StackPanel Grid.Row="3" Classes="DialogFooter">
             <Button Content="取消" Command="{Binding CancelCommand}" />
-            <Button Content="选择保存位置" Classes="Primary" Command="{Binding ExportCommand}" />
+            <Button Content="选择保存位置"
+                    Classes="Primary"
+                    Command="{Binding ExportCommand}" />
         </StackPanel>
     </Grid>
 </UserControl>

@@ -2,15 +2,34 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:dialogs1="clr-namespace:Diary.GUIBase.ViewModels.Dialogs"
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-             Margin="16" x:DataType="dialogs1:GenericConfigViewModel"
-             x:Class="Diary.GUIBase.Views.Dialogs.GenericConfigView">
-    <Grid RowSpacing="8" RowDefinitions="Auto,Auto,*,Auto">
-        <TextBlock Grid.Row="0" Text="{Binding Title}" Classes="Header" />
-        <Separator Grid.Row="1" />
-        <ItemsControl Grid.Row="2" Classes="Settings" ItemsSource="{Binding SettingGroup.Children}" />
-        <StackPanel Grid.Row="3" Classes="DialogFooter">
+             xmlns:dialogs="clr-namespace:Diary.GUIBase.ViewModels.Dialogs"
+             mc:Ignorable="d"
+             d:DesignWidth="680"
+             d:DesignHeight="420"
+             x:Class="Diary.GUIBase.Views.Dialogs.GenericConfigView"
+             x:DataType="dialogs:GenericConfigViewModel"
+             Width="680"
+             MaxHeight="600"
+             VerticalAlignment="Center"
+             HorizontalContentAlignment="Stretch"
+             Padding="10">
+    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+        <Border Classes="PageHeader">
+            <Grid Classes="PageHeading" ColumnDefinitions="Auto,*">
+                <TextBlock Text="{Binding Title}" Classes="PageTitle" />
+                <TextBlock Grid.Column="1"
+                           Text="检查当前配置并保存更改"
+                           Classes="PageSubtitle" />
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Classes="DetailPane" Padding="8" ClipToBounds="True" MaxHeight="440">
+            <ItemsControl Classes="Settings"
+                          ItemsSource="{Binding SettingGroup.Children}"
+                          HorizontalAlignment="Stretch" />
+        </Border>
+
+        <StackPanel Grid.Row="2" Classes="DialogFooter">
             <Button Content="放弃" Command="{Binding CancelCommand}" />
             <Button Classes="Primary" Content="保存" Command="{Binding SaveCommand}" />
         </StackPanel>

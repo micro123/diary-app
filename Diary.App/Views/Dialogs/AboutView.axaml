@@ -3,28 +3,72 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:app="clr-namespace:Diary.App"
-             xmlns:dialogs1="clr-namespace:Diary.App.ViewModels.Dialogs"
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
+             mc:Ignorable="d"
+             d:DesignWidth="640"
+             d:DesignHeight="520"
              x:Class="Diary.App.Views.Dialogs.AboutView"
-             x:DataType="dialogs1:AboutViewModel">
+             x:DataType="dialogs:AboutViewModel"
+             Width="640"
+             Height="520"
+             Padding="10">
     <Design.DataContext>
-        <dialogs1:AboutViewModel/>
+        <dialogs:AboutViewModel />
     </Design.DataContext>
-    
-    <DockPanel VerticalSpacing="8" HorizontalAlignment="Center">
-        <TextBlock Theme="{DynamicResource TitleTextBlock}" Classes="H1" DockPanel.Dock="Top"
-                   Text="{x:Static app:AppInfo.AppName}" HorizontalAlignment="Center"/>
-        <Image Source="/Assets/Icons/diary-app.ico" Width="128" Height="128" DockPanel.Dock="Top" />
-        <TextBlock HorizontalAlignment="Center" Classes="Success" Text="{Binding AppVersionString}"
-                   ToolTip.Tip="{Binding AppVersionDetails}" DockPanel.Dock="Top" >
-            <Interaction.Behaviors>
-                <EventTriggerBehavior EventName="PointerPressed">
-                    <InvokeCommandAction Command="{Binding CopyVersionCommand}"/>
-                </EventTriggerBehavior>
-            </Interaction.Behaviors>
-        </TextBlock>
-        <TextBox Theme="{DynamicResource Bordered}" Classes="Large" IsEnabled="True"
-                 Text="{Binding InfoText}" IsReadOnly="True"
-                 HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
-    </DockPanel>
+
+    <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8">
+        <Border Classes="PageHeader">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
+                <Image Source="/Assets/Icons/diary-app.ico"
+                       Width="72" Height="72"
+                       VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                    <TextBlock Text="{x:Static app:AppInfo.AppName}" Classes="PageTitle" />
+                    <TextBlock Text="日记、事项与工作流管理工具" Classes="PageSubtitle" />
+                    <TextBlock Text="{Binding AppVersionString}"
+                               Classes="Success"
+                               FontWeight="SemiBold"
+                               ToolTip.Tip="{Binding AppVersionDetails}">
+                        <Interaction.Behaviors>
+                            <EventTriggerBehavior EventName="PointerPressed">
+                                <InvokeCommandAction Command="{Binding CopyVersionCommand}" />
+                            </EventTriggerBehavior>
+                        </Interaction.Behaviors>
+                    </TextBlock>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Classes="SubtleCard">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                <TextBlock Text="版本信息" Classes="FieldLabel" />
+                <TextBlock Grid.Column="1"
+                           Text="点击版本号可复制；悬停可查看完整构建信息。"
+                           Classes="PageSubtitle" />
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="2" Classes="DetailPane" Padding="12" ClipToBounds="True">
+            <Grid RowDefinitions="Auto,*" RowSpacing="8">
+                <Grid Classes="SectionHeading" ColumnDefinitions="Auto,*">
+                    <TextBlock Text="组件与许可" Classes="SectionTitle" />
+                    <TextBlock Grid.Column="1"
+                               Text="运行环境、主要组件、源代码地址和许可证"
+                               Classes="SectionDescription" />
+                </Grid>
+                <TextBox Grid.Row="1"
+                         Theme="{DynamicResource Bordered}"
+                         Classes="Large"
+                         Text="{Binding InfoText}"
+                         IsReadOnly="True"
+                         TextWrapping="Wrap"
+                         HorizontalAlignment="Stretch"
+                         VerticalAlignment="Stretch"
+                         HorizontalContentAlignment="Left"
+                         VerticalContentAlignment="Top"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto" />
+            </Grid>
+        </Border>
+    </Grid>
 </UserControl>

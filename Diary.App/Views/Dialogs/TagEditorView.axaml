@@ -354,8 +354,8 @@
                 ZIndex="10"
                 Background="#99000000"
                 IsVisible="{Binding IsExportSelectionOpen}">
-            <Border Classes="Card"
-                    CornerRadius="10"
+            <Border CornerRadius="12"
+                    Padding="2"
                     Background="{DynamicResource TagShareExportBackgroundBrush}"
                     BorderBrush="{DynamicResource SemiColorBorder}"
                     BorderThickness="1"

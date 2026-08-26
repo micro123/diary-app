@@ -3,27 +3,40 @@
              xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
              x:Class="Diary.App.Views.Dialogs.CopyDayView"
              x:DataType="dialogs:CopyDayViewModel"
-             Width="460" Padding="12">
-    <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="10">
-        <StackPanel Spacing="4">
-            <TextBlock Text="复制整天记录" Classes="Header" />
-            <TextBlock Text="选择源日期，记录会复制到当前日期；不会复制远程 Tracker 绑定。"
-                       Classes="PageSubtitle" />
-        </StackPanel>
+             Width="500"
+             Padding="10">
+    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+        <Border Classes="PageHeader">
+            <Grid Classes="PageHeading" ColumnDefinitions="Auto,*">
+                <TextBlock Text="复制整天记录" Classes="PageTitle" />
+                <TextBlock Grid.Column="1"
+                           Text="从其他日期复制事项"
+                           Classes="PageSubtitle" />
+            </Grid>
+        </Border>
 
-        <Grid Grid.Row="1" ColumnDefinitions="Auto,*" ColumnSpacing="8">
-            <TextBlock Text="源日期" VerticalAlignment="Center" />
-            <CalendarDatePicker Grid.Column="1" SelectedDate="{Binding SourceDate}"
-                                IsTodayHighlighted="True" />
-        </Grid>
+        <Border Grid.Row="1" Classes="DetailPane" Padding="12">
+            <StackPanel Spacing="10">
+                <TextBlock Text="记录会复制到当前日期；远程 Tracker 绑定不会一并复制。"
+                           Classes="SectionDescription" />
+                <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="8">
+                    <TextBlock Text="源日期" Classes="FieldLabel" />
+                    <CalendarDatePicker Grid.Column="1"
+                                        SelectedDate="{Binding SourceDate}"
+                                        IsTodayHighlighted="True"
+                                        HorizontalAlignment="Stretch" />
+                    <TextBlock Grid.Row="1" Text="目标日期：" Classes="FieldLabel" />
+                    <Border Grid.Row="1" Grid.Column="1" Classes="SubtleCard" Padding="10,7">
+                        <TextBlock Text="{Binding TargetDateText}" FontWeight="SemiBold" />
+                    </Border>
+                </Grid>
+                <TextBlock Text="{Binding ValidationMessage}"
+                           Foreground="{DynamicResource SystemControlErrorTextForeground}"
+                           TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
 
-        <TextBlock Grid.Row="2" Text="{Binding ValidationMessage}" Foreground="OrangeRed"
-                   TextWrapping="Wrap" />
-
-        <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="6"
-                    HorizontalAlignment="Right">
-            <TextBlock Text="目标日期：" VerticalAlignment="Center" Opacity="0.7" />
-            <TextBlock Text="{Binding TargetDateText}" VerticalAlignment="Center" />
+        <StackPanel Grid.Row="2" Classes="DialogFooter">
             <Button Content="取消" Command="{Binding CancelCommand}" />
             <Button Classes="Primary" Content="继续" Command="{Binding ConfirmCommand}" />
         </StackPanel>
