@@ -36,4 +36,17 @@ public sealed class DiaryEditorCalendarTests
         Assert.AreEqual(new DateTime(2026, 8, 31), range.EndDate);
         Assert.AreEqual("本月", range.PeriodName);
     }
+
+    [TestMethod]
+    public void EmptyEditorScriptMenuContainsDisabledPlaceholder()
+    {
+        var menu = DiaryEditorViewModel.CreateEmptyEditorScriptMenu("脚本（本月）");
+
+        Assert.IsTrue(menu.Enabled);
+        Assert.AreEqual("脚本（本月）", menu.Header);
+        Assert.HasCount(1, menu.Children);
+        Assert.AreEqual("暂无", menu.Children[0].Header);
+        Assert.IsFalse(menu.Children[0].Enabled);
+        Assert.IsNull(menu.Children[0].Command);
+    }
 }

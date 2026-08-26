@@ -1224,10 +1224,9 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private void AddEditorScriptActions(ScriptEditorTarget target, string menuHeader = "脚本")
     {
         var scripts = EditorScriptMenuPolicy.GetRunnableScripts(_scriptCatalog, target.Kind);
-        if (scripts.Count == 0)
-            return;
-
-        var scriptMenu = new DayMenuItem { Header = menuHeader, Enabled = true };
+        var scriptMenu = scripts.Count == 0
+            ? CreateEmptyEditorScriptMenu(menuHeader)
+            : new DayMenuItem { Header = menuHeader, Enabled = true };
         foreach (var script in scripts)
         {
             scriptMenu.Children.Add(new DayMenuItem
@@ -1238,6 +1237,13 @@ public partial class DiaryEditorViewModel : ViewModelBase
             });
         }
         QuickMenuItems.Add(scriptMenu);
+    }
+
+    internal static DayMenuItem CreateEmptyEditorScriptMenu(string menuHeader)
+    {
+        var scriptMenu = new DayMenuItem { Header = menuHeader, Enabled = true };
+        scriptMenu.Children.Add(new DayMenuItem { Header = "暂无" });
+        return scriptMenu;
     }
 
     private static string FormatEditorScriptMenuName(ScriptDescriptor descriptor) =>
@@ -1309,6 +1315,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
             AddMenuSeparator();
             AddMenuAction("调查本周工时情况", CreateSurveyCommand(date, AdjustPart.Week));
         }
+        AddMenuSeparator();
         AddEditorScriptActions(
             ScriptEditorTarget.ForDay(TimeTools.FormatDateTime(date)),
             "脚本（日）");
@@ -1338,6 +1345,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
             AddMenuAction("调查本季度工时情况", CreateSurveyCommand(date, AdjustPart.Quarter));
             AddMenuAction("调查此年工时情况", CreateSurveyCommand(date, AdjustPart.Year));
         }
+        AddMenuSeparator();
         AddEditorScriptActions(
             ScriptEditorTarget.ForMonth(date.Year, date.Month),
             "脚本（本月）");

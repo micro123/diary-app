@@ -390,9 +390,19 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         assertUi(compactCalendarHeader, '找不到可验证右键菜单的月份标题');
         await connection.client.send('DOM.focus', { nodeId: compactCalendarHeader.nodeId });
         await connection.pressKey('F10', 'F10', 121, shift);
-        await connection.waitForTree(current => ['统计本月工时', '统计本季度工时', '统计此年工时'].every(text =>
-            findByText(current, text, entry => hasAncestorType(current, entry, 'MenuItem'))),
+        const periodMenu = await connection.waitForTree(current => [
+            '统计本月工时', '统计本季度工时', '统计此年工时',
+            '脚本（本月）', '脚本（本季度）', '脚本（本年度）',
+        ].every(text => findByText(current, text, entry => hasAncestorType(current, entry, 'MenuItem'))),
         3000, '月份标题右键菜单没有同时提供月、季度和年度操作');
+        const statisticsYear = findByText(periodMenu.tree, '统计此年工时',
+            entry => hasAncestorType(periodMenu.tree, entry, 'MenuItem'));
+        const monthScripts = findByText(periodMenu.tree, '脚本（本月）',
+            entry => hasAncestorType(periodMenu.tree, entry, 'MenuItem'));
+        const statisticsBounds = boundsOf(statisticsYear);
+        const monthScriptsBounds = boundsOf(monthScripts);
+        const scriptGroupGap = monthScriptsBounds.y - statisticsBounds.y - statisticsBounds.height;
+        assertUi(scriptGroupGap >= 4, '脚本菜单组前缺少分隔符形成的分组间距');
         await connection.pressKey('Escape', 'Escape', 27);
 
         await connection.clickByName('CompactCalendarHeader');
