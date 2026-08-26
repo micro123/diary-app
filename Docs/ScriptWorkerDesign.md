@@ -631,7 +631,7 @@ supervisor 应支持以下限制，并在 worker 启动或执行前配置：
 worker 崩溃、超时和取消不会使主程序退出；只读工作项查询可以通过统一协议完成；
 worker 重启后不会自动重复未确认的副作用操作。
 
-脚本作者可从脚本管理页和内置编辑器的 `API Reference` 入口查看或打开随应用发布的中文语言文档。管理页使用 Avalonia 原生控件渲染标题、正文和代码块，避免引入额外 Markdown 主题和 SVG 扩展依赖；文档按 C#、Lua、Python 分开维护，并以各 Worker 当前实际暴露的上下文、宿主调用和沙箱限制为准。新建脚本流程提供按语言生成的“空白脚本”和“查询工作项”样板；编辑器脚本额外提供日、周、月、季度、年和当前事项目标样板（`ScriptCreationViewModel.EditorTemplates` 含 `WeekTargetTemplate`，见 `Diary.App/ViewModels/Dialogs/ScriptCreationViewModel.cs`），并将适用目标同步写入 metadata。
+脚本作者可从内置编辑器的 `API Reference` 入口打开随应用发布的中文语言文档；入口根据当前源码扩展名选择 C#、Lua 或 Python 文档。脚本管理页不再内嵌或解析 Reference 内容，避免为管理工作台增加重复信息和额外布局成本。各语言文档以对应 Worker 当前实际暴露的上下文、宿主调用和沙箱限制为准。新建脚本流程提供按语言生成的“空白脚本”和“查询工作项”样板；编辑器脚本额外提供日、周、月、季度、年和当前事项目标样板（`ScriptCreationViewModel.EditorTemplates` 含 `WeekTargetTemplate`，见 `Diary.App/ViewModels/Dialogs/ScriptCreationViewModel.cs`），并将适用目标同步写入 metadata。
 
 脚本管理页采用左侧简要列表、右侧概览与诊断的布局；执行历史仅在内存保留最近 30 条，单条记录可以复制包含 Worker 标识和脱敏诊断的完整日志，应用退出后不恢复历史。
 

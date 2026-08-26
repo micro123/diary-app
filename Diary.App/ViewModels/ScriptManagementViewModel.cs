@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Collections.Immutable;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
@@ -199,11 +200,12 @@ public partial class ScriptManagementViewModel(
 {
     public override bool IsViewCacheable => true;
 
+    private const int HistoryTabIndex = 3;
+    private const int ScriptLogsTabIndex = 4;
     public const int AiContextTabIndex = 5;
 
     private readonly string _scriptRoot = Path.Combine(FsTools.GetApplicationConfigDirectory(), "scripts");
 
-    public ScriptApiReferenceViewModel ApiReference { get; } = new();
     public AiScriptContextViewModel AiContext { get; } = aiContext;
     public ResettableObservableCollection<ScriptListItem> Scripts { get; } = new();
     public ResettableObservableCollection<ScriptListItem> VisibleScripts { get; } = new();
@@ -285,10 +287,17 @@ public partial class ScriptManagementViewModel(
     public bool ShowNoResultsState => !Loading && HasScripts && !HasVisibleScripts;
     public bool HasSelectedDiagnostics => SelectedScript?.Diagnostics.Count > 0;
     public bool HasScriptLogs => ScriptLogs.Count > 0;
-    public string ScriptLogsText => ScriptLogStore.FormatText(ScriptLogs);
+    public string ScriptLogsText { get; private set; } = string.Empty;
     public bool HasDirectoryDiagnostics => DirectoryDiagnostics.Count > 0;
+    private readonly object _initializationSync = new();
+    private Task<PreparedScriptDirectoryData>? _initializationTask;
+    private bool _dataApplied;
     private bool _scriptLogSubscribed;
     private bool _progressSubscribed;
+    private bool _historyLoaded;
+    private bool _historyDirty = true;
+    private bool _scriptLogsLoaded;
+    private bool _scriptLogsDirty = true;
     partial void OnLoadingChanged(bool value)
     {
         OnPropertyChanged(nameof(CanReload));
@@ -321,14 +330,14 @@ public partial class ScriptManagementViewModel(
 
     partial void OnSelectedDetailTabIndexChanged(int value)
     {
-        if (value == 6)
-            ApiReference.EnsureLoaded();
+        if (value == HistoryTabIndex)
+            EnsureHistoryLoaded();
+        else if (value == ScriptLogsTabIndex)
+            EnsureScriptLogsLoaded();
     }
 
     partial void OnSelectedScriptChanged(ScriptListItem? value)
     {
-        if (value is not null && ApiReference.Languages.Contains(value.Language))
-            ApiReference.SelectedLanguage = value.Language;
         MetadataSettingsError = string.Empty;
         MetadataName = value?.Metadata?.Name ?? value?.Name ?? string.Empty;
         MetadataDescription = value?.Metadata?.Description ?? value?.Description ?? string.Empty;
@@ -363,6 +372,48 @@ public partial class ScriptManagementViewModel(
 
     public override void OnShow()
     {
+        EnsureSubscriptions();
+        if (_dataApplied || Loading)
+            return;
+
+        Loading = true;
+        Status = "正在加载脚本目录";
+        Dispatcher.UIThread.Post(
+            () => ObserveBackgroundTask(CompleteLoadAsync(GetPreparedInitialDataAsync(), forceReload: false), "脚本管理加载"),
+            DispatcherPriority.Background);
+    }
+
+    public override async Task PreloadAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await GetPreparedInitialDataAsync().WaitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            ResetInitialPreparation();
+            logger.LogWarning(exception, "脚本管理预加载失败，将在页面打开时重试");
+        }
+    }
+
+    private Task<PreparedScriptDirectoryData> GetPreparedInitialDataAsync()
+    {
+        lock (_initializationSync)
+            return _initializationTask ??= PrepareDirectoryDataAsync(forceReload: false);
+    }
+
+    private void ResetInitialPreparation()
+    {
+        lock (_initializationSync)
+            _initializationTask = null;
+    }
+
+    private void EnsureSubscriptions()
+    {
         if (!_scriptLogSubscribed)
         {
             _scriptLogSubscribed = true;
@@ -373,11 +424,14 @@ public partial class ScriptManagementViewModel(
             _progressSubscribed = true;
             progressTracker.Changed += OnProgressChanged;
         }
-        RefreshScriptLogs();
-        ObserveBackgroundTask(LoadAsync(), "脚本管理加载");
     }
 
-    private void OnScriptLogsChanged(object? sender, EventArgs e) => RefreshScriptLogs();
+    private void OnScriptLogsChanged(object? sender, EventArgs e)
+    {
+        _scriptLogsDirty = true;
+        if (SelectedDetailTabIndex == ScriptLogsTabIndex)
+            EnsureScriptLogsLoaded();
+    }
 
     private void OnProgressChanged(object? sender, EventArgs e) => RefreshProgress();
 
@@ -395,15 +449,21 @@ public partial class ScriptManagementViewModel(
         OnPropertyChanged(nameof(HasProgress));
     }
 
-    private void RefreshScriptLogs()
+    private void EnsureScriptLogsLoaded()
     {
         if (!Dispatcher.UIThread.CheckAccess())
         {
-            Dispatcher.UIThread.Post(RefreshScriptLogs);
+            Dispatcher.UIThread.Post(EnsureScriptLogsLoaded);
             return;
         }
+        if (_scriptLogsLoaded && !_scriptLogsDirty)
+            return;
 
-        ScriptLogs.ReplaceAll(scriptLogStore.GetSnapshot());
+        var snapshot = scriptLogStore.GetSnapshot();
+        ScriptLogs.ReplaceAll(snapshot);
+        ScriptLogsText = ScriptLogStore.FormatText(snapshot);
+        _scriptLogsLoaded = true;
+        _scriptLogsDirty = false;
         OnPropertyChanged(nameof(HasScriptLogs));
         OnPropertyChanged(nameof(ScriptLogsText));
     }
@@ -411,45 +471,46 @@ public partial class ScriptManagementViewModel(
     [RelayCommand]
     private Task Reload() => ReloadAsync(forceReload: true);
 
-    private Task LoadAsync() => ReloadAsync(forceReload: false);
-
     private async Task ReloadAsync(bool forceReload)
     {
         if (Loading)
             return;
         Loading = true;
         Status = forceReload ? "正在重新加载脚本目录" : "正在加载脚本目录";
+        var preparedTask = forceReload
+            ? PrepareDirectoryDataAsync(forceReload: true)
+            : GetPreparedInitialDataAsync();
+        await CompleteLoadAsync(preparedTask, forceReload);
+    }
+
+    private async Task<PreparedScriptDirectoryData> PrepareDirectoryDataAsync(bool forceReload)
+    {
+        var directoryStarted = Stopwatch.GetTimestamp();
+        var result = await (forceReload
+            ? directoryLoadState.ReloadAsync(_scriptRoot)
+            : directoryLoadState.EnsureLoadedAsync(_scriptRoot));
+        var directoryElapsed = Stopwatch.GetElapsedTime(directoryStarted);
+        var prepareStarted = Stopwatch.GetTimestamp();
+        var prepared = await Task.Run(() => PrepareDirectoryResult(result));
+        return prepared with
+        {
+            DirectoryElapsed = directoryElapsed,
+            PrepareElapsed = Stopwatch.GetElapsedTime(prepareStarted),
+        };
+    }
+
+    private async Task CompleteLoadAsync(
+        Task<PreparedScriptDirectoryData> preparedTask,
+        bool forceReload)
+    {
         try
         {
-            var result = await (forceReload
-                ? directoryLoadState.ReloadAsync(_scriptRoot)
-                : directoryLoadState.EnsureLoadedAsync(_scriptRoot));
-            DirectoryDiagnostics.ReplaceAll(result.Diagnostics.Select(FormatDiagnostic));
+            var prepared = await preparedTask;
+            var applyStarted = Stopwatch.GetTimestamp();
+            DirectoryDiagnostics.ReplaceAll(prepared.Diagnostics);
             OnPropertyChanged(nameof(HasDirectoryDiagnostics));
             var selectedId = SelectedScript?.Id;
-            var loadedScripts = new List<ScriptListItem>();
-            foreach (var entry in result.Entries)
-            {
-                var descriptor = entry.DiscoveredDescriptor ?? entry.BuildResult?.Program?.Descriptor;
-                var entryKind = descriptor is null
-                    ? ScriptEntryKind.Application
-                    : ScriptEntryKindResolver.Resolve(descriptor);
-                loadedScripts.Add(new ScriptListItem(
-                    entry.SourcePath,
-                    descriptor?.Id ?? Path.GetFileNameWithoutExtension(entry.SourcePath),
-                    descriptor?.Name ?? Path.GetFileName(entry.SourcePath),
-                    entry.Scope,
-                    entry.BuildResult?.Succeeded == true,
-                    FormatStatus(entry),
-                    FormatDiagnostics((entry.BuildResult?.Diagnostics ?? []).AddRange(entry.ConfigurationDiagnostics)),
-                     FormatDiagnosticDetails((entry.BuildResult?.Diagnostics ?? []).AddRange(entry.ConfigurationDiagnostics)),
-                     descriptor?.Description ?? string.Empty,
-                     entryKind,
-                     entry.Metadata,
-                     descriptor,
-                     entry.ConfigurationState));
-            }
-            Scripts.ReplaceAll(loadedScripts);
+            Scripts.ReplaceAll(prepared.Scripts);
             RefreshVisibleScripts();
             SelectedScript = VisibleScripts.FirstOrDefault(script => script.Id == selectedId)
                 ?? VisibleScripts.FirstOrDefault();
@@ -457,14 +518,32 @@ public partial class ScriptManagementViewModel(
             OnPropertyChanged(nameof(HasExportableScripts));
             OnPropertyChanged(nameof(ShowEmptyState));
             ExportScriptsCommand.NotifyCanExecuteChanged();
-            RefreshHistory();
-            scheduler.ApplyLoadResult(result);
-            Status = result.Diagnostics.Count(item => item.Severity == ScriptDiagnosticSeverity.Error) is var errors && errors > 0
-                ? $"发现 {Scripts.Count} 个脚本，{errors} 个错误"
+            MarkHistoryDirty();
+            scheduler.ApplyLoadResult(prepared.Source);
+            Status = prepared.ErrorCount > 0
+                ? $"发现 {Scripts.Count} 个脚本，{prepared.ErrorCount} 个错误"
                 : Scripts.Count == 0 ? "尚未发现脚本" : $"已加载 {Scripts.Count} 个脚本";
+            _dataApplied = true;
+            if (forceReload)
+            {
+                lock (_initializationSync)
+                    _initializationTask = Task.FromResult(prepared);
+            }
+            var applyElapsed = Stopwatch.GetElapsedTime(applyStarted);
+            logger.LogInformation(
+                "脚本管理加载完成：{Mode}，目录等待 {DirectoryMs:F0} ms，后台整理 {PrepareMs:F0} ms，UI 应用 {ApplyMs:F0} ms，总计 {TotalMs:F0} ms，脚本 {ScriptCount} 个，诊断 {DiagnosticCount} 条",
+                forceReload ? "强制刷新" : "首次加载",
+                prepared.DirectoryElapsed.TotalMilliseconds,
+                prepared.PrepareElapsed.TotalMilliseconds,
+                applyElapsed.TotalMilliseconds,
+                (prepared.DirectoryElapsed + prepared.PrepareElapsed + applyElapsed).TotalMilliseconds,
+                prepared.Scripts.Count,
+                prepared.Diagnostics.Count);
         }
         catch (Exception exception)
         {
+            if (!forceReload)
+                ResetInitialPreparation();
             logger.LogError(exception, "重新加载脚本目录失败");
             Status = "脚本目录加载失败";
             DirectoryDiagnostics.ReplaceAll([new ScriptDiagnosticListItem(
@@ -542,7 +621,7 @@ public partial class ScriptManagementViewModel(
                     : outcome.Result.Status == ScriptExecutionStatus.Cancelled
                         ? NotificationType.Information
                         : NotificationType.Error);
-            RefreshHistory();
+            MarkHistoryDirty();
         }
         catch (Exception exception)
         {
@@ -696,7 +775,7 @@ public partial class ScriptManagementViewModel(
         try
         {
             executionHistory.Clear();
-            RefreshHistory();
+            MarkHistoryDirty();
             Status = "执行历史已清空";
         }
         catch (Exception exception)
@@ -988,6 +1067,23 @@ public partial class ScriptManagementViewModel(
         OnPropertyChanged(nameof(ShowNoResultsState));
     }
 
+    private void MarkHistoryDirty()
+    {
+        _historyDirty = true;
+        if (SelectedDetailTabIndex == HistoryTabIndex)
+            EnsureHistoryLoaded();
+    }
+
+    private void EnsureHistoryLoaded()
+    {
+        if (_historyLoaded && !_historyDirty)
+            return;
+
+        RefreshHistory();
+        _historyLoaded = true;
+        _historyDirty = false;
+    }
+
     private void RefreshHistory()
     {
         History.ReplaceAll(executionHistory.GetRecent().Select(entry =>
@@ -1081,6 +1177,38 @@ public partial class ScriptManagementViewModel(
         IEnumerable<ScriptDiagnostic>? diagnostics) =>
         diagnostics?.Select(FormatDiagnostic).ToArray() ?? Array.Empty<ScriptDiagnosticListItem>();
 
+    private static PreparedScriptDirectoryData PrepareDirectoryResult(ScriptDirectoryLoadResult result)
+    {
+        var diagnostics = result.Diagnostics.Select(FormatDiagnostic).ToArray();
+        var scripts = result.Entries.Select(entry =>
+        {
+            var descriptor = entry.DiscoveredDescriptor ?? entry.BuildResult?.Program?.Descriptor;
+            var entryKind = descriptor is null
+                ? ScriptEntryKind.Application
+                : ScriptEntryKindResolver.Resolve(descriptor);
+            var entryDiagnostics = (entry.BuildResult?.Diagnostics ?? []).AddRange(entry.ConfigurationDiagnostics);
+            return new ScriptListItem(
+                entry.SourcePath,
+                descriptor?.Id ?? Path.GetFileNameWithoutExtension(entry.SourcePath),
+                descriptor?.Name ?? Path.GetFileName(entry.SourcePath),
+                entry.Scope,
+                entry.BuildResult?.Succeeded == true,
+                FormatStatus(entry),
+                FormatDiagnostics(entryDiagnostics),
+                FormatDiagnosticDetails(entryDiagnostics),
+                descriptor?.Description ?? string.Empty,
+                entryKind,
+                entry.Metadata,
+                descriptor,
+                entry.ConfigurationState);
+        }).ToArray();
+        return new PreparedScriptDirectoryData(
+            result,
+            diagnostics,
+            scripts,
+            result.Diagnostics.Count(item => item.Severity == ScriptDiagnosticSeverity.Error));
+    }
+
     private static ScriptDiagnosticListItem FormatDiagnostic(ScriptDiagnostic diagnostic) =>
         new(
             diagnostic.Severity switch
@@ -1094,6 +1222,16 @@ public partial class ScriptManagementViewModel(
             diagnostic.SourcePath is null
                 ? string.Empty
                 : $"{diagnostic.SourcePath}:{diagnostic.Line}:{diagnostic.Column}");
+
+    private sealed record PreparedScriptDirectoryData(
+        ScriptDirectoryLoadResult Source,
+        IReadOnlyList<ScriptDiagnosticListItem> Diagnostics,
+        IReadOnlyList<ScriptListItem> Scripts,
+        int ErrorCount)
+    {
+        public TimeSpan DirectoryElapsed { get; init; }
+        public TimeSpan PrepareElapsed { get; init; }
+    }
 
     private static ScriptExecutionRequest CreateExecutionRequest(ScriptRunOptions options) =>
         new(

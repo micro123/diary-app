@@ -94,6 +94,7 @@ namespace Diary.AppTests
                 Assert.IsNotNull(preloadedView);
                 Assert.AreSame(host, preloadedView.Parent);
                 Assert.IsFalse(preloadedView.IsVisible);
+                Assert.AreEqual(1, secondModel.PreloadCount);
                 Assert.AreEqual(0, secondModel.ShowCount);
 
                 host.CurrentPage = secondModel;
@@ -110,7 +111,7 @@ namespace Diary.AppTests
             => _session.Dispatch(async () =>
             {
                 var firstModel = new ViewModels.CacheableSampleViewModel();
-                var secondModel = new ViewModels.CacheableSampleViewModel();
+                var secondModel = new ViewModels.BlockingPreloadSampleViewModel();
                 var host = new NavigationViewHost
                 {
                     CurrentPage = firstModel,
@@ -124,7 +125,9 @@ namespace Diary.AppTests
                 window.Show();
 
                 var preloadTask = host.PreloadNowAsync();
+                await secondModel.PreloadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
                 host.CurrentPage = secondModel;
+                secondModel.ReleasePreload.TrySetResult();
                 await preloadTask;
 
                 Assert.IsNotNull(secondModel.View);
@@ -203,14 +206,33 @@ namespace Diary.AppTests
 
 namespace Diary.AppTests.ViewModels
 {
-    public sealed class CacheableSampleViewModel : ViewModelBase
+    public class CacheableSampleViewModel : ViewModelBase
     {
         public override bool IsViewCacheable => true;
         public int ShowCount { get; private set; }
         public int HideCount { get; private set; }
+        public int PreloadCount { get; private set; }
 
+        public override Task PreloadAsync(CancellationToken cancellationToken = default)
+        {
+            PreloadCount++;
+            return Task.CompletedTask;
+        }
         public override void OnShow() => ShowCount++;
         public override void OnHide() => HideCount++;
+    }
+
+    public sealed class BlockingPreloadSampleViewModel : CacheableSampleViewModel
+    {
+        public TaskCompletionSource PreloadStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleasePreload { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override async Task PreloadAsync(CancellationToken cancellationToken = default)
+        {
+            await base.PreloadAsync(cancellationToken);
+            PreloadStarted.TrySetResult();
+            await ReleasePreload.Task.WaitAsync(cancellationToken);
+        }
     }
 
     public sealed class TransientSampleViewModel : ViewModelBase

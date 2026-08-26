@@ -44,7 +44,7 @@
 | 清单 | 功能 | 状态 | 证据或边界 |
 | --- | --- | --- | --- |
 | 2.1 | 固定页、动态 Tracker 页、导航折叠、`Alt+1..9` | `Automated` | core 验证页面切换、折叠和数字快捷键；Redmine 验证动态导航 |
-| 2.1 | 主导航冷切换和热切换性能 | `Automated-Performance` | `navigation-performance` 场景同时开启日记、查询、统计、调查和脚本页，可选加载 Tracker 动态管理页；单进程套件记录可见/稳定延迟与资源增量，跨进程编排器轮换首次访问顺序并生成 JSON/Markdown 汇总；单元测试覆盖每实例 View 复用、真实宿主持久挂载、Tracker 页面动态增加/移除/重建、缓存资格默认关闭、统计按需初始化和 `WorkEditorViewModel` 不缓存；CDP 树传播祖先有效可见性，不纳入常规全量门禁 |
+| 2.1 | 主导航冷切换和热切换性能 | `Automated-Performance` | `navigation-performance` 场景同时开启日记、查询、统计、调查和脚本页，可选加载 Tracker 动态管理页；单进程套件记录可见/稳定延迟与资源增量，跨进程编排器轮换首次访问顺序并生成 JSON/Markdown 汇总；单元测试覆盖每实例 View 复用、真实宿主持久挂载、页面预加载契约、Tracker 页面动态增加/移除/重建、缓存资格默认关闭、统计按需初始化和 `WorkEditorViewModel` 不缓存；脚本管理日志拆分 View 初始化、目录等待、后台整理和 UI 应用耗时；CDP 树传播祖先有效可见性，不纳入常规全量门禁 |
 | 2.2 | 应用菜单、关于、版本、主题 | `Automated` | core 验证菜单和关于；smoke 验证主题截图差异；复制版本明细仅结构检查 |
 | 2.2 | 发布版用户手册入口 | `Unit/Integration` | 服务测试覆盖 Debug/Release 判定、HTML 优先和 PDF 回退；窗口测试检查命令/可见性绑定；Debug core 确认菜单隐藏；Tag/手动发布包校验强制要求 HTML/PDF。系统默认浏览器或 PDF 阅读器打开行为保留原生人工检查 |
 | 2.2 | 最大化、最小化、重启、退出 | `Manual-Native` | 涉及原生窗口/进程生命周期，未纳入连续套件 |
@@ -101,11 +101,11 @@
 | 清单 | 功能 | 状态 | 证据或边界 |
 | --- | --- | --- | --- |
 | 7.1–7.3 | 工作台、列表、详情、搜索、筛选和重载 | `Automated` | extended 覆盖导航、结构和刷新 |
-| 7.4 | 执行历史、运行日志和 API Reference | `Automated` | extended 验证执行历史、可选择的只读运行日志框、复制全部入口和 API Reference 内容 |
+| 7.4 | 执行历史和运行日志 | `Automated` | extended 验证执行历史、可选择的只读运行日志框、复制全部入口，并确认管理页不再显示 API Reference 页签 |
 | 7.4 | AI 上下文默认授权、显式事项范围、预览和 MCP 快照 | `Automated` | extended 验证事项默认关闭、日期控件按授权显示、结构与事项预览、不可信数据标记、快照 schema/范围及无标签 metadata；Linux CDP 同时生成手册截图 |
 | 7.5 | C#/Lua/Python 新建脚本 | `Automated` | extended 检查 V1/V2 版本说明并以默认 V2 创建三种脚本；版本生成由 ViewModel 定向测试覆盖 |
 | 7.6 | 手动运行和 Preview | `Automated` | extended 运行 C# Preview 并验证结果 |
-| 7.7 | 独立编辑器、代码区和编译检查 | `Automated` | script-editor 验证成功状态与诊断区共存 |
+| 7.7 | 独立编辑器、API 文档入口、代码区和编译检查 | `Automated` | script-editor 验证按脚本语言打开 API Reference 的入口，以及成功状态与诊断区共存 |
 | 7.7 | 补全、悬停、重构和外部 LSP | `Unit/Integration` | 语言服务有定向测试；部分能力仍在 TODO |
 | 7.8 | `.diaryscripts` 导入/导出 | `Manual-Native` | 依赖文件选择器；包安全和回滚由集成测试验证 |
 | 7.8 / TODO 9.3 | XLSX/CSV/DOCX/Mustache 交互式导出 | `Unit/Integration` | 导出器和脚本 API 已测试，真实 UI 端到端仍待补齐 |

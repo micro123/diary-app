@@ -265,8 +265,9 @@ await runUiSuite({ name: 'ui-extended-full', scenario: 'extended', timeoutMs: 12
         const tree = await connection.getTree();
         const root = rootOf(tree, 'ScriptManagementView');
         for (const text of ['脚本工作台', '新建脚本', '导出共享包', '重新加载', '概览', '诊断详情',
-            '目录诊断', '执行历史', '运行日志', 'AI 上下文', 'API Reference'])
+            '目录诊断', '执行历史', '运行日志', 'AI 上下文'])
             assertUi(textWithin(tree, root, text), '脚本工作台缺少：' + text);
+        assertUi(!textWithin(tree, root, 'API Reference'), '脚本管理页不应显示 API Reference 页签');
         assertUi(textWithin(tree, root, '尚未发现脚本'), '全新 profile 的脚本空状态缺失');
         return { navigationMs };
     });
@@ -508,7 +509,7 @@ await runUiSuite({ name: 'ui-extended-full', scenario: 'extended', timeoutMs: 12
         };
     });
 
-    await runStep('scripts.history-logs-api', '执行历史、运行日志与 API Reference', async () => {
+    await runStep('scripts.history-logs', '执行历史与运行日志', async () => {
         let tree = await connection.getTree();
         let root = rootOf(tree, 'ScriptManagementView');
         let tabText = textWithin(tree, root, '执行历史');
@@ -535,15 +536,6 @@ await runUiSuite({ name: 'ui-extended-full', scenario: 'extended', timeoutMs: 12
             '运行日志没有使用可选择复制的只读文本框');
         tree = await connection.getTree();
         root = rootOf(tree, 'ScriptManagementView');
-        tabText = textWithin(tree, root, 'API Reference');
-        await connection.clickNode(ancestor(tree, tabText, entry => typeOf(entry).includes('TabItem')));
-        await delay(80);
-        tree = await connection.getTree();
-        root = rootOf(tree, 'ScriptManagementView');
-        assertUi(textWithin(tree, root, '打开完整文档'), 'API Reference 缺少完整文档入口');
-        assertUi(findByTextContains(tree, 'work_items') || findByTextContains(tree, 'API'), 'API Reference 内容为空');
-        tree = await connection.getTree();
-        root = rootOf(tree, 'ScriptManagementView');
         tabText = textWithin(tree, root, '诊断详情');
         await connection.clickNode(ancestor(tree, tabText, entry => typeOf(entry).includes('TabItem')));
         await delay(80);
@@ -552,7 +544,7 @@ await runUiSuite({ name: 'ui-extended-full', scenario: 'extended', timeoutMs: 12
         tabText = textWithin(tree, root, '目录诊断');
         await connection.clickNode(ancestor(tree, tabText, entry => typeOf(entry).includes('TabItem')));
         await delay(80);
-        return { historyVisible: true, apiVisible: true };
+        return { historyVisible: true, logsVisible: true };
     });
 
     await runStep('scripts.delete-confirm', '脚本删除取消与确认', async () => {

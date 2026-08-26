@@ -83,16 +83,20 @@ public sealed class NavigationViewHost : Grid
         {
             cancellationToken.ThrowIfCancellationRequested();
             Control? view = null;
+            Task preloadTask = Task.CompletedTask;
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 if (!_isAttached || page.ViewModel is null || ReferenceEquals(page.ViewModel, CurrentPage))
                     return;
                 view = GetOrCreateView(page.ViewModel);
                 PrepareForPreload(view);
+                preloadTask = page.ViewModel.PreloadAsync(cancellationToken);
             }, DispatcherPriority.Background);
 
             if (view is null)
                 continue;
+
+            await preloadTask.WaitAsync(cancellationToken);
 
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
