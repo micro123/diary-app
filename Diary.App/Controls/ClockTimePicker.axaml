@@ -1,0 +1,87 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             x:Class="Diary.App.Controls.ClockTimePicker"
+             x:Name="ClockTimePickerRoot">
+    <Button Name="ClockTimePickerButton"
+            HorizontalContentAlignment="Left"
+            ToolTip.Tip="打开表盘，先选择小时，再选择分钟">
+        <TextBlock Name="ClockTimePickerDisplayText" />
+        <Button.Flyout>
+            <Flyout ShowMode="Standard"
+                    Placement="BottomEdgeAlignedLeft"
+                    Opened="OnFlyoutOpened">
+                <Border Name="ClockTimePickerFlyoutRoot"
+                        Width="260"
+                        Padding="12"
+                        CornerRadius="10"
+                        Background="{DynamicResource SemiColorFill0}"
+                        BorderBrush="{DynamicResource SemiColorBorder}"
+                        BorderThickness="1">
+                    <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="7">
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Spacing="5">
+                            <Button Name="ClockTimePickerHourStepButton"
+                                    Padding="8,3"
+                                    Click="OnHourStepClick"
+                                    ToolTip.Tip="选择小时">
+                                <TextBlock Name="ClockTimePickerHourText" FontSize="20" FontWeight="SemiBold" />
+                            </Button>
+                            <TextBlock Text=":" FontSize="20" VerticalAlignment="Center" />
+                            <Button Name="ClockTimePickerMinuteStepButton"
+                                    Padding="8,3"
+                                    Click="OnMinuteStepClick"
+                                    ToolTip.Tip="选择分钟">
+                                <TextBlock Name="ClockTimePickerMinuteText" FontSize="20" FontWeight="SemiBold" />
+                            </Button>
+                        </StackPanel>
+
+                        <TextBlock Name="ClockTimePickerStepHint"
+                                   Grid.Row="1"
+                                   HorizontalAlignment="Center"
+                                   Opacity="0.72" />
+
+                        <Grid Name="ClockTimePickerFace"
+                              Grid.Row="2"
+                              Width="220"
+                              Height="220"
+                              HorizontalAlignment="Center"
+                              Focusable="True"
+                              Background="Transparent"
+                              PointerPressed="OnClockFacePointerPressed"
+                              PointerMoved="OnClockFacePointerMoved"
+                              PointerReleased="OnClockFacePointerReleased"
+                              KeyDown="OnClockFaceKeyDown">
+                            <Ellipse Margin="9"
+                                     Fill="{DynamicResource SemiColorFill1}"
+                                     Stroke="{DynamicResource SemiColorBorder}"
+                                     StrokeThickness="1" />
+                            <Canvas>
+                                <Line Name="ClockTimePickerHand"
+                                      StartPoint="110,110"
+                                      Stroke="{DynamicResource SemiColorPrimary}"
+                                      StrokeThickness="2" />
+                                <Ellipse Name="ClockTimePickerSelectedMarker"
+                                         Fill="{DynamicResource SemiColorPrimary}" />
+                                <Ellipse Width="6" Height="6"
+                                         Canvas.Left="107" Canvas.Top="107"
+                                         Fill="{DynamicResource SemiColorPrimary}" />
+                            </Canvas>
+                            <Canvas Name="ClockTimePickerMarkers" IsHitTestVisible="False" />
+                        </Grid>
+
+                        <TextBlock Name="ClockTimePickerInteractionHint"
+                                   Grid.Row="3"
+                                   HorizontalAlignment="Center"
+                                   FontSize="10.5"
+                                   Opacity="0.62" />
+                    </Grid>
+                </Border>
+            </Flyout>
+        </Button.Flyout>
+    </Button>
+</UserControl>

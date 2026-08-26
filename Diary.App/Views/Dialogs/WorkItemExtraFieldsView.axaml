@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
              xmlns:models="clr-namespace:Diary.App.Models"
+             xmlns:controls="clr-namespace:Diary.App.Controls"
              mc:Ignorable="d"
              x:Class="Diary.App.Views.Dialogs.WorkItemExtraFieldsView"
              x:Name="WorkItemExtraFieldsRoot"
@@ -71,17 +72,17 @@
                                                     <Grid Name="WorkExtraTimeEditor"
                                                           IsVisible="{Binding UsesTimeEditor}"
                                                           ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                                                        <TimePicker Name="WorkExtraTimeInput"
-                                                                    SelectedTime="{Binding TimeValue, Mode=TwoWay}"
-                                                                    ClockIdentifier="24HourClock" MinuteIncrement="1"
-                                                                    IsEnabled="{Binding !IsReadOnly}" />
+                                                        <controls:ClockTimePicker Name="WorkExtraTimeInput"
+                                                                                  SelectedTime="{Binding TimeValue, Mode=TwoWay}"
+                                                                                  IsReadOnly="{Binding IsReadOnly}"
+                                                                                  Watermark="未填写" />
                                                         <Button Name="ClearWorkExtraTimeButton"
                                                                 Grid.Column="1" Content="清空"
                                                                 Command="{Binding ClearValueCommand}" />
                                                     </Grid>
                                                     <Grid Name="WorkExtraDateTimeEditor"
                                                           IsVisible="{Binding UsesDateTimeEditor}"
-                                                          ColumnDefinitions="170,Auto,250,Auto"
+                                                          ColumnDefinitions="170,Auto,*,Auto"
                                                           ColumnSpacing="6"
                                                           ClipToBounds="True">
                                                         <CalendarDatePicker Name="WorkExtraDateTimeDateInput"
@@ -89,11 +90,11 @@
                                                                             IsEnabled="{Binding !IsReadOnly}"
                                                                             Watermark="日期" />
                                                         <TextBlock Grid.Column="1" Text="·" VerticalAlignment="Center" />
-                                                        <TimePicker Name="WorkExtraDateTimeTimeInput"
-                                                                    Grid.Column="2"
-                                                                    SelectedTime="{Binding DateTimeTimeValue, Mode=TwoWay}"
-                                                                    ClockIdentifier="24HourClock" MinuteIncrement="1"
-                                                                    IsEnabled="{Binding !IsReadOnly}" />
+                                                        <controls:ClockTimePicker Name="WorkExtraDateTimeTimeInput"
+                                                                                  Grid.Column="2"
+                                                                                  SelectedTime="{Binding DateTimeTimeValue, Mode=TwoWay}"
+                                                                                  IsReadOnly="{Binding IsReadOnly}"
+                                                                                  Watermark="时间" />
                                                         <Button Name="ClearWorkExtraDateTimeButton"
                                                                 Grid.Column="3" Content="清空"
                                                                 Command="{Binding ClearValueCommand}" />

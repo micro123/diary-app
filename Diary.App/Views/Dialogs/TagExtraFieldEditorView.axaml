@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
              xmlns:models="clr-namespace:Diary.App.Models"
+             xmlns:controls="clr-namespace:Diary.App.Controls"
              mc:Ignorable="d"
              x:Class="Diary.App.Views.Dialogs.TagExtraFieldEditorView"
              x:Name="TagExtraFieldEditorRoot"
@@ -112,9 +113,9 @@
                                     <Grid Name="ExtraFieldDefaultTimeEditor"
                                           IsVisible="{Binding UsesTimeEditor}"
                                           ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                                        <TimePicker Name="ExtraFieldDefaultTimeInput"
-                                                    SelectedTime="{Binding TimeValue, Mode=TwoWay}"
-                                                    ClockIdentifier="24HourClock" MinuteIncrement="1" />
+                                        <controls:ClockTimePicker Name="ExtraFieldDefaultTimeInput"
+                                                                  SelectedTime="{Binding TimeValue, Mode=TwoWay}"
+                                                                  Watermark="不设置默认值" />
                                         <Button Grid.Column="1" Content="清空"
                                                 Command="{Binding ClearValueCommand}" />
                                     </Grid>
@@ -125,10 +126,10 @@
                                                             SelectedDate="{Binding DateTimeDateValue, Mode=TwoWay}"
                                                             Watermark="日期" />
                                         <TextBlock Grid.Column="1" Text="·" VerticalAlignment="Center" />
-                                        <TimePicker Name="ExtraFieldDefaultDateTimeTimeInput"
-                                                    Grid.Column="2"
-                                                    SelectedTime="{Binding DateTimeTimeValue, Mode=TwoWay}"
-                                                    ClockIdentifier="24HourClock" MinuteIncrement="1" />
+                                        <controls:ClockTimePicker Name="ExtraFieldDefaultDateTimeTimeInput"
+                                                                  Grid.Column="2"
+                                                                  SelectedTime="{Binding DateTimeTimeValue, Mode=TwoWay}"
+                                                                  Watermark="时间" />
                                         <Button Grid.Column="3" Content="清空"
                                                 Command="{Binding ClearValueCommand}" />
                                     </Grid>

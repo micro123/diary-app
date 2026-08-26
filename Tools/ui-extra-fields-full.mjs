@@ -294,6 +294,77 @@ async function setTimePicker(connection, pickerName, hour, minute) {
     let tree = await connection.getTree();
     const picker = named(tree, pickerName);
     assertUi(picker, '找不到时间选择器：' + pickerName);
+    if (typeOf(picker).includes('ClockTimePicker')) {
+        const pickerButton = descendants(tree, picker).find(entry => nameOf(entry) === 'ClockTimePickerButton');
+        assertUi(pickerButton, '环形时间选择器缺少打开按钮：' + pickerName);
+        await connection.client.send('DOM.scrollIntoViewIfNeeded', { nodeId: picker.nodeId }).catch(() => {});
+        await connection.clickNode(pickerButton);
+        let opened = await connection.waitForTree(current => {
+            const root = named(current, 'ClockTimePickerFlyoutRoot');
+            const face = named(current, 'ClockTimePickerFace');
+            return root && face ? face : null;
+        }, 5000, '环形时间选择器弹层未出现：' + pickerName);
+        tree = await connection.getTree();
+        const hourLabels = descendants(tree, opened.value).map(textOf);
+        for (const label of ['00', '03', '06', '09', '12', '15', '18', '21'])
+            assertUi(hourLabels.includes(label), '小时环缺少方向数字：' + label);
+
+        const pointFor = (bounds, value, count) => {
+            const angle = value / count * Math.PI * 2 - Math.PI / 2;
+            const centerX = (bounds.left + bounds.right) / 2;
+            const centerY = (bounds.top + bounds.bottom) / 2;
+            const radius = Math.min(bounds.right - bounds.left, bounds.bottom - bounds.top) * 0.4;
+            return {
+                x: centerX + Math.cos(angle) * radius,
+                y: centerY + Math.sin(angle) * radius,
+            };
+        };
+        const pressAt = async point => {
+            await connection.client.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
+            await connection.client.send('Input.dispatchMouseEvent', {
+                type: 'mousePressed', ...point, button: 'left', clickCount: 1,
+            });
+        };
+        const moveTo = point => connection.client.send('Input.dispatchMouseEvent', {
+            type: 'mouseMoved', ...point, button: 'left', buttons: 1,
+        });
+        const releaseAt = point => connection.client.send('Input.dispatchMouseEvent', {
+            type: 'mouseReleased', ...point, button: 'left', clickCount: 1,
+        });
+
+        let bounds = await nodeBounds(connection, opened.value);
+        const hourPoint = pointFor(bounds, hour, 24);
+        await pressAt(hourPoint);
+        await releaseAt(hourPoint);
+        opened = await connection.waitForTree(current => {
+            const face = named(current, 'ClockTimePickerFace');
+            return face && textOf(named(current, 'ClockTimePickerStepHint')).includes('分钟') ? face : null;
+        }, 3000, '环形时间选择器未在小时松开后进入分钟步骤');
+        tree = await connection.getTree();
+        const minuteLabels = descendants(tree, opened.value).map(textOf);
+        for (const label of ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'])
+            assertUi(minuteLabels.includes(label), '分钟环缺少 5 分钟刻度数字：' + label);
+
+        bounds = await nodeBounds(connection, opened.value);
+        const startPoint = pointFor(bounds, (minute + 53) % 60, 60);
+        const minutePoint = pointFor(bounds, minute, 60);
+        await pressAt(startPoint);
+        await moveTo(minutePoint);
+        await connection.waitForTree(current => named(current, 'ClockTimePickerFlyoutRoot')
+            && Number(textOf(named(current, 'ClockTimePickerMinuteText'))) === minute,
+        3000, '拖动时未预览目标分钟');
+        tree = await connection.getTree();
+        const liveRoot = named(tree, 'ClockTimePickerFlyoutRoot');
+        const liveFace = named(tree, 'ClockTimePickerFace');
+        assertUi(Number(liveRoot.a.Width) <= 270 && Number(liveFace.a.Width) <= 230,
+            '环形时间选择器尺寸超出紧凑设计范围');
+        assertUi(descendants(tree, liveFace).some(entry => textOf(entry) === String(minute).padStart(2, '0')),
+            '非主刻度的选中分钟未绘制数字');
+        await releaseAt(minutePoint);
+        await connection.waitForTree(current => !named(current, 'ClockTimePickerFlyoutRoot'), 5000,
+            '分钟松开后未自动应用并关闭环形时间选择器');
+        return;
+    }
     const flyoutButton = descendants(tree, picker).find(entry => isVisible(entry)
         && nameOf(entry) === 'PART_FlyoutButton' && Number(entry.a.Width) > 0);
     assertUi(flyoutButton, '时间选择器缺少弹层按钮：' + pickerName);
@@ -511,10 +582,10 @@ await runUiSuite({ name: 'ui-extra-fields-full', scenario: 'extra-fields', timeo
         tree = await connection.getTree();
         await connection.replaceText(editableText(tree, 'WorkExtraDateInput'), today);
         await connection.pressKey('Tab', 'Tab', 9);
-        await setTimePicker(connection, 'WorkExtraTimeInput', 9, 30);
+        await setTimePicker(connection, 'WorkExtraTimeInput', 9, 53);
         tree = await connection.getTree();
         await activateControl(connection, named(tree, 'ClearWorkExtraTimeButton'));
-        await setTimePicker(connection, 'WorkExtraTimeInput', 9, 30);
+        await setTimePicker(connection, 'WorkExtraTimeInput', 9, 53);
         tree = await connection.getTree();
         await connection.replaceText(editableText(tree, 'WorkExtraDateTimeDateInput'), today);
         await connection.pressKey('Tab', 'Tab', 9);
@@ -555,7 +626,7 @@ await runUiSuite({ name: 'ui-extra-fields-full', scenario: 'extra-fields', timeo
         await delay(100);
         tree = await connection.getTree();
         assertUi(textWithinControl(tree, 'WorkExtraTimeInput').includes('9')
-            && textWithinControl(tree, 'WorkExtraTimeInput').includes('30'), '时间未持久化');
+            && textWithinControl(tree, 'WorkExtraTimeInput').includes('53'), '时间未持久化');
         await connection.client.send('DOM.scrollIntoViewIfNeeded', { nodeId: named(tree, 'WorkExtraDateTimeEditor').nodeId });
         await delay(100);
         tree = await connection.getTree();
