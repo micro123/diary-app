@@ -409,7 +409,8 @@ SQLite 和 PostgreSQL 都支持日期范围、标题/备注关键字、优先级
 ## 14. 标签自动化规则
 
 `WorkEditorViewModel.AddTags()` 统一用户、模板和批量标签添加。只有实际新增标签才按输入顺序调用
-`ITagAutomationCoordinator`；数据库加载、重新同步和删除标签不会触发规则。
+`ITagAutomationCoordinator`；数据库加载、重新同步和删除标签不会触发规则，已同步并锁定的 Tracker
+实例也会被跳过，避免本地标签调整改变已锁定的 Tracker 关联字段。
 
 Tracker 编辑器可以选择实现 `ITrackerTagDefaults`。当前 Redmine 编辑器实现该能力，并从对应
 `RedMineInstanceSettings.TagRules` 读取实例级规则。规则按配置顺序为 Activity 和 Issue 填充默认值，

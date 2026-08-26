@@ -314,6 +314,38 @@ public abstract class DbContractTests
     }
 
     [TestMethod]
+    public void WorkItemExtraFieldValues_RemoveTagKeepsValueForReAdd()
+    {
+        using var db = CreateDb();
+        var tag = db.CreateWorkTag("保留字段值", true, 0);
+        var definition = new TagExtraFieldDefinition
+        {
+            FieldKey = "retained.value",
+            TagId = tag.Id,
+            Label = "历史值",
+            Type = TagExtraFieldType.Text,
+        };
+        Assert.IsTrue(db.CreateTagExtraFieldDefinition(definition));
+        var item = db.CreateWorkItem("2026-08-26", "移除后重新添加标签");
+        Assert.IsTrue(db.WorkItemAddTag(item, tag));
+        Assert.IsTrue(db.SaveWorkItemExtraFieldValues(item.Id,
+        [
+            new WorkItemExtraFieldValue
+            {
+                WorkItemId = item.Id,
+                FieldId = definition.FieldId,
+                Value = "应保留",
+            },
+        ]));
+
+        Assert.IsTrue(db.WorkItemRemoveTag(item, tag));
+        Assert.AreEqual(0, db.GetWorkItemExtraFields(item).Count);
+
+        Assert.IsTrue(db.WorkItemAddTag(item, tag));
+        Assert.AreEqual("应保留", db.GetWorkItemExtraFields(item).Single().Value);
+    }
+
+    [TestMethod]
     public void WorkItemExtraFieldValues_BatchLoadMatchesIndividualResults()
     {
         using var db = CreateDb();

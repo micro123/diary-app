@@ -408,6 +408,23 @@ public sealed class WorkEditorViewModelTests
     }
 
     [TestMethod]
+    public void ImportedReadOnlyItemRejectsAddingTags()
+    {
+        using var database = CreateDatabase();
+        var item = database.CreateWorkItem("2026-08-26", "导入记录");
+        var tag = database.CreateWorkTag("不可添加", true, 0);
+        Assert.IsTrue(database.MarkWorkItemReadOnly(item));
+        var viewModel = CreateViewModel(database: database);
+        LoadExistingItem(viewModel, item);
+
+        viewModel.AddTags([tag], TagAddSource.User);
+
+        Assert.IsFalse(viewModel.CanEditTags);
+        Assert.AreEqual(0, viewModel.WorkTags.Count);
+        Assert.AreEqual(0, database.GetWorkItemTags(item).Count);
+    }
+
+    [TestMethod]
     public void EditableWorkTagRenamePersistsToDatabase()
     {
         using var database = CreateDatabase();
@@ -503,14 +520,16 @@ public sealed class WorkEditorViewModelTests
 
         Assert.IsTrue(viewModel.IsImportedReadOnly);
         Assert.IsTrue(viewModel.IsLocked);
+        Assert.IsFalse(viewModel.CanEditTags);
         Assert.IsTrue(viewModel.HasExtraFields);
         Assert.IsFalse(viewModel.ShowExtraFieldsButton);
         Assert.IsFalse(viewModel.CanOpenExtraFields);
+        Assert.IsTrue(viewModel.IsExtraFieldsReadOnly);
         Assert.IsTrue(viewModel.TrackerTabs.Single().IsHostReadOnly);
     }
 
     [TestMethod]
-    public void SynchronizedItemKeepsExtraFieldsVisibleAsReadOnly()
+    public void SynchronizedItemAllowsEditingTagsAndExtraFields()
     {
         var viewModel = CreateViewModel(CreateCloneTrackerRegistry());
         var extension = (CloneTrackerExtension)viewModel.Extensions.Single();
@@ -532,10 +551,35 @@ public sealed class WorkEditorViewModelTests
             });
 
         Assert.IsTrue(viewModel.IsLocked);
+        Assert.IsTrue(viewModel.CanEditTags);
         Assert.IsTrue(viewModel.ShowExtraFieldsButton);
         Assert.IsTrue(viewModel.CanOpenExtraFields);
-        Assert.IsTrue(viewModel.IsExtraFieldsReadOnly);
-        Assert.AreEqual("查看附加信息", viewModel.ExtraFieldsButtonText);
+        Assert.IsFalse(viewModel.IsExtraFieldsReadOnly);
+        Assert.AreEqual("附加信息", viewModel.ExtraFieldsButtonText);
+    }
+
+    [TestMethod]
+    public void SynchronizedItemCanAddAndRemoveTagsWhileGenericFieldsStayLocked()
+    {
+        using var database = CreateDatabase();
+        var item = database.CreateWorkItem("2026-08-26", "已同步记录");
+        var tag = database.CreateWorkTag("本地标签", true, 0);
+        var viewModel = CreateViewModel(CreateCloneTrackerRegistry(), database);
+        var extension = (CloneTrackerExtension)viewModel.Extensions.Single();
+        extension.IsLocked = true;
+        LoadExistingItem(viewModel, item);
+
+        viewModel.AddTags([tag], TagAddSource.User);
+
+        Assert.IsTrue(viewModel.IsLocked);
+        Assert.IsTrue(viewModel.CanEditTags);
+        CollectionAssert.Contains(viewModel.WorkTags, tag);
+        Assert.IsTrue(database.GetWorkItemTags(item).Any(persisted => persisted.Id == tag.Id));
+
+        viewModel.DelTagCommand.Execute(tag);
+
+        CollectionAssert.DoesNotContain(viewModel.WorkTags, tag);
+        Assert.IsFalse(database.GetWorkItemTags(item).Any(persisted => persisted.Id == tag.Id));
     }
 
     [TestMethod]

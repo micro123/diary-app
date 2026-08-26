@@ -94,13 +94,14 @@ public partial class WorkEditorViewModel : ViewModelBase
     private readonly ObservableCollection<WorkItemExtraFieldValue> _extraFieldValues = new();
     private IReadOnlyList<WorkItemExtraField> _extraFields = Array.Empty<WorkItemExtraField>();
 
-    public bool HasAvailableTags => !IsLocked && AvailableTags.Count > 0;
+    public bool CanEditTags => !IsImportedReadOnly;
+    public bool HasAvailableTags => CanEditTags && AvailableTags.Count > 0;
     public bool HasExtraFields => _extraFields.Count > 0;
     public bool ShowExtraFieldsButton => HasExtraFields && !IsImportedReadOnly;
     public ICollection<Template> Templates => TemplateManager.Instance.Templates;
     public bool CanUseTemplates => !IsLocked && Templates.Count > 0;
     public bool CanOpenExtraFields => ShowExtraFieldsButton;
-    public bool IsExtraFieldsReadOnly => IsLocked;
+    public bool IsExtraFieldsReadOnly => IsImportedReadOnly;
     public string ExtraFieldsButtonText => IsExtraFieldsReadOnly ? "查看附加信息" : "附加信息";
     public string ExtraFieldsSummary => _extraFields.Count == 0
         ? "暂无附加信息"
@@ -852,7 +853,7 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     public void AddTags(IEnumerable<WorkTag> tags, TagAddSource source)
     {
-        if (IsLocked)
+        if (!CanEditTags)
             return;
         var sequence = 0;
         foreach (var tag in tags)
@@ -963,7 +964,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     [RelayCommand]
     private void DelTag(WorkTag tag)
     {
-        if (IsLocked)
+        if (!CanEditTags)
             return;
         _syncing_tags = true;
         try
@@ -1072,6 +1073,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsStatusPillSuccess));
         OnPropertyChanged(nameof(IsStatusPillError));
         OnPropertyChanged(nameof(IsStatusPillUncertain));
+        OnPropertyChanged(nameof(CanEditTags));
         OnPropertyChanged(nameof(HasAvailableTags));
         OnPropertyChanged(nameof(ShowExtraFieldsButton));
         OnPropertyChanged(nameof(CanOpenExtraFields));

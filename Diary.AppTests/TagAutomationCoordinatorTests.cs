@@ -59,6 +59,21 @@ public sealed class TagAutomationCoordinatorTests
             result.Instances.Last().ChangedFields.ToArray());
     }
 
+    [TestMethod]
+    public void TagAddedSkipsLockedTrackerExtensions()
+    {
+        var extension = new FakeTrackerExtension("redmine", "synchronized") { IsLocked = true };
+
+        var result = new TagAutomationCoordinator().TagAdded(
+            new WorkItem { Id = 42 },
+            new WorkTag { Id = 9, Name = "本地标签" },
+            new TagAutomationContext(TagAddSource.User, 0),
+            [extension]);
+
+        Assert.AreEqual(0, result.Instances.Count);
+        Assert.IsNull(extension.LastTag);
+    }
+
     private sealed class FakeTrackerExtension : ViewModelBase, ITrackerEditorExtension, ITrackerTagDefaults
     {
         private readonly TrackerTagDefaultsResult _result;
@@ -78,7 +93,7 @@ public sealed class TagAutomationCoordinatorTests
         public TrackerKey Key { get; }
         public string InstanceId => Key.InstanceId;
         ViewModelBase ITrackerEditorExtension.View => this;
-        public bool IsLocked => false;
+        public bool IsLocked { get; init; }
         public bool CanDelete => true;
         public WorkTag? LastTag { get; private set; }
 

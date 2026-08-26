@@ -123,7 +123,7 @@
             <TextBlock Grid.Column="1" Text="标签分类与附加字段" Classes="SectionDescription" />
         </Grid>
         <!-- 标签列表 -->
-        <ItemsControl ItemsSource="{Binding WorkTags}" DockPanel.Dock="Top" IsEnabled="{Binding !IsLocked}">
+        <ItemsControl ItemsSource="{Binding WorkTags}" DockPanel.Dock="Top" IsEnabled="{Binding CanEditTags}">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                     <WrapPanel ItemSpacing="6" Orientation="Horizontal" />

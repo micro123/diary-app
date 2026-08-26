@@ -50,7 +50,7 @@ public sealed class TagAutomationCoordinator : ITagAutomationCoordinator
         IReadOnlyCollection<ITrackerEditorExtension> extensions)
     {
         var results = new List<TagAutomationInstanceResult>();
-        foreach (var extension in extensions.OfType<ITrackerTagDefaults>())
+        foreach (var extension in extensions.Where(extension => !extension.IsLocked).OfType<ITrackerTagDefaults>())
         {
             var key = ((ITrackerEditorExtension)extension).Key;
             try

@@ -16,7 +16,7 @@ Redmine 实例规则存储、`OnlyIfUnset` 默认值应用和 Redmine 实例设�
 - `WorkEditorViewModel.AddTags()` 统一用户、模板和批量标签添加来源。
 - 只有标签 ID 从不存在变为存在时才调用协调器。
 - `TagAutomationContext` 当前包含来源和批次内顺序，协调器按实例返回应用字段、冲突、无效目标和错误。
-- `TagAutomationCoordinator` 调用实现 `ITrackerTagDefaults` 的编辑器扩展。
+- `TagAutomationCoordinator` 调用实现 `ITrackerTagDefaults` 且尚未锁定的编辑器扩展；已同步 Tracker 不再因后续本地标签调整而改变关联字段。
 - Redmine 每个 `RedMineInstanceSettings` 独立保存多条 `RedMineTagRule`。
 - Redmine 规则支持标签、Activity、Issue 和启用状态。
 - Redmine 规则算法位于纯逻辑 `RedMineTagDefaults`，默认不覆盖已有字段。
@@ -38,6 +38,7 @@ Redmine 实例规则存储、`OnlyIfUnset` 默认值应用和 Redmine 实例设�
 - 同一个 Tracker 实例可以配置多条规则。
 - 标签规则只应用默认值，不建立不可变的强绑定。
 - 当前字段已有值时，默认不覆盖用户值。
+- 已同步并锁定的 Tracker 实例不执行标签默认值规则。
 - 删除标签不会反向清除或恢复 Tracker 字段。
 - 脚本不能操作模板，也不能绕过标签自动化和 Tracker 权限边界。
 - 模板由宿主/编辑器负责选择和应用，但模板添加标签时必须触发标签添加规则。
@@ -414,7 +415,7 @@ public interface ITrackerTagRuleEditor
   -> 添加一个新标签
   -> 持久化草稿/本地绑定
   -> 生成 TagAddedEvent
-  -> TagAutomationCoordinator 通知所有 Tracker 实例
+  -> TagAutomationCoordinator 通知所有未锁定 Tracker 实例
   -> 各实例按规则应用默认字段
   -> 刷新 Tracker 扩展 UI
 ```
