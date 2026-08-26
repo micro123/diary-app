@@ -489,7 +489,10 @@ await runUiSuite({ name: 'ui-extended-full', scenario: 'extended', timeoutMs: 12
             '脚本运行对话框未出现');
         for (const text of ['统计范围 *', '最低工时', '标题前缀', '包含零工时', '小时'])
             assertUi(textWithin(dialog.tree, dialog.value, text), 'V2 类型化参数表单缺少：' + text);
-        assertUi(textWithin(dialog.tree, dialog.value, '脚本默认', true), 'V2 参数值来源提示缺失');
+        for (const text of ['range · Choice', 'minimumHours · Number', 'titlePrefix · String', 'includeZero · Boolean'])
+            assertUi(textWithin(dialog.tree, dialog.value, text, true), 'V2 参数键和类型提示缺失：' + text);
+        assertUi(!textWithin(dialog.tree, dialog.value, '脚本默认', true), 'V2 参数辅助说明不应显示值来源');
+        const parameterScreenshot = await connection.screenshot('manual-script-v2-parameters.png');
         const previewText = textWithin(dialog.tree, dialog.value, '预览执行');
         const preview = previewText && controlForText(dialog.tree, previewText);
         assertUi(preview, '预览执行选项缺失');
@@ -497,7 +500,12 @@ await runUiSuite({ name: 'ui-extended-full', scenario: 'extended', timeoutMs: 12
         await activateText(connection, 'ScriptRunDialogView', '运行');
         const completed = await connection.waitForTree(tree => findByTextContains(tree, item.name + ' 执行成功'),
             30000, '脚本预览执行失败');
-        return { dialogMs: dialog.elapsedMs, executeMs: completed.elapsedMs };
+        return {
+            dialogMs: dialog.elapsedMs,
+            executeMs: completed.elapsedMs,
+            parameterScreenshot,
+            dialogBounds: boundsOf(dialog.value),
+        };
     });
 
     await runStep('scripts.history-logs-api', '执行历史、运行日志与 API Reference', async () => {

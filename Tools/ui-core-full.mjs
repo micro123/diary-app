@@ -516,6 +516,9 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         const noteInput = findByName(editorTree, 'WorkNoteInput');
         const noteCard = findByName(editorTree, 'WorkNoteCard');
         assertUi(dateInput && titleInput && timeInput && noteInput && noteCard, '事项编辑字段结构不完整');
+        assertUi(findByText(editorTree, '仅本地'), '备注区缺少直接显示的本地保存状态');
+        assertUi(!findByText(editorTree, '补充只在本机保存的上下文信息'),
+            '备注区仍依赖信息图标 Tooltip 显示本地保存说明');
         assertUi(!findByName(editorTree, 'TrackerAssociationCard'),
             '没有启用 Tracker 时仍显示 Tracker 关联卡片');
         const noteBounds = boundsOf(noteInput);

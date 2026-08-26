@@ -43,7 +43,7 @@ public partial class ScriptParameterFieldViewModel : ObservableObject
     public string DisplayLabel => _definition.Required ? $"{_definition.Label} *" : _definition.Label;
     public string Description => _definition.Description ?? string.Empty;
     public string Placeholder => _definition.Placeholder ?? string.Empty;
-    public string TypeLabel => $"{_definition.Name} · {_definition.Type} · {ValueSourceLabel}";
+    public string TypeLabel => $"{_definition.Name} · {_definition.Type}";
     public ScriptParameterValueSource ValueSource
     {
         get => _valueSource;
@@ -52,7 +52,6 @@ public partial class ScriptParameterFieldViewModel : ObservableObject
             if (!SetProperty(ref _valueSource, value))
                 return;
             OnPropertyChanged(nameof(ValueSourceLabel));
-            OnPropertyChanged(nameof(TypeLabel));
         }
     }
     public string ValueSourceLabel => ValueSource switch

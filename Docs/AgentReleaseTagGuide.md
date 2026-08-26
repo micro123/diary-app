@@ -309,7 +309,7 @@ DIARY_REQUIRE_POSTGRES_TESTS=1
 DIARY_REQUIRE_PYTHON_TESTS=1
 ```
 
-用户手册使用 Quarto 1.11.1 构建。安装 `Noto Sans SC` 与 `Cascadia Mono` 后，可在仓库根目录执行：
+用户手册使用 Quarto 1.11.1 构建。安装提供 `Noto Sans CJK SC` 与 `Noto Sans Mono CJK SC` 的 Noto CJK 字体包后，可在仓库根目录执行：
 
 ```bash
 quarto render Docs/UserManual

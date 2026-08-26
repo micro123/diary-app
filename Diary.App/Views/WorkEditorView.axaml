@@ -246,11 +246,8 @@
         <Border Name="WorkNoteCard" Classes="SectionCard">
             <Grid RowDefinitions="Auto,*" RowSpacing="8">
                 <Grid ColumnDefinitions="*,Auto">
-                    <Grid Classes="SectionHeading" ColumnDefinitions="Auto,*">
+                    <Grid Classes="SectionHeading">
                         <TextBlock Text="备注" Classes="SectionTitle" />
-                        <i:Icon Grid.Column="1" Value="mdi-information-outline" FontSize="16"
-                                Classes="SectionDescriptionIcon" HorizontalAlignment="Left"
-                                ToolTip.Tip="补充只在本机保存的上下文信息" />
                     </Grid>
                     <Border Grid.Column="1" Classes="StatusPill" VerticalAlignment="Top">
                         <TextBlock Text="仅本地" HorizontalAlignment="Center" />

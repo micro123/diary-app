@@ -119,7 +119,7 @@ async function openSettingsText(connection, text, expectedType) {
     }
     if (!menu)
         throw lastError;
-    await connection.clickNode(menu.value.label);
+    await connection.clickNode(menu.value.item);
     return connection.waitForTree(tree => rootOf(tree, expectedType), 10000,
         '对话框未出现：' + expectedType);
 }
@@ -389,6 +389,7 @@ await runUiSuite({ name: 'ui-extra-fields-full', scenario: 'extra-fields', timeo
         await connection.replaceText(named(tree, 'TagFilterInput'), '');
         await connection.waitForTree(current => findByText(current, tagName,
             entry => hasAncestorType(current, entry, 'ListBoxItem')), 5000, '清空过滤后测试标签未恢复');
+        const manualScreenshot = await connection.screenshot('manual-tag-extra-fields.png');
         return {
             tagName,
             fieldCount: fields.length,
@@ -396,6 +397,7 @@ await runUiSuite({ name: 'ui-extra-fields-full', scenario: 'extra-fields', timeo
             invalidKeyRejected: true,
             filterVerified: true,
             listLayoutNoOverlap: true,
+            manualScreenshot,
         };
     });
 

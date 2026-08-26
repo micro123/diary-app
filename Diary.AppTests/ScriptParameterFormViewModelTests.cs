@@ -7,6 +7,20 @@ namespace Diary.AppTests;
 public sealed class ScriptParameterFormViewModelTests
 {
     [TestMethod]
+    public void FieldTypeLabel_OnlyContainsParameterNameAndType()
+    {
+        var form = CreateForm(CreateDescriptor(new ScriptParameterDefinition(
+            "range",
+            "统计范围",
+            ScriptParameterType.Choice,
+            DefaultValue: "week")));
+        var field = form.Fields.Single();
+
+        Assert.AreEqual("range · Choice", field.TypeLabel);
+        Assert.DoesNotContain("脚本默认", field.TypeLabel);
+    }
+
+    [TestMethod]
     public void MetadataDefaults_InitializesFromMetadataAndOnlyWritesOverrides()
     {
         var form = CreateForm(

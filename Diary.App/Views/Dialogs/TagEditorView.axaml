@@ -31,9 +31,8 @@
         <Border Grid.Row="0" Classes="PageHeader">
             <Grid Classes="PageHeading" ColumnDefinitions="Auto,*">
                 <TextBlock Text="{Binding Title}" Classes="PageTitle" />
-                <i:Icon Grid.Column="1" Value="mdi-information-outline" FontSize="17"
-                        Classes="PageSubtitleIcon" HorizontalAlignment="Left"
-                        ToolTip.Tip="管理标签、元数据、Tracker 自动化操作和附加字段。左侧选择标签，右侧完成详细配置。" />
+                <TextBlock Grid.Column="1" Text="标签、元数据、自动化与附加字段"
+                           Classes="PageSubtitle" />
             </Grid>
         </Border>
 
@@ -151,9 +150,8 @@
                             <TextBlock Text="{Binding SelectedTag.Name}"
                                        FontSize="20"
                                        FontWeight="SemiBold" />
-                            <i:Icon Grid.Column="1" Value="mdi-information-outline" FontSize="16"
-                                    Classes="SectionDescriptionIcon" HorizontalAlignment="Left"
-                                    ToolTip.Tip="编辑当前标签的配置" />
+                            <TextBlock Grid.Column="1" Text="编辑标签配置"
+                                       Classes="SectionDescription" />
                         </Grid>
                         <TextBlock Grid.Column="1"
                                    Text="{Binding SelectedTag.Id, StringFormat='标签 #{0}'}"

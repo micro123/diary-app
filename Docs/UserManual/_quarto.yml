@@ -17,8 +17,8 @@ format:
     toc: true
     number-sections: true
     papersize: a4
-    mainfont: Noto Sans SC
-    monofont: Cascadia Mono
+    mainfont: Noto Sans CJK SC
+    monofont: Noto Sans Mono CJK SC
     fontsize: 10pt
     margin:
       x: 16mm

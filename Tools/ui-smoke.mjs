@@ -325,6 +325,10 @@ async function main() {
         const tagEditor = await waitForTree(current => current.entries.find(
             entry => typeOf(entry).includes('TagEditorView')));
         tree = tagEditor.tree;
+        for (const text of ['标签、元数据、自动化与附加字段', '编辑标签配置']) {
+            if (!findByText(tree, text))
+                throw new Error('标签编辑器缺少直接显示的说明：' + text);
+        }
         const tagNameInput = findByName(tree, 'TagNameInput');
         if (!tagNameInput)
             throw new Error('找不到标签名称输入框');
