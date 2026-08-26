@@ -19,5 +19,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Diary.Update\Diary.Update.csproj" />
+    <ProjectReference Include="..\Diary.Utils\Diary.Utils.csproj" />
   </ItemGroup>
 </Project>

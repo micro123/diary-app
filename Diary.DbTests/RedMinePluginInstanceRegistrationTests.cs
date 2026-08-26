@@ -96,6 +96,12 @@ public sealed class RedMinePluginInstanceRegistrationTests
 
         try
         {
+            var configRoot = Diary.Utils.FsTools.GetApplicationConfigDirectory();
+            var testRoot = Environment.GetEnvironmentVariable("DIARY_TEST_APPLICATION_ROOT");
+            Assert.IsFalse(string.IsNullOrWhiteSpace(testRoot));
+            Assert.IsTrue(Path.GetFullPath(configRoot).StartsWith(
+                Path.GetFullPath(testRoot!),
+                StringComparison.Ordinal));
             Assert.IsTrue(EasySaveLoad.SaveJson(seed, package));
             var configuration = (RedMinePluginConfig)new Diary.App.PluginConfigurationLoader()
                 .Load(new RedMinePlugin());
@@ -109,6 +115,8 @@ public sealed class RedMinePluginInstanceRegistrationTests
             var path = Path.Combine(Diary.Utils.FsTools.GetApplicationConfigDirectory(), "redmine_settings.json");
             if (File.Exists(path))
                 File.Delete(path);
+            if (File.Exists(path + ".bak"))
+                File.Delete(path + ".bak");
         }
     }
 }

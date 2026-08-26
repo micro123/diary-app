@@ -1,0 +1,6 @@
+<Project>
+  <ItemGroup Condition="$([System.String]::Copy('$(MSBuildProjectName)').EndsWith('Tests'))">
+    <Compile Include="$(MSBuildThisFileDirectory)Tests.Shared/TestApplicationRoot.cs"
+             Link="TestApplicationRoot.cs" />
+  </ItemGroup>
+</Project>
