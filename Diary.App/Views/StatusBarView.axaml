@@ -26,6 +26,17 @@
                     <SolidColorBrush x:Key="NotificationPanelBorderBrush" Color="#FF44474F" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
+            <ControlTheme x:Key="NotificationCenterFlyoutPresenterTheme"
+                          TargetType="FlyoutPresenter">
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+                    </ControlTemplate>
+                </Setter>
+            </ControlTheme>
         </ResourceDictionary>
     </UserControl.Resources>
     <Border Background="{DynamicResource WindowDefaultBackground}"
@@ -285,7 +296,8 @@
                         </Border>
                     </Grid>
                     <Button.Flyout>
-                        <Flyout ShowMode="Standard" Placement="TopEdgeAlignedRight">
+                        <Flyout ShowMode="Standard" Placement="TopEdgeAlignedRight"
+                                FlyoutPresenterTheme="{StaticResource NotificationCenterFlyoutPresenterTheme}">
                             <Border Name="NotificationCenterPanel"
                                     Width="400"
                                     MaxHeight="500"

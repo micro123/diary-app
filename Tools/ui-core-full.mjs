@@ -173,8 +173,16 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
             if (!panel || !emptyState || !isVisible(panel) || !isVisible(emptyState))
                 return null;
             const bounds = boundsOf(emptyState);
-            return bounds.width > 0 && bounds.height > 0 ? emptyState : null;
+            return bounds.width > 0 && bounds.height > 0 ? { panel, emptyState } : null;
         }, 3000, '通知中心没有显示有效内容');
+        const presenter = ancestor(notificationCenter.tree, notificationCenter.value.panel,
+            entry => typeOf(entry).includes('FlyoutPresenter'));
+        assertUi(presenter, '通知中心缺少 Flyout Presenter');
+        const panelBounds = boundsOf(notificationCenter.value.panel);
+        const presenterBounds = boundsOf(presenter);
+        assertUi(Math.abs(panelBounds.width - presenterBounds.width) <= 1
+            && Math.abs(panelBounds.height - presenterBounds.height) <= 1,
+        '通知中心 Flyout Presenter 仍保留额外边框或内边距');
         await connection.pressKey('Escape', 'Escape', 27);
         await connection.clickByName('Version');
         const versionMenu = await connection.waitForTree(current => {
@@ -186,7 +194,7 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         return {
             version: textOf(findByName(tree, 'Version')),
             dateText: textOf(statusDate),
-            notificationCenterEmptyBounds: notificationCenter.value.a.Bounds,
+            notificationCenterEmptyBounds: notificationCenter.value.emptyState.a.Bounds,
             updateShortcut: textOf(versionMenu.value),
         };
     });
