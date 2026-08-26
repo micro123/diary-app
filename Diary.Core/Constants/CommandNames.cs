@@ -3,6 +3,8 @@ namespace Diary.Core.Constants;
 public static class CommandNames
 {
     public const string ShowDbSettings = "SHOW_DB_SETTINGS";
+    public const string ShowTrackerSettings = "SHOW_TRACKER_SETTINGS";
+    public const string OpenCurrentLog = "OPEN_CURRENT_LOG";
     public const string BackupDatabase = "BACKUP_DATABASE";
     public const string RestoreDatabase = "RESTORE_DATABASE";
     public const string ShowMigrateGuide = "SHOW_MIGRATE_GUIDE";

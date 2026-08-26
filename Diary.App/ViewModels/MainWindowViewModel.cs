@@ -16,6 +16,7 @@ using Diary.Database;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
+using Diary.PluginBase;
 using Diary.Script.Runtime;
 using Diary.Update;
 using Diary.Utils;
@@ -46,6 +47,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly StatusBarViewModel _statusBarViewModel;
     private readonly IServiceProvider _serviceProvider;
     private readonly TrackerPluginLifecycleCoordinator _lifecycle;
+    private readonly AppStatusService _appStatus;
     private readonly UserManualService _userManualService;
     private readonly ILogger _logger;
     private IReadOnlyList<NavigateInfo> _fixedPages;
@@ -82,6 +84,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _serviceProvider = serviceProvider;
         _logger = logger;
         _lifecycle = serviceProvider.GetRequiredService<TrackerPluginLifecycleCoordinator>();
+        _appStatus = serviceProvider.GetRequiredService<AppStatusService>();
         _userManualService = serviceProvider.GetRequiredService<UserManualService>();
 
         // 导航可扩展：固定核心页面 + tracker 贡献页；设置通过标题栏对话框打开。
@@ -90,6 +93,7 @@ public partial class MainWindowViewModel : ViewModelBase
         Pages = new ObservableCollection<NavigateInfo>(_fixedPages);
         RefreshTrackerPages();
         _statusBarViewModel = _serviceProvider.GetRequiredService<StatusBarViewModel>();
+        RefreshPersistentStatus();
 
         SelectedPage = Pages[0];
 
@@ -129,11 +133,16 @@ public partial class MainWindowViewModel : ViewModelBase
                 Pages.Add(page);
             RefreshTrackerPages();
             SelectedPage = Pages.FirstOrDefault(x => x.Name == selectedName) ?? _fixedPages[0];
+            RefreshPersistentStatus();
             _logger.LogDebug("config updated, tracker navigation rebuilt: {Count} pages", Pages.Count);
         });
 
         Messenger.Register<NotifyEvent>(this, (r, m) =>
         {
+            _appStatus.ShowMessage(
+                m.Value.Title,
+                ResolveMessageLevel(m.Value.Title),
+                m.Value.Body);
             PostUiAsync(async () =>
             {
                 var evt = m.Value;
@@ -159,7 +168,11 @@ public partial class MainWindowViewModel : ViewModelBase
 
         Messenger.Register<RunCommandEvent>(this, (r, m) => { ExecuteSettingCommand(m.Value); });
 
-        Messenger.Register<ToastEvent>(this, (r, m) => { ToastManager?.Show(m.Value, m.Type); });
+        Messenger.Register<ToastEvent>(this, (r, m) =>
+        {
+            ToastManager?.Show(m.Value, m.Type);
+            _appStatus.ShowMessage(m.Value, ResolveMessageLevel(m.Type));
+        });
 
         Messenger.Register<ConfirmRequest<ConfirmMessage, bool>>(this, async (r, m) =>
         {
@@ -307,6 +320,12 @@ public partial class MainWindowViewModel : ViewModelBase
                     }
                 }, "数据库设置");
                 return;
+            case CommandNames.ShowTrackerSettings:
+                ShowTrackerSettings();
+                return;
+            case CommandNames.OpenCurrentLog:
+                OpenCurrentLog();
+                return;
             case CommandNames.BackupDatabase:
                 PostUiAsync(BackupDatabaseAsync, "备份数据库");
                 return;
@@ -398,6 +417,137 @@ public partial class MainWindowViewModel : ViewModelBase
         throw new ArgumentOutOfRangeException(nameof(cmd));
     }
 
+    private void RefreshPersistentStatus()
+    {
+        RefreshDatabaseStatus();
+        RefreshTrackerStatus();
+    }
+
+    private void RefreshDatabaseStatus()
+    {
+        var driver = App.Instance.UseFactory?.Name
+            ?? App.Instance.AppConfig.DbSettings.DatabaseDriver
+            ?? "数据库";
+        if (App.Instance.DatabaseOk && App.Instance.UseDb is not null)
+        {
+            _appStatus.SetDatabase(new AppStatusItem(
+                driver,
+                $"已连接 {driver} 数据库。点击打开数据库设置。",
+                AppStatusLevel.Success));
+            return;
+        }
+
+        var detail = string.IsNullOrWhiteSpace(App.Instance.DatabaseStatusMessage)
+            ? $"{driver} 数据库未连接。点击打开数据库设置。"
+            : App.Instance.DatabaseStatusMessage;
+        _appStatus.SetDatabase(new AppStatusItem(
+            $"{driver} 不可用",
+            detail,
+            AppStatusLevel.Error));
+    }
+
+    private void RefreshTrackerStatus()
+    {
+        var snapshot = _serviceProvider.GetRequiredService<TrackerPluginDiagnosticsService>()
+            .GetSnapshot();
+        var instances = snapshot.Where(entry => entry.InstanceId is not null).ToArray();
+        var pluginFailures = snapshot.Where(entry => entry.PluginState is
+            PluginState.Blocked or
+            PluginState.MigrationFailed or
+            PluginState.ConfigurationMigrationFailed).ToArray();
+
+        if (instances.Length == 0)
+        {
+            var hasFailure = pluginFailures.Length > 0;
+            _appStatus.SetTracker(new AppStatusItem(
+                hasFailure ? "Tracker 异常" : "Tracker 未配置",
+                hasFailure
+                    ? BuildTrackerDetail(pluginFailures)
+                    : "尚未配置 Tracker 实例。点击打开 Tracker 设置。",
+                hasFailure ? AppStatusLevel.Error : AppStatusLevel.Information));
+            return;
+        }
+
+        var enabled = instances.Count(entry => entry.InstanceState == TrackerInstanceState.Enabled);
+        var failures = instances.Where(entry => entry.InstanceState is
+            TrackerInstanceState.NotConfigured or
+            TrackerInstanceState.MigrationFailed or
+            TrackerInstanceState.ConnectionFailed or
+            TrackerInstanceState.Blocked).ToArray();
+        var level = failures.Length > 0
+            ? AppStatusLevel.Error
+            : enabled == instances.Length
+                ? AppStatusLevel.Success
+                : AppStatusLevel.Warning;
+        var text = enabled == 0 && failures.Length == 0
+            ? "Tracker 未启用"
+            : $"Tracker {enabled}/{instances.Length}";
+        _appStatus.SetTracker(new AppStatusItem(
+            text,
+            BuildTrackerDetail(instances),
+            level));
+    }
+
+    private static string BuildTrackerDetail(IEnumerable<TrackerPluginDiagnosticEntry> entries)
+    {
+        var details = entries.Select(entry =>
+        {
+            var name = entry.DisplayName ?? entry.PluginId;
+            var state = entry.InstanceState switch
+            {
+                TrackerInstanceState.Enabled => "已启用",
+                TrackerInstanceState.Disabled => "已禁用",
+                TrackerInstanceState.NotConfigured => "未配置",
+                TrackerInstanceState.MigrationFailed => "迁移失败",
+                TrackerInstanceState.ConnectionFailed => "连接失败",
+                TrackerInstanceState.Blocked => "不可用",
+                _ => entry.PluginState.ToString(),
+            };
+            return string.IsNullOrWhiteSpace(entry.Error)
+                ? $"{name}：{state}"
+                : $"{name}：{state}（{entry.Error}）";
+        });
+        return string.Join("\n", details.Append("点击打开 Tracker 设置。"));
+    }
+
+    private static AppStatusLevel ResolveMessageLevel(NotificationType type) => type switch
+    {
+        NotificationType.Success => AppStatusLevel.Success,
+        NotificationType.Warning => AppStatusLevel.Warning,
+        NotificationType.Error => AppStatusLevel.Error,
+        _ => AppStatusLevel.Information,
+    };
+
+    private static AppStatusLevel ResolveMessageLevel(string title)
+        => title.Contains("失败", StringComparison.Ordinal)
+            || title.Contains("错误", StringComparison.Ordinal)
+            ? AppStatusLevel.Error
+            : title.Contains("警告", StringComparison.Ordinal)
+                || title.Contains("不可用", StringComparison.Ordinal)
+                ? AppStatusLevel.Warning
+                : AppStatusLevel.Information;
+
+    private void OpenCurrentLog()
+    {
+        try
+        {
+            var path = _serviceProvider.GetRequiredService<DiagnosticLogExportService>()
+                .GetCurrentLogFile();
+            if (path is null)
+            {
+                EventDispatcher.ShowToast("没有可打开的日志");
+                return;
+            }
+
+            ProcUtils.OpenFileCrossPlatform(path);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "从状态栏打开当前日志失败");
+            EventDispatcher.ShowToast("打开当前日志失败", NotificationType.Error);
+        }
+    }
+
     private async Task CheckForUpdatesAsync(bool automatic)
     {
         if (automatic)
@@ -405,14 +555,37 @@ public partial class MainWindowViewModel : ViewModelBase
         else
             EventDispatcher.ShowToast("正在检查更新…");
 
-        var result = await _serviceProvider.GetRequiredService<AppUpdateService>()
-            .CheckAsync(App.Instance.AppConfig.UpdateSettings);
+        _appStatus.SetUpdate(new AppStatusItem(
+            "正在检查更新",
+            "正在连接更新服务器并读取最新版本。",
+            AppStatusLevel.Information));
+        UpdateCheckResult result;
+        using (var statusTask = _appStatus.BeginTask("检查更新", "正在连接更新服务器…"))
+        {
+            try
+            {
+                result = await _serviceProvider.GetRequiredService<AppUpdateService>()
+                    .CheckAsync(App.Instance.AppConfig.UpdateSettings);
+            }
+            catch (Exception exception)
+            {
+                _appStatus.SetUpdate(new AppStatusItem(
+                    "更新检查失败",
+                    exception.Message,
+                    AppStatusLevel.Error));
+                throw;
+            }
+        }
         switch (result.Status)
         {
             case UpdateCheckStatus.UpdateAvailable:
                 {
                     var manifest = result.Envelope!.Manifest;
                     var package = result.Envelope.FullPackage;
+                    _appStatus.SetUpdate(new AppStatusItem(
+                        $"可更新 {manifest.VersionId}",
+                        $"目标序号 {manifest.Sequence}，完整包上限 {FormatSize(package.Size)}。点击重新检查或开始更新。",
+                        AppStatusLevel.Warning));
                     var confirmed = await EventDispatcher.Confirm(
                         "发现新版本",
                         $"当前版本：{AppInfo.AppVersionString}\n"
@@ -427,7 +600,32 @@ public partial class MainWindowViewModel : ViewModelBase
                     try
                     {
                         var updateService = _serviceProvider.GetRequiredService<AppUpdateService>();
-                        var prepared = await updateService.PrepareAsync(result);
+                        using var statusTask = _appStatus.BeginTask("准备应用更新", "正在比较本地文件…");
+                        var progress = new InlineProgress<UpdateDownloadProgress>(value =>
+                        {
+                            var fraction = value.TotalBytes <= 0
+                                ? (double?)null
+                                : Math.Clamp((double)value.BytesReceived / value.TotalBytes, 0, 1);
+                            var detail = value.TotalBytes <= 0
+                                ? $"已下载 {FormatSize(value.BytesReceived)}"
+                                : $"已下载 {FormatSize(value.BytesReceived)} / {FormatSize(value.TotalBytes)}";
+                            statusTask.Report(fraction, detail);
+                            _appStatus.SetUpdate(new AppStatusItem(
+                                fraction is null ? "正在下载更新" : $"正在下载 {fraction:P0}",
+                                detail,
+                                AppStatusLevel.Information));
+                        });
+                        var prepared = await updateService.PrepareAsync(result, progress);
+                        var mode = prepared.DownloadMode == UpdateDownloadMode.Incremental
+                            ? "增量"
+                            : "完整包";
+                        var changedFiles = prepared.AddCount + prepared.ReplaceCount + prepared.DeleteCount;
+                        var preparedDetail = $"{mode} · {changedFiles} 个文件 · {FormatSize(prepared.DownloadSize)}";
+                        statusTask.Report(1, preparedDetail);
+                        _appStatus.SetUpdate(new AppStatusItem(
+                            "更新已准备",
+                            preparedDetail,
+                            AppStatusLevel.Success));
                         if (prepared.PreservedConflicts.Count > 0)
                         {
                             EventDispatcher.Notify(
@@ -441,31 +639,56 @@ public partial class MainWindowViewModel : ViewModelBase
                     }
                     catch (OperationCanceledException)
                     {
+                        _appStatus.SetUpdate(new AppStatusItem(
+                            "更新已取消",
+                            "更新下载或准备过程已取消。",
+                            AppStatusLevel.Warning));
                         EventDispatcher.ShowToast("更新已取消", NotificationType.Warning);
                     }
                     catch (Exception exception)
                     {
                         _logger.LogError(exception, "下载或准备应用更新失败");
+                        _appStatus.SetUpdate(new AppStatusItem(
+                            "更新准备失败",
+                            exception.Message,
+                            AppStatusLevel.Error));
                         EventDispatcher.Notify("更新准备失败", exception.Message);
                     }
                     return;
                 }
             case UpdateCheckStatus.UpToDate:
+                _appStatus.SetUpdate(null);
                 if (!automatic)
                     EventDispatcher.ShowToast("当前已是最新版本", NotificationType.Success);
                 return;
             case UpdateCheckStatus.NoPublishedVersion:
+                _appStatus.SetUpdate(new AppStatusItem(
+                    "没有可用版本",
+                    "更新服务器没有当前平台和包类型的发布快照。",
+                    AppStatusLevel.Warning));
                 if (!automatic)
                     EventDispatcher.ShowToast("更新服务器没有当前平台和包类型的发布快照", NotificationType.Warning);
                 return;
             case UpdateCheckStatus.UnsupportedUpdater:
+                _appStatus.SetUpdate(new AppStatusItem(
+                    "更新器不兼容",
+                    result.Error ?? "当前更新器协议版本过低。",
+                    AppStatusLevel.Error));
                 EventDispatcher.Notify("暂时无法更新", result.Error ?? "当前更新器协议版本过低。");
                 return;
             case UpdateCheckStatus.TemporarilyUnavailable:
+                _appStatus.SetUpdate(new AppStatusItem(
+                    "更新服务不可用",
+                    result.Error ?? "更新服务器暂时不可用。",
+                    AppStatusLevel.Warning));
                 if (!automatic)
                     EventDispatcher.ShowToast(result.Error ?? "更新服务器暂时不可用", NotificationType.Warning);
                 return;
             case UpdateCheckStatus.InvalidResponse:
+                _appStatus.SetUpdate(new AppStatusItem(
+                    "更新响应无效",
+                    result.Error ?? "更新服务器响应无效。",
+                    AppStatusLevel.Error));
                 if (!automatic)
                     EventDispatcher.Notify("检查更新失败", result.Error ?? "更新服务器响应无效。");
                 return;
@@ -480,6 +703,11 @@ public partial class MainWindowViewModel : ViewModelBase
         return bytes >= megabyte
             ? $"{bytes / megabyte:F1} MiB"
             : $"{bytes / 1024d:F1} KiB";
+    }
+
+    private sealed class InlineProgress<T>(Action<T> callback) : IProgress<T>
+    {
+        public void Report(T value) => callback(value);
     }
 
     private async Task BackupDatabaseAsync()
@@ -519,6 +747,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (file is null)
             return;
 
+        using var statusTask = _appStatus.BeginTask("备份数据库", "正在创建数据库备份…");
         var result = await Task.Run(() => provider.CreateBackup(file.Path.LocalPath));
         if (!result.Success)
         {
@@ -565,9 +794,13 @@ public partial class MainWindowViewModel : ViewModelBase
         if (file is null)
             return;
 
-        var validation = await Task.Run(() => provider.ValidateBackup(
-            file.Path.LocalPath,
-            DataVersion.VersionCode));
+        DbBackupValidationResult validation;
+        using (var statusTask = _appStatus.BeginTask("验证数据库备份", "正在读取并校验备份文件…"))
+        {
+            validation = await Task.Run(() => provider.ValidateBackup(
+                file.Path.LocalPath,
+                DataVersion.VersionCode));
+        }
         if (!validation.Success)
         {
             EventDispatcher.Notify("备份无效", validation.Error ?? "所选文件不是可还原的数据库备份。");
@@ -613,6 +846,11 @@ public partial class MainWindowViewModel : ViewModelBase
             catch (Exception ex)
             {
                 _logger.LogError(ex, "UI operation failed: {Operation}", operation);
+                _appStatus.ShowMessage(
+                    $"{operation}失败",
+                    AppStatusLevel.Error,
+                    ex.Message,
+                    TimeSpan.FromSeconds(15));
             }
         });
     }
@@ -777,11 +1015,13 @@ public partial class MainWindowViewModel : ViewModelBase
             if (selection is null || selection.Decisions.Count == 0)
                 return;
 
+            using var statusTask = _appStatus.BeginTask("导入脚本扩展", "正在写入脚本并重新加载…");
             var result = await sharePackageService.ImportAsync(
                 preview,
                 scriptRoot,
                 selection.Decisions,
                 existing);
+            statusTask.Report(0.75, "脚本已写入，正在重新加载…");
             var reloaded = await loadState.ReloadAsync(scriptRoot);
             _serviceProvider.GetRequiredService<ScriptAutomationScheduler>().ApplyLoadResult(reloaded);
 
@@ -790,6 +1030,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 .ToHashSet(StringComparer.Ordinal);
             if (CurrentPageModel is ScriptManagementViewModel scriptManagement)
                 await scriptManagement.RefreshAfterImportAsync(importedIds);
+            statusTask.Report(1, "导入完成");
 
             EventDispatcher.Notify(
                 "脚本扩展导入完成",

@@ -4,23 +4,22 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:viewModels="clr-namespace:Diary.App.ViewModels"
              xmlns:i="https://github.com/projektanker/icons.avalonia"
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             mc:Ignorable="d"
+             d:DesignWidth="1000"
+             d:DesignHeight="34"
              x:Class="Diary.App.Views.StatusBarView"
              x:DataType="viewModels:StatusBarViewModel"
              Height="34">
-    <Design.DataContext>
-        <viewModels:StatusBarViewModel/>
-    </Design.DataContext>
     <Border Background="{DynamicResource WindowDefaultBackground}"
             BorderBrush="{DynamicResource SemiColorBorder}"
             BorderThickness="0 1 0 0">
-        <DockPanel Margin="8 0">
-            <DockPanel.Styles>
+        <Grid Margin="6 0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="2">
+            <Grid.Styles>
                 <Style Selector="Button.StatusItem">
                     <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
                     <Setter Property="Height" Value="28" />
                     <Setter Property="MinWidth" Value="28" />
-                    <Setter Property="Padding" Value="8 2" />
+                    <Setter Property="Padding" Value="6 2" />
                     <Setter Property="Background" Value="Transparent" />
                     <Style Selector="^:pointerover">
                         <Setter Property="Background" Value="{DynamicResource SemiColorFill2}" />
@@ -30,42 +29,154 @@
                     <Setter Property="Spacing" Value="5" />
                 </Style>
                 <Style Selector="Button.StatusItem i|Icon">
-                    <Setter Property="FontSize" Value="16" />
+                    <Setter Property="FontSize" Value="15" />
                 </Style>
                 <Style Selector="Button.StatusItem TextBlock">
                     <Setter Property="FontSize" Value="12" />
                     <Setter Property="VerticalAlignment" Value="Center" />
                 </Style>
-            </DockPanel.Styles>
+                <Style Selector="Border.StatusDot">
+                    <Setter Property="Width" Value="7" />
+                    <Setter Property="Height" Value="7" />
+                    <Setter Property="CornerRadius" Value="4" />
+                    <Setter Property="Background" Value="{DynamicResource SemiColorText2}" />
+                </Style>
+                <Style Selector="Border.StatusDot.StatusInfo">
+                    <Setter Property="Background" Value="#4C8ED9" />
+                </Style>
+                <Style Selector="Border.StatusDot.StatusSuccess">
+                    <Setter Property="Background" Value="#45A675" />
+                </Style>
+                <Style Selector="Border.StatusDot.StatusWarning">
+                    <Setter Property="Background" Value="#D99A22" />
+                </Style>
+                <Style Selector="Border.StatusDot.StatusError">
+                    <Setter Property="Background" Value="#D96767" />
+                </Style>
+            </Grid.Styles>
 
-            <Button DockPanel.Dock="Left" Classes="StatusItem"
-                    ToolTip.Tip="查看源代码" Command="{Binding OpenSourceUrlCommand}">
-                <i:Icon Value="mdi-github" />
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="2">
+                <Button Name="DatabaseStatus"
+                        Classes="StatusItem"
+                        ToolTip.Tip="{Binding Database.Detail}"
+                        Command="{Binding OpenDatabaseSettingsCommand}">
+                    <StackPanel Orientation="Horizontal">
+                        <Border Classes="StatusDot"
+                                Classes.StatusInfo="{Binding Database.IsInformation}"
+                                Classes.StatusSuccess="{Binding Database.IsSuccess}"
+                                Classes.StatusWarning="{Binding Database.IsWarning}"
+                                Classes.StatusError="{Binding Database.IsError}" />
+                        <i:Icon Value="mdi-database-outline" />
+                        <TextBlock Text="{Binding Database.Text}"
+                                   MaxWidth="150"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Button>
+                <Button Name="TrackerStatus"
+                        Classes="StatusItem"
+                        ToolTip.Tip="{Binding Tracker.Detail}"
+                        Command="{Binding OpenTrackerSettingsCommand}">
+                    <StackPanel Orientation="Horizontal">
+                        <Border Classes="StatusDot"
+                                Classes.StatusInfo="{Binding Tracker.IsInformation}"
+                                Classes.StatusSuccess="{Binding Tracker.IsSuccess}"
+                                Classes.StatusWarning="{Binding Tracker.IsWarning}"
+                                Classes.StatusError="{Binding Tracker.IsError}" />
+                        <i:Icon Value="mdi-source-branch" />
+                        <TextBlock Text="{Binding Tracker.Text}"
+                                   MaxWidth="130"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+
+            <Button Grid.Column="1"
+                    Name="GlobalStatusMessage"
+                    Classes="StatusItem"
+                    HorizontalAlignment="Left"
+                    IsVisible="{Binding HasMessage}"
+                    ToolTip.Tip="{Binding Message.Detail}"
+                    Command="{Binding OpenCurrentLogCommand}">
+                <StackPanel Orientation="Horizontal">
+                    <Border Classes="StatusDot"
+                            Classes.StatusInfo="{Binding Message.IsInformation}"
+                            Classes.StatusSuccess="{Binding Message.IsSuccess}"
+                            Classes.StatusWarning="{Binding Message.IsWarning}"
+                            Classes.StatusError="{Binding Message.IsError}" />
+                    <TextBlock Text="{Binding Message.Text}"
+                               MaxWidth="360"
+                               TextTrimming="CharacterEllipsis" />
+                </StackPanel>
             </Button>
 
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2">
-                <Button Classes="StatusItem" ToolTip.Tip="查看后台任务"
-                        IsVisible="{Binding HasTasks}">
-                    <!-- TODO: 添加任务进度预览 -->
-                    <i:Icon Value="mdi-gauge" />
-                </Button>
-                <Border Width="1" Height="16" Margin="4 0"
-                        VerticalAlignment="Center"
-                        Background="{DynamicResource SemiColorBorder}"
-                        IsVisible="{Binding HasTasks}" />
-                <Button Classes="StatusItem" ToolTip.Tip="用户名">
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2">
+                <Button Name="BackgroundTaskStatus"
+                        Classes="StatusItem"
+                        IsVisible="{Binding HasTasks}"
+                        ToolTip.Tip="{Binding TaskSummary.Detail}">
                     <StackPanel Orientation="Horizontal">
-                        <i:Icon Value="mdi-account-outline" />
-                        <TextBlock Text="{Binding UserName}" />
+                        <Border Classes="StatusDot StatusInfo" />
+                        <i:Icon Value="mdi-progress-clock" />
+                        <TextBlock Text="{Binding TaskSummary.Text}"
+                                   MaxWidth="150"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <Button.Flyout>
+                        <Flyout ShowMode="Standard" PlacementGravity="BottomLeft">
+                            <Border MinWidth="300" MaxWidth="420" Padding="10">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="后台任务" FontWeight="SemiBold" />
+                                    <ItemsControl ItemsSource="{Binding Tasks}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="viewModels:StatusBarTaskItemViewModel">
+                                                <Grid RowDefinitions="Auto,Auto,Auto"
+                                                      ColumnDefinitions="*,Auto"
+                                                      Margin="0 2">
+                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                                    <TextBlock Grid.Column="1"
+                                                               Text="{Binding ProgressText}"
+                                                               IsVisible="{Binding HasProgress}" />
+                                                    <TextBlock Grid.Row="1"
+                                                               Grid.ColumnSpan="2"
+                                                               Text="{Binding Detail}"
+                                                               Foreground="{DynamicResource SemiColorText2}"
+                                                               TextWrapping="Wrap" />
+                                                    <ProgressBar Grid.Row="2"
+                                                                 Grid.ColumnSpan="2"
+                                                                 Margin="0 4 0 0"
+                                                                 Height="4"
+                                                                 Maximum="100"
+                                                                 Value="{Binding ProgressValue}"
+                                                                 IsVisible="{Binding HasProgress}" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+
+                <Button Name="UpdateStatus"
+                        Classes="StatusItem"
+                        IsVisible="{Binding HasUpdate}"
+                        ToolTip.Tip="{Binding Update.Detail}"
+                        Command="{Binding CheckForUpdatesCommand}">
+                    <StackPanel Orientation="Horizontal">
+                        <Border Classes="StatusDot"
+                                Classes.StatusInfo="{Binding Update.IsInformation}"
+                                Classes.StatusSuccess="{Binding Update.IsSuccess}"
+                                Classes.StatusWarning="{Binding Update.IsWarning}"
+                                Classes.StatusError="{Binding Update.IsError}" />
+                        <i:Icon Value="mdi-update" />
+                        <TextBlock Text="{Binding Update.Text}"
+                                   MaxWidth="170"
+                                   TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                 </Button>
-                <Button Classes="StatusItem" ToolTip.Tip="计算机名称">
-                    <StackPanel Orientation="Horizontal">
-                        <i:Icon Value="mdi-desktop-classic" />
-                        <TextBlock Text="{Binding ComputerName}" />
-                    </StackPanel>
-                </Button>
-                <Button Classes="StatusItem" ToolTip.Tip="当前日期">
+
+                <Button Name="StatusDate" Classes="StatusItem" ToolTip.Tip="打开日历">
                     <StackPanel Orientation="Horizontal">
                         <i:Icon Value="mdi-calendar-month-outline" />
                         <TextBlock Text="{Binding Date}" />
@@ -77,8 +188,6 @@
                     </Button.Flyout>
                 </Button>
             </StackPanel>
-
-            <Rectangle />
-        </DockPanel>
+        </Grid>
     </Border>
 </UserControl>

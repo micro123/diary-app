@@ -89,7 +89,7 @@ public class ViewModelBase : ObservableObject, IDisposable
     public virtual void OnShow() { }
     public virtual Task PreloadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-    public virtual void Cleanup()
+    protected virtual void Cleanup()
     {
         if (!_disposed)
         {

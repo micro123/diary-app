@@ -117,6 +117,8 @@ function percentile(values, ratio) {
 
 function isCurrentDateText(value, date) {
     const parts = value.match(/\d+/g)?.map(Number);
+    if (parts?.length === 2)
+        return parts[0] === date.getMonth() + 1 && parts[1] === date.getDate();
     if (parts?.length !== 3)
         return false;
     const year = date.getFullYear();
@@ -155,6 +157,9 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
             assertUi(findByText(tree, text), '缺少主导航：' + text);
         assertUi(findByName(tree, 'StatusBarView'), '状态栏不可见');
         assertUi(findByName(tree, 'Version'), '版本入口不可见');
+        assertUi(findByName(tree, 'DatabaseStatus'), '状态栏缺少数据库状态');
+        assertUi(findByName(tree, 'TrackerStatus'), '状态栏缺少 Tracker 状态');
+        assertUi(findByName(tree, 'StatusDate'), '状态栏缺少日期入口');
         const now = new Date();
         const statusBar = findByName(tree, 'StatusBarView');
         const statusDate = [statusBar, ...descendants(tree, statusBar)]

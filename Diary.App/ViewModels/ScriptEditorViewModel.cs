@@ -533,7 +533,7 @@ public partial class ScriptEditorViewModel(
         }
     }
 
-    public override void Cleanup()
+    protected override void Cleanup()
     {
         _languageAnalysisCancellation?.Cancel();
         _languageAnalysisCancellation?.Dispose();

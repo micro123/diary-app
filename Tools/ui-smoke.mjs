@@ -450,7 +450,9 @@ async function main() {
         const timeInput = findByName(tree, 'WorkTimeInput');
         if (!timeInput)
             throw new Error('找不到统一耗时输入框 WorkTimeInput');
-        if (findByName(tree, 'WorkTimeExpressionInput') || findByText(tree, '时间输入：') || findByText(tree, '应用'))
+        if (findByName(tree, 'WorkTimeExpressionInput')
+            || findByText(tree, '时间输入：', entry => hasAncestorType(tree, entry, 'WorkEditorView'))
+            || findByText(tree, '应用', entry => hasAncestorType(tree, entry, 'WorkEditorView')))
             throw new Error('耗时仍使用两个输入框或保留了旧应用入口');
         started = performance.now();
         await replaceText(timeInput, '1h30m');
