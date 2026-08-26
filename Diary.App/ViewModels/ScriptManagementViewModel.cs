@@ -72,6 +72,10 @@ public sealed record ScriptListItem(
 
     public string ApiVersionDescription => $"脚本 API {ApiVersionLabel}";
 
+    public bool IsApiV1 => ApiVersion == ScriptApiVersion.V1;
+
+    public bool IsApiV2OrLater => ApiVersion != ScriptApiVersion.V1;
+
     public string ScopeLabel => Scope switch
     {
         ScriptScope.Application => "应用脚本",

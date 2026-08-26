@@ -475,6 +475,8 @@ await runUiSuite({ name: 'ui-extended-full', scenario: 'extended', timeoutMs: 12
                 .find(entry => nameOf(entry) === 'ScriptApiVersionBadge');
             assertUi(versionBadge && Number(versionBadge.a.Width) >= 30 && Number(versionBadge.a.Height) >= 18,
                 '脚本 API 版本标识缺少圆角矩形背景容器：' + item.name);
+            assertUi(String(versionBadge.a.Class ?? '').includes('StatusInfo'),
+                'V2 脚本没有使用蓝色信息徽标：' + item.name);
         }
         await activateText(connection, 'ScriptManagementView', '重新加载');
         const reloaded = await connection.waitForTree(current => findByTextContains(current, '已加载 3 个脚本'),
@@ -534,6 +536,9 @@ await runUiSuite({ name: 'ui-extended-full', scenario: 'extended', timeoutMs: 12
         const runLogTextBox = findByName(tree, 'ScriptRunLogTextBox');
         assertUi(runLogTextBox && typeOf(runLogTextBox).includes('TextBox'),
             '运行日志没有使用可选择复制的只读文本框');
+        const runLogBounds = boundsOf(runLogTextBox);
+        assertUi(runLogBounds.height >= boundsOf(root).height * 0.5,
+            '运行日志文本框没有纵向扩展到页签剩余空间');
         tree = await connection.getTree();
         root = rootOf(tree, 'ScriptManagementView');
         tabText = textWithin(tree, root, '诊断详情');
@@ -544,7 +549,7 @@ await runUiSuite({ name: 'ui-extended-full', scenario: 'extended', timeoutMs: 12
         tabText = textWithin(tree, root, '目录诊断');
         await connection.clickNode(ancestor(tree, tabText, entry => typeOf(entry).includes('TabItem')));
         await delay(80);
-        return { historyVisible: true, logsVisible: true };
+        return { historyVisible: true, logsVisible: true, runLogBounds };
     });
 
     await runStep('scripts.delete-confirm', '脚本删除取消与确认', async () => {

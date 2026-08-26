@@ -61,6 +61,11 @@ public sealed class ScriptListItemTests
         Assert.AreEqual("V2", descriptorV2.ApiVersionLabel);
         Assert.AreEqual("V3", future.ApiVersionLabel);
         Assert.AreEqual("脚本 API V3", future.ApiVersionDescription);
+        Assert.IsTrue(legacy.IsApiV1);
+        Assert.IsFalse(legacy.IsApiV2OrLater);
+        Assert.IsFalse(metadataV2.IsApiV1);
+        Assert.IsTrue(metadataV2.IsApiV2OrLater);
+        Assert.IsTrue(future.IsApiV2OrLater);
     }
 
     [TestMethod]
