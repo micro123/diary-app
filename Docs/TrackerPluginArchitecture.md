@@ -635,6 +635,14 @@ public interface ITrackerConfigurationProvider
 
 敏感配置由 `PluginConfigurationLoader` 整体加密保存，UI 仅显示遮罩；Tracker API 日志不得记录响应正文、请求头、API Key 或 Token，只允许记录状态、数量、实例身份和远程对象 ID 等结构化摘要。管理页导入或修改本地 Tracker 数据后必须发送对应 `DbChangedEvent`，让编辑器选项和共享数据源即时刷新。
 
+### 12.1 配置读取失败与恢复边界
+
+配置存储必须区分 `Missing`、`Loaded` 和 `Unreadable` 三种结果。只有首次确实不存在配置时，宿主才可以使用默认对象并在后续保存；文件存在但解密、认证、读取或 JSON 解析失败时，插件必须进入阻止状态，退出流程和设置页保存都不得用默认值覆盖原文件。
+
+每次成功替换配置前保留上一版同目录 `.bak` 文件。主文件缺失但备份可以解密和解析时，加载流程自动恢复主文件；主文件仍存在但不可读取时不自动覆盖，保留主文件和备份供诊断。AES-GCM 解密只允许读取现有 `.diary-master-key`，不能在已有加密配置无法解密时创建新密钥；主密钥仅允许在首次写入加密配置时创建。
+
+所有 `*Tests` 测试程序集必须在模块初始化阶段调用 `FsTools.SetApplicationRootForCurrentProcess`，将 `config`、`data` 和 `temp` 隔离到独立临时 profile。测试不得备份后修改真实用户目录，也不得直接删除真实应用配置；进程崩溃或测试并行时仍须保持用户数据不可见。
+
 主程序负责：
 
 - 保存和加载插件配置。

@@ -6,6 +6,7 @@ using System.Text;
 namespace Diary.UtilTests;
 
 [TestClass]
+[DoNotParallelize]
 public sealed class SensitiveConfigurationTests
 {
     private const string FileName = "sensitive_configuration_tests.json";
@@ -16,6 +17,8 @@ public sealed class SensitiveConfigurationTests
         var path = Path.Combine(Diary.Utils.FsTools.GetApplicationConfigDirectory(), FileName);
         if (File.Exists(path))
             File.Delete(path);
+        if (File.Exists(path + ".bak"))
+            File.Delete(path + ".bak");
     }
 
     [TestMethod]
@@ -46,6 +49,61 @@ public sealed class SensitiveConfigurationTests
         File.WriteAllBytes(path, data);
 
         Assert.IsFalse(EasySaveLoad.Load(new SensitiveConfiguration()));
+    }
+
+    [TestMethod]
+    public void EncryptedConfiguration_TamperingCannotBeOverwritten()
+    {
+        Assert.IsTrue(EasySaveLoad.Save(new SensitiveConfiguration { ApiKey = "original-secret" }));
+        var path = Path.Combine(Diary.Utils.FsTools.GetApplicationConfigDirectory(), FileName);
+        var damaged = File.ReadAllBytes(path);
+        damaged[^1] ^= 0x01;
+        File.WriteAllBytes(path, damaged);
+
+        Assert.IsFalse(EasySaveLoad.Save(new SensitiveConfiguration { ApiKey = "replacement-secret" }));
+        CollectionAssert.AreEqual(damaged, File.ReadAllBytes(path));
+    }
+
+    [TestMethod]
+    public void EncryptedConfiguration_MissingPrimaryRestoresPreviousBackup()
+    {
+        Assert.IsTrue(EasySaveLoad.Save(new SensitiveConfiguration { ApiKey = "previous-secret" }));
+        Assert.IsTrue(EasySaveLoad.Save(new SensitiveConfiguration { ApiKey = "current-secret" }));
+        var path = Path.Combine(Diary.Utils.FsTools.GetApplicationConfigDirectory(), FileName);
+        Assert.IsTrue(File.Exists(path + ".bak"));
+        File.Delete(path);
+
+        var loaded = new SensitiveConfiguration();
+        Assert.IsTrue(EasySaveLoad.Load(loaded));
+        Assert.AreEqual("previous-secret", loaded.ApiKey);
+        Assert.IsTrue(File.Exists(path));
+    }
+
+    [TestMethod]
+    public void EncryptedConfiguration_MissingMasterKeyDoesNotCreateOrOverwrite()
+    {
+        Assert.IsTrue(EasySaveLoad.Save(new SensitiveConfiguration { ApiKey = "must-survive" }));
+        var configPath = Path.Combine(Diary.Utils.FsTools.GetApplicationConfigDirectory(), FileName);
+        var masterKeyPath = Path.Combine(
+            Diary.Utils.FsTools.GetApplicationConfigDirectory(),
+            ".diary-master-key");
+        var savedKeyPath = masterKeyPath + ".test-backup";
+        var originalConfig = File.ReadAllBytes(configPath);
+        File.Move(masterKeyPath, savedKeyPath, true);
+        EasySaveLoad.ResetMasterKeyCacheForTests();
+
+        try
+        {
+            Assert.IsFalse(EasySaveLoad.Load(new SensitiveConfiguration()));
+            Assert.IsFalse(EasySaveLoad.Save(new SensitiveConfiguration { ApiKey = "replacement" }));
+            Assert.IsFalse(File.Exists(masterKeyPath));
+            CollectionAssert.AreEqual(originalConfig, File.ReadAllBytes(configPath));
+        }
+        finally
+        {
+            File.Move(savedKeyPath, masterKeyPath, true);
+            EasySaveLoad.ResetMasterKeyCacheForTests();
+        }
     }
 
     [TestMethod]

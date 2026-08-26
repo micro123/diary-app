@@ -18,6 +18,8 @@ public sealed class PluginConfigurationLoaderTests
         var path = Path.Combine(Diary.Utils.FsTools.GetApplicationConfigDirectory(), TestFileName);
         if (File.Exists(path))
             File.Delete(path);
+        if (File.Exists(path + ".bak"))
+            File.Delete(path + ".bak");
     }
 
     [TestMethod]
@@ -86,6 +88,19 @@ public sealed class PluginConfigurationLoaderTests
             () => new PluginConfigurationLoader().Load(new FailingMigrationPlugin()));
 
         Assert.AreEqual(originalText, File.ReadAllText(path));
+    }
+
+    [TestMethod]
+    public void UnreadableConfiguration_BlocksLoadAndSaveWithoutChangingFile()
+    {
+        var path = Path.Combine(Diary.Utils.FsTools.GetApplicationConfigDirectory(), TestFileName);
+        const string damaged = "{not-json";
+        File.WriteAllText(path, damaged);
+        var plugin = new NonMigratingPlugin(new TestConfiguration { Value = "replacement" });
+
+        Assert.Throws<InvalidDataException>(() => new PluginConfigurationLoader().Load(plugin));
+        Assert.IsFalse(new PluginConfigurationLoader().Save(plugin, plugin.CreateConfiguration()));
+        Assert.AreEqual(damaged, File.ReadAllText(path));
     }
 
     [TestMethod]

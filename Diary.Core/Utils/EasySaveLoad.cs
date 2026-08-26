@@ -10,6 +10,13 @@ using Newtonsoft.Json.Linq;
 
 namespace Diary.Core.Utils;
 
+public enum ConfigurationLoadStatus
+{
+    Missing,
+    Loaded,
+    Unreadable,
+}
+
 public static class EasySaveLoad
 {
     private static ILogger Logger => Logging.Logger;
@@ -64,14 +71,11 @@ public static class EasySaveLoad
         }
     }
 
-    private static string? DecryptAuthenticated(byte[] data, string purpose)
+    private static string DecryptAuthenticated(byte[] data, string purpose)
     {
         var headerLength = EncryptedMagic.Length + 1 + GcmSaltSize + GcmNonceSize + GcmTagSize;
         if (data.Length < headerLength || data[EncryptedMagic.Length] != EncryptedFormatVersion)
-        {
-            Logger.LogError("Encrypted configuration has an unsupported or truncated header");
-            return null;
-        }
+            throw new InvalidDataException("加密配置头不完整或版本不受支持。");
 
         var offset = EncryptedMagic.Length + 1;
         var salt = data.AsSpan(offset, GcmSaltSize);
@@ -82,33 +86,31 @@ public static class EasySaveLoad
         offset += GcmTagSize;
         var ciphertext = data.AsSpan(offset);
         var plaintext = new byte[ciphertext.Length];
-        var key = DeriveFileKey(GetOrCreateMasterKey(), salt, purpose);
+        byte[]? key = null;
         try
         {
+            key = DeriveFileKey(GetExistingMasterKey(), salt, purpose);
             using var aes = new AesGcm(key, GcmTagSize);
             aes.Decrypt(nonce, ciphertext, tag, plaintext, Encoding.UTF8.GetBytes(purpose));
             return Encoding.UTF8.GetString(plaintext);
         }
         catch (CryptographicException ex)
         {
-            Logger.LogError(ex, "Authenticated configuration decryption failed");
-            return null;
+            throw new CryptographicException("加密配置认证失败。", ex);
         }
         finally
         {
-            CryptographicOperations.ZeroMemory(key);
+            if (key is not null)
+                CryptographicOperations.ZeroMemory(key);
             CryptographicOperations.ZeroMemory(plaintext);
         }
     }
 
-    private static string? DecryptLegacy(byte[] data, string password)
+    private static string DecryptLegacy(byte[] data, string password)
     {
         var headerLen = OpenSslMagic.Length + LegacySaltSize;
         if (data.Length < headerLen)
-        {
-            Logger.LogError("Legacy encrypted configuration is too short ({Length} bytes)", data.Length);
-            return null;
-        }
+            throw new InvalidDataException($"旧版加密配置长度无效：{data.Length} 字节。");
 
         var salt = new byte[LegacySaltSize];
         var ciphertext = new byte[data.Length - headerLen];
@@ -134,8 +136,7 @@ public static class EasySaveLoad
         }
         catch (CryptographicException ex)
         {
-            Logger.LogError(ex, "Legacy configuration decryption failed");
-            return null;
+            throw new CryptographicException("旧版加密配置解密失败。", ex);
         }
         finally
         {
@@ -159,10 +160,14 @@ public static class EasySaveLoad
     {
         lock (MasterKeyLock)
         {
+            var path = GetMasterKeyPath();
             if (_masterKey is not null)
+            {
+                if (!File.Exists(path))
+                    WriteMasterKey(path, _masterKey);
                 return _masterKey;
+            }
 
-            var path = Path.Combine(FsTools.GetApplicationConfigDirectory(), MasterKeyFileName);
             if (File.Exists(path))
             {
                 _masterKey = DecodeMasterKey(IoUtils.ReadAllBytes(path));
@@ -170,14 +175,9 @@ public static class EasySaveLoad
             }
 
             var key = RandomNumberGenerator.GetBytes(KeySize);
-            var encoded = EncodeMasterKey(key);
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            var temporaryPath = path + ".tmp";
             try
             {
-                IoUtils.WriteAllBytes(temporaryPath, encoded);
-                RestrictMasterKeyPermissions(temporaryPath);
-                File.Move(temporaryPath, path, false);
+                WriteMasterKey(path, key);
                 _masterKey = key;
                 return _masterKey;
             }
@@ -187,12 +187,45 @@ public static class EasySaveLoad
                 _masterKey = DecodeMasterKey(IoUtils.ReadAllBytes(path));
                 return _masterKey;
             }
-            finally
-            {
-                CryptographicOperations.ZeroMemory(encoded);
-                if (File.Exists(temporaryPath))
-                    File.Delete(temporaryPath);
-            }
+        }
+    }
+
+    private static byte[] GetExistingMasterKey()
+    {
+        lock (MasterKeyLock)
+        {
+            if (_masterKey is not null)
+                return _masterKey;
+
+            var path = GetMasterKeyPath();
+            if (!File.Exists(path))
+                throw new CryptographicException($"配置主密钥不存在：{path}");
+
+            _masterKey = DecodeMasterKey(IoUtils.ReadAllBytes(path));
+            return _masterKey;
+        }
+    }
+
+    private static string GetMasterKeyPath()
+        => Path.Combine(FsTools.GetApplicationConfigDirectory(), MasterKeyFileName);
+
+    private static void WriteMasterKey(string path, byte[] key)
+    {
+        var encoded = EncodeMasterKey(key);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        var temporaryPath = path + ".tmp";
+        try
+        {
+            if (!IoUtils.WriteAllBytes(temporaryPath, encoded))
+                throw new IOException($"无法写入配置主密钥临时文件：{temporaryPath}");
+            RestrictMasterKeyPermissions(temporaryPath);
+            File.Move(temporaryPath, path, false);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(encoded);
+            if (File.Exists(temporaryPath))
+                File.Delete(temporaryPath);
         }
     }
 
@@ -217,6 +250,16 @@ public static class EasySaveLoad
             File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
     }
 
+    internal static void ResetMasterKeyCacheForTests()
+    {
+        lock (MasterKeyLock)
+        {
+            if (_masterKey is not null)
+                CryptographicOperations.ZeroMemory(_masterKey);
+            _masterKey = null;
+        }
+    }
+
     private static bool StartsWith(ReadOnlySpan<byte> data, ReadOnlySpan<byte> prefix)
         => data.Length >= prefix.Length && data[..prefix.Length].SequenceEqual(prefix);
 
@@ -235,18 +278,49 @@ public static class EasySaveLoad
 
     /// <summary>读取配置文件的原始 JSON，供宿主执行 schema 迁移时保留未知字段。</summary>
     public static bool LoadJson(object obj, out JObject json)
+        => LoadJson(obj, out json, out _) == ConfigurationLoadStatus.Loaded;
+
+    /// <summary>读取配置并区分首次缺失与不可读取，防止调用方用默认值覆盖损坏配置。</summary>
+    public static ConfigurationLoadStatus LoadJson(object obj, out JObject json, out Exception? error)
     {
         json = new JObject();
+        error = null;
         if (!GetSaveConfig(obj, out var storageFileAttribute))
-            return false;
+            return ConfigurationLoadStatus.Missing;
 
         var filePath = Path.Combine(FsTools.GetApplicationConfigDirectory(), storageFileAttribute.FileName);
-        var content = ReadContent(filePath, storageFileAttribute);
-        if (string.IsNullOrWhiteSpace(content))
-            return false;
+        var backupPath = filePath + ".bak";
+        if (!File.Exists(filePath))
+        {
+            if (!File.Exists(backupPath))
+                return ConfigurationLoadStatus.Missing;
 
-        json = JObject.Parse(content);
-        return true;
+            try
+            {
+                json = ParseContent(backupPath, storageFileAttribute);
+                File.Copy(backupPath, filePath, false);
+                Logger.LogWarning("配置文件 {FilePath} 缺失，已从备份恢复", filePath);
+                return ConfigurationLoadStatus.Loaded;
+            }
+            catch (Exception ex) when (IsConfigurationReadException(ex))
+            {
+                error = ex;
+                Logger.LogError(ex, "配置文件 {FilePath} 及其备份无法恢复", filePath);
+                return ConfigurationLoadStatus.Unreadable;
+            }
+        }
+
+        try
+        {
+            json = ParseContent(filePath, storageFileAttribute);
+            return ConfigurationLoadStatus.Loaded;
+        }
+        catch (Exception ex) when (IsConfigurationReadException(ex))
+        {
+            error = ex;
+            Logger.LogError(ex, "配置文件 {FilePath} 无法读取，已阻止覆盖", filePath);
+            return ConfigurationLoadStatus.Unreadable;
+        }
     }
 
     /// <summary>以配置对象声明的文件名保存原始 JSON。</summary>
@@ -257,26 +331,41 @@ public static class EasySaveLoad
             return false;
 
         var filePath = Path.Combine(FsTools.GetApplicationConfigDirectory(), storageFileAttribute.FileName);
+        var loadStatus = LoadJson(obj, out _, out _);
+        if (loadStatus == ConfigurationLoadStatus.Unreadable)
+            return false;
+
         var content = json.ToString(Formatting.None);
         if (storageFileAttribute.Encrypted)
         {
             var data = EncryptAuthenticated(content, storageFileAttribute.EncryptKey);
-            WriteAtomically(filePath, () => IoUtils.WriteAllBytes(filePath + ".tmp", data));
+            WriteAtomically(filePath, temporaryPath =>
+            {
+                if (!IoUtils.WriteAllBytes(temporaryPath, data))
+                    throw new IOException($"无法写入配置临时文件：{temporaryPath}");
+            });
         }
         else
         {
-            WriteAtomically(filePath, () => IoUtils.WriteAllText(filePath + ".tmp", content));
+            WriteAtomically(filePath, temporaryPath =>
+            {
+                if (!IoUtils.WriteAllText(temporaryPath, content))
+                    throw new IOException($"无法写入配置临时文件：{temporaryPath}");
+            });
         }
 
         return true;
     }
 
-    private static void WriteAtomically(string filePath, Action writeTemp)
+    private static void WriteAtomically(string filePath, Action<string> writeTemp)
     {
         var tempPath = filePath + ".tmp";
+        var backupPath = filePath + ".bak";
         try
         {
-            writeTemp();
+            writeTemp(tempPath);
+            if (File.Exists(filePath))
+                File.Copy(filePath, backupPath, true);
             File.Move(tempPath, filePath, true);
         }
         finally
@@ -295,11 +384,16 @@ public static class EasySaveLoad
         return true;
     }
 
-    private static string? ReadContent(string filePath, StorageFileAttribute storageFileAttribute)
+    private static JObject ParseContent(string filePath, StorageFileAttribute storageFileAttribute)
     {
-        if (!File.Exists(filePath))
-            return null;
+        var content = ReadContent(filePath, storageFileAttribute);
+        if (string.IsNullOrWhiteSpace(content))
+            throw new InvalidDataException("配置内容为空。");
+        return JObject.Parse(content);
+    }
 
+    private static string ReadContent(string filePath, StorageFileAttribute storageFileAttribute)
+    {
         if (storageFileAttribute.Encrypted)
         {
             var data = IoUtils.ReadAllBytes(filePath);
@@ -307,10 +401,15 @@ public static class EasySaveLoad
                 return DecryptAuthenticated(data, storageFileAttribute.EncryptKey);
             if (StartsWith(data, OpenSslMagic))
                 return DecryptLegacy(data, storageFileAttribute.EncryptKey);
-            Logger.LogError("Encrypted configuration {FilePath} has an unknown format", filePath);
-            return null;
+            throw new InvalidDataException($"加密配置格式未知：{filePath}");
         }
 
         return IoUtils.ReadAllText(filePath);
     }
+
+    private static bool IsConfigurationReadException(Exception exception)
+        => exception is IOException
+            or UnauthorizedAccessException
+            or CryptographicException
+            or JsonException;
 }

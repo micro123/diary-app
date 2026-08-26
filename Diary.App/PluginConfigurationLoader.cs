@@ -17,8 +17,15 @@ public sealed class PluginConfigurationLoader
         ArgumentNullException.ThrowIfNull(plugin);
 
         var configuration = plugin.CreateConfiguration();
-        if (!EasySaveLoad.LoadJson(configuration, out var rawJson))
+        var loadStatus = EasySaveLoad.LoadJson(configuration, out var rawJson, out var loadError);
+        if (loadStatus == ConfigurationLoadStatus.Missing)
             return configuration;
+        if (loadStatus == ConfigurationLoadStatus.Unreadable)
+        {
+            throw new InvalidDataException(
+                $"插件 {plugin.Manifest.Id} 的配置无法读取，已阻止使用默认值覆盖原文件。",
+                loadError);
+        }
 
         var migrations = plugin.GetConfigurationMigrations().ToArray();
         var isPackage = rawJson["PluginId"]?.Type == JTokenType.String
@@ -159,8 +166,10 @@ public sealed class PluginConfigurationLoader
 
     private static bool SaveCore(ITrackerPlugin plugin, object configuration)
     {
-        var hasRawJson = EasySaveLoad.LoadJson(configuration, out var rawJson);
-        if (!hasRawJson)
+        var loadStatus = EasySaveLoad.LoadJson(configuration, out var rawJson, out _);
+        if (loadStatus == ConfigurationLoadStatus.Unreadable)
+            return false;
+        if (loadStatus == ConfigurationLoadStatus.Missing)
             rawJson = new JObject();
 
         var isPackage = rawJson["PluginId"]?.Type == JTokenType.String
