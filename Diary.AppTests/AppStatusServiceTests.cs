@@ -1,5 +1,9 @@
 using Diary.App.Services;
 using Diary.App.ViewModels;
+using Diary.Core.Constants;
+using Diary.GUIBase.Events;
+using Microsoft.Extensions.Logging.Abstractions;
+using Avalonia.Controls.Notifications;
 
 namespace Diary.AppTests;
 
@@ -54,8 +58,16 @@ public sealed class AppStatusServiceTests
         service.SetUpdate(new AppStatusItem("更新失败", "网络错误", AppStatusLevel.Error));
         using var task = service.BeginTask("备份数据库", "正在写入文件");
         task.Report(0.25, "已完成四分之一");
+        var history = new NotificationHistoryService(
+            Path.Combine(Path.GetTempPath(), $"diary-status-tests-{Guid.NewGuid():N}", "history.json"),
+            NullLogger.Instance);
+        history.Add(
+            "数据库备份完成",
+            "备份文件已保存",
+            NotificationType.Success,
+            NotificationRetention.Session);
 
-        using var viewModel = new StatusBarViewModel(service);
+        using var viewModel = new StatusBarViewModel(service, history);
 
         Assert.AreEqual("PostgreSQL", viewModel.Database.Text);
         Assert.IsTrue(viewModel.Database.IsSuccess);
@@ -66,6 +78,8 @@ public sealed class AppStatusServiceTests
         Assert.IsTrue(viewModel.HasTasks);
         Assert.AreEqual("备份数据库 25%", viewModel.TaskSummary.Text);
         Assert.AreEqual(25, viewModel.Tasks.Single().ProgressValue);
+        Assert.IsTrue(viewModel.HasNotifications);
+        Assert.AreEqual("1", viewModel.UnreadNotificationText);
     }
 
     [TestMethod]
@@ -77,5 +91,24 @@ public sealed class AppStatusServiceTests
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => task.Report(-0.1));
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => task.Report(1.1));
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => task.Report(double.NaN));
+    }
+
+    [TestMethod]
+    public void StatusBarViewModel_HidesOpenPathActionWhenTargetNoLongerExists()
+    {
+        var service = new AppStatusService();
+        var history = new NotificationHistoryService(
+            Path.Combine(Path.GetTempPath(), $"diary-status-tests-{Guid.NewGuid():N}", "history.json"),
+            NullLogger.Instance);
+        history.Add(
+            "导出完成",
+            "文件可能已经移动。",
+            NotificationType.Success,
+            NotificationRetention.Session,
+            new NotificationAction("打开文件", CommandNames.OpenPath, Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"))));
+
+        using var viewModel = new StatusBarViewModel(service, history);
+
+        Assert.IsFalse(viewModel.Notifications.Single().HasAction);
     }
 }

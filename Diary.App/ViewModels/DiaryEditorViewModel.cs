@@ -230,7 +230,10 @@ public partial class DiaryEditorViewModel : ViewModelBase
         var sourceItems = db.GetWorkItemByDate(previousDate).ToArray();
         if (sourceItems.Length == 0)
         {
-            EventDispatcher.Notify("没有可复制的记录", $"{previousDate} 没有已保存的工作记录。");
+            EventDispatcher.Notify(
+                "没有可复制的记录",
+                $"{previousDate} 没有已保存的工作记录。",
+                NotificationRetention.Transient);
             return;
         }
 
@@ -253,7 +256,10 @@ public partial class DiaryEditorViewModel : ViewModelBase
         SortDailyWorks();
         SelectedWork = lastCopied;
         UpdateTimeInfos();
-        EventDispatcher.Notify("复制完成", $"已复制 {copied}/{sourceItems.Length} 条记录。");
+        EventDispatcher.Notify(
+            "复制完成",
+            $"已复制 {copied}/{sourceItems.Length} 条记录。",
+            NotificationRetention.Session);
     }
 
     [RelayCommand]
@@ -274,7 +280,10 @@ public partial class DiaryEditorViewModel : ViewModelBase
             .FirstOrDefault();
         if (sourceItem is null)
         {
-            EventDispatcher.Notify("没有可复制的记录", "当前日期之前近一年内没有已保存的工作记录。");
+            EventDispatcher.Notify(
+                "没有可复制的记录",
+                "当前日期之前近一年内没有已保存的工作记录。",
+                NotificationRetention.Transient);
             return;
         }
 
@@ -295,7 +304,10 @@ public partial class DiaryEditorViewModel : ViewModelBase
         SortDailyWorks();
         SelectedWork = copiedWork;
         UpdateTimeInfos();
-        EventDispatcher.Notify("复制完成", $"已将 {sourceItem.CreateDate} 的最近记录复制到 {CurrentDateString}。");
+        EventDispatcher.Notify(
+            "复制完成",
+            $"已将 {sourceItem.CreateDate} 的最近记录复制到 {CurrentDateString}。",
+            NotificationRetention.Session);
     }
 
     [RelayCommand]
@@ -322,7 +334,10 @@ public partial class DiaryEditorViewModel : ViewModelBase
         var sourceItems = db.GetWorkItemByDate(sourceDate).ToArray();
         if (sourceItems.Length == 0)
         {
-            EventDispatcher.Notify("没有可复制的记录", $"{sourceDate} 没有已保存的工作记录。");
+            EventDispatcher.Notify(
+                "没有可复制的记录",
+                $"{sourceDate} 没有已保存的工作记录。",
+                NotificationRetention.Transient);
             return;
         }
 
@@ -345,7 +360,10 @@ public partial class DiaryEditorViewModel : ViewModelBase
         SortDailyWorks();
         SelectedWork = lastCopied;
         UpdateTimeInfos();
-        EventDispatcher.Notify("复制完成", $"已从 {sourceDate} 复制 {copied}/{sourceItems.Length} 条记录到 {CurrentDateString}。");
+        EventDispatcher.Notify(
+            "复制完成",
+            $"已从 {sourceDate} 复制 {copied}/{sourceItems.Length} 条记录到 {CurrentDateString}。",
+            NotificationRetention.Session);
     }
 
     private bool CopyWorkItemToCurrentDate(

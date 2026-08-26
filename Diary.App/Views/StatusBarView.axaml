@@ -10,6 +10,24 @@
              x:Class="Diary.App.Views.StatusBarView"
              x:DataType="viewModels:StatusBarViewModel"
              Height="34">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="NotificationPanelBackgroundBrush" Color="#FFFAFAFB" />
+                    <SolidColorBrush x:Key="NotificationCardBackgroundBrush" Color="#FFFFFFFF" />
+                    <SolidColorBrush x:Key="NotificationUnreadBackgroundBrush" Color="#FFF1F6FC" />
+                    <SolidColorBrush x:Key="NotificationPanelBorderBrush" Color="#FFD8DCE2" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="NotificationPanelBackgroundBrush" Color="#FF25262B" />
+                    <SolidColorBrush x:Key="NotificationCardBackgroundBrush" Color="#FF2D2F35" />
+                    <SolidColorBrush x:Key="NotificationUnreadBackgroundBrush" Color="#FF293440" />
+                    <SolidColorBrush x:Key="NotificationPanelBorderBrush" Color="#FF44474F" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
     <Border Background="{DynamicResource WindowDefaultBackground}"
             BorderBrush="{DynamicResource SemiColorBorder}"
             BorderThickness="0 1 0 0">
@@ -52,6 +70,72 @@
                 </Style>
                 <Style Selector="Border.StatusDot.StatusError">
                     <Setter Property="Background" Value="#D96767" />
+                </Style>
+                <Style Selector="Border.NotificationCard">
+                    <Setter Property="Padding" Value="8 7" />
+                    <Setter Property="CornerRadius" Value="7" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource NotificationPanelBorderBrush}" />
+                    <Setter Property="BorderThickness" Value="1" />
+                    <Setter Property="Background" Value="{DynamicResource NotificationCardBackgroundBrush}" />
+                </Style>
+                <Style Selector="Border.NotificationCard.Unread">
+                    <Setter Property="Background" Value="{DynamicResource NotificationUnreadBackgroundBrush}" />
+                </Style>
+                <Style Selector="Border.NotificationCard.Unread TextBlock.NotificationTitle">
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                </Style>
+                <Style Selector="Border.NotificationAccent">
+                    <Setter Property="Width" Value="3" />
+                    <Setter Property="CornerRadius" Value="2" />
+                    <Setter Property="Background" Value="{DynamicResource SemiColorText2}" />
+                </Style>
+                <Style Selector="Border.NotificationAccent.StatusInfo">
+                    <Setter Property="Background" Value="#4C8ED9" />
+                </Style>
+                <Style Selector="Border.NotificationAccent.StatusSuccess">
+                    <Setter Property="Background" Value="#45A675" />
+                </Style>
+                <Style Selector="Border.NotificationAccent.StatusWarning">
+                    <Setter Property="Background" Value="#D99A22" />
+                </Style>
+                <Style Selector="Border.NotificationAccent.StatusError">
+                    <Setter Property="Background" Value="#D96767" />
+                </Style>
+                <Style Selector="Button.NotificationTextAction">
+                    <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
+                    <Setter Property="MinHeight" Value="26" />
+                    <Setter Property="Padding" Value="6 2" />
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="Foreground" Value="{DynamicResource SemiColorPrimary}" />
+                </Style>
+                <Style Selector="Button.NotificationDeleteAction">
+                    <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
+                    <Setter Property="Width" Value="24" />
+                    <Setter Property="Height" Value="24" />
+                    <Setter Property="MinWidth" Value="24" />
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="Opacity" Value="0.62" />
+                    <Style Selector="^:pointerover">
+                        <Setter Property="Opacity" Value="1" />
+                        <Setter Property="Background" Value="{DynamicResource SemiColorFill2}" />
+                    </Style>
+                </Style>
+                <Style Selector="Button.NotificationClearAllAction">
+                    <Setter Property="Foreground" Value="{DynamicResource SystemControlErrorTextForeground}" />
+                </Style>
+                <Style Selector="Border.NotificationBadge">
+                    <Setter Property="MinWidth" Value="16" />
+                    <Setter Property="Height" Value="16" />
+                    <Setter Property="Padding" Value="3 0" />
+                    <Setter Property="CornerRadius" Value="8" />
+                    <Setter Property="Background" Value="#A63F3F" />
+                </Style>
+                <Style Selector="Border.NotificationBadge TextBlock">
+                    <Setter Property="Foreground" Value="White" />
+                    <Setter Property="FontSize" Value="10" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                    <Setter Property="HorizontalAlignment" Value="Center" />
                 </Style>
             </Grid.Styles>
 
@@ -122,7 +206,7 @@
                                    TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                     <Button.Flyout>
-                        <Flyout ShowMode="Standard" PlacementGravity="BottomLeft">
+                        <Flyout ShowMode="Standard" Placement="TopEdgeAlignedRight">
                             <Border MinWidth="300" MaxWidth="420" Padding="10">
                                 <StackPanel Spacing="8">
                                     <TextBlock Text="后台任务" FontWeight="SemiBold" />
@@ -176,13 +260,165 @@
                     </StackPanel>
                 </Button>
 
+                <Button Name="NotificationCenterButton"
+                        Classes="StatusItem"
+                        ToolTip.Tip="查看通知历史"
+                        Command="{Binding OpenNotificationCenterCommand}">
+                    <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="4">
+                        <Grid>
+                            <i:Icon Value="mdi-bell-outline" />
+                            <Border Classes="StatusDot"
+                                    Width="6"
+                                    Height="6"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Top"
+                                    IsVisible="{Binding HasUnreadNotifications}"
+                                    Classes.StatusInfo="{Binding NotificationIsInformation}"
+                                    Classes.StatusSuccess="{Binding NotificationIsSuccess}"
+                                    Classes.StatusWarning="{Binding NotificationIsWarning}"
+                                    Classes.StatusError="{Binding NotificationIsError}" />
+                        </Grid>
+                        <Border Grid.Column="1"
+                                Classes="NotificationBadge"
+                                IsVisible="{Binding HasUnreadNotifications}">
+                            <TextBlock Text="{Binding UnreadNotificationText}" />
+                        </Border>
+                    </Grid>
+                    <Button.Flyout>
+                        <Flyout ShowMode="Standard" Placement="TopEdgeAlignedRight">
+                            <Border Name="NotificationCenterPanel"
+                                    Width="400"
+                                    MaxHeight="500"
+                                    Background="{DynamicResource NotificationPanelBackgroundBrush}"
+                                    BorderBrush="{DynamicResource NotificationPanelBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="9"
+                                    ClipToBounds="True">
+                                <Grid RowDefinitions="Auto,*,Auto">
+                                    <Border Padding="12 8"
+                                            BorderBrush="{DynamicResource NotificationPanelBorderBrush}"
+                                            BorderThickness="0 0 0 1">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                <TextBlock Text="通知中心" FontSize="15" FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding UnreadNotificationText, StringFormat='未读 {0}'}"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource SemiColorText2}"
+                                                           IsVisible="{Binding HasUnreadNotifications}" />
+                                            </StackPanel>
+                                            <Button Grid.Column="1"
+                                                    Classes="NotificationTextAction"
+                                                    Content="全部已读"
+                                                    Command="{Binding MarkAllNotificationsReadCommand}"
+                                                    IsVisible="{Binding HasUnreadNotifications}" />
+                                        </Grid>
+                                    </Border>
+
+                                    <TextBlock Grid.Row="1"
+                                               Name="NotificationCenterEmptyState"
+                                               Text="暂无通知"
+                                               Classes="EmptyStateDescription"
+                                               Margin="0 34"
+                                               HorizontalAlignment="Center"
+                                               IsVisible="{Binding HasNoNotifications}" />
+
+                                    <ScrollViewer Grid.Row="1"
+                                                  MaxHeight="390"
+                                                  Margin="8"
+                                                  HorizontalScrollBarVisibility="Disabled"
+                                                  VerticalScrollBarVisibility="Auto"
+                                                  IsVisible="{Binding HasNotifications}">
+                                        <ItemsControl ItemsSource="{Binding Notifications}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="viewModels:StatusBarNotificationItemViewModel">
+                                                    <Border Classes="NotificationCard"
+                                                            Classes.Unread="{Binding IsUnread}"
+                                                            Margin="0 0 0 5">
+                                                        <Grid ColumnDefinitions="Auto,*,Auto"
+                                                              RowDefinitions="Auto,Auto,Auto"
+                                                              ColumnSpacing="8"
+                                                              RowSpacing="3">
+                                                            <Border Classes="NotificationAccent"
+                                                                    Grid.RowSpan="3"
+                                                                    Classes.StatusInfo="{Binding IsInformation}"
+                                                                    Classes.StatusSuccess="{Binding IsSuccess}"
+                                                                    Classes.StatusWarning="{Binding IsWarning}"
+                                                                    Classes.StatusError="{Binding IsError}" />
+                                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5">
+                                                                <TextBlock Classes="NotificationTitle"
+                                                                           Text="{Binding Title}"
+                                                                           TextTrimming="CharacterEllipsis"
+                                                                           MaxWidth="235" />
+                                                                <TextBlock Text="{Binding OccurrenceText}"
+                                                                           FontSize="11"
+                                                                           Foreground="{DynamicResource SemiColorText2}"
+                                                                           IsVisible="{Binding HasOccurrenceCount}" />
+                                                            </StackPanel>
+                                                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="3">
+                                                                <TextBlock Text="{Binding TimeText}"
+                                                                           FontSize="11"
+                                                                           Foreground="{DynamicResource SemiColorText2}"
+                                                                           VerticalAlignment="Center" />
+                                                                <Button Classes="NotificationDeleteAction"
+                                                                        ToolTip.Tip="删除通知"
+                                                                        Command="{Binding $parent[UserControl].((viewModels:StatusBarViewModel)DataContext).DeleteNotificationCommand}"
+                                                                        CommandParameter="{Binding}">
+                                                                    <i:Icon Value="mdi-close" FontSize="13" />
+                                                                </Button>
+                                                            </StackPanel>
+                                                            <TextBlock Grid.Row="1"
+                                                                       Grid.Column="1"
+                                                                       Grid.ColumnSpan="2"
+                                                                       Text="{Binding Message}"
+                                                                       FontSize="12"
+                                                                       TextWrapping="Wrap"
+                                                                       MaxLines="4"
+                                                                       Foreground="{DynamicResource SemiColorText2}"
+                                                                       IsVisible="{Binding HasMessage}" />
+                                                            <Button Grid.Row="2"
+                                                                    Grid.Column="1"
+                                                                    Classes="NotificationTextAction"
+                                                                    HorizontalAlignment="Left"
+                                                                    Content="{Binding ActionLabel}"
+                                                                    IsVisible="{Binding HasAction}"
+                                                                    Command="{Binding $parent[UserControl].((viewModels:StatusBarViewModel)DataContext).ExecuteNotificationActionCommand}"
+                                                                    CommandParameter="{Binding}" />
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+
+                                    <Border Grid.Row="2"
+                                            Padding="8 6"
+                                            BorderBrush="{DynamicResource NotificationPanelBorderBrush}"
+                                            BorderThickness="0 1 0 0"
+                                            IsVisible="{Binding HasNotifications}">
+                                        <StackPanel Orientation="Horizontal"
+                                                    HorizontalAlignment="Right"
+                                                    Spacing="2">
+                                            <Button Classes="NotificationTextAction"
+                                                    Content="清空已读"
+                                                    Command="{Binding ClearReadNotificationsCommand}" />
+                                            <Button Classes="NotificationTextAction NotificationClearAllAction"
+                                                    Content="清空全部"
+                                                    Command="{Binding ClearAllNotificationsCommand}" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+
                 <Button Name="StatusDate" Classes="StatusItem" ToolTip.Tip="打开日历">
                     <StackPanel Orientation="Horizontal">
                         <i:Icon Value="mdi-calendar-month-outline" />
                         <TextBlock Text="{Binding Date}" />
                     </StackPanel>
                     <Button.Flyout>
-                        <Flyout ShowMode="Standard" PlacementGravity="BottomLeft">
+                        <Flyout ShowMode="Standard" Placement="TopEdgeAlignedRight">
                             <Calendar SelectionMode="None" />
                         </Flyout>
                     </Button.Flyout>

@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.App.Models;
 using Diary.App.Services;
+using Diary.Core.Constants;
 using Diary.Core.Data.Base;
 using Diary.GUIBase.Converters;
 using Diary.GUIBase.Events;
@@ -154,7 +155,10 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
         var tags = database.AllWorkTags();
         if (tags.Count == 0)
         {
-            EventDispatcher.Notify("无法导出标签", "当前没有可导出的标签。");
+            EventDispatcher.Notify(
+                "无法导出标签",
+                "当前没有可导出的标签。",
+                NotificationRetention.Transient);
             return;
         }
         var selection = await ShowExportSelectionAsync(tags);
@@ -183,7 +187,11 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
                 database,
                 selection.TagIds,
                 RuleContributions);
-            EventDispatcher.Notify("标签导出完成", $"已导出 {selection.TagIds.Count} 个标签：{path}");
+            EventDispatcher.Notify(
+                "标签导出完成",
+                $"已导出 {selection.TagIds.Count} 个标签：{path}",
+                NotificationRetention.Session,
+                new NotificationAction("打开标签包", CommandNames.OpenPath, path));
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
             or InvalidDataException or InvalidOperationException)
@@ -269,7 +277,8 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
                 "标签导入完成",
                 $"新增 {result.Created}，更新 {result.Updated}，重新启用 {result.Enabled}；" +
                 $"Tracker 规则导入 {result.Trackers.Sum(item => item.Imported)}，" +
-                $"跳过 {result.Trackers.Sum(item => item.Invalid + item.Unavailable + item.Skipped)}。");
+                $"跳过 {result.Trackers.Sum(item => item.Invalid + item.Unavailable + item.Skipped)}。",
+                NotificationRetention.Session);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
             or System.Text.Json.JsonException or InvalidDataException or InvalidOperationException)

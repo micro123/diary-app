@@ -1,6 +1,7 @@
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
 using Diary.MigrationTool;
@@ -108,7 +109,10 @@ public partial class DbMigrationViewModel : ViewModelBase, IDialogContext
         Working = false;
         if (result)
         {
-            EventDispatcher.Notify("成功", "数据迁移完成！");
+            EventDispatcher.Notify(
+                "数据迁移完成",
+                "旧数据已经迁移完成。",
+                NotificationRetention.Session);
             RequestClose?.Invoke(this, true);
         }
         else

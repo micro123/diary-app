@@ -48,6 +48,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly IServiceProvider _serviceProvider;
     private readonly TrackerPluginLifecycleCoordinator _lifecycle;
     private readonly AppStatusService _appStatus;
+    private readonly NotificationHistoryService _notificationHistory;
     private readonly UserManualService _userManualService;
     private readonly ILogger _logger;
     private IReadOnlyList<NavigateInfo> _fixedPages;
@@ -61,7 +62,11 @@ public partial class MainWindowViewModel : ViewModelBase
     private async Task CopyVersion(bool simple)
     {
         await CopyStringToClipboardAsync(simple ? VersionString : VersionDetails);
-        ToastManager?.Show("已复制", NotificationType.Success);
+        EventDispatcher.ShowToast(
+            "版本信息已复制",
+            NotificationType.Success,
+            NotificationRetention.Session,
+            "复制完成");
     }
 
     [RelayCommand]
@@ -85,6 +90,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _logger = logger;
         _lifecycle = serviceProvider.GetRequiredService<TrackerPluginLifecycleCoordinator>();
         _appStatus = serviceProvider.GetRequiredService<AppStatusService>();
+        _notificationHistory = serviceProvider.GetRequiredService<NotificationHistoryService>();
         _userManualService = serviceProvider.GetRequiredService<UserManualService>();
 
         // 导航可扩展：固定核心页面 + tracker 贡献页；设置通过标题栏对话框打开。
@@ -139,9 +145,10 @@ public partial class MainWindowViewModel : ViewModelBase
 
         Messenger.Register<NotifyEvent>(this, (r, m) =>
         {
+            var type = NotificationHistoryService.ResolveNotificationType(m.Value.Title);
             _appStatus.ShowMessage(
                 m.Value.Title,
-                ResolveMessageLevel(m.Value.Title),
+                ResolveMessageLevel(type),
                 m.Value.Body);
             PostUiAsync(async () =>
             {
@@ -518,15 +525,6 @@ public partial class MainWindowViewModel : ViewModelBase
         _ => AppStatusLevel.Information,
     };
 
-    private static AppStatusLevel ResolveMessageLevel(string title)
-        => title.Contains("失败", StringComparison.Ordinal)
-            || title.Contains("错误", StringComparison.Ordinal)
-            ? AppStatusLevel.Error
-            : title.Contains("警告", StringComparison.Ordinal)
-                || title.Contains("不可用", StringComparison.Ordinal)
-                ? AppStatusLevel.Warning
-                : AppStatusLevel.Information;
-
     private void OpenCurrentLog()
     {
         try
@@ -631,7 +629,8 @@ public partial class MainWindowViewModel : ViewModelBase
                             EventDispatcher.Notify(
                                 "已保留本地修改文件",
                                 "以下旧版本文件有本地修改，更新不会删除它们：\n"
-                                + string.Join('\n', prepared.PreservedConflicts));
+                                    + string.Join('\n', prepared.PreservedConflicts),
+                                NotificationRetention.Session);
                         }
                         EventDispatcher.ShowToast("更新准备完成，应用即将重启…", NotificationType.Success);
                         updateService.StartPreparedUpdate(prepared);
@@ -652,7 +651,10 @@ public partial class MainWindowViewModel : ViewModelBase
                             "更新准备失败",
                             exception.Message,
                             AppStatusLevel.Error));
-                        EventDispatcher.Notify("更新准备失败", exception.Message);
+                        EventDispatcher.Notify(
+                            "更新准备失败",
+                            exception.Message,
+                            action: new NotificationAction("打开日志", CommandNames.OpenCurrentLog));
                     }
                     return;
                 }
@@ -674,7 +676,10 @@ public partial class MainWindowViewModel : ViewModelBase
                     "更新器不兼容",
                     result.Error ?? "当前更新器协议版本过低。",
                     AppStatusLevel.Error));
-                EventDispatcher.Notify("暂时无法更新", result.Error ?? "当前更新器协议版本过低。");
+                EventDispatcher.Notify(
+                    "暂时无法更新",
+                    result.Error ?? "当前更新器协议版本过低。",
+                    action: new NotificationAction("打开日志", CommandNames.OpenCurrentLog));
                 return;
             case UpdateCheckStatus.TemporarilyUnavailable:
                 _appStatus.SetUpdate(new AppStatusItem(
@@ -690,7 +695,10 @@ public partial class MainWindowViewModel : ViewModelBase
                     result.Error ?? "更新服务器响应无效。",
                     AppStatusLevel.Error));
                 if (!automatic)
-                    EventDispatcher.Notify("检查更新失败", result.Error ?? "更新服务器响应无效。");
+                    EventDispatcher.Notify(
+                        "检查更新失败",
+                        result.Error ?? "更新服务器响应无效。",
+                        action: new NotificationAction("打开日志", CommandNames.OpenCurrentLog));
                 return;
             default:
                 throw new ArgumentOutOfRangeException();
@@ -751,11 +759,20 @@ public partial class MainWindowViewModel : ViewModelBase
         var result = await Task.Run(() => provider.CreateBackup(file.Path.LocalPath));
         if (!result.Success)
         {
-            EventDispatcher.Notify("备份失败", result.Error ?? "数据库备份创建失败。");
+            EventDispatcher.Notify(
+                "备份失败",
+                result.Error ?? "数据库备份创建失败。",
+                action: new NotificationAction("打开日志", CommandNames.OpenCurrentLog));
             return;
         }
 
-        EventDispatcher.Notify("备份完成", $"数据库备份已保存到：\n{result.BackupPath}");
+        EventDispatcher.Notify(
+            "备份完成",
+            $"数据库备份已保存到：\n{result.BackupPath}",
+            NotificationRetention.Session,
+            result.BackupPath is null
+                ? null
+                : new NotificationAction("打开备份", CommandNames.OpenPath, result.BackupPath));
     }
 
     private async Task RestoreDatabaseAsync()
@@ -826,13 +843,17 @@ public partial class MainWindowViewModel : ViewModelBase
             .Stage(validation.ProviderName, file.Path.LocalPath);
         if (!stage.Success)
         {
-            EventDispatcher.Notify("还原暂存失败", stage.Error ?? "无法暂存数据库还原任务。");
+            EventDispatcher.Notify(
+                "还原暂存失败",
+                stage.Error ?? "无法暂存数据库还原任务。",
+                action: new NotificationAction("打开日志", CommandNames.OpenCurrentLog));
             return;
         }
 
         EventDispatcher.Notify(
             "还原已安排",
-            "备份已通过校验。请退出并重新启动 DiaryApp；下次启动会执行还原并在失败时自动恢复当前数据库。");
+            "备份已通过校验。请退出并重新启动 DiaryApp；下次启动会执行还原并在失败时自动恢复当前数据库。",
+            action: new NotificationAction("打开日志", CommandNames.OpenCurrentLog));
     }
 
     private void PostUiAsync(Func<Task> action, string operation)
@@ -851,6 +872,12 @@ public partial class MainWindowViewModel : ViewModelBase
                     AppStatusLevel.Error,
                     ex.Message,
                     TimeSpan.FromSeconds(15));
+                _notificationHistory.Add(
+                    $"{operation}失败",
+                    ex.Message,
+                    NotificationType.Error,
+                    NotificationRetention.Persistent,
+                    new NotificationAction("打开日志", CommandNames.OpenCurrentLog));
             }
         });
     }
@@ -1034,13 +1061,17 @@ public partial class MainWindowViewModel : ViewModelBase
 
             EventDispatcher.Notify(
                 "脚本扩展导入完成",
-                $"已导入 {result.ImportedCount} 个脚本，跳过 {result.SkippedCount} 个。扩展已重新加载；如需查看源码或诊断，请开启开发者功能。");
+                $"已导入 {result.ImportedCount} 个脚本，跳过 {result.SkippedCount} 个。扩展已重新加载；如需查看源码或诊断，请开启开发者功能。",
+                NotificationRetention.Session);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
             or InvalidDataException or InvalidOperationException or System.Text.Json.JsonException)
         {
             _logger.LogError(exception, "导入脚本扩展失败：{PackagePath}", file.Path.LocalPath);
-            EventDispatcher.Notify("脚本扩展导入失败", exception.Message);
+            EventDispatcher.Notify(
+                "脚本扩展导入失败",
+                exception.Message,
+                action: new NotificationAction("打开日志", CommandNames.OpenCurrentLog));
         }
     }
 

@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.GUIBase;
+using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
 using Diary.RedMine.Response;
@@ -66,7 +67,10 @@ public partial class RedMineProjectViewModel : PaginatedSearchViewModel<ProjectI
                 out createdIssue, project.Id, viewModel.IssueTitle, viewModel.IssueDesc, viewModel.AssignSelf));
             finished = created;
             if (created)
-                EventDispatcher.Notify("问题创建成功", $"新问题ID为: {createdIssue!.Id}");
+                EventDispatcher.Notify(
+                    "问题创建成功",
+                    $"新问题ID为: {createdIssue!.Id}",
+                    NotificationRetention.Session);
             else
                 ToastManager?.Show("创建问题失败了>_<");
         } while (!finished);
@@ -74,6 +78,8 @@ public partial class RedMineProjectViewModel : PaginatedSearchViewModel<ProjectI
 
     [RelayCommand]
     private void ShowDesc(ProjectInfo project)
-        => EventDispatcher.Notify(project.Name,
-            string.IsNullOrEmpty(project.Description) ? "描述是空的哟~~" : project.Description);
+        => EventDispatcher.Notify(
+            project.Name,
+            string.IsNullOrEmpty(project.Description) ? "暂无描述。" : project.Description,
+            NotificationRetention.Transient);
 }

@@ -8,9 +8,13 @@ public static class EventDispatcher
 {
     private static WeakReferenceMessenger Messenger => WeakReferenceMessenger.Default;
 
-    public static void Notify(string title, string body)
+    public static void Notify(
+        string title,
+        string body,
+        NotificationRetention retention = NotificationRetention.Persistent,
+        NotificationAction? action = null)
     {
-        var opt = new NotifyOptions(title, body);
+        var opt = new NotifyOptions(title, body, retention: retention, action: action);
         Messenger.Send(new NotifyEvent(opt));
     }
 
@@ -26,9 +30,12 @@ public static class EventDispatcher
 
     public static void ShowToast(
         string content,
-        NotificationType type = NotificationType.Information)
+        NotificationType type = NotificationType.Information,
+        NotificationRetention retention = NotificationRetention.Transient,
+        string? title = null,
+        NotificationAction? action = null)
     {
-        Messenger.Send(new ToastEvent(content, type));
+        Messenger.Send(new ToastEvent(content, type, retention, title, action));
     }
 
     public static void RunCommand(string command)

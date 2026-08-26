@@ -10,6 +10,7 @@ using Diary.App.Utils;
 using Diary.Core.Data.Base;
 using Diary.Core.Data.Statistics;
 using Diary.Database;
+using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.Utils;
 using LiveChartsCore.Measure;
@@ -412,7 +413,10 @@ public partial class StatisticsTabData : ObservableObject
         {
             sb.AppendLine($"{item.CreateDate}: {item.Comment} ({item.Time:0.##} 小时)");
         }
-        EventDispatcher.Notify("详细信息", sb.ToString());
+        EventDispatcher.Notify(
+            "详细信息",
+            sb.ToString(),
+            NotificationRetention.Transient);
     }
 
     [RelayCommand]

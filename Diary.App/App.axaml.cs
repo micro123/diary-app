@@ -81,6 +81,7 @@ namespace Diary.App
             LoadConfigurations();
             Services.GetRequiredService<TrackerPluginDiagnosticsService>().SetPluginStates(
                 _pluginLoadDiagnostics.Values);
+            _ = Services.GetRequiredService<NotificationHistoryService>();
 
             ObserveBackgroundTask(LoadScriptsAsync(), "脚本目录加载");
             AvaloniaXamlLoader.Load(this);
@@ -1005,7 +1006,12 @@ namespace Diary.App
                         Logger.LogInformation("回滚后启动确认完成：PlanPath={PlanPath}", planPath);
                         if (string.IsNullOrWhiteSpace(startupStatus.Message))
                         {
-                            EventDispatcher.ShowToast("已回滚到上一版本", NotificationType.Warning);
+                            EventDispatcher.ShowToast(
+                                "已回滚到上一版本",
+                                NotificationType.Warning,
+                                NotificationRetention.Persistent,
+                                "应用更新已回滚",
+                                new NotificationAction("打开日志", CommandNames.OpenCurrentLog));
                         }
                         else
                         {
@@ -1050,7 +1056,11 @@ namespace Diary.App
                     await Task.Delay(TimeSpan.FromSeconds(5));
                     await updateService.ConfirmStartupAsync(planPath);
                     Logger.LogInformation("更新后启动确认完成：PlanPath={PlanPath}", planPath);
-                    EventDispatcher.ShowToast("应用更新完成", NotificationType.Success);
+                    EventDispatcher.ShowToast(
+                        "新版本已经启动并完成更新确认。",
+                        NotificationType.Success,
+                        NotificationRetention.Session,
+                        "应用更新完成");
                 }
                 catch (Exception exception)
                 {
@@ -1150,6 +1160,7 @@ namespace Diary.App
             _timer.Stop();
             (Services.GetRequiredService<ScriptAutomationScheduler>() as IDisposable)?.Dispose();
             await Services.GetRequiredService<IWorkerScriptExecutor>().StopAllAsync();
+            await Services.GetRequiredService<NotificationHistoryService>().FlushAsync();
             SaveConfigurations();
             SavePluginConfigurations();
             (Services as IDisposable)?.Dispose();
@@ -1205,7 +1216,13 @@ namespace Diary.App
                 e.Handled = GlobalExceptionPolicy.CanContinue(ex);
                 if (!e.Handled)
                     return;
-                try { EventDispatcher.Notify("发生错误", "数据库连接异常，请检查网络或数据库设置"); }
+                try
+                {
+                    EventDispatcher.Notify(
+                        "发生错误",
+                        "数据库连接异常，请检查网络或数据库设置",
+                        action: new NotificationAction("数据库设置", CommandNames.ShowDbSettings));
+                }
                 catch { /* handler 自身不得再抛 */ }
             };
             // 后台 Task 未观察异常：.NET Core 默认不崩，仍记日志
@@ -1382,7 +1399,7 @@ namespace Diary.App
         public ValueTask NotifyAsync(string title, string body, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            EventDispatcher.Notify(title, body);
+            EventDispatcher.Notify(title, body, NotificationRetention.Session);
             return ValueTask.CompletedTask;
         }
 
