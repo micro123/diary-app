@@ -4,6 +4,11 @@
 
 本文件只记录完成结果，不作为当前待办列表。
 
+## 2026-08-26 RID 发布显式还原 Script Worker
+
+- [x] Linux Python 本地打包、Windows local 工具、Tag Release 和手动构建工作流在解决方案 RID 还原后显式还原 `Diary.Script.Worker`，修复 `NETSDK1047`。
+- [x] 同步发布操作指引，并使用本地 `win-x64/python313` local 打包发布流程验证。
+
 ## 2026-08-26 信息说明可发现性优化
 
 - [x] 清点全项目 5 处 `mdi-information-outline`：保留 2 处带完整按钮文字且命中区域充足的装饰图标，处理 3 处依赖小图标 Tooltip 的说明。

@@ -302,6 +302,13 @@ dotnet test --solution DiaryApp.sln \
   --verbosity minimal
 ```
 
+RID 发布前除还原解决方案外，还需要显式还原 `Diary.Script.Worker` 的目标 RID。Worker 由主程序的自定义构建目标复制，不是普通编译引用；只还原解决方案时，部分 SDK/NuGet 组合不会为它生成 `net10.0/<rid>` 资产：
+
+```bash
+dotnet restore DiaryApp.sln --runtime win-x64 -p:Configuration=Release
+dotnet restore Diary.Script.Worker/Diary.Script.Worker.csproj --runtime win-x64 -p:Configuration=Release
+```
+
 Linux CI 还设置：
 
 ```bash

@@ -81,7 +81,9 @@ jobs:
           name: DiaryAppNG-${{ steps.version.outputs.version }}-user-manual
           path: artifacts/user-manual
       - name: Restore solution for ${{ matrix.rid }}
-        run: dotnet restore DiaryApp.sln --runtime ${{ matrix.rid }} -p:Configuration=Release
+        run: |
+          dotnet restore DiaryApp.sln --runtime ${{ matrix.rid }} -p:Configuration=Release
+          dotnet restore Diary.Script.Worker/Diary.Script.Worker.csproj --runtime ${{ matrix.rid }} -p:Configuration=Release
       - name: Publish ${{ matrix.rid }}
         shell: pwsh
         run: |

@@ -340,6 +340,8 @@ mkdir -p -- "$publish_directory" "$updater_publish_directory" "$output_directory
 
 printf '正在还原 %s 依赖……\n' "$RID"
 dotnet restore "$repository_root/DiaryApp.sln" --runtime "$RID" -p:Configuration="$CONFIGURATION"
+dotnet restore "$repository_root/Diary.Script.Worker/Diary.Script.Worker.csproj" \
+    --runtime "$RID" -p:Configuration="$CONFIGURATION"
 
 printf '正在发布 %s 自包含应用……\n' "$RID"
 dotnet publish "$repository_root/Diary.App/Diary.App.csproj" \

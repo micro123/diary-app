@@ -359,6 +359,7 @@ function Build-UpdatePackage([long] $BuildSequence) {
         $env:DIARY_BUILD_CHANNEL = $Channel
         Write-Host "正在还原并发布 $Rid 自包含应用……"
         Invoke-Native 'dotnet' @('restore', (Join-Path $RepositoryRoot 'DiaryApp.sln'), '--runtime', $Rid, '-p:Configuration=Release')
+        Invoke-Native 'dotnet' @('restore', (Join-Path $RepositoryRoot 'Diary.Script.Worker\Diary.Script.Worker.csproj'), '--runtime', $Rid, '-p:Configuration=Release')
         Invoke-Native 'dotnet' @('publish', (Join-Path $RepositoryRoot 'Diary.App\Diary.App.csproj'), '--configuration', 'Release', '--runtime', $Rid, '--self-contained', 'true', '--no-restore', '--output', $publishDirectory)
         Invoke-Native 'dotnet' @('publish', (Join-Path $RepositoryRoot 'Diary.Updater\Diary.Updater.csproj'), '--configuration', 'Release', '--runtime', $Rid, '--self-contained', 'true', '--no-restore', '--output', $updaterDirectory)
     }
