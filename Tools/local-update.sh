@@ -12,6 +12,7 @@ update_server_directory="$repository_root/UpdateServer"
 server_url="${DIARY_UPDATE_SERVER_URL:-http://127.0.0.1:18080}"
 token_file="${DIARY_UPDATE_PUBLISH_TOKEN_FILE:-$update_server_directory/publish_token.txt}"
 sequence=""
+ready_to_run=0
 command_name="publish"
 temporary_directory=""
 
@@ -36,6 +37,7 @@ print_usage() {
     printf '  --server URL       更新服务器根地址，默认 %s\n' "$server_url"
     printf '  --token-file PATH  发布 Token 文件，默认 %s\n' "$token_file"
     printf '  --sequence NUMBER  显式指定更新序号；默认取 UTC 时间并保证大于服务器 latest\n'
+    printf '  --ready-to-run     使用 ReadyToRun 构建实验包；包体积会明显增加\n'
     printf '  -h, --help         显示帮助\n'
 }
 
@@ -190,8 +192,12 @@ publish_package() {
     archive_path="$repository_root/artifacts/packages/DiaryAppNG-$package_label-$RID-python313.zip"
 
     printf '开始构建 local 更新：sequence=%s, version=%s\n' "$sequence" "$version_id"
+    local -a package_arguments=("$package_label")
+    if [ "$ready_to_run" -eq 1 ]; then
+        package_arguments=(--ready-to-run "${package_arguments[@]}")
+    fi
     DIARY_BUILD_SEQUENCE="$sequence" DIARY_BUILD_CHANNEL="$CHANNEL" \
-        "$script_directory/package-win-x64-with-python.sh" "$package_label"
+        "$script_directory/package-win-x64-with-python.sh" "${package_arguments[@]}"
     if [ ! -f "$archive_path" ]; then
         printf '打包脚本没有生成预期文件：%s\n' "$archive_path" >&2
         exit 1
@@ -343,6 +349,10 @@ while [ "$#" -gt 0 ]; do
             fi
             sequence="${2:-}"
             shift 2
+            ;;
+        --ready-to-run)
+            ready_to_run=1
+            shift
             ;;
         -h|--help)
             print_usage

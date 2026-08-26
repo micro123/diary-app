@@ -8,7 +8,7 @@
               xmlns:i="https://github.com/projektanker/icons.avalonia"
               xmlns:constants="clr-namespace:Diary.Core.Constants"
               xmlns:views="clr-namespace:Diary.App.Views"
-              xmlns:guiBase="clr-namespace:Diary.GUIBase;assembly=Diary.GUIBase"
+              xmlns:controls="clr-namespace:Diary.App.Controls"
               mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
               x:Class="Diary.App.Views.MainWindow"
               x:DataType="vm:MainWindowViewModel"
@@ -210,12 +210,10 @@
                     </ToggleButton>
                 </Grid>
             </SplitView.Pane>
-            <ContentControl Content="{Binding CurrentPageModel}"
-                            Padding="6">
-                <ContentControl.ContentTemplate>
-                    <guiBase:ViewLocator CacheViews="True" />
-                </ContentControl.ContentTemplate>
-            </ContentControl>
+            <Border Padding="6">
+                <controls:NavigationViewHost CurrentPage="{Binding CurrentPageModel}"
+                                             Pages="{Binding Pages}" />
+            </Border>
         </SplitView>
     </DockPanel>
 </u:UrsaWindow>

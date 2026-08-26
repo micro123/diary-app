@@ -447,6 +447,24 @@ CDP Ready P50/P95 为 2,727/2,803 ms，进程启动至日记页视觉树稳定 P
 
 优化后汇总报告：`.build-tmp/ui-test/reports/ui-navigation-performance-aggregate-2026-08-26T04-29-17-570Z.json`。缓存资格、实例所有权和预热边界见 [`UiNavigationViewCachingDesign.md`](UiNavigationViewCachingDesign.md)。
 
+### 6.6 2026-08-26 持久挂载与统计按需初始化复测
+
+主导航改为专用 `NavigationViewHost`：可缓存页面在空闲预热时进入真实视觉树并保持挂载，切换只改变显示和命中状态；统计页构造阶段不再查询所有页签，也不提前创建 LiveCharts 和 `TreeDataGrid`。CDP 树构建同步向子节点传播祖先不可见/禁用状态，避免隐藏缓存页面参与定位。
+
+Linux X11 Debug 构建使用相同 2200 ms 预热等待运行 5 个新进程，20 次首次访问和 75 次热切换全部成功：
+
+| 页面 | 上一轮冷 P50 | 本轮冷 P50 | 上一轮热 P50 | 本轮热 P50 |
+| --- | ---: | ---: | ---: | ---: |
+| 事项查询 | 240 ms | 108 ms | 103 ms | 37 ms |
+| 统计工具 | 512 ms | 387 ms | 183 ms | 34 ms |
+| 调查工具 | 196 ms | 71 ms | 89 ms | 33 ms |
+| 脚本管理 | 207 ms | 86 ms | 94 ms | 35 ms |
+| 日记记录 | 启动默认页 | 启动默认页 | 100 ms | 32 ms |
+
+随后把统计初始化调度到后台优先级，3 个新进程补充复测中统计冷 P50 进一步降至 339 ms，其余页面冷 P50 为 64–73 ms、热 P50 为 31–41 ms。`ui-core-full` 14/14 通过；查询结果定位回归说明 CDP 的局部 `IsVisible` 不能代表祖先有效可见性，公共树构建器已统一归一化。
+
+5 进程汇总报告：`.build-tmp/ui-test/reports/ui-navigation-performance-aggregate-2026-08-26T06-02-05-541Z.json`；3 进程补充报告：`.build-tmp/ui-test/reports/ui-navigation-performance-aggregate-2026-08-26T06-11-36-248Z.json`。
+
 ## 7. 当前覆盖边界
 
 - Jira 真实服务、权限矩阵和自托管版本差异为 `Blocked-External`。

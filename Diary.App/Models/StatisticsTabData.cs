@@ -41,6 +41,7 @@ public partial class StatisticsTabData : ObservableObject
 
     private readonly Func<string, string, StatisticsResult>? _statisticsProvider;
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
+    private readonly SemaphoreSlim _initializationLock = new(1, 1);
     private int _refreshGeneration;
 
     public StatisticsType Type { get; private set; }
@@ -71,13 +72,18 @@ public partial class StatisticsTabData : ObservableObject
     [ObservableProperty] private double _customTotal = 0;
     [ObservableProperty] private double _statisticsTotal = 0;
     [ObservableProperty] private bool _isPieChart;
+    [ObservableProperty] private bool _isInitialized;
+    [ObservableProperty] private bool _isLoading;
+    [ObservableProperty] private HierarchicalTreeDataGridSource<StatisticsTimeNode>? _timeDetails;
+    [ObservableProperty] private CartesianChart? _chart;
+    [ObservableProperty] private PieChart? _pieChart;
 
-    private HierarchicalTreeDataGridSource<StatisticsTimeNode> _timeDetails;
-    public HierarchicalTreeDataGridSource<StatisticsTimeNode> TimeDetails => _timeDetails;
+    private ColumnSeries<double>? _bar;
+    private Axis? _xAxis;
 
     /// <inheritdoc/>
     public StatisticsTabData(StatisticsType type)
-        : this(type, null, loadImmediately: true)
+        : this(type, null, loadImmediately: false)
     {
     }
 
@@ -90,8 +96,16 @@ public partial class StatisticsTabData : ObservableObject
         Name = GetTypeName(Type);
         IsCustom = type == StatisticsType.Custom;
         _statisticsProvider = statisticsProvider;
+        if (loadImmediately)
+            LoadInitialData();
+    }
 
-        _timeDetails = new HierarchicalTreeDataGridSource<StatisticsTimeNode>([])
+    private void EnsureVisuals()
+    {
+        if (TimeDetails is not null)
+            return;
+
+        TimeDetails = new HierarchicalTreeDataGridSource<StatisticsTimeNode>([])
         {
             Columns =
             {
@@ -130,13 +144,10 @@ public partial class StatisticsTabData : ObservableObject
             }
         };
 
-        InitChart();
-        if (loadImmediately)
-            LoadInitialData();
-    }
-
-    private void InitChart()
-    {
+        _bar = new ColumnSeries<double> { Name = "工时" };
+        _xAxis = new Axis { Name = "项目" };
+        Chart = new CartesianChart();
+        PieChart = new PieChart();
         Chart.Series = [Bar];
         Chart.XAxes =
         [
@@ -150,10 +161,8 @@ public partial class StatisticsTabData : ObservableObject
         PieChart.EasingFunction = null; // disable animations
     }
 
-    public CartesianChart Chart { get; } = new();
-    public PieChart PieChart { get; } = new();
-    private ColumnSeries<double> Bar = new() { Name = "工时" };
-    private Axis XAxis = new() { Name = "项目" };
+    private ColumnSeries<double> Bar => _bar!;
+    private Axis XAxis => _xAxis!;
 
     [RelayCommand]
     private Task Refresh()
@@ -161,28 +170,57 @@ public partial class StatisticsTabData : ObservableObject
         return RefreshSafelyAsync();
     }
 
-    internal async Task RefreshAsync()
+    internal async Task EnsureInitializedAsync()
     {
-        var generation = Interlocked.Increment(ref _refreshGeneration);
-        var (begin, end, customTotal) = PrepareRefreshRequest();
-        StatisticsSnapshot? snapshot;
-        await _refreshLock.WaitAsync();
+        if (IsInitialized)
+            return;
+
+        await _initializationLock.WaitAsync();
         try
         {
-            snapshot = await Task.Run(() => FetchSnapshot(begin, end, customTotal));
+            if (!IsInitialized)
+                await RefreshAsync();
         }
         finally
         {
-            _refreshLock.Release();
+            _initializationLock.Release();
         }
+    }
 
-        if (snapshot is null || generation != Volatile.Read(ref _refreshGeneration))
-            return;
-        await Dispatcher.UIThread.InvokeAsync(() =>
+    internal async Task RefreshAsync()
+    {
+        IsLoading = true;
+        var generation = Interlocked.Increment(ref _refreshGeneration);
+        var (begin, end, customTotal) = PrepareRefreshRequest();
+        StatisticsSnapshot? snapshot;
+        try
+        {
+            await _refreshLock.WaitAsync();
+            try
+            {
+                snapshot = await Task.Run(() => FetchSnapshot(begin, end, customTotal));
+            }
+            finally
+            {
+                _refreshLock.Release();
+            }
+
+            if (snapshot is null || generation != Volatile.Read(ref _refreshGeneration))
+                return;
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                if (generation != Volatile.Read(ref _refreshGeneration))
+                    return;
+                EnsureVisuals();
+                ApplySnapshot(snapshot);
+                IsInitialized = true;
+            });
+        }
+        finally
         {
             if (generation == Volatile.Read(ref _refreshGeneration))
-                ApplySnapshot(snapshot);
-        });
+                IsLoading = false;
+        }
     }
 
     private async Task RefreshSafelyAsync()
@@ -199,10 +237,14 @@ public partial class StatisticsTabData : ObservableObject
 
     private void LoadInitialData()
     {
+        EnsureVisuals();
         var (begin, end, customTotal) = PrepareRefreshRequest();
         var snapshot = FetchSnapshot(begin, end, customTotal);
         if (snapshot is not null)
+        {
             ApplySnapshot(snapshot);
+            IsInitialized = true;
+        }
     }
 
     private (DateTime Begin, DateTime End, double? CustomTotal) PrepareRefreshRequest()
@@ -294,14 +336,14 @@ public partial class StatisticsTabData : ObservableObject
         StatisticsTotal = snapshot.Total;
         Bar.Values = snapshot.Times;
         XAxis.Labels = snapshot.Labels;
-        PieChart.Series = snapshot.Labels
+        PieChart!.Series = snapshot.Labels
             .Select((label, index) => new PieSeries<double>
             {
                 Name = label,
                 Values = [snapshot.Times[index]],
             })
             .ToArray();
-        _timeDetails.Items = snapshot.Details;
+        TimeDetails!.Items = snapshot.Details;
         TimeDetails.ExpandAll();
     }
 
@@ -398,9 +440,9 @@ public partial class StatisticsTabData : ObservableObject
     private void ExpandTree(string open)
     {
         if (open == "1")
-            TimeDetails.ExpandAll();
+            TimeDetails?.ExpandAll();
         else
-            TimeDetails.CollapseAll();
+            TimeDetails?.CollapseAll();
     }
 
     [RelayCommand]

@@ -21,11 +21,17 @@ public sealed class ViewLocator : IDataTemplate
         if (param is not ViewModelBase viewModel)
             return CreateMissingView(param.GetType());
 
-        var control = CacheViews && viewModel.IsViewCacheable
-            ? GetOrCreateCachedView(viewModel)
-            : CreateView(viewModel);
+        var control = ResolveView(viewModel, CacheViews);
         LastVm = viewModel;
         return control;
+    }
+
+    public static Control ResolveView(ViewModelBase viewModel, bool useCache)
+    {
+        ArgumentNullException.ThrowIfNull(viewModel);
+        return useCache && viewModel.IsViewCacheable
+            ? GetOrCreateCachedView(viewModel)
+            : CreateView(viewModel);
     }
 
     public static Control PreloadCached(ViewModelBase viewModel, Size? availableSize = null)

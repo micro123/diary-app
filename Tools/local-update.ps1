@@ -10,6 +10,7 @@ param(
     [Nullable[long]] $Sequence,
     [ValidateSet('standard', 'python313')]
     [string] $Flavor = 'standard',
+    [switch] $ReadyToRun,
     [switch] $ReuseExistingManual
 )
 
@@ -358,9 +359,13 @@ function Build-UpdatePackage([long] $BuildSequence) {
         $env:DIARY_BUILD_SEQUENCE = "$BuildSequence"
         $env:DIARY_BUILD_CHANNEL = $Channel
         Write-Host "正在还原并发布 $Rid 自包含应用……"
-        Invoke-Native 'dotnet' @('restore', (Join-Path $RepositoryRoot 'DiaryApp.sln'), '--runtime', $Rid, '-p:Configuration=Release')
-        Invoke-Native 'dotnet' @('restore', (Join-Path $RepositoryRoot 'Diary.Script.Worker\Diary.Script.Worker.csproj'), '--runtime', $Rid, '-p:Configuration=Release')
-        Invoke-Native 'dotnet' @('publish', (Join-Path $RepositoryRoot 'Diary.App\Diary.App.csproj'), '--configuration', 'Release', '--runtime', $Rid, '--self-contained', 'true', '--no-restore', '--output', $publishDirectory)
+        $readyToRunProperty = if ($ReadyToRun) { @('-p:PublishReadyToRun=true') } else { @() }
+        if ($ReadyToRun) {
+            Write-Host '已启用 ReadyToRun 实验发布；生成包会明显增大。'
+        }
+        Invoke-Native 'dotnet' (@('restore', (Join-Path $RepositoryRoot 'DiaryApp.sln'), '--runtime', $Rid, '-p:Configuration=Release') + $readyToRunProperty)
+        Invoke-Native 'dotnet' (@('restore', (Join-Path $RepositoryRoot 'Diary.Script.Worker\Diary.Script.Worker.csproj'), '--runtime', $Rid, '-p:Configuration=Release') + $readyToRunProperty)
+        Invoke-Native 'dotnet' (@('publish', (Join-Path $RepositoryRoot 'Diary.App\Diary.App.csproj'), '--configuration', 'Release', '--runtime', $Rid, '--self-contained', 'true', '--no-restore', '--output', $publishDirectory) + $readyToRunProperty)
         Invoke-Native 'dotnet' @('publish', (Join-Path $RepositoryRoot 'Diary.Updater\Diary.Updater.csproj'), '--configuration', 'Release', '--runtime', $Rid, '--self-contained', 'true', '--no-restore', '--output', $updaterDirectory)
     }
     finally {

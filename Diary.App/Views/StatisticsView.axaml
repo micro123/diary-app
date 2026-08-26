@@ -224,6 +224,13 @@
                                 </Grid>
                             </Border>
                         </Grid>
+                        <Border Grid.Row="3" Background="{DynamicResource SemiColorBg0}"
+                                IsVisible="{Binding IsLoading}" Opacity="0.88">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+                                <ProgressBar IsIndeterminate="True" Width="180" />
+                                <TextBlock Text="正在加载统计…" HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
                     </Grid>
                 </DataTemplate>
             </TabControl.ContentTemplate>

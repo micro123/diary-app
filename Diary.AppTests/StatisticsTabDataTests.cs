@@ -80,7 +80,41 @@ public sealed class StatisticsTabDataTests
             viewModel.IsPieChart = true;
 
             Assert.IsTrue(viewModel.IsPieChart);
+            Assert.IsNotNull(viewModel.PieChart);
             Assert.AreEqual(2, viewModel.PieChart.Series.Count());
+        }, CancellationToken.None);
+    }
+
+    [TestMethod]
+    public async Task Initialization_IsLazyAndRunsOnlyOnce()
+    {
+        var callCount = 0;
+        await _session.Dispatch(async () =>
+        {
+            var viewModel = new StatisticsTabData(
+                StatisticsType.Custom,
+                (_, _) =>
+                {
+                    Interlocked.Increment(ref callCount);
+                    return CreateResult(4);
+                },
+                loadImmediately: false);
+
+            Assert.IsFalse(viewModel.IsInitialized);
+            Assert.IsNull(viewModel.Chart);
+            Assert.IsNull(viewModel.PieChart);
+            Assert.IsNull(viewModel.TimeDetails);
+            Assert.AreEqual(0, callCount);
+
+            await viewModel.EnsureInitializedAsync();
+            await viewModel.EnsureInitializedAsync();
+
+            Assert.IsTrue(viewModel.IsInitialized);
+            Assert.IsNotNull(viewModel.Chart);
+            Assert.IsNotNull(viewModel.PieChart);
+            Assert.IsNotNull(viewModel.TimeDetails);
+            Assert.AreEqual(1, callCount);
+            Assert.AreEqual(4.0, viewModel.StatisticsTotal);
         }, CancellationToken.None);
     }
 

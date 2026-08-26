@@ -42,6 +42,7 @@ public class StatisticsManager : SingletonBase<StatisticsManager>
 public partial class StatisticsViewModel : ViewModelBase
 {
     public override bool IsViewCacheable => true;
+    private bool _isShown;
 
     [ObservableProperty] private ObservableCollection<StatisticsTabData> _tabs = new();
 
@@ -68,6 +69,39 @@ public partial class StatisticsViewModel : ViewModelBase
         });
     }
 
+    partial void OnSelectedTabIndexChanged(int value)
+    {
+        if (_isShown)
+            ScheduleSelectedTabInitialization();
+    }
+
+    public override void OnShow()
+    {
+        _isShown = true;
+        ScheduleSelectedTabInitialization();
+    }
+
+    public override void OnHide() => _isShown = false;
+
+    private void ScheduleSelectedTabInitialization()
+        => Dispatcher.UIThread.Post(
+            () => _ = EnsureSelectedTabInitializedSafelyAsync(),
+            DispatcherPriority.Background);
+
+    private async Task EnsureSelectedTabInitializedSafelyAsync()
+    {
+        if (SelectedTabIndex < 0 || SelectedTabIndex >= Tabs.Count)
+            return;
+        try
+        {
+            await Tabs[SelectedTabIndex].EnsureInitializedAsync();
+        }
+        catch (Exception exception)
+        {
+            EventDispatcher.ShowToast($"加载统计失败：{exception.Message}");
+        }
+    }
+
     [RelayCommand]
     private void RetryDatabaseConnection()
     {
@@ -75,6 +109,7 @@ public partial class StatisticsViewModel : ViewModelBase
         if (app.TryReconnectDatabase(out var message))
         {
             EventDispatcher.ShowToast("数据库已恢复连接");
+            ScheduleSelectedTabInitialization();
             return;
         }
 

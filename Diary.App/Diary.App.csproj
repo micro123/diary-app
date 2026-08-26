@@ -75,6 +75,11 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- nng.NET ships reference copies for multiple TFMs under runtimes/any; they are package payload, not app assemblies. -->
+        <PublishReadyToRunExclude Include="nng.NET.dll" />
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\Diary.Core\Diary.Core.csproj" />
         <ProjectReference Include="..\Diary.Database\Diary.Database.csproj" />
         <ProjectReference Include="..\Diary.Db.PostgreSQL\Diary.Db.PostgreSQL.csproj" />

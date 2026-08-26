@@ -340,6 +340,12 @@ test -s Docs/UserManual/_output/DiaryApp-User-Manual.html
 ./Tools/package-win-x64-with-python.sh v1.0.0-test1
 ```
 
+Windows 冷启动对照测试可显式启用 ReadyToRun；这不是 NativeAOT，不会移除反射或动态加载能力，但当前完整 ZIP 会从约 83.2 MB 增至约 115.0 MB，所以普通 local 包和 CI 默认保持关闭：
+
+```bash
+./Tools/package-win-x64-with-python.sh --ready-to-run v1.0.0-r2r-test
+```
+
 脚本会执行以下检查：
 
 1. 还原并交叉发布 `win-x64` 自包含应用；

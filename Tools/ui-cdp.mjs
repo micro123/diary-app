@@ -85,6 +85,13 @@ export function buildTree(documentResult) {
             visit(child, entry.nodeId);
     };
     visit(documentResult.root);
+    for (const entry of entries) {
+        const parent = byId.get(entry.parentId);
+        if (parent?.a?.IsVisible === 'false')
+            entry.a.IsVisible = 'false';
+        if (parent?.a?.IsEnabled === 'false')
+            entry.a.IsEnabled = 'false';
+    }
     return { root: documentResult.root, entries, byId };
 }
 

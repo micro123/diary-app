@@ -11,6 +11,8 @@
 - [x] 增加跨平台 Node 编排器，支持多次新进程运行、轮换冷访问顺序、core/full 模式和 Tracker 动态页强制要求，输出逐样本 JSON 与汇总 Markdown。
 - [x] 主窗口导航改为每个可缓存 ViewModel 实例复用一个 View，窗口空闲时离屏预热核心页面；`ViewModelBase` 缓存资格使用默认关闭的虚属性，只有主导航页面显式加入缓存，`WorkEditorViewModel`、对话框和 Tracker 编辑区域继承安全默认值。
 - [x] Linux X11 复测 5 个新进程、20 次首次访问和 75 次热切换全部成功；查询、调查、脚本和日记热切换 P50 分别下降 51.4%、53.4%、28.9% 和 33.9%，统计页首次挂载仍是后续可细分分析的主要成本。
+- [x] 将离屏预热升级为 `NavigationViewHost` 真实视觉树持久挂载，页面切换不再 reparent；统计页签改为显示后按需查询并延迟创建图表/明细树，CDP 同步传播祖先有效可见性。5 进程复测热切换 P50 收敛到 32–37 ms，core 14/14 通过。
+- [x] ReadyToRun `win-x64` 交叉发布验证通过，并为 nng.NET 的 `runtimes/any` 多 TFM 载荷增加排除规则；local Bash/PowerShell 工具提供显式实验开关。由于完整 ZIP 从约 83.2 MB 增至约 115.0 MB，普通 local 包和 CI 默认保持关闭。
 
 ## 2026-08-26 日历脚本菜单空状态
 

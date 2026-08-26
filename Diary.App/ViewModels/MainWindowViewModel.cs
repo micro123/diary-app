@@ -13,7 +13,6 @@ using Diary.App.Models;
 using Diary.Core.Data.AppConfig;
 using Diary.Core.Utils;
 using Diary.Database;
-using Diary.GUIBase;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
@@ -50,7 +49,6 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly UserManualService _userManualService;
     private readonly ILogger _logger;
     private IReadOnlyList<NavigateInfo> _fixedPages;
-    private CancellationTokenSource? _navigationViewPreloadCancellation;
     public string VersionString => AppInfo.AppVersionString;
 
     public string VersionDetails => AppInfo.AppVersionDetails;
@@ -131,7 +129,6 @@ public partial class MainWindowViewModel : ViewModelBase
                 Pages.Add(page);
             RefreshTrackerPages();
             SelectedPage = Pages.FirstOrDefault(x => x.Name == selectedName) ?? _fixedPages[0];
-            ScheduleNavigationViewPreload();
             _logger.LogDebug("config updated, tracker navigation rebuilt: {Count} pages", Pages.Count);
         });
 
@@ -691,70 +688,6 @@ public partial class MainWindowViewModel : ViewModelBase
     private void Opened(object? parameter)
     {
         Messenger.Send(new WindowStateEvent(true));
-        ScheduleNavigationViewPreload();
-    }
-
-    private void ScheduleNavigationViewPreload()
-    {
-        _navigationViewPreloadCancellation?.Cancel();
-        _navigationViewPreloadCancellation?.Dispose();
-        _navigationViewPreloadCancellation = new CancellationTokenSource();
-        _ = PreloadNavigationViewsAsync(_navigationViewPreloadCancellation.Token);
-    }
-
-    private async Task PreloadNavigationViewsAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            await Task.Delay(TimeSpan.FromMilliseconds(750), cancellationToken);
-            var selected = SelectedPage?.ViewModel;
-            var pages = Pages
-                .Where(page => page.ViewModel is { IsViewCacheable: true } && !ReferenceEquals(page.ViewModel, selected))
-                .OrderBy(page => GetPreloadPriority(page.Name))
-                .ToArray();
-            foreach (var page in pages)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await Dispatcher.UIThread.InvokeAsync(
-                    () => ViewLocator.PreloadCached(page.ViewModel!, GetNavigationPreloadSize()),
-                    DispatcherPriority.Background);
-                _logger.LogDebug("Preloaded navigation view: {Page}", page.Name);
-                await Task.Delay(TimeSpan.FromMilliseconds(75), cancellationToken);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // 配置重建或程序退出会取消上一轮预热。
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Navigation view preload failed");
-        }
-    }
-
-    private static int GetPreloadPriority(string pageName) => pageName switch
-    {
-        PageNames.Statistics => 0,
-        PageNames.Scripts => 1,
-        PageNames.WorkItemQuery => 2,
-        PageNames.SurveyTool => 3,
-        _ => 4,
-    };
-
-    private Avalonia.Size GetNavigationPreloadSize()
-    {
-        var clientSize = Window?.ClientSize ?? new Avalonia.Size(1280, 800);
-        return new Avalonia.Size(
-            Math.Max(1, clientSize.Width - 70),
-            Math.Max(1, clientSize.Height - 70));
-    }
-
-    public override void Cleanup()
-    {
-        _navigationViewPreloadCancellation?.Cancel();
-        _navigationViewPreloadCancellation?.Dispose();
-        _navigationViewPreloadCancellation = null;
-        base.Cleanup();
     }
 
     [RelayCommand]

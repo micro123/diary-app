@@ -32,9 +32,10 @@ require_command() {
 }
 
 print_usage() {
-    printf '用法：%s [--upload-filecodebox] [版本标签]\n' "$0"
-    printf '示例：%s --upload-filecodebox v1.0.0-test1\n' "$0"
+    printf '用法：%s [--upload-filecodebox] [--ready-to-run] [版本标签]\n' "$0"
+    printf '示例：%s --ready-to-run --upload-filecodebox v1.0.0-test1\n' "$0"
     printf '默认只生成本地 ZIP；指定 --upload-filecodebox 后，打包完成会上传到局域网 FileCodeBox。\n'
+    printf '%s\n' '--ready-to-run 会预编译主应用程序集以测试 Windows 冷启动性能，但会显著增加包体积。'
 }
 
 default_package_version() {
@@ -286,6 +287,7 @@ upload_to_filecodebox() {
 }
 
 upload_filecodebox=0
+ready_to_run=0
 package_version=""
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -295,6 +297,9 @@ while [ "$#" -gt 0 ]; do
             ;;
         --upload-filecodebox)
             upload_filecodebox=1
+            ;;
+        --ready-to-run)
+            ready_to_run=1
             ;;
         --*)
             printf '未知参数：%s\n' "$1" >&2
@@ -339,9 +344,15 @@ temporary_archive="$temporary_directory/$archive_name"
 mkdir -p -- "$publish_directory" "$updater_publish_directory" "$output_directory"
 
 printf '正在还原 %s 依赖……\n' "$RID"
-dotnet restore "$repository_root/DiaryApp.sln" --runtime "$RID" -p:Configuration="$CONFIGURATION"
+publish_properties=()
+if [ "$ready_to_run" -eq 1 ]; then
+    publish_properties+=("-p:PublishReadyToRun=true")
+    printf '已启用 ReadyToRun 实验发布。\n'
+fi
+dotnet restore "$repository_root/DiaryApp.sln" --runtime "$RID" \
+    -p:Configuration="$CONFIGURATION" "${publish_properties[@]}"
 dotnet restore "$repository_root/Diary.Script.Worker/Diary.Script.Worker.csproj" \
-    --runtime "$RID" -p:Configuration="$CONFIGURATION"
+    --runtime "$RID" -p:Configuration="$CONFIGURATION" "${publish_properties[@]}"
 
 printf '正在发布 %s 自包含应用……\n' "$RID"
 dotnet publish "$repository_root/Diary.App/Diary.App.csproj" \
@@ -349,6 +360,7 @@ dotnet publish "$repository_root/Diary.App/Diary.App.csproj" \
     --runtime "$RID" \
     --self-contained true \
     --no-restore \
+    "${publish_properties[@]}" \
     --output "$publish_directory"
 
 printf '正在发布 %s 自包含单文件更新器……\n' "$RID"

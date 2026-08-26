@@ -38,6 +38,14 @@ PowerShell 工具默认发布 `win-x64/standard`，也可使用 `-Flavor python3
 .\Tools\local-update.ps1 all -Flavor python313
 ```
 
+如需单独评估 Windows 冷启动和第一次页面切换，可生成 ReadyToRun 实验包：
+
+```powershell
+.\Tools\local-update.ps1 publish -Flavor python313 -ReadyToRun
+```
+
+该开关不启用 NativeAOT，也不裁剪程序集。默认发布和 CI 暂不启用；当前交叉发布实验中，完整 ZIP 由约 83.2 MB 增至约 115.0 MB。
+
 服务配置、PID、日志和数据保存在 `UpdateServer/.local-windows/`，发布 Token 仍保存在 `UpdateServer/publish_token.txt`，这些本机文件都已忽略。服务进程以隐藏窗口启动；若启动失败，可查看 `server.stderr.log`。默认只监听 `127.0.0.1:18080`，用于同一台 Windows 机器上的升级测试。 PowerShell 工具使用 `serve-local` 模式，不启动 GitHub 定时同步，因此本地验证不依赖 GitHub 网络或 API 配额。
 
 ### Bash/Docker 方式
@@ -50,6 +58,9 @@ Linux、WSL 或已经安装 Docker/Git Bash 的环境可以继续使用原有工
 
 # 服务已经运行时：只打包并发布下一个 local 版本
 ./Tools/local-update.sh publish
+
+# 生成并发布 ReadyToRun 对照包
+./Tools/local-update.sh publish --ready-to-run
 
 # 查看服务和 local latest
 ./Tools/local-update.sh status
