@@ -159,12 +159,23 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         assertUi(findByName(tree, 'Version'), '版本入口不可见');
         assertUi(findByName(tree, 'DatabaseStatus'), '状态栏缺少数据库状态');
         assertUi(findByName(tree, 'TrackerStatus'), '状态栏缺少 Tracker 状态');
+        assertUi(findByName(tree, 'NotificationCenterButton'), '状态栏缺少通知中心入口');
         assertUi(findByName(tree, 'StatusDate'), '状态栏缺少日期入口');
         const now = new Date();
         const statusBar = findByName(tree, 'StatusBarView');
         const statusDate = [statusBar, ...descendants(tree, statusBar)]
             .find(entry => isVisible(entry) && isCurrentDateText(textOf(entry), now));
         assertUi(statusDate, '状态栏缺少当前日期');
+        await connection.clickByName('NotificationCenterButton');
+        const notificationCenter = await connection.waitForTree(current => {
+            const panel = findByName(current, 'NotificationCenterPanel');
+            const emptyState = findByName(current, 'NotificationCenterEmptyState');
+            if (!panel || !emptyState || !isVisible(panel) || !isVisible(emptyState))
+                return null;
+            const bounds = boundsOf(emptyState);
+            return bounds.width > 0 && bounds.height > 0 ? emptyState : null;
+        }, 3000, '通知中心没有显示有效内容');
+        await connection.pressKey('Escape', 'Escape', 27);
         await connection.clickByName('Version');
         const versionMenu = await connection.waitForTree(current => {
             const item = findByText(current, '检查更新', entry => hasAncestorType(current, entry, 'MenuItem'));
@@ -175,6 +186,7 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         return {
             version: textOf(findByName(tree, 'Version')),
             dateText: textOf(statusDate),
+            notificationCenterEmptyBounds: notificationCenter.value.a.Bounds,
             updateShortcut: textOf(versionMenu.value),
         };
     });
