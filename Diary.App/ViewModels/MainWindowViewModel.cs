@@ -38,6 +38,7 @@ using TagEditorViewModel = Diary.App.ViewModels.Dialogs.TagEditorViewModel;
 using TemplateEditorViewModel = Diary.App.ViewModels.Dialogs.TemplateEditorViewModel;
 using TrackerSettingsDialogViewModel = Diary.App.ViewModels.Dialogs.TrackerSettingsDialogViewModel;
 using ExportTemplateManagerViewModel = Diary.App.ViewModels.Dialogs.ExportTemplateManagerViewModel;
+using ApplicationScriptLauncherDialogViewModel = Diary.App.ViewModels.Dialogs.ApplicationScriptLauncherDialogViewModel;
 
 namespace Diary.App.ViewModels;
 
@@ -994,6 +995,42 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void ImportScriptExtension()
         => PostUiAsync(ImportScriptExtensionAsync, "导入脚本扩展");
+
+    [RelayCommand]
+    private void RunApplicationScript()
+        => PostUiAsync(RunApplicationScriptAsync, "运行程序脚本");
+
+    private async Task RunApplicationScriptAsync()
+    {
+        var scriptRoot = Path.Combine(FsTools.GetApplicationConfigDirectory(), "scripts");
+        ScriptDirectoryLoadResult loadResult;
+        using (var statusTask = _appStatus.BeginTask("加载程序脚本", "正在读取可运行的 Application 入口…"))
+        {
+            loadResult = await _serviceProvider.GetRequiredService<ScriptDirectoryLoadState>()
+                .EnsureLoadedAsync(scriptRoot);
+            statusTask.Report(1, "程序脚本列表已就绪");
+        }
+
+        var launcher = _serviceProvider.GetRequiredService<ApplicationScriptLauncherDialogViewModel>();
+        launcher.Initialize(ScriptManagementViewModel.CreateScriptItems(loadResult));
+        var selectedScript = await OverlayDialog.ShowCustomModal<ScriptListItem>(
+            launcher,
+            options: new OverlayDialogOptions
+            {
+                CanDragMove = false,
+                CanResize = false,
+                CanLightDismiss = false,
+                IsCloseButtonVisible = false,
+            });
+        if (selectedScript is null)
+            return;
+
+        using var executionTask = _appStatus.BeginTask(
+            $"运行脚本：{selectedScript.Name}",
+            "正在等待脚本参数并执行…");
+        await _serviceProvider.GetRequiredService<ScriptManagementViewModel>()
+            .RunFromLauncherAsync(selectedScript);
+    }
 
     private async Task ImportScriptExtensionAsync()
     {

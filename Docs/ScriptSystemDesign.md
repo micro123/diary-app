@@ -139,6 +139,8 @@ IScriptValidatorV1
 
 应用脚本使用 V1 的 `IApplicationScriptV1` / `ApplicationScript`，或 V2 的 `IApplicationScriptV2` / `ApplicationScriptV2`，对应 `ScriptEntryKind.Application`。它接收没有编辑器目标的 `IScriptApplicationContext`，适合批量整理、导出统计和创建追加式工作记录。
 
+主窗口设置菜单提供独立的“运行程序脚本…”入口，不依赖“显示开发者功能”或脚本管理页面。入口复用应用启动阶段的脚本目录加载结果，只列出构建成功、配置完整且 `EntryKind=Application` 的脚本；选中后继续使用统一参数对话框、上次参数记忆、Preview、超时、Worker 执行、历史记录和全局结果通知。Automation 仍由调度器负责，Query 与 Editor 继续从各自的专业入口执行，避免普通入口混入触发型或上下文相关脚本。
+
 ### 5.2 编辑器脚本
 
 编辑器脚本使用 V1 的 `IEditorScriptV1` / `EditorScript`，或 V2 的 `IEditorScriptV2` / `EditorScriptV2`，对应 `ScriptEntryKind.Editor`。它必须收到 `Year`、`Quarter`、`Month`、`Week`、`Day` 或 `WorkItem` 目标，并可通过 `GetDateRange()`、`StreamItemsAsync()` 或不可变的 `ScriptWorkItem` 快照读取上下文。

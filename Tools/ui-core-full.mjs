@@ -88,6 +88,7 @@ async function closeKnownDialog(connection) {
         ['SettingsView', '关闭'],
         ['ExportTemplateManagerView', '关闭'],
         ['TrackerSettingsDialogView', '取消'],
+        ['ApplicationScriptLauncherDialogView', '取消'],
         ['CopyDayView', '取消'],
     ]) {
         if (await closeViewWithButton(connection, typeName, button))
@@ -265,6 +266,22 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         assertUi(textInView(tree, 'TrackerSettingsDialogView', '插件状态'), '插件状态页签缺失');
         assertUi(textInView(tree, 'TrackerSettingsDialogView', '保存'), 'Tracker 保存入口缺失');
         await closeViewWithButton(connection, 'TrackerSettingsDialogView', '取消');
+        return { openMs: opened.elapsedMs };
+    });
+
+    await runStep('scripts.application-launcher', '未启用开发者页面时打开程序脚本入口', async () => {
+        const shellTree = await connection.getTree();
+        assertUi(!findByText(shellTree, '脚本管理'), '默认场景不应显示脚本管理导航');
+        const opened = await openSettingsText(
+            connection,
+            '运行程序脚本…',
+            'ApplicationScriptLauncherDialogView');
+        const tree = opened.tree;
+        assertUi(textInView(tree, 'ApplicationScriptLauncherDialogView', '运行程序脚本'),
+            '程序脚本选择器标题缺失');
+        assertUi(textInView(tree, 'ApplicationScriptLauncherDialogView', '下一步'),
+            '程序脚本选择器执行入口缺失');
+        await closeViewWithButton(connection, 'ApplicationScriptLauncherDialogView', '取消');
         return { openMs: opened.elapsedMs };
     });
 

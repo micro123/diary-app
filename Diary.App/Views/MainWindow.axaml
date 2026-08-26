@@ -167,6 +167,8 @@
                         <Separator />
                         <MenuItem Header="Tracker 设置" Command="{Binding ShowTrackerSettingsCommand}" />
                         <Separator />
+                        <MenuItem Name="RunApplicationScriptMenuItem" Header="运行程序脚本…"
+                                  Command="{Binding RunApplicationScriptCommand}" />
                         <MenuItem Header="导入脚本扩展…" Command="{Binding ImportScriptExtensionCommand}" />
                     </MenuFlyout>
                 </Button.Flyout>

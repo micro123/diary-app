@@ -14,6 +14,7 @@ using Diary.App.ViewModels.Dialogs;
 using Diary.App.Views;
 using Diary.App.Models;
 using Diary.App.Services;
+using Diary.GUIBase.Events;
 using Diary.GUIBase.ViewModels;
 using Diary.GUIBase.Utils;
 using Diary.Script.Runtime;
@@ -576,7 +577,31 @@ public partial class ScriptManagementViewModel(
     private async Task Run()
     {
         var script = SelectedScript;
-        if (script?.Descriptor is not { } descriptor)
+        if (script is null)
+            return;
+        await RunScriptAsync(script, useGlobalNotifications: false);
+    }
+
+    internal async Task RunFromLauncherAsync(ScriptListItem script)
+    {
+        ArgumentNullException.ThrowIfNull(script);
+        if (!script.IsRunnable || script.EntryKind != ScriptEntryKind.Application)
+        {
+            EventDispatcher.ShowToast("所选脚本不是可运行的 Application 入口。", NotificationType.Warning);
+            return;
+        }
+        if (IsExecuting)
+        {
+            EventDispatcher.ShowToast("已有脚本正在执行，请稍后再试。", NotificationType.Warning);
+            return;
+        }
+
+        await RunScriptAsync(script, useGlobalNotifications: true);
+    }
+
+    private async Task RunScriptAsync(ScriptListItem script, bool useGlobalNotifications)
+    {
+        if (script.Descriptor is not { } descriptor)
             return;
         var scope = new ScriptLastArgumentsScope(script.Id, script.EntryKind);
         var lastArguments = await lastArgumentsStore.GetAsync(scope, descriptor);
@@ -618,20 +643,21 @@ public partial class ScriptManagementViewModel(
             }
             Status = FormatExecutionStatus(
                 script.Name, outcome.Result.Status, outcome.Result.Diagnostics, outcome.Duration, outcome.Result.Effects);
-            NotificationManager?.Show(
+            ShowExecutionNotification(
                 Status,
                 outcome.Result.Status == ScriptExecutionStatus.Succeeded
                     ? NotificationType.Success
                     : outcome.Result.Status == ScriptExecutionStatus.Cancelled
                         ? NotificationType.Information
-                        : NotificationType.Error);
+                        : NotificationType.Error,
+                useGlobalNotifications);
             MarkHistoryDirty();
         }
         catch (Exception exception)
         {
             logger.LogError(exception, "运行脚本失败：{ScriptId}", script.Id);
             Status = $"{script.Name} 执行失败，请查看日志";
-            NotificationManager?.Show(Status, NotificationType.Error);
+            ShowExecutionNotification(Status, NotificationType.Error, useGlobalNotifications);
         }
         finally
         {
@@ -641,6 +667,17 @@ public partial class ScriptManagementViewModel(
             OnPropertyChanged(nameof(HasProgress));
             IsExecuting = false;
         }
+    }
+
+    private void ShowExecutionNotification(
+        string message,
+        NotificationType type,
+        bool useGlobalNotifications)
+    {
+        if (useGlobalNotifications)
+            EventDispatcher.ShowToast(message, type, NotificationRetention.Session, "程序脚本");
+        else
+            NotificationManager?.Show(message, type);
     }
 
     [RelayCommand(CanExecute = nameof(CanCancel))]
@@ -1181,10 +1218,10 @@ public partial class ScriptManagementViewModel(
         IEnumerable<ScriptDiagnostic>? diagnostics) =>
         diagnostics?.Select(FormatDiagnostic).ToArray() ?? Array.Empty<ScriptDiagnosticListItem>();
 
-    private static PreparedScriptDirectoryData PrepareDirectoryResult(ScriptDirectoryLoadResult result)
+    internal static IReadOnlyList<ScriptListItem> CreateScriptItems(ScriptDirectoryLoadResult result)
     {
-        var diagnostics = result.Diagnostics.Select(FormatDiagnostic).ToArray();
-        var scripts = result.Entries.Select(entry =>
+        ArgumentNullException.ThrowIfNull(result);
+        return result.Entries.Select(entry =>
         {
             var descriptor = entry.DiscoveredDescriptor ?? entry.BuildResult?.Program?.Descriptor;
             var entryKind = descriptor is null
@@ -1206,6 +1243,12 @@ public partial class ScriptManagementViewModel(
                 descriptor,
                 entry.ConfigurationState);
         }).ToArray();
+    }
+
+    private static PreparedScriptDirectoryData PrepareDirectoryResult(ScriptDirectoryLoadResult result)
+    {
+        var diagnostics = result.Diagnostics.Select(FormatDiagnostic).ToArray();
+        var scripts = CreateScriptItems(result);
         return new PreparedScriptDirectoryData(
             result,
             diagnostics,

@@ -1,0 +1,79 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:dialogs="using:Diary.App.ViewModels.Dialogs"
+             xmlns:vm="using:Diary.App.ViewModels"
+             xmlns:i="https://github.com/projektanker/icons.avalonia"
+             x:Class="Diary.App.Views.Dialogs.ApplicationScriptLauncherDialogView"
+             x:DataType="dialogs:ApplicationScriptLauncherDialogViewModel"
+             Width="660" MinHeight="430" MaxHeight="680" Padding="14">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
+        <Border Classes="PageHeader">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                <Border Width="42" Height="42" CornerRadius="10"
+                        Background="{DynamicResource SemiColorPrimaryLight}">
+                    <i:Icon Value="mdi-play-box-multiple-outline" FontSize="25"
+                            HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                    <TextBlock Text="运行程序脚本" FontSize="22" FontWeight="SemiBold" />
+                    <TextBlock Text="选择一个 Application 入口；无需启用脚本管理页面。"
+                               Opacity="0.68" TextWrapping="Wrap" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Classes="SectionCard" Padding="8">
+            <Grid>
+                <ListBox ItemsSource="{Binding Scripts}"
+                         SelectedItem="{Binding SelectedScript, Mode=TwoWay}"
+                         IsVisible="{Binding HasScripts}">
+                    <ListBox.ItemContainerTheme>
+                        <ControlTheme TargetType="ListBoxItem"
+                                      BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        </ControlTheme>
+                    </ListBox.ItemContainerTheme>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ScriptListItem">
+                            <Grid Margin="6" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                <i:Icon Value="mdi-script-text-play-outline" FontSize="28"
+                                        VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="{Binding Name}" FontSize="17" FontWeight="SemiBold"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding Description}" Opacity="0.68"
+                                               TextWrapping="Wrap" MaxLines="2" />
+                                    <TextBlock Text="{Binding Id}" Opacity="0.56"
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6"
+                                            VerticalAlignment="Center">
+                                    <Border Classes="StatusPill StatusInfo" Padding="7,2">
+                                        <TextBlock Text="{Binding ApiVersionLabel}" FontSize="11" />
+                                    </Border>
+                                    <TextBlock Text="{Binding Language}" Opacity="0.68"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6"
+                            IsVisible="{Binding !HasScripts}">
+                    <i:Icon Value="mdi-script-text-outline" FontSize="42" Opacity="0.55"
+                            HorizontalAlignment="Center" />
+                    <TextBlock Text="没有可运行的程序脚本" Classes="EmptyStateTitle" />
+                    <TextBlock Text="可通过“导入脚本扩展”安装脚本；脚本开发与诊断仍在开发者页面中完成。"
+                               Classes="EmptyStateDescription" MaxWidth="430"
+                               TextAlignment="Center" TextWrapping="Wrap" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <StackPanel Grid.Row="2" Classes="DialogFooter">
+            <Button Content="取消" Command="{Binding CancelCommand}" />
+            <Button Content="下一步" Classes="Primary" Command="{Binding RunCommand}" />
+        </StackPanel>
+    </Grid>
+</UserControl>
