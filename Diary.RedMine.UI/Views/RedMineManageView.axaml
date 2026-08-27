@@ -16,8 +16,7 @@
         </StackPanel>
         <Border Classes="DetailPane" IsVisible="{Binding ServerOk}">
         <TabControl ItemsSource="{Binding Tabs}"
-                    TabStripPlacement="Top" Theme="{DynamicResource LineTabControl}"
-                    Margin="8,2,8,8">
+                    TabStripPlacement="Top" Theme="{DynamicResource LineTabControl}">
             <TabControl.ItemTemplate>
                 <DataTemplate>
                     <StackPanel Orientation="Horizontal" Spacing="6">
