@@ -89,6 +89,7 @@ async function closeKnownDialog(connection) {
         ['ExportTemplateManagerView', '关闭'],
         ['TrackerSettingsDialogView', '取消'],
         ['ApplicationScriptLauncherDialogView', '取消'],
+        ['PeriodWorkTimeSummaryDialogView', '关闭'],
         ['CopyDayView', '取消'],
     ]) {
         if (await closeViewWithButton(connection, typeName, button))
@@ -471,7 +472,7 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
             await connection.client.send('Input.dispatchMouseEvent', {
                 type: 'mouseReleased', x: targetX, y: targetY, button: 'right', buttons: 0, clickCount: 1,
             });
-            return connection.waitForTree(current => ['同步本日工时', '统计本周工时'].every(text =>
+            return connection.waitForTree(current => ['同步本日工时', '周度工时概要', '统计本周工时'].every(text =>
                 findByText(current, text, entry => hasAncestorType(current, entry, 'MenuItem'))),
             timeoutMs, '右键非选中日期后没有同时选中日期并打开日/周菜单');
         };
@@ -495,18 +496,50 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         assertUi(selectedTargetButton, '右键非选中日期后目标日期没有变为当前选中');
         assertUi(updatedTodayButton && !String(updatedTodayButton.a.Class ?? '').includes('Selected'),
             '选择其他日期后今天标记与当前选中状态没有分离');
-        await connection.pressKey('Escape', 'Escape', 27);
+        const weeklySummaryText = findByText(dayMenu.tree, '周度工时概要',
+            entry => hasAncestorType(dayMenu.tree, entry, 'MenuItem'));
+        const weeklySummaryItem = weeklySummaryText
+            && ancestor(dayMenu.tree, weeklySummaryText, entry => typeOf(entry).includes('MenuItem'));
+        assertUi(weeklySummaryItem, '日/周菜单缺少周度工时概要入口');
+        await connection.clickNode(weeklySummaryItem);
+        const weeklySummary = await connection.waitForTree(
+            current => viewRoot(current, 'PeriodWorkTimeSummaryDialogView'),
+            5000,
+            '周度工时概要对话框未出现');
+        for (const text of ['周度工时概要', '范围总计', '已提交', '未提交', '不能提交或提交失败'])
+            assertUi(textInView(weeklySummary.tree, 'PeriodWorkTimeSummaryDialogView', text),
+                '周度工时概要缺少内容：' + text);
+        await closeViewWithButton(connection, 'PeriodWorkTimeSummaryDialogView', '关闭');
 
         tree = await connection.getTree();
         const compactCalendarHeader = findByName(tree, 'CompactCalendarHeader');
         assertUi(compactCalendarHeader, '找不到可验证右键菜单的月份标题');
-        await connection.client.send('DOM.focus', { nodeId: compactCalendarHeader.nodeId });
-        await connection.pressKey('F10', 'F10', 121, shift);
-        const periodMenu = await connection.waitForTree(current => [
-            '统计本月工时', '统计本季度工时', '统计此年工时',
-            '脚本（本月）', '脚本（本季度）', '脚本（本年度）',
-        ].every(text => findByText(current, text, entry => hasAncestorType(current, entry, 'MenuItem'))),
-        3000, '月份标题右键菜单没有同时提供月、季度和年度操作');
+        const waitForPeriodMenu = timeoutMs => connection.waitForTree(current => [
+                '月度工时概要', '统计本月工时', '统计本季度工时', '统计此年工时',
+                '脚本（本月）', '脚本（本季度）', '脚本（本年度）',
+            ].every(text => findByText(current, text, entry => hasAncestorType(current, entry, 'MenuItem'))),
+            timeoutMs, '月份标题右键菜单没有同时提供月、季度和年度操作');
+        let periodMenu;
+        try {
+            await connection.client.send('DOM.focus', { nodeId: compactCalendarHeader.nodeId });
+            await connection.pressKey('F10', 'F10', 121, shift);
+            periodMenu = await waitForPeriodMenu(1500);
+        }
+        catch {
+            await connection.pressKey('Escape', 'Escape', 27);
+            const headerBox = await connection.client.send(
+                'DOM.getBoxModel', { nodeId: compactCalendarHeader.nodeId });
+            const headerQuad = headerBox.model.border;
+            const headerX = (headerQuad[0] + headerQuad[4]) / 2;
+            const headerY = (headerQuad[1] + headerQuad[5]) / 2;
+            await connection.client.send('Input.dispatchMouseEvent', {
+                type: 'mousePressed', x: headerX, y: headerY, button: 'right', buttons: 2, clickCount: 1,
+            });
+            await connection.client.send('Input.dispatchMouseEvent', {
+                type: 'mouseReleased', x: headerX, y: headerY, button: 'right', buttons: 0, clickCount: 1,
+            });
+            periodMenu = await waitForPeriodMenu(5000);
+        }
         const statisticsYear = findByText(periodMenu.tree, '统计此年工时',
             entry => hasAncestorType(periodMenu.tree, entry, 'MenuItem'));
         const monthScripts = findByText(periodMenu.tree, '脚本（本月）',
@@ -515,7 +548,19 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         const monthScriptsBounds = boundsOf(monthScripts);
         const scriptGroupGap = monthScriptsBounds.y - statisticsBounds.y - statisticsBounds.height;
         assertUi(scriptGroupGap >= 4, '脚本菜单组前缺少分隔符形成的分组间距');
-        await connection.pressKey('Escape', 'Escape', 27);
+        const monthlySummaryText = findByText(periodMenu.tree, '月度工时概要',
+            entry => hasAncestorType(periodMenu.tree, entry, 'MenuItem'));
+        const monthlySummaryItem = monthlySummaryText
+            && ancestor(periodMenu.tree, monthlySummaryText, entry => typeOf(entry).includes('MenuItem'));
+        assertUi(monthlySummaryItem, '月份标题菜单缺少月度工时概要入口');
+        await connection.clickNode(monthlySummaryItem);
+        const monthlySummary = await connection.waitForTree(
+            current => viewRoot(current, 'PeriodWorkTimeSummaryDialogView'),
+            5000,
+            '月度工时概要对话框未出现');
+        assertUi(textInView(monthlySummary.tree, 'PeriodWorkTimeSummaryDialogView', '月度工时概要'),
+            '月度工时概要标题缺失');
+        await closeViewWithButton(connection, 'PeriodWorkTimeSummaryDialogView', '关闭');
 
         await connection.clickByName('CompactCalendarHeader');
         const fullCalendar = await connection.waitForTree(current => {

@@ -941,6 +941,49 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private IAsyncRelayCommand CreatePeriodTrackerUploadCommand(DateTime date, AdjustPart part) =>
         new AsyncRelayCommand(() => UploadPeriodTrackerTime(date, part));
 
+    private IAsyncRelayCommand CreatePeriodWorkTimeSummaryCommand(DateTime date, AdjustPart part) =>
+        new AsyncRelayCommand(() => ShowPeriodWorkTimeSummary(date, part));
+
+    private async Task ShowPeriodWorkTimeSummary(DateTime anchorDate, AdjustPart part)
+    {
+        var (startDate, endDate, _) = GetTrackerUploadRange(anchorDate, part);
+        try
+        {
+            await Task.Yield();
+            var works = LoadPeriodWorks(startDate, endDate);
+            var summary = PeriodWorkTimeSummaryCalculator.Calculate(
+                startDate,
+                endDate,
+                works.Select(work => new PeriodWorkTimeSummaryEntry(
+                    work.Time,
+                    work.UploadStatus,
+                    work.IsImportedReadOnly,
+                    work.GetPeriodUploadEligibility())));
+            var dialog = _serviceProvider.GetRequiredService<PeriodWorkTimeSummaryDialogViewModel>();
+            dialog.Initialize(
+                part == AdjustPart.Week ? "周度工时概要" : "月度工时概要",
+                summary);
+            await OverlayDialog.ShowCustomModal<object>(
+                dialog,
+                options: new OverlayDialogOptions
+                {
+                    CanDragMove = false,
+                    CanResize = false,
+                    CanLightDismiss = true,
+                    IsCloseButtonVisible = false,
+                });
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(
+                exception,
+                "Failed to summarize tracker time for period {StartDate} - {EndDate}",
+                startDate,
+                endDate);
+            EventDispatcher.Notify("工时概要生成失败", exception.Message);
+        }
+    }
+
     private async Task UploadPeriodTrackerTime(DateTime anchorDate, AdjustPart part)
     {
         var (startDate, endDate, periodName) = GetTrackerUploadRange(anchorDate, part);
@@ -1373,6 +1416,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         AddMenuSeparator();
         AddMenuAction("同步本日工时", UploadAllCommand);
         AddMenuAction("同步本周工时", CreatePeriodTrackerUploadCommand(date, AdjustPart.Week));
+        AddMenuAction("周度工时概要", CreatePeriodWorkTimeSummaryCommand(date, AdjustPart.Week));
         AddMenuAction("统计本周工时", CreateStatisticsCommand(date, AdjustPart.Week));
         if (IsSurveyorEnabled)
         {
@@ -1399,6 +1443,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         AddMenuHeader($"{date:yyyy年MM月} · 第{quarter}季度 · {date:yyyy}年度");
         AddMenuSeparator();
         AddMenuAction("同步本月工时", CreatePeriodTrackerUploadCommand(date, AdjustPart.Month));
+        AddMenuAction("月度工时概要", CreatePeriodWorkTimeSummaryCommand(date, AdjustPart.Month));
         AddMenuAction("统计本月工时", CreateStatisticsCommand(date, AdjustPart.Month));
         AddMenuAction("统计本季度工时", CreateStatisticsCommand(date, AdjustPart.Quarter));
         AddMenuAction("统计此年工时", CreateStatisticsCommand(date, AdjustPart.Year));

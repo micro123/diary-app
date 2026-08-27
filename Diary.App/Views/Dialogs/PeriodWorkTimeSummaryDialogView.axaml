@@ -1,0 +1,72 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:dialogs="using:Diary.App.ViewModels.Dialogs"
+             xmlns:i="https://github.com/projektanker/icons.avalonia"
+             x:Class="Diary.App.Views.Dialogs.PeriodWorkTimeSummaryDialogView"
+             x:DataType="dialogs:PeriodWorkTimeSummaryDialogViewModel"
+             Width="680" MinHeight="390" Padding="14">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="10">
+        <Border Classes="PageHeader">
+            <Grid Classes="PageHeading" ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                <i:Icon Value="mdi-chart-box-outline" FontSize="30" />
+                <StackPanel Grid.Column="1" Spacing="2">
+                    <TextBlock Text="{Binding Title}" Classes="PageTitle" />
+                    <TextBlock Text="{Binding RangeText}" Classes="PageSubtitle" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Classes="SubtleCard">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <StackPanel Spacing="2">
+                    <TextBlock Text="范围总计" FontWeight="SemiBold" />
+                    <TextBlock Text="所有本地事项，不论是否具备远程提交条件"
+                               Classes="PageSubtitle" />
+                </StackPanel>
+                <Border Grid.Column="1" Classes="StatusPill StatusInfo">
+                    <TextBlock Text="{Binding TotalText}" FontWeight="SemiBold" />
+                </Border>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="2" ColumnDefinitions="*,*,*" ColumnSpacing="8">
+            <Border Classes="SectionCard">
+                <StackPanel Spacing="8">
+                    <i:Icon Value="mdi-check-circle-outline" FontSize="28" HorizontalAlignment="Left" />
+                    <TextBlock Text="已提交" FontSize="18" FontWeight="SemiBold" />
+                    <TextBlock Text="所有 Tracker 均已同步" Classes="PageSubtitle"
+                               TextWrapping="Wrap" />
+                    <Border Classes="StatusPill StatusSuccess" HorizontalAlignment="Left">
+                        <TextBlock Text="{Binding SubmittedText}" FontWeight="SemiBold" />
+                    </Border>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Classes="SectionCard">
+                <StackPanel Spacing="8">
+                    <i:Icon Value="mdi-clock-outline" FontSize="28" HorizontalAlignment="Left" />
+                    <TextBlock Text="未提交" FontSize="18" FontWeight="SemiBold" />
+                    <TextBlock Text="当前信息完整，可以继续提交" Classes="PageSubtitle"
+                               TextWrapping="Wrap" />
+                    <Border Classes="StatusPill StatusInfo" HorizontalAlignment="Left">
+                        <TextBlock Text="{Binding UnsubmittedText}" FontWeight="SemiBold" />
+                    </Border>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="2" Classes="SectionCard">
+                <StackPanel Spacing="8">
+                    <i:Icon Value="mdi-alert-circle-outline" FontSize="28" HorizontalAlignment="Left" />
+                    <TextBlock Text="不能提交或提交失败" FontSize="18" FontWeight="SemiBold" />
+                    <TextBlock Text="配置不完整、数据无效、失败或结果待确认"
+                               Classes="PageSubtitle" TextWrapping="Wrap" />
+                    <Border Classes="StatusPill StatusError" HorizontalAlignment="Left">
+                        <TextBlock Text="{Binding BlockedOrFailedText}" FontWeight="SemiBold" />
+                    </Border>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <StackPanel Grid.Row="3" Classes="DialogFooter">
+            <Button Classes="Primary" Content="关闭" Command="{Binding DismissCommand}" />
+        </StackPanel>
+    </Grid>
+</UserControl>
