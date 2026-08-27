@@ -27,7 +27,7 @@
 | --- | ---: | --- |
 | `ui-settings-full` | 9 | 引导、程序设置、数据库/迁移入口、日志导出、更新 |
 | `ui-smoke` | 断言集 | 统一耗时输入、标签、模板、主题、草稿保存、模板新建，以及编辑器模板应用/更新入口 |
-| `ui-core-full` | 15 | 主外壳、程序脚本快捷入口、日记、查询、统计、快捷键 |
+| `ui-core-full` | 16 | 主外壳、程序脚本快捷入口、日记、查询、统计、快捷键 |
 | `ui-extended-full` | 11 | 脚本管理、AI 上下文授权与 MCP 快照、程序设置配置复制、创建、运行、历史、日志和删除 |
 | `ui-script-editor` | 4 | 独立脚本编辑器和编译检查 |
 | `ui-database-error` | 8 | 数据库异常和恢复入口 |
@@ -154,6 +154,7 @@
 | 14 | 文件/目录选择器 | `Manual-Native` | 不属于 Avalonia CDP 视觉树 |
 | 14 | Survey 节点能力对话框 | `Automated` | survey 验证详情打开和关闭 |
 | 15 | `Alt+数字` 主导航 | `Automated` | core 覆盖主键区和应用代码同时支持数字键盘区 |
+| 15 | 日记 `Alt+方向键` 日期导航 | `Automated` | core 覆盖前后一天、前后七天，并确认切到非日记页面后不响应 |
 | 15 | 日记 `Ctrl+T/N/S/D/Shift+D` | `Automated` | smoke/core 覆盖主要路径；模板快捷键和批量同步由命令测试承担 |
 | 15 | Redmine `Enter/Ctrl+Enter` 搜索 | `Automated` | Redmine 覆盖关键词和 ID 搜索 |
 | 16 | 数据库异常不表现为空数据 | `Automated` | database-error 覆盖查询结果保留和恢复入口 |

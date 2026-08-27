@@ -141,6 +141,20 @@ function formatCompactCalendarHeader(date) {
     return `${date.getFullYear()}年${date.getMonth() + 1}月 第${week}周`;
 }
 
+function parseDiaryDateTitle(value) {
+    const parts = String(value).match(/\d+/g)?.map(Number);
+    assertUi(parts?.length === 3, '无法解析日记日期标题：' + value);
+    return new Date(parts[0], parts[1] - 1, parts[2]);
+}
+
+function formatDiaryDateTitle(date) {
+    return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
+function addDateDays(date, days) {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+}
+
 function boundsOf(entry) {
     const parts = String(entry?.a?.Bounds ?? '').split(',').map(Number);
     assertUi(parts.length === 4 && parts.every(Number.isFinite), '控件缺少有效 Bounds：' + entry?.a?.Name);
@@ -236,6 +250,41 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         await connection.pressKey('1', 'Digit1', 49, alt);
         const diary = await connection.waitForTree(tree => viewRoot(tree, 'DiaryEditorView'), 8000);
         return { queryMs: query.elapsedMs, statisticsMs: statistics.elapsedMs, diaryMs: diary.elapsedMs };
+    });
+
+    await runStep('diary.alt-date-navigation', 'Alt 方向键导航日期及页面作用域', async () => {
+        let tree = await connection.getTree();
+        const dateTitle = findByName(tree, 'DiaryDateTitle');
+        const calendarHeader = findByName(tree, 'CompactCalendarHeader');
+        assertUi(dateTitle && calendarHeader, '日记页缺少日期标题或周历标题');
+        const originalDate = parseDiaryDateTitle(textOf(dateTitle));
+        let expectedDate = originalDate;
+
+        await connection.client.send('DOM.focus', { nodeId: calendarHeader.nodeId });
+        for (const shortcut of [
+            { key: 'ArrowRight', code: 'ArrowRight', virtualKeyCode: 39, days: 1 },
+            { key: 'ArrowDown', code: 'ArrowDown', virtualKeyCode: 40, days: 7 },
+            { key: 'ArrowLeft', code: 'ArrowLeft', virtualKeyCode: 37, days: -1 },
+            { key: 'ArrowUp', code: 'ArrowUp', virtualKeyCode: 38, days: -7 },
+        ]) {
+            expectedDate = addDateDays(expectedDate, shortcut.days);
+            await connection.pressKey(shortcut.key, shortcut.code, shortcut.virtualKeyCode, alt);
+            await connection.waitForTree(current =>
+                textOf(findByName(current, 'DiaryDateTitle')) === formatDiaryDateTitle(expectedDate),
+            5000, `${shortcut.key} 没有按预期导航日记日期`);
+        }
+
+        assertUi(formatDiaryDateTitle(expectedDate) === formatDiaryDateTitle(originalDate),
+            '四个方向快捷键执行后没有回到原日期');
+        await connection.pressKey('2', 'Digit2', 50, alt);
+        await connection.waitForTree(current => viewRoot(current, 'WorkItemQueryView'), 8000);
+        await connection.pressKey('ArrowRight', 'ArrowRight', 39, alt);
+        await connection.pressKey('1', 'Digit1', 49, alt);
+        const diary = await connection.waitForTree(current => viewRoot(current, 'DiaryEditorView'), 8000);
+        assertUi(textOf(findByName(diary.tree, 'DiaryDateTitle')) === formatDiaryDateTitle(originalDate),
+            '非日记页面响应了 Alt+方向键并修改日期');
+
+        return { originalDate: formatDiaryDateTitle(originalDate), scopeVerified: true };
     });
 
     await runStep('settings.program', '程序设置分组和日志入口', async () => {

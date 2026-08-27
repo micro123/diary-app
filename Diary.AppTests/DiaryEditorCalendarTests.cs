@@ -1,4 +1,6 @@
+using Avalonia.Input;
 using Diary.App.ViewModels;
+using Diary.App.Views;
 
 namespace Diary.AppTests;
 
@@ -48,5 +50,26 @@ public sealed class DiaryEditorCalendarTests
         Assert.AreEqual("暂无", menu.Children[0].Header);
         Assert.IsFalse(menu.Children[0].Enabled);
         Assert.IsNull(menu.Children[0].Command);
+    }
+
+    [TestMethod]
+    public void AltArrowShortcutMapsToCalendarDirectionWhenDiaryIsVisible()
+    {
+        Assert.AreEqual(-1, MainWindow.ResolveDiaryDateNavigationOffset(Key.Left, KeyModifiers.Alt, true));
+        Assert.AreEqual(1, MainWindow.ResolveDiaryDateNavigationOffset(Key.Right, KeyModifiers.Alt, true));
+        Assert.AreEqual(-7, MainWindow.ResolveDiaryDateNavigationOffset(Key.Up, KeyModifiers.Alt, true));
+        Assert.AreEqual(7, MainWindow.ResolveDiaryDateNavigationOffset(Key.Down, KeyModifiers.Alt, true));
+    }
+
+    [TestMethod]
+    public void AltArrowShortcutRequiresDiaryPageAndExactModifier()
+    {
+        Assert.IsNull(MainWindow.ResolveDiaryDateNavigationOffset(Key.Left, KeyModifiers.Alt, false));
+        Assert.IsNull(MainWindow.ResolveDiaryDateNavigationOffset(Key.Left, KeyModifiers.None, true));
+        Assert.IsNull(MainWindow.ResolveDiaryDateNavigationOffset(
+            Key.Left,
+            KeyModifiers.Alt | KeyModifiers.Shift,
+            true));
+        Assert.IsNull(MainWindow.ResolveDiaryDateNavigationOffset(Key.PageDown, KeyModifiers.Alt, true));
     }
 }

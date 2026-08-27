@@ -22,7 +22,21 @@ namespace Diary.App.Views
         protected override void OnKeyDown(KeyEventArgs e)
         {
             base.OnKeyDown(e);
-            if (e.Handled || !e.KeyModifiers.HasFlag(KeyModifiers.Alt))
+            if (e.Handled || DataContext is not MainWindowViewModel viewModel)
+                return;
+
+            var dateOffset = ResolveDiaryDateNavigationOffset(
+                e.Key,
+                e.KeyModifiers,
+                viewModel.CurrentPageModel is DiaryEditorViewModel);
+            if (dateOffset is { } days)
+            {
+                ((DiaryEditorViewModel)viewModel.CurrentPageModel!).NavigateCompactCalendarSelection(days);
+                e.Handled = true;
+                return;
+            }
+
+            if (!e.KeyModifiers.HasFlag(KeyModifiers.Alt))
                 return;
 
             var index = e.Key switch
@@ -31,11 +45,29 @@ namespace Diary.App.Views
                 >= Key.NumPad1 and <= Key.NumPad9 => (int)e.Key - (int)Key.NumPad1,
                 _ => -1,
             };
-            if (index < 0 || DataContext is not MainWindowViewModel viewModel || index >= viewModel.Pages.Count)
+            if (index < 0 || index >= viewModel.Pages.Count)
                 return;
 
             viewModel.SelectedPage = viewModel.Pages[index];
             e.Handled = true;
+        }
+
+        internal static int? ResolveDiaryDateNavigationOffset(
+            Key key,
+            KeyModifiers modifiers,
+            bool isDiaryEditorVisible)
+        {
+            if (!isDiaryEditorVisible || modifiers != KeyModifiers.Alt)
+                return null;
+
+            return key switch
+            {
+                Key.Left => -1,
+                Key.Right => 1,
+                Key.Up => -7,
+                Key.Down => 7,
+                _ => null,
+            };
         }
 
         private void OnActualThemeVariantChanged(object? sender, EventArgs e)
