@@ -53,23 +53,60 @@ public sealed class DiaryEditorCalendarTests
     }
 
     [TestMethod]
-    public void AltArrowShortcutMapsToCalendarDirectionWhenDiaryIsVisible()
+    public void AltJklSemicolonShortcutMapsToShiftedVimDirections()
     {
-        Assert.AreEqual(-1, MainWindow.ResolveDiaryDateNavigationOffset(Key.Left, KeyModifiers.Alt, true));
-        Assert.AreEqual(1, MainWindow.ResolveDiaryDateNavigationOffset(Key.Right, KeyModifiers.Alt, true));
-        Assert.AreEqual(-7, MainWindow.ResolveDiaryDateNavigationOffset(Key.Up, KeyModifiers.Alt, true));
-        Assert.AreEqual(7, MainWindow.ResolveDiaryDateNavigationOffset(Key.Down, KeyModifiers.Alt, true));
+        Assert.AreEqual(-1, ResolveShortcut(Key.J, PhysicalKey.J));
+        Assert.AreEqual(7, ResolveShortcut(Key.K, PhysicalKey.K));
+        Assert.AreEqual(-7, ResolveShortcut(Key.L, PhysicalKey.L));
+        Assert.AreEqual(1, ResolveShortcut(Key.OemSemicolon, PhysicalKey.Semicolon));
+        Assert.AreEqual(1, ResolveShortcut(Key.None, PhysicalKey.Semicolon));
     }
 
     [TestMethod]
-    public void AltArrowShortcutRequiresDiaryPageAndExactModifier()
+    public void AltJklSemicolonShortcutRequiresDiaryPageAndExactModifier()
     {
-        Assert.IsNull(MainWindow.ResolveDiaryDateNavigationOffset(Key.Left, KeyModifiers.Alt, false));
-        Assert.IsNull(MainWindow.ResolveDiaryDateNavigationOffset(Key.Left, KeyModifiers.None, true));
         Assert.IsNull(MainWindow.ResolveDiaryDateNavigationOffset(
-            Key.Left,
+            Key.J,
+            PhysicalKey.J,
+            KeyModifiers.Alt,
+            false));
+        Assert.IsNull(MainWindow.ResolveDiaryDateNavigationOffset(
+            Key.J,
+            PhysicalKey.J,
+            KeyModifiers.None,
+            true));
+        Assert.IsNull(MainWindow.ResolveDiaryDateNavigationOffset(
+            Key.J,
+            PhysicalKey.J,
             KeyModifiers.Alt | KeyModifiers.Shift,
             true));
-        Assert.IsNull(MainWindow.ResolveDiaryDateNavigationOffset(Key.PageDown, KeyModifiers.Alt, true));
+        Assert.IsNull(MainWindow.ResolveDiaryDateNavigationOffset(
+            Key.PageDown,
+            PhysicalKey.PageDown,
+            KeyModifiers.Alt,
+            true));
+        Assert.IsNull(MainWindow.ResolveDiaryDateNavigationOffset(
+            Key.Left,
+            PhysicalKey.ArrowLeft,
+            KeyModifiers.Alt,
+            true));
+        Assert.IsNull(MainWindow.ResolveDiaryDateNavigationOffset(
+            Key.Right,
+            PhysicalKey.ArrowRight,
+            KeyModifiers.Alt,
+            true));
+        Assert.IsNull(MainWindow.ResolveDiaryDateNavigationOffset(
+            Key.Up,
+            PhysicalKey.ArrowUp,
+            KeyModifiers.Alt,
+            true));
+        Assert.IsNull(MainWindow.ResolveDiaryDateNavigationOffset(
+            Key.Down,
+            PhysicalKey.ArrowDown,
+            KeyModifiers.Alt,
+            true));
     }
+
+    private static int? ResolveShortcut(Key key, PhysicalKey physicalKey = PhysicalKey.None) =>
+        MainWindow.ResolveDiaryDateNavigationOffset(key, physicalKey, KeyModifiers.Alt, true);
 }

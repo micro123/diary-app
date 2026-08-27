@@ -205,12 +205,33 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
             return item && ancestor(current, item, entry => typeOf(entry).includes('MenuItem'));
         }, 5000, '版本菜单缺少检查更新入口');
         assertUi(isEnabled(versionMenu.value), '检查更新入口不可用');
+        const copyVersionText = findByText(versionMenu.tree, '复制版本号', entry =>
+            hasAncestorType(versionMenu.tree, entry, 'MenuItem'));
+        const copyVersionItem = copyVersionText
+            && ancestor(versionMenu.tree, copyVersionText, entry => typeOf(entry).includes('MenuItem'));
+        assertUi(copyVersionItem, '版本菜单缺少复制版本号入口');
+        await connection.clickNode(copyVersionItem);
+        await connection.clickByName('NotificationCenterButton');
+        const notificationActions = await connection.waitForTree(current => {
+            const clearRead = findByName(current, 'NotificationClearReadButton');
+            const clearAll = findByName(current, 'NotificationClearAllButton');
+            return clearRead && clearAll && isVisible(clearRead) && isVisible(clearAll)
+                ? { clearRead, clearAll }
+                : null;
+        }, 5000, '复制版本号后通知中心没有显示清理操作');
+        const clearReadClasses = String(notificationActions.value.clearRead.a.Class ?? '');
+        const clearAllClasses = String(notificationActions.value.clearAll.a.Class ?? '');
+        assertUi(!clearReadClasses.includes('NotificationClearAllAction')
+            && clearAllClasses.includes('NotificationClearAllAction'),
+        '清空全部没有应用独立的危险操作样式类');
         await connection.pressKey('Escape', 'Escape', 27);
         return {
             version: textOf(findByName(tree, 'Version')),
             dateText: textOf(statusDate),
             notificationCenterEmptyBounds: notificationCenter.value.emptyState.a.Bounds,
             updateShortcut: textOf(versionMenu.value),
+            notificationClearReadClasses: clearReadClasses,
+            notificationClearAllClasses: clearAllClasses,
         };
     });
 
@@ -252,7 +273,7 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         return { queryMs: query.elapsedMs, statisticsMs: statistics.elapsedMs, diaryMs: diary.elapsedMs };
     });
 
-    await runStep('diary.alt-date-navigation', 'Alt 方向键导航日期及页面作用域', async () => {
+    await runStep('diary.alt-date-navigation', 'Alt+J/K/L/; 导航日期及页面作用域', async () => {
         let tree = await connection.getTree();
         const dateTitle = findByName(tree, 'DiaryDateTitle');
         const calendarHeader = findByName(tree, 'CompactCalendarHeader');
@@ -262,10 +283,10 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
 
         await connection.client.send('DOM.focus', { nodeId: calendarHeader.nodeId });
         for (const shortcut of [
-            { key: 'ArrowRight', code: 'ArrowRight', virtualKeyCode: 39, days: 1 },
-            { key: 'ArrowDown', code: 'ArrowDown', virtualKeyCode: 40, days: 7 },
-            { key: 'ArrowLeft', code: 'ArrowLeft', virtualKeyCode: 37, days: -1 },
-            { key: 'ArrowUp', code: 'ArrowUp', virtualKeyCode: 38, days: -7 },
+            { key: 'j', code: 'KeyJ', virtualKeyCode: 74, days: -1 },
+            { key: ';', code: 'Semicolon', virtualKeyCode: 186, days: 1 },
+            { key: 'k', code: 'KeyK', virtualKeyCode: 75, days: 7 },
+            { key: 'l', code: 'KeyL', virtualKeyCode: 76, days: -7 },
         ]) {
             expectedDate = addDateDays(expectedDate, shortcut.days);
             await connection.pressKey(shortcut.key, shortcut.code, shortcut.virtualKeyCode, alt);
@@ -275,14 +296,14 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         }
 
         assertUi(formatDiaryDateTitle(expectedDate) === formatDiaryDateTitle(originalDate),
-            '四个方向快捷键执行后没有回到原日期');
+            '四个日期导航快捷键执行后没有回到原日期');
         await connection.pressKey('2', 'Digit2', 50, alt);
         await connection.waitForTree(current => viewRoot(current, 'WorkItemQueryView'), 8000);
-        await connection.pressKey('ArrowRight', 'ArrowRight', 39, alt);
+        await connection.pressKey('j', 'KeyJ', 74, alt);
         await connection.pressKey('1', 'Digit1', 49, alt);
         const diary = await connection.waitForTree(current => viewRoot(current, 'DiaryEditorView'), 8000);
         assertUi(textOf(findByName(diary.tree, 'DiaryDateTitle')) === formatDiaryDateTitle(originalDate),
-            '非日记页面响应了 Alt+方向键并修改日期');
+            '非日记页面响应了 Alt+J 并修改日期');
 
         return { originalDate: formatDiaryDateTitle(originalDate), scopeVerified: true };
     });
@@ -663,6 +684,23 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
             && !['StatusWarning', 'StatusInfo', 'StatusSuccess', 'StatusError', 'StatusUncertain']
                 .some(className => String(savedStatusPill.a.Class ?? '').includes(className)),
         '未配置 Tracker 的已保存事项不应使用同步语义色');
+        const shortcutOriginalDate = parseDiaryDateTitle(textOf(findByName(saved.tree, 'DiaryDateTitle')));
+        const savedTitleInput = findByName(saved.tree, 'WorkTitleInput');
+        assertUi(savedTitleInput, '已保存事项缺少可验证快捷键路由的标题输入框');
+        await connection.client.send('DOM.focus', { nodeId: savedTitleInput.nodeId });
+        let expectedShortcutDate = shortcutOriginalDate;
+        for (const shortcut of [
+            { key: 'j', code: 'KeyJ', virtualKeyCode: 74, days: -1 },
+            { key: ';', code: 'Semicolon', virtualKeyCode: 186, days: 1 },
+            { key: 'k', code: 'KeyK', virtualKeyCode: 75, days: 7 },
+            { key: 'l', code: 'KeyL', virtualKeyCode: 76, days: -7 },
+        ]) {
+            expectedShortcutDate = addDateDays(expectedShortcutDate, shortcut.days);
+            await connection.pressKey(shortcut.key, shortcut.code, shortcut.virtualKeyCode, alt);
+            await connection.waitForTree(tree =>
+                textOf(findByName(tree, 'DiaryDateTitle')) === formatDiaryDateTitle(expectedShortcutDate),
+            5000, `标题输入框获得焦点时 Alt+${shortcut.key} 没有按预期切换日期`);
+        }
         await connection.pressKey('d', 'KeyD', 68, ctrl);
         const duplicate = await connection.waitForTree(tree => {
             const input = findByName(tree, 'WorkTitleInput');
@@ -685,6 +723,7 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
             noteEditorHeight: noteBounds.height,
             noteEditorBottomGap: noteBottomGap,
             trackerAssociationHidden: true,
+            textInputAltJklSemicolonNavigation: true,
             draftStatusTone: 'warning',
             savedStatusTone: 'neutral',
         };

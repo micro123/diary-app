@@ -133,7 +133,7 @@
                     </Style>
                 </Style>
                 <Style Selector="Button.NotificationClearAllAction">
-                    <Setter Property="Foreground" Value="{DynamicResource SystemControlErrorTextForeground}" />
+                    <Setter Property="Foreground" Value="{DynamicResource SemiColorDanger}" />
                 </Style>
                 <Style Selector="Border.NotificationBadge">
                     <Setter Property="MinWidth" Value="16" />
@@ -410,10 +410,12 @@
                                         <StackPanel Orientation="Horizontal"
                                                     HorizontalAlignment="Right"
                                                     Spacing="2">
-                                            <Button Classes="NotificationTextAction"
+                                            <Button Name="NotificationClearReadButton"
+                                                    Classes="NotificationTextAction"
                                                     Content="清空已读"
                                                     Command="{Binding ClearReadNotificationsCommand}" />
-                                            <Button Classes="NotificationTextAction NotificationClearAllAction"
+                                            <Button Name="NotificationClearAllButton"
+                                                    Classes="NotificationTextAction NotificationClearAllAction"
                                                     Content="清空全部"
                                                     Command="{Binding ClearAllNotificationsCommand}" />
                                         </StackPanel>

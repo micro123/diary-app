@@ -17,6 +17,11 @@ namespace Diary.App.Views
         public MainWindow()
         {
             InitializeComponent();
+            AddHandler(
+                KeyDownEvent,
+                OnPreviewDiaryDateNavigationKeyDown,
+                RoutingStrategies.Tunnel,
+                handledEventsToo: true);
         }
 
         protected override void OnKeyDown(KeyEventArgs e)
@@ -24,17 +29,6 @@ namespace Diary.App.Views
             base.OnKeyDown(e);
             if (e.Handled || DataContext is not MainWindowViewModel viewModel)
                 return;
-
-            var dateOffset = ResolveDiaryDateNavigationOffset(
-                e.Key,
-                e.KeyModifiers,
-                viewModel.CurrentPageModel is DiaryEditorViewModel);
-            if (dateOffset is { } days)
-            {
-                ((DiaryEditorViewModel)viewModel.CurrentPageModel!).NavigateCompactCalendarSelection(days);
-                e.Handled = true;
-                return;
-            }
 
             if (!e.KeyModifiers.HasFlag(KeyModifiers.Alt))
                 return;
@@ -52,20 +46,54 @@ namespace Diary.App.Views
             e.Handled = true;
         }
 
+        private void OnPreviewDiaryDateNavigationKeyDown(object? sender, KeyEventArgs e)
+        {
+            if (DataContext is not MainWindowViewModel
+                {
+                    CurrentPageModel: DiaryEditorViewModel diaryEditor,
+                })
+            {
+                return;
+            }
+
+            var dateOffset = ResolveDiaryDateNavigationOffset(
+                e.Key,
+                e.PhysicalKey,
+                e.KeyModifiers,
+                isDiaryEditorVisible: true);
+            if (dateOffset is not { } days)
+                return;
+
+            diaryEditor.NavigateCompactCalendarSelection(days);
+            e.Handled = true;
+        }
+
         internal static int? ResolveDiaryDateNavigationOffset(
             Key key,
+            PhysicalKey physicalKey,
             KeyModifiers modifiers,
             bool isDiaryEditorVisible)
         {
             if (!isDiaryEditorVisible || modifiers != KeyModifiers.Alt)
                 return null;
 
+            int? physicalOffset = physicalKey switch
+            {
+                PhysicalKey.J => -1,
+                PhysicalKey.K => 7,
+                PhysicalKey.L => -7,
+                PhysicalKey.Semicolon => 1,
+                _ => null,
+            };
+            if (physicalOffset is not null)
+                return physicalOffset;
+
             return key switch
             {
-                Key.Left => -1,
-                Key.Right => 1,
-                Key.Up => -7,
-                Key.Down => 7,
+                Key.J => -1,
+                Key.K => 7,
+                Key.L => -7,
+                Key.OemSemicolon => 1,
                 _ => null,
             };
         }

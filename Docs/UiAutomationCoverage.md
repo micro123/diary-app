@@ -154,7 +154,7 @@
 | 14 | 文件/目录选择器 | `Manual-Native` | 不属于 Avalonia CDP 视觉树 |
 | 14 | Survey 节点能力对话框 | `Automated` | survey 验证详情打开和关闭 |
 | 15 | `Alt+数字` 主导航 | `Automated` | core 覆盖主键区和应用代码同时支持数字键盘区 |
-| 15 | 日记 `Alt+方向键` 日期导航 | `Automated` | core 覆盖前后一天、前后七天，并确认切到非日记页面后不响应 |
+| 15 | 日记 `Alt+J/K/L/;` 日期导航 | `Automated` | core 覆盖前后一天、前后七天、标题输入框焦点下的隧道路由，并确认切到非日记页面后不响应 |
 | 15 | 日记 `Ctrl+T/N/S/D/Shift+D` | `Automated` | smoke/core 覆盖主要路径；模板快捷键和批量同步由命令测试承担 |
 | 15 | Redmine `Enter/Ctrl+Enter` 搜索 | `Automated` | Redmine 覆盖关键词和 ID 搜索 |
 | 16 | 数据库异常不表现为空数据 | `Automated` | database-error 覆盖查询结果保留和恢复入口 |
