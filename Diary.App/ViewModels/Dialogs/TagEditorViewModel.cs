@@ -83,7 +83,7 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
             return;
         }
 
-        Cancel();
+        // 标签编辑要求显式保存后才能关闭；忽略 Esc 等宿主关闭请求。
     }
 
     public event EventHandler<object?>? RequestClose;
@@ -124,13 +124,6 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
         if (close)
             RequestClose?.Invoke(this, null);
         return true;
-    }
-
-    [RelayCommand]
-    private void Cancel()
-    {
-        ReloadRules();
-        RequestClose?.Invoke(this, null);
     }
 
     public void ReloadRules()
@@ -349,14 +342,17 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
     [RelayCommand(CanExecute = nameof(CanAddTag))]
     private void NewTag()
     {
-        _logger.LogInformation("new tag, name = {name}, primary = {primary}, color = {color}", NewTagName, NewIsPrimary, NewTagColor);
-        int rgb = HsvColorConverter.FromHsv(NewTagColor);
+        int rgb = ResolveNewTagColor(NewTagColor, Random.Shared);
+        _logger.LogInformation("new tag, name = {name}, primary = {primary}, color = {color}", NewTagName, NewIsPrimary, rgb);
         var tag = App.Instance.UseDb!.CreateWorkTag(NewTagName, NewIsPrimary, rgb);
         if (tag.Id > 0)
         {
             _changed = true;
             NewTagName = string.Empty;
-            LoadTags();
+            ResetNewTagColor();
+            if (!MatchesTagFilter(tag.Name, TagFilterText))
+                TagFilterText = string.Empty;
+            LoadTags(tag.Id);
         }
         else
         {
@@ -365,6 +361,24 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
     }
 
     private bool CanAddTag() => !string.IsNullOrWhiteSpace(NewTagName);
+
+    internal static int ResolveNewTagColor(HsvColor selectedColor, Random random)
+    {
+        ArgumentNullException.ThrowIfNull(random);
+        var selectedRgb = HsvColorConverter.FromHsv(selectedColor);
+        if (selectedRgb != 0)
+            return selectedRgb;
+
+        var hue = random.NextDouble() * 360;
+        var saturation = 0.58 + random.NextDouble() * 0.22;
+        var value = 0.72 + random.NextDouble() * 0.18;
+        return HsvColorConverter.FromHsv(new HsvColor(1, hue, saturation, value));
+    }
+
+    private void ResetNewTagColor()
+    {
+        NewTagColor = default;
+    }
 
     private bool ValidateExtraFieldKeys(out string? error)
     {
@@ -387,20 +401,21 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
         return true;
     }
 
-    private void LoadTags()
+    private void LoadTags(int? selectedTagId = null)
     {
         var all = App.Instance.UseDb?.AllWorkTags();
         if (all == null)
             return;
+        selectedTagId ??= SelectedTag?.Id;
         AllTags.Clear();
         foreach (var tag in all)
             AllTags.Add(new EditableWorkTag(tag, App.Instance.UseDb));
-        RefreshVisibleTags();
+        RefreshVisibleTags(selectedTagId);
     }
 
-    private void RefreshVisibleTags()
+    private void RefreshVisibleTags(int? selectedTagId = null)
     {
-        var selected = SelectedTag;
+        selectedTagId ??= SelectedTag?.Id;
         var filter = TagFilterText.Trim();
         VisibleTags.Clear();
         foreach (var tag in AllTags.Where(tag => MatchesTagFilter(tag.Name, filter)))
@@ -408,9 +423,10 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
             VisibleTags.Add(tag);
         }
 
-        SelectedTag = selected is not null && VisibleTags.Contains(selected)
-            ? selected
-            : VisibleTags.FirstOrDefault();
+        SelectedTag = selectedTagId is int id
+            ? VisibleTags.FirstOrDefault(tag => tag.Id == id)
+            : null;
+        SelectedTag ??= VisibleTags.FirstOrDefault();
     }
 
     internal static bool MatchesTagFilter(string tagName, string filter)

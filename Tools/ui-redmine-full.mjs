@@ -180,7 +180,7 @@ async function convergeStartupState(connection) {
             closed.push('TrackerSettingsDialogView');
         }
         else if (rootOf(tree, 'TagEditorView')) {
-            await activateTextWithin(connection, 'TagEditorView', '取消');
+            await activateControl(connection, findByName(tree, 'SaveTagSettingsButton'));
             closed.push('TagEditorView');
         }
         else if (rootOf(tree, 'StandardMessageView')) {

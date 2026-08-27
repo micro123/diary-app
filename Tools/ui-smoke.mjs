@@ -190,6 +190,22 @@ async function readPersistedTemplate(state, title, tagName) {
     }
 }
 
+async function readPersistedTagColors(state, firstTagName, secondTagName) {
+    const { DatabaseSync } = await import('node:sqlite');
+    const database = new DatabaseSync(path.join(state.profile, 'data', 'db.sqlite3'), { readOnly: true });
+    try {
+        return database.prepare(`
+            SELECT tag_name AS name, tag_color AS color
+            FROM work_tags
+            WHERE tag_name IN (?, ?)
+            ORDER BY id
+        `).all(firstTagName, secondTagName);
+    }
+    finally {
+        database.close();
+    }
+}
+
 async function main() {
     const state = JSON.parse(await fs.readFile(statePath, 'utf8'));
     const targets = await fetch('http://127.0.0.1:' + state.port + '/json').then(response => {
@@ -324,6 +340,7 @@ async function main() {
         await waitForTree(current => !current.entries.some(entry => typeOf(entry).includes('SettingsView')));
         functional.settingsDialogCloseMs = performance.now() - started;
 
+        const existingTagName = 'UI自动化已有标签';
         const tagName = 'UI自动化模板标签';
         const templateName = 'UI自动化事项模板';
         const templateTitle = 'UI自动化模板生成事项';
@@ -338,15 +355,37 @@ async function main() {
             if (!findByText(tree, text))
                 throw new Error('标签编辑器缺少直接显示的说明：' + text);
         }
+        const tagCancelButton = tree.entries.find(entry => typeOf(entry).endsWith('Button')
+            && textOf(entry) === '取消' && hasAncestorType(tree, entry, 'TagEditorView'));
+        if (tagCancelButton)
+            throw new Error('标签编辑器不应提供绕过保存的取消按钮');
+        await client.send('Input.dispatchKeyEvent', {
+            type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27,
+        });
+        await client.send('Input.dispatchKeyEvent', {
+            type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27,
+        });
+        await new Promise(resolve => setTimeout(resolve, 120));
+        tree = await getTree();
+        if (!tree.entries.some(entry => typeOf(entry).includes('TagEditorView')))
+            throw new Error('标签编辑器不应通过 Escape 绕过保存关闭');
         const tagNameInput = findByName(tree, 'TagNameInput');
         if (!tagNameInput)
             throw new Error('找不到标签名称输入框');
-        await replaceText(tagNameInput, tagName);
+        await replaceText(tagNameInput, existingTagName);
+        await waitForTree(current => textOf(findByName(current, 'TagNameInput')) === existingTagName);
+        tree = await getTree();
+        await activateControl(findByName(tree, 'AddTagButton'));
+        await waitForTree(current => findByText(current, existingTagName,
+            entry => hasAncestorName(current, entry, 'TagList')));
+        tree = await getTree();
+        await replaceText(findByName(tree, 'TagNameInput'), tagName);
         await waitForTree(current => textOf(findByName(current, 'TagNameInput')) === tagName);
         tree = await getTree();
         await activateControl(findByName(tree, 'AddTagButton'));
         await waitForTree(current => findByText(current, tagName,
             entry => hasAncestorName(current, entry, 'TagList')));
+        await waitForTree(current => textOf(findByName(current, 'SelectedTagNameInput')) === tagName);
         await new Promise(resolve => setTimeout(resolve, 3000));
         functional.tagsAndTemplates.tagSettingsScreenshot = await screenshot('manual-tag-settings.png');
         tree = await getTree();
@@ -616,6 +655,10 @@ async function main() {
         functional.tagsAndTemplates.persistedTag = persistedTemplate?.hasTag === 1;
         functional.tagsAndTemplates.persistedLocalSave = Boolean(persistedTemplate);
         functional.tagsAndTemplates.persistedHours = persistedTemplate?.hours;
+        const persistedTagColors = await readPersistedTagColors(state, existingTagName, tagName);
+        functional.tagsAndTemplates.randomDefaultColors = persistedTagColors;
+        if (persistedTagColors.length !== 2 || persistedTagColors.some(tag => tag.color === 0))
+            throw new Error('保持默认颜色创建的标签仍保存为黑色');
         functional.tagsAndTemplates.persisted = functional.tagsAndTemplates.persistedTitle
             && functional.tagsAndTemplates.persistedTag
             && functional.tagsAndTemplates.persistedLocalSave

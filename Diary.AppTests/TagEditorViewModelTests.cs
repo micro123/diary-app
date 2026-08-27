@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
+using Avalonia.Media;
 using Diary.App.Models;
 using Diary.App.ViewModels.Dialogs;
 using Diary.Core.Data.Base;
+using Diary.GUIBase.Converters;
 
 namespace Diary.AppTests;
 
@@ -32,6 +34,22 @@ public sealed class TagEditorViewModelTests
         CollectionAssert.AreEqual(
             new[] { "a.field", "z.field", "first.field", "middle.field" },
             fields.Select(field => field.FieldKey).ToArray());
+    }
+
+    [TestMethod]
+    public void ResolveNewTagColorRandomizesDefaultBlackAndPreservesSelectedColor()
+    {
+        var randomColor = TagEditorViewModel.ResolveNewTagColor(default, new Random(20260827));
+
+        Assert.AreNotEqual(0, randomColor);
+        var hsv = HsvColorConverter.ToHsv(randomColor);
+        Assert.IsGreaterThanOrEqualTo(0.55, hsv.S);
+        Assert.IsGreaterThanOrEqualTo(0.68, hsv.V);
+
+        var selected = new HsvColor(1, 210, 0.65, 0.8);
+        Assert.AreEqual(
+            HsvColorConverter.FromHsv(selected),
+            TagEditorViewModel.ResolveNewTagColor(selected, new Random(1)));
     }
 
     private static EditableTagExtraField CreateField(string fieldKey, int sortOrder)

@@ -65,7 +65,6 @@
                                   Theme="{DynamicResource CardCheckBox}" />
                         <ColorPicker Grid.Column="1"
                                      Width="64"
-                                     SelectedIndex="1"
                                      PaletteColumnCount="16"
                                      IsAlphaEnabled="False"
                                      IsAlphaVisible="False"
@@ -165,7 +164,8 @@
                         <ScrollViewer>
                             <StackPanel Margin="10" Spacing="8">
                                 <TextBlock Text="标签名称" Classes="FieldLabel" />
-                                <TextBox Text="{Binding SelectedTag.Name}"
+                                <TextBox Name="SelectedTagNameInput"
+                                         Text="{Binding SelectedTag.Name}"
                                          Classes="ClearButton" />
 
                                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
@@ -346,7 +346,6 @@
         </Grid>
 
         <StackPanel Grid.Row="2" Classes="DialogFooter">
-            <Button Content="取消" Command="{Binding CancelCommand}" />
             <Button Name="SaveTagSettingsButton" Content="保存更改" Classes="Primary"
                     Command="{Binding SaveCommand}" />
         </StackPanel>
