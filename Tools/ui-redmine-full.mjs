@@ -26,6 +26,10 @@ const stamp = Date.now().toString(36);
 const createdIssueTitle = 'UI全量Redmine-' + stamp;
 const createdIssueDescription = 'DiaryApp UI 自动化创建；用于测试管理、导入与工时同步。';
 const automationTagName = 'UI规则-' + stamp;
+const existingTagName = 'UI已有标签-' + stamp;
+const taggedTemplateName = 'UI标签模板-' + stamp;
+const taggedTemplateTitle = 'UI模板内容-' + stamp;
+const retainedDraftTitle = 'UI模板更新保留-' + stamp;
 const workTitle = 'UI工时同步-' + stamp;
 let createdIssueId = null;
 
@@ -113,19 +117,39 @@ async function selectTab(connection, labelText, expectedType) {
 }
 
 async function selectComboOption(connection, combo, optionText, contains = false) {
-    await activateControl(connection, combo);
-    const option = await connection.waitForTree(tree => {
-        const label = tree.entries.find(entry => isVisible(entry)
-            && hasAncestorType(tree, entry, 'ComboBoxItem')
-            && (contains ? textOf(entry).includes(optionText) : textOf(entry) === optionText));
-        return label && ancestor(tree, label, entry => typeOf(entry).includes('ComboBoxItem'));
-    }, 5000, '下拉选项未出现：' + optionText);
-    await connection.clickNode(option.value);
-    await delay(60);
+    let lastError;
+    for (let attempt = 0; attempt < 2; attempt++) {
+        await connection.pressKey('Escape', 'Escape', 27);
+        await connection.clickNode(combo);
+        try {
+            for (let page = 0; page < 10; page++) {
+                const tree = await connection.getTree();
+                const label = tree.entries.find(entry => isVisible(entry)
+                    && hasAncestorType(tree, entry, 'ComboBoxItem')
+                    && (contains ? textOf(entry).includes(optionText) : textOf(entry) === optionText));
+                const option = label && ancestor(tree, label, entry => typeOf(entry).includes('ComboBoxItem'));
+                if (option) {
+                    await connection.clickNode(option);
+                    await delay(60);
+                    return;
+                }
+                await connection.pressKey('PageDown', 'PageDown', 34);
+                await delay(80);
+            }
+            throw new Error('下拉选项未出现：' + optionText);
+        }
+        catch (error) {
+            lastError = error;
+            await connection.pressKey('Escape', 'Escape', 27);
+            await delay(100);
+        }
+    }
+    throw lastError;
 }
 
 async function selectFirstComboOption(connection, combo, rejectedTexts) {
-    await activateControl(connection, combo);
+    await connection.pressKey('Escape', 'Escape', 27);
+    await connection.clickNode(combo);
     const option = await connection.waitForTree(tree => {
         const items = tree.entries.filter(entry => isVisible(entry)
             && typeOf(entry).includes('ComboBoxItem'));
@@ -138,6 +162,50 @@ async function selectFirstComboOption(connection, combo, rejectedTexts) {
     await connection.clickNode(option.value);
     await delay(60);
     return selectedText;
+}
+
+async function selectMenuOption(connection, trigger, optionText, message) {
+    await connection.pressKey('Escape', 'Escape', 27);
+    await connection.clickNode(trigger);
+    for (let attempt = 0; attempt < 2; attempt++) {
+        for (let page = 0; page < 10; page++) {
+            const tree = await connection.getTree();
+            const label = findByText(tree, optionText,
+                entry => hasAncestorType(tree, entry, 'MenuItem'));
+            const item = label && ancestor(tree, label, entry => typeOf(entry).includes('MenuItem'));
+            if (item) {
+                await connection.clickNode(item);
+                await delay(60);
+                return;
+            }
+            await connection.pressKey('PageDown', 'PageDown', 34);
+            await delay(80);
+        }
+        await connection.pressKey('Escape', 'Escape', 27);
+        await connection.client.send('DOM.focus', { nodeId: trigger.nodeId });
+        await connection.pressKey('Enter', 'Enter', 13);
+        await delay(100);
+    }
+    throw new Error(message);
+}
+
+async function waitForStableNamedCount(connection, rootType, name, timeoutMs = 3000) {
+    const started = performance.now();
+    let previousCount = -1;
+    let stableSamples = 0;
+    while (performance.now() - started < timeoutMs) {
+        const tree = await connection.getTree();
+        const root = rootOf(tree, rootType);
+        const count = root
+            ? descendants(tree, root).filter(entry => isVisible(entry) && nameOf(entry) === name).length
+            : -1;
+        stableSamples = count === previousCount ? stableSamples + 1 : 0;
+        if (root && stableSamples >= 3)
+            return { tree, root, count };
+        previousCount = count;
+        await delay(80);
+    }
+    throw new Error(`${rootType} 中的 ${name} 数量没有稳定`);
 }
 
 async function dismissStandardMessage(connection) {
@@ -389,12 +457,34 @@ await runUiSuite({ name: 'ui-redmine-full', scenario: 'plugins', timeoutMs: 1200
         await connection.waitForTree(current => textWithin(current, rootOf(current, 'RedMineIssueManageView'), createdIssueTitle, true),
             12000, '按 ID 搜索没有找到刚创建的 Issue');
         const idMs = performance.now() - idStarted;
-        await activateTextWithin(connection, 'RedMineIssueManageView', '导入问题');
-        await delay(150);
+        const importIssue = async useKeyboard => {
+            const current = await connection.getTree();
+            const currentView = rootOf(current, 'RedMineIssueManageView');
+            const label = textWithin(current, currentView, '导入问题');
+            const button = label && controlForText(current, label);
+            assertUi(button, '问题管理缺少导入问题按钮');
+            if (useKeyboard)
+                await activateControl(connection, button);
+            else
+                await connection.clickNode(button);
+            await delay(400);
+        };
+        await importIssue(false);
         await selectTab(connection, '基本信息', 'RedMineInfoView');
-        const imported = await connection.waitForTree(current =>
-            textWithin(current, rootOf(current, 'RedMineInfoView'), createdIssueTitle, true),
-        10000, '导入 Issue 后基本信息页没有即时刷新');
+        let imported;
+        try {
+            imported = await connection.waitForTree(current =>
+                textWithin(current, rootOf(current, 'RedMineInfoView'), createdIssueTitle, true),
+            3000, '导入 Issue 后基本信息页没有即时刷新');
+        }
+        catch {
+            await selectTab(connection, '问题管理', 'RedMineIssueManageView');
+            await importIssue(true);
+            await selectTab(connection, '基本信息', 'RedMineInfoView');
+            imported = await connection.waitForTree(current =>
+                textWithin(current, rootOf(current, 'RedMineInfoView'), createdIssueTitle, true),
+            10000, '导入 Issue 后基本信息页没有即时刷新');
+        }
         return { keywordMs, idMs, importObservedMs: imported.elapsedMs };
     });
 
@@ -434,54 +524,231 @@ await runUiSuite({ name: 'ui-redmine-full', scenario: 'plugins', timeoutMs: 1200
     await runStep('redmine.tag-create', '创建标签供 Redmine 自动化规则使用', async () => {
         await openSettingsText(connection, '标签设置', 'TagEditorView');
         let tree = await connection.getTree();
-        const input = findByName(tree, 'TagNameInput');
-        assertUi(input, '标签编辑器缺少名称输入框');
-        await connection.replaceText(input, automationTagName);
-        tree = await connection.getTree();
-        await activateControl(connection, findByName(tree, 'AddTagButton'));
-        await connection.waitForTree(current => findByText(current, automationTagName), 8000,
-            '自动化测试标签没有创建');
+        for (const tagName of [automationTagName, existingTagName]) {
+            const input = findByName(tree, 'TagNameInput');
+            assertUi(input, '标签编辑器缺少名称输入框');
+            await connection.replaceText(input, tagName);
+            tree = await connection.getTree();
+            await activateControl(connection, findByName(tree, 'AddTagButton'));
+            const created = await connection.waitForTree(current => findByText(current, tagName), 8000,
+                '自动化测试标签没有创建：' + tagName);
+            tree = created.tree;
+        }
         tree = await connection.getTree();
         await activateControl(connection, findByName(tree, 'SaveTagSettingsButton'));
         await connection.waitForTree(current => !rootOf(current, 'TagEditorView'), 10000,
             '标签设置没有保存关闭');
-        return { created: true };
+        return { automationTagCreated: true, existingTagCreated: true };
     });
 
     await runStep('redmine.tag-rule', '配置 Redmine 标签自动规则', async () => {
         await openSettingsText(connection, 'Tracker 设置', 'TrackerSettingsDialogView');
         await selectTab(connection, 'Redmine', 'RedMineConfigurationView');
-        await activateTextWithin(connection, 'RedMineConfigurationView', '添加规则');
+        const loadedRules = await connection.waitForTree(current => {
+            const currentEditor = rootOf(current, 'RedMineTagRuleEditorView');
+            const addLabel = textWithin(current, currentEditor, '添加规则');
+            const addButton = addLabel && controlForText(current, addLabel);
+            return addButton && isEnabled(addButton) ? currentEditor : null;
+        }, 5000, 'Redmine 标签规则编辑器没有完成加载');
+        const stableRules = await waitForStableNamedCount(
+            connection, 'RedMineTagRuleEditorView', 'TagRuleCard');
+        let tree = stableRules.tree;
+        let editor = stableRules.root;
+        const existingRuleCount = stableRules.count;
+        const addRuleLabel = textWithin(tree, editor, '添加规则');
+        const addRuleButton = addRuleLabel && controlForText(tree, addRuleLabel);
+        assertUi(addRuleButton, 'Redmine 标签规则缺少添加按钮');
+        await connection.clickNode(addRuleButton);
+        try {
+            await connection.waitForTree(current => current.entries.filter(entry => isVisible(entry)
+                && nameOf(entry) === 'TagRuleCard').length > existingRuleCount, 400);
+        }
+        catch {
+            await connection.client.send('DOM.focus', { nodeId: addRuleButton.nodeId });
+            await connection.pressKey('Enter', 'Enter', 13);
+        }
         const added = await connection.waitForTree(current => {
-            const editor = rootOf(current, 'RedMineTagRuleEditorView');
-            const combos = editor && descendants(current, editor).filter(entry => isVisible(entry)
-                && typeOf(entry).endsWith('.ComboBox'));
-            return combos?.length >= 3 ? { editor, combos } : null;
+            const currentEditor = rootOf(current, 'RedMineTagRuleEditorView');
+            const rows = currentEditor && descendants(current, currentEditor).filter(entry => isVisible(entry)
+                && nameOf(entry) === 'TagRuleCard');
+            return rows?.length > existingRuleCount ? rows.at(-1) : null;
         }, 8000, 'Redmine 标签规则没有添加');
-        let combos = added.value.combos;
-        await selectComboOption(connection, combos[0], automationTagName);
-        let tree = await connection.getTree();
-        let editor = rootOf(tree, 'RedMineTagRuleEditorView');
-        combos = descendants(tree, editor).filter(entry => isVisible(entry)
-            && typeOf(entry).endsWith('.ComboBox'));
-        const activity = await selectFirstComboOption(connection, combos[1], ['不设置活动']);
+        let ruleCard = added.value;
+        let tagCombo = descendants(added.tree, ruleCard).find(entry => nameOf(entry) === 'TagRuleTagComboBox');
+        let activityCombo = descendants(added.tree, ruleCard).find(entry => nameOf(entry) === 'TagRuleActivityComboBox');
+        let issueCombo = descendants(added.tree, ruleCard).find(entry => nameOf(entry) === 'TagRuleIssueComboBox');
+        assertUi(tagCombo && activityCombo && issueCombo, '新 Redmine 标签规则缺少映射下拉框');
+        await selectComboOption(connection, tagCombo, automationTagName);
         tree = await connection.getTree();
         editor = rootOf(tree, 'RedMineTagRuleEditorView');
-        combos = descendants(tree, editor).filter(entry => isVisible(entry)
-            && typeOf(entry).endsWith('.ComboBox'));
-        await selectComboOption(connection, combos[2], createdIssueTitle, true);
+        ruleCard = descendants(tree, editor).filter(entry => isVisible(entry)
+            && nameOf(entry) === 'TagRuleCard').at(-1);
+        activityCombo = descendants(tree, ruleCard).find(entry => nameOf(entry) === 'TagRuleActivityComboBox');
+        const activity = await selectFirstComboOption(connection, activityCombo, ['不设置活动']);
         tree = await connection.getTree();
         editor = rootOf(tree, 'RedMineTagRuleEditorView');
-        const enabled = descendants(tree, editor).find(entry => typeOf(entry).includes('CheckBox')
+        ruleCard = descendants(tree, editor).filter(entry => isVisible(entry)
+            && nameOf(entry) === 'TagRuleCard').at(-1);
+        issueCombo = descendants(tree, ruleCard).find(entry => nameOf(entry) === 'TagRuleIssueComboBox');
+        await selectComboOption(connection, issueCombo, createdIssueTitle, true);
+        tree = await connection.getTree();
+        editor = rootOf(tree, 'RedMineTagRuleEditorView');
+        ruleCard = descendants(tree, editor).filter(entry => isVisible(entry)
+            && nameOf(entry) === 'TagRuleCard').at(-1);
+        const enabled = descendants(tree, ruleCard).find(entry => typeOf(entry).includes('CheckBox')
             && textOf(entry) === '启用');
-        const forceOverwrite = descendants(tree, editor).find(entry => typeOf(entry).includes('CheckBox')
+        const forceOverwrite = descendants(tree, ruleCard).find(entry => typeOf(entry).includes('CheckBox')
             && textOf(entry) === '强制修改');
         assertUi(enabled && isChecked(enabled), '新 Redmine 标签规则默认应启用');
         assertUi(forceOverwrite && isChecked(forceOverwrite), '新 Redmine 标签规则默认应强制修改');
+        assertUi(textWithin(tree, ruleCard, automationTagName), '新 Redmine 标签规则没有选中测试标签');
+        assertUi(textWithin(tree, ruleCard, createdIssueTitle, true), '新 Redmine 标签规则没有选中测试 Issue');
+        assertUi(!textWithin(tree, ruleCard, '不设置活动'), '新 Redmine 标签规则没有选中活动');
         await closeTrackerSettings(connection, '保存');
         await connection.waitForTree(current => findByText(current, 'Redmine 测试服'), 10000,
             '保存 Tracker 规则后 Redmine 导航未恢复');
         return { configured: true, activitySelected: Boolean(activity) };
+    });
+
+    await runStep('redmine.tagged-template-config', '创建带标签的事项模板', async () => {
+        await openSettingsText(connection, '模板设置', 'TemplateEditorView');
+        let tree = await connection.getTree();
+        const nameInput = findByName(tree, 'TemplateNameInput');
+        assertUi(nameInput, '模板编辑器缺少模板名称输入框');
+        await connection.replaceText(nameInput, taggedTemplateName);
+        tree = await connection.getTree();
+        await activateControl(connection, findByName(tree, 'AddTemplateButton'));
+        const added = await connection.waitForTree(current => findByText(current, taggedTemplateName), 8000,
+            '带标签模板没有创建');
+        tree = added.tree;
+        const templateText = findByText(tree, taggedTemplateName);
+        const expander = templateText && ancestor(tree, templateText,
+            entry => typeOf(entry).includes('Expander'));
+        assertUi(expander, '找不到新建模板的展开区域');
+        const header = descendants(tree, expander).find(entry => nameOf(entry) === 'ExpanderHeader');
+        assertUi(header, '找不到新建模板的展开按钮');
+        await activateControl(connection, header);
+        const expanded = await connection.waitForTree(current => findByName(current, 'TemplateDefaultTitleInput'),
+            8000, '模板详细配置没有展开');
+        tree = expanded.tree;
+        await connection.replaceText(findByName(tree, 'TemplateDefaultTitleInput'), taggedTemplateTitle);
+        tree = await connection.getTree();
+        await connection.replaceText(findByName(tree, 'TemplateDefaultTimeInput'), '0.5');
+        tree = await connection.getTree();
+        await activateControl(connection, findByName(tree, 'TemplateAddTagButton'));
+        const tagOption = await connection.waitForTree(current => {
+            const label = findByText(current, automationTagName,
+                entry => hasAncestorType(current, entry, 'MenuItem'));
+            return label && ancestor(current, label, entry => typeOf(entry).includes('MenuItem'));
+        }, 5000, '模板标签候选中没有自动化标签');
+        await connection.clickNode(tagOption.value);
+        await connection.waitForTree(current => {
+            const currentTemplate = findByText(current, taggedTemplateName);
+            const currentExpander = currentTemplate && ancestor(current, currentTemplate,
+                entry => typeOf(entry).includes('Expander'));
+            return currentExpander && descendants(current, currentExpander)
+                .some(entry => textOf(entry) === automationTagName);
+        }, 5000, '模板没有添加自动化标签');
+        tree = await connection.getTree();
+        await activateControl(connection, findByName(tree, 'SaveTemplateSettingsButton'));
+        await connection.waitForTree(current => !rootOf(current, 'TemplateEditorView'), 10000,
+            '模板设置没有保存关闭');
+        return { template: taggedTemplateName, tag: automationTagName, defaultTime: 0.5 };
+    });
+
+    await runStep('redmine.tagged-template-update-apply', '验证带标签模板更新和应用', async () => {
+        await connection.navigate('日记记录', 'DiaryEditorView');
+        let tree = await connection.getTree();
+        await activateControl(connection, findByName(tree, 'NewWorkItemButton'));
+        await connection.waitForTree(current => findByName(current, 'WorkTitleInput'), 8000,
+            '新建事项没有打开编辑器');
+
+        tree = await connection.getTree();
+        let templateAction = findByName(tree, 'TemplateActionButton');
+        assertUi(templateAction, '缺少从模板更新按钮');
+        await connection.clickNode(templateAction);
+        const updateOption = await connection.waitForTree(current => {
+            const label = findByText(current, taggedTemplateName,
+                entry => hasAncestorType(current, entry, 'MenuItem'));
+            return label && ancestor(current, label, entry => typeOf(entry).includes('MenuItem'));
+        }, 5000, '从模板更新菜单没有带标签模板');
+        await connection.clickNode(updateOption.value);
+        const blankUpdated = await connection.waitForTree(current => {
+            const editor = rootOf(current, 'WorkEditorView');
+            const region = rootOf(current, 'RedMineEditorRegionView');
+            return textOf(findByName(current, 'WorkTitleInput')) === taggedTemplateTitle
+                && textWithinNamedControl(current, 'WorkTimeInput').includes('0.5')
+                && textWithin(current, editor, automationTagName)
+                && textWithin(current, region, createdIssueTitle, true);
+        }, 10000, '空事项从带标签模板更新后没有填充内容或执行标签规则');
+        assertUi(blankUpdated.value, '空事项模板更新结果不完整');
+
+        tree = await connection.getTree();
+        await activateControl(connection, findByName(tree, 'NewWorkItemButton'));
+        const retainedEditor = await connection.waitForTree(current => findByName(current, 'WorkTitleInput'),
+            8000, '第二个模板测试事项没有打开');
+        tree = retainedEditor.tree;
+        await connection.replaceText(findByName(tree, 'WorkTitleInput'), retainedDraftTitle);
+        tree = await connection.getTree();
+        await connection.replaceText(findByName(tree, 'WorkTimeInput'), '0.75');
+        await connection.pressKey('Enter', 'Enter', 13);
+        tree = await connection.getTree();
+        await activateControl(connection, findByName(tree, 'WorkAddTagButton'));
+        const existingTagOption = await connection.waitForTree(current => {
+            const label = findByText(current, existingTagName,
+                entry => hasAncestorType(current, entry, 'MenuItem'));
+            return label && ancestor(current, label, entry => typeOf(entry).includes('MenuItem'));
+        }, 5000, '事项标签候选中没有已有内容标签');
+        await connection.clickNode(existingTagOption.value);
+
+        tree = await connection.getTree();
+        templateAction = findByName(tree, 'TemplateActionButton');
+        assertUi(templateAction, '缺少第二次从模板更新按钮');
+        await connection.clickNode(templateAction);
+        const retainedUpdateOption = await connection.waitForTree(current => {
+            const label = findByText(current, taggedTemplateName,
+                entry => hasAncestorType(current, entry, 'MenuItem'));
+            return label && ancestor(current, label, entry => typeOf(entry).includes('MenuItem'));
+        }, 5000, '第二次从模板更新菜单没有带标签模板');
+        await connection.clickNode(retainedUpdateOption.value);
+        await delay(250);
+        tree = await connection.getTree();
+        let editor = rootOf(tree, 'WorkEditorView');
+        let region = rootOf(tree, 'RedMineEditorRegionView');
+        assertUi(textOf(findByName(tree, 'WorkTitleInput')) === retainedDraftTitle,
+            '从模板更新覆盖了已有标题');
+        assertUi(textWithinNamedControl(tree, 'WorkTimeInput').includes('0.75'),
+            '从模板更新覆盖了已有工时');
+        assertUi(textWithin(tree, editor, existingTagName), '从模板更新移除了已有标签');
+        assertUi(!textWithin(tree, editor, automationTagName), '从模板更新错误添加了模板标签');
+        assertUi(!textWithin(tree, region, createdIssueTitle, true), '从模板更新错误执行了模板标签规则');
+
+        const applyButton = findByName(tree, 'ApplyTemplateMenuButton');
+        assertUi(applyButton, '缺少应用模板菜单按钮');
+        await connection.clickNode(applyButton);
+        const applyOption = await connection.waitForTree(current => {
+            const label = findByText(current, taggedTemplateName,
+                entry => hasAncestorType(current, entry, 'MenuItem'));
+            return label && ancestor(current, label, entry => typeOf(entry).includes('MenuItem'));
+        }, 5000, '应用模板菜单没有带标签模板');
+        await connection.clickNode(applyOption.value);
+        const applied = await connection.waitForTree(current => {
+            const currentEditor = rootOf(current, 'WorkEditorView');
+            const currentRegion = rootOf(current, 'RedMineEditorRegionView');
+            return textOf(findByName(current, 'WorkTitleInput')) === taggedTemplateTitle
+                && textWithinNamedControl(current, 'WorkTimeInput').includes('0.5')
+                && textWithin(current, currentEditor, automationTagName)
+                && !textWithin(current, currentEditor, existingTagName)
+                && textWithin(current, currentRegion, createdIssueTitle, true);
+        }, 10000, '应用带标签模板没有替换内容、标签或执行规则');
+        editor = rootOf(applied.tree, 'WorkEditorView');
+        region = rootOf(applied.tree, 'RedMineEditorRegionView');
+        assertUi(editor && region, '应用模板后事项或 Redmine 编辑区域丢失');
+        return {
+            updateBlankAppliedDefaults: true,
+            updateExistingPreserved: true,
+            applyReplacedContentAndTriggeredRule: true,
+        };
     });
 
     await runStep('redmine.work-tag-defaults', '标签自动填充 Issue 与活动并保存本地事项', async () => {
@@ -506,14 +773,16 @@ await runUiSuite({ name: 'ui-redmine-full', scenario: 'plugins', timeoutMs: 1200
                 && typeOf(entry).includes('TextBox'));
         assertUi(timeInput, '工作耗时输入框不存在');
         await connection.replaceText(timeInput, '0.25');
+        await connection.pressKey('Enter', 'Enter', 13);
         tree = await connection.getTree();
         const addTag = textWithin(tree, rootOf(tree, 'WorkEditorView'), '添加标签（常用优先）');
-        await connection.clickNode(controlForText(tree, addTag));
-        const menu = await connection.waitForTree(current => {
-            const label = findByText(current, automationTagName, entry => hasAncestorType(current, entry, 'MenuItem'));
-            return label && ancestor(current, label, entry => typeOf(entry).includes('MenuItem'));
-        }, 5000, '新标签没有出现在事项标签菜单');
-        await connection.clickNode(menu.value);
+        const addTagButton = controlForText(tree, addTag);
+        assertUi(addTagButton, '事项编辑器缺少添加标签按钮');
+        await selectMenuOption(
+            connection,
+            addTagButton,
+            automationTagName,
+            '新标签没有出现在事项标签菜单');
         const defaults = await connection.waitForTree(current => {
             const region = rootOf(current, 'RedMineEditorRegionView');
             if (!region)

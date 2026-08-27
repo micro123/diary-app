@@ -1001,9 +1001,10 @@ public partial class WorkEditorViewModel : ViewModelBase
         if (WorkTags.Count > 0)
         {
             // show only secondary tags
+            var selectedTagIds = WorkTags.Select(tag => tag.Id).ToHashSet();
             foreach (var tag in OrderByRecent(AllTags.Where(x => x is { Level: TagLevels.Secondary, Disabled: false })))
             {
-                if (!WorkTags.Contains(tag))
+                if (!selectedTagIds.Contains(tag.Id))
                     AvailableTags.Add(tag);
             }
         }

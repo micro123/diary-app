@@ -342,6 +342,7 @@ async function main() {
 
         const existingTagName = 'UI自动化已有标签';
         const tagName = 'UI自动化模板标签';
+        const secondaryTagName = 'UI自动化已选次标签';
         const templateName = 'UI自动化事项模板';
         const templateTitle = 'UI自动化模板生成事项';
         functional.tagsAndTemplates = {};
@@ -386,6 +387,15 @@ async function main() {
         await waitForTree(current => findByText(current, tagName,
             entry => hasAncestorName(current, entry, 'TagList')));
         await waitForTree(current => textOf(findByName(current, 'SelectedTagNameInput')) === tagName);
+        tree = await getTree();
+        await activateControl(findByName(tree, 'NewTagPrimaryCheckBox'));
+        await waitForTree(current => findByName(current, 'NewTagPrimaryCheckBox')?.a?.IsChecked === 'false');
+        tree = await getTree();
+        await replaceText(findByName(tree, 'TagNameInput'), secondaryTagName);
+        await waitForTree(current => textOf(findByName(current, 'TagNameInput')) === secondaryTagName);
+        tree = await getTree();
+        await activateControl(findByName(tree, 'AddTagButton'));
+        await waitForTree(current => textOf(findByName(current, 'SelectedTagNameInput')) === secondaryTagName);
         await new Promise(resolve => setTimeout(resolve, 3000));
         functional.tagsAndTemplates.tagSettingsScreenshot = await screenshot('manual-tag-settings.png');
         tree = await getTree();
@@ -635,6 +645,17 @@ async function main() {
         functional.tagsAndTemplates.titleApplied = true;
         functional.tagsAndTemplates.timeApplied = 1.5;
         functional.tagsAndTemplates.tagApplied = true;
+        tree = await getTree();
+        await activateControl(findByName(tree, 'WorkAddTagButton'));
+        const secondaryTagMenu = await waitForTree(current => findByText(current, secondaryTagName,
+            entry => hasAncestorType(current, entry, 'MenuItem')));
+        const secondaryTagMenuItem = ancestor(secondaryTagMenu.tree, secondaryTagMenu.value,
+            entry => typeOf(entry).includes('MenuItem'));
+        if (!secondaryTagMenuItem)
+            throw new Error('找不到日志事项次标签菜单项');
+        await clickNode(secondaryTagMenuItem);
+        await waitForTree(current => findByText(current, secondaryTagName,
+            entry => hasAncestorType(current, entry, 'WorkEditorView')));
         const saveTree = await getTree();
         const saveText = findByText(saveTree, '保存', entry => typeOf(entry).includes('Button'));
         const saveButton = saveText && ancestor(saveTree, saveText,
@@ -649,12 +670,27 @@ async function main() {
         functional.navigation.queryAfterTemplateMs = await navigate('事项查询', 'WorkItemQueryView');
         functional.navigation.diaryAfterTemplateMs = await navigate('日记记录', 'DiaryEditorView');
         tree = await getTree();
+        const reloadedTemplateTitle = findByText(tree, templateTitle);
+        const reloadedTemplateItem = reloadedTemplateTitle && ancestor(
+            tree,
+            reloadedTemplateTitle,
+            entry => typeOf(entry).includes('ListBoxItem'));
+        if (!reloadedTemplateItem)
+            throw new Error('找不到重载后的模板事项');
+        await clickNode(reloadedTemplateItem);
+        const reloadedEditor = await waitForTree(current => findByName(current, 'WorkAddTagButton'));
+        tree = reloadedEditor.tree;
         const persistedTemplate = await readPersistedTemplate(state, templateTitle, tagName);
         functional.tagsAndTemplates.visibleAfterNavigation = Boolean(findByText(tree, templateTitle));
         functional.tagsAndTemplates.persistedTitle = Boolean(persistedTemplate);
         functional.tagsAndTemplates.persistedTag = persistedTemplate?.hasTag === 1;
         functional.tagsAndTemplates.persistedLocalSave = Boolean(persistedTemplate);
         functional.tagsAndTemplates.persistedHours = persistedTemplate?.hours;
+        const reloadedAddTagButton = findByName(tree, 'WorkAddTagButton');
+        functional.tagsAndTemplates.selectedSecondaryExcludedAfterReload =
+            reloadedAddTagButton?.a?.IsEnabled === 'false';
+        if (!functional.tagsAndTemplates.selectedSecondaryExcludedAfterReload)
+            throw new Error('事项重载后已选次标签仍出现在添加标签候选中');
         const persistedTagColors = await readPersistedTagColors(state, existingTagName, tagName);
         functional.tagsAndTemplates.randomDefaultColors = persistedTagColors;
         if (persistedTagColors.length !== 2 || persistedTagColors.some(tag => tag.color === 0))

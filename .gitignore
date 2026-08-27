@@ -373,4 +373,7 @@ FodyWeavers.xsd
 /github_token.txt
 /UpdateServer/publish_token.txt
 
+# 本地 Redmine 测试服务凭据
+/redmine_testing.txt
+
 /*/Generated/*

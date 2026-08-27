@@ -6,7 +6,6 @@
              xmlns:u="https://irihi.tech/ursa"
              xmlns:i="https://github.com/projektanker/icons.avalonia"
              xmlns:base="clr-namespace:Diary.Core.Data.Base;assembly=Diary.Core"
-             xmlns:appData="clr-namespace:Diary.Core.Data.App;assembly=Diary.Core"
              xmlns:display="clr-namespace:Diary.RedMine.Models;assembly=Diary.RedMine"
              xmlns:redMine="clr-namespace:Diary.RedMine.Models;assembly=Diary.RedMine"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
@@ -55,27 +54,21 @@
                         </MenuFlyout>
                     </SplitButton.Flyout>
                 </SplitButton>
-                <SplitButton Name="TemplateActionButton" Grid.Column="2" Content="从模板更新"
-                             IsEnabled="{Binding CanUseTemplates}"
-                             Click="OnUpdateFromTemplateClick"
-                             ToolTip.Tip="主按钮只补充未填写内容；下拉菜单可无条件应用模板">
-                    <SplitButton.Flyout>
-                        <MenuFlyout ShowMode="Transient">
-                            <MenuItem Header="应用模板" ItemsSource="{Binding Templates}">
-                                <MenuItem.ItemContainerTheme>
-                                    <ControlTheme TargetType="MenuItem"
-                                                  BasedOn="{StaticResource {x:Type MenuItem}}"
-                                                  x:DataType="appData:Template">
-                                        <Setter Property="Header" Value="{Binding Name}" />
-                                        <Setter Property="Command"
-                                                Value="{Binding #EditPanel.((viewModels:WorkEditorViewModel)DataContext).ApplyTemplateCommand}" />
-                                        <Setter Property="CommandParameter" Value="{Binding}" />
-                                    </ControlTheme>
-                                </MenuItem.ItemContainerTheme>
-                            </MenuItem>
-                        </MenuFlyout>
-                    </SplitButton.Flyout>
-                </SplitButton>
+                <Grid Grid.Column="2" ColumnDefinitions="Auto,Auto">
+                    <Button Name="TemplateActionButton"
+                            Content="从模板更新"
+                            IsEnabled="{Binding CanUseTemplates}"
+                            Click="OnUpdateFromTemplateClick"
+                            ToolTip.Tip="只补充尚未填写的内容" />
+                    <Button Name="ApplyTemplateMenuButton"
+                            Grid.Column="1"
+                            Content="▼"
+                            MinWidth="32"
+                            Padding="6,0"
+                            IsEnabled="{Binding CanUseTemplates}"
+                            Click="OnApplyTemplateClick"
+                            ToolTip.Tip="应用模板并替换当前内容" />
+                </Grid>
             </Grid>
 
             <TextBlock Grid.Row="1" Grid.Column="0" Text="标题" Classes="FieldLabel" />
@@ -157,25 +150,14 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
         <StackPanel Orientation="Horizontal" Spacing="8">
-        <Button HorizontalAlignment="Left"
-                IsEnabled="{Binding HasAvailableTags}">
+        <Button Name="WorkAddTagButton"
+                HorizontalAlignment="Left"
+                IsEnabled="{Binding HasAvailableTags}"
+                Click="OnAddTagClick">
             <StackPanel Orientation="Horizontal" Spacing="4">
                 <i:Icon Value="mdi-tag-plus-outline" />
                 <TextBlock Text="添加标签（常用优先）" />
             </StackPanel>
-            <Button.Flyout>
-                <MenuFlyout ItemsSource="{Binding AvailableTags}"
-                            ShowMode="TransientWithDismissOnPointerMoveAway">
-                    <MenuFlyout.ItemContainerTheme>
-                        <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}"
-                                      x:DataType="base:WorkTag">
-                            <Setter Property="Header" Value="{Binding Name}"/>
-                            <Setter Property="Command" Value="{Binding #EditPanel.((viewModels:WorkEditorViewModel)DataContext).AddTagCommand}"/>
-                            <Setter Property="CommandParameter" Value="{Binding}"/>
-                        </ControlTheme>
-                    </MenuFlyout.ItemContainerTheme>
-                </MenuFlyout>
-            </Button.Flyout>
         </Button>
         <Button Name="ExtraFieldsButton"
                 HorizontalAlignment="Left"

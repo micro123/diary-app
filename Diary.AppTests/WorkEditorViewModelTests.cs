@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Diary.App;
 using Diary.App.Models;
+using Diary.App.Services;
 using Diary.App.ViewModels;
 using Diary.App.ViewModels.Dialogs;
 using Diary.App.Views;
@@ -11,6 +12,7 @@ using Diary.Core.Data.App;
 using Diary.Core.Data.Base;
 using Diary.Database;
 using Diary.Db.SQLite;
+using Diary.GUIBase.Events;
 using Diary.GUIBase.ViewModels;
 using Diary.PluginBase;
 using Diary.PluginUI;
@@ -298,6 +300,37 @@ public sealed class WorkEditorViewModelTests
     }
 
     [TestMethod]
+    public void ApplyTaggedTemplateTriggersAutomationInTemplateOrder()
+    {
+        var originalTag = new WorkTag { Id = 1, Name = "原标签", Level = TagLevels.Primary };
+        var primaryTag = new WorkTag { Id = 2, Name = "模板主标签", Level = TagLevels.Primary };
+        var secondaryTag = new WorkTag { Id = 3, Name = "模板次标签", Level = TagLevels.Secondary };
+        var automation = new RecordingTagAutomationCoordinator();
+        var viewModel = CreateViewModel(tagAutomation: automation);
+        foreach (var tag in new[] { originalTag, primaryTag, secondaryTag })
+            viewModel.AllTags.Add(tag);
+        viewModel.AddTags([originalTag], TagAddSource.User);
+        automation.Calls.Clear();
+
+        viewModel.ApplyTemplate(new Template
+        {
+            Name = "主次标签模板",
+            DefaultWorkTags = [primaryTag.Id, secondaryTag.Id],
+        });
+
+        CollectionAssert.AreEqual(
+            new[] { primaryTag.Id, secondaryTag.Id },
+            viewModel.WorkTags.Select(tag => tag.Id).ToArray());
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                (primaryTag.Id, TagAddSource.Template, 0),
+                (secondaryTag.Id, TagAddSource.Template, 1),
+            },
+            automation.Calls.ToArray());
+    }
+
+    [TestMethod]
     public void UpdateFromTemplateOnlyFillsMissingFieldsAndRequiresNoExistingTags()
     {
         var currentTag = new WorkTag { Id = 1, Name = "当前标签", Level = TagLevels.Primary };
@@ -330,6 +363,40 @@ public sealed class WorkEditorViewModelTests
         Assert.AreEqual("模板标题", empty.Comment);
         Assert.AreEqual(1.5, empty.Time, 0.0001);
         CollectionAssert.AreEqual(new[] { templateTag }, empty.WorkTags.ToArray());
+    }
+
+    [TestMethod]
+    public void UpdateFromTaggedTemplateTriggersOnlyWhenCurrentItemHasNoTags()
+    {
+        var currentTag = new WorkTag { Id = 1, Name = "当前标签", Level = TagLevels.Primary };
+        var templateTag = new WorkTag { Id = 2, Name = "模板标签", Level = TagLevels.Primary };
+        var template = new Template
+        {
+            Name = "更新标签模板",
+            DefaultWorkTags = [templateTag.Id],
+        };
+        var filledAutomation = new RecordingTagAutomationCoordinator();
+        var filled = CreateViewModel(tagAutomation: filledAutomation);
+        filled.AllTags.Add(currentTag);
+        filled.AllTags.Add(templateTag);
+        filled.AddTags([currentTag], TagAddSource.User);
+        filledAutomation.Calls.Clear();
+
+        filled.UpdateFromTemplate(template);
+
+        CollectionAssert.AreEqual(new[] { currentTag.Id }, filled.WorkTags.Select(tag => tag.Id).ToArray());
+        Assert.IsEmpty(filledAutomation.Calls);
+
+        var emptyAutomation = new RecordingTagAutomationCoordinator();
+        var empty = CreateViewModel(tagAutomation: emptyAutomation);
+        empty.AllTags.Add(templateTag);
+
+        empty.UpdateFromTemplate(template);
+
+        CollectionAssert.AreEqual(new[] { templateTag.Id }, empty.WorkTags.Select(tag => tag.Id).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { (templateTag.Id, TagAddSource.Template, 0) },
+            emptyAutomation.Calls.ToArray());
     }
 
     [TestMethod]
@@ -445,6 +512,74 @@ public sealed class WorkEditorViewModelTests
         Assert.AreEqual(0, viewModel.WorkTags.Count);
         Assert.AreEqual(0, database.GetWorkItemTags(item).Count);
     }
+
+    [TestMethod]
+    public void AvailableTagsExcludePersistedSecondaryTagById()
+    {
+        using var database = CreateDatabase();
+        var primary = database.CreateWorkTag("主标签", true, 1);
+        var selectedSecondary = database.CreateWorkTag("已选次标签", false, 2);
+        var availableSecondary = database.CreateWorkTag("可选次标签", false, 3);
+        var item = database.CreateWorkItem("2026-08-27", "候选标签测试");
+        Assert.IsTrue(database.WorkItemAddTag(item, primary));
+        Assert.IsTrue(database.WorkItemAddTag(item, selectedSecondary));
+        var shareData = new DbShareData(NullLogger.Instance);
+        foreach (var tag in database.AllWorkTags())
+            shareData.WorkTags.Add(tag);
+        var viewModel = CreateViewModel(shareData: shareData, database: database);
+        LoadExistingItem(viewModel, item);
+
+        viewModel.SyncTags();
+
+        CollectionAssert.AreEqual(
+            new[] { availableSecondary.Id },
+            viewModel.AvailableTags.Select(tag => tag.Id).ToArray());
+    }
+
+    [TestMethod]
+    public Task DeletingOnlyTagStillPublishesWorkTagRefresh() => _session.Dispatch(() =>
+    {
+        using var database = CreateDatabase();
+        var tag = database.CreateWorkTag("待删除标签", true, 1);
+        var registry = new TrackerUiContributionRegistry();
+        var instanceRegistry = new PluginInstanceRegistry();
+        var instanceCoordinator = new TrackerInstanceCoordinator(
+            instanceRegistry,
+            NullLogger<TrackerInstanceCoordinator>.Instance);
+        var lifecycleCoordinator = new TrackerPluginLifecycleCoordinator(
+            instanceCoordinator,
+            registry,
+            Array.Empty<ITrackerUiContributionFactory>(),
+            instanceRegistry,
+            NullLogger<TrackerPluginLifecycleCoordinator>.Instance);
+        var refreshCount = 0;
+        void RecordRefresh(uint value)
+        {
+            if ((value & DbChangedEvent.WorkTags) != 0)
+                ++refreshCount;
+        }
+        try
+        {
+            var viewModel = new TagEditorViewModel(
+                NullLogger.Instance,
+                registry,
+                lifecycleCoordinator,
+                new TagSharePackageService(),
+                () => database,
+                RecordRefresh);
+            var editable = viewModel.AllTags.Single(item => item.Id == tag.Id);
+
+            viewModel.DelTagCommand.Execute(editable);
+            viewModel.SaveCommand.Execute(null);
+
+            Assert.AreEqual(1, refreshCount);
+            Assert.IsEmpty(database.AllWorkTags());
+        }
+        finally
+        {
+            registry.Dispose();
+        }
+    }, CancellationToken.None);
 
     [TestMethod]
     public void EditableWorkTagRenamePersistsToDatabase()
@@ -586,7 +721,7 @@ public sealed class WorkEditorViewModelTests
         using var database = CreateDatabase();
         var item = database.CreateWorkItem("2026-08-26", "已同步记录");
         var tag = database.CreateWorkTag("本地标签", true, 0);
-        var viewModel = CreateViewModel(CreateCloneTrackerRegistry(), database);
+        var viewModel = CreateViewModel(CreateCloneTrackerRegistry(), database: database);
         var extension = (CloneTrackerExtension)viewModel.Extensions.Single();
         extension.IsLocked = true;
         LoadExistingItem(viewModel, item);
@@ -784,14 +919,16 @@ public sealed class WorkEditorViewModelTests
 
     private static WorkEditorViewModel CreateViewModel(
         TrackerUiContributionRegistry? trackerRegistry = null,
-        DbInterfaceBase? database = null)
+        DbShareData? shareData = null,
+        DbInterfaceBase? database = null,
+        ITagAutomationCoordinator? tagAutomation = null)
         => new(
-            new DbShareData(NullLogger<DbShareData>.Instance),
+            shareData ?? new DbShareData(NullLogger<DbShareData>.Instance),
             new NoopPersistenceCoordinator(),
             new RecordingUploadCoordinator(),
             trackerRegistry ?? new TrackerUiContributionRegistry(),
             string.Empty,
-            new NoopTagAutomationCoordinator(),
+            tagAutomation ?? new NoopTagAutomationCoordinator(),
             database: database);
 
     private static SQLiteDb CreateDatabase()
@@ -946,6 +1083,21 @@ public sealed class WorkEditorViewModelTests
             TagAutomationContext context,
             IReadOnlyCollection<ITrackerEditorExtension> extensions)
             => new(Array.Empty<TagAutomationInstanceResult>());
+    }
+
+    private sealed class RecordingTagAutomationCoordinator : ITagAutomationCoordinator
+    {
+        public List<(int TagId, TagAddSource Source, int Sequence)> Calls { get; } = [];
+
+        public TagAutomationResult TagAdded(
+            WorkItem? item,
+            WorkTag tag,
+            TagAutomationContext context,
+            IReadOnlyCollection<ITrackerEditorExtension> extensions)
+        {
+            Calls.Add((tag.Id, context.Source, context.Sequence));
+            return new TagAutomationResult(Array.Empty<TagAutomationInstanceResult>());
+        }
     }
 
     private sealed class TestSqliteFactory : IDbFactory

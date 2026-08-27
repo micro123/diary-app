@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Diary.App.ViewModels;
 
 namespace Diary.App.Views;
@@ -44,19 +45,63 @@ public partial class WorkEditorView : UserControl
 
     private void OnUpdateFromTemplateClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is not SplitButton button || DataContext is not WorkEditorViewModel viewModel)
+        if (sender is not Button button || DataContext is not WorkEditorViewModel viewModel)
             return;
 
-        var menu = new MenuFlyout
-        {
-            ItemsSource = viewModel.Templates.Select(template => new MenuItem
+        OpenTemplateMenu(button, viewModel, applyTemplate: false);
+    }
+
+    private void OnApplyTemplateClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || DataContext is not WorkEditorViewModel viewModel)
+            return;
+
+        OpenTemplateMenu(button, viewModel, applyTemplate: true);
+    }
+
+    private void OnAddTagClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || DataContext is not WorkEditorViewModel viewModel)
+            return;
+
+        OpenContextMenu(
+            button,
+            viewModel.AvailableTags.Select(tag => new MenuItem
+            {
+                Header = tag.Name,
+                Command = viewModel.AddTagCommand,
+                CommandParameter = tag,
+            }));
+    }
+
+    private static void OpenTemplateMenu(
+        Button anchor,
+        WorkEditorViewModel viewModel,
+        bool applyTemplate)
+    {
+        var command = applyTemplate
+            ? viewModel.ApplyTemplateCommand
+            : viewModel.UpdateFromTemplateCommand;
+        OpenContextMenu(
+            anchor,
+            viewModel.Templates.Select(template => new MenuItem
             {
                 Header = template.Name,
-                Command = viewModel.UpdateFromTemplateCommand,
+                Command = command,
                 CommandParameter = template,
-            }).ToArray(),
+            }));
+    }
+
+    private static void OpenContextMenu(Control anchor, IEnumerable<MenuItem> items)
+    {
+        var menu = new ContextMenu { ItemsSource = items.ToArray() };
+        menu.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(anchor.ContextMenu, menu))
+                anchor.ContextMenu = null;
         };
-        menu.ShowAt(button);
+        anchor.ContextMenu = menu;
+        Dispatcher.UIThread.Post(() => menu.Open(anchor));
     }
 
 }

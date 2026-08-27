@@ -8,6 +8,7 @@ using Diary.App.Models;
 using Diary.App.Services;
 using Diary.Core.Constants;
 using Diary.Core.Data.Base;
+using Diary.Database;
 using Diary.GUIBase.Converters;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
@@ -26,6 +27,8 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
     private readonly ILogger _logger;
     private readonly TrackerPluginLifecycleCoordinator _lifecycleCoordinator;
     private readonly TagSharePackageService _tagSharePackageService;
+    private readonly Func<DbInterfaceBase?> _databaseProvider;
+    private readonly Action<uint> _publishDbChanged;
     public string Title => "标签编辑器";
 
     [ObservableProperty]
@@ -52,10 +55,29 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
         TrackerUiContributionRegistry trackerRegistry,
         TrackerPluginLifecycleCoordinator lifecycleCoordinator,
         TagSharePackageService tagSharePackageService)
+        : this(
+            logger,
+            trackerRegistry,
+            lifecycleCoordinator,
+            tagSharePackageService,
+            () => App.Instance.UseDb,
+            EventDispatcher.DbChanged)
+    {
+    }
+
+    internal TagEditorViewModel(
+        ILogger logger,
+        TrackerUiContributionRegistry trackerRegistry,
+        TrackerPluginLifecycleCoordinator lifecycleCoordinator,
+        TagSharePackageService tagSharePackageService,
+        Func<DbInterfaceBase?> databaseProvider,
+        Action<uint> publishDbChanged)
     {
         _logger = logger;
         _lifecycleCoordinator = lifecycleCoordinator;
         _tagSharePackageService = tagSharePackageService;
+        _databaseProvider = databaseProvider;
+        _publishDbChanged = publishDbChanged;
         foreach (var contribution in trackerRegistry.Contributions)
         {
             var ruleContribution = contribution.CreateTagRuleEditorContribution();
@@ -112,7 +134,7 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
             changed |= tagChanged;
         }
         if (changed)
-            EventDispatcher.DbChanged(DbChangedEvent.WorkTags);
+            _publishDbChanged(DbChangedEvent.WorkTags);
         foreach (var pluginId in RuleContributions.Select(item => item.PluginId).Distinct())
         {
             foreach (var contribution in RuleContributions.Where(item => item.PluginId == pluginId))
@@ -137,7 +159,7 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
     {
         if (!SaveChanges(close: false))
             return;
-        var database = App.Instance.UseDb;
+        var database = _databaseProvider();
         var storageProvider = GetStorageProvider();
         if (database is null || storageProvider is null)
         {
@@ -218,7 +240,7 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
     {
         if (!SaveChanges(close: false))
             return;
-        var database = App.Instance.UseDb;
+        var database = _databaseProvider();
         var storageProvider = GetStorageProvider();
         if (database is null || storageProvider is null)
         {
@@ -265,7 +287,7 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
             }
             LoadTags();
             ReloadRules();
-            EventDispatcher.DbChanged(DbChangedEvent.WorkTags);
+            _publishDbChanged(DbChangedEvent.WorkTags);
             EventDispatcher.Notify(
                 "标签导入完成",
                 $"新增 {result.Created}，更新 {result.Updated}，重新启用 {result.Enabled}；" +
@@ -297,6 +319,7 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
     {
         if (tag.Delete())
         {
+            _changed = true;
             AllTags.Remove(tag);
             RefreshVisibleTags();
         }
@@ -344,7 +367,7 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
     {
         int rgb = ResolveNewTagColor(NewTagColor, Random.Shared);
         _logger.LogInformation("new tag, name = {name}, primary = {primary}, color = {color}", NewTagName, NewIsPrimary, rgb);
-        var tag = App.Instance.UseDb!.CreateWorkTag(NewTagName, NewIsPrimary, rgb);
+        var tag = _databaseProvider()!.CreateWorkTag(NewTagName, NewIsPrimary, rgb);
         if (tag.Id > 0)
         {
             _changed = true;
@@ -403,13 +426,14 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
 
     private void LoadTags(int? selectedTagId = null)
     {
-        var all = App.Instance.UseDb?.AllWorkTags();
+        var database = _databaseProvider();
+        var all = database?.AllWorkTags();
         if (all == null)
             return;
         selectedTagId ??= SelectedTag?.Id;
         AllTags.Clear();
         foreach (var tag in all)
-            AllTags.Add(new EditableWorkTag(tag, App.Instance.UseDb));
+            AllTags.Add(new EditableWorkTag(tag, database));
         RefreshVisibleTags(selectedTagId);
     }
 
