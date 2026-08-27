@@ -15,11 +15,16 @@
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="viewModels:RedMineTagRuleViewModel">
                     <Border Classes="SubtleCard" Margin="0,0,0,4" HorizontalAlignment="Stretch">
-                        <Grid ColumnDefinitions="Auto,Auto,*,2*,Auto" ColumnSpacing="8">
+                        <Grid ColumnDefinitions="Auto,Auto,Auto,*,2*,Auto" ColumnSpacing="8">
                             <CheckBox Content="启用"
                                       IsChecked="{Binding Enabled}"
                                       VerticalAlignment="Center" />
-                            <StackPanel Grid.Column="1"
+                            <CheckBox Grid.Column="1"
+                                      Content="强制修改"
+                                      IsChecked="{Binding ForceOverwrite}"
+                                      ToolTip.Tip="开启后始终按规则修改已有值；关闭时只填充空字段。"
+                                      VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="2"
                                         Spacing="3"
                                         IsVisible="{Binding ShowTagSelector}">
                                 <TextBlock Text="标签" Classes="FieldLabel" />
@@ -29,7 +34,7 @@
                                     <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
                                 </ComboBox>
                             </StackPanel>
-                            <StackPanel Grid.Column="2" Spacing="3">
+                            <StackPanel Grid.Column="3" Spacing="3">
                                 <TextBlock Text="活动" Classes="FieldLabel" />
                                 <ComboBox MinWidth="150"
                                           ItemsSource="{Binding Activities}"
@@ -37,7 +42,7 @@
                                     <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
                                 </ComboBox>
                             </StackPanel>
-                            <StackPanel Grid.Column="3" Spacing="3">
+                            <StackPanel Grid.Column="4" Spacing="3">
                                 <TextBlock Text="问题" Classes="FieldLabel" />
                                 <ComboBox MinWidth="220"
                                           ItemsSource="{Binding Issues}"
@@ -45,7 +50,7 @@
                                     <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" /></DataTemplate></ComboBox.ItemTemplate>
                                 </ComboBox>
                             </StackPanel>
-                            <Button Grid.Column="4"
+                            <Button Grid.Column="5"
                                     Content="删除规则" Classes="Danger"
                                     VerticalAlignment="Bottom"
                                     Command="{Binding $parent[UserControl].((viewModels:RedMineTagRuleEditorViewModel)DataContext).RemoveTagRuleCommand}"

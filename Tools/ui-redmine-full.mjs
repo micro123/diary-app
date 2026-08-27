@@ -474,7 +474,10 @@ await runUiSuite({ name: 'ui-redmine-full', scenario: 'plugins', timeoutMs: 1200
         editor = rootOf(tree, 'RedMineTagRuleEditorView');
         const enabled = descendants(tree, editor).find(entry => typeOf(entry).includes('CheckBox')
             && textOf(entry) === '启用');
+        const forceOverwrite = descendants(tree, editor).find(entry => typeOf(entry).includes('CheckBox')
+            && textOf(entry) === '强制修改');
         assertUi(enabled && isChecked(enabled), '新 Redmine 标签规则默认应启用');
+        assertUi(forceOverwrite && isChecked(forceOverwrite), '新 Redmine 标签规则默认应强制修改');
         await closeTrackerSettings(connection, '保存');
         await connection.waitForTree(current => findByText(current, 'Redmine 测试服'), 10000,
             '保存 Tracker 规则后 Redmine 导航未恢复');

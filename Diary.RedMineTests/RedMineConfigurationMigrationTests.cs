@@ -42,14 +42,39 @@ public sealed class RedMineConfigurationMigrationTests
     }
 
     [TestMethod]
-    public void Plugin_DeclaresContinuousVersionTwoConfigurationSchema()
+    public void Plugin_DeclaresContinuousVersionThreeConfigurationSchema()
     {
         var migrations = new RedMinePlugin().GetConfigurationMigrations().ToArray();
 
-        Assert.AreEqual(2, migrations.Length);
-        CollectionAssert.AreEqual(new[] { 0, 1 }, migrations.Select(item => item.FromVersion).ToArray());
-        CollectionAssert.AreEqual(new[] { 1, 2 }, migrations.Select(item => item.ToVersion).ToArray());
+        Assert.AreEqual(3, migrations.Length);
+        CollectionAssert.AreEqual(new[] { 0, 1, 2 }, migrations.Select(item => item.FromVersion).ToArray());
+        CollectionAssert.AreEqual(new[] { 1, 2, 3 }, migrations.Select(item => item.ToVersion).ToArray());
         Assert.IsTrue(migrations.All(item => item.PluginId == RedMinePluginConstants.PluginId));
+    }
+
+    [TestMethod]
+    public void RuleOverwriteMigrationDefaultsExistingRulesToDisabled()
+    {
+        var payload = new JObject
+        {
+            ["Instances"] = new JArray
+            {
+                new JObject
+                {
+                    ["TagRules"] = new JArray
+                    {
+                        new JObject { ["TagId"] = 1 },
+                        new JObject { ["TagId"] = 2, ["ForceOverwrite"] = true },
+                    },
+                },
+            },
+        };
+
+        var migrated = (JObject)new RedMineTagRuleOverwriteConfigurationMigration().Migrate(payload);
+        var rules = (JArray)migrated["Instances"]![0]!["TagRules"]!;
+
+        Assert.IsFalse((bool)rules[0]!["ForceOverwrite"]!);
+        Assert.IsTrue((bool)rules[1]!["ForceOverwrite"]!);
     }
 
     [TestMethod]

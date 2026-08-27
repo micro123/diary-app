@@ -75,6 +75,18 @@ public sealed class RedMineConfigurationEditSessionTests
     }
 
     [TestMethod]
+    public void SessionClonesAndMergesForceOverwrite()
+    {
+        var source = CreateSettings();
+        var session = new RedMineConfigurationEditService().Open(source);
+
+        session.WorkingCopy.TagRules[0].ForceOverwrite = true;
+        session.Commit();
+
+        Assert.IsTrue(source.TagRules[0].ForceOverwrite);
+    }
+
+    [TestMethod]
     public void RuleViewModelIncludesInvalidTargetsInItemsSource()
     {
         var rule = new RedMineTagRule { TagId = 7, ActivityId = 42, IssueId = 84 };
@@ -102,6 +114,27 @@ public sealed class RedMineConfigurationEditSessionTests
 
         Assert.IsFalse(viewModel.ShowTagSelector);
         Assert.AreEqual(7, viewModel.SelectedTag!.Id);
+    }
+
+    [TestMethod]
+    public void NewRuleDefaultsForceOverwriteToEnabled()
+    {
+        Assert.IsTrue(new RedMineTagRule().ForceOverwrite);
+    }
+
+    [TestMethod]
+    public void RulePackagePreservesForceOverwriteAndDefaultsLegacyValueToDisabled()
+    {
+        var values = RedMineTagRuleEditorContribution.ExportRuleValues(new RedMineTagRule
+        {
+            ActivityId = 42,
+            ForceOverwrite = true,
+        });
+
+        Assert.AreEqual("True", values["forceOverwrite"]);
+        Assert.IsTrue(RedMineTagRuleEditorContribution.ReadForceOverwrite(values));
+        Assert.IsFalse(RedMineTagRuleEditorContribution.ReadForceOverwrite(
+            new Dictionary<string, string?> { ["activityId"] = "42" }));
     }
 
     private static RedMineInstanceSettings CreateSettings()

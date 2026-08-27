@@ -17,4 +17,8 @@
     <ProjectReference Include="..\Diary.PluginUI\Diary.PluginUI.csproj" />
     <ProjectReference Include="..\Diary.RedMine\Diary.RedMine.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Diary.RedMineTests" />
+  </ItemGroup>
 </Project>

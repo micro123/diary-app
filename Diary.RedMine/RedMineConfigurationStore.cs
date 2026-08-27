@@ -27,6 +27,7 @@ public sealed class RedMineTagRule
     public int? ActivityId { get; set; }
     public int? IssueId { get; set; }
     public bool Enabled { get; set; } = true;
+    public bool ForceOverwrite { get; set; } = true;
 }
 
 public static class RedMineConfigurationStore

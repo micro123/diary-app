@@ -176,13 +176,13 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
             currentIssueId,
             RedMineActivities.Where(activity => !activity.Invalid).Select(activity => activity.Id).ToHashSet(),
             RedMineIssues.Where(issue => !issue.Disabled && !issue.Invalid).Select(issue => issue.Id).ToHashSet());
-        if (currentActivityId is null && defaults.ActivityId is not null)
+        if (defaults.ActivityId is not null && defaults.ActivityId != currentActivityId)
         {
             ActivityIndex = Enumerable.Range(0, RedMineActivities.Count)
                 .First(i => RedMineActivities[i].Id == defaults.ActivityId);
             changed.Add(nameof(ActivityIndex));
         }
-        if (currentIssueId is null && defaults.IssueId is not null)
+        if (defaults.IssueId is not null && defaults.IssueId != currentIssueId)
         {
             IssueIndex = Enumerable.Range(0, RedMineIssues.Count)
                 .First(i => RedMineIssues[i].Id == defaults.IssueId);

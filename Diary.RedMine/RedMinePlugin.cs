@@ -36,6 +36,7 @@ public sealed class RedMinePlugin : ITrackerPlugin
         {
             new RedMineConfigurationMigration(),
             new RedMineIconConfigurationMigration(),
+            new RedMineTagRuleOverwriteConfigurationMigration(),
         };
 
     public IEnumerable<PluginInstanceConfiguration> GetInstanceConfigurations(object configuration)

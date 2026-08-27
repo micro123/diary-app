@@ -30,6 +30,16 @@ public sealed partial class RedMineTagRuleViewModel : ObservableObject
         set => SetProperty(Rule.Enabled, value, Rule, static (rule, enabled) => rule.Enabled = enabled);
     }
 
+    public bool ForceOverwrite
+    {
+        get => Rule.ForceOverwrite;
+        set => SetProperty(
+            Rule.ForceOverwrite,
+            value,
+            Rule,
+            static (rule, forceOverwrite) => rule.ForceOverwrite = forceOverwrite);
+    }
+
     public RedMineTagRuleViewModel(
         RedMineTagRule rule,
         IReadOnlyList<RedMineTagRuleOption> tags,
@@ -148,7 +158,11 @@ public sealed partial class RedMineTagRuleEditorViewModel : ViewModelBase
         var tagId = _tagId ?? _availableTags.FirstOrDefault()?.Id;
         if (tagId is null)
             return;
-        _settings.TagRules.Add(new RedMineTagRule { TagId = tagId.Value });
+        _settings.TagRules.Add(new RedMineTagRule
+        {
+            TagId = tagId.Value,
+            ForceOverwrite = true,
+        });
         Reload();
     }
 
@@ -165,7 +179,7 @@ public sealed partial class RedMineTagRuleEditorViewModel : ViewModelBase
 public sealed class RedMineTagRuleEditorContribution : ITagRuleEditorContribution
 {
     private static readonly HashSet<string> SupportedValueKeys =
-        ["activityId", "issueId", "enabled"];
+        ["activityId", "issueId", "enabled", "forceOverwrite"];
     private readonly RedMineInstanceConfigurationEditSession _session;
     private readonly RedMineTagRuleEditorViewModel _view;
 
@@ -187,13 +201,22 @@ public sealed class RedMineTagRuleEditorContribution : ITagRuleEditorContributio
             .Where(rule => tagKeys.ContainsKey(rule.TagId))
             .Select(rule => new TrackerTagRulePackageItem(
                 tagKeys[rule.TagId],
-                new Dictionary<string, string?>(StringComparer.Ordinal)
-                {
-                    ["activityId"] = rule.ActivityId?.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    ["issueId"] = rule.IssueId?.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    ["enabled"] = rule.Enabled.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                }))
+                ExportRuleValues(rule)))
             .ToArray();
+
+    internal static IReadOnlyDictionary<string, string?> ExportRuleValues(RedMineTagRule rule)
+        => new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["activityId"] = rule.ActivityId?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["issueId"] = rule.IssueId?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["enabled"] = rule.Enabled.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["forceOverwrite"] = rule.ForceOverwrite.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        };
+
+    internal static bool ReadForceOverwrite(IReadOnlyDictionary<string, string?> values)
+        => values.TryGetValue("forceOverwrite", out var text)
+            && bool.TryParse(text, out var parsed)
+            && parsed;
 
     public IReadOnlyCollection<TrackerTagRuleValidation> ValidateImportRules(
         IReadOnlyCollection<TrackerTagRulePackageItem> rules,
@@ -242,6 +265,7 @@ public sealed class RedMineTagRuleEditorContribution : ITagRuleEditorContributio
             var enabled = !item.Values.TryGetValue("enabled", out var enabledText)
                 || !bool.TryParse(enabledText, out var parsedEnabled)
                 || parsedEnabled;
+            var forceOverwrite = ReadForceOverwrite(item.Values);
             if (_session.WorkingCopy.TagRules.Any(rule => rule.TagId == tagId
                 && rule.ActivityId == activityId
                 && rule.IssueId == issueId))
@@ -253,6 +277,7 @@ public sealed class RedMineTagRuleEditorContribution : ITagRuleEditorContributio
                 ActivityId = activityId,
                 IssueId = issueId,
                 Enabled = enabled,
+                ForceOverwrite = forceOverwrite,
             });
             imported++;
         }
@@ -284,6 +309,10 @@ public sealed class RedMineTagRuleEditorContribution : ITagRuleEditorContributio
             && enabled is not null
             && !bool.TryParse(enabled, out _))
             return Invalid(rule, "enabled 必须是布尔值。");
+        if (rule.Values.TryGetValue("forceOverwrite", out var forceOverwrite)
+            && forceOverwrite is not null
+            && !bool.TryParse(forceOverwrite, out _))
+            return Invalid(rule, "forceOverwrite 必须是布尔值。");
         return new TrackerTagRuleValidation(rule, TrackerTagRuleValidationState.Valid, "规则有效");
     }
 

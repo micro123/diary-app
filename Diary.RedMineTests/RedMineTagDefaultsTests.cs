@@ -30,7 +30,13 @@ public sealed class RedMineTagDefaultsTests
     {
         var rules = new[]
         {
-            new RedMineTagRule { TagId = 1, ActivityId = 20, IssueId = 200 },
+            new RedMineTagRule
+            {
+                TagId = 1,
+                ActivityId = 20,
+                IssueId = 200,
+                ForceOverwrite = false,
+            },
         };
 
         var result = RedMineTagDefaults.Apply(
@@ -38,6 +44,27 @@ public sealed class RedMineTagDefaultsTests
 
         Assert.AreEqual(10, result.ActivityId);
         Assert.AreEqual(100, result.IssueId);
+    }
+
+    [TestMethod]
+    public void Apply_ForceOverwriteReplacesExistingValues()
+    {
+        var rule = new RedMineTagRule
+        {
+            TagId = 1,
+            ActivityId = 20,
+            IssueId = 200,
+            ForceOverwrite = true,
+        };
+
+        var result = RedMineTagDefaults.Apply(
+            [rule], 1, 10, 100, new HashSet<int> { 10, 20 }, new HashSet<int> { 100, 200 });
+
+        Assert.AreEqual(20, result.ActivityId);
+        Assert.AreEqual(200, result.IssueId);
+        CollectionAssert.AreEqual(
+            new[] { nameof(RedMineTagRule.ActivityId), nameof(RedMineTagRule.IssueId) },
+            result.Winners.Select(winner => winner.Field).ToArray());
     }
 
     [TestMethod]

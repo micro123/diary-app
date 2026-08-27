@@ -85,9 +85,11 @@ public static class RedMineTagDefaults
                 valid.Select(item => item.Rule.RuleId).ToArray()));
         }
 
-        if (currentValue is not null || valid.Length == 0)
+        if (valid.Length == 0)
             return currentValue;
         var winner = valid[0];
+        if (currentValue is not null && !winner.Rule.ForceOverwrite)
+            return currentValue;
         winners.Add(new RedMineTagRuleWinner(
             field,
             winner.Rule.RuleId,

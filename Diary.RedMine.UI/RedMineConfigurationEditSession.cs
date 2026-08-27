@@ -132,6 +132,7 @@ internal static class RedMineConfigurationCopy
             ActivityId = source.ActivityId,
             IssueId = source.IssueId,
             Enabled = source.Enabled,
+            ForceOverwrite = source.ForceOverwrite,
         };
 
     private static void MergeRuleChanges(
@@ -162,6 +163,10 @@ internal static class RedMineConfigurationCopy
             targetRule.ActivityId = Merge(targetRule.ActivityId, baselineRule.ActivityId, workingRule.ActivityId);
             targetRule.IssueId = Merge(targetRule.IssueId, baselineRule.IssueId, workingRule.IssueId);
             targetRule.Enabled = Merge(targetRule.Enabled, baselineRule.Enabled, workingRule.Enabled);
+            targetRule.ForceOverwrite = Merge(
+                targetRule.ForceOverwrite,
+                baselineRule.ForceOverwrite,
+                workingRule.ForceOverwrite);
         }
     }
 
