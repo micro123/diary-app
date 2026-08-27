@@ -6,6 +6,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { promisify } from 'node:util';
 import {
+    ancestor,
     delay,
     descendants,
     findByName,
@@ -281,9 +282,10 @@ await runUiSuite({
         const calendar = findByName(tree, 'CompactCalendarDays');
         assertUi(calendar, '找不到日期性能测试所需的 CompactCalendarDays');
         const dayText = String(date.getDate());
-        const dayButton = descendants(tree, calendar).find(entry =>
-            typeOf(entry).includes('Button') && textOf(entry) === dayText
+        const selectedDayText = descendants(tree, calendar).find(entry =>
+            textOf(entry) === dayText
             && String(entry.a.Class ?? '').includes('Selected'));
+        const dayButton = ancestor(tree, selectedDayText, entry => typeOf(entry).includes('Button'));
         assertUi(dayButton, '找不到当前日期按钮：' + localDateText(date));
         await connection.client.send('DOM.focus', { nodeId: calendar.nodeId });
     };

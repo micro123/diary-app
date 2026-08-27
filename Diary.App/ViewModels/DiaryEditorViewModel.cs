@@ -698,6 +698,48 @@ public partial class DiaryEditorViewModel : ViewModelBase
         UpdateTimeInfos();
     }
 
+    partial void OnSelectedWorkChanged(WorkEditorViewModel? value)
+    {
+        if (value is not null && _workEditorPreloadModel is { } preloadModel)
+        {
+            _workEditorPreloadModel = null;
+            IsWorkEditorPrewarmed = false;
+            preloadModel.Dispose();
+        }
+
+        EditorWork = value ?? _workEditorPreloadModel;
+    }
+
+    internal bool TryCreateWorkEditorPreloadModel()
+    {
+        if (SelectedWork is not null || _workEditorPreloadModel is not null)
+            return false;
+
+        try
+        {
+            var preloadModel = new WorkEditorViewModel(
+                _serviceProvider.GetRequiredService<DbShareData>(),
+                defaultTaskTitle: string.Empty)
+            {
+                Date = CurrentDateString,
+            };
+            preloadModel.SetRecentTagIds(GetRecentTagIds());
+            preloadModel.SyncAll();
+            _workEditorPreloadModel = preloadModel;
+            EditorWork = preloadModel;
+            IsWorkEditorPrewarmed = true;
+            return true;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "后台预实现工作项编辑器失败");
+            return false;
+        }
+    }
+
+    internal void LogWorkEditorPreloadFailure(Exception exception)
+        => _logger.LogWarning(exception, "后台预实现工作项编辑器布局失败");
+
     public DiaryEditorViewModel(
         ILogger logger,
         IServiceProvider serviceProvider,
@@ -792,8 +834,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
         _loadingWorks = true;
         try
         {
-            DailyWorks.Clear();
             SelectedWork = null;
+            var loadedWorks = new List<WorkEditorViewModel>();
             var db = App.Instance.UseDb;
             if (db != null)
             {
@@ -819,9 +861,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
                         var x = WorkEditorViewModel.FromWorkItem(item);
                         ConfigureEditorScriptActions(x);
                         x.SyncFromBatch(notesById, tagsById, bindingsByTracker, extraFieldsById);
-                        DailyWorks.Add(x);
+                        loadedWorks.Add(x);
                     }
-                    SortDailyWorks();
                 }
             }
             else
@@ -829,10 +870,13 @@ public partial class DiaryEditorViewModel : ViewModelBase
                 _logger.LogWarning("db is null");
             }
 
-            if (DailyWorks.Count > 0)
-            {
-                SelectedWork = DailyWorks[0];
-            }
+            DailyWorks = new ObservableCollection<WorkEditorViewModel>(
+                WorkItemOrdering.ByPriorityAndId(
+                    loadedWorks,
+                    work => work.Priority,
+                    work => work.WorkId));
+            SelectedWork = DailyWorks.FirstOrDefault();
+            UpdateTimeInfos();
         }
         finally
         {
@@ -1391,7 +1435,10 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     #region 编辑器数据
 
+    private WorkEditorViewModel? _workEditorPreloadModel;
     [ObservableProperty] private ObservableCollection<WorkEditorViewModel> _dailyWorks = new();
+    [ObservableProperty] private WorkEditorViewModel? _editorWork;
+    [ObservableProperty] private bool _isWorkEditorPrewarmed;
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(UploadAllCommand))]
     private double _totalTime;

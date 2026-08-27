@@ -8,6 +8,7 @@
              xmlns:base="clr-namespace:Diary.Core.Data.Base;assembly=Diary.Core"
              xmlns:app="clr-namespace:Diary.App"
              xmlns:models="clr-namespace:Diary.Core.Data.App;assembly=Diary.Core"
+             xmlns:views="clr-namespace:Diary.App.Views"
              x:Class="Diary.App.Views.DiaryEditorView"
              x:DataType="viewModels:DiaryEditorViewModel">
 
@@ -71,6 +72,19 @@
         </Style>
         <Style Selector="Button.CompactCalendarDay.Selected">
             <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="ScrollViewer.WorkEditorHost">
+            <Setter Property="IsVisible" Value="False" />
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+        <Style Selector="ScrollViewer.WorkEditorHost.Prewarmed">
+            <Setter Property="IsVisible" Value="True" />
+        </Style>
+        <Style Selector="ScrollViewer.WorkEditorHost.HasItem">
+            <Setter Property="IsVisible" Value="True" />
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="IsHitTestVisible" Value="True" />
         </Style>
         <Style Selector="Button.CompactCalendarDay:pointerover Border.CompactCalendarHoverIndicator">
             <Setter Property="Background" Value="{DynamicResource SemiColorFill1}" />
@@ -403,12 +417,16 @@
                     </Border>
                 </Grid>
                 </Border>
-                <Panel>
+                <Panel Name="WorkEditorPanel">
                     <TextBlock Text="当前未选中任何事项" FontSize="48" HorizontalAlignment="Center"
                                Foreground="{DynamicResource ButtonDefaultDisabledForeground}"
                                IsVisible="{Binding !HasItem}" VerticalAlignment="Center" />
-                    <ScrollViewer IsVisible="{Binding HasItem}" VerticalScrollBarVisibility="Auto">
-                        <ContentControl Content="{Binding SelectedWork}" />
+                    <ScrollViewer Name="WorkEditorScrollViewer" Classes="WorkEditorHost"
+                                  Classes.Prewarmed="{Binding IsWorkEditorPrewarmed}"
+                                  Classes.HasItem="{Binding HasItem}"
+                                  VerticalScrollBarVisibility="Auto">
+                        <views:WorkEditorView Name="WorkEditor"
+                                              DataContext="{Binding EditorWork}" />
                     </ScrollViewer>
                 </Panel>
             </DockPanel>

@@ -41,7 +41,7 @@ start 选项：
   --port <port>             CDP 监听端口，默认 9222
   --no-build               跳过 Debug restore/build
   --with-plugins            加载 Tracker 插件
-  --scenario <name>         default、extended、survey、database-error、extra-fields、date-performance、navigation-performance 或 plugins
+  --scenario <name>         default、extended、survey、database-error、extra-fields、date-cold-performance、date-performance、navigation-performance 或 plugins
   --seed-profile <path>     复制已有 profile 的加密配置文件
   --profile-base <path>     将隔离 profile 创建到指定磁盘目录，性能测试可指向 HDD
   --display <display>       使用指定 X11 DISPLAY，例如 :0
@@ -123,7 +123,7 @@ if [[ ! "$port" =~ ^[0-9]+$ ]] || ((port < 1024 || port > 65535)); then
 fi
 
 case "$scenario" in
-    default|extended|survey|database-error|extra-fields|date-performance|navigation-performance|plugins) ;;
+    default|extended|survey|database-error|extra-fields|date-cold-performance|date-performance|navigation-performance|plugins) ;;
     *) fail "不支持的测试场景：$scenario" ;;
 esac
 

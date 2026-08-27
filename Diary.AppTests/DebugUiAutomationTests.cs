@@ -40,6 +40,7 @@ public sealed class DebugUiAutomationTests
     [DataRow("survey", "survey")]
     [DataRow("database-error", "database-error")]
     [DataRow("extra-fields", "extra-fields")]
+    [DataRow("date-cold-performance", "date-cold-performance")]
     [DataRow("date-performance", "date-performance")]
     [DataRow("navigation-performance", "navigation-performance")]
     [DataRow("plugins", "plugins")]
@@ -127,6 +128,30 @@ public sealed class DebugUiAutomationTests
         Assert.AreEqual(DebugUiAutomation.DatePerformanceDayCount, Convert.ToInt32(host.ExecuteScalar(
             string.Format(distributionQuery, "COUNT(*)"),
             ("$title_like", DebugUiAutomation.DatePerformanceTitlePrefix + " %"))));
+    }
+
+    [TestMethod]
+    public void ApplyDateColdPerformanceScenario_KeepsAnchorEmptyAndCreatesRichPreviousDay()
+    {
+        using var database = new SQLiteDb(new TestSqliteFactory());
+        Assert.IsTrue(database.Connect());
+        Assert.IsTrue(database.Initialized());
+        var migration = database.MigrateTo(DataVersion.VersionCode, new DbMigrationOptions(CreateBackup: false));
+        Assert.IsTrue(migration.Success, migration.Error);
+        var anchor = new DateTime(2026, 8, 27);
+
+        Assert.IsTrue(DebugUiAutomation.ApplyDateColdPerformanceScenario(database, anchor));
+        Assert.IsFalse(DebugUiAutomation.ApplyDateColdPerformanceScenario(database, anchor));
+
+        Assert.AreEqual(0, database.GetWorkItemByDate("2026-08-27").Count);
+        var previousDay = database.GetWorkItemByDate("2026-08-26");
+        Assert.AreEqual(DebugUiAutomation.DateColdPerformanceItemCount, previousDay.Count);
+        Assert.IsTrue(previousDay.All(item => item.Comment.StartsWith(
+            DebugUiAutomation.DateColdPerformanceTitlePrefix,
+            StringComparison.Ordinal)));
+        Assert.IsTrue(previousDay.All(item => database.GetWorkItemTags(item).Count == 1));
+        Assert.AreEqual(4, previousDay.Count(item => database.GetWorkItemExtraFields(item).Single().Value.Length > 0));
+        Assert.AreEqual(3, previousDay.Count(item => !string.IsNullOrWhiteSpace(database.WorkGetNote(item))));
     }
 
     [TestMethod]

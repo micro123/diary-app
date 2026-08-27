@@ -1,9 +1,11 @@
 using System.Reflection;
+using Avalonia.Controls;
 using Avalonia.Headless;
 using Diary.App;
 using Diary.App.Models;
 using Diary.App.ViewModels;
 using Diary.App.ViewModels.Dialogs;
+using Diary.App.Views;
 using Diary.Core;
 using Diary.Core.Data.App;
 using Diary.Core.Data.Base;
@@ -67,6 +69,26 @@ public sealed class WorkEditorViewModelTests
         Assert.IsFalse(CreateViewModel().HasTrackerEditors);
         Assert.IsTrue(CreateViewModel(CreateCloneTrackerRegistry()).HasTrackerEditors);
     }
+
+    [TestMethod]
+    public Task WorkEditorViewRebindsSingleInstanceBetweenViewModels() => _session.Dispatch(() =>
+    {
+        var view = new Border();
+        var firstViewModel = CreateViewModel();
+        var secondViewModel = CreateViewModel();
+        WorkEditorViewModel? attachedViewModel = null;
+
+        attachedViewModel = WorkEditorView.RebindViewModel(view, attachedViewModel, firstViewModel);
+        Assert.AreSame(view, firstViewModel.View);
+
+        attachedViewModel = WorkEditorView.RebindViewModel(view, attachedViewModel, secondViewModel);
+        Assert.IsNull(firstViewModel.View);
+        Assert.AreSame(view, secondViewModel.View);
+
+        attachedViewModel = WorkEditorView.RebindViewModel(view, attachedViewModel, null);
+        Assert.IsNull(secondViewModel.View);
+        Assert.IsNull(attachedViewModel);
+    }, CancellationToken.None);
 
     [TestMethod]
     public void RefreshTrackerEditorsUpdatesVisibilityAfterRegistryChanges()

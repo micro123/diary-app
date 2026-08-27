@@ -9,7 +9,7 @@ param(
     [int] $Port = 9222,
     [switch] $NoBuild,
     [switch] $WithPlugins,
-    [ValidateSet('default', 'extended', 'survey', 'database-error', 'extra-fields', 'date-performance', 'navigation-performance', 'plugins')]
+    [ValidateSet('default', 'extended', 'survey', 'database-error', 'extra-fields', 'date-cold-performance', 'date-performance', 'navigation-performance', 'plugins')]
     [string] $Scenario = 'default',
     [string] $SeedProfile = '',
     [string] $ProfileBase = '',

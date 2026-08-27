@@ -49,7 +49,7 @@ Linux 使用 `Tools/ui-test.sh`；需要 Bash、Python 3、Node.js 22.5+ 和可�
 ```
 
 ```bash
-./Tools/ui-test.sh start --no-build --display :0
+./Tools/ui-test.sh start --no-build
 ```
 
 Linux 默认构建流程先按 Debug 配置执行 restore，再使用 `--no-restore` 构建，避免条件引用的 CDP 包因沿用 Release 资产文件而缺失。
@@ -63,6 +63,7 @@ Linux 默认构建流程先按 Debug 配置执行 restore，再使用 `--no-rest
 | `survey` | `-Scenario survey` / `--scenario survey` | 开启调查者和本机受访节点 |
 | `database-error` | `-Scenario database-error` / `--scenario database-error` | 注入不存在的数据库驱动，验证恢复 UI |
 | `extra-fields` | `-Scenario extra-fields` / `--scenario extra-fields` | 预置迁移只读事项，验证标签附加字段定义、类型化编辑和迁移事项入口隐藏 |
+| `date-cold-performance` | `-Scenario date-cold-performance` / `--scenario date-cold-performance` | 保持今天为空、在昨天预置 12 条富工作数据，单独测量首次空日期进入有事项日期和重复热切换 |
 | `date-performance` | `-Scenario date-performance` / `--scenario date-performance` | 预置 540 天、每日 48 条富工作数据，验证大量日期切换性能和只读导航不写库 |
 | `navigation-performance` | `-Scenario navigation-performance` / `--scenario navigation-performance` | 同时开启调查和开发者功能，测量所有核心导航页及可用 Tracker 管理页的首次访问和重复切换性能 |
 | `plugins` | `-Scenario plugins -WithPlugins` / `--scenario plugins --with-plugins` | 加载 Tracker 插件和动态管理页 |
@@ -94,7 +95,7 @@ seed 只复制加密配置文件，不应提交到 Git，也不得写入报告�
 
 当前全量多场景编排器仍为 PowerShell。Linux 可以通过 `ui-test.sh start` 和 `ui-test.sh run <suite>` 运行任意单套件；无桌面的 Xvfb 全量编排和定期 CI 门禁仍是后续工作，不能仅凭已有桌面会话结果视为 headless 门禁完成。
 
-当前 11 个套件如下；`ui-date-performance` 是耗时和机器差异较大的专项，不加入常规全量编排：
+当前 13 个套件如下；`ui-date-cold-performance`、`ui-date-performance` 和 `ui-work-item-performance` 是机器差异较大的性能专项，不加入常规全量编排：
 
 | 套件 | 结构化步骤 | 主要覆盖 |
 | --- | ---: | --- |
@@ -106,13 +107,15 @@ seed 只复制加密配置文件，不应提交到 Git，也不得写入报告�
 | `ui-database-error` | 8 | 日记/查询/统计数据库异常状态、重试、设置入口、诊断导出和异常状态性能 |
 | `ui-survey-full` | 8 | v1 查询、v2 能力发现、详情、筛选、三种分组、明细开关、校验错误和性能 |
 | `ui-extra-fields-full` | 8 | 标签过滤、字段/元数据数量摘要、字段即时排序、9 类字段定义、类型化编辑、清空、持久化、停用历史值和迁移只读事项；加载 Tracker 时同时验证扩展内容区只读 |
+| `ui-date-cold-performance` | 4 | 今天为空、昨天 12 条富事项；首次进入有事项日期、返回后热切换和最终截图 |
 | `ui-date-performance` | 6 | 25,920 条事项、120 次逐次日期切换、两组高速连按、CPU/内存/进程 I/O；SQLite 检查主文件/WAL，PostgreSQL 检查数据摘要与写入计数 |
+| `ui-work-item-performance` | 6 | 同日事项首次逐项接管、多轮热切换、快速连续切换、单实例稳定性与 SQLite 无写入；支持 12 条无 Tracker 和 48 条本地 Tracker 数据 |
 | `ui-redmine-full` | 12 | 多 Tracker 设置、Redmine 管理、项目/Issue、标签规则、工时同步、防重复、删除边界、安全和性能 |
 | `ui-redmine-style` | 5 | Redmine 配置、插件状态、基本信息、问题/项目工具栏截图和 CheckBox 中心线，只读且不触发远程写入 |
 
 2026-08-26 统一状态栏实现后，在 Linux X11、1280×800（应用最小支持尺寸）下复跑 `ui-core-full` 14/14 和隔离 profile 的 `ui-smoke`，均通过；core 报告为 `ui-core-full-2026-08-26T08-35-11-331Z.json`，smoke 报告为 `ui-smoke-2026-08-26T08-42-35-362Z.json`。深色和浅色截图确认数据库、Tracker、紧凑日期、状态点和顶部分隔线在两种主题下均清晰，未出现横向挤压。smoke 中旧“应用”全局断言同步限制到 `WorkEditorView`，避免离屏缓存的查询页按钮造成误报。
 
-常规全量编排包含 9 个套件，其中 8 个结构化套件合计 74 个步骤；`ui-smoke` 另含标签、模板、主题、草稿、本地持久化和性能断言。日期性能专项另有 6 步，按目标机器和目标磁盘单独运行。
+常规全量编排包含 9 个套件，其中 8 个结构化套件合计 74 个步骤；`ui-smoke` 另含标签、模板、主题、草稿、本地持久化和性能断言。空日期冷切换、大量日期和同日事项切换专项分别为 4、6、6 步，按目标机器、目标磁盘和 Tracker 配置单独运行。
 
 2026-08-24 的统一 UI Windows 复检分别通过设置 9/9、smoke、核心 14/14、扩展 11/11、脚本编辑器 4/4、数据库异常 8/8、Survey 8/8、附加字段 8/8、Redmine 全功能 12/12 和 Redmine 只读视觉 5/5；截图 DPI 与 overlay 重复缩放修复后的常规全量报告 `ui-full-test-2026-08-24T14-44-09-118Z.json` 仍为 9/9 套件通过。复检覆盖日记、查询、统计、程序设置、标签、模板、数据模板、Tracker 配置/状态、Jira/Redmine 实例配置和 Redmine 管理子页面。`ui-redmine-full` 同步兼容统一耗时 `TextBox` 的直接输入，并在保存配置后要求文件使用当前 `DiaryGCM` 整体加密格式；旧 `Salted__` seed 只作为读取兼容输入。
 
@@ -474,6 +477,45 @@ Linux X11 Debug 构建使用相同 2200 ms 预热等待运行 5 个新进程，2
 Linux X11 Debug 构建在 1280×800 应用窗口中完成通知中心空状态和持久错误记录验证。`ui-core-full` 14/14 通过；通知中心步骤不再只判断 Flyout 模板节点存在，而是要求“暂无通知”内容已生成非零有效布局。实体表面、轻边框卡片和左侧语义色条调整后的最终报告记录空状态 Bounds 为 `175,73,48,18`：`.build-tmp/ui-test/reports/ui-core-full-2026-08-26T10-45-13-326Z.json`。
 
 Avalonia Flyout 使用独立 X11 窗口，CDP 的主窗口截图不会包含该原生 Popup。本轮同时使用原生窗口几何和单窗截图复核：主窗口位于 `1920,0`、尺寸 1280×800；空状态 Popup 位于 `2660,567`、尺寸 456×200，底边保持在主窗口状态栏上方，没有从窗口底部向下溢出。`database-error` 隔离场景进一步验证未读徽标、错误级别状态点、已读卡片、单条删除及底部清理操作；深色和浅色主题下文字、状态色和卡片层级均可辨识。手册图片只截取通知 Popup，不包含完整主窗口或本机路径。
+
+### 6.8 2026-08-27 空日期首次进入有事项日期复测
+
+`date-cold-performance` 场景保持启动当天无事项，并在上一天生成 12 条事项；全部事项带主标签，其中 4 条带附加字段、3 条带备注。`ui-date-cold-performance` 先确认空状态，再记录第一次进入上一天的冷切换时间，返回当天后重复进入并记录热切换时间。
+
+日记详情区改为页面生命周期内固定持有单一 `WorkEditorView`，日期加载同时改为内存构建、排序后一次性替换 `DailyWorks`。在初始日期为空时，页面挂载 250 ms 后后台绑定一个不进入事项列表、不保存的轻量占位 ViewModel，使同一编辑器以透明、不可交互状态在真实详情区尺寸下完成模板、Tracker 子区和布局预实现；首个真实事项接管后释放占位模型并恢复空日期完全隐藏。Linux 当前桌面会话 `DISPLAY=:1`、1280×800、Debug 构建连续启动 4 个全新隔离进程，结果如下：
+
+| 指标 | 最小值 | 中位数 | 最大值 |
+| --- | ---: | ---: | ---: |
+| 空日期首次进入 12 条事项日期 | 264.54 ms | 295.48 ms | 331.12 ms |
+| 返回后立即重复进入同一日期 | 136.37 ms | 141.63 ms | 146.19 ms |
+
+纯单实例但没有数据态后台预实现时，4 个新进程的冷切换中位数为 354.92 ms；加入占位 ViewModel 后再降低约 16.7%。相比更早“构造后丢弃一个编辑器”的 4 个新进程冷切换中位数约 630.95 ms，当前方案累计降低约 53.2%。专项的“热切换”在返回空日期后不等待稳定便立即再次进入，因此同时覆盖快速往返压力，不等同于稳定热切换基线。常规 `date-performance` 场景随后以 25,920 条 SQLite 数据复测 120 次逐次切换，P50/P95/P99/最大值为 58.13/114.55/159.37/166.60 ms，6/6 步通过，浏览期间 SQLite 主文件和 WAL 未发生业务写入。
+
+冷切换报告：`ui-date-cold-performance-2026-08-27T03-17-41-284Z.json`、`ui-date-cold-performance-2026-08-27T03-17-46-127Z.json`、`ui-date-cold-performance-2026-08-27T03-17-50-996Z.json`、`ui-date-cold-performance-2026-08-27T03-17-55-868Z.json`。常规日期报告：`ui-date-performance-2026-08-27T03-18-50-840Z.json`。
+
+### 6.9 2026-08-27 同日事项切换性能基线
+
+`ui-work-item-performance` 复用日期性能场景，使用键盘在左侧虚拟化列表中按实际优先级、ID 顺序切换事项，并以右侧 `WorkTitleInput` 更新为完成条件。套件分为首次逐项遍历、多轮往返热切换和不等待单项完成的快速连续切换；最后确认 `WorkEditorView` CDP 节点始终不变，并比较 SQLite 主文件和 WAL，确保纯切换没有触发保存。
+
+Linux 当前桌面 `DISPLAY=:1`、1280×800、Debug 构建分别启动 4 个全新隔离进程。12 条数据包含标签、部分附加字段和备注但不启用 Tracker，结果中位数如下：
+
+| 指标 | P50 | P95 | P99/最大值 |
+| --- | ---: | ---: | ---: |
+| 首次逐项切换 | 47.84 ms | 64.05 ms | 最大值 64.05 ms |
+| 176 次热切换 | 35.37 ms | 64.91 ms | P99 74.34 ms；最大值 83.28 ms |
+
+快速切换每轮连续发送 11 次单向按键，4 个进程中最慢一轮的派发时间中位数为 88.01 ms，最终事项再用 28.42 ms 稳定。左侧 `ListBox` 只实现约 5 个可视卡片，但跨虚拟化区域的 12 条事项均按预期选中。
+
+第二组使用 `date-performance --with-plugins`：当天 48 条事项包含标签、备注、附加字段，启用 Jira 本地 Tracker 编辑区，并为约 20% 的事项创建本地绑定。4 个全新进程结果中位数如下：
+
+| 指标 | P50 | P95 | P99/最大值 |
+| --- | ---: | ---: | ---: |
+| 首次逐项切换 | 67.44 ms | 87.27 ms | P99/最大值 99.10 ms |
+| 282 次热切换 | 37.14 ms | 54.20 ms | P99 67.82 ms；最大值 75.49 ms |
+
+Tracker 主要增加首次接管每个事项时的绑定和子编辑区刷新成本；全部事项至少显示一次后，热切换与无 Tracker 场景处于同一量级。快速切换每轮连续发送 47 次单向按键，最慢派发时间中位数为 842.16 ms，最终事项再用 27.36 ms 稳定。两组共 8 个新进程均保持同一个 `WorkEditorView` 节点，SQLite 主文件和 WAL 无变化，没有性能 warning。
+
+无 Tracker 报告：`ui-work-item-performance-2026-08-27T03-29-21-227Z.json`、`ui-work-item-performance-2026-08-27T03-29-32-754Z.json`、`ui-work-item-performance-2026-08-27T03-29-44-509Z.json`、`ui-work-item-performance-2026-08-27T03-29-56-547Z.json`。带 Tracker 报告：`ui-work-item-performance-2026-08-27T03-32-05-396Z.json`、`ui-work-item-performance-2026-08-27T03-32-54-932Z.json`、`ui-work-item-performance-2026-08-27T03-33-16-278Z.json`、`ui-work-item-performance-2026-08-27T03-33-38-153Z.json`。
 
 ## 7. 当前覆盖边界
 

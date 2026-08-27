@@ -48,7 +48,7 @@ View 缓存是显式加入能力。普通 ViewModel 无需覆盖该属性，默�
 - 预热把 View 加入主导航宿主的真实视觉树，以透明、不可命中的状态完成模板、样式和布局，不提前调用 `OnShow()`；
 - 页面真正成为当前页时调用 `OnShow()`，离开时调用 `OnHide()`，重复构建同一当前实例不会重复触发生命周期。
 
-Avalonia 控件不能同时属于两个视觉父级。缓存 View 只属于主窗口的单一 `NavigationViewHost`；预热完成后和离开页面后仅设为不可见，不再执行 reparent。当前页位于更高 ZIndex 并恢复命中测试，非当前页不可见且不可命中。不可缓存页面离开时仍从宿主移除，因此大量 `WorkEditorViewModel` 不会常驻。
+Avalonia 控件不能同时属于两个视觉父级。缓存 View 只属于主窗口的单一 `NavigationViewHost`；预热完成后和离开页面后仅设为不可见，不再执行 reparent。当前页位于更高 ZIndex 并恢复命中测试，非当前页不可见且不可命中。不可缓存页面离开时仍从宿主移除。`WorkEditorViewModel` 不进入这套主导航缓存；日记页内部只固定持有一个 `WorkEditorView`，选择变化时更换其 `DataContext`，不会为当天每个工作项常驻一棵完整编辑器视觉树。初始空日期使用的占位 ViewModel 只负责后台预实现该单一 View，首个真实事项接管后即释放。
 
 ## 4. 空闲预热
 

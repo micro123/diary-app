@@ -29,9 +29,12 @@ internal static class DebugUiAutomation
     internal const string RedmineActivityIdsEnvironmentVariable = "DIARY_UI_TEST_REDMINE_ACTIVITY_IDS";
     internal const string RedmineIssueIdsEnvironmentVariable = "DIARY_UI_TEST_REDMINE_ISSUE_IDS";
     private const string ExtraFieldsScenario = "extra-fields";
+    private const string DateColdPerformanceScenario = "date-cold-performance";
     private const string DatePerformanceScenario = "date-performance";
     private const string NavigationPerformanceScenario = "navigation-performance";
     internal const string DatePerformanceTitlePrefix = "CDP日期性能";
+    internal const string DateColdPerformanceTitlePrefix = "CDP冷日期性能";
+    internal const int DateColdPerformanceItemCount = 12;
     internal const int DatePerformanceDayCount = 540;
     internal const int DatePerformanceItemsPerDay = 48;
     internal const string DatePerformanceJiraInstanceId = "jira.cdp-performance";
@@ -65,6 +68,7 @@ internal static class DebugUiAutomation
             "survey" => "survey",
             "database-error" => "database-error",
             ExtraFieldsScenario => ExtraFieldsScenario,
+            DateColdPerformanceScenario => DateColdPerformanceScenario,
             DatePerformanceScenario => DatePerformanceScenario,
             NavigationPerformanceScenario => NavigationPerformanceScenario,
             "plugins" => "plugins",
@@ -102,6 +106,7 @@ internal static class DebugUiAutomation
                 config.DbSettings.DatabaseDriver = "Diary.UiTest.MissingDatabase";
                 break;
             case ExtraFieldsScenario:
+            case DateColdPerformanceScenario:
             case "plugins":
                 break;
             case DatePerformanceScenario:
@@ -462,6 +467,8 @@ internal static class DebugUiAutomation
     {
         if (_scenario is "extended" or NavigationPerformanceScenario)
             return ApplyAiContextScenario(database);
+        if (_scenario == DateColdPerformanceScenario)
+            return ApplyDateColdPerformanceScenario(database, DateTime.Today);
         if (_scenario == DatePerformanceScenario)
             return ApplyDatePerformanceScenario(database, DateTime.Today);
         if (_scenario != ExtraFieldsScenario)
@@ -483,6 +490,71 @@ internal static class DebugUiAutomation
         }
 
         Trace.WriteLine($"UI 测试场景已创建只读附加字段事项：{workItem.Id}");
+        return true;
+    }
+
+    internal static bool ApplyDateColdPerformanceScenario(DbInterfaceBase database, DateTime anchorDate)
+    {
+        var targetDate = anchorDate.Date.AddDays(-1);
+        var targetDateText = TimeTools.FormatDateTime(targetDate);
+        var existingItems = database.GetWorkItemByDate(targetDateText)
+            .Where(item => item.Comment.StartsWith(DateColdPerformanceTitlePrefix, StringComparison.Ordinal))
+            .ToArray();
+        if (existingItems.Length == DateColdPerformanceItemCount)
+            return false;
+        if (existingItems.Length != 0)
+        {
+            throw new InvalidOperationException(
+                $"冷日期性能 UI 测试已有不完整数据：{existingItems.Length}/{DateColdPerformanceItemCount}。");
+        }
+
+        var tag = database.AllWorkTags().FirstOrDefault(item => item.Name == "CDP冷日期标签")
+                  ?? database.CreateWorkTag("CDP冷日期标签", true, 0x3B82F6);
+        if (tag.Id <= 0)
+            throw new InvalidOperationException("无法创建冷日期性能 UI 测试标签。");
+
+        var definition = database.GetTagExtraFieldDefinitions(tag.Id, includeDisabled: true)
+            .FirstOrDefault(item => item.FieldKey == "cdp.cold.ticket");
+        if (definition is null)
+        {
+            definition = new TagExtraFieldDefinition
+            {
+                FieldKey = "cdp.cold.ticket",
+                TagId = tag.Id,
+                Label = "冷路径样本编号",
+                Type = TagExtraFieldType.Text,
+                Description = "用于空日期首次进入有事项日期的 CDP 性能测试。",
+                Enabled = true,
+            };
+            if (!database.CreateTagExtraFieldDefinition(definition))
+                throw new InvalidOperationException("无法创建冷日期性能 UI 测试附加字段。");
+        }
+
+        for (var index = 0; index < DateColdPerformanceItemCount; ++index)
+        {
+            var item = database.CreateWorkItem(
+                targetDateText,
+                $"{DateColdPerformanceTitlePrefix} {targetDateText} #{index:00}");
+            item.Time = (index % 8 + 1) * 0.25;
+            item.Priority = (WorkPriorities)(index % 4);
+            if (item.Id <= 0 || !database.UpdateWorkItem(item) || !database.WorkItemAddTag(item, tag))
+                throw new InvalidOperationException($"无法创建冷日期性能 UI 测试事项：{index}。");
+            if (index % 3 == 0 && !database.SaveWorkItemExtraFieldValues(item.Id,
+                [new WorkItemExtraFieldValue
+                {
+                    WorkItemId = item.Id,
+                    FieldId = definition.FieldId,
+                    Value = $"COLD-{index:00}",
+                }]))
+            {
+                throw new InvalidOperationException($"无法保存冷日期性能 UI 测试附加字段：{index}。");
+            }
+            if (index % 4 == 0)
+                database.WorkUpdateNote(item, $"冷路径性能备注 {index:00}");
+        }
+
+        Trace.WriteLine(
+            $"UI 冷日期性能场景已创建 {DateColdPerformanceItemCount} 条事项：{targetDateText}，启动日期 {TimeTools.FormatDateTime(anchorDate)} 保持为空。");
         return true;
     }
 
