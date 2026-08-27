@@ -228,6 +228,15 @@ async function main() {
         await client.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
         await client.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
     };
+    const activateControl = async entry => {
+        await client.send('DOM.focus', { nodeId: entry.nodeId });
+        await client.send('Input.dispatchKeyEvent', {
+            type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+        });
+        await client.send('Input.dispatchKeyEvent', {
+            type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+        });
+    };
     const replaceText = async (entry, text) => {
         await clickNode(entry);
         await client.send('DOM.focus', { nodeId: entry.nodeId });
@@ -311,7 +320,7 @@ async function main() {
         if (!closeButton)
             throw new Error('找不到设置对话框关闭按钮');
         started = performance.now();
-        await clickNode(closeButton);
+        await activateControl(closeButton);
         await waitForTree(current => !current.entries.some(entry => typeOf(entry).includes('SettingsView')));
         functional.settingsDialogCloseMs = performance.now() - started;
 
@@ -335,7 +344,7 @@ async function main() {
         await replaceText(tagNameInput, tagName);
         await waitForTree(current => textOf(findByName(current, 'TagNameInput')) === tagName);
         tree = await getTree();
-        await clickNode(findByName(tree, 'AddTagButton'));
+        await activateControl(findByName(tree, 'AddTagButton'));
         await waitForTree(current => findByText(current, tagName,
             entry => hasAncestorName(current, entry, 'TagList')));
         await new Promise(resolve => setTimeout(resolve, 3000));
@@ -349,7 +358,7 @@ async function main() {
         functional.tagsAndTemplates.tagCreateMs = performance.now() - started;
         functional.tagsAndTemplates.automationTabOpened = true;
         tree = await getTree();
-        await clickNode(findByName(tree, 'SaveTagSettingsButton'));
+        await activateControl(findByName(tree, 'SaveTagSettingsButton'));
         await waitForTree(current => !current.entries.some(entry => typeOf(entry).includes('TagEditorView')));
 
         started = performance.now();
@@ -357,22 +366,37 @@ async function main() {
         const templateEditor = await waitForTree(current => current.entries.find(
             entry => typeOf(entry).includes('TemplateEditorView')));
         tree = templateEditor.tree;
+        const templateCancelButton = tree.entries.find(entry => typeOf(entry).endsWith('Button')
+            && textOf(entry) === '取消' && hasAncestorType(tree, entry, 'TemplateEditorView'));
+        if (templateCancelButton)
+            throw new Error('模板编辑器不应提供绕过保存的取消按钮');
+        await client.send('Input.dispatchKeyEvent', {
+            type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27,
+        });
+        await client.send('Input.dispatchKeyEvent', {
+            type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27,
+        });
+        await new Promise(resolve => setTimeout(resolve, 120));
+        tree = await getTree();
+        if (!tree.entries.some(entry => typeOf(entry).includes('TemplateEditorView')))
+            throw new Error('模板编辑器不应通过 Escape 绕过保存关闭');
         const templateNameInput = findByName(tree, 'TemplateNameInput');
         if (!templateNameInput)
             throw new Error('找不到模板名称输入框');
         await replaceText(templateNameInput, templateName);
         await waitForTree(current => textOf(findByName(current, 'TemplateNameInput')) === templateName);
         tree = await getTree();
-        await clickNode(findByName(tree, 'AddTemplateButton'));
+        await activateControl(findByName(tree, 'AddTemplateButton'));
         await waitForTree(current => findByName(current, 'TemplateItemExpander'));
         await new Promise(resolve => setTimeout(resolve, 120));
         const templateItemTree = await getTree();
         const templateItem = findByName(templateItemTree, 'TemplateItemExpander');
         const templateHeader = templateItemTree.entries.find(entry => nameOf(entry) === 'ExpanderHeader'
+            && typeOf(entry).includes('ToggleButton')
             && ancestor(templateItemTree, entry, current => current.nodeId === templateItem.nodeId));
         if (!templateHeader)
             throw new Error('找不到模板展开按钮');
-        await clickNode(templateHeader);
+        await activateControl(templateHeader);
         const expandedTemplate = await waitForTree(current => findByName(current, 'TemplateDefaultTitleInput'));
         tree = expandedTemplate.tree;
         await replaceText(findByName(tree, 'TemplateDefaultTitleInput'), templateTitle);
@@ -381,7 +405,7 @@ async function main() {
         await replaceText(findByName(tree, 'TemplateDefaultTimeInput'), '1.5');
         await waitForTree(current => textWithinNamedControl(current, 'TemplateDefaultTimeInput').includes('1.5'));
         tree = await getTree();
-        await clickNode(findByName(tree, 'TemplateAddTagButton'));
+        await activateControl(findByName(tree, 'TemplateAddTagButton'));
         const templateTagMenu = await waitForTree(current => findByText(current, tagName,
             entry => hasAncestorType(current, entry, 'MenuItem')));
         const templateTagMenuItem = ancestor(templateTagMenu.tree, templateTagMenu.value,
@@ -394,7 +418,7 @@ async function main() {
         await new Promise(resolve => setTimeout(resolve, 3000));
         functional.tagsAndTemplates.templateSettingsScreenshot = await screenshot('manual-template-settings.png');
         tree = await getTree();
-        await clickNode(findByName(tree, 'SaveTemplateSettingsButton'));
+        await activateControl(findByName(tree, 'SaveTemplateSettingsButton'));
         await waitForTree(current => !current.entries.some(entry => typeOf(entry).includes('TemplateEditorView')));
         functional.tagsAndTemplates.templateConfigureMs = performance.now() - started;
 

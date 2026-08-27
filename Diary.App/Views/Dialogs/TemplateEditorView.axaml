@@ -79,15 +79,15 @@
                                                        Grid.Column="1" Grid.Row="2" Value="{Binding Time}"
                                                        ShowButtonSpinner="False" Watermark="小时" />
                                 <TextBlock Grid.Column="0" Grid.Row="3" Text="默认标签" Classes="FieldLabel" />
-                                 <Button Name="TemplateAddTagButton" Grid.Column="2" Grid.Row="3" Classes="Primary"
-                                         IsEnabled="{Binding #TemplatesView.((dialogs1:TemplateEditorViewModel)DataContext).HasTags}">
+                                <Button Name="TemplateAddTagButton" Grid.Column="2" Grid.Row="3" Classes="Primary"
+                                         IsEnabled="{Binding HasAvailableTags}">
                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                         <i:Icon Value="" />
                                         <TextBlock Text="添加标签" />
                                     </StackPanel>
                                     <Button.Flyout>
                                         <MenuFlyout ShowMode="TransientWithDismissOnPointerMoveAway"
-                                                    ItemsSource="{Binding #TemplatesView.((dialogs1:TemplateEditorViewModel)DataContext).Tags}">
+                                                    ItemsSource="{Binding AvailableTags}">
                                             <MenuFlyout.ItemContainerTheme>
                                                 <ControlTheme TargetType="MenuItem"
                                                               BasedOn="{StaticResource {x:Type MenuItem}}"
@@ -144,9 +144,8 @@
         </ScrollViewer>
         </Border>
         <StackPanel Grid.Row="3" Classes="DialogFooter">
-            <Button Content="取消" Command="{Binding SaveCommand}" CommandParameter="0" />
             <Button Name="SaveTemplateSettingsButton" Classes="Primary" Content="保存"
-                    Command="{Binding SaveCommand}" CommandParameter="1" />
+                    Command="{Binding SaveCommand}" />
         </StackPanel>
     </Grid>
 </UserControl>

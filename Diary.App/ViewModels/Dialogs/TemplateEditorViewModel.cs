@@ -15,17 +15,22 @@ using Microsoft.Extensions.Logging;
 
 namespace Diary.App.ViewModels.Dialogs;
 
-public partial class TemplateViewModel
+public partial class TemplateViewModel : ObservableObject
 {
+    private readonly IReadOnlyCollection<WorkTag> _allTags;
+
     public required string Id { get; init; }
     public required string Name { get; set; }
     public string DefaultTitle { get; set; } = string.Empty;
     public double Time { get; set; } = 0.0;
     public required ObservableCollection<WorkTag> Tags { get; set; }
+    public IReadOnlyList<WorkTag> AvailableTags => ResolveAvailableTags(_allTags, Tags);
+    public bool HasAvailableTags => AvailableTags.Count > 0;
 
     [SetsRequiredMembers]
     public TemplateViewModel(Template template, DbShareData shareData)
     {
+        _allTags = shareData.WorkTags;
         Id = template.Id;
         Name = template.Name;
         DefaultTitle = template.DefaultTitle;
@@ -54,13 +59,10 @@ public partial class TemplateViewModel
     [RelayCommand]
     private void AddTag(WorkTag tag)
     {
-        if (Tags.Contains(tag))
+        if (AvailableTags.All(candidate => candidate.Id != tag.Id))
             return;
-        if (Tags.Any(x => x.Level == TagLevels.Primary) && tag.Level == TagLevels.Primary)
-        {
-            return;
-        }
         Tags.Add(tag);
+        NotifyAvailableTagsChanged();
     }
 
     [RelayCommand]
@@ -69,6 +71,28 @@ public partial class TemplateViewModel
         Tags.Remove(tag);
         if (tag.Level == TagLevels.Primary)
             Tags.Clear();
+        NotifyAvailableTagsChanged();
+    }
+
+    internal static IReadOnlyList<WorkTag> ResolveAvailableTags(
+        IEnumerable<WorkTag> allTags,
+        IReadOnlyCollection<WorkTag> selectedTags)
+    {
+        var expectedLevel = selectedTags.Count == 0
+            ? TagLevels.Primary
+            : TagLevels.Secondary;
+        var selectedIds = selectedTags.Select(tag => tag.Id).ToHashSet();
+        return allTags
+            .Where(tag => !tag.Disabled
+                && tag.Level == expectedLevel
+                && !selectedIds.Contains(tag.Id))
+            .ToArray();
+    }
+
+    private void NotifyAvailableTagsChanged()
+    {
+        OnPropertyChanged(nameof(AvailableTags));
+        OnPropertyChanged(nameof(HasAvailableTags));
     }
 }
 
@@ -77,15 +101,13 @@ public partial class TemplateEditorViewModel : ViewModelBase, IDialogContext
 {
     private readonly DbShareData _dbShareData;
     private readonly ILogger _logger;
+    private readonly Func<object, bool> _save;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(AddTemplateCommand))]
     private string _newTemplateName = string.Empty;
 
     [ObservableProperty] private ObservableCollection<TemplateViewModel> _templates = new();
-
-    public ObservableCollection<WorkTag> Tags => _dbShareData.WorkTags;
-    public bool HasTags => Tags.Count > 0;
 
     private bool CanAdd => !string.IsNullOrWhiteSpace(NewTemplateName);
 
@@ -97,9 +119,15 @@ public partial class TemplateEditorViewModel : ViewModelBase, IDialogContext
     }
 
     public TemplateEditorViewModel(DbShareData dbShareData, ILogger logger)
+        : this(dbShareData, logger, EasySaveLoad.Save)
+    {
+    }
+
+    internal TemplateEditorViewModel(DbShareData dbShareData, ILogger logger, Func<object, bool> save)
     {
         _dbShareData = dbShareData;
         _logger = logger;
+        _save = save;
 
         LoadTemplates();
     }
@@ -114,11 +142,15 @@ public partial class TemplateEditorViewModel : ViewModelBase, IDialogContext
     }
 
     [RelayCommand]
-    private void Save(string param)
+    private void Save()
     {
-        if (param == "1")
-            SaveTemplates();
-        RequestClose?.Invoke(this, null);
+        if (!SaveTemplates())
+        {
+            EventDispatcher.ShowToast("模板保存失败，请重试");
+            return;
+        }
+
+        RequestClose?.Invoke(this, true);
     }
 
     [RelayCommand]
@@ -134,17 +166,35 @@ public partial class TemplateEditorViewModel : ViewModelBase, IDialogContext
             ToastManager?.Show("模板 ID 已复制");
     }
 
-    private void SaveTemplates()
+    private bool SaveTemplates()
     {
         var templates = Enumerable.Select<TemplateViewModel, Template>(Templates, x => x.ToTemplate()).ToList();
-        TemplateManager.Instance.Templates = templates;
-        EasySaveLoad.Save(TemplateManager.Instance);
-        EventDispatcher.Msg(new TemplateChangedEvent());
+        var manager = TemplateManager.Instance;
+        var previousTemplates = manager.Templates;
+        manager.Templates = templates;
+        try
+        {
+            if (!_save(manager))
+            {
+                manager.Templates = previousTemplates;
+                _logger.LogError("保存模板配置失败");
+                return false;
+            }
+
+            EventDispatcher.Msg(new TemplateChangedEvent());
+            return true;
+        }
+        catch (Exception exception)
+        {
+            manager.Templates = previousTemplates;
+            _logger.LogError(exception, "保存模板配置失败");
+            return false;
+        }
     }
 
     public void Close()
     {
-        RequestClose?.Invoke(this, null);
+        // 模板编辑要求显式保存后才能关闭；忽略 Esc 等宿主关闭请求。
     }
 
     public event EventHandler<object?>? RequestClose;
