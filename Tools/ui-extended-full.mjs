@@ -36,6 +36,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Diary.ScriptBase;
+using Diary.ScriptHost;
 
 namespace Diary.UserScripts;
 
@@ -55,10 +56,29 @@ public sealed class ${className} : ApplicationScriptV2
         new("includeZero", "包含零工时", ScriptParameterType.Boolean, DefaultValue: "false"),
     ];
 
-    public override ValueTask<ScriptExecutionResult> ExecuteAsync(
+    public override async ValueTask<ScriptExecutionResult> ExecuteAsync(
         IScriptApplicationContext context,
-        CancellationToken cancellationToken = default) =>
-        ValueTask.FromResult(ScriptExecutionResult.Succeeded());
+        CancellationToken cancellationToken = default)
+    {
+        var system = context.GetRequiredApi<ISysApi>();
+        await system.ConfirmAsync(
+            "执行确认",
+            "脚本即将生成 ui-export-report.xlsx。是否继续执行？",
+            cancellationToken);
+        await system.SelectOptionAsync(new OptionDialogRequest
+        {
+            Title = "导出完成",
+            Message = "ui-export-report.xlsx\\n\\n是否立即打开？",
+            DismissPolicy = DialogDismissPolicy.RequireChoice,
+            Options =
+            [
+                new DialogOption("open", "打开文件", "使用系统默认程序立即打开导出结果。"),
+                new DialogOption("decline", "暂不打开", "保留已经导出的文件，继续执行脚本。"),
+            ],
+            DefaultOptionId = "open",
+        }, cancellationToken);
+        return ScriptExecutionResult.Succeeded();
+    }
 }
 `;
 }
@@ -486,6 +506,12 @@ await runUiSuite({ name: 'ui-extended-full', scenario: 'extended', timeoutMs: 12
 
     await runStep('scripts.preview-run', 'C# 脚本预览执行', async () => {
         const item = scripts[0];
+        let tree = await connection.getTree();
+        if (rootOf(tree, 'SettingsView')) {
+            await activateText(connection, 'SettingsView', '关闭');
+            await connection.waitForTree(current => !rootOf(current, 'SettingsView'), 5000,
+                '程序设置对话框未关闭');
+        }
         await selectScript(connection, item.name);
         await activateText(connection, 'ScriptManagementView', '运行');
         const dialog = await connection.waitForTree(tree => rootOf(tree, 'ScriptRunDialogView'), 8000,
@@ -501,13 +527,66 @@ await runUiSuite({ name: 'ui-extended-full', scenario: 'extended', timeoutMs: 12
         assertUi(preview, '预览执行选项缺失');
         await connection.clickNode(preview);
         await activateText(connection, 'ScriptRunDialogView', '运行');
+        const confirmDialog = await connection.waitForTree(tree => rootOf(tree, 'ScriptConfirmDialogView'), 30000,
+            '脚本确认框未出现');
+        for (const text of [
+            '执行确认',
+            '脚本正在等待确认，请选择是否继续。',
+            '脚本即将生成 ui-export-report.xlsx。是否继续执行？',
+            '取消',
+            '确认',
+        ])
+            assertUi(textWithin(confirmDialog.tree, confirmDialog.value, text, true),
+                '脚本确认框缺少：' + text);
+        assertUi(findByName(confirmDialog.tree, 'ScriptConfirmDialogTitle'), '脚本确认框缺少内容区标题');
+        assertUi(findByName(confirmDialog.tree, 'ScriptConfirmDialogMessage'), '脚本确认框缺少可选择消息');
+        await delay(150);
+        const confirmDialogScreenshot = await connection.screenshot('manual-script-confirm-dialog.png');
+        await activateText(connection, 'ScriptConfirmDialogView', '确认');
+        const optionDialog = await connection.waitForTree(tree => rootOf(tree, 'ScriptOptionDialogView'), 30000,
+            '脚本导出文件打开询问未出现');
+        for (const text of [
+            '导出完成',
+            '脚本需要选择一项后才能继续。',
+            'ui-export-report.xlsx',
+            '打开文件',
+            '使用系统默认程序立即打开导出结果。',
+            '暂不打开',
+            '保留已经导出的文件，继续执行脚本。',
+            '推荐',
+        ])
+            assertUi(textWithin(optionDialog.tree, optionDialog.value, text, true),
+                '脚本导出文件打开询问缺少：' + text);
+        assertUi(!textWithin(optionDialog.tree, optionDialog.value, '选择操作'),
+            '脚本选项对话框不应重复显示“选择操作”');
+        assertUi(findByName(optionDialog.tree, 'ScriptOptionDialogTitle'), '脚本选项对话框缺少内容区标题');
+        assertUi(findByName(optionDialog.tree, 'ScriptOptionDialogMessage'), '脚本选项对话框缺少可选择消息');
+        const openCard = controlForText(optionDialog.tree,
+            textWithin(optionDialog.tree, optionDialog.value, '打开文件'));
+        const declineCard = controlForText(optionDialog.tree,
+            textWithin(optionDialog.tree, optionDialog.value, '暂不打开'));
+        const openCardBounds = boundsOf(openCard);
+        const declineCardBounds = boundsOf(declineCard);
+        const optionRootBounds = boundsOf(optionDialog.value);
+        assertUi(Math.abs(openCardBounds.width - declineCardBounds.width) <= 1,
+            '脚本选项卡宽度不一致');
+        await delay(150);
+        const optionDialogScreenshot = await connection.screenshot('manual-script-export-open-dialog.png');
+        await activateText(connection, 'ScriptOptionDialogView', '暂不打开');
         const completed = await connection.waitForTree(tree => findByTextContains(tree, item.name + ' 执行成功'),
             30000, '脚本预览执行失败');
         return {
             dialogMs: dialog.elapsedMs,
+            confirmDialogMs: confirmDialog.elapsedMs,
+            optionDialogMs: optionDialog.elapsedMs,
             executeMs: completed.elapsedMs,
             parameterScreenshot,
+            confirmDialogScreenshot,
+            optionDialogScreenshot,
             dialogBounds: boundsOf(dialog.value),
+            confirmDialogBounds: boundsOf(confirmDialog.value),
+            optionDialogBounds: optionRootBounds,
+            optionCardBounds: [openCardBounds, declineCardBounds],
         };
     });
 

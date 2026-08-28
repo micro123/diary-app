@@ -1,27 +1,133 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
+             xmlns:i="https://github.com/projektanker/icons.avalonia"
              x:Class="Diary.App.Views.Dialogs.ScriptOptionDialogView"
              x:DataType="dialogs:ScriptOptionDialogViewModel"
-             Width="480" MinHeight="180" Padding="12">
-    <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="9">
-        <TextBlock Text="{Binding DialogTitle}" Classes="Header" />
-        <TextBlock Grid.Row="1" Text="{Binding Message}" TextWrapping="Wrap" />
-        <ItemsControl Grid.Row="2" ItemsSource="{Binding Options}">
+             Width="560"
+             MinWidth="520"
+             MaxWidth="660"
+             MaxHeight="560"
+             Padding="10">
+    <UserControl.Styles>
+        <Style Selector="Button.ScriptOptionCard">
+            <Setter Property="MinHeight" Value="76" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="12,10" />
+            <Setter Property="Margin" Value="3" />
+            <Setter Property="Background" Value="{DynamicResource SemiColorFill1}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SemiColorBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Button.ScriptOptionCard.DefaultOption">
+            <Setter Property="Background" Value="{DynamicResource SemiColorFill2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SemiColorPrimary}" />
+        </Style>
+        <Style Selector="Button.ScriptOptionCard.DestructiveOption">
+            <Setter Property="BorderBrush" Value="{DynamicResource SemiColorDanger}" />
+        </Style>
+        <Style Selector="Border.ScriptDialogIcon">
+            <Setter Property="Width" Value="44" />
+            <Setter Property="Height" Value="44" />
+            <Setter Property="CornerRadius" Value="22" />
+            <Setter Property="Background" Value="#2563A8" />
+        </Style>
+        <Style Selector="Border.ScriptDialogIcon i|Icon">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontSize" Value="24" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8">
+        <Border Classes="PageHeader">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                <Border Classes="ScriptDialogIcon">
+                    <i:Icon Value="mdi-script-text-outline" />
+                </Border>
+                <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                    <TextBlock Name="ScriptOptionDialogTitle"
+                               Text="{Binding DialogTitle}"
+                               Classes="PageTitle"
+                               TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding GuidanceText}"
+                               Classes="PageSubtitle"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1"
+                Classes="DetailPane"
+                IsVisible="{Binding HasMessage}"
+                ClipToBounds="True">
+            <Grid RowDefinitions="Auto,Auto">
+                <Border Classes="DetailHeader">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <i:Icon Value="mdi-file-document-outline" FontSize="16" />
+                        <TextBlock Text="脚本消息" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Border>
+                <ScrollViewer Grid.Row="1"
+                              MaxHeight="180"
+                              Padding="12"
+                              HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto">
+                    <SelectableTextBlock Name="ScriptOptionDialogMessage"
+                                         Text="{Binding Message}"
+                                         TextWrapping="Wrap" />
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <ItemsControl Grid.Row="2"
+                      Margin="-3,0"
+                      ItemsSource="{Binding Options}"
+                      HorizontalAlignment="Stretch">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <UniformGrid Columns="2" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="dialogs:ScriptOptionDialogViewModel+OptionItem">
-                    <Button Margin="0,4" HorizontalContentAlignment="Left"
+                    <Button Classes="ScriptOptionCard"
+                            Classes.DefaultOption="{Binding IsDefault}"
+                            Classes.DestructiveOption="{Binding IsDestructive}"
                             Command="{Binding $parent[ItemsControl].DataContext.SelectCommand}"
                             CommandParameter="{Binding}">
-                        <StackPanel Spacing="2">
-                            <TextBlock Text="{Binding Option.Label}" FontWeight="SemiBold" />
-                            <TextBlock Text="{Binding Option.Description}" Opacity="0.7" TextWrapping="Wrap" />
-                        </StackPanel>
+                        <Grid RowDefinitions="Auto,Auto"
+                              ColumnDefinitions="*,Auto"
+                              ColumnSpacing="8"
+                              RowSpacing="3">
+                            <TextBlock Text="{Binding Option.Label}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1"
+                                        Orientation="Horizontal"
+                                        Spacing="8"
+                                        VerticalAlignment="Top">
+                                <Border Classes="StatusPill StatusInfo"
+                                        IsVisible="{Binding IsDefault}">
+                                    <TextBlock Text="推荐" />
+                                </Border>
+                                <i:Icon Value="mdi-chevron-right" FontSize="18" />
+                            </StackPanel>
+                            <TextBlock Grid.Row="1"
+                                       Grid.ColumnSpan="2"
+                                       Text="{Binding Option.Description}"
+                                       Classes="SectionDescription"
+                                       IsVisible="{Binding HasDescription}" />
+                        </Grid>
                     </Button>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
-        <Button Grid.Row="3" Content="取消" HorizontalAlignment="Right"
-                Command="{Binding CancelCommand}" IsVisible="{Binding RequireChoice, Converter={x:Static BoolConverters.Not}}" />
+
+        <StackPanel Grid.Row="3" Classes="DialogFooter" IsVisible="{Binding CanCancel}">
+            <Button Content="取消" Command="{Binding CancelCommand}" />
+        </StackPanel>
     </Grid>
 </UserControl>

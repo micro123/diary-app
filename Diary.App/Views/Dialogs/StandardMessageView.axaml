@@ -3,27 +3,131 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
+             xmlns:i="https://github.com/projektanker/icons.avalonia"
              mc:Ignorable="d"
-             d:DesignWidth="560"
-             d:DesignHeight="180"
+             d:DesignWidth="620"
+             d:DesignHeight="360"
              x:Class="Diary.App.Views.Dialogs.StandardMessageView"
              x:DataType="dialogs:StandardMessageViewModel"
-             Width="520"
-             MinWidth="480"
-             MaxHeight="420"
-             Padding="8">
+             Width="580"
+             MinWidth="520"
+             MaxWidth="680"
+             MaxHeight="520"
+             Padding="10">
     <Design.DataContext>
         <dialogs:StandardMessageViewModel />
     </Design.DataContext>
 
-    <Border Classes="DetailPane" Padding="12" ClipToBounds="True">
-        <ScrollViewer MaxHeight="340"
-                      HorizontalScrollBarVisibility="Disabled"
-                      VerticalScrollBarVisibility="Auto">
-            <SelectableTextBlock Text="{Binding Body}"
-                                 TextWrapping="Wrap"
-                                 HorizontalAlignment="Stretch"
-                                 VerticalAlignment="Top" />
-        </ScrollViewer>
-    </Border>
+    <UserControl.Styles>
+        <Style Selector="Border.MessageIconBadge">
+            <Setter Property="Width" Value="44" />
+            <Setter Property="Height" Value="44" />
+            <Setter Property="CornerRadius" Value="22" />
+            <Setter Property="Background" Value="#2563A8" />
+        </Style>
+        <Style Selector="Border.MessageIconBadge.StatusSuccess">
+            <Setter Property="Background" Value="#26734D" />
+        </Style>
+        <Style Selector="Border.MessageIconBadge.StatusWarning">
+            <Setter Property="Background" Value="#A66A00" />
+        </Style>
+        <Style Selector="Border.MessageIconBadge.StatusError">
+            <Setter Property="Background" Value="#A63F3F" />
+        </Style>
+        <Style Selector="Border.MessageIconBadge i|Icon">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontSize" Value="24" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+        <Border Classes="PageHeader">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                <Border Classes="MessageIconBadge"
+                        Classes.StatusSuccess="{Binding IsSuccess}"
+                        Classes.StatusWarning="{Binding IsWarning}"
+                        Classes.StatusError="{Binding IsError}">
+                    <Panel>
+                        <i:Icon Value="mdi-information-outline" IsVisible="{Binding IsInformation}" />
+                        <i:Icon Value="mdi-check-circle-outline" IsVisible="{Binding IsSuccess}" />
+                        <i:Icon Value="mdi-alert-outline" IsVisible="{Binding IsWarning}" />
+                        <i:Icon Value="mdi-alert-circle-outline" IsVisible="{Binding IsError}" />
+                    </Panel>
+                </Border>
+                <StackPanel Grid.Column="1" Spacing="5" VerticalAlignment="Center">
+                    <TextBlock Name="StandardMessageTitle"
+                               Text="{Binding DisplayTitle}"
+                               Classes="PageTitle"
+                               TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Border Classes="StatusPill"
+                                IsVisible="{Binding ShowMessageKind}"
+                                Classes.StatusInfo="{Binding IsInformation}"
+                                Classes.StatusSuccess="{Binding IsSuccess}"
+                                Classes.StatusWarning="{Binding IsWarning}"
+                                Classes.StatusError="{Binding IsError}">
+                            <TextBlock Text="{Binding MessageKind}" />
+                        </Border>
+                        <TextBlock Text="{Binding GuidanceText}"
+                                   Classes="PageSubtitle"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1"
+                Classes="DetailPane"
+                IsVisible="{Binding HasBody}"
+                ClipToBounds="True">
+            <Grid RowDefinitions="Auto,Auto">
+                <Border Classes="DetailHeader">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <StackPanel Orientation="Horizontal"
+                                    Spacing="6"
+                                    VerticalAlignment="Center">
+                            <i:Icon Value="mdi-text-box-outline"
+                                    FontSize="16"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Text="详细信息"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                        <Button Name="CopyStandardMessageButton"
+                                Grid.Column="1"
+                                Theme="{DynamicResource BorderlessButton}"
+                                Command="{Binding CopyBodyCommand}"
+                                ToolTip.Tip="复制消息内容">
+                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                <i:Icon Value="mdi-content-copy" />
+                                <TextBlock Text="复制" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Border>
+                <ScrollViewer Grid.Row="1"
+                              MinHeight="120"
+                              MaxHeight="330"
+                              Padding="12"
+                              HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto">
+                    <SelectableTextBlock Name="StandardMessageBody"
+                                         Text="{Binding DisplayBody}"
+                                         TextWrapping="Wrap"
+                                         HorizontalAlignment="Stretch"
+                                         VerticalAlignment="Top" />
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <StackPanel Grid.Row="2" Classes="DialogFooter">
+            <Button Name="PART_OKButton"
+                    Classes="Primary"
+                    Content="确定"
+                    Command="{Binding ConfirmCommand}" />
+        </StackPanel>
+    </Grid>
 </UserControl>

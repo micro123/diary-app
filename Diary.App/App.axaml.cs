@@ -16,6 +16,7 @@ using Diary.App.Models;
 using Diary.App.Fonts;
 using Diary.App.Services;
 using Diary.App.ViewModels;
+using Diary.App.ViewModels.Dialogs;
 using Diary.App.Views;
 using Diary.Core;
 using Diary.Core.Constants;
@@ -38,6 +39,7 @@ using Diary.Update;
 using Diary.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Ursa.Controls;
 
 namespace Diary.App
 {
@@ -1406,7 +1408,20 @@ namespace Diary.App
         public async ValueTask<bool> ConfirmAsync(string title, string body, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return await EventDispatcher.Confirm(title, body);
+            var viewModel = new ScriptConfirmDialogViewModel(title, body);
+            return await Dispatcher.UIThread.InvokeAsync(async () =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return await OverlayDialog.ShowCustomModal<bool>(
+                    viewModel,
+                    options: new OverlayDialogOptions
+                    {
+                        CanDragMove = false,
+                        CanResize = false,
+                        CanLightDismiss = false,
+                        IsCloseButtonVisible = false,
+                    });
+            });
         }
     }
 }

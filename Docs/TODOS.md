@@ -142,7 +142,7 @@
 ### 9.3 追加式写入和交互导出
 
 - [ ] 设计批量创建、追加式修正/冲正和数据库级幂等原子化；脚本继续禁止删除或直接修改历史记录。
-- [ ] 基于现有 Debug-only CDP smoke 基础设施，为脚本交互式 XLSX/CSV/DOCX/Mustache 导出补充真实 UI 端到端测试。
+- [ ] 基于现有 Debug-only CDP smoke 基础设施，为脚本交互式 XLSX/CSV/DOCX/Mustache 导出补充真实 UI 端到端测试；脚本确认框和导出后“打开文件 / 暂不打开”应用内对话框已由 `scripts.preview-run` 覆盖，剩余重点是原生目录选择、真实文件落盘及系统默认程序启动。
 
 相关设计：[`ScriptSpreadsheetExportDesign.md`](ScriptSpreadsheetExportDesign.md)、[`ScriptExportApiReview.md`](ScriptExportApiReview.md)
 

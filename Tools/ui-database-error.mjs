@@ -123,10 +123,15 @@ await runUiSuite({ name: 'ui-database-error', scenario: 'database-error', timeou
         const result = await waitForMessage(connection, '数据库仍不可用', '本地记录不会因连接失败被删除');
         const tree = result.tree;
         const message = result.value.dialog ?? result.value.message;
+        assertUi(textWithin(tree, message, '需要注意'), '数据库不可用通知缺少警告级别标识');
+        assertUi(findByName(tree, 'StandardMessageTitle'), '新版通知缺少内容区标题');
+        assertUi(findByName(tree, 'StandardMessageBody'), '新版通知缺少可选择正文');
+        assertUi(findByName(tree, 'CopyStandardMessageButton'), '新版通知缺少复制入口');
         assertUi(textWithin(tree, message, '可恢复操作：重试连接、打开数据库设置、导出诊断日志。', true),
             '重试失败通知缺少可恢复操作说明');
+        const screenshot = await connection.screenshot('manual-standard-message-warning.png');
         await dismissMessages(connection);
-        return { notificationMs: result.elapsedMs };
+        return { notificationMs: result.elapsedMs, screenshot };
     });
 
     await runStep('database.settings-unavailable-driver', '无效数据库驱动的设置入口安全失败', async () => {

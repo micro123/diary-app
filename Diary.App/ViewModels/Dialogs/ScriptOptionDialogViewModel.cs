@@ -8,11 +8,20 @@ namespace Diary.App.ViewModels.Dialogs;
 
 public sealed partial class ScriptOptionDialogViewModel : ViewModelBase, IDialogContext
 {
-    public sealed record OptionItem(DialogOption Option, bool IsDefault);
+    public sealed record OptionItem(DialogOption Option, bool IsDefault)
+    {
+        public bool HasDescription => !string.IsNullOrWhiteSpace(Option.Description);
+        public bool IsDestructive => Option.IsDestructive;
+    }
 
     public string DialogTitle { get; }
     public string? Message { get; }
+    public bool HasMessage => !string.IsNullOrWhiteSpace(Message);
     public bool RequireChoice { get; }
+    public bool CanCancel => !RequireChoice;
+    public string GuidanceText => RequireChoice
+        ? "脚本需要选择一项后才能继续。"
+        : "请选择后续操作，也可以取消本次请求。";
     public ObservableCollection<OptionItem> Options { get; } = [];
 
     public ScriptOptionDialogViewModel(OptionDialogRequest request)

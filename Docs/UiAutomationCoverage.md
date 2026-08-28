@@ -19,6 +19,8 @@
 
 2026-08-25 Linux X11 回归再次通过 `ui-core-full` 14/14 和真实 Redmine `ui-redmine-full` 12/12；覆盖月份标题上下文菜单的鼠标/键盘入口、Redmine 空关键字项目枚举和 Issue 启停即时刷新。
 
+2026-08-28 Windows 对话框定向回归中，`ui-database-error` 8/8 通过并覆盖新版标准消息；`ui-extended-full` 的 `scripts.preview-run` 通过，覆盖脚本确认框、导出后打开询问、可选择消息、水平按钮/选项和截图。该次扩展套件总计 9/11，剩余 `scripts.ai-context`、`settings.mcp-setup` 两个既有失败与本次对话框改动无关。
+
 自动化保存的验收及手册截图统一归一化为逻辑 1×/96 DPI；Windows 使用真实窗口表面避免 CDP 对 overlay 子内容重复缩放，高 DPI 物理原图独立保存在 `screenshots/raw-physical/`。覆盖证据引用逻辑图，物理图仅用于检查缩放、裁切和像素边界。
 
 ## 2. 套件到功能映射
@@ -28,7 +30,7 @@
 | `ui-settings-full` | 9 | 引导、程序设置、数据库/迁移入口、日志导出、更新 |
 | `ui-smoke` | 断言集 | 统一耗时输入、标签随机默认色/新建选中/仅保存关闭、模板候选与仅保存关闭、事项重载后排除已选次标签、主题、草稿保存、模板新建，以及编辑器模板应用/更新入口 |
 | `ui-core-full` | 16 | 主外壳、程序脚本快捷入口、日记、查询、统计、快捷键 |
-| `ui-extended-full` | 11 | 脚本管理、AI 上下文授权与 MCP 快照、程序设置配置复制、创建、运行、历史、日志和删除 |
+| `ui-extended-full` | 11 | 脚本管理、AI 上下文授权与 MCP 快照、程序设置配置复制、创建、运行、脚本确认、导出后打开询问、历史、日志和删除 |
 | `ui-script-editor` | 4 | 独立脚本编辑器和编译检查 |
 | `ui-database-error` | 8 | 数据库异常和恢复入口 |
 | `ui-survey-full` | 8 | Survey v1/v2、能力、分组、明细和错误 |
@@ -109,7 +111,7 @@
 | 7.7 | 独立编辑器、API 文档入口、代码区和编译检查 | `Automated` | script-editor 验证按脚本语言打开 API Reference 的入口，以及成功状态与诊断区共存 |
 | 7.7 | 补全、悬停、重构和外部 LSP | `Unit/Integration` | 语言服务有定向测试；部分能力仍在 TODO |
 | 7.8 | `.diaryscripts` 导入/导出 | `Manual-Native` | 依赖文件选择器；包安全和回滚由集成测试验证 |
-| 7.8 / TODO 9.3 | XLSX/CSV/DOCX/Mustache 交互式导出 | `Unit/Integration` | 导出器和脚本 API 已测试，真实 UI 端到端仍待补齐 |
+| 7.8 / TODO 9.3 | XLSX/CSV/DOCX/Mustache 交互式导出 | `Unit/Integration` | 导出器和脚本 API 已测试；脚本确认及导出后打开询问的应用内对话框层已有 CDP，原生目录选择、真实文件落盘和系统默认程序启动仍待补齐 |
 
 ### 3.6 程序设置、标签和模板
 

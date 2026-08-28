@@ -56,7 +56,6 @@ public sealed class AppFileInteractionScriptApi(
         {
             var value = await OverlayDialog.ShowCustomModal<OptionDialogResult>(vm, options: new OverlayDialogOptions
             {
-                Title = request.Title,
                 CanDragMove = false,
                 CanResize = false,
                 CanLightDismiss = request.DismissPolicy == DialogDismissPolicy.AllowCancel,
@@ -85,8 +84,8 @@ public sealed class AppFileInteractionScriptApi(
             DismissPolicy = DialogDismissPolicy.RequireChoice,
             Options =
             [
-                new DialogOption("open", "打开"),
-                new DialogOption("decline", "不打开"),
+                new DialogOption("open", "打开文件", "使用系统默认程序立即打开导出结果。"),
+                new DialogOption("decline", "暂不打开", "保留已经导出的文件，继续执行脚本。"),
             ],
             DefaultOptionId = "open",
         }, cancellationToken);

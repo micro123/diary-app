@@ -155,22 +155,22 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 var evt = m.Value;
                 var vm = _serviceProvider.GetRequiredService<StandardMessageViewModel>();
-                vm.Body = evt.Body;
+                vm.Initialize(evt.Title, evt.Body, type);
                 var options = new OverlayDialogOptions()
                 {
-                    Title = evt.Title,
                     CanDragMove = false,
                     CanResize = false,
                     CanLightDismiss = evt.LightDismiss,
                     IsCloseButtonVisible = false,
                     Mode = evt.Mode,
-                    Buttons = evt.Button,
                 };
 
                 if (m.Value.Modal)
-                    await OverlayDialog.ShowModal<StandardMessageView, StandardMessageViewModel>(vm, options: options);
+                    await OverlayDialog.ShowCustomModal<StandardMessageView, StandardMessageViewModel, DialogResult>(
+                        vm,
+                        options: options);
                 else
-                    OverlayDialog.Show<StandardMessageView, StandardMessageViewModel>(vm, options: options);
+                    OverlayDialog.ShowCustom<StandardMessageView, StandardMessageViewModel>(vm, options: options);
             }, "通知对话框");
         });
 
