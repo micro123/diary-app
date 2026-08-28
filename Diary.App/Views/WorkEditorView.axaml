@@ -203,27 +203,6 @@
         </TabControl>
         </StackPanel>
         </Border>
-        <Border DockPanel.Dock="Top" IsVisible="{Binding HasUploadResults}" Classes="SectionCard">
-            <StackPanel Spacing="6">
-                <TextBlock Text="最近一次同步结果" FontWeight="SemiBold" />
-                <ItemsControl ItemsSource="{Binding UploadResults}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                <StackPanel Spacing="2">
-                                    <TextBlock Text="{Binding TrackerLabel}" FontWeight="SemiBold" />
-                                    <TextBlock Text="{Binding ResultSummary}" Opacity="0.75"
-                                               TextWrapping="Wrap" />
-                                </StackPanel>
-                                <Border Grid.Column="1" Classes="StatusPill" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding StateText}" HorizontalAlignment="Center" />
-                                </Border>
-                            </Grid>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </StackPanel>
-        </Border>
         <!-- plm预留 -->
         <Border Name="WorkNoteCard" Classes="SectionCard">
             <Grid RowDefinitions="Auto,*" RowSpacing="8">

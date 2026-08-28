@@ -810,7 +810,6 @@ await runUiSuite({ name: 'ui-redmine-full', scenario: 'plugins', timeoutMs: 1200
             20000, 'Redmine 工时同步没有成功');
         const elapsedMs = performance.now() - started;
         const tree = success.tree;
-        assertUi(findByText(tree, '最近一次同步结果'), '同步结果详情没有显示');
         const editor = rootOf(tree, 'WorkEditorView');
         const region = rootOf(tree, 'RedMineEditorRegionView');
         assertUi(editor && region, '同步后工作编辑区或 Redmine 区域丢失');
@@ -820,17 +819,18 @@ await runUiSuite({ name: 'ui-redmine-full', scenario: 'plugins', timeoutMs: 1200
         const uploadButtonText = textWithin(tree, diary, '同步工时');
         const uploadButton = controlForText(tree, uploadButtonText);
         assertUi(uploadButton, '同步后找不到同步工时按钮');
-        const summaryBefore = descendants(tree, diary).map(textOf).find(text =>
-            text.startsWith('同步成功') && text.includes('远程 ID') && text.includes('尝试时间'));
-        assertUi(summaryBefore, '同步成功后缺少远程 ID 和尝试时间摘要');
+        assertUi(!isEffectivelyEnabled(tree, uploadButton), '同步成功后同步按钮仍然可以重复执行');
+        const statusBefore = descendants(tree, editor).map(textOf).find(text =>
+            text.includes('本地已保存') && text.includes('已同步'));
+        assertUi(statusBefore, '同步成功后缺少已同步状态摘要');
         await connection.clickNode(uploadButton);
         await connection.pressKey('u', 'KeyU', 85, ctrl);
         await delay(500);
         const after = await connection.getTree();
-        const afterDiary = rootOf(after, 'DiaryEditorView');
-        const summaryAfter = descendants(after, afterDiary).map(textOf).find(text =>
-            text.startsWith('同步成功') && text.includes('远程 ID') && text.includes('尝试时间'));
-        assertUi(summaryAfter === summaryBefore, '按钮或 Ctrl+U 绕过了重复同步保护');
+        const afterEditor = rootOf(after, 'WorkEditorView');
+        const statusAfter = descendants(after, afterEditor).map(textOf).find(text =>
+            text.includes('本地已保存') && text.includes('已同步'));
+        assertUi(statusAfter === statusBefore, '按钮或 Ctrl+U 绕过了重复同步保护');
         if (elapsedMs > 3000)
             addFinding('warning', 'redmine-upload-slow', 'Redmine 工时同步超过 3 秒', { elapsedMs });
         return { elapsedMs, duplicateGuard: true };
