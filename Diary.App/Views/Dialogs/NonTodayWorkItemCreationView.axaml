@@ -1,0 +1,38 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
+             x:Class="Diary.App.Views.Dialogs.NonTodayWorkItemCreationView"
+             x:DataType="dialogs:NonTodayWorkItemCreationViewModel"
+             Width="500"
+             Padding="10">
+    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+        <Border Classes="PageHeader">
+            <Grid Classes="PageHeading" ColumnDefinitions="Auto,*">
+                <TextBlock Text="确认新建日期" Classes="PageTitle" />
+                <TextBlock Grid.Column="1"
+                           Text="避免将事项记到错误日期"
+                           Classes="PageSubtitle" />
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Classes="DetailPane" Padding="12">
+            <StackPanel Spacing="10">
+                <TextBlock Text="{Binding WarningMessage}"
+                           TextWrapping="Wrap" />
+                <Border Classes="SubtleCard" Padding="10,7">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="新建日期" Classes="FieldLabel" />
+                        <TextBlock Text="{Binding TargetDateText}" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Border>
+                <CheckBox Content="今天不再提示"
+                          IsChecked="{Binding SuppressForToday}" />
+            </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="2" Classes="DialogFooter">
+            <Button Content="取消" Command="{Binding CancelCommand}" />
+            <Button Classes="Primary" Content="继续新建" Command="{Binding ConfirmCommand}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

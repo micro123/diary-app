@@ -29,6 +29,9 @@ public class ViewConfig
 
     public bool HasCompletedOnboarding { get; set; } = false;
 
+    /// <summary>跳过非当天新建事项提示的本地日期，格式为 yyyy-MM-dd。</summary>
+    public string NonTodayWorkItemCreationWarningSuppressedDate { get; set; } = string.Empty;
+
     /// <summary>最近使用的主标签 ID，供新建工作项排序使用。</summary>
     public List<int> RecentPrimaryTagIds { get; set; } = new();
 }

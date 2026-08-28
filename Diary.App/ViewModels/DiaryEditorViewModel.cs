@@ -104,7 +104,52 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private bool IsSurveyorEnabled => App.Instance.AppConfig.SurveySettings.IsServerEnabled;
 
     [RelayCommand]
-    private void NewWorkItem() => TryCreateNewWorkItem();
+    private async Task NewWorkItem()
+    {
+        if (await ConfirmNonTodayWorkItemCreation())
+            TryCreateNewWorkItem();
+    }
+
+    private async Task<bool> ConfirmNonTodayWorkItemCreation()
+    {
+        var today = DateTime.Today;
+        var viewSettings = App.Instance.AppConfig.ViewSettings;
+        if (!ShouldWarnBeforeCreatingWorkItem(
+                CurrentDate,
+                today,
+                viewSettings.NonTodayWorkItemCreationWarningSuppressedDate))
+            return true;
+
+        var decision = await OverlayDialog.ShowCustomModal<NonTodayWorkItemCreationDecision>(
+            new NonTodayWorkItemCreationViewModel(CurrentDate),
+            options: new OverlayDialogOptions
+            {
+                CanDragMove = false,
+                CanResize = false,
+                CanLightDismiss = false,
+                IsCloseButtonVisible = false,
+            });
+        if (decision is null)
+            return false;
+
+        if (decision.SuppressForToday)
+        {
+            viewSettings.NonTodayWorkItemCreationWarningSuppressedDate = TimeTools.FormatDateTime(today);
+            if (!EasySaveLoad.Save(App.Instance.AppConfig))
+                _logger.LogWarning("保存非当天新建事项提示偏好失败");
+        }
+        return true;
+    }
+
+    internal static bool ShouldWarnBeforeCreatingWorkItem(
+        DateTime targetDate,
+        DateTime today,
+        string? suppressedDate) =>
+        targetDate.Date != today.Date
+        && !string.Equals(
+            suppressedDate,
+            TimeTools.FormatDateTime(today.Date),
+            StringComparison.Ordinal);
 
     private bool TryCreateNewWorkItem()
     {
@@ -132,9 +177,11 @@ public partial class DiaryEditorViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void NewWithTemplate(Template template)
+    private async Task NewWithTemplate(Template template)
     {
-        if (!TryCreateNewWorkItem() || SelectedWork is null)
+        if (!await ConfirmNonTodayWorkItemCreation()
+            || !TryCreateNewWorkItem()
+            || SelectedWork is null)
             return;
         SelectedWork.ApplyTemplate(template);
     }
