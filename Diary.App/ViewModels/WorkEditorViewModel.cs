@@ -67,7 +67,10 @@ public partial class WorkEditorViewModel : ViewModelBase
             if (ReferenceEquals(_workItem, value))
                 return;
             _workItem = value;
-            RecomputeIsLocked();
+            if (IsLocalEditMode)
+                IsLocalEditMode = false;
+            else
+                RecomputeIsLocked();
             OnPropertyChanged(nameof(IsImportedReadOnly));
         }
     }
@@ -94,14 +97,16 @@ public partial class WorkEditorViewModel : ViewModelBase
     private readonly ObservableCollection<WorkItemExtraFieldValue> _extraFieldValues = new();
     private IReadOnlyList<WorkItemExtraField> _extraFields = Array.Empty<WorkItemExtraField>();
 
-    public bool CanEditTags => !IsImportedReadOnly;
+    public bool CanEditLocalData => !IsImportedReadOnly && (!HasUploadedTracker || IsLocalEditMode);
+    public bool CanEditDate => !IsImportedReadOnly && !HasUploadedTracker;
+    public bool CanEditTags => CanEditLocalData;
     public bool HasAvailableTags => CanEditTags && AvailableTags.Count > 0;
     public bool HasExtraFields => _extraFields.Count > 0;
     public bool ShowExtraFieldsButton => HasExtraFields && !IsImportedReadOnly;
     public ICollection<Template> Templates => TemplateManager.Instance.Templates;
-    public bool CanUseTemplates => !IsLocked && Templates.Count > 0;
+    public bool CanUseTemplates => CanEditLocalData && Templates.Count > 0;
     public bool CanOpenExtraFields => ShowExtraFieldsButton;
-    public bool IsExtraFieldsReadOnly => IsImportedReadOnly;
+    public bool IsExtraFieldsReadOnly => !CanEditLocalData;
     public string ExtraFieldsButtonText => IsExtraFieldsReadOnly ? "查看附加信息" : "附加信息";
     public string ExtraFieldsSummary => _extraFields.Count == 0
         ? "暂无附加信息"
@@ -120,12 +125,18 @@ public partial class WorkEditorViewModel : ViewModelBase
     public bool IsImportedReadOnly => WorkItem?.IsReadOnly == true;
 
     public bool HasUploadedTracker => Extensions.Any(extension => extension.IsLocked);
+    public bool ShowLocalEditButton => !IsImportedReadOnly && HasUploadedTracker;
+    public bool CanBeginLocalEdit => ShowLocalEditButton && !IsLocalEditMode;
+    public string LocalEditButtonText => IsLocalEditMode ? "修改中" : "修改";
 
-    /// <summary>是否锁住 generic 编辑字段（任一 tracker 区已上传到远程即锁定）。</summary>
+    [ObservableProperty]
+    private bool _isLocalEditMode;
+
+    /// <summary>是否锁住本地编辑字段；已提交事项需显式进入本地修改模式。</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanUseTemplates))] private bool _isLocked;
 
-    public string LocalSaveStatusText => IsNewItem ? "未保存" : "本地已保存";
+    public string LocalSaveStatusText => IsLocalEditMode ? "本地修改中" : IsNewItem ? "未保存" : "本地已保存";
 
     public WorkItemUploadStatus UploadStatus
     {
@@ -150,16 +161,24 @@ public partial class WorkEditorViewModel : ViewModelBase
 
     public string StatusSummary => $"{LocalSaveStatusText} · {UploadStatusText}";
 
-    public bool IsStatusPillWarning => !IsImportedReadOnly && UploadStatus == WorkItemUploadStatus.Unsaved;
+    public bool IsStatusPillWarning => !IsImportedReadOnly
+        && (IsLocalEditMode || UploadStatus == WorkItemUploadStatus.Unsaved);
 
-    public bool IsStatusPillInfo => !IsImportedReadOnly && UploadStatus == WorkItemUploadStatus.Pending;
+    public bool IsStatusPillInfo => !IsImportedReadOnly
+        && !IsLocalEditMode
+        && UploadStatus == WorkItemUploadStatus.Pending;
 
-    public bool IsStatusPillSuccess => !IsImportedReadOnly && UploadStatus == WorkItemUploadStatus.Synchronized;
+    public bool IsStatusPillSuccess => !IsImportedReadOnly
+        && !IsLocalEditMode
+        && UploadStatus == WorkItemUploadStatus.Synchronized;
 
     public bool IsStatusPillError => !IsImportedReadOnly
+        && !IsLocalEditMode
         && UploadStatus is WorkItemUploadStatus.PartialFailure or WorkItemUploadStatus.Failed;
 
-    public bool IsStatusPillUncertain => !IsImportedReadOnly && UploadStatus == WorkItemUploadStatus.Uncertain;
+    public bool IsStatusPillUncertain => !IsImportedReadOnly
+        && !IsLocalEditMode
+        && UploadStatus == WorkItemUploadStatus.Uncertain;
 
     public ObservableCollection<WorkTag> AllTags => _shareData.WorkTags;
 
@@ -335,7 +354,7 @@ public partial class WorkEditorViewModel : ViewModelBase
           || Math.Abs(item.Time - Time) > 0.0000001
           || item.Priority != Priority
           || _persistedNote != Note
-          || Extensions.Any(extension => extension.HasChanges)
+          || (!IsLocalEditMode && Extensions.Any(extension => extension.HasChanges))
         : !string.IsNullOrWhiteSpace(Comment)
           || !string.IsNullOrWhiteSpace(Note)
           || Time != 0
@@ -359,9 +378,16 @@ public partial class WorkEditorViewModel : ViewModelBase
     public bool Save(out bool created)
     {
         var db = Db!;
+        var isLocalOnlyEdit = IsLocalEditMode && HasUploadedTracker && WorkItem is not null;
+        var saveDate = isLocalOnlyEdit ? WorkItem!.CreateDate : Date;
+        IReadOnlyCollection<ITrackerEditorExtension> extensionsToSave = isLocalOnlyEdit
+            ? Array.Empty<ITrackerEditorExtension>()
+            : Extensions;
+        if (isLocalOnlyEdit && Date != saveDate)
+            Date = saveDate;
         var result = _persistence.Save(db, new WorkItemSaveRequest(
-            WorkItem, Date, Comment, Note, Time, Priority, WorkTags,
-            _extraFieldValues, Extensions));
+            WorkItem, saveDate, Comment, Note, Time, Priority, WorkTags,
+            _extraFieldValues, extensionsToSave));
         created = result.Created;
         if (!result.Success || result.WorkItem is null)
         {
@@ -386,6 +412,19 @@ public partial class WorkEditorViewModel : ViewModelBase
         NotifyStatusChanged();
         return true;
     }
+
+    [RelayCommand(CanExecute = nameof(CanBeginLocalEdit))]
+    private void BeginLocalEdit()
+        => IsLocalEditMode = true;
+
+    public void EndLocalEditMode()
+    {
+        if (IsLocalEditMode)
+            IsLocalEditMode = false;
+    }
+
+    partial void OnIsLocalEditModeChanged(bool value)
+        => RecomputeIsLocked();
 
     private void TriggerScriptAutomation(
         ScriptAutomationTriggerKind trigger,
@@ -705,8 +744,11 @@ public partial class WorkEditorViewModel : ViewModelBase
         return WorkItem is { Id: > 0 }; // 克隆的前提是这个事件已经保存过了
     }
 
-    public bool CanUpload()
-        => !IsImportedReadOnly && Extensions.Any(extension => !extension.IsLocked);
+    public bool CanUploadToTracker => !IsImportedReadOnly
+        && !IsLocalEditMode
+        && Extensions.Any(extension => !extension.IsLocked);
+
+    public bool CanUpload() => CanUploadToTracker;
 
     public PeriodTrackerUploadEligibility GetPeriodUploadEligibility()
     {
@@ -890,11 +932,14 @@ public partial class WorkEditorViewModel : ViewModelBase
             }
             _syncing_tags = false;
             var tagSequence = sequence++;
+            IReadOnlyCollection<ITrackerEditorExtension> automationExtensions = IsLocalEditMode && HasUploadedTracker
+                ? Array.Empty<ITrackerEditorExtension>()
+                : Extensions;
             LastTagAutomationResult = _tagAutomation.TagAdded(
                 WorkItem,
                 tag,
                 new TagAutomationContext(source, tagSequence),
-                Extensions);
+                automationExtensions);
             if (WorkItem is { Id: > 0 } persistedItem)
                 TriggerScriptAutomation(ScriptAutomationTriggerKind.TagAdded, persistedItem, tag, source, tagSequence);
             else
@@ -1057,9 +1102,11 @@ public partial class WorkEditorViewModel : ViewModelBase
     private void RecomputeIsLocked()
     {
         var isImportedReadOnly = IsImportedReadOnly;
+        var hasUploadedTracker = HasUploadedTracker;
         foreach (var tab in TrackerTabs)
-            tab.IsHostReadOnly = isImportedReadOnly;
-        IsLocked = isImportedReadOnly || Extensions.Any(e => e.IsLocked);
+            tab.IsHostReadOnly = isImportedReadOnly || (hasUploadedTracker && IsLocalEditMode);
+        IsLocked = !CanEditLocalData;
+        BeginLocalEditCommand.NotifyCanExecuteChanged();
         NotifyStatusChanged();
     }
 
@@ -1074,8 +1121,16 @@ public partial class WorkEditorViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsStatusPillSuccess));
         OnPropertyChanged(nameof(IsStatusPillError));
         OnPropertyChanged(nameof(IsStatusPillUncertain));
+        OnPropertyChanged(nameof(CanEditLocalData));
+        OnPropertyChanged(nameof(CanEditDate));
         OnPropertyChanged(nameof(CanEditTags));
         OnPropertyChanged(nameof(HasAvailableTags));
+        OnPropertyChanged(nameof(HasUploadedTracker));
+        OnPropertyChanged(nameof(ShowLocalEditButton));
+        OnPropertyChanged(nameof(CanBeginLocalEdit));
+        OnPropertyChanged(nameof(LocalEditButtonText));
+        OnPropertyChanged(nameof(CanUseTemplates));
+        OnPropertyChanged(nameof(CanUploadToTracker));
         OnPropertyChanged(nameof(ShowExtraFieldsButton));
         OnPropertyChanged(nameof(CanOpenExtraFields));
         OnPropertyChanged(nameof(IsExtraFieldsReadOnly));

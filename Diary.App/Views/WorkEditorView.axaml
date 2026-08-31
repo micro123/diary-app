@@ -39,13 +39,14 @@
             <TextBlock Grid.Column="1" Text="日期、内容、耗时与优先级" Classes="SectionDescription" />
         </Grid>
         <Grid ColumnDefinitions="72,*"
-              RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="7"
-              IsEnabled="{Binding !IsLocked}">
+              RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="7">
             <TextBlock Grid.Row="0" Grid.Column="0" Text="日期" Classes="FieldLabel" />
             <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="Auto,Auto,Auto,*" ColumnSpacing="8">
                 <CalendarDatePicker Name="WorkDatePicker" Grid.Column="0" HorizontalAlignment="Left"
+                                    IsEnabled="{Binding CanEditDate}"
                                     SelectedDate="{Binding Date, Converter={StaticResource DateConvert}}" />
                 <SplitButton Name="UseTodayButton" Grid.Column="1" Content="使用今天"
+                             IsEnabled="{Binding CanEditDate}"
                              Command="{Binding QuickDateCommand}" CommandParameter="0">
                     <SplitButton.Flyout>
                         <MenuFlyout>
@@ -73,10 +74,12 @@
 
             <TextBlock Grid.Row="1" Grid.Column="0" Text="标题" Classes="FieldLabel" />
             <TextBox Name="WorkTitleInput" Grid.Row="1" Grid.Column="1" MinHeight="40"
-                     Text="{Binding Comment}" Classes="ClearButton" />
+                     Text="{Binding Comment}" Classes="ClearButton"
+                     IsEnabled="{Binding CanEditLocalData}" />
 
             <TextBlock Grid.Row="2" Grid.Column="0" Text="耗时" Classes="FieldLabel" />
-            <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="220,Auto,Auto,120,*" ColumnSpacing="8">
+            <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="220,Auto,Auto,120,*" ColumnSpacing="8"
+                  IsEnabled="{Binding CanEditLocalData}">
                 <TextBox Name="WorkTimeInput" Grid.Column="0"
                          HorizontalAlignment="Stretch" HorizontalContentAlignment="Right"
                          Text="{Binding TimeInput}"
@@ -217,7 +220,7 @@
                 <TextBox Name="WorkNoteInput" Grid.Row="1" Text="{Binding Note}" AcceptsReturn="True"
                          MinHeight="130" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                          VerticalContentAlignment="Top" Padding="8" Classes="Bordered"
-                         IsEnabled="{Binding !IsLocked}" />
+                         IsEnabled="{Binding CanEditLocalData}" />
             </Grid>
         </Border>
     </DockPanel>

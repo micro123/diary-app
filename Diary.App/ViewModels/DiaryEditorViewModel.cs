@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
@@ -227,6 +228,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         if (selected.ShouldPersistBeforeReplacement)
             return TrySaveWorkItem();
 
+        selected.EndLocalEditMode();
         _creating = true;
         try
         {
@@ -453,9 +455,9 @@ public partial class DiaryEditorViewModel : ViewModelBase
         var selected = SelectedWork!;
         var message = selected.IsImportedReadOnly
             ? "该记录是迁移导入的只读统计记录。删除只会移除本地记录，确认继续吗？"
-            : selected.IsLocked
+            : selected.HasUploadedTracker
                 ? "该记录已经上传到外部系统。删除只会移除本地记录，远程工时不会被删除。确认继续吗？"
-            : "该记录尚未产生远程上传。确认删除这条工作记录吗？此操作不可恢复。";
+                : "该记录尚未产生远程上传。确认删除这条工作记录吗？此操作不可恢复。";
         if (!await EventDispatcher.Confirm("删除工作记录", message))
             return;
 
@@ -739,14 +741,20 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     partial void OnSelectedWorkChanging(WorkEditorViewModel? value) // 指 即将 从 当前值 更改为 value
     {
+        var previous = SelectedWork;
+        if (previous is not null)
+            previous.PropertyChanged -= OnSelectedWorkPropertyChanged;
         if (!_deleting && !_creating && !_sortingDailyWorks && !_loadingWorks
-            && SelectedWork is { ShouldPersistBeforeReplacement: true })
+            && previous is { ShouldPersistBeforeReplacement: true })
             TrySaveWorkItem();
+        previous?.EndLocalEditMode();
         UpdateTimeInfos();
     }
 
     partial void OnSelectedWorkChanged(WorkEditorViewModel? value)
     {
+        if (value is not null)
+            value.PropertyChanged += OnSelectedWorkPropertyChanged;
         if (value is not null && _workEditorPreloadModel is { } preloadModel)
         {
             _workEditorPreloadModel = null;
@@ -755,6 +763,19 @@ public partial class DiaryEditorViewModel : ViewModelBase
         }
 
         EditorWork = value ?? _workEditorPreloadModel;
+        NotifySelectedWorkCommandStates();
+    }
+
+    private void OnSelectedWorkPropertyChanged(object? sender, PropertyChangedEventArgs args)
+        => NotifySelectedWorkCommandStates();
+
+    private void NotifySelectedWorkCommandStates()
+    {
+        SaveWorkItemCommand.NotifyCanExecuteChanged();
+        DuplicateWorkItemCommand.NotifyCanExecuteChanged();
+        DeleteWorkItemCommand.NotifyCanExecuteChanged();
+        UploadTimeCommand.NotifyCanExecuteChanged();
+        UploadAllCommand.NotifyCanExecuteChanged();
     }
 
     internal bool TryCreateWorkEditorPreloadModel()

@@ -17,6 +17,7 @@ Redmine 实例规则存储、可配置覆盖策略和 Redmine 实例设置页规
 - 只有标签 ID 从不存在变为存在时才调用协调器。
 - `TagAutomationContext` 当前包含来源和批次内顺序，协调器按实例返回应用字段、冲突、无效目标和错误。
 - `TagAutomationCoordinator` 调用实现 `ITrackerTagDefaults` 且尚未锁定的编辑器扩展；已同步 Tracker 不再因后续本地标签调整而改变关联字段。
+- 已提交事项进入本地修改模式后，即使存在尚未提交的其他 Tracker 实例，也向协调器传入空扩展集合，保证本地标签调整不会改变任何 Tracker 关联字段。
 - Redmine 每个 `RedMineInstanceSettings` 独立保存多条 `RedMineTagRule`。
 - Redmine 规则支持标签、Activity、Issue、启用状态和“强制修改”标志。
 - Redmine 规则算法位于纯逻辑 `RedMineTagDefaults`；关闭强制修改时只填充空字段，开启后始终采用规则目标。
@@ -40,6 +41,7 @@ Redmine 实例规则存储、可配置覆盖策略和 Redmine 实例设置页规
 - 标签规则只修改当前 Tracker 编辑器草稿，不建立不可变的强绑定；是否覆盖已有值由每条规则决定。
 - 每条规则独立声明是否强制修改；未开启时不覆盖已有值，开启时可以覆盖。
 - 已同步并锁定的 Tracker 实例不执行标签默认值规则。
+- 已提交事项的本地修改模式不对任何 Tracker 实例执行标签默认值规则。
 - 删除标签不会反向清除或恢复 Tracker 字段。
 - 脚本不能操作模板，也不能绕过标签自动化和 Tracker 权限边界。
 - 模板由宿主/编辑器负责选择和应用，但模板添加标签时必须触发标签添加规则。

@@ -579,22 +579,29 @@ await runUiSuite({ name: 'ui-redmine-full', scenario: 'plugins', timeoutMs: 1200
         let issueCombo = descendants(added.tree, ruleCard).find(entry => nameOf(entry) === 'TagRuleIssueComboBox');
         assertUi(tagCombo && activityCombo && issueCombo, '新 Redmine 标签规则缺少映射下拉框');
         await selectComboOption(connection, tagCombo, automationTagName);
-        tree = await connection.getTree();
+        const selectedRule = await connection.waitForTree(current => {
+            const currentEditor = rootOf(current, 'RedMineTagRuleEditorView');
+            const cards = currentEditor && descendants(current, currentEditor).filter(entry => isVisible(entry)
+                && nameOf(entry) === 'TagRuleCard');
+            return cards?.find(card => textWithin(current, card, automationTagName)) ?? null;
+        }, 5000, '新 Redmine 标签规则没有选中测试标签');
+        tree = selectedRule.tree;
         editor = rootOf(tree, 'RedMineTagRuleEditorView');
-        ruleCard = descendants(tree, editor).filter(entry => isVisible(entry)
-            && nameOf(entry) === 'TagRuleCard').at(-1);
+        ruleCard = selectedRule.value;
         activityCombo = descendants(tree, ruleCard).find(entry => nameOf(entry) === 'TagRuleActivityComboBox');
         const activity = await selectFirstComboOption(connection, activityCombo, ['不设置活动']);
         tree = await connection.getTree();
         editor = rootOf(tree, 'RedMineTagRuleEditorView');
         ruleCard = descendants(tree, editor).filter(entry => isVisible(entry)
-            && nameOf(entry) === 'TagRuleCard').at(-1);
+            && nameOf(entry) === 'TagRuleCard')
+            .find(card => textWithin(tree, card, automationTagName));
         issueCombo = descendants(tree, ruleCard).find(entry => nameOf(entry) === 'TagRuleIssueComboBox');
         await selectComboOption(connection, issueCombo, createdIssueTitle, true);
         tree = await connection.getTree();
         editor = rootOf(tree, 'RedMineTagRuleEditorView');
         ruleCard = descendants(tree, editor).filter(entry => isVisible(entry)
-            && nameOf(entry) === 'TagRuleCard').at(-1);
+            && nameOf(entry) === 'TagRuleCard')
+            .find(card => textWithin(tree, card, automationTagName));
         const enabled = descendants(tree, ruleCard).find(entry => typeOf(entry).includes('CheckBox')
             && textOf(entry) === '启用');
         const forceOverwrite = descendants(tree, ruleCard).find(entry => typeOf(entry).includes('CheckBox')
@@ -815,6 +822,10 @@ await runUiSuite({ name: 'ui-redmine-full', scenario: 'plugins', timeoutMs: 1200
         assertUi(editor && region, '同步后工作编辑区或 Redmine 区域丢失');
         const titleInput = findByName(tree, 'WorkTitleInput');
         assertUi(titleInput && !isEffectivelyEnabled(tree, titleInput), '成功同步后一般字段应锁定');
+        const modifyButton = findByName(tree, 'ModifySubmittedWorkButton');
+        assertUi(modifyButton && isEffectivelyEnabled(tree, modifyButton), '成功同步后没有可用的本地修改按钮');
+        const datePicker = findByName(tree, 'WorkDatePicker');
+        assertUi(datePicker && !isEffectivelyEnabled(tree, datePicker), '成功同步后日期仍可修改');
         const diary = rootOf(tree, 'DiaryEditorView');
         const uploadButtonText = textWithin(tree, diary, '同步工时');
         const uploadButton = controlForText(tree, uploadButtonText);
@@ -823,6 +834,31 @@ await runUiSuite({ name: 'ui-redmine-full', scenario: 'plugins', timeoutMs: 1200
         const statusBefore = descendants(tree, editor).map(textOf).find(text =>
             text.includes('本地已保存') && text.includes('已同步'));
         assertUi(statusBefore, '同步成功后缺少已同步状态摘要');
+
+        await activateControl(connection, modifyButton);
+        const localEditing = await connection.waitForTree(current => {
+            const input = findByName(current, 'WorkTitleInput');
+            const date = findByName(current, 'WorkDatePicker');
+            const tracker = rootOf(current, 'RedMineEditorRegionView');
+            return input && isEffectivelyEnabled(current, input)
+                && date && !isEffectivelyEnabled(current, date)
+                && tracker && !isEffectivelyEnabled(current, tracker)
+                ? { input }
+                : null;
+        }, 8000, '本地修改模式没有按边界解锁事项字段');
+        const localTitle = `${workTitle}-local`;
+        await connection.replaceText(localEditing.value.input, localTitle);
+        await activateTextWithin(connection, 'DiaryEditorView', '保存');
+        await connection.waitForTree(current => {
+            const input = findByName(current, 'WorkTitleInput');
+            const date = findByName(current, 'WorkDatePicker');
+            return input && textOf(input) === localTitle
+                && !isEffectivelyEnabled(current, input)
+                && date && !isEffectivelyEnabled(current, date)
+                ? input
+                : null;
+        }, 10000, '本地修改保存后没有恢复已提交锁定状态');
+
         await connection.clickNode(uploadButton);
         await connection.pressKey('u', 'KeyU', 85, ctrl);
         await delay(500);
@@ -833,7 +869,7 @@ await runUiSuite({ name: 'ui-redmine-full', scenario: 'plugins', timeoutMs: 1200
         assertUi(statusAfter === statusBefore, '按钮或 Ctrl+U 绕过了重复同步保护');
         if (elapsedMs > 3000)
             addFinding('warning', 'redmine-upload-slow', 'Redmine 工时同步超过 3 秒', { elapsedMs });
-        return { elapsedMs, duplicateGuard: true };
+        return { elapsedMs, duplicateGuard: true, localEditGuard: true };
     });
 
     await runStep('redmine.remote-delete-boundary', '已同步事项删除仅影响本地的警告与取消', async () => {

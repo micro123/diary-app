@@ -683,10 +683,12 @@ public sealed class WorkEditorViewModelTests
         Assert.IsFalse(viewModel.CanOpenExtraFields);
         Assert.IsTrue(viewModel.IsExtraFieldsReadOnly);
         Assert.IsTrue(viewModel.TrackerTabs.Single().IsHostReadOnly);
+        Assert.IsFalse(viewModel.ShowLocalEditButton);
+        Assert.IsFalse(viewModel.BeginLocalEditCommand.CanExecute(null));
     }
 
     [TestMethod]
-    public void SynchronizedItemAllowsEditingTagsAndExtraFields()
+    public void SynchronizedItemRequiresLocalEditModeForLocalFields()
     {
         var viewModel = CreateViewModel(CreateCloneTrackerRegistry());
         var extension = (CloneTrackerExtension)viewModel.Extensions.Single();
@@ -708,15 +710,31 @@ public sealed class WorkEditorViewModelTests
             });
 
         Assert.IsTrue(viewModel.IsLocked);
-        Assert.IsTrue(viewModel.CanEditTags);
+        Assert.IsFalse(viewModel.CanEditLocalData);
+        Assert.IsFalse(viewModel.CanEditDate);
+        Assert.IsFalse(viewModel.CanEditTags);
         Assert.IsTrue(viewModel.ShowExtraFieldsButton);
         Assert.IsTrue(viewModel.CanOpenExtraFields);
+        Assert.IsTrue(viewModel.IsExtraFieldsReadOnly);
+        Assert.AreEqual("查看附加信息", viewModel.ExtraFieldsButtonText);
+        Assert.IsTrue(viewModel.ShowLocalEditButton);
+        Assert.IsTrue(viewModel.BeginLocalEditCommand.CanExecute(null));
+
+        viewModel.BeginLocalEditCommand.Execute(null);
+
+        Assert.IsTrue(viewModel.IsLocalEditMode);
+        Assert.IsFalse(viewModel.IsLocked);
+        Assert.IsTrue(viewModel.CanEditLocalData);
+        Assert.IsFalse(viewModel.CanEditDate);
+        Assert.IsTrue(viewModel.CanEditTags);
         Assert.IsFalse(viewModel.IsExtraFieldsReadOnly);
         Assert.AreEqual("附加信息", viewModel.ExtraFieldsButtonText);
+        Assert.IsTrue(viewModel.TrackerTabs.Single().IsHostReadOnly);
+        Assert.IsFalse(viewModel.BeginLocalEditCommand.CanExecute(null));
     }
 
     [TestMethod]
-    public void SynchronizedItemCanAddAndRemoveTagsWhileGenericFieldsStayLocked()
+    public void SynchronizedItemCanAddAndRemoveTagsOnlyInLocalEditMode()
     {
         using var database = CreateDatabase();
         var item = database.CreateWorkItem("2026-08-26", "已同步记录");
@@ -729,6 +747,14 @@ public sealed class WorkEditorViewModelTests
         viewModel.AddTags([tag], TagAddSource.User);
 
         Assert.IsTrue(viewModel.IsLocked);
+        Assert.IsFalse(viewModel.CanEditTags);
+        CollectionAssert.DoesNotContain(viewModel.WorkTags, tag);
+        Assert.IsFalse(database.GetWorkItemTags(item).Any(persisted => persisted.Id == tag.Id));
+
+        viewModel.BeginLocalEditCommand.Execute(null);
+        viewModel.AddTags([tag], TagAddSource.User);
+
+        Assert.IsFalse(viewModel.IsLocked);
         Assert.IsTrue(viewModel.CanEditTags);
         CollectionAssert.Contains(viewModel.WorkTags, tag);
         Assert.IsTrue(database.GetWorkItemTags(item).Any(persisted => persisted.Id == tag.Id));
@@ -737,6 +763,63 @@ public sealed class WorkEditorViewModelTests
 
         CollectionAssert.DoesNotContain(viewModel.WorkTags, tag);
         Assert.IsFalse(database.GetWorkItemTags(item).Any(persisted => persisted.Id == tag.Id));
+    }
+
+    [TestMethod]
+    public void LocalEditSavePreservesDateAndSkipsTrackerBindings()
+    {
+        var persistence = new RecordingPersistenceCoordinator();
+        var viewModel = CreateViewModel(
+            CreateCloneTrackerRegistry(),
+            persistence: persistence);
+        var extension = (CloneTrackerExtension)viewModel.Extensions.Single();
+        extension.IsLocked = true;
+        LoadExistingItem(viewModel, new WorkItem
+        {
+            Id = 12,
+            CreateDate = "2026-08-22",
+            Comment = "远程已提交内容",
+            Time = 1,
+        });
+
+        viewModel.BeginLocalEditCommand.Execute(null);
+        viewModel.Date = "2026-08-23";
+        viewModel.Comment = "仅修改本地内容";
+        viewModel.Time = 2;
+
+        Assert.IsTrue(viewModel.Save(out var created));
+
+        Assert.IsFalse(created);
+        Assert.IsNotNull(persistence.LastRequest);
+        Assert.AreEqual("2026-08-22", persistence.LastRequest.Date);
+        Assert.AreEqual("仅修改本地内容", persistence.LastRequest.Comment);
+        Assert.AreEqual(2, persistence.LastRequest.Time);
+        Assert.IsEmpty(persistence.LastRequest.Extensions);
+        Assert.AreEqual(0, extension.SaveCallCount);
+        Assert.AreEqual("2026-08-22", viewModel.Date);
+        Assert.IsFalse(viewModel.IsLocalEditMode);
+        Assert.IsTrue(viewModel.IsLocked);
+    }
+
+    [TestMethod]
+    public void LocalEditTagChangesDoNotApplyTrackerAutomation()
+    {
+        using var database = CreateDatabase();
+        var item = database.CreateWorkItem("2026-08-22", "已提交记录");
+        var tag = database.CreateWorkTag("仅本地标签", true, 0);
+        var automation = new RecordingTagAutomationCoordinator();
+        var viewModel = CreateViewModel(
+            CreateCloneTrackerRegistry(),
+            database: database,
+            tagAutomation: automation);
+        ((CloneTrackerExtension)viewModel.Extensions.Single()).IsLocked = true;
+        LoadExistingItem(viewModel, item);
+
+        viewModel.BeginLocalEditCommand.Execute(null);
+        viewModel.AddTags([tag], TagAddSource.User);
+
+        Assert.HasCount(1, automation.Calls);
+        CollectionAssert.AreEqual(new[] { 0 }, automation.ExtensionCounts);
     }
 
     [TestMethod]
@@ -921,10 +1004,11 @@ public sealed class WorkEditorViewModelTests
         TrackerUiContributionRegistry? trackerRegistry = null,
         DbShareData? shareData = null,
         DbInterfaceBase? database = null,
-        ITagAutomationCoordinator? tagAutomation = null)
+        ITagAutomationCoordinator? tagAutomation = null,
+        IWorkItemPersistenceCoordinator? persistence = null)
         => new(
             shareData ?? new DbShareData(NullLogger<DbShareData>.Instance),
-            new NoopPersistenceCoordinator(),
+            persistence ?? new NoopPersistenceCoordinator(),
             new RecordingUploadCoordinator(),
             trackerRegistry ?? new TrackerUiContributionRegistry(),
             string.Empty,
@@ -1020,6 +1104,7 @@ public sealed class WorkEditorViewModelTests
         public int CloneCallCount { get; private set; }
         public int RegularLoadCallCount { get; private set; }
         public int BatchLoadCallCount { get; private set; }
+        public int SaveCallCount { get; private set; }
         public object? LastBatchBinding { get; private set; }
 
         public void Load(WorkItem? item, object? binding = null)
@@ -1035,7 +1120,11 @@ public sealed class WorkEditorViewModelTests
             OptionsLoaded = true;
         }
 
-        public bool Save(WorkItem item) => OptionsLoaded;
+        public bool Save(WorkItem item)
+        {
+            SaveCallCount++;
+            return OptionsLoaded;
+        }
 
         public void CloneTo(ITrackerEditorExtension? target)
         {
@@ -1075,6 +1164,24 @@ public sealed class WorkEditorViewModelTests
             => new(false, false, Error: "测试不应保存工作项");
     }
 
+    private sealed class RecordingPersistenceCoordinator : IWorkItemPersistenceCoordinator
+    {
+        public WorkItemSaveRequest? LastRequest { get; private set; }
+
+        public WorkItemSaveResult Save(DbInterfaceBase db, WorkItemSaveRequest request)
+        {
+            LastRequest = request;
+            var item = request.Existing! with
+            {
+                CreateDate = request.Date,
+                Comment = request.Comment,
+                Time = request.Time,
+                Priority = request.Priority,
+            };
+            return new WorkItemSaveResult(true, false, item);
+        }
+    }
+
     private sealed class NoopTagAutomationCoordinator : ITagAutomationCoordinator
     {
         public TagAutomationResult TagAdded(
@@ -1088,6 +1195,7 @@ public sealed class WorkEditorViewModelTests
     private sealed class RecordingTagAutomationCoordinator : ITagAutomationCoordinator
     {
         public List<(int TagId, TagAddSource Source, int Sequence)> Calls { get; } = [];
+        public List<int> ExtensionCounts { get; } = [];
 
         public TagAutomationResult TagAdded(
             WorkItem? item,
@@ -1096,6 +1204,7 @@ public sealed class WorkEditorViewModelTests
             IReadOnlyCollection<ITrackerEditorExtension> extensions)
         {
             Calls.Add((tag.Id, context.Source, context.Sequence));
+            ExtensionCounts.Add(extensions.Count);
             return new TagAutomationResult(Array.Empty<TagAutomationInstanceResult>());
         }
     }

@@ -378,7 +378,7 @@
             <Border Grid.Column="1" Classes="DetailPane" Padding="6">
             <DockPanel VerticalSpacing="7">
                 <Border DockPanel.Dock="Top" Classes="WorkspaceToolbar">
-                <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
+                <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
                     <Button Name="NewWorkItemButton" Classes="ActionButton" Content="新建事项" HotKey="Ctrl+N"
                             Command="{Binding NewWorkItemCommand}" />
                     <!-- TODO: add flyout for next button -->
@@ -400,13 +400,19 @@
                     </Button>
                     <Button Grid.Column="2" Classes="Primary ActionButton" Content="保存" HotKey="Ctrl+S"
                             Command="{Binding SaveWorkItemCommand}" />
-                    <Button Grid.Column="3" Classes="ActionButton" Content="重复当前事项" HotKey="Ctrl+D"
+                    <Button Name="ModifySubmittedWorkButton" Grid.Column="3" Classes="ActionButton"
+                            Content="{Binding SelectedWork.LocalEditButtonText}"
+                            IsVisible="{Binding SelectedWork.ShowLocalEditButton}"
+                            Command="{Binding SelectedWork.BeginLocalEditCommand}"
+                            ToolTip.Tip="只修改本地数据；日期和 Tracker 关联保持不变" />
+                    <Button Grid.Column="4" Classes="ActionButton" Content="重复当前事项" HotKey="Ctrl+D"
                             Command="{Binding DuplicateWorkItemCommand}" />
-                    <Button Grid.Column="4" Classes="Danger ActionButton" Content="删除当前项" HotKey="Ctrl+Shift+D"
+                    <Button Grid.Column="5" Classes="Danger ActionButton" Content="删除当前项" HotKey="Ctrl+Shift+D"
                             Command="{Binding DeleteWorkItemCommand}" />
-                    <Button Grid.Column="5" Classes="ActionButton" Content="同步工时" HotKey="Ctrl+U"
+                    <Button Grid.Column="6" Classes="ActionButton" Content="同步工时" HotKey="Ctrl+U"
+                            IsEnabled="{Binding SelectedWork.CanUploadToTracker}"
                             Command="{Binding UploadTimeCommand}" />
-                    <Border Name="SelectedWorkStatusPill" Grid.Column="6" Classes="StatusPill"
+                    <Border Name="SelectedWorkStatusPill" Grid.Column="7" Classes="StatusPill"
                             Classes.StatusWarning="{Binding SelectedWork.IsStatusPillWarning}"
                             Classes.StatusInfo="{Binding SelectedWork.IsStatusPillInfo}"
                             Classes.StatusSuccess="{Binding SelectedWork.IsStatusPillSuccess}"
