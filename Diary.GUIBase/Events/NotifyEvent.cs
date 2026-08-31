@@ -1,3 +1,4 @@
+using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.Messaging.Messages;
 using Ursa.Controls;
 
@@ -11,7 +12,8 @@ public class NotifyOptions(
     DialogMode mode = DialogMode.None,
     DialogButton button = DialogButton.OK,
     NotificationRetention retention = NotificationRetention.Persistent,
-    NotificationAction? action = null)
+    NotificationAction? action = null,
+    NotificationType type = NotificationType.Information)
 {
     public string Title { get; } = title;
     public string Body { get; } = body;
@@ -21,6 +23,7 @@ public class NotifyOptions(
     public bool LightDismiss { get; } = lightDismiss;
     public NotificationRetention Retention { get; } = retention;
     public NotificationAction? Action { get; } = action;
+    public NotificationType Type { get; } = type;
 }
 
 public class NotifyEvent(NotifyOptions options) : ValueChangedMessage<NotifyOptions>(options);

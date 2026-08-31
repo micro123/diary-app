@@ -146,7 +146,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         Messenger.Register<NotifyEvent>(this, (r, m) =>
         {
-            var type = NotificationHistoryService.ResolveNotificationType(m.Value.Title);
+            var type = m.Value.Type;
             _appStatus.ShowMessage(
                 m.Value.Title,
                 ResolveMessageLevel(type),
@@ -302,7 +302,10 @@ public partial class MainWindowViewModel : ViewModelBase
                     var targetFactory = ((App)App.Instance).GetDbFactory(oldDriver);
                     if (targetFactory is null)
                     {
-                        EventDispatcher.Notify("错误", $"数据库驱动 {oldDriver} 不可用");
+                        EventDispatcher.Notify(
+                            "错误",
+                            $"数据库驱动 {oldDriver} 不可用",
+                            type: NotificationType.Error);
                         return;
                     }
 
@@ -320,7 +323,7 @@ public partial class MainWindowViewModel : ViewModelBase
                             App.Instance.AppConfig.DbSettings.DatabaseDriver = oldDriver;
                             JsonConvert.PopulateObject(oldDbConfig.ToString(Formatting.None), dbConfig);
                             EasySaveLoad.Save(dbConfig);
-                            EventDispatcher.Notify("错误", error);
+                            EventDispatcher.Notify("错误", error, type: NotificationType.Error);
                             return;
                         }
 
@@ -631,7 +634,8 @@ public partial class MainWindowViewModel : ViewModelBase
                                 "已保留本地修改文件",
                                 "以下旧版本文件有本地修改，更新不会删除它们：\n"
                                     + string.Join('\n', prepared.PreservedConflicts),
-                                NotificationRetention.Session);
+                                NotificationRetention.Session,
+                                type: NotificationType.Warning);
                         }
                         EventDispatcher.ShowToast("更新准备完成，应用即将重启…", NotificationType.Success);
                         updateService.StartPreparedUpdate(prepared);
@@ -655,7 +659,8 @@ public partial class MainWindowViewModel : ViewModelBase
                         EventDispatcher.Notify(
                             "更新准备失败",
                             exception.Message,
-                            action: new NotificationAction("打开日志", CommandNames.OpenCurrentLog));
+                            action: new NotificationAction("打开日志", CommandNames.OpenCurrentLog),
+                            type: NotificationType.Error);
                     }
                     return;
                 }
@@ -680,7 +685,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 EventDispatcher.Notify(
                     "暂时无法更新",
                     result.Error ?? "当前更新器协议版本过低。",
-                    action: new NotificationAction("打开日志", CommandNames.OpenCurrentLog));
+                    action: new NotificationAction("打开日志", CommandNames.OpenCurrentLog),
+                    type: NotificationType.Warning);
                 return;
             case UpdateCheckStatus.TemporarilyUnavailable:
                 _appStatus.SetUpdate(new AppStatusItem(
@@ -699,7 +705,8 @@ public partial class MainWindowViewModel : ViewModelBase
                     EventDispatcher.Notify(
                         "检查更新失败",
                         result.Error ?? "更新服务器响应无效。",
-                        action: new NotificationAction("打开日志", CommandNames.OpenCurrentLog));
+                        action: new NotificationAction("打开日志", CommandNames.OpenCurrentLog),
+                        type: NotificationType.Error);
                 return;
             default:
                 throw new ArgumentOutOfRangeException();
@@ -723,21 +730,27 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (App.Instance.UseDb is not IDbMaintenanceProvider provider)
         {
-            EventDispatcher.Notify("不支持备份", $"数据库驱动 {App.Instance.UseFactory?.Name ?? "<unknown>"} 当前不支持应用内备份。");
+            EventDispatcher.Notify(
+                "不支持备份",
+                $"数据库驱动 {App.Instance.UseFactory?.Name ?? "<unknown>"} 当前不支持应用内备份。",
+                type: NotificationType.Warning);
             return;
         }
 
         var support = provider.GetMaintenanceSupport();
         if (!support.CanBackup)
         {
-            EventDispatcher.Notify("不支持备份", support.UnavailableReason ?? "当前数据库不支持应用内备份。");
+            EventDispatcher.Notify(
+                "不支持备份",
+                support.UnavailableReason ?? "当前数据库不支持应用内备份。",
+                type: NotificationType.Warning);
             return;
         }
 
         var storageProvider = TopLevel.GetTopLevel(View)?.StorageProvider;
         if (storageProvider is null)
         {
-            EventDispatcher.Notify("备份失败", "无法打开文件选择器。");
+            EventDispatcher.Notify("备份失败", "无法打开文件选择器。", type: NotificationType.Error);
             return;
         }
 
@@ -763,7 +776,8 @@ public partial class MainWindowViewModel : ViewModelBase
             EventDispatcher.Notify(
                 "备份失败",
                 result.Error ?? "数据库备份创建失败。",
-                action: new NotificationAction("打开日志", CommandNames.OpenCurrentLog));
+                action: new NotificationAction("打开日志", CommandNames.OpenCurrentLog),
+                type: NotificationType.Error);
             return;
         }
 
@@ -773,28 +787,35 @@ public partial class MainWindowViewModel : ViewModelBase
             NotificationRetention.Session,
             result.BackupPath is null
                 ? null
-                : new NotificationAction("打开备份", CommandNames.OpenPath, result.BackupPath));
+                : new NotificationAction("打开备份", CommandNames.OpenPath, result.BackupPath),
+            NotificationType.Success);
     }
 
     private async Task RestoreDatabaseAsync()
     {
         if (App.Instance.UseDb is not IDbMaintenanceProvider provider)
         {
-            EventDispatcher.Notify("不支持还原", $"数据库驱动 {App.Instance.UseFactory?.Name ?? "<unknown>"} 当前不支持应用内还原。");
+            EventDispatcher.Notify(
+                "不支持还原",
+                $"数据库驱动 {App.Instance.UseFactory?.Name ?? "<unknown>"} 当前不支持应用内还原。",
+                type: NotificationType.Warning);
             return;
         }
 
         var support = provider.GetMaintenanceSupport();
         if (!support.CanRestore)
         {
-            EventDispatcher.Notify("不支持还原", support.UnavailableReason ?? "当前数据库不支持应用内还原。");
+            EventDispatcher.Notify(
+                "不支持还原",
+                support.UnavailableReason ?? "当前数据库不支持应用内还原。",
+                type: NotificationType.Warning);
             return;
         }
 
         var storageProvider = TopLevel.GetTopLevel(View)?.StorageProvider;
         if (storageProvider is null)
         {
-            EventDispatcher.Notify("还原失败", "无法打开文件选择器。");
+            EventDispatcher.Notify("还原失败", "无法打开文件选择器。", type: NotificationType.Error);
             return;
         }
 
@@ -821,7 +842,10 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         if (!validation.Success)
         {
-            EventDispatcher.Notify("备份无效", validation.Error ?? "所选文件不是可还原的数据库备份。");
+            EventDispatcher.Notify(
+                "备份无效",
+                validation.Error ?? "所选文件不是可还原的数据库备份。",
+                type: NotificationType.Warning);
             return;
         }
 
@@ -847,14 +871,16 @@ public partial class MainWindowViewModel : ViewModelBase
             EventDispatcher.Notify(
                 "还原暂存失败",
                 stage.Error ?? "无法暂存数据库还原任务。",
-                action: new NotificationAction("打开日志", CommandNames.OpenCurrentLog));
+                action: new NotificationAction("打开日志", CommandNames.OpenCurrentLog),
+                type: NotificationType.Error);
             return;
         }
 
         EventDispatcher.Notify(
             "还原已安排",
             "备份已通过校验。请退出并重新启动 DiaryApp；下次启动会执行还原并在失败时自动恢复当前数据库。",
-            action: new NotificationAction("打开日志", CommandNames.OpenCurrentLog));
+            action: new NotificationAction("打开日志", CommandNames.OpenCurrentLog),
+            type: NotificationType.Success);
     }
 
     private void PostUiAsync(Func<Task> action, string operation)
@@ -967,7 +993,10 @@ public partial class MainWindowViewModel : ViewModelBase
                                               or InvalidOperationException or PlatformNotSupportedException)
         {
             _logger.LogError(exception, "打开用户手册失败");
-            EventDispatcher.Notify("无法打开用户手册", exception.Message);
+            EventDispatcher.Notify(
+                "无法打开用户手册",
+                exception.Message,
+                type: NotificationType.Error);
         }
     }
 
@@ -1037,7 +1066,10 @@ public partial class MainWindowViewModel : ViewModelBase
         var storageProvider = Window?.StorageProvider;
         if (storageProvider is null)
         {
-            EventDispatcher.Notify("导入失败", "当前没有可用的文件选择器。");
+            EventDispatcher.Notify(
+                "导入失败",
+                "当前没有可用的文件选择器。",
+                type: NotificationType.Error);
             return;
         }
 
@@ -1099,7 +1131,8 @@ public partial class MainWindowViewModel : ViewModelBase
             EventDispatcher.Notify(
                 "脚本扩展导入完成",
                 $"已导入 {result.ImportedCount} 个脚本，跳过 {result.SkippedCount} 个。扩展已重新加载；如需查看源码或诊断，请开启开发者功能。",
-                NotificationRetention.Session);
+                NotificationRetention.Session,
+                type: NotificationType.Success);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
             or InvalidDataException or InvalidOperationException or System.Text.Json.JsonException)
@@ -1108,7 +1141,8 @@ public partial class MainWindowViewModel : ViewModelBase
             EventDispatcher.Notify(
                 "脚本扩展导入失败",
                 exception.Message,
-                action: new NotificationAction("打开日志", CommandNames.OpenCurrentLog));
+                action: new NotificationAction("打开日志", CommandNames.OpenCurrentLog),
+                type: NotificationType.Error);
         }
     }
 

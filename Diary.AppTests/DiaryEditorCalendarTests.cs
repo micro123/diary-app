@@ -1,3 +1,4 @@
+using Avalonia.Controls.Notifications;
 using Avalonia.Input;
 using Diary.App.ViewModels;
 using Diary.App.Views;
@@ -37,6 +38,28 @@ public sealed class DiaryEditorCalendarTests
         Assert.AreEqual(new DateTime(2026, 8, 1), range.StartDate);
         Assert.AreEqual(new DateTime(2026, 8, 31), range.EndDate);
         Assert.AreEqual("本月", range.PeriodName);
+    }
+
+    [TestMethod]
+    public void SuccessfulDailyUploadUsesSuccessNotificationWithoutFailureText()
+    {
+        var notification = DiaryEditorViewModel.CreateBatchUploadNotification(3, 0, 0);
+
+        Assert.AreEqual("同步完成：成功 3", notification.Title);
+        Assert.AreEqual(NotificationType.Success, notification.Type);
+        Assert.DoesNotContain("失败", notification.Title);
+    }
+
+    [TestMethod]
+    public void DailyUploadNotificationReflectsFailureAndUncertainResults()
+    {
+        var failed = DiaryEditorViewModel.CreateBatchUploadNotification(2, 1, 0);
+        var uncertain = DiaryEditorViewModel.CreateBatchUploadNotification(2, 0, 1);
+
+        Assert.AreEqual(NotificationType.Error, failed.Type);
+        Assert.Contains("失败 1", failed.Title);
+        Assert.AreEqual(NotificationType.Warning, uncertain.Type);
+        Assert.Contains("结果待确认 1", uncertain.Title);
     }
 
     [TestMethod]

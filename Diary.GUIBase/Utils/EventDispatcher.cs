@@ -12,9 +12,10 @@ public static class EventDispatcher
         string title,
         string body,
         NotificationRetention retention = NotificationRetention.Persistent,
-        NotificationAction? action = null)
+        NotificationAction? action = null,
+        NotificationType type = NotificationType.Information)
     {
-        var opt = new NotifyOptions(title, body, retention: retention, action: action);
+        var opt = new NotifyOptions(title, body, retention: retention, action: action, type: type);
         Messenger.Send(new NotifyEvent(opt));
     }
 

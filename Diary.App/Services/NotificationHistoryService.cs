@@ -94,7 +94,7 @@ public sealed class NotificationHistoryService : IDisposable
         {
             WeakReferenceMessenger.Default.Register<ToastEvent>(this, (_, message) => Add(message));
             WeakReferenceMessenger.Default.Register<NotifyEvent>(this, (_, message) =>
-                Add(message.Value, ResolveNotificationType(message.Value.Title)));
+                Add(message.Value, message.Value.Type));
         }
     }
 
@@ -193,20 +193,6 @@ public sealed class NotificationHistoryService : IDisposable
             notification.Retention,
             notification.Action);
     }
-
-    public static NotificationType ResolveNotificationType(string title)
-        => title.Contains("失败", StringComparison.Ordinal)
-            || title.Contains("错误", StringComparison.Ordinal)
-            || title.Contains("异常", StringComparison.Ordinal)
-            ? NotificationType.Error
-            : title.Contains("警告", StringComparison.Ordinal)
-                || title.Contains("不可用", StringComparison.Ordinal)
-                || title.Contains("无法", StringComparison.Ordinal)
-                ? NotificationType.Warning
-                : title.Contains("完成", StringComparison.Ordinal)
-                    || title.Contains("成功", StringComparison.Ordinal)
-                    ? NotificationType.Success
-                    : NotificationType.Information;
 
     public void MarkRead(Guid id)
         => UpdateReadState(entry => entry.Id == id, true);

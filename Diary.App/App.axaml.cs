@@ -983,7 +983,7 @@ namespace Diary.App
             if (!success)
             {
                 EventDispatcher.RouteToPage(PageNames.Settings);
-                EventDispatcher.Notify("错误", message);
+                EventDispatcher.Notify("错误", message, type: NotificationType.Error);
             }
 
             // start keep-alive thread
@@ -1019,7 +1019,8 @@ namespace Diary.App
                         {
                             EventDispatcher.Notify(
                                 "更新失败，已回滚",
-                                startupStatus.Message + "\n\n请关闭占用更新文件的程序后重试。");
+                                startupStatus.Message + "\n\n请关闭占用更新文件的程序后重试。",
+                                type: NotificationType.Warning);
                         }
                     }
                     else
@@ -1027,7 +1028,8 @@ namespace Diary.App
                         Logger.LogError("回滚后的旧版本仍未完成初始化：PlanPath={PlanPath}", planPath);
                         EventDispatcher.Notify(
                             "回滚后仍无法启动",
-                            "程序文件已经回滚，但旧版本仍未完成数据库或配置初始化。事务现场已保留，请联系管理员处理。");
+                            "程序文件已经回滚，但旧版本仍未完成数据库或配置初始化。事务现场已保留，请联系管理员处理。",
+                            type: NotificationType.Error);
                     }
                     return;
                 }
@@ -1040,14 +1042,18 @@ namespace Diary.App
                     EventDispatcher.Notify(
                         "更新失败且回滚未完成",
                         (startupStatus.Message ?? "更新器未能完成文件回滚。")
-                        + "\n\n事务现场已保留，请关闭占用更新文件的程序并联系管理员处理。");
+                        + "\n\n事务现场已保留，请关闭占用更新文件的程序并联系管理员处理。",
+                        type: NotificationType.Error);
                     return;
                 }
             }
             catch (Exception exception)
             {
                 Logger.LogError(exception, "处理回滚后启动状态失败：PlanPath={PlanPath}", planPath);
-                EventDispatcher.Notify("回滚确认失败", exception.Message);
+                EventDispatcher.Notify(
+                    "回滚确认失败",
+                    exception.Message,
+                    type: NotificationType.Error);
                 return;
             }
 
@@ -1070,7 +1076,8 @@ namespace Diary.App
                     EventDispatcher.Notify(
                         "更新确认失败",
                         "新版本已经启动，但更新事务未能清理。请保留日志并联系管理员。\n\n"
-                        + exception.Message);
+                        + exception.Message,
+                        type: NotificationType.Error);
                 }
                 return;
             }
@@ -1094,7 +1101,10 @@ namespace Diary.App
             catch (Exception exception)
             {
                 Logger.LogError(exception, "启动更新回滚失败：PlanPath={PlanPath}", planPath);
-                EventDispatcher.Notify("无法启动回滚", exception.Message);
+                EventDispatcher.Notify(
+                    "无法启动回滚",
+                    exception.Message,
+                    type: NotificationType.Error);
             }
         }
 
@@ -1111,7 +1121,7 @@ namespace Diary.App
             {
                 DatabaseStatusMessage = msg;
                 EventDispatcher.RouteToPage(PageNames.Settings);
-                EventDispatcher.Notify("错误", msg);
+                EventDispatcher.Notify("错误", msg, type: NotificationType.Error);
                 return;
             }
 
@@ -1223,7 +1233,8 @@ namespace Diary.App
                     EventDispatcher.Notify(
                         "发生错误",
                         "数据库连接异常，请检查网络或数据库设置",
-                        action: new NotificationAction("数据库设置", CommandNames.ShowDbSettings));
+                        action: new NotificationAction("数据库设置", CommandNames.ShowDbSettings),
+                        type: NotificationType.Error);
                 }
                 catch { /* handler 自身不得再抛 */ }
             };

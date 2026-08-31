@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using Avalonia.Controls;
+using Avalonia.Controls.Notifications;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -117,7 +118,7 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
     {
         if (!ValidateExtraFieldKeys(out var fieldError))
         {
-            EventDispatcher.Notify("错误", fieldError!);
+            EventDispatcher.Notify("错误", fieldError!, type: NotificationType.Error);
             return false;
         }
 
@@ -127,7 +128,7 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
             var tagChanged = tag.ApplyChanges(out var error);
             if (error is not null)
             {
-                EventDispatcher.Notify("错误", error);
+                EventDispatcher.Notify("错误", error, type: NotificationType.Error);
                 return false;
             }
 
@@ -163,7 +164,10 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
         var storageProvider = GetStorageProvider();
         if (database is null || storageProvider is null)
         {
-            EventDispatcher.Notify("错误", "当前数据库或文件选择器不可用。");
+            EventDispatcher.Notify(
+                "错误",
+                "当前数据库或文件选择器不可用。",
+                type: NotificationType.Error);
             return;
         }
 
@@ -173,7 +177,8 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
             EventDispatcher.Notify(
                 "无法导出标签",
                 "当前没有可导出的标签。",
-                NotificationRetention.Transient);
+                NotificationRetention.Transient,
+                type: NotificationType.Warning);
             return;
         }
         var selection = await ShowExportSelectionAsync(tags);
@@ -206,13 +211,17 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
                 "标签导出完成",
                 $"已导出 {selection.TagIds.Count} 个标签：{path}",
                 NotificationRetention.Session,
-                new NotificationAction("打开标签包", CommandNames.OpenPath, path));
+                new NotificationAction("打开标签包", CommandNames.OpenPath, path),
+                NotificationType.Success);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
             or InvalidDataException or InvalidOperationException)
         {
             _logger.LogError(exception, "导出标签包失败");
-            EventDispatcher.Notify("标签导出失败", exception.Message);
+            EventDispatcher.Notify(
+                "标签导出失败",
+                exception.Message,
+                type: NotificationType.Error);
         }
     }
 
@@ -244,7 +253,10 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
         var storageProvider = GetStorageProvider();
         if (database is null || storageProvider is null)
         {
-            EventDispatcher.Notify("错误", "当前数据库或文件选择器不可用。");
+            EventDispatcher.Notify(
+                "错误",
+                "当前数据库或文件选择器不可用。",
+                type: NotificationType.Error);
             return;
         }
         var files = await storageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
@@ -293,13 +305,17 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
                 $"新增 {result.Created}，更新 {result.Updated}，重新启用 {result.Enabled}；" +
                 $"Tracker 规则导入 {result.Trackers.Sum(item => item.Imported)}，" +
                 $"跳过 {result.Trackers.Sum(item => item.Invalid + item.Unavailable + item.Skipped)}。",
-                NotificationRetention.Session);
+                NotificationRetention.Session,
+                type: NotificationType.Success);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
             or System.Text.Json.JsonException or InvalidDataException or InvalidOperationException)
         {
             _logger.LogError(exception, "导入标签包失败");
-            EventDispatcher.Notify("标签导入失败", exception.Message);
+            EventDispatcher.Notify(
+                "标签导入失败",
+                exception.Message,
+                type: NotificationType.Error);
         }
     }
 
@@ -379,7 +395,10 @@ public partial class TagEditorViewModel : ViewModelBase, IDialogContext
         }
         else
         {
-            EventDispatcher.Notify("错误", "添加标签失败了，可能是重复的标签名！");
+            EventDispatcher.Notify(
+                "错误",
+                "添加标签失败了，可能是重复的标签名！",
+                type: NotificationType.Error);
         }
     }
 

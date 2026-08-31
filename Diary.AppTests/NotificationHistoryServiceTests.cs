@@ -16,6 +16,18 @@ public sealed class NotificationHistoryServiceTests
 
         Assert.AreEqual(NotificationRetention.Transient, toast.Retention);
         Assert.AreEqual(NotificationRetention.Persistent, notification.Retention);
+        Assert.AreEqual(NotificationType.Information, notification.Type);
+    }
+
+    [TestMethod]
+    public void ExplicitNotificationTypeIsPreservedWithoutInspectingTitle()
+    {
+        var notification = new NotifyOptions(
+            "同步结果：成功 3，失败 0",
+            "全部事项已同步。",
+            type: NotificationType.Success);
+
+        Assert.AreEqual(NotificationType.Success, notification.Type);
     }
 
     [TestMethod]

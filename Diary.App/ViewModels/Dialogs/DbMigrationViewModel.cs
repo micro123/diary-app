@@ -1,3 +1,4 @@
+using Avalonia.Controls.Notifications;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -112,12 +113,13 @@ public partial class DbMigrationViewModel : ViewModelBase, IDialogContext
             EventDispatcher.Notify(
                 "数据迁移完成",
                 "旧数据已经迁移完成。",
-                NotificationRetention.Session);
+                NotificationRetention.Session,
+                type: NotificationType.Success);
             RequestClose?.Invoke(this, true);
         }
         else
         {
-            EventDispatcher.Notify("错误", $"迁移失败了。。。");
+            EventDispatcher.Notify("错误", "迁移失败了。。。", type: NotificationType.Error);
         }
     }
 

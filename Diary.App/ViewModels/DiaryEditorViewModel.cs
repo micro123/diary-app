@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Windows.Input;
+using Avalonia.Controls.Notifications;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -308,7 +309,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
         EventDispatcher.Notify(
             "复制完成",
             $"已复制 {copied}/{sourceItems.Length} 条记录。",
-            NotificationRetention.Session);
+            NotificationRetention.Session,
+            type: NotificationType.Success);
     }
 
     [RelayCommand]
@@ -345,7 +347,10 @@ public partial class DiaryEditorViewModel : ViewModelBase
         var tagsById = db.GetWorkTagsByWorkItemIds([sourceItem.Id]);
         if (!CopyWorkItemToCurrentDate(sourceItem, notesById, tagsById))
         {
-            EventDispatcher.Notify("复制失败", "最近记录未能保存到当前日期。");
+            EventDispatcher.Notify(
+                "复制失败",
+                "最近记录未能保存到当前日期。",
+                type: NotificationType.Error);
             return;
         }
 
@@ -356,7 +361,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
         EventDispatcher.Notify(
             "复制完成",
             $"已将 {sourceItem.CreateDate} 的最近记录复制到 {CurrentDateString}。",
-            NotificationRetention.Session);
+            NotificationRetention.Session,
+            type: NotificationType.Success);
     }
 
     [RelayCommand]
@@ -412,7 +418,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
         EventDispatcher.Notify(
             "复制完成",
             $"已从 {sourceDate} 复制 {copied}/{sourceItems.Length} 条记录到 {CurrentDateString}。",
-            NotificationRetention.Session);
+            NotificationRetention.Session,
+            type: NotificationType.Success);
     }
 
     private bool CopyWorkItemToCurrentDate(
@@ -530,7 +537,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
         EventDispatcher.Notify(
             "数据库仍不可用",
-            $"{message}\n\n本地记录不会因连接失败被删除。请检查数据库设置，或导出诊断日志后再联系维护者。\n\n可恢复操作：重试连接、打开数据库设置、导出诊断日志。");
+            $"{message}\n\n本地记录不会因连接失败被删除。请检查数据库设置，或导出诊断日志后再联系维护者。\n\n可恢复操作：重试连接、打开数据库设置、导出诊断日志。",
+            type: NotificationType.Warning);
     }
 
     [RelayCommand]
@@ -543,7 +551,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
         var path = _serviceProvider.GetRequiredService<DiagnosticLogExportService>().Export();
         EventDispatcher.Notify(
             path is null ? "暂无诊断日志" : "诊断日志已导出",
-            path is null ? "当前没有可导出的应用日志。" : path);
+            path is null ? "当前没有可导出的应用日志。" : path,
+            type: path is null ? NotificationType.Information : NotificationType.Success);
     }
 
     [RelayCommand(CanExecute = nameof(CanUploadAll))]
@@ -613,11 +622,26 @@ public partial class DiaryEditorViewModel : ViewModelBase
             }
         }
 
-        var summary = uncertain == 0
-            ? $"同步结果: 成功 {success}，失败 {failed}"
-            : $"同步结果: 成功 {success}，失败 {failed}，结果待确认 {uncertain}";
-        EventDispatcher.Notify(summary, sb.ToString());
+        var summary = CreateBatchUploadNotification(success, failed, uncertain);
+        EventDispatcher.Notify(summary.Title, sb.ToString(), type: summary.Type);
         return failedWorks;
+    }
+
+    internal static (string Title, NotificationType Type) CreateBatchUploadNotification(
+        int succeeded,
+        int failed,
+        int uncertain)
+    {
+        if (failed > 0)
+        {
+            var uncertainText = uncertain > 0 ? $"，结果待确认 {uncertain}" : string.Empty;
+            return ($"同步失败：成功 {succeeded}，失败 {failed}{uncertainText}", NotificationType.Error);
+        }
+
+        if (uncertain > 0)
+            return ($"同步结束：成功 {succeeded}，结果待确认 {uncertain}", NotificationType.Warning);
+
+        return ($"同步完成：成功 {succeeded}", NotificationType.Success);
     }
 
     private bool CanUploadAll => TotalTime != 0 && UploadedTime < TotalTime;
@@ -1048,7 +1072,10 @@ public partial class DiaryEditorViewModel : ViewModelBase
                 "Failed to summarize tracker time for period {StartDate} - {EndDate}",
                 startDate,
                 endDate);
-            EventDispatcher.Notify("工时概要生成失败", exception.Message);
+            EventDispatcher.Notify(
+                "工时概要生成失败",
+                exception.Message,
+                type: NotificationType.Error);
         }
     }
 
@@ -1059,7 +1086,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
         {
             EventDispatcher.Notify(
                 $"{periodName}工时同步未开始",
-                "当前事项自动保存失败。请先修正本地事项并保存，再重新执行同步。");
+                "当前事项自动保存失败。请先修正本地事项并保存，再重新执行同步。",
+                type: NotificationType.Warning);
             return;
         }
 
@@ -1294,7 +1322,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
         EventDispatcher.Notify(
             summary.Failed == 0 ? $"{periodName}工时同步完成" : $"{periodName}工时同步已终止",
-            body.ToString().TrimEnd());
+            body.ToString().TrimEnd(),
+            type: summary.Failed == 0 ? NotificationType.Success : NotificationType.Error);
     }
 
     private static void AppendSkipCount(

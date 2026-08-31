@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Avalonia.Controls.Notifications;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -115,7 +116,8 @@ public partial class StatisticsViewModel : ViewModelBase
 
         EventDispatcher.Notify(
             "数据库仍不可用",
-            $"{message}\n\n本地记录不会因连接失败被删除。请检查数据库设置，或导出诊断日志后再联系维护者。");
+            $"{message}\n\n本地记录不会因连接失败被删除。请检查数据库设置，或导出诊断日志后再联系维护者。",
+            type: NotificationType.Warning);
     }
 
     [RelayCommand]
@@ -128,7 +130,8 @@ public partial class StatisticsViewModel : ViewModelBase
         var path = App.Instance.Services.GetRequiredService<DiagnosticLogExportService>().Export();
         EventDispatcher.Notify(
             path is null ? "暂无诊断日志" : "诊断日志已导出",
-            path is null ? "当前没有可导出的应用日志。" : path);
+            path is null ? "当前没有可导出的应用日志。" : path,
+            type: path is null ? NotificationType.Information : NotificationType.Success);
     }
 
     private void SyncOptions()
