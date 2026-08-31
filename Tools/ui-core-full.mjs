@@ -177,6 +177,8 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
         assertUi(findByName(tree, 'TrackerStatus'), '状态栏缺少 Tracker 状态');
         assertUi(findByName(tree, 'NotificationCenterButton'), '状态栏缺少通知中心入口');
         assertUi(findByName(tree, 'StatusDate'), '状态栏缺少日期入口');
+        assertUi(!findByName(tree, 'ModifySubmittedWorkButton'),
+            '未选中事项时本地修改按钮没有隐藏');
         const now = new Date();
         const statusBar = findByName(tree, 'StatusBarView');
         const statusDate = [statusBar, ...descendants(tree, statusBar)]

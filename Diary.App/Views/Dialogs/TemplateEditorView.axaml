@@ -80,26 +80,12 @@
                                                        ShowButtonSpinner="False" Watermark="小时" />
                                 <TextBlock Grid.Column="0" Grid.Row="3" Text="默认标签" Classes="FieldLabel" />
                                 <Button Name="TemplateAddTagButton" Grid.Column="2" Grid.Row="3" Classes="Primary"
-                                         IsEnabled="{Binding HasAvailableTags}">
+                                         IsEnabled="{Binding HasAvailableTags}"
+                                         Click="OnAddTagClick">
                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                         <i:Icon Value="" />
                                         <TextBlock Text="添加标签" />
                                     </StackPanel>
-                                    <Button.Flyout>
-                                        <MenuFlyout ShowMode="TransientWithDismissOnPointerMoveAway"
-                                                    ItemsSource="{Binding AvailableTags}">
-                                            <MenuFlyout.ItemContainerTheme>
-                                                <ControlTheme TargetType="MenuItem"
-                                                              BasedOn="{StaticResource {x:Type MenuItem}}"
-                                                              x:DataType="base:WorkTag">
-                                                    <Setter Property="Header" Value="{Binding Name}" />
-                                                    <Setter Property="Command"
-                                                            Value="{Binding $parent[Expander].((dialogs1:TemplateViewModel)DataContext).AddTagCommand}" />
-                                                    <Setter Property="CommandParameter" Value="{Binding}" />
-                                                </ControlTheme>
-                                            </MenuFlyout.ItemContainerTheme>
-                                        </MenuFlyout>
-                                    </Button.Flyout>
                                 </Button>
                                 <ItemsControl Grid.Column="1" Grid.Row="4" Grid.ColumnSpan="2"
                                               ItemsSource="{Binding Tags}">
@@ -125,7 +111,8 @@
                                                         Foreground="{Binding Color, Converter={StaticResource SimpleInverse}}" />
                                                     <TextBlock Text="{Binding Name}"
                                                                Foreground="{Binding Color, Converter={StaticResource SimpleInverse}}" />
-                                                    <Button Theme="{DynamicResource BorderlessButton}"
+                                                    <Button Name="TemplateRemoveTagButton"
+                                                            Theme="{DynamicResource BorderlessButton}"
                                                             Foreground="{Binding Color, Converter={StaticResource SimpleInverse}}"
                                                             Command="{Binding $parent[Expander].((dialogs1:TemplateViewModel)DataContext).RemoveTagCommand}"
                                                             CommandParameter="{Binding}">

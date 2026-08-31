@@ -12,6 +12,7 @@ const stateArgumentIndex = process.argv.indexOf('--state');
 const statePath = stateArgumentIndex >= 0
     ? path.resolve(process.argv[stateArgumentIndex + 1])
     : path.join(repositoryRoot, '.build-tmp', 'ui-test', 'current.json');
+const templateTagsOnly = process.argv.includes('--template-tags-only');
 const timeoutMs = 5000;
 
 class CdpClient {
@@ -464,12 +465,73 @@ async function main() {
         await clickNode(templateTagMenuItem);
         await waitForTree(current => findByText(current, tagName,
             entry => hasAncestorName(current, entry, 'TemplateItemExpander')));
+        tree = await getTree();
+        await activateControl(findByName(tree, 'TemplateAddTagButton'));
+        const templateSecondaryTagMenu = await waitForTree(current => findByText(current, secondaryTagName,
+            entry => hasAncestorType(current, entry, 'MenuItem')));
+        const templateSecondaryTagMenuItem = ancestor(
+            templateSecondaryTagMenu.tree,
+            templateSecondaryTagMenu.value,
+            entry => typeOf(entry).includes('MenuItem'));
+        if (!templateSecondaryTagMenuItem)
+            throw new Error('找不到模板次标签菜单项');
+        await clickNode(templateSecondaryTagMenuItem);
+        await waitForTree(current => findByText(current, secondaryTagName,
+            entry => hasAncestorName(current, entry, 'TemplateItemExpander')));
+        tree = await getTree();
+        const removePrimaryTagButton = findByName(tree, 'TemplateRemoveTagButton');
+        if (!removePrimaryTagButton)
+            throw new Error('找不到模板主标签删除按钮');
+        await activateControl(removePrimaryTagButton);
+        await waitForTree(current => !findByText(current, tagName,
+            entry => hasAncestorName(current, entry, 'TemplateItemExpander'))
+            && !findByText(current, secondaryTagName,
+                entry => hasAncestorName(current, entry, 'TemplateItemExpander')));
+        tree = await getTree();
+        await activateControl(findByName(tree, 'TemplateAddTagButton'));
+        const restoredPrimaryTagMenu = await waitForTree(current => findByText(current, tagName,
+            entry => hasAncestorType(current, entry, 'MenuItem')));
+        if (findByText(restoredPrimaryTagMenu.tree, secondaryTagName,
+            entry => hasAncestorType(restoredPrimaryTagMenu.tree, entry, 'MenuItem')))
+            throw new Error('模板删除主标签后仍显示旧的次标签候选');
+        const restoredPrimaryTagMenuItem = ancestor(
+            restoredPrimaryTagMenu.tree,
+            restoredPrimaryTagMenu.value,
+            entry => typeOf(entry).includes('MenuItem'));
+        if (!restoredPrimaryTagMenuItem)
+            throw new Error('模板删除主标签后找不到主标签菜单项');
+        await clickNode(restoredPrimaryTagMenuItem);
+        await waitForTree(current => findByText(current, tagName,
+            entry => hasAncestorName(current, entry, 'TemplateItemExpander')));
+        functional.tagsAndTemplates.templatePrimaryTagReaddedAfterRemoval = true;
         await new Promise(resolve => setTimeout(resolve, 3000));
         functional.tagsAndTemplates.templateSettingsScreenshot = await screenshot('manual-template-settings.png');
         tree = await getTree();
         await activateControl(findByName(tree, 'SaveTemplateSettingsButton'));
         await waitForTree(current => !current.entries.some(entry => typeOf(entry).includes('TemplateEditorView')));
         functional.tagsAndTemplates.templateConfigureMs = performance.now() - started;
+        if (templateTagsOnly) {
+            const report = {
+                status: 'passed',
+                suite: 'ui-template-tags',
+                startedAt,
+                completedAt: new Date().toISOString(),
+                processId: state.processId,
+                port: state.port,
+                profile: state.profile,
+                startupReadyMs: state.startupReadyMs,
+                targetTitle: targets[0].title,
+                functional: { tagsAndTemplates: functional.tagsAndTemplates },
+                findings,
+            };
+            const reportDirectory = path.join(repositoryRoot, '.build-tmp', 'ui-test', 'reports');
+            await fs.mkdir(reportDirectory, { recursive: true });
+            const reportPath = path.join(reportDirectory, 'ui-template-tags-'
+                + new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-') + '.json');
+            await fs.writeFile(reportPath, JSON.stringify(report, null, 2) + '\n', 'utf8');
+            console.log(JSON.stringify({ ...report, reportPath }, null, 2));
+            return;
+        }
 
         const themeBefore = await screenshot('smoke-theme-before.png');
         tree = await getTree();

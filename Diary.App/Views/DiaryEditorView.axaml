@@ -402,7 +402,7 @@
                             Command="{Binding SaveWorkItemCommand}" />
                     <Button Name="ModifySubmittedWorkButton" Grid.Column="3" Classes="ActionButton"
                             Content="{Binding SelectedWork.LocalEditButtonText}"
-                            IsVisible="{Binding SelectedWork.ShowLocalEditButton}"
+                            IsVisible="{Binding SelectedWork.ShowLocalEditButton, FallbackValue=False}"
                             Command="{Binding SelectedWork.BeginLocalEditCommand}"
                             ToolTip.Tip="只修改本地数据；日期和 Tracker 关联保持不变" />
                     <Button Grid.Column="4" Classes="ActionButton" Content="重复当前事项" HotKey="Ctrl+D"

@@ -113,9 +113,13 @@ seed 只复制加密配置文件，不应提交到 Git，也不得写入报告�
 | `ui-redmine-full` | 12 | 多 Tracker 设置、Redmine 管理、项目/Issue、标签规则、工时同步、防重复、删除边界、安全和性能 |
 | `ui-redmine-style` | 5 | Redmine 配置、插件状态、基本信息、问题/项目工具栏截图和 CheckBox 中心线，只读且不触发远程写入 |
 
+2026-08-31 核心 CDP 套件新增空选择工具栏检查：日记页未选中事项时不得显示 `ModifySubmittedWorkButton`，避免嵌套绑定尚无 `SelectedWork` 时留下无文字按钮。Linux X11 隔离 profile 回归 16/16 通过，报告为 `ui-core-full-2026-08-31T13-42-20-670Z.json`，无 findings。
+
 2026-08-26 统一状态栏实现后，在 Linux X11、1280×800（应用最小支持尺寸）下复跑 `ui-core-full` 14/14 和隔离 profile 的 `ui-smoke`，均通过；core 报告为 `ui-core-full-2026-08-26T08-35-11-331Z.json`，smoke 报告为 `ui-smoke-2026-08-26T08-42-35-362Z.json`。深色和浅色截图确认数据库、Tracker、紧凑日期、状态点和顶部分隔线在两种主题下均清晰，未出现横向挤压。smoke 中旧“应用”全局断言同步限制到 `WorkEditorView`，避免离屏缓存的查询页按钮造成误报。
 
 2026-08-27 在隔离 SQLite profile 下扩展 `ui-smoke`：新建主标签和次标签，通过模板创建事项、添加次标签并保存，导航离开后返回日记并重新选择事项，断言已选次标签仍显示在事项中且“添加标签”不再提供重复候选。Linux X11 回归通过，报告为 `ui-smoke-2026-08-27T09-00-34-290Z.json`；对应数据库与 ViewModel 单元测试同时覆盖不同查询实例按 ID 排除，以及仅删除标签后发布共享缓存刷新。
+
+2026-08-31 扩展模板标签回归：在同一模板中依次添加主标签和次标签，删除主标签后确认已选标签全部清空，再次打开菜单时只出现主标签候选并可重新添加，用于防止弹出菜单复用旧次标签快照。Linux X11 隔离 profile 的 CDP 专项验证通过，报告为 `ui-template-tags-2026-08-31T13-30-34-544Z.json`，结果字段 `templatePrimaryTagReaddedAfterRemoval=true` 且无 findings。
 
 2026-08-31 使用已包含成功 Redmine 工时的加密隔离 profile 完成本地修改模式专项验证，没有创建新的远程项目、Issue 或工时。已同步事项默认锁定；点击“修改”后，标题、耗时、备注、模板和已有标签操作开放，日期、快捷日期、整个 Redmine 编辑区与同步入口保持禁用；保存后恢复“本地已保存 · 已同步”和默认锁定。测试结束后将临时标题恢复原值，并直接复查 SQLite：事项日期仍为 `2026-08-21`，Redmine 工时 ID、Issue、活动、上传状态及上传时间均未变化。本次只记录专项结果，不宣称 `ui-redmine-full` 全套通过；该套件已补入同等边界断言，留待下次完整 Redmine 回归执行。
 

@@ -68,6 +68,31 @@ public sealed class TemplateEditorViewModelTests
     }
 
     [TestMethod]
+    public void RemovingPrimaryClearsSecondaryAndAllowsPrimaryToBeAddedAgain()
+    {
+        var shareData = new DbShareData(NullLogger.Instance);
+        var primary = new WorkTag { Id = 1, Name = "主标签", Level = TagLevels.Primary };
+        var secondary = new WorkTag { Id = 2, Name = "次标签", Level = TagLevels.Secondary };
+        shareData.WorkTags.Add(primary);
+        shareData.WorkTags.Add(secondary);
+        var viewModel = new TemplateViewModel(new Template
+        {
+            Name = "已有标签模板",
+            DefaultWorkTags = [primary.Id, secondary.Id],
+        }, shareData);
+
+        viewModel.RemoveTagCommand.Execute(primary);
+
+        Assert.IsEmpty(viewModel.Tags);
+        CollectionAssert.AreEqual(new[] { primary }, viewModel.AvailableTags.ToArray());
+
+        viewModel.AddTagCommand.Execute(primary);
+
+        CollectionAssert.AreEqual(new[] { primary }, viewModel.Tags.ToArray());
+        CollectionAssert.AreEqual(new[] { secondary }, viewModel.AvailableTags.ToArray());
+    }
+
+    [TestMethod]
     public void SaveFailureKeepsDialogOpenAndRestoresTemplates()
     {
         var manager = TemplateManager.Instance;
