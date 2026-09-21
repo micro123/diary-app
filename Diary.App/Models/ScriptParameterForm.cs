@@ -42,6 +42,7 @@ public partial class ScriptParameterFieldViewModel : ObservableObject
     public string Label => _definition.Label;
     public string DisplayLabel => _definition.Required ? $"{_definition.Label} *" : _definition.Label;
     public string Description => _definition.Description ?? string.Empty;
+    public string? DescriptionToolTip => HasDescription ? Description : null;
     public string Placeholder => _definition.Placeholder ?? string.Empty;
     public string TypeLabel => $"{_definition.Name} · {_definition.Type}";
     public ScriptParameterValueSource ValueSource
@@ -67,7 +68,7 @@ public partial class ScriptParameterFieldViewModel : ObservableObject
         || !string.Equals(Value, _resetValue, StringComparison.Ordinal);
     public string Unit => _definition.Constraints?.Unit ?? string.Empty;
     public bool HasUnit => Unit.Length > 0;
-    public bool HasDescription => Description.Length > 0;
+    public bool HasDescription => !string.IsNullOrWhiteSpace(Description);
     public bool HasError => Error.Length > 0;
     public bool UsesTextEditor => _definition.Type == ScriptParameterType.String;
     public bool UsesMultilineEditor => _definition.Type == ScriptParameterType.MultilineString;

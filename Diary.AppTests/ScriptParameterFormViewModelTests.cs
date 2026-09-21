@@ -21,6 +21,20 @@ public sealed class ScriptParameterFormViewModelTests
     }
 
     [TestMethod]
+    [DataRow(null, null)]
+    [DataRow("   ", null)]
+    [DataRow("选择统计范围", "选择统计范围")]
+    public void FieldDescriptionToolTip_OnlyExistsForVisibleDescription(
+        string? description,
+        string? expected)
+    {
+        var form = CreateForm(CreateDescriptor(new ScriptParameterDefinition(
+            "range", "统计范围", ScriptParameterType.Choice, Description: description)));
+
+        Assert.AreEqual(expected, form.Fields.Single().DescriptionToolTip);
+    }
+
+    [TestMethod]
     public void MetadataDefaults_InitializesFromMetadataAndOnlyWritesOverrides()
     {
         var form = CreateForm(

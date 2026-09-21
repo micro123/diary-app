@@ -7,8 +7,8 @@
         <ItemsControl.ItemTemplate>
             <DataTemplate DataType="models:ScriptParameterFieldViewModel">
                 <Grid ColumnDefinitions="150,*" ColumnSpacing="8" Margin="0 2">
-                    <StackPanel VerticalAlignment="Center" Spacing="1"
-                                ToolTip.Tip="{Binding Description}">
+                    <StackPanel VerticalAlignment="Center" Spacing="1" Background="Transparent"
+                                ToolTip.Tip="{Binding DescriptionToolTip}">
                         <TextBlock Text="{Binding DisplayLabel}"
                                    AutomationProperties.Name="{Binding DisplayLabel}" />
                         <TextBlock Text="{Binding TypeLabel}" FontSize="11" Opacity="0.55" />
@@ -18,8 +18,7 @@
                             <Grid>
                             <Grid IsVisible="{Binding UsesTextEditor}" ColumnDefinitions="*,Auto" ColumnSpacing="6">
                                 <TextBox Text="{Binding Value, Mode=TwoWay}"
-                                         Watermark="{Binding Placeholder}"
-                                         ToolTip.Tip="{Binding Description}" />
+                                         Watermark="{Binding Placeholder}" />
                                 <ComboBox Grid.Column="1" Width="136"
                                           IsVisible="{Binding HasSuggestions}"
                                           ItemsSource="{Binding Suggestions}"
