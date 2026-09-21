@@ -16,8 +16,7 @@
             </Grid>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
                 <Button Content="新建脚本" Command="{Binding CreateScriptCommand}" Classes="Primary" />
-                <Button Content="导出共享包" Command="{Binding ExportScriptsCommand}"
-                        IsEnabled="{Binding CanExportScripts}" />
+                <Button Content="导出共享包" Command="{Binding ExportScriptsCommand}" />
                 <Button Content="打开脚本目录" Command="{Binding OpenScriptsFolderCommand}" />
                 <Button Content="重新加载" Command="{Binding ReloadCommand}"
                         IsEnabled="{Binding CanReload}" />
