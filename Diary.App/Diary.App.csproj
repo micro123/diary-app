@@ -46,12 +46,15 @@
                  CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
         <Content Include="..\Docs\AiScriptContextGuide.md" Link="Docs\AiScriptContextGuide.md"
                  CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+        <Content Include="..\Docs\AiAgentUserGuide.md" Link="Docs\AiAgentUserGuide.md"
+                 CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\Diary.AiContext\Diary.AiContext.csproj" />
         <PackageReference Include="Avalonia.Desktop" Version="11.3.18" />
         <PackageReference Include="Microsoft.Diagnostics.NETCore.Client" Version="0.2.661903" />
+        <PackageReference Include="System.Diagnostics.EventLog" Version="10.0.10" />
         <PackageReference Include="SkiaSharp" Version="2.88.9" />
         <PackageReference Include="Semi.Avalonia.AvaloniaEdit" Version="11.2.0.2" />
         <PackageReference Include="AvaloniaEdit.TextMate" Version="11.2.0" />
@@ -84,6 +87,9 @@
         <ProjectReference Include="..\Diary.Database\Diary.Database.csproj" />
         <ProjectReference Include="..\Diary.Db.PostgreSQL\Diary.Db.PostgreSQL.csproj" />
         <ProjectReference Include="..\Diary.GUIBase\Diary.GUIBase.csproj" />
+        <ProjectReference Include="..\Diary.Agent.UI\Diary.Agent.UI.csproj" ReferenceOutputAssembly="false" />
+        <ProjectReference Include="..\Diary.ModuleBase\Diary.ModuleBase.csproj" />
+        <ProjectReference Include="..\Diary.ModuleUI\Diary.ModuleUI.csproj" />
         <ProjectReference Include="..\Diary.MigrationTool\Diary.MigrationTool.csproj" />
         <ProjectReference Include="..\Diary.PluginBase\Diary.PluginBase.csproj" />
         <ProjectReference Include="..\Diary.PluginUI\Diary.PluginUI.csproj" />
@@ -106,13 +112,43 @@
 
     <Target Name="BuildAndCopyTrackerPlugins" AfterTargets="Build">
         <MSBuild Projects="@(TrackerPluginProject)"
+                 Targets="Restore"
+                 BuildInParallel="false"
+                 Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained)"
+                 Condition="'$(RuntimeIdentifier)' != ''" />
+        <MSBuild Projects="@(TrackerPluginProject)"
                  Targets="Build"
                  BuildInParallel="true"
-                 Properties="Configuration=$(Configuration)" />
-        <MSBuild Projects="@(TrackerPluginProject)" Targets="GetTargetPath">
+                 Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained)" />
+        <MSBuild Projects="@(TrackerPluginProject)"
+                 Targets="GetTargetPath"
+                 Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained)">
             <Output TaskParameter="TargetOutputs" ItemName="TrackerPluginAssembly" />
         </MSBuild>
         <Copy SourceFiles="@(TrackerPluginAssembly)" DestinationFolder="$(OutputPath)" />
+    </Target>
+
+    <Target Name="BuildAndCopyAiAgentModule" AfterTargets="Build">
+        <MSBuild Projects="..\Diary.Agent.UI\Diary.Agent.UI.csproj"
+                 Targets="Build"
+                 Properties="Configuration=$(Configuration)"
+                 RemoveProperties="RuntimeIdentifier;SelfContained;PublishSingleFile" />
+        <PropertyGroup>
+            <AiAgentBuildDirectory>$(MSBuildProjectDirectory)\..\Diary.Agent.UI\bin\$(Configuration)\net10.0\</AiAgentBuildDirectory>
+            <AiAgentCoreBuildDirectory>$(MSBuildProjectDirectory)\..\Diary.Agent\bin\$(Configuration)\net10.0\</AiAgentCoreBuildDirectory>
+            <AiAgentModuleDirectory>$(OutputPath)Modules\diary.ai-agent\</AiAgentModuleDirectory>
+        </PropertyGroup>
+        <ItemGroup>
+            <AiAgentModuleOutput Include="$(AiAgentBuildDirectory)Diary.Agent.UI.dll" />
+            <AiAgentModuleOutput Include="$(AiAgentBuildDirectory)Diary.Agent.UI.deps.json" />
+            <AiAgentModuleOutput Include="$(AiAgentBuildDirectory)Diary.Agent.dll" />
+            <AiAgentModuleOutput Include="$(AiAgentCoreBuildDirectory)AngleSharp.dll" />
+            <AiAgentModuleOutput Include="$(MSBuildProjectDirectory)\..\Diary.Agent.UI\module.json" />
+        </ItemGroup>
+        <MakeDir Directories="$(AiAgentModuleDirectory)" />
+        <Copy SourceFiles="@(AiAgentModuleOutput)"
+              DestinationFolder="$(AiAgentModuleDirectory)"
+              SkipUnchangedFiles="true" />
     </Target>
 
     <Target Name="BuildAndCopyScriptWorker" AfterTargets="Build">
@@ -156,6 +192,9 @@
         </PropertyGroup>
         <RemoveDir Directories="$(AiMcpPublishDirectory)" />
         <MSBuild Projects="..\Diary.Mcp\Diary.Mcp.csproj"
+                 Targets="Restore"
+                 Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=true" />
+        <MSBuild Projects="..\Diary.Mcp\Diary.Mcp.csproj"
                  Targets="Publish"
                  Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=true;PublishSingleFile=false;DebugType=None;DebugSymbols=false;PublishDir=$(AiMcpPublishDirectory)" />
         <Exec Command="$(AiMcpMergePython) &quot;$(MSBuildProjectDirectory)/../Tools/merge-publish-directory.py&quot; --source &quot;$(AiMcpMergeSourceDirectory)&quot; --target &quot;$(AiMcpMergeTargetDirectory)&quot;$(AiMcpCaseInsensitiveArgument)" />
@@ -168,6 +207,11 @@
             <RuntimeExtensionPublishOutput Include="$(OutputPath)Diary.Jira*.dll" />
             <ResolvedFileToPublish Include="@(RuntimeExtensionPublishOutput)">
                 <RelativePath>%(Filename)%(Extension)</RelativePath>
+                <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            </ResolvedFileToPublish>
+            <AiAgentModulePublishOutput Include="$(OutputPath)Modules\diary.ai-agent\**\*" />
+            <ResolvedFileToPublish Include="@(AiAgentModulePublishOutput)">
+                <RelativePath>Modules\diary.ai-agent\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
                 <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
             </ResolvedFileToPublish>
         </ItemGroup>

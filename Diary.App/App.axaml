@@ -33,6 +33,15 @@
                 <ItemsControl Classes="Settings" ItemsSource="{Binding Children}" />
             </Expander>
         </DataTemplate>
+        <DataTemplate DataType="{x:Type appVm:ModuleSettingsItem}">
+            <Border Classes="DetailPane" Margin="0,4,0,8" Padding="12">
+                <Grid RowDefinitions="Auto,*" RowSpacing="10">
+                    <TextBlock Text="{Binding Title}" Classes="SectionHeader"
+                               FontSize="{StaticResource SemiFontSizeHeader3}" />
+                    <ContentControl Grid.Row="1" Content="{Binding ViewModel}" />
+                </Grid>
+            </Border>
+        </DataTemplate>
         <DataTemplate DataType="{x:Type giBaseVm:SettingText}">
             <Grid Classes="SettingLineBox" ColumnDefinitions="Auto,Auto,Auto,*" VerticalAlignment="Center">
                 <TextBlock Classes="SettingLineCaption" />

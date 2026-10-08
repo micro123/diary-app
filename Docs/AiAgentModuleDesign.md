@@ -2,14 +2,16 @@
 
 ## 1. 文档状态
 
-- 状态：详细设计，已完成首轮评审并按轻量数据边界修订
+- 状态：详细设计已实现并通过自动化、UI 与发布门禁
 - 日期：2026-10-08
 - 需求基线：[`AiAgentModuleRequirements.md`](AiAgentModuleRequirements.md)
 - 评审记录：[`AiAgentModuleDesignReview.md`](AiAgentModuleDesignReview.md)
-- 实施状态：未实现
+- 实施状态：阶段 A、P0、P1 和首版 MCP Client 已完成；受控浏览器与独立在线更新保留为后续边界
 
 本文定义 DiaryApp 可选内置 AI Agent 的组件边界、生命周期、数据流、工具策略、配置、网络、UI、发布和测试方案。当前已经实现的 AI 脚本上下文和只读 MCP 继续以
 [`AiScriptContextDesign.md`](AiScriptContextDesign.md) 为准；本设计不得把现有 `Diary.Mcp` 扩展为写入入口。
+
+截至 2026-10-08，通用模块、三协议 Agent、连接/代理/凭据、只读 Diary 工具、受控网页、草稿与确认事项写入、会话/审计、stdio/Streamable HTTP MCP Client、AI 页面与设置页均已落地。模块状态损坏时保留原文件并全量禁用；`--core-only` 直接跳过模块发现。内部 DeepSeek/GLM 的真实连接探测仍需要部署方提供实际地址、模型名和凭据，不属于代码实现缺口。
 
 ## 2. 设计目标与约束
 
@@ -499,7 +501,7 @@ ProtocolError
 5. 可选的流式工具调用；
 6. 可选并行工具调用探测。
 
-探测使用临时客户端，不影响当前会话。结果记录协议、能力和测试时间，不记录提示词或凭据。Agent 模式最低要求是普通对话和完整工具调用闭环；流式失败可以降级为非流式。不得在探测失败后自动改用另一协议重试。
+探测使用临时客户端，不影响当前会话。结果分别记录普通对话、流式文本、普通工具闭环、流式工具闭环、并行工具调用、强制工具选择和测试时间，不记录提示词或凭据。Agent 模式最低要求是普通对话和完整工具调用闭环；流式或扩展工具能力失败可以按已探测能力降级。不得在探测失败后自动改用另一协议重试。
 
 ## 9. Agent 会话与运行循环
 
@@ -627,7 +629,7 @@ AllowAutomatically
 | `diary_get_current_context` | UI 当前日期/选择的只读快照 | 启用 |
 | `diary_validate_script` | 现有校验服务适配器 | 启用 |
 
-模块不得持有 `DbInterfaceBase`。宿主在 DI 中注册稳定 Script Host API 或只读 facade。工作项适配器不得调用 `WorkGetNote` 或 `GetWorkNotesByWorkItemIds`，工具 DTO 也不得定义本地备注字段；其他普通工作字段可以按查询结果返回。
+模块不得持有 `DbInterfaceBase`。宿主在 DI 中注册稳定 Script Host API 或只读 facade。Agent 使用 `WorkItemQueryScriptApi` 的显式无备注模式，该模式不会调用 `WorkGetNote` 或 `GetWorkNotesByWorkItemIds`；工具 DTO 同样不定义本地备注字段。普通脚本 API 保持原有可读取备注的行为，其他普通工作字段可以按查询结果返回。
 
 ### 11.2 P1 草稿和写入
 
@@ -883,7 +885,7 @@ AI 模块随程序安装但默认禁用。用户启用后重启生效；未启�
 
 ### 阶段 E：P2 扩展
 
-- MCP Client；
+- MCP Client：已完成 stdio、Streamable HTTP、Session ID、SSE 通知、工具列表原子替换和写工具确认；
 - 受控浏览器和复杂内容；
 - 独立模块在线更新；
 - 更多协议和多模态。
@@ -904,3 +906,13 @@ AI 模块随程序安装但默认禁用。用户启用后重启生效；未启�
 | 模型数据边界 | 普通工作数据可用；工作项本地备注在工具适配层排除 |
 | 写入 | P1 新增稳定命令网关，不直接使用不完整简化 API |
 | 发布 | P0 随主程序安装但默认禁用；独立下载和更新后续实现 |
+
+## 20. 实施与验证结果
+
+- `Diary.AgentTests` 52/52，通过三协议、完整能力探测、模型/代理、网页安全、事项确认、MCP、会话与审计测试；另由 `Diary.ScriptTests` 验证 Agent 无备注查询模式不调用备注读取器；
+- `Diary.ModuleTests` 12/12，通过 Debug/Release 模块目录、私有 `AssemblyLoadContext`、禁用和故障隔离测试；
+- `Diary.AppTests` 318/318；`Diary.DbTests` 150 通过，111 项 PostgreSQL/Docker 或 Linux 专属用例按当前环境跳过；
+- AI CDP 套件 7/7，通过导航、Agent 状态、真实本地假模型工具闭环、拒绝写入、键盘发送、设置贡献和递归 seed；
+- `win-x64`、`linux-x64` 自包含发布成功，模块目录只包含 `module.json`、`Diary.Agent.UI.dll`、`Diary.Agent.UI.deps.json`、`Diary.Agent.dll`、`AngleSharp.dll`，宿主根目录无 AI 私有程序集；
+- Windows 发布包在默认禁用、`--core-only` 和模块目录缺失三种形态下均可持续启动且不加载 AI 私有能力；
+- 真实内部 DeepSeek/GLM 探测必须在取得实际连接参数后执行，当前协议兼容性由本地模拟服务覆盖。

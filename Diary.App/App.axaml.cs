@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.Loader;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
@@ -27,6 +28,8 @@ using Diary.GUIBase;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
+using Diary.ModuleBase;
+using Diary.ModuleUI;
 using Diary.PluginBase;
 using Diary.Script.CSharp;
 using Diary.Script.Lua;
@@ -475,6 +478,8 @@ namespace Diary.App
             services.AddSingleton<TrackerPluginLifecycleCoordinator>();
             services.AddSingleton<TrackerPluginDiagnosticsService>();
             services.AddSingleton<TrackerUiContributionRegistry>();
+            services.AddSingleton<NavigationContributionRegistry>();
+            services.AddSingleton<SettingsContributionRegistry>();
             services.AddSingleton<DatabaseRestoreCoordinator>();
             services.AddSingleton(_ =>
             {
@@ -506,9 +511,34 @@ namespace Diary.App
             });
             services.AddSingleton<IScriptCatalog, ScriptCatalog>();
             services.AddSingleton<IScriptBuildService, ScriptBuildService>();
+            services.AddSingleton<IWorkItemQueryScriptApi>(_ => new WorkItemQueryScriptApi(
+                () => UseDb,
+                includeLocalNotes: false));
+            services.AddSingleton<ITemplateScriptApi>(_ => new TemplateScriptApi(
+                () => TemplateManager.Instance.Templates.ToArray()));
+            services.AddSingleton<ITrackerInstanceScriptApi>(provider => new TrackerInstanceScriptApi(
+                provider.GetRequiredService<PluginInstanceRegistry>()));
+            services.AddSingleton<IWorkTagScriptApi>(provider => new WorkTagScriptApi(
+                () => provider.GetRequiredService<DbShareData>().WorkTags.ToArray()));
+            services.AddSingleton<ICurrentContextScriptApi>(_ => new CurrentContextScriptApi(() =>
+            {
+                var editor = Services.GetRequiredService<DiaryEditorViewModel>();
+                return new ScriptCurrentContext(
+                    TimeTools.FormatDateTime(editor.CurrentDate),
+                    editor.SelectedWork?.WorkId,
+                    editor.SelectedWork?.Comment);
+            }));
+            services.AddSingleton<IScriptValidationScriptApi, ScriptValidationScriptApi>();
             services.AddSingleton<IScriptExecutor, ScriptExecutor>();
             services.AddSingleton<IScriptIdempotencyStore>(_ => new ScriptIdempotencyStore(
                 Path.Combine(FsTools.GetApplicationConfigDirectory(), "scripts", "idempotency.json")));
+            services.AddSingleton<IWorkItemCommandIdempotencyStore>(_ => new WorkItemCommandIdempotencyStore(
+                Path.Combine(FsTools.GetApplicationConfigDirectory(), "ai-agent", "work-item-idempotency.json")));
+            services.AddSingleton<IWorkItemCommandApi>(provider => new WorkItemCommandApi(
+                () => UseDb,
+                provider.GetRequiredService<IWorkItemPersistenceCoordinator>(),
+                provider.GetRequiredService<IWorkItemCommandIdempotencyStore>(),
+                () => EventDispatcher.DbChanged(DbChangedEvent.ShareData)));
             services.AddSingleton<IWorkerHostCallDispatcher>(_ =>
                  new WorkItemQueryWorkerDispatcher(
                       () => new WorkItemQueryScriptApi(() => UseDb),
@@ -867,10 +897,79 @@ namespace Diary.App
             }
             services.AddTypesFromAssembly(Assembly.GetExecutingAssembly());
             services.AddTypesFromAssembly(typeof(ViewLocator).Assembly);
+            var moduleCatalog = CreateAppModuleCatalog();
+            if (!StartupOptions.CoreOnly)
+                moduleCatalog.DiscoverAndConfigure(services);
+            services.AddSingleton(moduleCatalog);
+            LogModuleDiagnostics(moduleCatalog.Diagnostics);
             if (!StartupOptions.CoreOnly)
                 LoadPluginUiAssemblies(services);
 
             return services.BuildServiceProvider();
+        }
+
+        private static AppModuleCatalog CreateAppModuleCatalog()
+        {
+            var sharedNames = AssemblyLoadContext.Default.Assemblies
+                .Select(assembly => assembly.GetName().Name)
+                .Where(name => name is not null && (
+                    name.StartsWith("Avalonia", StringComparison.Ordinal)
+                    || name.StartsWith("Microsoft.Extensions.", StringComparison.Ordinal)
+                    || name is "Diary.ModuleBase"
+                        or "Diary.ModuleUI"
+                        or "Diary.Core"
+                        or "Diary.GUIBase"
+                        or "Diary.ScriptBase"
+                        or "Diary.ScriptHost"))
+                .Cast<string>()
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            sharedNames.Add(typeof(IAppModule).Assembly.GetName().Name!);
+            sharedNames.Add(typeof(INavigationContribution).Assembly.GetName().Name!);
+
+            return new AppModuleCatalog(new AppModuleCatalogOptions(
+                Path.Combine(FsTools.GetBinaryDirectory(), "Modules"),
+                Path.Combine(FsTools.GetApplicationConfigDirectory(), "module-states.json"),
+                FsTools.GetApplicationConfigDirectory(),
+                typeof(App).Assembly.GetName().Version ?? new Version(1, 0, 0),
+                1,
+                new HashSet<string>(StringComparer.Ordinal)
+                {
+                    "module.navigation",
+                    "module.settings",
+                    "script.work_items.query",
+                },
+                sharedNames));
+        }
+
+        private void LogModuleDiagnostics(IEnumerable<AppModuleDiagnostic> diagnostics)
+        {
+            foreach (var diagnostic in diagnostics)
+            {
+                if (diagnostic.Severity == AppModuleDiagnosticSeverity.Error)
+                {
+                    Logger.LogError(
+                        "App module {ModuleId} [{Code}]: {Message}",
+                        diagnostic.ModuleId,
+                        diagnostic.Code,
+                        diagnostic.Message);
+                }
+                else if (diagnostic.Severity == AppModuleDiagnosticSeverity.Warning)
+                {
+                    Logger.LogWarning(
+                        "App module {ModuleId} [{Code}]: {Message}",
+                        diagnostic.ModuleId,
+                        diagnostic.Code,
+                        diagnostic.Message);
+                }
+                else
+                {
+                    Logger.LogInformation(
+                        "App module {ModuleId} [{Code}]: {Message}",
+                        diagnostic.ModuleId,
+                        diagnostic.Code,
+                        diagnostic.Message);
+                }
+            }
         }
 
         private void LoadPluginUiAssemblies(IServiceCollection services)
@@ -948,6 +1047,7 @@ namespace Diary.App
                 var vm = Services.GetRequiredService<MainWindowViewModel>();
                 vm.SetView(desktop.MainWindow);
                 desktop.MainWindow.DataContext = vm;
+                ObserveBackgroundTask(StartAppModulesAsync(), "可选应用模块启动");
 #if DEBUG
                 DebugUiAutomation.Start();
 #endif
@@ -989,6 +1089,14 @@ namespace Diary.App
             // start keep-alive thread
             StartKeepAliveTimer();
             ObserveBackgroundTask(HandleUpdateStartupAsync(success), "更新后启动确认");
+        }
+
+        private async Task StartAppModulesAsync()
+        {
+            var catalog = Services.GetRequiredService<AppModuleCatalog>();
+            var diagnosticCount = catalog.Diagnostics.Count;
+            await catalog.StartAsync(Services);
+            LogModuleDiagnostics(catalog.Diagnostics.Skip(diagnosticCount));
         }
 
         private async Task HandleUpdateStartupAsync(bool startupSucceeded)
@@ -1173,9 +1281,13 @@ namespace Diary.App
             (Services.GetRequiredService<ScriptAutomationScheduler>() as IDisposable)?.Dispose();
             await Services.GetRequiredService<IWorkerScriptExecutor>().StopAllAsync();
             await Services.GetRequiredService<NotificationHistoryService>().FlushAsync();
+            var moduleCatalog = Services.GetRequiredService<AppModuleCatalog>();
+            var moduleDiagnosticCount = moduleCatalog.Diagnostics.Count;
+            await moduleCatalog.StopAsync();
+            LogModuleDiagnostics(moduleCatalog.Diagnostics.Skip(moduleDiagnosticCount));
             SaveConfigurations();
             SavePluginConfigurations();
-            (Services as IDisposable)?.Dispose();
+            await ServiceProviderDisposal.DisposeAsync(Services);
             Logging.Shutdown();
         }
 

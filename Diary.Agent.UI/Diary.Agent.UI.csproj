@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.18" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Diary.Agent\Diary.Agent.csproj" />
+    <ProjectReference Include="..\Diary.GUIBase\Diary.GUIBase.csproj" />
+    <ProjectReference Include="..\Diary.ModuleBase\Diary.ModuleBase.csproj" />
+    <ProjectReference Include="..\Diary.ModuleUI\Diary.ModuleUI.csproj" />
+    <ProjectReference Include="..\Diary.ScriptHost\Diary.ScriptHost.csproj" />
+  </ItemGroup>
+</Project>

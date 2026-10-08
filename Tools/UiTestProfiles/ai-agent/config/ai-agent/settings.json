@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "settings": {
+    "enabledTools": {
+      "diary": true,
+      "workItemWrite": true,
+      "webSearch": false,
+      "webFetch": false,
+      "mcp": false
+    },
+    "defaultProfileId": "ui-mock",
+    "profiles": [
+      {
+        "id": "ui-mock",
+        "displayName": "UI 假模型",
+        "protocol": 0,
+        "baseUri": "http://127.0.0.1:19321/v1/",
+        "model": "ui-mock-model",
+        "authentication": {
+          "kind": 0
+        }
+      }
+    ],
+    "capabilities": {
+      "ui-mock": {
+        "supportsChat": true,
+        "supportsStreaming": true,
+        "supportsTools": true,
+        "supportsStreamingTools": true,
+        "supportsParallelTools": true,
+        "supportsForcedToolChoice": true,
+        "testedAtUtc": "2026-10-08T00:00:00+00:00"
+      }
+    }
+  }
+}

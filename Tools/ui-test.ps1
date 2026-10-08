@@ -101,8 +101,12 @@ function Start-UiTest {
         }
         $targetConfig = Join-Path $profile 'config'
         New-Item -ItemType Directory -Path $targetConfig -Force | Out-Null
-        Get-ChildItem -LiteralPath $seedConfig -File | ForEach-Object {
-            Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $targetConfig $_.Name) -Force
+        Get-ChildItem -LiteralPath $seedConfig -Recurse -File | ForEach-Object {
+            $relativePath = [IO.Path]::GetRelativePath($seedConfig, $_.FullName)
+            $targetPath = Join-Path $targetConfig $relativePath
+            $targetDirectory = Split-Path -Parent $targetPath
+            New-Item -ItemType Directory -Path $targetDirectory -Force | Out-Null
+            Copy-Item -LiteralPath $_.FullName -Destination $targetPath -Force
         }
     }
 

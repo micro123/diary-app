@@ -1,0 +1,171 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:Diary.Agent.UI.ViewModels"
+             x:Class="Diary.Agent.UI.Views.AiAgentSettingsView"
+             x:DataType="vm:AiAgentSettingsViewModel"
+             mc:Ignorable="d"
+             MinHeight="520">
+    <UserControl.Resources>
+        <DataTemplate x:Key="EnumOptionTemplate" x:CompileBindings="False">
+            <TextBlock Text="{Binding}" />
+        </DataTemplate>
+    </UserControl.Resources>
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" RowSpacing="10">
+        <StackPanel>
+            <TextBlock Text="AI 助手设置" FontWeight="SemiBold" FontSize="18" />
+            <TextBlock Text="连接测试使用 working copy；测试失败不会覆盖已保存配置。密钥正文不会显示或写入普通设置文件。"
+                       TextWrapping="Wrap" Opacity="0.7" />
+        </StackPanel>
+
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" ColumnSpacing="12">
+            <CheckBox Content="Diary 只读工具" IsChecked="{Binding DiaryToolsEnabled}" />
+            <CheckBox Grid.Column="1" Content="确认后创建事项" IsChecked="{Binding WorkItemWriteEnabled}" />
+            <CheckBox Grid.Column="2" Content="网页搜索" IsChecked="{Binding WebSearchEnabled}" />
+            <CheckBox Grid.Column="3" Content="网页读取" IsChecked="{Binding WebFetchEnabled}" />
+            <CheckBox Grid.Column="4" Content="MCP 工具" IsChecked="{Binding McpEnabled}" />
+            <TextBox Grid.Column="5" Watermark="默认连接 ID" Text="{Binding DefaultProfileId}" />
+            <Button Grid.Column="6" Content="设为默认" Command="{Binding SetDefaultProfileCommand}" />
+        </Grid>
+
+        <Expander Grid.Row="2" Header="MCP Servers（高级 JSON 配置）">
+            <StackPanel Spacing="6" Margin="0,6,0,0">
+                <TextBlock Text="只会公开 tools 中本地显式启用的工具；写工具仍逐次确认。配置在下一次运行时连接。"
+                           TextWrapping="Wrap" Opacity="0.7" />
+                <TextBox Text="{Binding McpServersJson}" AcceptsReturn="True" MinHeight="120"
+                         FontFamily="Consolas" TextWrapping="NoWrap" />
+            </StackPanel>
+        </Expander>
+
+        <Expander Grid.Row="3" Header="网页访问策略（重启后生效）">
+            <StackPanel Spacing="6" Margin="0,6,0,0">
+                <TextBlock Text="配置独立代理、预算和显式内部站点白名单；认证正文仍只写入凭据存储。"
+                           TextWrapping="Wrap" Opacity="0.7" />
+                <TextBox Text="{Binding WebAccessJson}" AcceptsReturn="True" MinHeight="120"
+                         FontFamily="Consolas" TextWrapping="NoWrap" />
+            </StackPanel>
+        </Expander>
+
+        <Expander Grid.Row="4" Header="AI 默认代理（连接选择“继承”时使用）">
+            <StackPanel Spacing="6" Margin="0,6,0,0">
+                <TextBlock Text="代理密码只填写 Credential Reference；配置保存后下一次新客户端生效。"
+                           TextWrapping="Wrap" Opacity="0.7" />
+                <TextBox Text="{Binding DefaultProxyJson}" AcceptsReturn="True" MinHeight="100"
+                         FontFamily="Consolas" TextWrapping="NoWrap" />
+            </StackPanel>
+        </Expander>
+
+        <Grid Grid.Row="5" ColumnDefinitions="220,*" ColumnSpacing="12">
+            <Grid RowDefinitions="*,Auto,Auto" RowSpacing="8">
+                <ListBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:AiConnectionEditorViewModel">
+                            <StackPanel Margin="6">
+                                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding TestStatus}" TextWrapping="Wrap" Opacity="0.65" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <Grid Grid.Row="1" ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                    <Button Content="新增" Command="{Binding AddProfileCommand}" />
+                    <Button Grid.Column="1" Content="复制" Command="{Binding DuplicateProfileCommand}" />
+                    <Button x:Name="RemoveAiConnectionButton" Grid.Column="2" Content="删除"
+                            Command="{Binding RemoveProfileCommand}" />
+                </Grid>
+                <CheckBox Grid.Row="2" IsChecked="{Binding DeleteCredentialsWithProfile}">
+                    <TextBlock Text="删除连接时清理未被其他连接使用的本地凭据"
+                               TextWrapping="Wrap" />
+                </CheckBox>
+            </Grid>
+
+            <Border Grid.Column="1" IsVisible="{Binding HasNoSelectedProfile}"
+                    Padding="28" VerticalAlignment="Top">
+                <StackPanel HorizontalAlignment="Center" Spacing="10" MaxWidth="420">
+                    <TextBlock Text="尚未添加模型连接" FontSize="17" FontWeight="SemiBold"
+                               HorizontalAlignment="Center" />
+                    <TextBlock Text="请先新增连接，再选择协议、认证方式和代理模式。"
+                               TextWrapping="Wrap" TextAlignment="Center" Opacity="0.7" />
+                    <Button x:Name="AddAiConnectionEmptyButton" Content="新增连接"
+                            Classes="Primary" HorizontalAlignment="Center"
+                            Command="{Binding AddProfileCommand}" />
+                    <SelectableTextBlock Text="{Binding SaveStatus}" TextWrapping="Wrap"
+                                         TextAlignment="Center" Opacity="0.7" />
+                </StackPanel>
+            </Border>
+
+            <ScrollViewer Grid.Column="1" IsVisible="{Binding HasSelectedProfile}">
+                <StackPanel Spacing="10" DataContext="{Binding SelectedProfile}">
+                    <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                          ColumnSpacing="8" RowSpacing="8">
+                        <TextBlock Text="连接 ID" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding Id}" />
+                        <TextBlock Grid.Row="1" Text="显示名称" VerticalAlignment="Center" />
+                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding DisplayName}" />
+                        <TextBlock Grid.Row="2" Text="协议" VerticalAlignment="Center" />
+                        <ComboBox x:Name="AiProtocolComboBox" Grid.Row="2" Grid.Column="1"
+                                  ItemsSource="{Binding ProtocolOptions}" SelectedItem="{Binding Protocol}"
+                                  ItemTemplate="{StaticResource EnumOptionTemplate}" />
+                        <TextBlock Grid.Row="3" Text="Base URL" VerticalAlignment="Center" />
+                        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding BaseUri}" />
+                        <TextBlock Grid.Row="4" Text="路径覆盖" VerticalAlignment="Center" />
+                        <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding RequestPathOverride}" Watermark="使用协议默认路径" />
+                        <TextBlock Grid.Row="5" Text="模型" VerticalAlignment="Center" />
+                        <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Model}" />
+                        <TextBlock Grid.Row="6" Text="认证方式" VerticalAlignment="Center" />
+                        <ComboBox x:Name="AiAuthenticationComboBox" Grid.Row="6" Grid.Column="1"
+                                  ItemsSource="{Binding AuthenticationOptions}" SelectedItem="{Binding AuthenticationKind}"
+                                  ItemTemplate="{StaticResource EnumOptionTemplate}" />
+                        <TextBlock Grid.Row="7" Text="认证 Header" VerticalAlignment="Center" />
+                        <Grid Grid.Row="7" Grid.Column="1" ColumnDefinitions="*,*" ColumnSpacing="8">
+                            <TextBox Text="{Binding HeaderName}" />
+                            <TextBox Grid.Column="1" Text="{Binding HeaderPrefix}" Watermark="前缀，例如 Bearer " />
+                        </Grid>
+                        <TextBlock Grid.Row="8" Text="Credential Reference" VerticalAlignment="Center" />
+                        <TextBox Grid.Row="8" Grid.Column="1" Text="{Binding CredentialReference}" Watermark="diary.ai/... 或 env:变量名" />
+                        <TextBlock Grid.Row="9" Text="新 API Key" VerticalAlignment="Center" />
+                        <StackPanel Grid.Row="9" Grid.Column="1" Spacing="3">
+                            <TextBox Text="{Binding NewCredential}" PasswordChar="●"
+                                     Watermark="留空保留已保存凭据；不会回显" />
+                            <SelectableTextBlock Text="{Binding CredentialStatus}" Opacity="0.65" />
+                        </StackPanel>
+                        <TextBlock Grid.Row="10" Text="代理模式" VerticalAlignment="Center" />
+                        <ComboBox x:Name="AiProxyModeComboBox" Grid.Row="10" Grid.Column="1"
+                                  ItemsSource="{Binding ProxyOptions}" SelectedItem="{Binding ProxyMode}"
+                                  ItemTemplate="{StaticResource EnumOptionTemplate}" />
+                        <TextBlock Grid.Row="11" Text="代理地址" VerticalAlignment="Center" />
+                        <TextBox Grid.Row="11" Grid.Column="1" Text="{Binding ProxyAddress}" Watermark="http://proxy:8080" />
+                        <TextBlock Grid.Row="12" Text="代理用户名引用" VerticalAlignment="Center" />
+                        <TextBox Grid.Row="12" Grid.Column="1" Text="{Binding ProxyUsernameCredentialReference}" />
+                        <TextBlock Grid.Row="13" Text="新代理用户名" VerticalAlignment="Center" />
+                        <StackPanel Grid.Row="13" Grid.Column="1" Spacing="3">
+                            <TextBox Text="{Binding ProxyUsername}" PasswordChar="●" Watermark="留空保留" />
+                            <SelectableTextBlock Text="{Binding ProxyUsernameStatus}" Opacity="0.65" />
+                        </StackPanel>
+                        <TextBlock Grid.Row="14" Text="代理密码引用" VerticalAlignment="Center" />
+                        <TextBox Grid.Row="14" Grid.Column="1" Text="{Binding ProxyPasswordCredentialReference}" />
+                        <TextBlock Grid.Row="15" Text="新代理密码" VerticalAlignment="Center" />
+                        <StackPanel Grid.Row="15" Grid.Column="1" Spacing="3">
+                            <TextBox Text="{Binding ProxyPassword}" PasswordChar="●" Watermark="留空保留" />
+                            <SelectableTextBlock Text="{Binding ProxyPasswordStatus}" Opacity="0.65" />
+                        </StackPanel>
+                        <TextBlock Grid.Row="16" Text="绕过列表" VerticalAlignment="Top" />
+                        <TextBox Grid.Row="16" Grid.Column="1" Text="{Binding BypassList}" AcceptsReturn="True" MinHeight="64" />
+                        <TextBlock Grid.Row="17" Text="额外 Headers JSON" VerticalAlignment="Top" />
+                        <TextBox Grid.Row="17" Grid.Column="1" Text="{Binding HeadersJson}" AcceptsReturn="True"
+                                 MinHeight="80" FontFamily="Consolas" TextWrapping="NoWrap" />
+                    </Grid>
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+                        <Button Content="测试连接" Command="{Binding $parent[UserControl].DataContext.TestProfileCommand}" />
+                        <SelectableTextBlock Grid.Column="1" Text="{Binding TestStatus}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <Button x:Name="ReloadAiSettingsButton" Grid.Column="2" Content="重新加载"
+                                Command="{Binding $parent[UserControl].DataContext.ReloadCommand}" />
+                        <Button Grid.Column="3" Classes="Primary" Content="保存设置" Command="{Binding $parent[UserControl].DataContext.SaveCommand}" />
+                    </Grid>
+                    <SelectableTextBlock Text="{Binding $parent[UserControl].DataContext.SaveStatus}" TextWrapping="Wrap" />
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>

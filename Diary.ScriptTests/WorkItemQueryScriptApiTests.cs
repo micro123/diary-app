@@ -163,6 +163,33 @@ public sealed class WorkItemQueryScriptApiTests
     }
 
     [TestMethod]
+    public async Task QueryAsync_CanExcludeNotesWithoutCallingNoteProvider()
+    {
+        using var db = TestDatabase.Create();
+        var item = db.CreateWorkItem("2026-10-08", "agent-safe-title");
+        db.WorkUpdateNote(item, "LOCAL_NOTE_PROVIDER_MUST_NOT_RUN");
+        var noteProviderCalled = false;
+        var api = new WorkItemQueryScriptApi(
+            () => db,
+            includeLocalNotes: false,
+            localNotesProvider: (_, _) =>
+            {
+                noteProviderCalled = true;
+                throw new InvalidOperationException("备注读取器不应被调用。");
+            });
+
+        var result = await api.QueryAsync(new ScriptWorkItemQuery
+        {
+            StartDate = "2026-10-08",
+            EndDate = "2026-10-08",
+        });
+
+        Assert.IsTrue(result.Succeeded, result.Error?.Message);
+        Assert.IsFalse(noteProviderCalled);
+        Assert.IsNull(result.Items.Single().Note);
+    }
+
+    [TestMethod]
     public async Task QueryAsync_ExposesExtraFieldsByStableFieldKey()
     {
         using var db = TestDatabase.Create();

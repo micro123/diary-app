@@ -6,7 +6,10 @@ using Diary.ScriptBase;
 namespace Diary.ScriptHost;
 
 public sealed class WorkItemQueryScriptApi(
-    Func<DbInterfaceBase?> databaseProvider) : IWorkItemQueryScriptApi
+    Func<DbInterfaceBase?> databaseProvider,
+    bool includeLocalNotes = true,
+    Func<DbInterfaceBase, IReadOnlyCollection<int>, IReadOnlyDictionary<int, string>>? localNotesProvider = null)
+    : IWorkItemQueryScriptApi
 {
     public const int DefaultLimit = 100;
     public const int MaxLimit = 1_000;
@@ -43,8 +46,12 @@ public sealed class WorkItemQueryScriptApi(
 
             cancellationToken.ThrowIfCancellationRequested();
             var workItemIds = workItems.Select(item => item.Id).ToArray();
-            var notes = database.GetWorkNotesByWorkItemIds(workItemIds);
-            cancellationToken.ThrowIfCancellationRequested();
+            IReadOnlyDictionary<int, string> notes = includeLocalNotes
+                ? localNotesProvider?.Invoke(database, workItemIds)
+                  ?? database.GetWorkNotesByWorkItemIds(workItemIds)
+                : new Dictionary<int, string>();
+            if (includeLocalNotes)
+                cancellationToken.ThrowIfCancellationRequested();
             var tags = database.GetWorkTagsByWorkItemIds(workItemIds);
             cancellationToken.ThrowIfCancellationRequested();
             var extraFields = database.GetWorkItemExtraFieldsByWorkItemIds(workItemIds);

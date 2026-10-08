@@ -2,7 +2,7 @@
 
 ## 1. 文档状态
 
-- 状态：需求基线草案
+- 状态：需求基线已实现；外部内部模型实网验收待提供连接条件
 - 日期：2026-10-08
 - 范围：DiaryApp 内置 AI Agent、模型连接、网络代理、工具和数据边界
 - 不包含：具体项目拆分、类设计、数据库 schema、UI 视觉稿和实施排期
@@ -10,8 +10,8 @@
 详细实现方案和评审结论见 [`AiAgentModuleDesign.md`](AiAgentModuleDesign.md) 与
 [`AiAgentModuleDesignReview.md`](AiAgentModuleDesignReview.md)。
 
-本文描述计划中的可选 AI Agent 模块，不代表当前代码已经实现。当前已经落地的是 AI 脚本上下文、授权快照和只读 stdio MCP，详见
-[`AiScriptContextDesign.md`](AiScriptContextDesign.md)。后续实现应尽量复用现有 AI 上下文契约、Script Host API、预览、幂等和执行策略，但不得因此扩大当前 MCP 的只读边界。
+本文基线已经由 `Diary.ModuleBase`、`Diary.ModuleUI`、`Diary.Agent` 和 `Diary.Agent.UI` 实现。模块随主程序发布、默认禁用，并保持现有 AI 脚本上下文、授权快照和只读 `Diary.Mcp` 的独立边界，详见
+[`AiScriptContextDesign.md`](AiScriptContextDesign.md) 与 [`AiAgentUserGuide.md`](AiAgentUserGuide.md)。
 
 ## 2. 目标
 
@@ -522,12 +522,13 @@ JavaScript 动态网页、浏览器登录态、点击、表单提交、文件上
 
 ### 16.3 P2：后续扩展
 
+- 首版 MCP Client（stdio 与 Streamable HTTP、显式逐工具策略和写工具确认）已经提前实现；
 - 更新/删除事项；
 - 执行脚本；
 - Tracker 工时提交；
 - OpenAI Responses 的 Conversations、WebSocket、Background Mode 和托管工具；
 - Bedrock、Vertex AI、Azure AI 等平台专用协议；
-- MCP Client、公司知识库/业务系统连接器和受控浏览器工具；
+- 公司知识库/业务系统专用连接器和受控浏览器工具；
 - 多模态、语义索引和长期偏好；
 - 自动模型路由、故障转移和模块独立升级；
 - 企业 PAC、集成认证和更复杂代理。
@@ -549,14 +550,13 @@ P0 完成需同时满足：
 11. 工具注册表能够区分内置、模块和外部来源，未启用的工具不会进入模型请求；
 12. 自动化测试覆盖无模块、禁用、无配置、聊天降级、工具调用、代理、凭据遮罩和本地备注排除场景。
 
-## 18. 待决事项
+## 18. 实施结论与剩余外部条件
 
-1. 是否在 P0 就提供模块管理 UI，还是先使用启动配置；
-2. P0 是否包含会话持久化；
-3. 内部 DeepSeek、GLM 的真实 Base URL、协议格式、路径、模型名和认证方式；
-4. 内部服务分别支持哪些协议，以及是否完整支持流式工具调用和多轮工具历史；
-5. 公司代理的认证方式及是否需要域账号集成认证；
-6. 是否需要自定义企业 CA，及由系统信任库还是模块配置管理；
-7. 现有 AI 上下文/MCP UI 迁移到可选模块的版本节点；
-8. `web_search` 使用公司搜索服务、自建网关还是可配置第三方 Provider；
-9. MCP Client 和 JavaScript 浏览器工具是否进入首个可用版本。
+已确定并实现：启动配置启停、会话持久化、三协议、完整分层能力探测、受控网页读取、确认后事项创建、MCP Client、Windows/Linux 发布和模块化 UI。Agent 宿主查询使用不调用备注读取器的无备注模式，并由实际模型请求体唯一标记回归覆盖；`web_search` 仅在宿主提供 `IWebSearchProvider` 时注册，未配置 Provider 时不会向模型公开。
+
+仍需要部署环境提供的验收输入：
+
+1. 内部 DeepSeek、GLM 的真实 Base URL、协议、路径、模型名和凭据；
+2. 公司代理认证、企业 CA 或内部 DNS 的实际要求；
+3. `web_search` 的具体 Provider；
+4. 独立模块在线安装、签名、原子更新，以及 JavaScript 浏览器自动化的后续产品决策。

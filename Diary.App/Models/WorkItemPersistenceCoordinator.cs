@@ -85,7 +85,7 @@ public sealed class WorkItemPersistenceCoordinator : IWorkItemPersistenceCoordin
                 throw new InvalidOperationException("保存附加字段失败");
 
             var commitSuccess = db.CommitTransaction();
-            committed = true;
+            committed = commitSuccess;
             if (!commitSuccess)
                 return new WorkItemSaveResult(false, created, Error: "提交数据库事务失败");
             return new WorkItemSaveResult(true, created, item);

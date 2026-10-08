@@ -16,6 +16,7 @@ using Diary.Database;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
+using Diary.ModuleUI;
 using Diary.PluginBase;
 using Diary.Script.Runtime;
 using Diary.Update;
@@ -246,6 +247,16 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             built.Add(new NavigateInfo(PageNames.Scripts, "mdi-script-text-outline",
                 _serviceProvider.GetRequiredService<ScriptManagementViewModel>(), $"Alt+{idx++}"));
+        }
+        foreach (var contribution in _serviceProvider
+                     .GetRequiredService<NavigationContributionRegistry>()
+                     .GetPages())
+        {
+            built.Add(new NavigateInfo(
+                contribution.Title,
+                contribution.Icon,
+                contribution.ViewModel,
+                $"Alt+{idx++}"));
         }
         return built;
     }
