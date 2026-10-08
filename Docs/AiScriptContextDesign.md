@@ -1,5 +1,8 @@
 # AI 脚本上下文与只读 MCP 设计
 
+> 本文描述当前已经实现的 AI 脚本上下文与只读 MCP 边界。计划中的 App 内置可选 AI Agent、OpenAI-compatible 模型连接、代理、权限和受控写入需求见
+> [`AiAgentModuleRequirements.md`](AiAgentModuleRequirements.md)；该后续模块不得放宽本文定义的 MCP 只读边界。
+
 ## 1. 目标
 
 DiaryApp 已提供 C#、Lua、Python 脚本 API 文档，但 AI 生成脚本时还需要知道当前用户的标签、附加字段、模板、Tracker 实例和保存查询。本文定义两种共用同一份数据契约的只读入口：
