@@ -485,8 +485,8 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
         {
             AgentToolOrigin.BuiltIn when descriptor.Risk == AgentToolRisk.Write => settings.WorkItemWrite,
             AgentToolOrigin.BuiltIn => settings.Diary,
-            AgentToolOrigin.ExternalWeb when descriptor.ModelName == "web_fetch" => settings.WebFetch,
             AgentToolOrigin.ExternalWeb when descriptor.ModelName == "web_search" => settings.WebSearch,
+            AgentToolOrigin.ExternalWeb => settings.WebFetch,
             AgentToolOrigin.Mcp => settings.Mcp,
             _ => true,
         });

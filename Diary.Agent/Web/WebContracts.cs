@@ -1,4 +1,5 @@
 using Diary.Agent.Configuration;
+using System.Text.Json.Serialization;
 
 namespace Diary.Agent.Web;
 
@@ -24,11 +25,44 @@ public sealed record InternalWebSitePolicy(
     string? AuthenticationHeaderPrefix = null,
     string? CredentialReference = null);
 
+[JsonConverter(typeof(JsonStringEnumConverter<BrowserAccessMode>))]
+public enum BrowserAccessMode
+{
+    Disabled,
+    System,
+    Executable,
+    Cdp,
+}
+
+public enum BrowserWaitMode
+{
+    DomContentLoaded,
+    Load,
+    ShortDelay,
+}
+
+public sealed record BrowserAccessPolicy
+{
+    public BrowserAccessMode Mode { get; init; } = BrowserAccessMode.System;
+
+    public string? ExecutablePath { get; init; }
+
+    public Uri? CdpEndpoint { get; init; }
+
+    public bool Headless { get; init; } = true;
+
+    public int RenderDelayMilliseconds { get; init; } = 750;
+
+    public int MaxLinks { get; init; } = 100;
+}
+
 public sealed record WebAccessPolicy
 {
     public AiProxyConfiguration Proxy { get; init; } = new() { Mode = AiProxyMode.System };
 
     public IReadOnlyList<InternalWebSitePolicy> InternalSites { get; init; } = [];
+
+    public BrowserAccessPolicy Browser { get; init; } = new();
 
     public int MaxRedirects { get; init; } = 3;
 
@@ -63,6 +97,26 @@ public static class WebAccessPolicyValidator
             errors.Add("网页正文字符预算必须在 1,000 到 1,000,000 之间。");
         if (policy.Timeout < TimeSpan.FromSeconds(5) || policy.Timeout > TimeSpan.FromMinutes(5))
             errors.Add("网页读取超时必须在 5 秒到 5 分钟之间。");
+        var proxyErrors = AiConnectionProfileValidator.ValidateProxyConfiguration(policy.Proxy);
+        foreach (var proxyError in proxyErrors)
+            errors.Add($"网页代理无效：{proxyError}");
+        if (policy.Browser.RenderDelayMilliseconds is < 0 or > 30_000)
+            errors.Add("浏览器渲染等待必须在 0 到 30000 毫秒之间。");
+        if (policy.Browser.MaxLinks is < 0 or > 1000)
+            errors.Add("浏览器返回链接上限必须在 0 到 1000 之间。");
+        if (policy.Browser.Mode == BrowserAccessMode.Executable
+            && (string.IsNullOrWhiteSpace(policy.Browser.ExecutablePath)
+                || policy.Browser.ExecutablePath.Contains('\0')
+                || policy.Browser.ExecutablePath.Contains('\r')
+                || policy.Browser.ExecutablePath.Contains('\n')))
+        {
+            errors.Add("指定浏览器模式必须配置有效的可执行文件路径。");
+        }
+        if (policy.Browser.Mode == BrowserAccessMode.Cdp
+            && !IsValidLocalCdpEndpoint(policy.Browser.CdpEndpoint))
+        {
+            errors.Add("CDP 模式必须配置本机 HTTP(S) 或 WebSocket Endpoint。");
+        }
         foreach (var site in policy.InternalSites)
         {
             var pattern = site.HostPattern.Trim();
@@ -88,6 +142,20 @@ public static class WebAccessPolicyValidator
         }
         return errors;
     }
+
+    private static bool IsValidLocalCdpEndpoint(Uri? endpoint)
+    {
+        if (endpoint is null
+            || !endpoint.IsAbsoluteUri
+            || !string.IsNullOrEmpty(endpoint.UserInfo)
+            || endpoint.Scheme is not ("http" or "https" or "ws" or "wss"))
+        {
+            return false;
+        }
+        return string.Equals(endpoint.DnsSafeHost, "localhost", StringComparison.OrdinalIgnoreCase)
+               || System.Net.IPAddress.TryParse(endpoint.DnsSafeHost, out var address)
+               && System.Net.IPAddress.IsLoopback(address);
+    }
 }
 
 public sealed record WebFetchResult(
@@ -99,6 +167,38 @@ public sealed record WebFetchResult(
     string Content,
     bool IsTruncated,
     bool IsExternalContent = true);
+
+public sealed record BrowserPageReadRequest(
+    Uri Url,
+    BrowserWaitMode WaitMode = BrowserWaitMode.Load,
+    int? MaxCharacters = null);
+
+public sealed record BrowserPageLink(string Text, Uri Url);
+
+public sealed record BrowserPageReadResult(
+    Uri RequestedUrl,
+    Uri FinalUrl,
+    string? Title,
+    DateTimeOffset FetchedAtUtc,
+    string Content,
+    IReadOnlyList<BrowserPageLink> Links,
+    bool IsTruncated,
+    string Browser);
+
+public interface IBrowserPageReader
+{
+    ValueTask<BrowserPageReadResult> ReadAsync(
+        BrowserPageReadRequest request,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class BrowserPageReadException(
+    string code,
+    string message,
+    Exception? innerException = null) : Exception(message, innerException)
+{
+    public string Code { get; } = code;
+}
 
 public enum WebFetchErrorCode
 {

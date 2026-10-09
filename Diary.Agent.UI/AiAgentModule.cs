@@ -57,6 +57,14 @@ public sealed class AiAgentModule : IAppModule
         services.AddSingleton<WebHttpClientFactory>();
         services.AddSingleton<WebFetchService>();
         services.AddSingleton<WebFetchTool>();
+        services.AddSingleton<SystemBrowserLocator>();
+        services.AddSingleton<IBrowserPageReader>(provider => new CdpBrowserPageReader(
+            provider.GetRequiredService<WebAccessPolicy>(),
+            provider.GetRequiredService<WebTargetValidator>(),
+            provider.GetRequiredService<IAiCredentialStore>(),
+            provider.GetRequiredService<SystemBrowserLocator>(),
+            Path.Combine(settingsDirectory, "browser-profiles")));
+        services.AddSingleton<WebRenderPageTool>();
         services.AddSingleton(provider =>
         {
             var registry = new AgentToolRegistry();
@@ -84,6 +92,7 @@ public sealed class AiAgentModule : IAppModule
                     provider.GetRequiredService<IAgentConfirmationService>()));
             }
             registry.TryRegister(provider.GetRequiredService<WebFetchTool>());
+            registry.TryRegister(provider.GetRequiredService<WebRenderPageTool>());
             if (provider.GetService<IWebSearchProvider>() is { } searchProvider)
                 registry.TryRegister(new WebSearchTool(searchProvider));
             return registry;

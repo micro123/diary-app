@@ -3,15 +3,15 @@
 ## 1. 文档状态
 
 - 状态：详细设计已实现并通过自动化、UI 与发布门禁
-- 日期：2026-10-08
+- 日期：2026-10-09
 - 需求基线：[`AiAgentModuleRequirements.md`](AiAgentModuleRequirements.md)
 - 评审记录：[`AiAgentModuleDesignReview.md`](AiAgentModuleDesignReview.md)
-- 实施状态：阶段 A、P0、P1 和首版 MCP Client 已完成；受控浏览器与独立在线更新保留为后续边界
+- 实施状态：阶段 A、P0、P1、只读系统浏览器渲染和首版 MCP Client 已完成；浏览器交互与独立在线更新保留为后续边界
 
 本文定义 DiaryApp 可选内置 AI Agent 的组件边界、生命周期、数据流、工具策略、配置、网络、UI、发布和测试方案。当前已经实现的 AI 脚本上下文和只读 MCP 继续以
 [`AiScriptContextDesign.md`](AiScriptContextDesign.md) 为准；本设计不得把现有 `Diary.Mcp` 扩展为写入入口。
 
-截至 2026-10-08，通用模块、三协议 Agent、连接/代理/凭据、只读 Diary 工具、受控网页、草稿与确认事项写入、会话/审计、stdio/Streamable HTTP MCP Client、AI 页面与设置页均已落地。模块状态损坏时保留原文件并全量禁用；`--core-only` 直接跳过模块发现。内部 DeepSeek/GLM 的真实连接探测仍需要部署方提供实际地址、模型名和凭据，不属于代码实现缺口。
+截至 2026-10-09，通用模块、三协议 Agent、连接/代理/凭据、只读 Diary 工具、静态与动态受控网页、草稿与确认事项写入、会话/审计、stdio/Streamable HTTP MCP Client、AI 页面与设置页均已落地。模块状态损坏时保留原文件并全量禁用；`--core-only` 直接跳过模块发现。内部 DeepSeek/GLM 的真实连接探测仍需要部署方提供实际地址、模型名和凭据，不属于代码实现缺口。
 
 ## 2. 设计目标与约束
 
@@ -614,7 +614,7 @@ public interface IAgentTool
 
 - `BuiltIn`：AI 模块内置的 DiaryApp 适配器；
 - `Module`：显式依赖 AI 契约的可信模块；
-- `ExternalWeb`：网页搜索/获取；
+- `ExternalWeb`：网页搜索、静态获取和动态渲染；
 - `Mcp`：后续外部 MCP 工具。
 
 每次 run 从注册表和工具策略服务生成不可变快照。运行中工具列表变化不影响当前模型历史。
@@ -715,7 +715,17 @@ public interface IWorkItemCommandApi
 
 公网策略拒绝 loopback、unspecified、link-local、private、multicast、保留地址和已知云元数据目标。内部模式只允许显式 host/域后缀/端口白名单，不默认允许整个私网。
 
-### 12.3 代理下的地址校验限制
+### 12.3 `web_render_page`
+
+动态网页读取由 `IBrowserPageReader` 和 `CdpBrowserPageReader` 实现。默认通过 `SystemBrowserLocator` 按平台查找 Edge、Chrome 或 Chromium，不引入 Playwright 包，也不下载浏览器二进制。应用启动浏览器时使用 `--remote-debugging-port=0`、仅本机调试地址和应用管理目录中的随机临时 `user-data-dir`；工具调用完成后关闭整个浏览器进程树并清理该临时目录。高级配置可指定浏览器程序，或连接本机 HTTP(S)/WebSocket CDP Endpoint；远程 CDP 地址同时在配置校验和实际连接前拒绝，HTTP 发现请求禁止自动重定向，返回的 WebSocket 地址也必须再次确认为本机地址。
+
+每次调用只创建一个 `about:blank` Target，并开放内部固定流程使用的 `Page`、`Runtime`、`Network` 和 `Fetch` CDP 命令。模型不能提供 JavaScript、selector 或 CDP 方法。工具导航到已校验 URL，等待 DOMContentLoaded 或 load，再执行固定正文提取表达式；表达式移除脚本、样式、表单、iframe、隐藏元素等内容，返回最终 URL、标题、正文和有限链接。
+
+`Fetch.requestPaused` 对主文档和子资源逐项复用 `WebTargetValidator`。非 HTTP(S) 请求以及图片、媒体、字体、Manifest、Ping 和 WebSocket 被阻止；`Network.setBypassServiceWorker` 防止 Service Worker 绕过页面网络控制。内部站点 Header 认证只附加到初始同源请求，自定义代理的用户名和密码通过 `Fetch.authRequired` 从凭据存储按需读取。浏览器下载通过 CDP 设置为 deny，且没有向模型注册点击、输入、表单、上传下载、Cookie 或任意脚本工具。
+
+浏览器模式是 `Disabled`、`System`、`Executable` 或 `Cdp`。没有检测到系统浏览器时返回结构化 `browser_unavailable`，不会影响静态 `web_fetch`。浏览器工具和 `web_fetch` 共用“网页读取”开关与运行工具快照；浏览器只在实际调用工具时懒启动。
+
+### 12.4 代理下的地址校验限制
 
 自定义或系统代理可能由代理端解析目标域名，客户端无法像直连一样固定目标 IP。P1 保留以下基础约束：
 
@@ -726,7 +736,7 @@ public interface IWorkItemCommandApi
 
 不要求 DiaryApp 验证公司代理的完整出口策略，也不把代理侧 DNS 行为作为 P1 发布阻塞项。
 
-### 12.4 HTML 与内容预算
+### 12.5 HTML 与内容预算
 
 首版正文提取使用成熟 HTML parser，不使用正则解析 HTML。默认预算：响应头 64 KiB、压缩体 2 MiB、解压体 8 MiB、提取文本 100,000 字符、3 次重定向、30 秒获取超时。Content-Type 不支持或预算超限时返回结构化错误，不下载到磁盘。
 
@@ -914,6 +924,7 @@ AI 模块随程序安装但默认禁用。用户启用后重启生效；未启�
 ### 阶段 C：P1 外部数据
 
 - `web_fetch` 安全获取；
+- `web_render_page` 系统浏览器动态渲染；
 - `IWebSearchProvider`；
 - 内部站点配置、代理和认证；
 - 网页地址与内容边界测试。
@@ -928,7 +939,7 @@ AI 模块随程序安装但默认禁用。用户启用后重启生效；未启�
 ### 阶段 E：P2 扩展
 
 - MCP Client：已完成 stdio、Streamable HTTP、Session ID、SSE 通知、工具列表原子替换和写工具确认；
-- 受控浏览器和复杂内容；
+- 浏览器登录态持久化、交互操作和复杂内容；
 - 独立模块在线更新；
 - 更多协议和多模态。
 
@@ -942,7 +953,7 @@ AI 模块随程序安装但默认禁用。用户启用后重启生效；未启�
 | SDK | 自有最小 HTTP/JSON/SSE 客户端 |
 | Agent 工具 | 统一注册表和运行快照 |
 | P0 数据访问 | 进程内 Script Host 只读 API，不通过 `Diary.Mcp` |
-| 外部网页 | 受控 `web_search`/`web_fetch`，不是任意 HTTP |
+| 外部网页 | 受控 `web_search`/`web_fetch`/`web_render_page`，不开放任意 HTTP 或浏览器交互 |
 | MCP | P2 外部工具扩展，现有 Server 保持只读 |
 | 凭据 | 复用现有认证加密，支持环境变量和会话内存 |
 | 模型数据边界 | 普通工作数据可用；工作项本地备注在工具适配层排除 |
@@ -951,8 +962,8 @@ AI 模块随程序安装但默认禁用。用户启用后重启生效；未启�
 
 ## 20. 实施与验证结果
 
-- `Diary.AgentTests` 74/74，通过三协议、完整能力探测、模型/代理、网页安全、事项详情与导出目录查询、事项创建/更新确认、报告导出确认、自动上下文压缩、Responses 协议状态清理及本地兜底、MCP 删除语义拦截、会话与审计测试；另由 `Diary.ScriptTests` 验证 Agent 无备注查询模式不调用备注读取器；
-- `Diary.ModuleTests` 12/12，通过 Debug/Release 模块目录、私有 `AssemblyLoadContext`、禁用和故障隔离测试；
+- `Diary.AgentTests` 78/78，通过三协议、完整能力探测、模型/代理、静态网页安全、系统浏览器动态渲染、本机 CDP 运行时限制、事项详情与导出目录查询、事项创建/更新确认、报告导出确认、自动上下文压缩、Responses 协议状态清理及本地兜底、MCP 删除语义拦截、会话与审计测试；另由 `Diary.ScriptTests` 验证 Agent 无备注查询模式不调用备注读取器；
+- `Diary.ModuleTests` 13 项通过，1 项因未生成 Windows Release 发布目录跳过；已覆盖 Debug 模块目录、私有 `AssemblyLoadContext`、禁用和故障隔离测试；
 - `Diary.AppTests` 320/320；`Diary.DbTests` 264 通过，1 项因本机 `pg_dump` 与 PostgreSQL 服务端主版本不一致跳过；
 - AI CDP 套件 7/7，通过导航、Agent 状态、真实本地假模型工具闭环、拒绝写入、键盘发送、设置贡献和递归 seed；
 - `win-x64`、`linux-x64` 自包含发布成功，模块目录只包含 `module.json`、`Diary.Agent.UI.dll`、`Diary.Agent.UI.deps.json`、`Diary.Agent.dll`、`AngleSharp.dll`，宿主根目录无 AI 私有程序集；

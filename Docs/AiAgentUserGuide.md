@@ -49,13 +49,13 @@ AI 助手输入框支持 `Enter` 或 `Ctrl+Enter` 发送，使用 `Shift+Enter` 
 
 - Diary 只读工具：查询事项、按 ID 读取事项详情、统计分析、查询导出格式/模板、标签、事项模板、Tracker 实例和当前上下文；
 - 确认后写入工具：创建/更新事项、从模板创建事项、导出日报/周报、写入剪贴板和发送应用通知；
-- 网页读取：受控 `web_fetch`；
+- 网页读取：受控静态 `web_fetch` 和系统浏览器动态 `web_render_page`；
 - 网页搜索：只有安装了 `IWebSearchProvider` 才会出现；
 - MCP 工具：只公开本地配置中逐项启用的远端工具。
 
 工作项本地备注不会被 Agent 查询 API 读取，也不会进入只读工具结果、模型请求、会话文件或审计日志。创建事项时，模型提出的新备注会在确认卡片中显示，并且只有用户确认后才写入。
 
-模型不会获得原始数据库连接、任意 SQL、Shell、任意文件、原始 `HttpClient`、浏览器 Cookie、表单提交或文件上传能力。
+模型不会获得原始数据库连接、任意 SQL、Shell、任意文件、原始 `HttpClient`、浏览器 Cookie、点击、表单提交或文件上传能力。
 
 Agent 不提供页面跳转、日期切换、事项选择或筛选等 UI 操作工具，也不提供任何删除工具。MCP 中声明的删除类工具同样不会因为用户确认而自动获得权限；设置保存和工具注册都会拦截名称中带有常见删除语义的工具。若某个外部工具名称无法表达真实副作用，不应把它配置为只读工具。
 
@@ -95,6 +95,25 @@ Agent 不提供页面跳转、日期切换、事项选择或筛选等 UI 操作�
 `web_fetch` 只允许 GET/HEAD 的 HTTP/HTTPS 目标。默认拒绝 loopback、私网、链路本地、组播、保留、测试网段和云元数据地址；每次 DNS 解析、实际连接和重定向都会重新校验。内部站点必须在“网页访问策略”中显式配置 host 和端口白名单。
 
 认证只发送给配置的 origin，跨 origin 重定向会移除认证。响应受 Header、压缩体、解压体、字符数、重定向和总超时预算限制。静态 HTML 会移除脚本、样式、表单和隐藏内容，并把结果标记为外部不可信内容；网页文字不能改变工具策略或自动触发写入。
+
+`web_render_page` 用于 `web_fetch` 无法读取的 JavaScript 动态页面。默认自动检测本机 Edge、Chrome 或 Chromium，使用随机本地 CDP 端口和独立临时 Profile 启动；DiaryApp 不下载浏览器，也不会连接用户正在使用的默认 Profile。工具只导航页面并执行应用内固定的正文提取逻辑，不支持模型指定 JavaScript、点击、输入、表单、上传下载或读取 Cookie。图片、媒体、字体、Manifest、Ping 和 WebSocket 默认不加载，所有主页面和子资源 URL 都要通过同一网页访问策略。
+
+“网页访问策略”中的浏览器配置示例：
+
+```json
+{
+  "browser": {
+    "mode": "System",
+    "executablePath": null,
+    "cdpEndpoint": null,
+    "headless": true,
+    "renderDelayMilliseconds": 750,
+    "maxLinks": 100
+  }
+}
+```
+
+`mode` 可选 `Disabled`、`System`、`Executable` 或 `Cdp`。`Executable` 必须填写浏览器程序路径；`Cdp` 只接受本机 HTTP(S)、`ws` 或 `wss` Endpoint。找不到系统浏览器时，动态工具会返回明确错误，静态 `web_fetch` 仍可使用。系统代理、直连、自定义代理和代理凭据继续由同一网页访问策略控制。
 
 ## 7. MCP Client
 
