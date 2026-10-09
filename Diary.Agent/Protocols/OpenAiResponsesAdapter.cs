@@ -69,6 +69,7 @@ public sealed class OpenAiResponsesAdapter : ProtocolAdapterBase
         if (!root.TryGetProperty("output", out var output) || output.ValueKind != JsonValueKind.Array)
             throw new AiModelException(AiModelErrorCategory.Protocol, "missing_output", "Responses 响应缺少 output。");
         var text = new List<string>();
+        var reasoning = new List<string>();
         var calls = new List<AgentToolCall>();
         var items = new List<JsonElement>();
         foreach (var item in output.EnumerateArray())
@@ -96,6 +97,10 @@ public sealed class OpenAiResponsesAdapter : ProtocolAdapterBase
                         ?? throw new JsonException("function_call 缺少 name。"),
                     ParseArguments(item.GetProperty("arguments").GetString())));
             }
+            else if (type == "reasoning")
+            {
+                reasoning.AddRange(ReadReasoningText(item));
+            }
         }
         var usage = root.TryGetProperty("usage", out var usageElement)
             ? ReadUsage(usageElement, "input_tokens", "output_tokens", "total_tokens")
@@ -106,7 +111,8 @@ public sealed class OpenAiResponsesAdapter : ProtocolAdapterBase
             calls,
             status,
             usage,
-            new OpenAiResponsesProtocolState(items));
+            new OpenAiResponsesProtocolState(items),
+            string.Concat(reasoning));
     }
 
     public override async IAsyncEnumerable<AgentStreamEvent> ParseStreamAsync(
@@ -129,6 +135,15 @@ public sealed class OpenAiResponsesAdapter : ProtocolAdapterBase
                 : sse.Event;
             switch (type)
             {
+                case "response.reasoning_summary_text.delta":
+                case "response.reasoning_text.delta":
+                case "response.reasoning.delta":
+                    yield return new AgentStreamEvent(
+                        AgentStreamEventKind.ReasoningDelta,
+                        Text: root.TryGetProperty("delta", out var reasoningDelta)
+                            ? reasoningDelta.GetString()
+                            : null);
+                    break;
                 case "response.output_text.delta":
                     yield return new AgentStreamEvent(
                         AgentStreamEventKind.TextDelta,
@@ -137,11 +152,20 @@ public sealed class OpenAiResponsesAdapter : ProtocolAdapterBase
                 case "response.output_item.added":
                     {
                         if (!root.TryGetProperty("item", out var item)
-                            || !item.TryGetProperty("type", out var itemType)
-                            || itemType.GetString() != "function_call")
+                            || !item.TryGetProperty("type", out var itemType))
                         {
                             break;
                         }
+                        if (itemType.GetString() == "reasoning")
+                        {
+                            var initialReasoning = string.Concat(ReadReasoningText(item));
+                            yield return new AgentStreamEvent(
+                                AgentStreamEventKind.ReasoningDelta,
+                                Text: string.IsNullOrEmpty(initialReasoning) ? null : initialReasoning);
+                            break;
+                        }
+                        if (itemType.GetString() != "function_call")
+                            break;
                         var index = root.TryGetProperty("output_index", out var outputIndex)
                             ? outputIndex.GetInt32()
                             : 0;
@@ -288,5 +312,25 @@ public sealed class OpenAiResponsesAdapter : ProtocolAdapterBase
             return message.GetString() ?? "Responses 流返回错误。";
         }
         return "Responses 流返回错误。";
+    }
+
+    private static IEnumerable<string> ReadReasoningText(JsonElement item)
+    {
+        foreach (var propertyName in new[] { "summary", "content" })
+        {
+            if (!item.TryGetProperty(propertyName, out var parts)
+                || parts.ValueKind != JsonValueKind.Array)
+            {
+                continue;
+            }
+            foreach (var part in parts.EnumerateArray())
+            {
+                if (part.TryGetProperty("text", out var text)
+                    && text.ValueKind == JsonValueKind.String)
+                {
+                    yield return text.GetString() ?? string.Empty;
+                }
+            }
+        }
     }
 }

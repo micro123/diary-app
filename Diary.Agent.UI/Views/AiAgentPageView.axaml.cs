@@ -128,8 +128,12 @@ public partial class AiAgentPageView : UserControl
 
     private void OnMessagePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(AiChatMessageViewModel.Content))
+        if (e.PropertyName is nameof(AiChatMessageViewModel.Content)
+            or nameof(AiChatMessageViewModel.Reasoning)
+            or nameof(AiChatMessageViewModel.IsThinking))
+        {
             QueueScrollToLatest();
+        }
     }
 
     private void OnChatScrollChanged(object? sender, ScrollChangedEventArgs e)

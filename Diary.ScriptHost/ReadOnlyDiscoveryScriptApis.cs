@@ -10,7 +10,11 @@ public sealed record ScriptWorkTagInfo(
     string Name,
     int Color,
     int Level,
-    bool Disabled);
+    bool Disabled)
+{
+    public IReadOnlyDictionary<string, string> Metadata { get; init; } =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+}
 
 public interface IWorkTagScriptApi
 {
@@ -26,7 +30,10 @@ public sealed class WorkTagScriptApi(
             tag.Name,
             tag.Color,
             (int)tag.Level,
-            tag.Disabled))
+            tag.Disabled)
+        {
+            Metadata = new Dictionary<string, string>(tag.Metadata, StringComparer.Ordinal),
+        })
         .OrderBy(tag => tag.Level)
         .ThenBy(tag => tag.Name, StringComparer.OrdinalIgnoreCase)
         .ThenBy(tag => tag.Id)

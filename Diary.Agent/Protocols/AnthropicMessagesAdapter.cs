@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Diary.Agent.Configuration;
@@ -66,12 +67,24 @@ public sealed class AnthropicMessagesAdapter : ProtocolAdapterBase
         if (!root.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.Array)
             throw new AiModelException(AiModelErrorCategory.Protocol, "missing_content", "Anthropic 响应缺少 content。");
         var text = new List<string>();
+        var reasoning = new List<string>();
+        var reasoningBlocks = new List<JsonElement>();
         var calls = new List<AgentToolCall>();
         foreach (var block in content.EnumerateArray())
         {
             var type = block.GetProperty("type").GetString();
             if (type == "text")
                 text.Add(block.GetProperty("text").GetString() ?? string.Empty);
+            else if (type is "thinking" or "redacted_thinking")
+            {
+                reasoningBlocks.Add(block.Clone());
+                if (type == "thinking"
+                    && block.TryGetProperty("thinking", out var thinking)
+                    && thinking.ValueKind == JsonValueKind.String)
+                {
+                    reasoning.Add(thinking.GetString() ?? string.Empty);
+                }
+            }
             else if (type == "tool_use")
             {
                 calls.Add(new AgentToolCall(
@@ -88,7 +101,13 @@ public sealed class AnthropicMessagesAdapter : ProtocolAdapterBase
             usage = new AgentUsage(input, output, input + output);
         }
         var stopReason = root.TryGetProperty("stop_reason", out var stop) ? stop.GetString() : null;
-        return new AgentModelResponse(string.Concat(text), calls, stopReason, usage);
+        return new AgentModelResponse(
+            string.Concat(text),
+            calls,
+            stopReason,
+            usage,
+            ReasoningText: string.Concat(reasoning),
+            ReasoningContentBlocks: reasoningBlocks);
     }
 
     public override async IAsyncEnumerable<AgentStreamEvent> ParseStreamAsync(
@@ -97,6 +116,7 @@ public sealed class AnthropicMessagesAdapter : ProtocolAdapterBase
     {
         yield return new AgentStreamEvent(AgentStreamEventKind.ResponseStarted);
         var calls = new Dictionary<int, (string? Id, string? Name)>();
+        var thinkingBlocks = new Dictionary<int, AnthropicThinkingBlockBuilder>();
         string? finishReason = null;
         long? inputTokens = null;
         long? outputTokens = null;
@@ -119,7 +139,17 @@ public sealed class AnthropicMessagesAdapter : ProtocolAdapterBase
                     {
                         var index = root.GetProperty("index").GetInt32();
                         var block = root.GetProperty("content_block");
-                        if (block.GetProperty("type").GetString() != "tool_use")
+                        var blockType = block.GetProperty("type").GetString();
+                        if (blockType is "thinking" or "redacted_thinking")
+                        {
+                            var builder = AnthropicThinkingBlockBuilder.Create(block);
+                            thinkingBlocks[index] = builder;
+                            yield return new AgentStreamEvent(
+                                AgentStreamEventKind.ReasoningDelta,
+                                Text: string.IsNullOrEmpty(builder.InitialText) ? null : builder.InitialText);
+                            break;
+                        }
+                        if (blockType != "tool_use")
                             break;
                         var id = block.GetProperty("id").GetString();
                         var name = block.GetProperty("name").GetString();
@@ -141,6 +171,32 @@ public sealed class AnthropicMessagesAdapter : ProtocolAdapterBase
                             yield return new AgentStreamEvent(
                                 AgentStreamEventKind.TextDelta,
                                 Text: delta.GetProperty("text").GetString());
+                        }
+                        else if (deltaType == "thinking_delta")
+                        {
+                            var thinking = delta.TryGetProperty("thinking", out var thinkingElement)
+                                ? thinkingElement.GetString() ?? string.Empty
+                                : string.Empty;
+                            if (!thinkingBlocks.TryGetValue(index, out var builder))
+                            {
+                                builder = AnthropicThinkingBlockBuilder.CreateThinking();
+                                thinkingBlocks[index] = builder;
+                            }
+                            builder.AppendThinking(thinking);
+                            yield return new AgentStreamEvent(
+                                AgentStreamEventKind.ReasoningDelta,
+                                Text: string.IsNullOrEmpty(thinking) ? null : thinking);
+                        }
+                        else if (deltaType == "signature_delta")
+                        {
+                            if (!thinkingBlocks.TryGetValue(index, out var builder))
+                            {
+                                builder = AnthropicThinkingBlockBuilder.CreateThinking();
+                                thinkingBlocks[index] = builder;
+                            }
+                            if (delta.TryGetProperty("signature", out var signature))
+                                builder.AppendSignature(signature.GetString() ?? string.Empty);
+                            yield return new AgentStreamEvent(AgentStreamEventKind.ReasoningDelta);
                         }
                         else if (deltaType == "input_json_delta")
                         {
@@ -201,7 +257,11 @@ public sealed class AnthropicMessagesAdapter : ProtocolAdapterBase
         }
         yield return new AgentStreamEvent(
             AgentStreamEventKind.ResponseCompleted,
-            FinishReason: finishReason);
+            FinishReason: finishReason,
+            ReasoningContentBlocks: thinkingBlocks
+                .OrderBy(pair => pair.Key)
+                .Select(pair => pair.Value.Build())
+                .ToArray());
     }
 
     private static void AddMessage(JsonArray messages, AgentMessage message)
@@ -224,6 +284,8 @@ public sealed class AnthropicMessagesAdapter : ProtocolAdapterBase
             return;
         }
         var content = new JsonArray();
+        foreach (var block in message.ReasoningContentBlocks)
+            content.Add(JsonNode.Parse(block.GetRawText()));
         if (!string.IsNullOrEmpty(message.Text))
             content.Add(new JsonObject { ["type"] = "text", ["text"] = message.Text });
         foreach (var call in message.ToolCalls)
@@ -267,5 +329,61 @@ public sealed class AnthropicMessagesAdapter : ProtocolAdapterBase
             return message.GetString() ?? "Anthropic 流返回错误。";
         }
         return "Anthropic 流返回错误。";
+    }
+
+    private sealed class AnthropicThinkingBlockBuilder
+    {
+        private readonly string _type;
+        private readonly StringBuilder _thinking = new();
+        private readonly StringBuilder _signature = new();
+        private readonly JsonElement? _rawBlock;
+
+        private AnthropicThinkingBlockBuilder(string type, JsonElement? rawBlock = null)
+        {
+            _type = type;
+            _rawBlock = rawBlock;
+        }
+
+        public string InitialText { get; private set; } = string.Empty;
+
+        public static AnthropicThinkingBlockBuilder Create(JsonElement block)
+        {
+            var type = block.GetProperty("type").GetString() ?? "thinking";
+            if (type == "redacted_thinking")
+                return new AnthropicThinkingBlockBuilder(type, block.Clone());
+            var builder = CreateThinking();
+            if (block.TryGetProperty("thinking", out var thinking)
+                && thinking.ValueKind == JsonValueKind.String)
+            {
+                builder.InitialText = thinking.GetString() ?? string.Empty;
+                builder._thinking.Append(builder.InitialText);
+            }
+            if (block.TryGetProperty("signature", out var signature)
+                && signature.ValueKind == JsonValueKind.String)
+            {
+                builder._signature.Append(signature.GetString());
+            }
+            return builder;
+        }
+
+        public static AnthropicThinkingBlockBuilder CreateThinking() => new("thinking");
+
+        public void AppendThinking(string value) => _thinking.Append(value);
+
+        public void AppendSignature(string value) => _signature.Append(value);
+
+        public JsonElement Build()
+        {
+            if (_rawBlock is { } rawBlock)
+                return rawBlock;
+            var block = new JsonObject
+            {
+                ["type"] = _type,
+                ["thinking"] = _thinking.ToString(),
+            };
+            if (_signature.Length > 0)
+                block["signature"] = _signature.ToString();
+            return JsonSerializer.SerializeToElement(block);
+        }
     }
 }

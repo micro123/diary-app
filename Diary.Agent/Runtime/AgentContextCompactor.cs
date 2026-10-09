@@ -133,6 +133,15 @@ public sealed class AgentContextCompactor(IAgentModelGateway modelGateway)
         foreach (var message in messages)
         {
             tokens += 8 + EstimateTextTokens(message.Text);
+            if (message.ReasoningContentBlocks.Count > 0)
+            {
+                foreach (var block in message.ReasoningContentBlocks)
+                    tokens += 8 + EstimateTextTokens(block.GetRawText());
+            }
+            else
+            {
+                tokens += EstimateTextTokens(message.ReasoningText);
+            }
             foreach (var call in message.ToolCalls)
                 tokens += 12 + EstimateTextTokens(call.Name) + EstimateTextTokens(call.Arguments.GetRawText());
         }

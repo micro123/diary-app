@@ -462,6 +462,8 @@ P0 不向 Responses 注册服务端托管的网页搜索、文件搜索、代码
 - `stream=true/false`；
 - message/content-block SSE 事件；
 - `input_json_delta` 工具参数拼接；
+- `thinking`、`redacted_thinking`、`thinking_delta` 和 `signature_delta`；
+- 工具调用后将 thinking/signature 块原样放回对应 assistant 消息，满足兼容模型的续答要求；
 - stop reason、usage 和协议版本 Header。
 
 认证 Header 和协议版本允许连接级已知字段覆盖，以适配内部兼容网关，但不开放任意请求体模板。
@@ -472,6 +474,7 @@ P0 不向 Responses 注册服务端托管的网页搜索、文件搜索、代码
 
 ```text
 ResponseStarted
+ReasoningDelta
 TextDelta
 ToolCallStarted
 ToolArgumentsDelta
@@ -489,6 +492,8 @@ ProtocolError
 4. 对单事件、单工具参数和整次响应设置字节上限；
 5. 流中断时不执行尚未完成的工具调用；
 6. 将实时显示缓冲与协议完整结束后的持久化消息分离。
+
+`ReasoningDelta` 统一承载模型服务显式返回的思考文本或思考活动。OpenAI Chat Completions 识别 `reasoning_content` 及常见兼容字段，Responses 识别 reasoning summary/text 增量，Anthropic 识别 thinking/signature 增量。思考事件与文本事件一样刷新流式空闲超时；签名或加密思考块只报告活动，不作为可见正文。思考内容仅用于当前页面展示和同一内存会话的协议续答，不进入会话文件、审计或日志。
 
 ### 8.6 错误归一化
 
@@ -532,7 +537,7 @@ Idle -> Running -> WaitingForApproval -> Running -> Completed
 5. 参数绑定、校验和工具策略决策；
 6. 只读工具执行，或产生等待确认的 pending action；
 7. 将 assistant tool call 和对应 tool result 成对加入历史；
-8. 进入下一轮；
+8. 将服务端返回的 `reasoning_content` 或 thinking/signature 块保留在对应 assistant 消息，并进入下一轮；
 9. 达到预算、取消或不可恢复错误时终止。
 
 首版按模型返回顺序串行执行工具，即使服务声明并行工具调用也不并行执行，避免数据库、UI 和外部数据工具的竞态。后续只允许显式标记为并发安全的只读工具并行。
@@ -570,7 +575,7 @@ Idle -> Running -> WaitingForApproval -> Running -> Completed
 
 ### 9.5 会话持久化
 
-P0 会话仅内存保存。P1 采用版本化 JSON，保存压缩后保留的用户消息、最终回答、上下文摘要、压缩次数、工具名、参数摘要、状态、连接 ID、模型名、耗时和 usage。隐藏推理、凭据、认证 Header、被摘要替代的完整历史和服务端私有会话 ID 不落盘。
+P0 会话仅内存保存。P1 采用版本化 JSON，保存压缩后保留的用户消息、最终回答、上下文摘要、压缩次数、工具名、参数摘要、状态、连接 ID、模型名、耗时和 usage。模型服务显式返回的思考文本可在当前页面临时展示，并在工具闭环期间按协议保留在内存消息中；思考正文、thinking 签名/加密块、凭据、认证 Header、被摘要替代的完整历史和服务端私有会话 ID 均不落盘。
 
 ## 10. 统一工具系统
 
@@ -646,7 +651,7 @@ AllowAutomatically
 
 | 工具 | 宿主能力 | 默认状态 |
 | --- | --- | --- |
-| `diary_list_tags` | `DbShareData` 的只读适配器 | 启用 |
+| `diary_list_tags` | `IWorkTagScriptApi`；返回 ID、名称、颜色、层级、停用状态和标签元数据 | 启用 |
 | `diary_list_extra_fields` | `ITagExtraFieldScriptApi` | 启用 |
 | `diary_list_templates` | `ITemplateScriptApi` | 启用 |
 | `diary_list_tracker_instances` | `ITrackerInstanceScriptApi` | 启用 |
@@ -788,6 +793,7 @@ AI 模块贡献“AI 助手”导航页。模块未加载时没有导航项。�
 布局包含：
 
 - 消息列表和流式文本；
+- 可展开的思考过程；收到 reasoning/thinking 事件时显示“模型正在思考”，开始正文后切换为“模型正在生成回答”；
 - 新消息和流式文本增长时自动跟随底部；用户主动向上滚动后暂停跟随，回到底部后恢复；
 - 输入框、发送、停止；
 - 工具调用卡片：来源、参数摘要、状态、耗时和结果摘要；
@@ -827,7 +833,7 @@ AI 设置页分为：
 
 - API Key、代理密码和认证 Header；
 - 工作项本地备注；
-- 模型隐藏推理；
+- 模型思考/推理正文及 thinking 签名或加密块；
 - 数据库连接字符串和 Tracker Token。
 
 普通运行日志默认记录请求标识、连接、模型、工具名、耗时、大小和错误，不记录完整请求/响应。开发诊断如需保存模型报文，必须由用户显式开启，并继续排除凭据和本地备注。诊断导出只包含配置结构、连接状态、能力标记、错误类别和操作摘要。

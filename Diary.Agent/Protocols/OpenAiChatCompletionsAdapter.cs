@@ -66,6 +66,7 @@ public sealed class OpenAiChatCompletionsAdapter : ProtocolAdapterBase
         var choice = choices[0];
         var message = choice.GetProperty("message");
         var text = ReadContent(message);
+        var reasoningText = ReadReasoningContent(message);
         var calls = ReadToolCalls(message);
         var finishReason = choice.TryGetProperty("finish_reason", out var finish)
             ? finish.GetString()
@@ -73,7 +74,7 @@ public sealed class OpenAiChatCompletionsAdapter : ProtocolAdapterBase
         var usage = root.TryGetProperty("usage", out var usageElement)
             ? ReadUsage(usageElement, "prompt_tokens", "completion_tokens", "total_tokens")
             : null;
-        return new AgentModelResponse(text, calls, finishReason, usage);
+        return new AgentModelResponse(text, calls, finishReason, usage, ReasoningText: reasoningText);
     }
 
     public override async IAsyncEnumerable<AgentStreamEvent> ParseStreamAsync(
@@ -123,6 +124,13 @@ public sealed class OpenAiChatCompletionsAdapter : ProtocolAdapterBase
                 }
                 if (!choice.TryGetProperty("delta", out var delta))
                     continue;
+                var reasoningDelta = ReadReasoningContent(delta);
+                if (!string.IsNullOrEmpty(reasoningDelta))
+                {
+                    yield return new AgentStreamEvent(
+                        AgentStreamEventKind.ReasoningDelta,
+                        Text: reasoningDelta);
+                }
                 if (delta.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.String)
                 {
                     yield return new AgentStreamEvent(AgentStreamEventKind.TextDelta, Text: content.GetString());
@@ -203,6 +211,8 @@ public sealed class OpenAiChatCompletionsAdapter : ProtocolAdapterBase
         };
         if (message.Role == AgentMessageRole.Tool)
             result["tool_call_id"] = message.ToolCallId;
+        if (message.Role == AgentMessageRole.Assistant && !string.IsNullOrEmpty(message.ReasoningText))
+            result["reasoning_content"] = message.ReasoningText;
         if (message.ToolCalls.Count > 0)
         {
             result["tool_calls"] = new JsonArray(message.ToolCalls.Select(call => new JsonObject
@@ -230,6 +240,19 @@ public sealed class OpenAiChatCompletionsAdapter : ProtocolAdapterBase
             return string.Concat(content.EnumerateArray()
                 .Where(item => item.TryGetProperty("text", out _))
                 .Select(item => item.GetProperty("text").GetString()));
+        }
+        return string.Empty;
+    }
+
+    private static string ReadReasoningContent(JsonElement message)
+    {
+        foreach (var propertyName in new[] { "reasoning_content", "reasoning", "thinking" })
+        {
+            if (message.TryGetProperty(propertyName, out var value)
+                && value.ValueKind == JsonValueKind.String)
+            {
+                return value.GetString() ?? string.Empty;
+            }
         }
         return string.Empty;
     }

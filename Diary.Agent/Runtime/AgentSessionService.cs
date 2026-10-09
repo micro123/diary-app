@@ -22,6 +22,7 @@ public enum AgentRunEventKind
     StatusChanged,
     ModelRequestStarted,
     ContextCompacted,
+    ReasoningDelta,
     TextDelta,
     ToolStarted,
     ToolCompleted,
@@ -256,6 +257,13 @@ public sealed class AgentSessionService
                         linkedCancellation.Token)
                     : await _modelGateway.SendAsync(request, connection, linkedCancellation.Token);
                 latestUsage = MergeUsage(latestUsage, response.Usage);
+                if (!useStreaming && !string.IsNullOrEmpty(response.ReasoningText))
+                {
+                    Report(progress, new AgentRunEvent(
+                        AgentRunEventKind.ReasoningDelta,
+                        runId,
+                        Text: response.ReasoningText));
+                }
                 if (!useStreaming && !string.IsNullOrEmpty(response.Text))
                     Report(progress, new AgentRunEvent(AgentRunEventKind.TextDelta, runId, Text: response.Text));
                 if (response.Usage is not null)
@@ -264,7 +272,10 @@ public sealed class AgentSessionService
                 workingProtocolState = response.ProtocolState;
                 if (response.ToolCalls.Count == 0)
                 {
-                    workingMessages.Add(AgentMessage.Assistant(response.Text));
+                    workingMessages.Add(AgentMessage.Assistant(
+                        response.Text,
+                        reasoningText: response.ReasoningText,
+                        reasoningContentBlocks: response.ReasoningContentBlocks));
                     _messages.Clear();
                     _messages.AddRange(workingMessages);
                     _protocolState = workingProtocolState;
@@ -291,7 +302,11 @@ public sealed class AgentSessionService
                     return Fail(runId, round, totalToolCalls, latestUsage, "tool_budget_exceeded", "工具调用次数达到预算上限。", progress);
                 }
 
-                workingMessages.Add(AgentMessage.Assistant(response.Text, response.ToolCalls));
+                workingMessages.Add(AgentMessage.Assistant(
+                    response.Text,
+                    response.ToolCalls,
+                    response.ReasoningText,
+                    response.ReasoningContentBlocks));
                 foreach (var call in response.ToolCalls)
                 {
                     linkedCancellation.Token.ThrowIfCancellationRequested();
@@ -402,7 +417,9 @@ public sealed class AgentSessionService
         CancellationToken cancellationToken)
     {
         var text = new StringBuilder();
+        var reasoning = new StringBuilder();
         var calls = new Dictionary<int, ToolCallBuilder>();
+        IReadOnlyList<JsonElement>? reasoningContentBlocks = null;
         AgentUsage? usage = null;
         AgentProtocolState? protocolState = null;
         string? finishReason = null;
@@ -411,6 +428,13 @@ public sealed class AgentSessionService
         {
             switch (item.Kind)
             {
+                case AgentStreamEventKind.ReasoningDelta:
+                    reasoning.Append(item.Text);
+                    Report(progress, new AgentRunEvent(
+                        AgentRunEventKind.ReasoningDelta,
+                        runId,
+                        Text: item.Text));
+                    break;
                 case AgentStreamEventKind.TextDelta:
                     text.Append(item.Text);
                     Report(progress, new AgentRunEvent(AgentRunEventKind.TextDelta, runId, Text: item.Text));
@@ -455,6 +479,7 @@ public sealed class AgentSessionService
                     completed = true;
                     finishReason = item.FinishReason;
                     protocolState = item.ProtocolState;
+                    reasoningContentBlocks = item.ReasoningContentBlocks;
                     break;
             }
         }
@@ -463,7 +488,14 @@ public sealed class AgentSessionService
         if (calls.Values.Any(call => !call.Completed))
             throw new AiModelException(AiModelErrorCategory.Protocol, "tool_call_incomplete", "工具调用参数未完整结束。");
         var toolCalls = calls.OrderBy(pair => pair.Key).Select(pair => pair.Value.Build()).ToArray();
-        return new AgentModelResponse(text.ToString(), toolCalls, finishReason, usage, protocolState);
+        return new AgentModelResponse(
+            text.ToString(),
+            toolCalls,
+            finishReason,
+            usage,
+            protocolState,
+            reasoning.ToString(),
+            reasoningContentBlocks);
     }
 
     private AgentRunResult Fail(

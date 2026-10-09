@@ -23,10 +23,25 @@ public sealed record AgentMessage
 
     public string? ToolCallId { get; init; }
 
+    public string ReasoningText { get; init; } = string.Empty;
+
+    public IReadOnlyList<JsonElement> ReasoningContentBlocks { get; init; } = [];
+
     public static AgentMessage User(string text) => new() { Role = AgentMessageRole.User, Text = text };
 
-    public static AgentMessage Assistant(string text, IReadOnlyList<AgentToolCall>? toolCalls = null) =>
-        new() { Role = AgentMessageRole.Assistant, Text = text, ToolCalls = toolCalls ?? [] };
+    public static AgentMessage Assistant(
+        string text,
+        IReadOnlyList<AgentToolCall>? toolCalls = null,
+        string? reasoningText = null,
+        IReadOnlyList<JsonElement>? reasoningContentBlocks = null) =>
+        new()
+        {
+            Role = AgentMessageRole.Assistant,
+            Text = text,
+            ToolCalls = toolCalls ?? [],
+            ReasoningText = reasoningText ?? string.Empty,
+            ReasoningContentBlocks = reasoningContentBlocks ?? [],
+        };
 
     public static AgentMessage Tool(string toolCallId, string text) =>
         new() { Role = AgentMessageRole.Tool, ToolCallId = toolCallId, Text = text };
@@ -60,11 +75,14 @@ public sealed record AgentModelResponse(
     IReadOnlyList<AgentToolCall> ToolCalls,
     string? FinishReason,
     AgentUsage? Usage,
-    AgentProtocolState? ProtocolState = null);
+    AgentProtocolState? ProtocolState = null,
+    string? ReasoningText = null,
+    IReadOnlyList<JsonElement>? ReasoningContentBlocks = null);
 
 public enum AgentStreamEventKind
 {
     ResponseStarted,
+    ReasoningDelta,
     TextDelta,
     ToolCallStarted,
     ToolArgumentsDelta,
@@ -83,7 +101,8 @@ public sealed record AgentStreamEvent(
     AgentUsage? Usage = null,
     string? FinishReason = null,
     string? ErrorCode = null,
-    AgentProtocolState? ProtocolState = null);
+    AgentProtocolState? ProtocolState = null,
+    IReadOnlyList<JsonElement>? ReasoningContentBlocks = null);
 
 public interface IAgentModelGateway
 {

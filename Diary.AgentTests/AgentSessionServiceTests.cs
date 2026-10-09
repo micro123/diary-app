@@ -51,6 +51,37 @@ public sealed class AgentSessionServiceTests
     }
 
     [TestMethod]
+    public async Task ToolLoopPublishesAndPreservesReasoningAcrossContinuation()
+    {
+        var gateway = new SequencedGateway(
+            ToolCallStream("call_1", "echo_tool", "{\"value\":\"one\"}", "先读取数据"),
+            TextStream("final answer", "根据工具结果整理"));
+        var registry = new AgentToolRegistry();
+        registry.TryRegister(new RecordingTool());
+        var session = CreateSession(gateway);
+        var progress = new EventCollector();
+
+        var result = await session.RunAsync(
+            "question",
+            CreateProfile(),
+            registry.CreateSnapshot(),
+            progress: progress);
+
+        Assert.AreEqual(AgentSessionStatus.Completed, result.Status);
+        CollectionAssert.AreEqual(
+            new[] { "先读取数据", "根据工具结果整理" },
+            progress.Events
+                .Where(item => item.Kind == AgentRunEventKind.ReasoningDelta && item.Text is not null)
+                .Select(item => item.Text!)
+                .ToArray());
+        Assert.AreEqual(
+            "先读取数据",
+            gateway.Requests[1].Messages.Single(item =>
+                item.Role == AgentMessageRole.Assistant && item.ToolCalls.Count > 0).ReasoningText);
+        Assert.AreEqual("根据工具结果整理", session.Messages[^1].ReasoningText);
+    }
+
+    [TestMethod]
     public async Task IncompleteToolStreamDoesNotExecuteOrCommitHistory()
     {
         var gateway = new SequencedGateway(IncompleteToolCallStream());
@@ -228,21 +259,40 @@ public sealed class AgentSessionServiceTests
         Proxy = new AiProxyConfiguration { Mode = AiProxyMode.Direct },
     };
 
-    private static IReadOnlyList<AgentStreamEvent> ToolCallStream(string id, string name, string arguments) =>
-    [
-        new(AgentStreamEventKind.ResponseStarted),
-        new(AgentStreamEventKind.ToolCallStarted, ToolCallId: id, ToolName: name, ToolIndex: 0),
-        new(AgentStreamEventKind.ToolArgumentsDelta, Text: arguments, ToolCallId: id, ToolName: name, ToolIndex: 0),
-        new(AgentStreamEventKind.ToolCallCompleted, ToolCallId: id, ToolName: name, ToolIndex: 0),
-        new(AgentStreamEventKind.ResponseCompleted, FinishReason: "tool_calls"),
-    ];
+    private static IReadOnlyList<AgentStreamEvent> ToolCallStream(
+        string id,
+        string name,
+        string arguments,
+        string? reasoning = null)
+    {
+        var events = new List<AgentStreamEvent>
+        {
+            new(AgentStreamEventKind.ResponseStarted),
+        };
+        if (reasoning is not null)
+            events.Add(new AgentStreamEvent(AgentStreamEventKind.ReasoningDelta, Text: reasoning));
+        events.AddRange(
+        [
+            new(AgentStreamEventKind.ToolCallStarted, ToolCallId: id, ToolName: name, ToolIndex: 0),
+            new(AgentStreamEventKind.ToolArgumentsDelta, Text: arguments, ToolCallId: id, ToolName: name, ToolIndex: 0),
+            new(AgentStreamEventKind.ToolCallCompleted, ToolCallId: id, ToolName: name, ToolIndex: 0),
+            new(AgentStreamEventKind.ResponseCompleted, FinishReason: "tool_calls"),
+        ]);
+        return events;
+    }
 
-    private static IReadOnlyList<AgentStreamEvent> TextStream(string text) =>
-    [
-        new(AgentStreamEventKind.ResponseStarted),
-        new(AgentStreamEventKind.TextDelta, Text: text),
-        new(AgentStreamEventKind.ResponseCompleted, FinishReason: "stop"),
-    ];
+    private static IReadOnlyList<AgentStreamEvent> TextStream(string text, string? reasoning = null)
+    {
+        var events = new List<AgentStreamEvent>
+        {
+            new(AgentStreamEventKind.ResponseStarted),
+        };
+        if (reasoning is not null)
+            events.Add(new AgentStreamEvent(AgentStreamEventKind.ReasoningDelta, Text: reasoning));
+        events.Add(new AgentStreamEvent(AgentStreamEventKind.TextDelta, Text: text));
+        events.Add(new AgentStreamEvent(AgentStreamEventKind.ResponseCompleted, FinishReason: "stop"));
+        return events;
+    }
 
     private static IReadOnlyList<AgentStreamEvent> IncompleteToolCallStream() =>
     [

@@ -329,8 +329,10 @@ public sealed class ListTagsTool(IWorkTagScriptApi source) : IAgentTool
         {
             id = tag.Id,
             name = tag.Name,
+            color = tag.Color,
             level = tag.Level,
             disabled = tag.Disabled,
+            metadata = tag.Metadata,
         })), "DiaryApp"));
 }
 
@@ -421,7 +423,7 @@ internal static class DiaryToolDescriptors
         "diary.list-tracker-instances", "diary_list_tracker_instances", "列出 Tracker", "列出已启用的 Tracker 实例及配置状态。", EmptySchema);
 
     public static AgentToolDescriptor ListTags { get; } = Create(
-        "diary.list-tags", "diary_list_tags", "列出标签", "列出 DiaryApp 工作标签。", EmptySchema);
+        "diary.list-tags", "diary_list_tags", "列出标签", "列出 DiaryApp 标签的 ID、名称、颜色、层级、停用状态和元数据。", EmptySchema);
 
     public static AgentToolDescriptor ListExtraFields { get; } = Create(
         "diary.list-extra-fields", "diary_list_extra_fields", "列出附加字段", "列出标签附加字段定义、类型、默认值和可选值。", Schema("""

@@ -23,7 +23,7 @@ public sealed class ProtocolAdapterTests
             Messages =
             [
                 AgentMessage.User("查询今天"),
-                AgentMessage.Assistant("", [CreateToolCall("call_1")]),
+                AgentMessage.Assistant("", [CreateToolCall("call_1")], "先查询数据"),
                 AgentMessage.Tool("call_1", "{\"count\":1}"),
             ],
         };
@@ -32,17 +32,26 @@ public sealed class ProtocolAdapterTests
         var body = await message.Content!.ReadAsStringAsync();
         StringAssert.Contains(body, "tool_call_id");
         StringAssert.Contains(body, "call_1");
+        StringAssert.Contains(body, "reasoning_content");
+        using (var requestDocument = JsonDocument.Parse(body))
+        {
+            Assert.AreEqual(
+                "先查询数据",
+                requestDocument.RootElement.GetProperty("messages")[2]
+                    .GetProperty("reasoning_content").GetString());
+        }
         Assert.IsFalse(body.Contains("top-secret", StringComparison.Ordinal));
         Assert.AreEqual("Bearer top-secret", message.Headers.GetValues("Authorization").Single());
 
         using var response = JsonResponse("""
             {
-              "choices":[{"message":{"role":"assistant","content":"完成","tool_calls":[{"id":"call_2","type":"function","function":{"name":"diary_query_work_items","arguments":"{\"date\":\"2026-10-08\"}"}}]},"finish_reason":"tool_calls"}],
+              "choices":[{"message":{"role":"assistant","content":"完成","reasoning_content":"需要继续核对","tool_calls":[{"id":"call_2","type":"function","function":{"name":"diary_query_work_items","arguments":"{\"date\":\"2026-10-08\"}"}}]},"finish_reason":"tool_calls"}],
               "usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}
             }
             """);
         var parsed = await adapter.ParseResponseAsync(response, CancellationToken.None);
         Assert.AreEqual("完成", parsed.Text);
+        Assert.AreEqual("需要继续核对", parsed.ReasoningText);
         Assert.AreEqual("call_2", parsed.ToolCalls.Single().Id);
         Assert.AreEqual("2026-10-08", parsed.ToolCalls.Single().Arguments.GetProperty("date").GetString());
         Assert.AreEqual(15, parsed.Usage?.TotalTokens);
@@ -76,6 +85,7 @@ public sealed class ProtocolAdapterTests
             {
               "status":"completed",
               "output":[
+                {"type":"reasoning","summary":[{"type":"summary_text","text":"正在分析"}]},
                 {"type":"message","role":"assistant","content":[{"type":"output_text","text":"结果"}]},
                 {"type":"function_call","call_id":"call_new","name":"diary_query_work_items","arguments":"{\"date\":\"2026-10-08\"}"}
               ],
@@ -84,8 +94,9 @@ public sealed class ProtocolAdapterTests
             """);
         var parsed = await adapter.ParseResponseAsync(response, CancellationToken.None);
         Assert.AreEqual("结果", parsed.Text);
+        Assert.AreEqual("正在分析", parsed.ReasoningText);
         Assert.AreEqual("call_new", parsed.ToolCalls.Single().Id);
-        Assert.AreEqual(2, ((OpenAiResponsesProtocolState)parsed.ProtocolState!).OutputItems.Count);
+        Assert.AreEqual(3, ((OpenAiResponsesProtocolState)parsed.ProtocolState!).OutputItems.Count);
     }
 
     [TestMethod]
@@ -97,7 +108,11 @@ public sealed class ProtocolAdapterTests
             Messages =
             [
                 AgentMessage.User("查询"),
-                AgentMessage.Assistant("", [CreateToolCall("toolu_1")]),
+                AgentMessage.Assistant(
+                    "",
+                    [CreateToolCall("toolu_1")],
+                    "先分析查询范围",
+                    [JsonDocument.Parse("{\"type\":\"thinking\",\"thinking\":\"先分析查询范围\",\"signature\":\"sig_1\"}").RootElement.Clone()]),
                 AgentMessage.Tool("toolu_1", "{\"count\":1}"),
             ],
         };
@@ -116,12 +131,15 @@ public sealed class ProtocolAdapterTests
         var body = await message.Content!.ReadAsStringAsync();
         StringAssert.Contains(body, "tool_use");
         StringAssert.Contains(body, "tool_result");
+        StringAssert.Contains(body, "thinking");
+        StringAssert.Contains(body, "sig_1");
         Assert.AreEqual("anthropic-secret", message.Headers.GetValues("x-api-key").Single());
         Assert.AreEqual("2023-06-01", message.Headers.GetValues("anthropic-version").Single());
 
         using var response = JsonResponse("""
             {
               "content":[
+                {"type":"thinking","thinking":"需要先读取事项","signature":"sig_2"},
                 {"type":"text","text":"需要工具"},
                 {"type":"tool_use","id":"toolu_2","name":"diary_query_work_items","input":{"date":"2026-10-08"}}
               ],
@@ -131,6 +149,8 @@ public sealed class ProtocolAdapterTests
             """);
         var parsed = await adapter.ParseResponseAsync(response, CancellationToken.None);
         Assert.AreEqual("需要工具", parsed.Text);
+        Assert.AreEqual("需要先读取事项", parsed.ReasoningText);
+        Assert.AreEqual(1, parsed.ReasoningContentBlocks?.Count);
         Assert.AreEqual("toolu_2", parsed.ToolCalls.Single().Id);
         Assert.AreEqual(10, parsed.Usage?.TotalTokens);
     }
@@ -139,6 +159,8 @@ public sealed class ProtocolAdapterTests
     public async Task ChatStreamMergesSplitToolArgumentEvents()
     {
         const string sse = """
+            data: {"choices":[{"delta":{"reasoning_content":"正在判断查询条件"},"finish_reason":null}]}
+
             data: {"choices":[{"delta":{"content":"开"},"finish_reason":null}]}
 
             data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"diary_query_work_items","arguments":"{\"date\":"}}]},"finish_reason":null}]}
@@ -150,6 +172,7 @@ public sealed class ProtocolAdapterTests
             """;
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(sse));
         var events = await CollectAsync(new OpenAiChatCompletionsAdapter().ParseStreamAsync(stream, CancellationToken.None));
+        Assert.AreEqual("正在判断查询条件", events.Single(item => item.Kind == AgentStreamEventKind.ReasoningDelta).Text);
         Assert.AreEqual("开", events.Single(item => item.Kind == AgentStreamEventKind.TextDelta).Text);
         Assert.AreEqual(2, events.Count(item => item.Kind == AgentStreamEventKind.ToolArgumentsDelta));
         Assert.AreEqual("call_1", events.Single(item => item.Kind == AgentStreamEventKind.ToolCallCompleted).ToolCallId);
@@ -159,6 +182,9 @@ public sealed class ProtocolAdapterTests
     public async Task ResponsesStreamMapsTypedEventsAndUsage()
     {
         const string sse = """
+            event: response.reasoning_summary_text.delta
+            data: {"type":"response.reasoning_summary_text.delta","output_index":0,"summary_index":0,"delta":"正在分析"}
+
             event: response.output_item.added
             data: {"type":"response.output_item.added","output_index":1,"item":{"type":"function_call","call_id":"call_1","name":"diary_query_work_items"}}
 
@@ -174,6 +200,7 @@ public sealed class ProtocolAdapterTests
             """;
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(sse));
         var events = await CollectAsync(new OpenAiResponsesAdapter().ParseStreamAsync(stream, CancellationToken.None));
+        Assert.AreEqual("正在分析", events.Single(item => item.Kind == AgentStreamEventKind.ReasoningDelta).Text);
         Assert.AreEqual("call_1", events.Single(item => item.Kind == AgentStreamEventKind.ToolCallStarted).ToolCallId);
         Assert.AreEqual(10, events.Single(item => item.Kind == AgentStreamEventKind.UsageUpdated).Usage?.TotalTokens);
         Assert.AreEqual("completed", events.Last().FinishReason);
@@ -187,13 +214,25 @@ public sealed class ProtocolAdapterTests
             data: {"type":"message_start","message":{"usage":{"input_tokens":6}}}
 
             event: content_block_start
-            data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"diary_query_work_items"}}
+            data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":""}}
 
             event: content_block_delta
-            data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"date\":\"2026-10-08\"}"}}
+            data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"正在选择工具"}}
+
+            event: content_block_delta
+            data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"sig_stream"}}
 
             event: content_block_stop
             data: {"type":"content_block_stop","index":0}
+
+            event: content_block_start
+            data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_1","name":"diary_query_work_items"}}
+
+            event: content_block_delta
+            data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"date\":\"2026-10-08\"}"}}
+
+            event: content_block_stop
+            data: {"type":"content_block_stop","index":1}
 
             event: message_delta
             data: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":3}}
@@ -204,9 +243,14 @@ public sealed class ProtocolAdapterTests
             """;
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(sse));
         var events = await CollectAsync(new AnthropicMessagesAdapter().ParseStreamAsync(stream, CancellationToken.None));
+        Assert.AreEqual(
+            "正在选择工具",
+            string.Concat(events.Where(item => item.Kind == AgentStreamEventKind.ReasoningDelta).Select(item => item.Text)));
         Assert.AreEqual("toolu_1", events.Single(item => item.Kind == AgentStreamEventKind.ToolCallStarted).ToolCallId);
         Assert.AreEqual("{\"date\":\"2026-10-08\"}", events.Single(item => item.Kind == AgentStreamEventKind.ToolArgumentsDelta).Text);
         Assert.AreEqual(9, events.Single(item => item.Kind == AgentStreamEventKind.UsageUpdated).Usage?.TotalTokens);
+        var completed = events.Single(item => item.Kind == AgentStreamEventKind.ResponseCompleted);
+        Assert.AreEqual("sig_stream", completed.ReasoningContentBlocks?[0].GetProperty("signature").GetString());
     }
 
     [TestMethod]

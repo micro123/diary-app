@@ -19,6 +19,30 @@ public sealed partial class AiChatMessageViewModel(string role, string content) 
 
     [ObservableProperty]
     private string _content = content;
+
+    [ObservableProperty]
+    private string _reasoning = string.Empty;
+
+    [ObservableProperty]
+    private bool _isThinking;
+
+    public bool HasReasoning => IsThinking || !string.IsNullOrWhiteSpace(Reasoning);
+
+    public string ReasoningDisplayText => string.IsNullOrWhiteSpace(Reasoning)
+        ? "模型正在思考…"
+        : Reasoning;
+
+    partial void OnReasoningChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasReasoning));
+        OnPropertyChanged(nameof(ReasoningDisplayText));
+    }
+
+    partial void OnIsThinkingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(HasReasoning));
+        OnPropertyChanged(nameof(ReasoningDisplayText));
+    }
 }
 
 public sealed partial class AiToolCallViewModel(
@@ -274,13 +298,23 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
             switch (item.Kind)
             {
                 case AgentRunEventKind.ModelRequestStarted:
+                    assistant.IsThinking = false;
                     StatusText = item.Text ?? "正在等待模型响应…";
                     break;
+                case AgentRunEventKind.ReasoningDelta:
+                    assistant.IsThinking = true;
+                    if (!string.IsNullOrEmpty(item.Text))
+                        assistant.Reasoning += item.Text;
+                    StatusText = "模型正在思考…";
+                    break;
                 case AgentRunEventKind.TextDelta:
+                    assistant.IsThinking = false;
                     assistant.Content += item.Text;
+                    StatusText = "模型正在生成回答…";
                     break;
                 case AgentRunEventKind.ToolStarted:
                     {
+                        assistant.IsThinking = false;
                         var startedCard = new AiToolCallViewModel(
                             item.ToolName ?? "未知工具",
                             item.ToolCallId ?? string.Empty,
@@ -302,6 +336,10 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
                     break;
                 case AgentRunEventKind.ContextCompacted:
                     StatusText = item.Text ?? "已自动压缩较早的会话历史。";
+                    break;
+                case AgentRunEventKind.Completed:
+                case AgentRunEventKind.Failed:
+                    assistant.IsThinking = false;
                     break;
             }
         });

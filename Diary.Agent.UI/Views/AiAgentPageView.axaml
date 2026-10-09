@@ -49,9 +49,21 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:AiChatMessageViewModel">
                                     <Border Margin="0,0,0,10" Padding="12" Classes="DetailPane">
-                                        <Grid RowDefinitions="Auto,Auto" RowSpacing="6">
+                                        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
                                             <TextBlock Text="{Binding Role}" FontWeight="SemiBold" />
-                                            <SelectableTextBlock Grid.Row="1" Text="{Binding Content}"
+                                            <Expander Grid.Row="1" Header="思考过程"
+                                                      IsVisible="{Binding HasReasoning}"
+                                                      IsExpanded="True">
+                                                <Border Margin="0,4,0,2" Padding="10"
+                                                        Background="#0D6B7280"
+                                                        CornerRadius="6">
+                                                    <SelectableTextBlock Text="{Binding ReasoningDisplayText}"
+                                                                         TextWrapping="Wrap"
+                                                                         FontStyle="Italic"
+                                                                         Opacity="0.78" />
+                                                </Border>
+                                            </Expander>
+                                            <SelectableTextBlock Grid.Row="2" Text="{Binding Content}"
                                                                  TextWrapping="Wrap" />
                                         </Grid>
                                     </Border>

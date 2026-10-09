@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Text.Json;
 using Diary.Agent.Tools;
+using Diary.Core.Data.Base;
 using Diary.ScriptBase;
 using Diary.ScriptHost;
 
@@ -178,6 +179,37 @@ public sealed class AgentToolTests
         using var document = JsonDocument.Parse(result.Content);
         Assert.AreEqual(1, document.RootElement.GetProperty("count").GetInt32());
         Assert.AreEqual("project.code", document.RootElement.GetProperty("fields")[0].GetProperty("FieldKey").GetString());
+    }
+
+    [TestMethod]
+    public async Task ListTagsReturnsColorLevelDisabledAndMetadata()
+    {
+        var tag = new WorkTag
+        {
+            Id = 7,
+            Name = "项目",
+            Color = 0x336699,
+            Level = TagLevels.Primary,
+            Disabled = false,
+            Metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["owner"] = "平台组",
+                ["code"] = "DIARY",
+            },
+        };
+        var tool = new ListTagsTool(new WorkTagScriptApi(() => [tag]));
+        using var arguments = JsonDocument.Parse("{}");
+
+        var result = await tool.InvokeAsync(arguments.RootElement, CreateContext());
+
+        Assert.IsTrue(result.Succeeded);
+        using var document = JsonDocument.Parse(result.Content);
+        var returnedTag = document.RootElement[0];
+        Assert.AreEqual(0x336699, returnedTag.GetProperty("color").GetInt32());
+        Assert.AreEqual(0, returnedTag.GetProperty("level").GetInt32());
+        Assert.IsFalse(returnedTag.GetProperty("disabled").GetBoolean());
+        Assert.AreEqual("平台组", returnedTag.GetProperty("metadata").GetProperty("owner").GetString());
+        Assert.AreEqual("DIARY", returnedTag.GetProperty("metadata").GetProperty("code").GetString());
     }
 
     [TestMethod]
