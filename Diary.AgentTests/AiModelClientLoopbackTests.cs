@@ -105,6 +105,40 @@ public sealed class AiModelClientLoopbackTests
     }
 
     [TestMethod]
+    public async Task ReasoningEventsRenewStreamingIdleTimeout()
+    {
+        var chunks = new[]
+        {
+            "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"第一步\"},\"finish_reason\":null}]}\n\n",
+            "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"第二步\"},\"finish_reason\":null}]}\n\n",
+            "data: {\"choices\":[{\"delta\":{\"content\":\"完成\"},\"finish_reason\":\"stop\"}]}\n\n",
+            "data: [DONE]\n\n",
+        };
+        await using var server = new LoopbackHttpServer(_ => new LoopbackResponse(
+            "text/event-stream",
+            string.Concat(chunks),
+            Chunks: chunks,
+            ChunkDelay: TimeSpan.FromSeconds(2)));
+        var credentials = new TestCredentialStore("key");
+        using var pool = new AiHttpClientPool(credentials);
+        var client = new AiModelClient(credentials, pool, [new OpenAiChatCompletionsAdapter()]);
+        var profile = CreateProfile(server.BaseUri, AiProtocol.OpenAiChatCompletions) with
+        {
+            RequestTimeout = TimeSpan.FromSeconds(5),
+        };
+        var events = new List<AgentStreamEvent>();
+
+        await foreach (var item in client.StreamAsync(CreateRequest(stream: true), profile))
+            events.Add(item);
+
+        Assert.AreEqual(
+            "第一步第二步",
+            string.Concat(events.Where(item => item.Kind == AgentStreamEventKind.ReasoningDelta).Select(item => item.Text)));
+        Assert.AreEqual("完成", events.Single(item => item.Kind == AgentStreamEventKind.TextDelta).Text);
+        Assert.IsTrue(events.Any(item => item.Kind == AgentStreamEventKind.ResponseCompleted));
+    }
+
+    [TestMethod]
     public async Task StreamingIdleTimeoutIsReportedAsRequestTimeout()
     {
         await using var server = new LoopbackHttpServer(async (_, cancellationToken) =>
