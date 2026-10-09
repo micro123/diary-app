@@ -5,17 +5,12 @@ using Diary.ScriptHost;
 
 namespace Diary.Agent.Tools;
 
-public sealed record AgentWorkTagDto(int Id, string Name, int Color, int Level);
+public sealed record AgentWorkTagDto(int Id, string Name);
 
 public sealed record AgentWorkItemExtraFieldDto(
-    string FieldId,
     string FieldKey,
-    int TagId,
-    string TagName,
     string Label,
-    string Type,
-    string Value,
-    string DefaultValue);
+    string Value);
 
 public sealed record AgentWorkItemDto(
     int Id,
@@ -32,16 +27,11 @@ public sealed record AgentWorkItemDto(
         item.Comment,
         item.Hours,
         item.Priority,
-        item.Tags.Select(tag => new AgentWorkTagDto(tag.Id, tag.Name, tag.Color, tag.Level)).ToArray(),
+        item.Tags.Select(tag => new AgentWorkTagDto(tag.Id, tag.Name)).ToArray(),
         item.ExtraFields.Select(field => new AgentWorkItemExtraFieldDto(
-            field.FieldId,
             field.FieldKey,
-            field.TagId,
-            field.TagName,
             field.Label,
-            field.Type.ToString(),
-            field.Value,
-            field.DefaultValue)).ToArray());
+            field.Value)).ToArray());
 }
 
 public static class DiaryReadOnlyToolRegistration
@@ -196,6 +186,9 @@ public sealed class GetWorkItemDetailTool(IWorkItemQueryScriptApi api) : IAgentT
 
 public sealed class SummarizeWorkItemsTool(IWorkItemQueryScriptApi api) : IAgentTool
 {
+    private const int MaxItems = 2_000;
+    private const int MaxContentGroups = 100;
+
     public AgentToolDescriptor Descriptor { get; } = DiaryToolDescriptors.SummarizeWorkItems;
 
     public async ValueTask<AgentToolResult> InvokeAsync(
@@ -205,34 +198,70 @@ public sealed class SummarizeWorkItemsTool(IWorkItemQueryScriptApi api) : IAgent
     {
         if (!QueryWorkItemsTool.TryParseQuery(arguments, out var query, out var error))
             return AgentToolResult.Failure("invalid_arguments", error);
-        var result = await api.QueryAsync(query, cancellationToken);
-        if (!result.Succeeded)
-            return AgentToolResult.Failure(result.ApiError?.Code ?? "query_failed", result.Error?.Message ?? "查询失败。");
+        var items = new List<ScriptWorkItem>();
+        var truncated = false;
+        try
+        {
+            await foreach (var item in api.StreamAsync(query, 200, cancellationToken))
+            {
+                if (items.Count == MaxItems)
+                {
+                    truncated = true;
+                    break;
+                }
+                items.Add(item);
+            }
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or ArgumentException)
+        {
+            return AgentToolResult.Failure("query_failed", exception.Message);
+        }
+        var contentGroups = items
+            .GroupBy(item => item.Comment.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(group => new
+            {
+                title = group.First().Comment,
+                count = group.Count(),
+                hours = group.Sum(item => item.Hours),
+                firstDate = group.Min(item => item.Date),
+                lastDate = group.Max(item => item.Date),
+                tags = group.SelectMany(item => item.Tags).Select(tag => tag.Name)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Order(StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+            })
+            .OrderByDescending(group => group.hours)
+            .ThenByDescending(group => group.count)
+            .ThenBy(group => group.title, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
         var summary = new
         {
-            count = result.Items.Length,
-            totalHours = result.Items.Sum(item => item.Hours),
-            averageHours = result.Items.Length == 0 ? 0 : result.Items.Average(item => item.Hours),
-            dateRange = result.Items.Length == 0
+            count = items.Count,
+            totalHours = items.Sum(item => item.Hours),
+            averageHours = items.Count == 0 ? 0 : items.Average(item => item.Hours),
+            truncated,
+            dateRange = items.Count == 0
                 ? null
                 : new
                 {
-                    start = result.Items.Min(item => item.Date),
-                    end = result.Items.Max(item => item.Date),
+                    start = items.Min(item => item.Date),
+                    end = items.Max(item => item.Date),
                 },
-            byDate = result.Items.GroupBy(item => item.Date).OrderBy(group => group.Key)
+            byDate = items.GroupBy(item => item.Date).OrderBy(group => group.Key)
                 .Select(group => new { date = group.Key, count = group.Count(), hours = group.Sum(item => item.Hours) }),
-            byPriority = result.Items.GroupBy(item => item.Priority).OrderBy(group => group.Key)
+            byPriority = items.GroupBy(item => item.Priority).OrderBy(group => group.Key)
                 .Select(group => new { priority = group.Key, count = group.Count(), hours = group.Sum(item => item.Hours) }),
-            byTag = result.Items.SelectMany(item => item.Tags).GroupBy(tag => new { tag.Id, tag.Name })
+            byTag = items.SelectMany(item => item.Tags).GroupBy(tag => new { tag.Id, tag.Name })
                 .OrderByDescending(group => group.Count()).ThenBy(group => group.Key.Name, StringComparer.OrdinalIgnoreCase)
                 .Select(group => new
                 {
                     id = group.Key.Id,
                     name = group.Key.Name,
                     count = group.Count(),
-                    hours = result.Items.Where(item => item.Tags.Any(tag => tag.Id == group.Key.Id)).Sum(item => item.Hours),
+                    hours = items.Where(item => item.Tags.Any(tag => tag.Id == group.Key.Id)).Sum(item => item.Hours),
                 }),
+            workContents = contentGroups.Take(MaxContentGroups),
+            workContentsTruncated = contentGroups.Length > MaxContentGroups,
         };
         return AgentToolResult.Success(JsonSerializer.Serialize(summary), "DiaryApp");
     }
@@ -296,7 +325,13 @@ public sealed class ListTagsTool(IWorkTagScriptApi source) : IAgentTool
         JsonElement arguments,
         AgentToolInvocationContext context,
         CancellationToken cancellationToken = default)
-        => ValueTask.FromResult(AgentToolResult.Success(JsonSerializer.Serialize(source.List()), "DiaryApp"));
+        => ValueTask.FromResult(AgentToolResult.Success(JsonSerializer.Serialize(source.List().Select(tag => new
+        {
+            id = tag.Id,
+            name = tag.Name,
+            level = tag.Level,
+            disabled = tag.Disabled,
+        })), "DiaryApp"));
 }
 
 public sealed class GetCurrentContextTool(ICurrentContextScriptApi source) : IAgentTool
@@ -354,8 +389,22 @@ internal static class DiaryToolDescriptors
         }
         """);
 
+    private static readonly JsonElement SummaryQuerySchema = Schema("""
+        {
+          "type":"object",
+          "properties":{
+            "workItemId":{"type":"integer","minimum":1},
+            "startDate":{"type":"string"},"endDate":{"type":"string"},"range":{"type":"string"},
+            "text":{"type":"string"},"priority":{"type":"integer"},
+            "tagIds":{"type":"array","items":{"type":"integer"}},
+            "tagFilter":{"type":"string","enum":["Ignore","Any","All","None","Exact"]}
+          },
+          "additionalProperties":false
+        }
+        """);
+
     public static AgentToolDescriptor QueryWorkItems { get; } = Create(
-        "diary.query-work-items", "diary_query_work_items", "查询工作事项", "按日期、文本、优先级和标签查询 DiaryApp 工作事项。", QuerySchema);
+        "diary.query-work-items", "diary_query_work_items", "查询工作事项", "仅在需要逐项明细或具体事项 ID 时使用；按日期、文本、优先级和标签查询 DiaryApp 工作事项。日报、周报、月报和工作内容总结应优先使用 diary_summarize_work_items，避免拉取大量明细。", QuerySchema);
 
     public static AgentToolDescriptor GetWorkItemDetail { get; } = Create(
         "diary.get-work-item-detail", "diary_get_work_item_detail", "读取事项详情", "按 ID 读取单个工作事项的非敏感详情，不包含本地备注。", Schema("""
@@ -363,7 +412,7 @@ internal static class DiaryToolDescriptors
             """));
 
     public static AgentToolDescriptor SummarizeWorkItems { get; } = Create(
-        "diary.summarize-work-items", "diary_summarize_work_items", "汇总工作事项", "本地汇总工作事项数量、工时、日期和标签。", QuerySchema);
+        "diary.summarize-work-items", "diary_summarize_work_items", "汇总工作事项", "日报、周报、月报和工作内容总结的首选工具；在本地分页读取并汇总全部匹配事项，返回工时、日期、标签和紧凑的工作内容分组，不返回颜色等展示字段。", SummaryQuerySchema);
 
     public static AgentToolDescriptor ListTemplates { get; } = Create(
         "diary.list-templates", "diary_list_templates", "列出模板", "列出 DiaryApp 事项模板。", EmptySchema);

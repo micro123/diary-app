@@ -273,6 +273,9 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
         {
             switch (item.Kind)
             {
+                case AgentRunEventKind.ModelRequestStarted:
+                    StatusText = item.Text ?? "正在等待模型响应…";
+                    break;
                 case AgentRunEventKind.TextDelta:
                     assistant.Content += item.Text;
                     break;

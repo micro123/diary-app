@@ -33,17 +33,29 @@ public sealed class AgentToolTests
         Assert.IsFalse(result.Content.Contains("note", StringComparison.OrdinalIgnoreCase));
         using var resultDocument = JsonDocument.Parse(result.Content);
         Assert.AreEqual("实现 AI 模块", resultDocument.RootElement.GetProperty("items")[0].GetProperty("Title").GetString());
+        var tag = resultDocument.RootElement.GetProperty("items")[0].GetProperty("Tags")[0];
+        Assert.IsTrue(tag.TryGetProperty("Id", out _));
+        Assert.IsTrue(tag.TryGetProperty("Name", out _));
+        Assert.IsFalse(tag.TryGetProperty("Color", out _));
+        Assert.IsFalse(tag.TryGetProperty("Level", out _));
         Assert.IsFalse(typeof(AgentWorkItemDto).GetProperties()
             .Any(property => property.Name.Contains("note", StringComparison.OrdinalIgnoreCase)));
     }
 
     [TestMethod]
-    public async Task SummaryToolDoesNotReturnIndividualContentOrNotes()
+    public async Task SummaryToolLoadsAllPagesAndReturnsCompactWorkContentsWithoutNotes()
     {
         const string localNote = "PRIVATE_NOTE_42";
-        var items = ImmutableArray.Create(
-            new ScriptWorkItem(1, "2026-10-08", "事项 A", 1.5, 1, localNote, []),
-            new ScriptWorkItem(2, "2026-10-08", "事项 B", 2.0, 1, localNote, []));
+        var items = Enumerable.Range(1, 120)
+            .Select(index => new ScriptWorkItem(
+                index,
+                $"2026-09-{(index % 30) + 1:00}",
+                index % 2 == 0 ? "功能开发" : "缺陷修复",
+                1,
+                1,
+                localNote,
+                []))
+            .ToImmutableArray();
         var tool = new SummarizeWorkItemsTool(new FakeWorkItemApi(items));
         using var argumentsDocument = JsonDocument.Parse("{}");
 
@@ -53,10 +65,13 @@ public sealed class AgentToolTests
 
         Assert.IsTrue(result.Succeeded);
         Assert.IsFalse(result.Content.Contains(localNote, StringComparison.Ordinal));
-        Assert.IsFalse(result.Content.Contains("事项 A", StringComparison.Ordinal));
-        StringAssert.Contains(result.Content, "3.5");
-        StringAssert.Contains(result.Content, "averageHours");
-        StringAssert.Contains(result.Content, "byPriority");
+        using var resultDocument = JsonDocument.Parse(result.Content);
+        Assert.AreEqual(120, resultDocument.RootElement.GetProperty("count").GetInt32());
+        Assert.AreEqual(120, resultDocument.RootElement.GetProperty("totalHours").GetDouble());
+        Assert.IsFalse(resultDocument.RootElement.GetProperty("truncated").GetBoolean());
+        var contents = resultDocument.RootElement.GetProperty("workContents");
+        Assert.AreEqual(2, contents.GetArrayLength());
+        Assert.IsTrue(contents.EnumerateArray().Any(item => item.GetProperty("title").GetString() == "功能开发"));
     }
 
     [TestMethod]

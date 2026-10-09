@@ -20,6 +20,7 @@ public enum AgentSessionStatus
 public enum AgentRunEventKind
 {
     StatusChanged,
+    ModelRequestStarted,
     ContextCompacted,
     TextDelta,
     ToolStarted,
@@ -232,6 +233,12 @@ public sealed class AgentSessionService
             {
                 roundsCompleted = round;
                 linkedCancellation.Token.ThrowIfCancellationRequested();
+                Report(progress, new AgentRunEvent(
+                    AgentRunEventKind.ModelRequestStarted,
+                    runId,
+                    Text: totalToolCalls > 0
+                        ? "工具结果已回传，正在等待模型回答…"
+                        : "正在等待模型响应…"));
                 var request = new AgentModelRequest(
                     connection.Model,
                     AgentContextCompactor.BuildSystemInstruction(ContextSummary),
@@ -350,7 +357,10 @@ public sealed class AgentSessionService
         catch (AiModelException exception)
         {
             finalErrorCode = exception.Code;
-            return Fail(runId, 0, totalToolCalls, latestUsage, exception.Code, exception.Message, progress);
+            var message = exception.Code == "request_timeout" && totalToolCalls > 0
+                ? "工具结果已回传，但模型响应超时。可提高连接的请求/空闲超时，或缩小查询范围后重试。"
+                : exception.Message;
+            return Fail(runId, roundsCompleted, totalToolCalls, latestUsage, exception.Code, message, progress);
         }
         catch (Exception)
         {

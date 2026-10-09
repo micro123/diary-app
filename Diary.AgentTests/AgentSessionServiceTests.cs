@@ -43,6 +43,9 @@ public sealed class AgentSessionServiceTests
         Assert.AreEqual(AgentMessageRole.Assistant, session.Messages[3].Role);
         Assert.AreEqual("final answer", session.Messages[3].Text);
         Assert.IsTrue(progress.Events.Any(item => item.Kind == AgentRunEventKind.ToolCompleted));
+        Assert.IsTrue(progress.Events.Any(item =>
+            item.Kind == AgentRunEventKind.ModelRequestStarted
+            && item.Text?.Contains("工具结果已回传", StringComparison.Ordinal) == true));
         Assert.AreEqual(2, gateway.Requests.Count);
         Assert.AreEqual(1, gateway.Requests[1].Messages.Count(item => item.Role == AgentMessageRole.Tool));
     }

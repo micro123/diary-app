@@ -81,6 +81,57 @@ public sealed class AiModelClientLoopbackTests
     }
 
     [TestMethod]
+    public async Task StreamingIdleTimeoutRenewsWhenEventsContinueArriving()
+    {
+        var chunks = new[] { "one\n", "two\n", "three\n", "four\n" };
+        await using var server = new LoopbackHttpServer(_ => new LoopbackResponse(
+            "text/event-stream",
+            string.Concat(chunks),
+            Chunks: chunks,
+            ChunkDelay: TimeSpan.FromMilliseconds(200)));
+        var credentials = new TestCredentialStore("key");
+        using var pool = new AiHttpClientPool(credentials);
+        var client = new AiModelClient(credentials, pool, [new TestStreamingAdapter()]);
+        var profile = CreateProfile(server.BaseUri, AiProtocol.OpenAiResponses) with
+        {
+            RequestTimeout = TimeSpan.FromMilliseconds(350),
+        };
+        var events = new List<AgentStreamEvent>();
+
+        await foreach (var item in client.StreamAsync(CreateRequest(stream: true), profile))
+            events.Add(item);
+
+        Assert.IsTrue(events.Any(item => item.Kind == AgentStreamEventKind.ResponseCompleted));
+    }
+
+    [TestMethod]
+    public async Task StreamingIdleTimeoutIsReportedAsRequestTimeout()
+    {
+        await using var server = new LoopbackHttpServer(async (_, cancellationToken) =>
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException("unreachable");
+        });
+        var credentials = new TestCredentialStore("key");
+        using var pool = new AiHttpClientPool(credentials);
+        var client = new AiModelClient(credentials, pool, [new TestStreamingAdapter()]);
+        var profile = CreateProfile(server.BaseUri, AiProtocol.OpenAiResponses) with
+        {
+            RequestTimeout = TimeSpan.FromMilliseconds(100),
+        };
+
+        var exception = await Assert.ThrowsExactlyAsync<AiModelException>(async () =>
+        {
+            await foreach (var _ in client.StreamAsync(CreateRequest(stream: true), profile))
+            {
+            }
+        });
+
+        Assert.AreEqual(AiModelErrorCategory.Timeout, exception.Category);
+        Assert.AreEqual("request_timeout", exception.Code);
+    }
+
+    [TestMethod]
     public async Task CallerCancellationStopsRealHttpRequest()
     {
         await using var server = new LoopbackHttpServer(async (_, cancellationToken) =>
@@ -225,13 +276,44 @@ public sealed class AiModelClientLoopbackTests
             ValueTask.CompletedTask;
     }
 
+    private sealed class TestStreamingAdapter : IAiProtocolAdapter
+    {
+        public AiProtocol Protocol => AiProtocol.OpenAiResponses;
+
+        public string DefaultRequestPath => "stream";
+
+        public HttpRequestMessage CreateRequest(
+            AgentModelRequest request,
+            AiConnectionProfile connection,
+            CredentialValue? credential) => new(HttpMethod.Post, new Uri(connection.BaseUri, DefaultRequestPath));
+
+        public ValueTask<AgentModelResponse> ParseResponseAsync(
+            HttpResponseMessage response,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public async IAsyncEnumerable<AgentStreamEvent> ParseStreamAsync(
+            Stream stream,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
+            while (await reader.ReadLineAsync(cancellationToken) is { } line)
+                yield return new AgentStreamEvent(AgentStreamEventKind.TextDelta, Text: line);
+            yield return new AgentStreamEvent(AgentStreamEventKind.ResponseCompleted, FinishReason: "stop");
+        }
+    }
+
     private sealed record CapturedRequest(
         string Method,
         string Path,
         IReadOnlyDictionary<string, string> Headers,
         string Body);
 
-    private sealed record LoopbackResponse(string ContentType, string Body, HttpStatusCode Status = HttpStatusCode.OK);
+    private sealed record LoopbackResponse(
+        string ContentType,
+        string Body,
+        HttpStatusCode Status = HttpStatusCode.OK,
+        IReadOnlyList<string>? Chunks = null,
+        TimeSpan? ChunkDelay = null);
 
     private sealed class LoopbackHttpServer : IAsyncDisposable
     {
@@ -285,7 +367,20 @@ public sealed class AiModelClientLoopbackTests
                 $"Content-Length: {body.Length}\r\n" +
                 "Connection: close\r\n\r\n");
             await stream.WriteAsync(headers, _shutdown.Token);
-            await stream.WriteAsync(body, _shutdown.Token);
+            if (response.Chunks is null)
+            {
+                await stream.WriteAsync(body, _shutdown.Token);
+            }
+            else
+            {
+                for (var index = 0; index < response.Chunks.Count; index++)
+                {
+                    if (index > 0 && response.ChunkDelay is { } delay)
+                        await Task.Delay(delay, _shutdown.Token);
+                    await stream.WriteAsync(Encoding.UTF8.GetBytes(response.Chunks[index]), _shutdown.Token);
+                    await stream.FlushAsync(_shutdown.Token);
+                }
+            }
             await stream.FlushAsync(_shutdown.Token);
             return request;
         }

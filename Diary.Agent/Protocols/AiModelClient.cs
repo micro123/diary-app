@@ -67,18 +67,60 @@ public sealed class AiModelClient : IAgentModelGateway
         using var message = adapter.CreateRequest(request, connection, credential);
         await ApplyAdditionalHeadersAsync(message, connection, cancellationToken);
         using var timeout = CreateTimeout(connection.RequestTimeout, cancellationToken);
+        var stream = StreamCoreAsync(message, connection, adapter, timeout.Token);
+        await using var enumerator = stream.GetAsyncEnumerator(timeout.Token);
+        while (true)
+        {
+            AgentStreamEvent current;
+            try
+            {
+                if (!await enumerator.MoveNextAsync())
+                    yield break;
+                current = enumerator.Current;
+            }
+            catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new AiModelException(
+                    AiModelErrorCategory.Timeout,
+                    "request_timeout",
+                    "模型流式请求等待数据超时。",
+                    innerException: exception);
+            }
+            catch (OperationCanceledException exception)
+            {
+                throw new AiModelException(
+                    AiModelErrorCategory.Cancelled,
+                    "request_cancelled",
+                    "模型请求已取消。",
+                    innerException: exception);
+            }
+            catch (HttpRequestException exception)
+            {
+                throw NormalizeNetworkException(exception);
+            }
+            timeout.CancelAfter(connection.RequestTimeout);
+            yield return current;
+        }
+    }
+
+    private async IAsyncEnumerable<AgentStreamEvent> StreamCoreAsync(
+        HttpRequestMessage message,
+        AiConnectionProfile connection,
+        IAiProtocolAdapter adapter,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
         HttpResponseMessage? response = null;
         try
         {
-            var client = await _clientPool.GetClientAsync(connection, timeout.Token);
-            response = await client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+            var client = await _clientPool.GetClientAsync(connection, cancellationToken);
+            response = await client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                _ = await adapter.ParseResponseAsync(response, timeout.Token);
+                _ = await adapter.ParseResponseAsync(response, cancellationToken);
                 yield break;
             }
-            await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token);
-            await foreach (var item in adapter.ParseStreamAsync(stream, timeout.Token))
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            await foreach (var item in adapter.ParseStreamAsync(stream, cancellationToken))
                 yield return item;
         }
         finally

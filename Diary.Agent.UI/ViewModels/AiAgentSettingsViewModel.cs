@@ -23,6 +23,8 @@ public sealed partial class AiConnectionEditorViewModel : ObservableObject
         AutomaticContextCompression = profile.AutomaticContextCompression;
         ContextCompressionThresholdPercent = profile.ContextCompressionThresholdPercent;
         CheckCertificateRevocation = profile.CheckCertificateRevocation;
+        ConnectTimeoutSeconds = (int)profile.ConnectTimeout.TotalSeconds;
+        RequestTimeoutSeconds = (int)profile.RequestTimeout.TotalSeconds;
         AuthenticationKind = profile.Authentication.Kind;
         CredentialReference = profile.Authentication.CredentialReference;
         HeaderName = profile.Authentication.HeaderName;
@@ -70,6 +72,8 @@ public sealed partial class AiConnectionEditorViewModel : ObservableObject
     [ObservableProperty] private bool _automaticContextCompression = true;
     [ObservableProperty] private int _contextCompressionThresholdPercent = 75;
     [ObservableProperty] private bool _checkCertificateRevocation = true;
+    [ObservableProperty] private int _connectTimeoutSeconds = 30;
+    [ObservableProperty] private int _requestTimeoutSeconds = 120;
     [ObservableProperty] private AiAuthenticationKind _authenticationKind;
     [ObservableProperty] private string _credentialReference = string.Empty;
     [ObservableProperty] private string _headerName = "Authorization";
@@ -129,6 +133,8 @@ public sealed partial class AiConnectionEditorViewModel : ObservableObject
             AutomaticContextCompression = AutomaticContextCompression,
             ContextCompressionThresholdPercent = ContextCompressionThresholdPercent,
             CheckCertificateRevocation = CheckCertificateRevocation,
+            ConnectTimeout = TimeSpan.FromSeconds(ConnectTimeoutSeconds),
+            RequestTimeout = TimeSpan.FromSeconds(RequestTimeoutSeconds),
             Authentication = new AiAuthenticationConfiguration
             {
                 Kind = AuthenticationKind,
