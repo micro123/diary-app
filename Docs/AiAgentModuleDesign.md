@@ -680,17 +680,28 @@ public interface IWorkItemCommandApi
     ValueTask<WorkItemCommandResult> UpdateAsync(
         WorkItemUpdateCommand command,
         CancellationToken cancellationToken = default);
+
+    ValueTask<WorkItemBatchUpdatePreview> PreviewBatchUpdateAsync(
+        WorkItemBatchUpdateCommand command,
+        CancellationToken cancellationToken = default);
+
+    ValueTask<WorkItemBatchUpdateResult> BatchUpdateAsync(
+        WorkItemBatchUpdateCommand command,
+        CancellationToken cancellationToken = default);
 }
 ```
 
-创建支持日期、标题、工时、优先级、标签、备注和附加字段。更新仅开放日期、标题、工时、优先级和标签，并由宿主在事务内保留本地备注及仍适用的附加字段；备注不会进入更新预览或模型结果。Tracker 编辑扩展写入继续禁用，除非各扩展提供明确可预览、可校验的命令契约。命令包含幂等键和预览版本，确认执行时校验数据库状态、标签/字段版本和预览摘要，避免过期确认。
+创建支持日期、标题、工时、优先级、标签、备注和附加字段。更新开放日期、标题、工时、优先级、标签和标签附加字段，并由宿主在事务内保留本地备注；备注不会进入更新预览或模型结果。附加字段使用 patch 语义：`ExtraFields == null` 表示不主动修改并保留更新后仍适用的值，提供的字段只覆盖对应字段，空白值清空指定字段，未提供字段保持不变，标签被移除后对应字段值随之清理。字段必须处于启用状态、属于最终标签集合，并通过 `TagExtraFieldValueValidator`。
+
+批量更新限制为 1–20 个互不重复的事项。预览包含逐项 `before/after` 和覆盖整个批次的版本摘要，摘要同时纳入事项状态、标签及字段定义；确认后重新标准化并比较版本。`IWorkItemPersistenceCoordinator.SaveBatch` 在一个数据库事务中保存全部事项，任一保存或提交失败都会回滚；只有完整返回全部保存结果后才记录 `batch:` 幂等标记并触发一次数据库变更通知。该能力扩展命令 DTO 和持久化协调器，不修改 `WorkItem`、`WorkTag` 或附加字段等核心数据结构。Tracker 编辑扩展写入继续禁用，除非各扩展提供明确可预览、可校验的命令契约。
 
 在同一“确认后写入工具”能力组下，内置 Agent 还注册以下程序工具：
 
 | 工具 | 宿主能力 | 确认与执行约束 |
 | --- | --- | --- |
 | `diary_create_from_template` | `ITemplateLogItemScriptApi`、`ITemplateScriptApi` | 确认前展示模板名称、默认标签和预览，确认后重新预览，再使用幂等键创建 |
-| `diary_update_work_item` | `IWorkItemCommandApi` | 确认卡展示修改前后字段；确认时重新校验事项状态，保留本地备注，不提供删除能力 |
+| `diary_update_work_item` | `IWorkItemCommandApi` | 确认卡展示修改前后字段和附加字段 patch；确认时重新校验事项状态及字段定义，保留本地备注，不提供删除能力 |
+| `diary_batch_update_work_items` | `IWorkItemCommandApi` | 一次确认展示最多 20 项的逐项差异；确认后重新校验整批版本并在单事务中原子保存，任一失败全部回滚 |
 | `diary_export_report` | `IAgentReportExportApi`、`ScriptExportService` | 日报/周报按无备注事项生成表格；确认后只写入应用管理的 `ai-agent/exports` 目录，不接受任意路径 |
 | `diary_set_clipboard_text` | `IClipboardScriptApi` | 确认卡展示完整参数，确认后写入，限制为 20000 字符 |
 | `diary_notify` | `IUserInteractionScriptApi` | 确认卡展示标题和正文，确认后发送会话级应用通知 |
@@ -967,9 +978,9 @@ AI 模块随程序安装但默认禁用。用户启用后重启生效；未启�
 
 ## 20. 实施与验证结果
 
-- `Diary.AgentTests` 84/84，通过三协议、完整能力探测、模型/代理、静态网页安全、内网与本机访问策略、系统浏览器动态渲染、本机 CDP 运行时限制、附加字段目录、记录质量分析、周期对比、日历概览、事项详情与导出目录查询、事项创建/更新确认、报告导出确认、自动上下文压缩、Responses 协议状态清理及本地兜底、MCP 删除语义拦截、会话与审计测试；另由 `Diary.ScriptTests` 验证 Agent 无备注查询模式不调用备注读取器；
+- `Diary.AgentTests` 87/87，通过三协议、完整能力探测、模型/代理、静态网页安全、内网与本机访问策略、系统浏览器动态渲染、本机 CDP 运行时限制、附加字段目录、记录质量分析、周期对比、日历概览、事项详情与导出目录查询、事项创建/单项与批量更新确认、附加字段确认预览、报告导出确认、自动上下文压缩、Responses 协议状态清理及本地兜底、MCP 删除语义拦截、会话与审计测试；另由 `Diary.ScriptTests` 验证 Agent 无备注查询模式不调用备注读取器；
 - `Diary.ModuleTests` 13 项通过，1 项因未生成 Windows Release 发布目录跳过；已覆盖 Debug 模块目录、私有 `AssemblyLoadContext`、禁用和故障隔离测试；
-- `Diary.AppTests` 320/320；`Diary.DbTests` 264 通过，1 项因本机 `pg_dump` 与 PostgreSQL 服务端主版本不一致跳过；
+- `Diary.AppTests` 320/320；`Diary.DbTests` 267 通过，1 项因本机 `pg_dump` 与 PostgreSQL 服务端主版本不一致跳过；数据库测试覆盖附加字段 patch、批量幂等和批次中途失败整体回滚；
 - AI CDP 套件 7/7，通过导航、Agent 状态、真实本地假模型工具闭环、拒绝写入、键盘发送、设置贡献和递归 seed；
 - `win-x64`、`linux-x64` 自包含发布成功，模块目录只包含 `module.json`、`Diary.Agent.UI.dll`、`Diary.Agent.UI.deps.json`、`Diary.Agent.dll`、`AngleSharp.dll`，宿主根目录无 AI 私有程序集；
 - Windows 发布包在默认禁用、`--core-only` 和模块目录缺失三种形态下均可持续启动且不加载 AI 私有能力；
