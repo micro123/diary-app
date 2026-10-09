@@ -24,6 +24,7 @@ public sealed class WorkItemUpdateTool(
             "hours":{"type":["number","null"],"exclusiveMinimum":0,"maximum":24},
             "priority":{"type":["integer","null"],"minimum":0,"maximum":9},
             "tagIds":{"type":["array","null"],"items":{"type":"integer"}},
+            "extraFields":{"type":["array","null"],"items":{"type":"object","properties":{"fieldId":{"type":"string"},"value":{"type":"string"}},"required":["fieldId","value"],"additionalProperties":false}},
             "idempotencyKey":{"type":"string"}
           },
           "required":["workItemId","idempotencyKey"],
@@ -35,7 +36,7 @@ public sealed class WorkItemUpdateTool(
         "diary.work-items.update",
         "diary_update_work_item",
         "更新事项",
-        "预览指定事项的字段差异，并且仅在用户逐次确认后更新；不能修改本地备注或删除事项。",
+        "预览指定事项的字段差异，并且仅在用户逐次确认后更新；支持标签附加字段值，不能修改本地备注或删除事项。",
         Schema,
         AgentToolOrigin.BuiltIn,
         AgentToolRisk.Write,
@@ -61,7 +62,8 @@ public sealed class WorkItemUpdateTool(
             && input.Title is null
             && input.Hours is null
             && input.Priority is null
-            && input.TagIds is null)
+            && input.TagIds is null
+            && input.ExtraFields is null)
         {
             return AgentToolResult.Failure("invalid_arguments", "至少需要提供一个待更新字段。");
         }
@@ -73,7 +75,8 @@ public sealed class WorkItemUpdateTool(
             input.Hours,
             input.Priority,
             input.TagIds,
-            input.IdempotencyKey), cancellationToken);
+            input.IdempotencyKey,
+            input.ExtraFields), cancellationToken);
         if (!preview.Succeeded || preview.Before is null || preview.Command is null || preview.PreviewVersion is null)
             return AgentToolResult.Failure(preview.ErrorCode ?? "preview_failed", preview.ErrorMessage ?? "事项更新预览失败。");
 
@@ -89,6 +92,7 @@ public sealed class WorkItemUpdateTool(
                 preview.Command.Hours,
                 preview.Command.Priority,
                 preview.Command.TagIds,
+                preview.Command.ExtraFields,
             },
         });
         if (!await ConfirmedProgramWrite.RequestAsync(
@@ -130,6 +134,8 @@ public sealed class WorkItemUpdateTool(
         public int? Priority { get; init; }
 
         public IReadOnlyList<int>? TagIds { get; init; }
+
+        public IReadOnlyList<WorkItemExtraFieldCommand>? ExtraFields { get; init; }
 
         public string IdempotencyKey { get; init; } = string.Empty;
     }

@@ -44,6 +44,7 @@ public sealed class AiAgentModule : IAppModule
             provider.GetRequiredService<AgentConfirmationCoordinator>());
         services.AddSingleton<WorkItemWriteTool>();
         services.AddSingleton<WorkItemUpdateTool>();
+        services.AddSingleton<WorkItemBatchUpdateTool>();
         services.AddSingleton<TemplateWorkItemWriteTool>();
         services.AddSingleton<ClipboardWriteTool>();
         services.AddSingleton<AppNotificationWriteTool>();
@@ -83,6 +84,7 @@ public sealed class AiAgentModule : IAppModule
             registry.TryRegister(provider.GetRequiredService<ScriptDraftTool>());
             registry.TryRegister(provider.GetRequiredService<WorkItemWriteTool>());
             registry.TryRegister(provider.GetRequiredService<WorkItemUpdateTool>());
+            registry.TryRegister(provider.GetRequiredService<WorkItemBatchUpdateTool>());
             registry.TryRegister(provider.GetRequiredService<TemplateWorkItemWriteTool>());
             registry.TryRegister(provider.GetRequiredService<ClipboardWriteTool>());
             registry.TryRegister(provider.GetRequiredService<AppNotificationWriteTool>());

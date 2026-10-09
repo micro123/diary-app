@@ -18,6 +18,7 @@ public sealed class WorkItemCommandApi(
     private const int MaxTitleLength = 500;
     private const int MaxNoteLength = 10_000;
     private const int MaxIdempotencyKeyLength = 200;
+    private const int MaxBatchUpdateCount = 20;
 
     public ValueTask<WorkItemCommandPreview> PreviewCreateAsync(
         WorkItemCreateCommand command,
@@ -119,7 +120,7 @@ public sealed class WorkItemCommandApi(
         {
             return ValueTask.FromResult(FailedUpdatePreview(errorCode, error));
         }
-        var version = CreateUpdatePreviewVersion(before!, normalized!);
+        var version = CreateUpdatePreviewVersion(database, before!, normalized!);
         return ValueTask.FromResult(new WorkItemUpdatePreview(
             true,
             before,
@@ -155,7 +156,7 @@ public sealed class WorkItemCommandApi(
         {
             return ValueTask.FromResult(FailedResult(errorCode, error));
         }
-        var currentVersion = CreateUpdatePreviewVersion(before!, normalized!);
+        var currentVersion = CreateUpdatePreviewVersion(database, before!, normalized!);
         if (string.IsNullOrWhiteSpace(command.PreviewVersion)
             || !CryptographicOperations.FixedTimeEquals(
                 Encoding.UTF8.GetBytes(command.PreviewVersion),
@@ -190,6 +191,114 @@ public sealed class WorkItemCommandApi(
         try { databaseChanged?.Invoke(); }
         catch { }
         return ValueTask.FromResult(result);
+    }
+
+    public ValueTask<WorkItemBatchUpdatePreview> PreviewBatchUpdateAsync(
+        WorkItemBatchUpdateCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var database = TryGetDatabase(out var databaseError);
+        if (database is null)
+            return ValueTask.FromResult(FailedBatchPreview("database_unavailable", databaseError));
+        if (!TryNormalizeBatchUpdate(database, command, out var normalized, out var prepared, out var errorCode, out var error))
+            return ValueTask.FromResult(FailedBatchPreview(errorCode, error));
+        var version = CreateBatchUpdatePreviewVersion(database, prepared!);
+        var itemPreviews = prepared!.Select(item =>
+        {
+            var itemVersion = CreateUpdatePreviewVersion(database, item.Before, item.Command);
+            return new WorkItemUpdatePreview(
+                true,
+                item.Before,
+                item.Command with { PreviewVersion = itemVersion },
+                itemVersion);
+        }).ToArray();
+        return ValueTask.FromResult(new WorkItemBatchUpdatePreview(
+            true,
+            normalized! with { PreviewVersion = version },
+            itemPreviews,
+            version));
+    }
+
+    public ValueTask<WorkItemBatchUpdateResult> BatchUpdateAsync(
+        WorkItemBatchUpdateCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var idempotencyKey = command.IdempotencyKey?.Trim() ?? string.Empty;
+        if (idempotencyKey.Length is 0 or > MaxIdempotencyKeyLength - 6)
+            return ValueTask.FromResult(FailedBatchResult("idempotency_key_required", "批量更新必须提供有效幂等键。"));
+        var storeKey = "batch:" + idempotencyKey;
+        using var lease = idempotencyStore.Acquire(storeKey);
+        if (idempotencyStore.TryGet(storeKey, out var previous))
+        {
+            return ValueTask.FromResult(new WorkItemBatchUpdateResult(
+                previous.Succeeded,
+                previous.WorkItemIds ?? [],
+                true,
+                previous.PreviewVersion,
+                previous.ErrorCode,
+                previous.ErrorMessage));
+        }
+
+        var database = TryGetDatabase(out var databaseError);
+        if (database is null)
+            return ValueTask.FromResult(FailedBatchResult("database_unavailable", databaseError));
+        if (!TryNormalizeBatchUpdate(database, command, out _, out var prepared, out var errorCode, out var error))
+            return ValueTask.FromResult(FailedBatchResult(errorCode, error));
+        var currentVersion = CreateBatchUpdatePreviewVersion(database, prepared!);
+        if (string.IsNullOrWhiteSpace(command.PreviewVersion)
+            || !CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(command.PreviewVersion),
+                Encoding.UTF8.GetBytes(currentVersion)))
+        {
+            return ValueTask.FromResult(FailedBatchResult(
+                "preview_stale",
+                "批量事项更新预览已过期，请重新预览并确认。",
+                currentVersion));
+        }
+
+        var requests = prepared!.Select(item => new WorkItemSaveRequest(
+            item.Existing,
+            item.Command.Date!,
+            item.Command.Title!,
+            string.Empty,
+            item.Command.Hours!.Value,
+            (WorkPriorities)item.Command.Priority!.Value,
+            item.Tags,
+            item.ExtraFields,
+            [],
+            PreserveNote: true)).ToArray();
+        var saveResult = persistence.SaveBatch(database, requests);
+        if (!saveResult.Success)
+            return ValueTask.FromResult(FailedBatchResult("persistence_failed", saveResult.Error ?? "批量更新事项失败。", currentVersion));
+        if (saveResult.Results.Count != requests.Length
+            || saveResult.Results.Any(result => !result.Success || result.WorkItem is null))
+        {
+            return ValueTask.FromResult(FailedBatchResult(
+                "persistence_failed",
+                "批量更新返回的持久化结果不完整。",
+                currentVersion));
+        }
+
+        var workItemIds = saveResult.Results
+            .Select(result => result.WorkItem!.Id)
+            .Order()
+            .ToArray();
+        var marker = new WorkItemCommandResult(
+            true,
+            null,
+            false,
+            currentVersion,
+            WorkItemIds: workItemIds);
+        idempotencyStore.Save(storeKey, marker);
+        try { databaseChanged?.Invoke(); }
+        catch { }
+        return ValueTask.FromResult(new WorkItemBatchUpdateResult(
+            true,
+            workItemIds,
+            false,
+            currentVersion));
     }
 
     private DbInterfaceBase? TryGetDatabase(out string error)
@@ -312,7 +421,8 @@ public sealed class WorkItemCommandApi(
             && command.Title is null
             && command.Hours is null
             && command.Priority is null
-            && command.TagIds is null)
+            && command.TagIds is null
+            && command.ExtraFields is null)
         {
             return Fail("事项更新至少需要提供一个变更字段。", out error);
         }
@@ -333,13 +443,19 @@ public sealed class WorkItemCommandApi(
         }
 
         var currentTags = database.GetWorkItemTags(existing).OrderBy(tag => tag.Id).ToArray();
+        var currentFields = database.GetWorkItemExtraFields(existing)
+            .Where(field => !string.IsNullOrWhiteSpace(field.Value))
+            .Select(field => new WorkItemExtraFieldCommand(field.FieldId, field.Value))
+            .OrderBy(field => field.FieldId, StringComparer.Ordinal)
+            .ToArray();
         before = new WorkItemUpdateSnapshot(
             existing.Id,
             existing.CreateDate,
             existing.Comment,
             existing.Time,
             (int)existing.Priority,
-            currentTags.Select(tag => tag.Id).ToArray());
+            currentTags.Select(tag => tag.Id).ToArray(),
+            currentFields);
         var dateText = command.Date ?? existing.CreateDate;
         if (!DateOnly.TryParseExact(dateText, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
             return Fail("日期必须是 yyyy-MM-dd 格式。", out error);
@@ -370,6 +486,37 @@ public sealed class WorkItemCommandApi(
             resolvedTags.Add(tag);
         }
 
+        var definitions = database.GetAllTagExtraFieldDefinitions(includeDisabled: true)
+            .Where(definition => tagIds.Contains(definition.TagId))
+            .ToDictionary(definition => definition.FieldId, StringComparer.Ordinal);
+        var finalFields = database.GetWorkItemExtraFields(existing)
+            .Where(field => tagIds.Contains(field.TagId) && !string.IsNullOrWhiteSpace(field.Value))
+            .ToDictionary(field => field.FieldId, field => field.Value, StringComparer.Ordinal);
+        if (command.ExtraFields is not null)
+        {
+            var seenFieldIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var field in command.ExtraFields)
+            {
+                if (!seenFieldIds.Add(field.FieldId))
+                    return Fail($"附加字段重复：{field.FieldId}。", out error);
+                if (!definitions.TryGetValue(field.FieldId, out var definition) || !definition.Enabled)
+                {
+                    errorCode = "extra_field_changed";
+                    return Fail($"附加字段 {field.FieldId} 不存在、未启用或不属于更新后的标签。", out error);
+                }
+                if (!TagExtraFieldValueValidator.TryValidate(definition.Type, field.Value, definition.Options, out var fieldError))
+                    return Fail($"附加字段“{definition.Label}”无效：{fieldError}", out error);
+                if (string.IsNullOrWhiteSpace(field.Value))
+                    finalFields.Remove(field.FieldId);
+                else
+                    finalFields[field.FieldId] = field.Value;
+            }
+        }
+        var normalizedFields = finalFields
+            .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+            .Select(pair => new WorkItemExtraFieldCommand(pair.Key, pair.Value))
+            .ToArray();
+
         normalized = command with
         {
             Date = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
@@ -377,6 +524,7 @@ public sealed class WorkItemCommandApi(
             Hours = hours,
             Priority = priority,
             TagIds = tagIds,
+            ExtraFields = normalizedFields,
             IdempotencyKey = idempotencyKey,
             PreviewVersion = null,
         };
@@ -384,14 +532,14 @@ public sealed class WorkItemCommandApi(
             && before.Title == normalized.Title
             && before.Hours == normalized.Hours
             && before.Priority == normalized.Priority
-            && before.TagIds.SequenceEqual(normalized.TagIds!))
+            && before.TagIds.SequenceEqual(normalized.TagIds!)
+            && (before.ExtraFields ?? []).SequenceEqual(normalized.ExtraFields ?? []))
         {
             return Fail("事项更新没有产生实际变化。", out error);
         }
         tags = resolvedTags;
         var existingId = existing.Id;
-        extraFields = database.GetWorkItemExtraFields(existing)
-            .Where(field => tagIds.Contains(field.TagId) && !string.IsNullOrWhiteSpace(field.Value))
+        extraFields = normalizedFields
             .Select(field => new WorkItemExtraFieldValue
             {
                 WorkItemId = existingId,
@@ -429,15 +577,100 @@ public sealed class WorkItemCommandApi(
     }
 
     private static string CreateUpdatePreviewVersion(
+        DbInterfaceBase database,
         WorkItemUpdateSnapshot before,
         WorkItemUpdateCommand command)
     {
+        var selectedTagIds = command.TagIds?.ToHashSet() ?? [];
         var bytes = JsonSerializer.SerializeToUtf8Bytes(new
         {
             Before = before,
             Command = command with { PreviewVersion = null },
+            Fields = database.GetAllTagExtraFieldDefinitions(includeDisabled: true)
+                .Where(field => selectedTagIds.Contains(field.TagId))
+                .OrderBy(field => field.FieldId, StringComparer.Ordinal)
+                .Select(field => new
+                {
+                    field.FieldId,
+                    field.TagId,
+                    field.Type,
+                    field.Enabled,
+                    field.Options,
+                }),
         });
         return Convert.ToHexString(SHA256.HashData(bytes));
+    }
+
+    private static string CreateBatchUpdatePreviewVersion(
+        DbInterfaceBase database,
+        IReadOnlyList<PreparedUpdate> prepared)
+    {
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(prepared
+            .OrderBy(item => item.Command.WorkItemId)
+            .Select(item => new
+            {
+                item.Before,
+                Command = item.Command with { PreviewVersion = null },
+                Fields = database.GetAllTagExtraFieldDefinitions(includeDisabled: true)
+                    .Where(field => item.Command.TagIds!.Contains(field.TagId))
+                    .OrderBy(field => field.FieldId, StringComparer.Ordinal)
+                    .Select(field => new
+                    {
+                        field.FieldId,
+                        field.TagId,
+                        field.Type,
+                        field.Enabled,
+                        field.Options,
+                    }),
+            }));
+        return Convert.ToHexString(SHA256.HashData(bytes));
+    }
+
+    private static bool TryNormalizeBatchUpdate(
+        DbInterfaceBase database,
+        WorkItemBatchUpdateCommand command,
+        out WorkItemBatchUpdateCommand? normalized,
+        out IReadOnlyList<PreparedUpdate>? prepared,
+        out string errorCode,
+        out string error)
+    {
+        normalized = null;
+        prepared = null;
+        errorCode = "invalid_command";
+        error = string.Empty;
+        var batchKey = command.IdempotencyKey?.Trim() ?? string.Empty;
+        if (batchKey.Length is 0 or > MaxIdempotencyKeyLength - 6)
+            return Fail($"批量更新幂等键不能为空且不能超过 {MaxIdempotencyKeyLength - 6} 个字符。", out error);
+        if (command.Updates.Count is 0 or > MaxBatchUpdateCount)
+            return Fail($"单次批量更新必须包含 1 到 {MaxBatchUpdateCount} 个事项。", out error);
+        if (command.Updates.Select(update => update.WorkItemId).Distinct().Count() != command.Updates.Count)
+            return Fail("批量更新不能重复包含同一个事项。", out error);
+
+        var items = new List<PreparedUpdate>(command.Updates.Count);
+        for (var index = 0; index < command.Updates.Count; index++)
+        {
+            var update = command.Updates[index] with { IdempotencyKey = $"{batchKey}:{index + 1}" };
+            if (!TryNormalizeUpdate(
+                    database,
+                    update,
+                    out var existing,
+                    out var before,
+                    out var normalizedUpdate,
+                    out var tags,
+                    out var extraFields,
+                    out errorCode,
+                    out error))
+            {
+                error = $"事项 {update.WorkItemId}：{error}";
+                return false;
+            }
+            items.Add(new PreparedUpdate(existing!, before!, normalizedUpdate!, tags!, extraFields!));
+        }
+        prepared = items;
+        normalized = new WorkItemBatchUpdateCommand(
+            items.Select(item => item.Command).ToArray(),
+            batchKey);
+        return true;
     }
 
     private static WorkItemCommandPreview FailedPreview(string code, string message) =>
@@ -446,12 +679,28 @@ public sealed class WorkItemCommandApi(
     private static WorkItemUpdatePreview FailedUpdatePreview(string code, string message) =>
         new(false, null, null, null, code, message);
 
+    private static WorkItemBatchUpdatePreview FailedBatchPreview(string code, string message) =>
+        new(false, null, [], null, code, message);
+
     private static WorkItemCommandResult FailedResult(string code, string message, string? previewVersion = null) =>
         new(false, null, false, previewVersion, code, message);
+
+    private static WorkItemBatchUpdateResult FailedBatchResult(
+        string code,
+        string message,
+        string? previewVersion = null) =>
+        new(false, [], false, previewVersion, code, message);
 
     private static bool Fail(string message, out string error)
     {
         error = message;
         return false;
     }
+
+    private sealed record PreparedUpdate(
+        WorkItem Existing,
+        WorkItemUpdateSnapshot Before,
+        WorkItemUpdateCommand Command,
+        IReadOnlyCollection<WorkTag> Tags,
+        IReadOnlyCollection<WorkItemExtraFieldValue> ExtraFields);
 }

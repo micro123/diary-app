@@ -29,7 +29,8 @@ public sealed record WorkItemCommandResult(
     bool Duplicate,
     string? PreviewVersion,
     string? ErrorCode = null,
-    string? ErrorMessage = null);
+    string? ErrorMessage = null,
+    IReadOnlyList<int>? WorkItemIds = null);
 
 public sealed record WorkItemUpdateCommand(
     int WorkItemId,
@@ -39,6 +40,7 @@ public sealed record WorkItemUpdateCommand(
     int? Priority,
     IReadOnlyList<int>? TagIds,
     string IdempotencyKey,
+    IReadOnlyList<WorkItemExtraFieldCommand>? ExtraFields = null,
     string? PreviewVersion = null);
 
 public sealed record WorkItemUpdateSnapshot(
@@ -47,12 +49,34 @@ public sealed record WorkItemUpdateSnapshot(
     string Title,
     double Hours,
     int Priority,
-    IReadOnlyList<int> TagIds);
+    IReadOnlyList<int> TagIds,
+    IReadOnlyList<WorkItemExtraFieldCommand>? ExtraFields = null);
 
 public sealed record WorkItemUpdatePreview(
     bool Succeeded,
     WorkItemUpdateSnapshot? Before,
     WorkItemUpdateCommand? Command,
+    string? PreviewVersion,
+    string? ErrorCode = null,
+    string? ErrorMessage = null);
+
+public sealed record WorkItemBatchUpdateCommand(
+    IReadOnlyList<WorkItemUpdateCommand> Updates,
+    string IdempotencyKey,
+    string? PreviewVersion = null);
+
+public sealed record WorkItemBatchUpdatePreview(
+    bool Succeeded,
+    WorkItemBatchUpdateCommand? Command,
+    IReadOnlyList<WorkItemUpdatePreview> Items,
+    string? PreviewVersion,
+    string? ErrorCode = null,
+    string? ErrorMessage = null);
+
+public sealed record WorkItemBatchUpdateResult(
+    bool Succeeded,
+    IReadOnlyList<int> WorkItemIds,
+    bool Duplicate,
     string? PreviewVersion,
     string? ErrorCode = null,
     string? ErrorMessage = null);
@@ -88,6 +112,28 @@ public interface IWorkItemCommandApi
             command.PreviewVersion,
             "update_not_supported",
             "当前宿主不支持事项更新。"));
+
+    ValueTask<WorkItemBatchUpdatePreview> PreviewBatchUpdateAsync(
+        WorkItemBatchUpdateCommand command,
+        CancellationToken cancellationToken = default) =>
+        ValueTask.FromResult(new WorkItemBatchUpdatePreview(
+            false,
+            null,
+            [],
+            null,
+            "batch_update_not_supported",
+            "当前宿主不支持批量事项更新。"));
+
+    ValueTask<WorkItemBatchUpdateResult> BatchUpdateAsync(
+        WorkItemBatchUpdateCommand command,
+        CancellationToken cancellationToken = default) =>
+        ValueTask.FromResult(new WorkItemBatchUpdateResult(
+            false,
+            [],
+            false,
+            command.PreviewVersion,
+            "batch_update_not_supported",
+            "当前宿主不支持批量事项更新。"));
 }
 
 public interface IWorkItemCommandIdempotencyStore

@@ -40,21 +40,48 @@ public sealed class WorkItemPersistenceTransactionTests
         Assert.AreEqual(1, second.SaveCount);
     }
 
+    [TestMethod]
+    public void FailedItemInBatchRollsBackAllItems()
+    {
+        using var db = TestDb.Create();
+        var first = new FakeExtension("tracker.one", true);
+        var second = new FakeExtension("tracker.two", false);
+        var requests = new[]
+        {
+            CreateRequest("2026-08-05", "批量事务 A", first),
+            CreateRequest("2026-08-06", "批量事务 B", second),
+        };
+
+        var result = new WorkItemPersistenceCoordinator().SaveBatch(db, requests);
+
+        Assert.IsFalse(result.Success);
+        StringAssert.Contains(result.Error, "tracker.two");
+        Assert.AreEqual(0, db.GetWorkItemByDate("2026-08-05").Count);
+        Assert.AreEqual(0, db.GetWorkItemByDate("2026-08-06").Count);
+        Assert.AreEqual(1, first.SaveCount);
+        Assert.AreEqual(1, second.SaveCount);
+    }
+
     private static WorkItemSaveResult Save(
         Diary.Database.DbInterfaceBase db,
         params ITrackerEditorExtension[] extensions)
         => new WorkItemPersistenceCoordinator().Save(
             db,
-            new WorkItemSaveRequest(
-                Existing: null,
-                Date: "2026-08-05",
-                Comment: "事务测试",
-                Note: "多 tracker 本地事务",
-                Time: 1,
-                Priority: WorkPriorities.P2,
-                Tags: Array.Empty<WorkTag>(),
-                ExtraFieldValues: Array.Empty<WorkItemExtraFieldValue>(),
-                Extensions: extensions));
+            CreateRequest("2026-08-05", "事务测试", extensions));
+
+    private static WorkItemSaveRequest CreateRequest(
+        string date,
+        string comment,
+        params ITrackerEditorExtension[] extensions) => new(
+            Existing: null,
+            Date: date,
+            Comment: comment,
+            Note: "多 tracker 本地事务",
+            Time: 1,
+            Priority: WorkPriorities.P2,
+            Tags: Array.Empty<WorkTag>(),
+            ExtraFieldValues: Array.Empty<WorkItemExtraFieldValue>(),
+            Extensions: extensions);
 
     private sealed class FakeExtension(string pluginId, bool saveResult) : ITrackerEditorExtension
     {

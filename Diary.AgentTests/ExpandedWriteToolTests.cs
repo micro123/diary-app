@@ -47,6 +47,70 @@ public sealed class ExpandedWriteToolTests
     }
 
     [TestMethod]
+    public async Task WorkItemUpdateConfirmationIncludesExtraFields()
+    {
+        var api = new RecordingUpdateApi();
+        var confirmations = new AgentConfirmationCoordinator();
+        var tool = new WorkItemUpdateTool(api, confirmations);
+        var requested = WaitForRequest(confirmations);
+
+        var invocation = tool.InvokeAsync(UpdateArguments(), CreateContext()).AsTask();
+        var request = await requested;
+        var extraField = request.Arguments
+            .GetProperty("after")
+            .GetProperty("ExtraFields")[0];
+
+        Assert.AreEqual("field.project", extraField.GetProperty("FieldId").GetString());
+        Assert.AreEqual("DiaryApp", extraField.GetProperty("Value").GetString());
+        confirmations.CompleteExternal(request.ConfirmationId, AgentConfirmationDecision.Reject);
+        await invocation;
+    }
+
+    [TestMethod]
+    public async Task WorkItemBatchUpdateRejectDoesNotWrite()
+    {
+        var api = new RecordingUpdateApi();
+        var confirmations = new AgentConfirmationCoordinator();
+        var tool = new WorkItemBatchUpdateTool(api, confirmations);
+        var requested = WaitForRequest(confirmations);
+
+        var invocation = tool.InvokeAsync(BatchUpdateArguments(), CreateContext()).AsTask();
+        var request = await requested;
+
+        Assert.AreEqual(2, request.Arguments.GetProperty("count").GetInt32());
+        Assert.AreEqual(2, request.Arguments.GetProperty("items").GetArrayLength());
+        confirmations.CompleteExternal(request.ConfirmationId, AgentConfirmationDecision.Reject);
+        var result = await invocation;
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual("user_rejected", result.ErrorCode);
+        Assert.AreEqual(0, api.BatchUpdateCount);
+    }
+
+    [TestMethod]
+    public async Task WorkItemBatchUpdateConfirmWritesPreviewedBatch()
+    {
+        var api = new RecordingUpdateApi();
+        var confirmations = new AgentConfirmationCoordinator();
+        var tool = new WorkItemBatchUpdateTool(api, confirmations);
+        var requested = WaitForRequest(confirmations);
+
+        var invocation = tool.InvokeAsync(BatchUpdateArguments(), CreateContext()).AsTask();
+        var request = await requested;
+        var items = request.Arguments.GetProperty("items");
+        Assert.AreEqual("旧标题 42", items[0].GetProperty("before").GetProperty("Title").GetString());
+        Assert.AreEqual("新标题 42", items[0].GetProperty("after").GetProperty("Title").GetString());
+        confirmations.CompleteExternal(request.ConfirmationId, AgentConfirmationDecision.Confirm);
+        var result = await invocation;
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.AreEqual(1, api.BatchUpdateCount);
+        Assert.AreEqual("batch-preview", api.LastBatchUpdated?.PreviewVersion);
+        Assert.AreEqual(2, api.LastBatchUpdated?.Updates.Count);
+        StringAssert.Contains(result.EffectSummary!, "已批量更新 2 个事项");
+    }
+
+    [TestMethod]
     public async Task ReportExportRejectDoesNotWriteFile()
     {
         var api = new RecordingReportExportApi();
@@ -98,7 +162,18 @@ public sealed class ExpandedWriteToolTests
           "title":"新标题",
           "hours":2.5,
           "tagIds":[1,2],
+          "extraFields":[{"fieldId":"field.project","value":"DiaryApp"}],
           "idempotencyKey":"update-42"
+        }
+        """);
+
+    private static JsonElement BatchUpdateArguments() => Json("""
+        {
+          "updates":[
+            {"workItemId":42,"title":"新标题 42"},
+            {"workItemId":43,"hours":3,"extraFields":[{"fieldId":"field.owner","value":"Alice"}]}
+          ],
+          "idempotencyKey":"batch-update-42-43"
         }
         """);
 
@@ -128,6 +203,10 @@ public sealed class ExpandedWriteToolTests
         public int UpdateCount { get; private set; }
 
         public WorkItemUpdateCommand? LastUpdated { get; private set; }
+
+        public int BatchUpdateCount { get; private set; }
+
+        public WorkItemBatchUpdateCommand? LastBatchUpdated { get; private set; }
 
         public ValueTask<WorkItemCommandPreview> PreviewCreateAsync(
             WorkItemCreateCommand command,
@@ -166,6 +245,58 @@ public sealed class ExpandedWriteToolTests
             return ValueTask.FromResult(new WorkItemCommandResult(
                 true,
                 command.WorkItemId,
+                false,
+                command.PreviewVersion));
+        }
+
+        public ValueTask<WorkItemBatchUpdatePreview> PreviewBatchUpdateAsync(
+            WorkItemBatchUpdateCommand command,
+            CancellationToken cancellationToken = default)
+        {
+            var items = command.Updates.Select(update =>
+            {
+                var normalized = update with
+                {
+                    Date = "2026-10-09",
+                    Title = update.Title ?? $"旧标题 {update.WorkItemId}",
+                    Hours = update.Hours ?? 1,
+                    Priority = update.Priority ?? 1,
+                    TagIds = update.TagIds ?? [1],
+                    PreviewVersion = $"update-preview-{update.WorkItemId}",
+                };
+                return new WorkItemUpdatePreview(
+                    true,
+                    new WorkItemUpdateSnapshot(
+                        update.WorkItemId,
+                        "2026-10-08",
+                        $"旧标题 {update.WorkItemId}",
+                        1,
+                        1,
+                        [1]),
+                    normalized,
+                    normalized.PreviewVersion);
+            }).ToArray();
+            var normalizedBatch = command with
+            {
+                Updates = items.Select(item => item.Command!).ToArray(),
+                PreviewVersion = "batch-preview",
+            };
+            return ValueTask.FromResult(new WorkItemBatchUpdatePreview(
+                true,
+                normalizedBatch,
+                items,
+                "batch-preview"));
+        }
+
+        public ValueTask<WorkItemBatchUpdateResult> BatchUpdateAsync(
+            WorkItemBatchUpdateCommand command,
+            CancellationToken cancellationToken = default)
+        {
+            BatchUpdateCount++;
+            LastBatchUpdated = command;
+            return ValueTask.FromResult(new WorkItemBatchUpdateResult(
+                true,
+                command.Updates.Select(update => update.WorkItemId).ToArray(),
                 false,
                 command.PreviewVersion));
         }

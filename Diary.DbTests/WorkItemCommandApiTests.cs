@@ -197,6 +197,105 @@ public sealed class WorkItemCommandApiTests
         Assert.AreEqual("用户已修改", db.QueryWorkItems(new WorkItemQuery { WorkItemId = item.Id }).Single().Comment);
     }
 
+    [TestMethod]
+    public async Task UpdateAppliesExtraFieldPatchAndPreservesOtherValues()
+    {
+        using var db = TestDb.Create();
+        var tag = db.CreateWorkTag("项目", true, 0);
+        var codeField = CreateField(db, tag.Id, "project.code", "项目代码");
+        var ownerField = CreateField(db, tag.Id, "project.owner", "负责人");
+        var item = db.CreateWorkItem("2026-10-08", "附加字段事项");
+        item.Time = 1;
+        Assert.IsTrue(db.UpdateWorkItem(item));
+        Assert.IsTrue(db.WorkItemAddTag(item, tag));
+        Assert.IsTrue(db.SaveWorkItemExtraFieldValues(item.Id, [
+            new WorkItemExtraFieldValue { WorkItemId = item.Id, FieldId = codeField.FieldId, Value = "OLD" },
+            new WorkItemExtraFieldValue { WorkItemId = item.Id, FieldId = ownerField.FieldId, Value = "Alice" },
+        ]));
+        db.WorkUpdateNote(item, "LOCAL_NOTE");
+        var api = CreateApi(db);
+
+        var preview = await api.PreviewUpdateAsync(new WorkItemUpdateCommand(
+            item.Id,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "agent-extra-field-update",
+            [new WorkItemExtraFieldCommand(codeField.FieldId, "NEW")]));
+        var result = await api.UpdateAsync(preview.Command!);
+
+        Assert.IsTrue(result.Succeeded, result.ErrorMessage);
+        var values = db.GetWorkItemExtraFields(item)
+            .Where(field => !string.IsNullOrWhiteSpace(field.Value))
+            .ToDictionary(field => field.FieldId, field => field.Value);
+        Assert.AreEqual("NEW", values[codeField.FieldId]);
+        Assert.AreEqual("Alice", values[ownerField.FieldId]);
+        Assert.AreEqual("LOCAL_NOTE", db.WorkGetNote(item));
+    }
+
+    [TestMethod]
+    public async Task BatchUpdateWritesAllItemsAtomicallyAndIsIdempotent()
+    {
+        using var db = TestDb.Create();
+        var tag = db.CreateWorkTag("项目", true, 0);
+        var field = CreateField(db, tag.Id, "project.code", "项目代码");
+        var first = db.CreateWorkItem("2026-10-08", "事项 A");
+        first.Time = 1;
+        Assert.IsTrue(db.UpdateWorkItem(first));
+        Assert.IsTrue(db.WorkItemAddTag(first, tag));
+        var second = db.CreateWorkItem("2026-10-08", "事项 B");
+        second.Time = 1;
+        Assert.IsTrue(db.UpdateWorkItem(second));
+        Assert.IsTrue(db.WorkItemAddTag(second, tag));
+        var api = CreateApi(db);
+        var command = new WorkItemBatchUpdateCommand([
+            new WorkItemUpdateCommand(first.Id, null, "事项 A+", null, null, null, string.Empty,
+                [new WorkItemExtraFieldCommand(field.FieldId, "A")]),
+            new WorkItemUpdateCommand(second.Id, null, "事项 B+", 2, null, null, string.Empty,
+                [new WorkItemExtraFieldCommand(field.FieldId, "B")]),
+        ], "batch-update-1");
+
+        var preview = await api.PreviewBatchUpdateAsync(command);
+        var result = await api.BatchUpdateAsync(preview.Command!);
+        var duplicate = await api.BatchUpdateAsync(new WorkItemBatchUpdateCommand([
+            new WorkItemUpdateCommand(999999, null, "不应执行", null, null, null, string.Empty),
+        ], "batch-update-1", "不同预览版本"));
+
+        Assert.IsTrue(result.Succeeded, result.ErrorMessage);
+        Assert.IsFalse(result.Duplicate);
+        Assert.IsTrue(duplicate.Succeeded);
+        Assert.IsTrue(duplicate.Duplicate);
+        CollectionAssert.AreEqual(new[] { first.Id, second.Id }, result.WorkItemIds.ToArray());
+        CollectionAssert.AreEqual(new[] { first.Id, second.Id }, duplicate.WorkItemIds.ToArray());
+        var updatedFirst = db.QueryWorkItems(new WorkItemQuery { WorkItemId = first.Id }).Single();
+        var updatedSecond = db.QueryWorkItems(new WorkItemQuery { WorkItemId = second.Id }).Single();
+        Assert.AreEqual("事项 A+", updatedFirst.Comment);
+        Assert.AreEqual("事项 B+", updatedSecond.Comment);
+        Assert.AreEqual(2, updatedSecond.Time);
+        Assert.AreEqual("A", db.GetWorkItemExtraFields(updatedFirst).Single(value => value.FieldId == field.FieldId).Value);
+        Assert.AreEqual("B", db.GetWorkItemExtraFields(updatedSecond).Single(value => value.FieldId == field.FieldId).Value);
+    }
+
+    private static TagExtraFieldDefinition CreateField(
+        Diary.Database.DbInterfaceBase db,
+        int tagId,
+        string key,
+        string label)
+    {
+        var field = new TagExtraFieldDefinition
+        {
+            FieldId = Guid.NewGuid().ToString("D"),
+            FieldKey = key,
+            TagId = tagId,
+            Label = label,
+            Type = TagExtraFieldType.Text,
+        };
+        Assert.IsTrue(db.CreateTagExtraFieldDefinition(field));
+        return field;
+    }
+
     private static WorkItemCommandApi CreateApi(Diary.Database.DbInterfaceBase db) => new(
         () => db,
         new WorkItemPersistenceCoordinator(),
