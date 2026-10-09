@@ -311,8 +311,9 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
                 SelectedProfile,
                 CreateEnabledToolSnapshot(),
                 new AgentRunOptions(
-                    capabilities.SupportsStreaming,
-                    capabilities.SupportsTools),
+                    SupportsStreaming: capabilities.SupportsStreaming,
+                    SupportsTools: capabilities.SupportsTools,
+                    SupportsStreamingTools: capabilities.SupportsStreamingTools),
                 progress);
             StatusText = result.Status switch
             {
@@ -496,8 +497,12 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
         TryGetCapabilities(profile, out var capabilities)
             ? capabilities.SupportsChat
                 ? capabilities.SupportsTools
-                    ? "连接已通过 Agent 工具闭环测试。"
-                    : "连接仅支持普通对话，不会发送 DiaryApp 工具。"
+                    ? capabilities.ErrorCode == AiConnectionProbeService.PartialProbeTimeoutCode
+                        ? "连接已通过 Agent 工具闭环测试；部分扩展能力探测超时，将自动降级。"
+                        : "连接已通过 Agent 工具闭环测试。"
+                    : capabilities.ErrorCode == AiConnectionProbeService.PartialProbeTimeoutCode
+                        ? "普通对话已通过；工具闭环尚未确认，不会发送 DiaryApp 工具。"
+                        : "连接仅支持普通对话，不会发送 DiaryApp 工具。"
                 : $"连接测试失败：{capabilities.ErrorMessage}"
             : "连接尚未测试。";
 

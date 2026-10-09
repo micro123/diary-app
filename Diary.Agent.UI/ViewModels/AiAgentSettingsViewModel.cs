@@ -215,6 +215,16 @@ public sealed partial class AiConnectionEditorViewModel : ObservableObject
             return $"测试失败（{capabilities.ErrorCode ?? "unknown"}）：{capabilities.ErrorMessage}";
         if (capabilities.ErrorCode == AiConnectionProbeService.BasicProbeOnlyCode)
             return capabilities.ErrorMessage ?? "基础连接成功；尚未执行完整能力探测。";
+        if (capabilities.ErrorCode == AiConnectionProbeService.PartialProbeTimeoutCode)
+        {
+            var verified = new List<string> { "普通对话" };
+            AddVerifiedCapability("流式文本", capabilities.SupportsStreaming, verified);
+            AddVerifiedCapability("工具闭环", capabilities.SupportsTools, verified);
+            AddVerifiedCapability("流式工具", capabilities.SupportsStreamingTools, verified);
+            AddVerifiedCapability("并行工具", capabilities.SupportsParallelTools, verified);
+            AddVerifiedCapability("强制工具", capabilities.SupportsForcedToolChoice, verified);
+            return string.Join("、", verified) + "已通过；" + capabilities.ErrorMessage;
+        }
         var supported = new List<string> { "普通对话" };
         var unavailable = new List<string>();
         AddCapability("流式文本", capabilities.SupportsStreaming, supported, unavailable);
@@ -237,6 +247,12 @@ public sealed partial class AiConnectionEditorViewModel : ObservableObject
         ICollection<string> unavailable)
     {
         (available ? supported : unavailable).Add(name);
+    }
+
+    private static void AddVerifiedCapability(string name, bool available, ICollection<string> verified)
+    {
+        if (available)
+            verified.Add(name);
     }
 
     public void ApplyCapabilities(AiConnectionCapabilities capabilities)

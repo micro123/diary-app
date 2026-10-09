@@ -37,20 +37,26 @@ public sealed record AiConnectionProbeProgress(
 public sealed class AiConnectionProbeService
 {
     public const string BasicProbeOnlyCode = "basic_probe_only";
+    public const string PartialProbeTimeoutCode = "probe_partial_timeout";
     private static readonly TimeSpan BasicProbeTimeout = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan FullProbeTimeout = TimeSpan.FromSeconds(90);
+    private static readonly TimeSpan DefaultFullProbeTimeout = TimeSpan.FromSeconds(90);
     private static readonly JsonElement ProbeSchema = JsonDocument.Parse("""
         {"type":"object","properties":{"value":{"type":"string"}},"required":["value"],"additionalProperties":false}
         """).RootElement.Clone();
     private readonly IAgentModelGateway _gateway;
     private readonly ILogger<AiConnectionProbeService> _logger;
+    private readonly TimeSpan _fullProbeTimeout;
 
     public AiConnectionProbeService(
         IAgentModelGateway gateway,
-        ILogger<AiConnectionProbeService>? logger = null)
+        ILogger<AiConnectionProbeService>? logger = null,
+        TimeSpan? fullProbeTimeout = null)
     {
         _gateway = gateway;
         _logger = logger ?? NullLogger<AiConnectionProbeService>.Instance;
+        _fullProbeTimeout = fullProbeTimeout ?? DefaultFullProbeTimeout;
+        if (_fullProbeTimeout <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(fullProbeTimeout));
     }
 
     public async ValueTask<AiConnectionCapabilities> ProbeConnectionAsync(
@@ -90,33 +96,40 @@ public sealed class AiConnectionProbeService
         IProgress<AiConnectionProbeProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        using var budget = new CancellationTokenSource(FullProbeTimeout);
+        using var budget = new CancellationTokenSource(_fullProbeTimeout);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, budget.Token);
         var probeToken = linked.Token;
+        var chat = false;
+        var streaming = false;
+        var tools = false;
+        var streamingTools = false;
+        var parallelTools = false;
+        var forcedToolChoice = false;
         try
         {
             Report(progress, AiConnectionProbeStage.BasicChat, 1, 6, "普通对话");
             await SendBasicChatAsync(profile, probeToken);
+            chat = true;
             probeToken.ThrowIfCancellationRequested();
 
             Report(progress, AiConnectionProbeStage.Streaming, 2, 6, "流式文本");
-            var streaming = await ProbeStreamingAsync(profile, probeToken);
+            streaming = await ProbeStreamingAsync(profile, probeToken);
             probeToken.ThrowIfCancellationRequested();
 
             Report(progress, AiConnectionProbeStage.Tools, 3, 6, "工具闭环");
-            var tools = await ProbeToolsAsync(profile, probeToken);
+            tools = await ProbeToolsAsync(profile, probeToken);
             probeToken.ThrowIfCancellationRequested();
 
             Report(progress, AiConnectionProbeStage.StreamingTools, 4, 6, "流式工具");
-            var streamingTools = tools && await ProbeStreamingToolsAsync(profile, probeToken);
+            streamingTools = tools && await ProbeStreamingToolsAsync(profile, probeToken);
             probeToken.ThrowIfCancellationRequested();
 
             Report(progress, AiConnectionProbeStage.ParallelTools, 5, 6, "并行工具");
-            var parallelTools = tools && await ProbeParallelToolsAsync(profile, probeToken);
+            parallelTools = tools && await ProbeParallelToolsAsync(profile, probeToken);
             probeToken.ThrowIfCancellationRequested();
 
             Report(progress, AiConnectionProbeStage.ForcedToolChoice, 6, 6, "强制工具选择");
-            var forcedToolChoice = tools && await ProbeForcedToolChoiceAsync(profile, probeToken);
+            forcedToolChoice = tools && await ProbeForcedToolChoiceAsync(profile, probeToken);
             probeToken.ThrowIfCancellationRequested();
             return new AiConnectionCapabilities(
                 true,
@@ -133,8 +146,15 @@ public sealed class AiConnectionProbeService
                 throw new OperationCanceledException(cancellationToken);
             if (budget.IsCancellationRequested)
             {
-                LogFailure(profile, "完整能力探测", exception, "probe_timeout");
-                return Failed("probe_timeout", "完整能力探测超过 90 秒，已停止。", exception, profile, log: false);
+                return TimedOut(
+                    profile,
+                    exception,
+                    chat,
+                    streaming,
+                    tools,
+                    streamingTools,
+                    parallelTools,
+                    forcedToolChoice);
             }
             return Failed(exception.Code, exception.Message, exception, profile);
         }
@@ -144,8 +164,15 @@ public sealed class AiConnectionProbeService
         }
         catch (OperationCanceledException exception) when (budget.IsCancellationRequested)
         {
-            LogFailure(profile, "完整能力探测", exception, "probe_timeout");
-            return Failed("probe_timeout", "完整能力探测超过 90 秒，已停止。", exception, profile, log: false);
+            return TimedOut(
+                profile,
+                exception,
+                chat,
+                streaming,
+                tools,
+                streamingTools,
+                parallelTools,
+                forcedToolChoice);
         }
         catch (Exception exception)
         {
@@ -448,6 +475,42 @@ public sealed class AiConnectionProbeService
             DateTimeOffset.UtcNow,
             code,
             message);
+    }
+
+    private AiConnectionCapabilities TimedOut(
+        AiConnectionProfile profile,
+        Exception exception,
+        bool chat,
+        bool streaming,
+        bool tools,
+        bool streamingTools,
+        bool parallelTools,
+        bool forcedToolChoice)
+    {
+        var code = chat ? PartialProbeTimeoutCode : "probe_timeout";
+        LogFailure(profile, "完整能力探测", exception, code);
+        if (!chat)
+        {
+            return Failed(
+                code,
+                $"完整能力探测超过 {_fullProbeTimeout.TotalSeconds:F0} 秒，已停止。",
+                exception,
+                profile,
+                log: false);
+        }
+        var message = tools
+            ? "完整能力探测超时；已保留普通工具闭环结果，可以使用 Agent，未完成的扩展能力将自动降级。"
+            : "完整能力探测超时；已保留普通对话结果，可以继续聊天，工具闭环尚未确认。";
+        return new AiConnectionCapabilities(
+            true,
+            streaming,
+            tools,
+            DateTimeOffset.UtcNow,
+            PartialProbeTimeoutCode,
+            message,
+            streamingTools,
+            parallelTools,
+            forcedToolChoice);
     }
 
     private void LogCapabilityFailure(AiConnectionProfile profile, string stage, Exception exception) =>

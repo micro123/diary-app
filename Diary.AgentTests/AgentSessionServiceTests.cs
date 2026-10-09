@@ -101,6 +101,30 @@ public sealed class AgentSessionServiceTests
     }
 
     [TestMethod]
+    public async Task AgentFallsBackToNonStreamingWhenStreamingToolsAreUnsupported()
+    {
+        var gateway = new NonStreamingGateway();
+        var registry = new AgentToolRegistry();
+        registry.TryRegister(new RecordingTool());
+        var session = CreateSession(gateway);
+
+        var result = await session.RunAsync(
+            "question",
+            CreateProfile(),
+            registry.CreateSnapshot(),
+            new AgentRunOptions(
+                SupportsStreaming: true,
+                SupportsTools: true,
+                SupportsStreamingTools: false));
+
+        Assert.AreEqual(AgentSessionStatus.Completed, result.Status);
+        Assert.AreEqual(1, gateway.SendCount);
+        Assert.AreEqual(0, gateway.StreamCount);
+        Assert.IsFalse(gateway.Requests.Single().Stream);
+        Assert.AreEqual(1, gateway.Requests.Single().Tools.Count);
+    }
+
+    [TestMethod]
     public async Task ToolBudgetStopsBeforeExecutingExcessCalls()
     {
         var gateway = new SequencedGateway(TwoToolCallsStream());
@@ -280,6 +304,35 @@ public sealed class AgentSessionServiceTests
             yield return new AgentStreamEvent(AgentStreamEventKind.ResponseStarted);
             yield return new AgentStreamEvent(AgentStreamEventKind.TextDelta, Text: "partial");
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+        }
+    }
+
+    private sealed class NonStreamingGateway : IAgentModelGateway
+    {
+        public int SendCount { get; private set; }
+
+        public int StreamCount { get; private set; }
+
+        public List<AgentModelRequest> Requests { get; } = [];
+
+        public ValueTask<AgentModelResponse> SendAsync(
+            AgentModelRequest request,
+            AiConnectionProfile connection,
+            CancellationToken cancellationToken = default)
+        {
+            SendCount++;
+            Requests.Add(request);
+            return ValueTask.FromResult(new AgentModelResponse("done", [], "stop", null));
+        }
+
+        public async IAsyncEnumerable<AgentStreamEvent> StreamAsync(
+            AgentModelRequest request,
+            AiConnectionProfile connection,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            StreamCount++;
+            await Task.CompletedTask;
+            yield break;
         }
     }
 

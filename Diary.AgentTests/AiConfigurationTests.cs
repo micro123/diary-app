@@ -177,6 +177,35 @@ public sealed class AiConfigurationTests
     }
 
     [TestMethod]
+    public async Task FullProbeTimeoutPreservesCompletedAgentCapabilities()
+    {
+        var root = CreateTemporaryDirectory();
+        var manager = new AiConnectionManager(
+            new AiConnectionStore(Path.Combine(root, "settings.json")),
+            new AiConnectionProbeService(
+                new LateHangingProbeGateway(),
+                fullProbeTimeout: TimeSpan.FromMilliseconds(150)));
+        var progress = new RecordingProgress<AiConnectionProbeProgress>();
+
+        var result = await manager.TestAsync(CreateProfile(), progress);
+
+        Assert.IsTrue(result.SupportsChat);
+        Assert.IsTrue(result.SupportsStreaming);
+        Assert.IsTrue(result.SupportsTools);
+        Assert.IsFalse(result.SupportsStreamingTools);
+        Assert.AreEqual(AiConnectionProbeService.PartialProbeTimeoutCode, result.ErrorCode);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                AiConnectionProbeStage.BasicChat,
+                AiConnectionProbeStage.Streaming,
+                AiConnectionProbeStage.Tools,
+                AiConnectionProbeStage.StreamingTools,
+            },
+            progress.Items.Select(item => item.Stage).ToArray());
+    }
+
+    [TestMethod]
     public async Task CancelledCapabilityProbeStopsCurrentRequest()
     {
         var root = CreateTemporaryDirectory();
@@ -348,6 +377,42 @@ public sealed class AiConfigurationTests
         {
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             yield break;
+        }
+    }
+
+    private sealed class LateHangingProbeGateway : IAgentModelGateway
+    {
+        private int _streamCount;
+
+        public ValueTask<AgentModelResponse> SendAsync(
+            AgentModelRequest request,
+            AiConnectionProfile connection,
+            CancellationToken cancellationToken = default)
+        {
+            if (request.Tools.Count == 0 || request.Messages.Any(message => message.Role == AgentMessageRole.Tool))
+                return ValueTask.FromResult(new AgentModelResponse("ok", [], "stop", null));
+            using var arguments = JsonDocument.Parse("{\"value\":\"probe\"}");
+            return ValueTask.FromResult(new AgentModelResponse(
+                string.Empty,
+                [new AgentToolCall("probe-call", request.Tools[0].Name, arguments.RootElement.Clone())],
+                "tool_calls",
+                null));
+        }
+
+        public async IAsyncEnumerable<AgentStreamEvent> StreamAsync(
+            AgentModelRequest request,
+            AiConnectionProfile connection,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            _streamCount++;
+            if (_streamCount == 1)
+            {
+                yield return new AgentStreamEvent(AgentStreamEventKind.ResponseStarted);
+                yield return new AgentStreamEvent(AgentStreamEventKind.TextDelta, Text: "ok");
+                yield return new AgentStreamEvent(AgentStreamEventKind.ResponseCompleted, FinishReason: "stop");
+                yield break;
+            }
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
         }
     }
 

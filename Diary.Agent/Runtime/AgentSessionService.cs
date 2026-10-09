@@ -61,7 +61,8 @@ public sealed record AgentRunBudget(
 public sealed record AgentRunOptions(
     bool SupportsStreaming = true,
     bool SupportsTools = true,
-    AgentRunBudget? Budget = null);
+    AgentRunBudget? Budget = null,
+    bool SupportsStreamingTools = true);
 
 public sealed record AgentRunResult(
     Guid RunId,
@@ -184,6 +185,8 @@ public sealed class AgentSessionService
             var definitions = effectiveOptions.SupportsTools
                 ? toolSnapshot.Descriptors.Select(ToModelDefinition).ToArray()
                 : [];
+            var useStreaming = effectiveOptions.SupportsStreaming
+                               && (definitions.Length == 0 || effectiveOptions.SupportsStreamingTools);
             var connectionIdentity = CreateConnectionIdentity(connection);
             var activeProtocolState = string.Equals(
                 _protocolStateConnection,
@@ -234,10 +237,10 @@ public sealed class AgentSessionService
                     AgentContextCompactor.BuildSystemInstruction(ContextSummary),
                     workingMessages,
                     definitions,
-                    effectiveOptions.SupportsStreaming,
+                    useStreaming,
                     budget.MaxOutputTokens,
                     workingProtocolState);
-                var response = effectiveOptions.SupportsStreaming
+                var response = useStreaming
                     ? await CollectStreamingResponseAsync(
                         request,
                         connection,
@@ -246,7 +249,7 @@ public sealed class AgentSessionService
                         linkedCancellation.Token)
                     : await _modelGateway.SendAsync(request, connection, linkedCancellation.Token);
                 latestUsage = MergeUsage(latestUsage, response.Usage);
-                if (!effectiveOptions.SupportsStreaming && !string.IsNullOrEmpty(response.Text))
+                if (!useStreaming && !string.IsNullOrEmpty(response.Text))
                     Report(progress, new AgentRunEvent(AgentRunEventKind.TextDelta, runId, Text: response.Text));
                 if (response.Usage is not null)
                     Report(progress, new AgentRunEvent(AgentRunEventKind.UsageUpdated, runId, Usage: response.Usage));

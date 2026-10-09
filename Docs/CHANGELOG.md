@@ -5,6 +5,7 @@
 ## 未发布
 
 日期：2026-10-09
+- 修复完整能力探测后期超时会清空已通过能力并禁用 Agent 的问题；现在保留阶段性结果，普通工具闭环通过即可使用 Agent，流式工具不支持时自动降级为非流式请求。
 - 修复内网无法访问证书 CRL/OCSP 时模型连接只报告笼统 SSL 错误的问题；新增连接级证书吊销检查开关，并将离线吊销失败标记为 `tls_revocation_offline`。
 - 完整实现默认禁用的可选 AI Agent 模块：支持 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages，多连接/代理/加密与环境变量凭据、普通/流式/工具/流式工具/并行工具/强制工具分层能力探测、普通对话降级、流式 Agent、只读 Diary 工具、本地备注硬排除、草稿和逐次确认事项创建、受控网页读取、stdio/Streamable HTTP MCP Client、会话与轮转审计；新增 AI 页面、独立设置贡献、凭据状态、连接复制、默认连接和删除连接清理独占本地凭据操作。
 - 新增 AI CDP 7 步套件和无秘密 seed profile，覆盖模块导航、Agent 状态、真实本地假模型工具闭环、拒绝写入确认、键盘发送、设置页与递归配置复制；新增宿主无备注查询及实际模型请求体唯一标记回归；`Diary.AgentTests` 52/52、`Diary.ModuleTests` 12/12、`Diary.AppTests` 318/318 通过。
