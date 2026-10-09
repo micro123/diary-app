@@ -67,7 +67,9 @@ public sealed class AiHttpClientPool(
             MaxConnectionsPerServer = 8,
             SslOptions = new SslClientAuthenticationOptions
             {
-                CertificateRevocationCheckMode = X509RevocationMode.Online,
+                CertificateRevocationCheckMode = profile.CheckCertificateRevocation
+                    ? X509RevocationMode.Online
+                    : X509RevocationMode.NoCheck,
             },
             AllowAutoRedirect = false,
         };
@@ -145,5 +147,6 @@ public sealed class AiHttpClientPool(
             profile.BaseUri.Host,
             profile.BaseUri.Port,
             profile.ConnectTimeout.Ticks,
+            profile.CheckCertificateRevocation,
             proxyIdentity);
 }

@@ -129,6 +129,7 @@ public enum AiModelErrorCategory
     Service,
     Protocol,
     Cancelled,
+    Tls,
     Network,
 }
 

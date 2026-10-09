@@ -22,6 +22,7 @@ public sealed partial class AiConnectionEditorViewModel : ObservableObject
         ContextWindowTokens = profile.ContextWindowTokens;
         AutomaticContextCompression = profile.AutomaticContextCompression;
         ContextCompressionThresholdPercent = profile.ContextCompressionThresholdPercent;
+        CheckCertificateRevocation = profile.CheckCertificateRevocation;
         AuthenticationKind = profile.Authentication.Kind;
         CredentialReference = profile.Authentication.CredentialReference;
         HeaderName = profile.Authentication.HeaderName;
@@ -68,6 +69,7 @@ public sealed partial class AiConnectionEditorViewModel : ObservableObject
     [ObservableProperty] private int _contextWindowTokens = AiConnectionProfile.DefaultContextWindowTokens;
     [ObservableProperty] private bool _automaticContextCompression = true;
     [ObservableProperty] private int _contextCompressionThresholdPercent = 75;
+    [ObservableProperty] private bool _checkCertificateRevocation = true;
     [ObservableProperty] private AiAuthenticationKind _authenticationKind;
     [ObservableProperty] private string _credentialReference = string.Empty;
     [ObservableProperty] private string _headerName = "Authorization";
@@ -126,6 +128,7 @@ public sealed partial class AiConnectionEditorViewModel : ObservableObject
             ContextWindowTokens = ContextWindowTokens,
             AutomaticContextCompression = AutomaticContextCompression,
             ContextCompressionThresholdPercent = ContextCompressionThresholdPercent,
+            CheckCertificateRevocation = CheckCertificateRevocation,
             Authentication = new AiAuthenticationConfiguration
             {
                 Kind = AuthenticationKind,

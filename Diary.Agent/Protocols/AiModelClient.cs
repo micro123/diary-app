@@ -1,5 +1,6 @@
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Security.Authentication;
 using Diary.Agent.Configuration;
 using Diary.Agent.Credentials;
 using Diary.Agent.Networking;
@@ -131,7 +132,7 @@ public sealed class AiModelClient : IAgentModelGateway
         }
     }
 
-    private static AiModelException NormalizeNetworkException(HttpRequestException exception)
+    internal static AiModelException NormalizeNetworkException(HttpRequestException exception)
     {
         if (exception.StatusCode == HttpStatusCode.ProxyAuthenticationRequired)
         {
@@ -142,11 +143,40 @@ public sealed class AiModelClient : IAgentModelGateway
                 (int?)exception.StatusCode,
                 exception);
         }
+        var authenticationException = FindInnerException<AuthenticationException>(exception);
+        if (authenticationException is not null)
+        {
+            var revocationUnavailable = authenticationException.Message.Contains(
+                                            "RevocationStatusUnknown",
+                                            StringComparison.OrdinalIgnoreCase)
+                                        || authenticationException.Message.Contains(
+                                            "OfflineRevocation",
+                                            StringComparison.OrdinalIgnoreCase);
+            return new AiModelException(
+                AiModelErrorCategory.Tls,
+                revocationUnavailable ? "tls_revocation_offline" : "tls_error",
+                revocationUnavailable
+                    ? "证书吊销状态无法在线验证。请恢复 CRL/OCSP 网络，或在可信内网环境关闭“检查证书吊销状态”后重试。"
+                    : "TLS 连接失败，请检查服务器证书、系统时间和证书信任链。",
+                (int?)exception.StatusCode,
+                exception);
+        }
         return new AiModelException(
             AiModelErrorCategory.Network,
             "network_error",
             "无法连接模型服务。",
             (int?)exception.StatusCode,
             exception);
+    }
+
+    private static TException? FindInnerException<TException>(Exception exception)
+        where TException : Exception
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is TException matched)
+                return matched;
+        }
+        return null;
     }
 }

@@ -17,7 +17,7 @@ public sealed class AiConfigurationTests
     {
         var root = CreateTemporaryDirectory();
         var path = Path.Combine(root, "settings.json");
-        var profile = CreateProfile();
+        var profile = CreateProfile() with { CheckCertificateRevocation = false };
         var settings = new AiAgentSettings
         {
             DefaultProfileId = profile.Id,
@@ -49,6 +49,7 @@ public sealed class AiConfigurationTests
         Assert.AreEqual(1_000_000, loaded.Settings?.Profiles.Single().ContextWindowTokens);
         Assert.AreEqual(70, loaded.Settings?.Profiles.Single().ContextCompressionThresholdPercent);
         Assert.IsTrue(loaded.Settings?.Profiles.Single().AutomaticContextCompression);
+        Assert.IsFalse(loaded.Settings?.Profiles.Single().CheckCertificateRevocation);
         StringAssert.Contains(raw, "diary.ai/internal/api-key");
         Assert.IsFalse(raw.Contains("actual-secret-value", StringComparison.Ordinal));
     }

@@ -98,6 +98,8 @@ public sealed record AiConnectionProfile
 
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromMinutes(2);
 
+    public bool CheckCertificateRevocation { get; init; } = true;
+
     public AiCompatibilityOptions Compatibility { get; init; } = new();
 
     public IReadOnlyList<AiRequestHeader> Headers { get; init; } = [];

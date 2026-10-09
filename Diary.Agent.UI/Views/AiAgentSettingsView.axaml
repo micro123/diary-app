@@ -97,7 +97,7 @@
 
             <ScrollViewer Grid.Column="1" IsVisible="{Binding HasSelectedProfile}">
                 <StackPanel Spacing="10" DataContext="{Binding SelectedProfile}">
-                    <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                    <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
                           ColumnSpacing="8" RowSpacing="8">
                         <TextBlock Text="连接 ID" VerticalAlignment="Center" />
                         <TextBox Grid.Column="1" Text="{Binding Id}" />
@@ -125,47 +125,51 @@
                                            Value="{Binding ContextCompressionThresholdPercent}"
                                            Minimum="50" Maximum="95" Increment="5" />
                         </Grid>
-                        <TextBlock Grid.Row="7" Text="认证方式" VerticalAlignment="Center" />
-                        <ComboBox x:Name="AiAuthenticationComboBox" Grid.Row="7" Grid.Column="1"
+                        <TextBlock Grid.Row="7" Text="TLS" VerticalAlignment="Center" />
+                        <CheckBox Grid.Row="7" Grid.Column="1" IsChecked="{Binding CheckCertificateRevocation}">
+                            <TextBlock Text="检查证书吊销状态（内网无法访问 CRL/OCSP 时可关闭）" TextWrapping="Wrap" />
+                        </CheckBox>
+                        <TextBlock Grid.Row="8" Text="认证方式" VerticalAlignment="Center" />
+                        <ComboBox x:Name="AiAuthenticationComboBox" Grid.Row="8" Grid.Column="1"
                                   ItemsSource="{Binding AuthenticationOptions}" SelectedItem="{Binding AuthenticationKind}"
                                   ItemTemplate="{StaticResource EnumOptionTemplate}" />
-                        <TextBlock Grid.Row="8" Text="认证 Header" VerticalAlignment="Center" />
-                        <Grid Grid.Row="8" Grid.Column="1" ColumnDefinitions="*,*" ColumnSpacing="8">
+                        <TextBlock Grid.Row="9" Text="认证 Header" VerticalAlignment="Center" />
+                        <Grid Grid.Row="9" Grid.Column="1" ColumnDefinitions="*,*" ColumnSpacing="8">
                             <TextBox Text="{Binding HeaderName}" />
                             <TextBox Grid.Column="1" Text="{Binding HeaderPrefix}" Watermark="前缀，例如 Bearer " />
                         </Grid>
-                        <TextBlock Grid.Row="9" Text="Credential Reference" VerticalAlignment="Center" />
-                        <TextBox Grid.Row="9" Grid.Column="1" Text="{Binding CredentialReference}" Watermark="diary.ai/... 或 env:变量名" />
-                        <TextBlock Grid.Row="10" Text="新 API Key" VerticalAlignment="Center" />
-                        <StackPanel Grid.Row="10" Grid.Column="1" Spacing="3">
+                        <TextBlock Grid.Row="10" Text="Credential Reference" VerticalAlignment="Center" />
+                        <TextBox Grid.Row="10" Grid.Column="1" Text="{Binding CredentialReference}" Watermark="diary.ai/... 或 env:变量名" />
+                        <TextBlock Grid.Row="11" Text="新 API Key" VerticalAlignment="Center" />
+                        <StackPanel Grid.Row="11" Grid.Column="1" Spacing="3">
                             <TextBox Text="{Binding NewCredential}" PasswordChar="●"
                                      Watermark="留空保留已保存凭据；不会回显" />
                             <SelectableTextBlock Text="{Binding CredentialStatus}" Opacity="0.65" />
                         </StackPanel>
-                        <TextBlock Grid.Row="11" Text="代理模式" VerticalAlignment="Center" />
-                        <ComboBox x:Name="AiProxyModeComboBox" Grid.Row="11" Grid.Column="1"
+                        <TextBlock Grid.Row="12" Text="代理模式" VerticalAlignment="Center" />
+                        <ComboBox x:Name="AiProxyModeComboBox" Grid.Row="12" Grid.Column="1"
                                   ItemsSource="{Binding ProxyOptions}" SelectedItem="{Binding ProxyMode}"
                                   ItemTemplate="{StaticResource EnumOptionTemplate}" />
-                        <TextBlock Grid.Row="12" Text="代理地址" VerticalAlignment="Center" />
-                        <TextBox Grid.Row="12" Grid.Column="1" Text="{Binding ProxyAddress}" Watermark="http://proxy:8080" />
-                        <TextBlock Grid.Row="13" Text="代理用户名引用" VerticalAlignment="Center" />
-                        <TextBox Grid.Row="13" Grid.Column="1" Text="{Binding ProxyUsernameCredentialReference}" />
-                        <TextBlock Grid.Row="14" Text="新代理用户名" VerticalAlignment="Center" />
-                        <StackPanel Grid.Row="14" Grid.Column="1" Spacing="3">
+                        <TextBlock Grid.Row="13" Text="代理地址" VerticalAlignment="Center" />
+                        <TextBox Grid.Row="13" Grid.Column="1" Text="{Binding ProxyAddress}" Watermark="http://proxy:8080" />
+                        <TextBlock Grid.Row="14" Text="代理用户名引用" VerticalAlignment="Center" />
+                        <TextBox Grid.Row="14" Grid.Column="1" Text="{Binding ProxyUsernameCredentialReference}" />
+                        <TextBlock Grid.Row="15" Text="新代理用户名" VerticalAlignment="Center" />
+                        <StackPanel Grid.Row="15" Grid.Column="1" Spacing="3">
                             <TextBox Text="{Binding ProxyUsername}" PasswordChar="●" Watermark="留空保留" />
                             <SelectableTextBlock Text="{Binding ProxyUsernameStatus}" Opacity="0.65" />
                         </StackPanel>
-                        <TextBlock Grid.Row="15" Text="代理密码引用" VerticalAlignment="Center" />
-                        <TextBox Grid.Row="15" Grid.Column="1" Text="{Binding ProxyPasswordCredentialReference}" />
-                        <TextBlock Grid.Row="16" Text="新代理密码" VerticalAlignment="Center" />
-                        <StackPanel Grid.Row="16" Grid.Column="1" Spacing="3">
+                        <TextBlock Grid.Row="16" Text="代理密码引用" VerticalAlignment="Center" />
+                        <TextBox Grid.Row="16" Grid.Column="1" Text="{Binding ProxyPasswordCredentialReference}" />
+                        <TextBlock Grid.Row="17" Text="新代理密码" VerticalAlignment="Center" />
+                        <StackPanel Grid.Row="17" Grid.Column="1" Spacing="3">
                             <TextBox Text="{Binding ProxyPassword}" PasswordChar="●" Watermark="留空保留" />
                             <SelectableTextBlock Text="{Binding ProxyPasswordStatus}" Opacity="0.65" />
                         </StackPanel>
-                        <TextBlock Grid.Row="17" Text="绕过列表" VerticalAlignment="Top" />
-                        <TextBox Grid.Row="17" Grid.Column="1" Text="{Binding BypassList}" AcceptsReturn="True" MinHeight="64" />
-                        <TextBlock Grid.Row="18" Text="额外 Headers JSON" VerticalAlignment="Top" />
-                        <TextBox Grid.Row="18" Grid.Column="1" Text="{Binding HeadersJson}" AcceptsReturn="True"
+                        <TextBlock Grid.Row="18" Text="绕过列表" VerticalAlignment="Top" />
+                        <TextBox Grid.Row="18" Grid.Column="1" Text="{Binding BypassList}" AcceptsReturn="True" MinHeight="64" />
+                        <TextBlock Grid.Row="19" Text="额外 Headers JSON" VerticalAlignment="Top" />
+                        <TextBox Grid.Row="19" Grid.Column="1" Text="{Binding HeadersJson}" AcceptsReturn="True"
                                  MinHeight="80" FontFamily="Consolas" TextWrapping="NoWrap" />
                     </Grid>
                     <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto" ColumnSpacing="8">

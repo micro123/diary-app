@@ -360,7 +360,7 @@ Credential Reference 使用 `diary.ai/{profileId}/{purpose}`。日志只记录�
 
 ```text
 目标类别 + BaseUri + 代理模式 + 代理地址 + 绕过规则
-+ 认证引用版本 + 连接超时 + TLS 策略
++ 认证引用版本 + 连接超时 + 证书吊销检查策略
 ```
 
 配置切换采用“创建新客户端 -> 原子切换 -> 等待旧租约归零 -> 释放旧客户端”，不在请求进行中修改 Handler。
@@ -372,7 +372,7 @@ Credential Reference 使用 `diary.ai/{profileId}/{purpose}`。日志只记录�
 - `Direct`：`UseProxy=false`；
 - `Custom`：独立 `WebProxy`，用户名和密码分离保存。
 
-不修改 `HttpClient.DefaultProxy`。代理 URL 禁止 userinfo。首版支持 HTTP 代理和 CONNECT，不支持 PAC、自定义 TLS 跳过和多跳代理。
+不修改 `HttpClient.DefaultProxy`。代理 URL 禁止 userinfo。首版支持 HTTP 代理和 CONNECT，不支持 PAC、整体验证跳过和多跳代理。模型连接默认在线检查证书吊销状态；可信内网无法访问 CRL/OCSP 时，允许按连接关闭吊销检查，但仍保留证书链、域名和有效期校验。
 
 ### 7.3 HTTP handler
 
@@ -490,7 +490,7 @@ ProtocolError
 
 ### 8.6 错误归一化
 
-统一错误类别：配置、DNS、代理、TLS、认证、模型不存在、限流、服务端、超时、取消、协议格式、流中断、上下文超限。错误保留 HTTP 状态和脱敏 request ID，不保存响应正文；开发诊断只允许保存受长度限制且脱敏的错误摘要。
+统一错误类别：配置、DNS、代理、TLS、认证、模型不存在、限流、服务端、超时、取消、协议格式、流中断、上下文超限。证书吊销端点不可达单独归一化为 `tls_revocation_offline`，提示用户恢复 CRL/OCSP 网络或在可信内网关闭当前连接的吊销检查。错误保留 HTTP 状态和脱敏 request ID，不保存响应正文；开发诊断只允许保存受长度限制且脱敏的错误摘要。
 
 ### 8.7 能力探测
 

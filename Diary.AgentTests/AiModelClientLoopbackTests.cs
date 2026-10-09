@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Authentication;
 using System.Text;
 using System.Text.Json;
 using Diary.Agent.Configuration;
@@ -98,6 +99,47 @@ public sealed class AiModelClientLoopbackTests
 
         Assert.AreEqual(AiModelErrorCategory.Cancelled, exception.Category);
         Assert.AreEqual("request_cancelled", exception.Code);
+    }
+
+    [TestMethod]
+    public void OfflineCertificateRevocationIsReportedWithActionableTlsError()
+    {
+        var networkException = new HttpRequestException(
+            "The SSL connection could not be established.",
+            new AuthenticationException(
+                "The remote certificate is invalid because of errors in the certificate chain: RevocationStatusUnknown, OfflineRevocation"));
+
+        var exception = AiModelClient.NormalizeNetworkException(networkException);
+
+        Assert.AreEqual(AiModelErrorCategory.Tls, exception.Category);
+        Assert.AreEqual("tls_revocation_offline", exception.Code);
+        StringAssert.Contains(exception.Message, "检查证书吊销状态");
+    }
+
+    [TestMethod]
+    public void OtherAuthenticationFailuresRemainTlsErrors()
+    {
+        var networkException = new HttpRequestException(
+            "The SSL connection could not be established.",
+            new AuthenticationException("RemoteCertificateNameMismatch"));
+
+        var exception = AiModelClient.NormalizeNetworkException(networkException);
+
+        Assert.AreEqual(AiModelErrorCategory.Tls, exception.Category);
+        Assert.AreEqual("tls_error", exception.Code);
+    }
+
+    [TestMethod]
+    public async Task CertificateRevocationPolicyUsesSeparatePooledClients()
+    {
+        var credentials = new TestCredentialStore("key");
+        using var pool = new AiHttpClientPool(credentials);
+        var profile = CreateProfile(new Uri("https://models.example.test/"), AiProtocol.OpenAiResponses);
+
+        var checkedClient = await pool.GetClientAsync(profile);
+        var uncheckedClient = await pool.GetClientAsync(profile with { CheckCertificateRevocation = false });
+
+        Assert.AreNotSame(checkedClient, uncheckedClient);
     }
 
     [TestMethod]
