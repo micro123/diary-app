@@ -209,7 +209,9 @@ public sealed partial class AiConnectionEditorViewModel : ObservableObject
         if (capabilities is null)
             return "尚未测试";
         if (!capabilities.SupportsChat)
-            return $"测试失败：{capabilities.ErrorMessage}";
+            return $"测试失败（{capabilities.ErrorCode ?? "unknown"}）：{capabilities.ErrorMessage}";
+        if (capabilities.ErrorCode == AiConnectionProbeService.BasicProbeOnlyCode)
+            return capabilities.ErrorMessage ?? "基础连接成功；尚未执行完整能力探测。";
         var supported = new List<string> { "普通对话" };
         var unavailable = new List<string>();
         AddCapability("流式文本", capabilities.SupportsStreaming, supported, unavailable);
@@ -254,6 +256,8 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
     private readonly IAiCredentialStore _credentials;
     private readonly AiAgentPageViewModel _page;
     private readonly HashSet<string> _pendingCredentialDeletes = new(StringComparer.Ordinal);
+    private CancellationTokenSource? _profileTestCancellation;
+    private AiConnectionEditorViewModel? _testingProfile;
 
     public AiAgentSettingsViewModel(
         AiConnectionManager manager,
@@ -377,13 +381,33 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private async Task TestProfile()
+    private Task TestProfile() => RunProfileTestAsync(fullCapabilities: false);
+
+    [RelayCommand]
+    private Task ProbeProfileCapabilities() => RunProfileTestAsync(fullCapabilities: true);
+
+    [RelayCommand]
+    private void CancelProfileTest()
+    {
+        if (_profileTestCancellation is null)
+            return;
+        if (_testingProfile is not null)
+            _testingProfile.TestStatus = "正在取消连接测试…";
+        _profileTestCancellation.Cancel();
+    }
+
+    private async Task RunProfileTestAsync(bool fullCapabilities)
     {
         var editor = SelectedProfile;
-        if (editor is null || editor.IsTesting)
+        if (editor is null || _profileTestCancellation is not null)
             return;
+        using var cancellation = new CancellationTokenSource();
+        _profileTestCancellation = cancellation;
+        _testingProfile = editor;
         editor.IsTesting = true;
-        editor.TestStatus = "正在测试普通、流式和工具调用…";
+        editor.TestStatus = fullCapabilities
+            ? "正在准备完整能力探测…"
+            : "正在准备基础连接测试…";
         AiConnectionProfile? profile = null;
         try
         {
@@ -405,8 +429,18 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
                 if (!string.IsNullOrEmpty(editor.ProxyPassword))
                     await _credentials.SetAsync(profile.Proxy.PasswordCredentialReference, editor.ProxyPassword.AsMemory());
             }
-            var result = await _manager.TestAsync(profile);
+            var progress = new Progress<AiConnectionProbeProgress>(item =>
+            {
+                editor.TestStatus = $"正在测试：{item.DisplayName}（{item.Current}/{item.Total}）…";
+            });
+            var result = fullCapabilities
+                ? await _manager.TestAsync(profile, progress, cancellation.Token)
+                : await _manager.TestConnectionAsync(profile, progress, cancellation.Token);
             editor.ApplyCapabilities(result);
+        }
+        catch (OperationCanceledException)
+        {
+            editor.TestStatus = "连接测试已取消。";
         }
         catch (Exception exception) when (exception is ArgumentException or UriFormatException or InvalidOperationException)
         {
@@ -427,6 +461,10 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
                 }
             }
             editor.IsTesting = false;
+            if (ReferenceEquals(_profileTestCancellation, cancellation))
+                _profileTestCancellation = null;
+            if (ReferenceEquals(_testingProfile, editor))
+                _testingProfile = null;
         }
     }
 

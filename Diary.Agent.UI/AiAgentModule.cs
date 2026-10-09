@@ -11,6 +11,7 @@ using Diary.ModuleBase;
 using Diary.ModuleUI;
 using Diary.ScriptHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Diary.Agent.UI;
 
@@ -31,7 +32,9 @@ public sealed class AiAgentModule : IAppModule
         services.AddSingleton<IAiProtocolAdapter, AnthropicMessagesAdapter>();
         services.AddSingleton<AiModelClient>();
         services.AddSingleton<IAgentModelGateway>(provider => provider.GetRequiredService<AiModelClient>());
-        services.AddSingleton<AiConnectionProbeService>();
+        services.AddSingleton(provider => new AiConnectionProbeService(
+            provider.GetRequiredService<IAgentModelGateway>(),
+            provider.GetRequiredService<ILoggerFactory>().CreateLogger<AiConnectionProbeService>()));
         services.AddSingleton<AiConnectionManager>();
         services.AddSingleton<IAgentAuditStore>(new AgentAuditStore(
             Path.Combine(settingsDirectory, "audit.jsonl")));

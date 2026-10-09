@@ -168,12 +168,21 @@
                         <TextBox Grid.Row="18" Grid.Column="1" Text="{Binding HeadersJson}" AcceptsReturn="True"
                                  MinHeight="80" FontFamily="Consolas" TextWrapping="NoWrap" />
                     </Grid>
-                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
-                        <Button Content="测试连接" Command="{Binding $parent[UserControl].DataContext.TestProfileCommand}" />
-                        <SelectableTextBlock Grid.Column="1" Text="{Binding TestStatus}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                        <Button x:Name="ReloadAiSettingsButton" Grid.Column="2" Content="重新加载"
+                    <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto" ColumnSpacing="8">
+                        <Button Content="测试连接" IsEnabled="{Binding !IsTesting}"
+                                Command="{Binding $parent[UserControl].DataContext.TestProfileCommand}" />
+                        <Button Grid.Column="1" Content="完整能力探测"
+                                IsEnabled="{Binding !IsTesting}"
+                                Command="{Binding $parent[UserControl].DataContext.ProbeProfileCapabilitiesCommand}" />
+                        <Button Grid.Column="2" Content="取消测试" IsVisible="{Binding IsTesting}"
+                                Command="{Binding $parent[UserControl].DataContext.CancelProfileTestCommand}" />
+                        <SelectableTextBlock Grid.Column="3" Text="{Binding TestStatus}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <Button x:Name="ReloadAiSettingsButton" Grid.Column="4" Content="重新加载"
+                                IsEnabled="{Binding !IsTesting}"
                                 Command="{Binding $parent[UserControl].DataContext.ReloadCommand}" />
-                        <Button Grid.Column="3" Classes="Primary" Content="保存设置" Command="{Binding $parent[UserControl].DataContext.SaveCommand}" />
+                        <Button Grid.Column="5" Classes="Primary" Content="保存设置"
+                                IsEnabled="{Binding !IsTesting}"
+                                Command="{Binding $parent[UserControl].DataContext.SaveCommand}" />
                     </Grid>
                     <SelectableTextBlock Text="{Binding $parent[UserControl].DataContext.SaveStatus}" TextWrapping="Wrap" />
                 </StackPanel>

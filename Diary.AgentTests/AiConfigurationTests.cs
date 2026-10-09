@@ -5,6 +5,7 @@ using Diary.Agent.Configuration;
 using Diary.Agent.Credentials;
 using Diary.Agent.Protocols;
 using Diary.Utils;
+using Microsoft.Extensions.Logging;
 
 namespace Diary.AgentTests;
 
@@ -138,6 +139,85 @@ public sealed class AiConfigurationTests
     }
 
     [TestMethod]
+    public async Task BasicConnectionTestSendsOneRequestAndReportsProgress()
+    {
+        var root = CreateTemporaryDirectory();
+        var gateway = new ProbeGateway();
+        var manager = new AiConnectionManager(
+            new AiConnectionStore(Path.Combine(root, "settings.json")),
+            new AiConnectionProbeService(gateway));
+        var progress = new RecordingProgress<AiConnectionProbeProgress>();
+
+        var result = await manager.TestConnectionAsync(CreateProfile(), progress);
+
+        Assert.IsTrue(result.SupportsChat);
+        Assert.AreEqual(AiConnectionProbeService.BasicProbeOnlyCode, result.ErrorCode);
+        Assert.AreEqual(1, gateway.SendCount);
+        Assert.AreEqual(1, progress.Items.Count);
+        Assert.AreEqual(AiConnectionProbeStage.BasicChat, progress.Items[0].Stage);
+    }
+
+    [TestMethod]
+    public async Task FullCapabilityProbeReportsAllStages()
+    {
+        var root = CreateTemporaryDirectory();
+        var gateway = new ProbeGateway();
+        var manager = new AiConnectionManager(
+            new AiConnectionStore(Path.Combine(root, "settings.json")),
+            new AiConnectionProbeService(gateway));
+        var progress = new RecordingProgress<AiConnectionProbeProgress>();
+
+        var result = await manager.TestAsync(CreateProfile(), progress);
+
+        Assert.IsTrue(result.SupportsForcedToolChoice);
+        CollectionAssert.AreEqual(
+            Enum.GetValues<AiConnectionProbeStage>(),
+            progress.Items.Select(item => item.Stage).ToArray());
+    }
+
+    [TestMethod]
+    public async Task CancelledCapabilityProbeStopsCurrentRequest()
+    {
+        var root = CreateTemporaryDirectory();
+        var gateway = new HangingProbeGateway();
+        var manager = new AiConnectionManager(
+            new AiConnectionStore(Path.Combine(root, "settings.json")),
+            new AiConnectionProbeService(gateway));
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+
+        await Assert.ThrowsExactlyAsync<OperationCanceledException>(async () =>
+            await manager.TestAsync(CreateProfile(), cancellationToken: cancellation.Token));
+
+        Assert.AreEqual(1, gateway.SendCount);
+    }
+
+    [TestMethod]
+    public async Task ProbeFailureWritesSanitizedConnectionDiagnostics()
+    {
+        var logger = new RecordingLogger<AiConnectionProbeService>();
+        var profile = CreateProfile() with
+        {
+            BaseUri = new Uri("https://models.example.test/v1/"),
+            Proxy = new AiProxyConfiguration
+            {
+                Mode = AiProxyMode.Custom,
+                Address = new Uri("http://proxy.example.test:8888"),
+            },
+        };
+        var service = new AiConnectionProbeService(new FailingProbeGateway(), logger);
+
+        var result = await service.ProbeConnectionAsync(profile);
+
+        Assert.IsFalse(result.SupportsChat);
+        Assert.AreEqual(1, logger.Entries.Count);
+        StringAssert.Contains(logger.Entries[0].Message, "models.example.test");
+        StringAssert.Contains(logger.Entries[0].Message, "proxy.example.test:8888");
+        StringAssert.Contains(logger.Entries[0].Message, "Custom");
+        Assert.IsInstanceOfType<HttpRequestException>(logger.Entries[0].Exception);
+        Assert.IsFalse(logger.Entries[0].Message.Contains("actual-secret-value", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public async Task CredentialCleanupDeletesOnlyUnsharedLocalReferences()
     {
         var store = new AiCredentialStore();
@@ -244,5 +324,73 @@ public sealed class AiConfigurationTests
             }
             await Task.CompletedTask;
         }
+    }
+
+    private sealed class HangingProbeGateway : IAgentModelGateway
+    {
+        public int SendCount { get; private set; }
+
+        public async ValueTask<AgentModelResponse> SendAsync(
+            AgentModelRequest request,
+            AiConnectionProfile connection,
+            CancellationToken cancellationToken = default)
+        {
+            SendCount++;
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException("不可达");
+        }
+
+        public async IAsyncEnumerable<AgentStreamEvent> StreamAsync(
+            AgentModelRequest request,
+            AiConnectionProfile connection,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            yield break;
+        }
+    }
+
+    private sealed class FailingProbeGateway : IAgentModelGateway
+    {
+        public ValueTask<AgentModelResponse> SendAsync(
+            AgentModelRequest request,
+            AiConnectionProfile connection,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromException<AgentModelResponse>(new HttpRequestException(
+                "TLS handshake failed",
+                new IOException("unexpected EOF")));
+
+        public async IAsyncEnumerable<AgentStreamEvent> StreamAsync(
+            AgentModelRequest request,
+            AiConnectionProfile connection,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
+    }
+
+    private sealed class RecordingProgress<T> : IProgress<T>
+    {
+        public List<T> Items { get; } = [];
+
+        public void Report(T value) => Items.Add(value);
+    }
+
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<(LogLevel Level, string Message, Exception? Exception)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entries.Add((logLevel, formatter(state, exception), exception));
     }
 }

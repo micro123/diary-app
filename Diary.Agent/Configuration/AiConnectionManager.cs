@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 using Diary.Agent.Protocols;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Diary.Agent.Configuration;
 
@@ -16,32 +18,106 @@ public sealed record AiConnectionCapabilities(
     bool SupportsParallelTools = false,
     bool SupportsForcedToolChoice = false);
 
-public sealed class AiConnectionProbeService(IAgentModelGateway gateway)
+public enum AiConnectionProbeStage
 {
+    BasicChat,
+    Streaming,
+    Tools,
+    StreamingTools,
+    ParallelTools,
+    ForcedToolChoice,
+}
+
+public sealed record AiConnectionProbeProgress(
+    AiConnectionProbeStage Stage,
+    int Current,
+    int Total,
+    string DisplayName);
+
+public sealed class AiConnectionProbeService
+{
+    public const string BasicProbeOnlyCode = "basic_probe_only";
+    private static readonly TimeSpan BasicProbeTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan FullProbeTimeout = TimeSpan.FromSeconds(90);
     private static readonly JsonElement ProbeSchema = JsonDocument.Parse("""
         {"type":"object","properties":{"value":{"type":"string"}},"required":["value"],"additionalProperties":false}
         """).RootElement.Clone();
+    private readonly IAgentModelGateway _gateway;
+    private readonly ILogger<AiConnectionProbeService> _logger;
+
+    public AiConnectionProbeService(
+        IAgentModelGateway gateway,
+        ILogger<AiConnectionProbeService>? logger = null)
+    {
+        _gateway = gateway;
+        _logger = logger ?? NullLogger<AiConnectionProbeService>.Instance;
+    }
+
+    public async ValueTask<AiConnectionCapabilities> ProbeConnectionAsync(
+        AiConnectionProfile profile,
+        IProgress<AiConnectionProbeProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        using var budget = new CancellationTokenSource(BasicProbeTimeout);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, budget.Token);
+        Report(progress, AiConnectionProbeStage.BasicChat, 1, 1, "基础连接");
+        try
+        {
+            await SendBasicChatAsync(profile, linked.Token);
+            return new AiConnectionCapabilities(
+                true,
+                false,
+                false,
+                DateTimeOffset.UtcNow,
+                BasicProbeOnlyCode,
+                "基础连接成功；尚未执行完整能力探测。");
+        }
+        catch (Exception exception)
+        {
+            if (cancellationToken.IsCancellationRequested)
+                throw new OperationCanceledException(cancellationToken);
+            if (budget.IsCancellationRequested)
+            {
+                LogFailure(profile, "基础连接", exception, "probe_timeout");
+                return Failed("probe_timeout", "基础连接测试超过 30 秒，已停止。", exception, profile, log: false);
+            }
+            return Failed(GetErrorCode(exception), GetErrorMessage(exception), exception, profile);
+        }
+    }
 
     public async ValueTask<AiConnectionCapabilities> ProbeAsync(
         AiConnectionProfile profile,
+        IProgress<AiConnectionProbeProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        using var budget = new CancellationTokenSource(FullProbeTimeout);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, budget.Token);
+        var probeToken = linked.Token;
         try
         {
-            var chatRequest = new AgentModelRequest(
-                profile.Model,
-                "Reply with a short acknowledgement.",
-                [AgentMessage.User("Connection probe")],
-                [],
-                false,
-                32);
-            _ = await gateway.SendAsync(chatRequest, profile, cancellationToken);
+            Report(progress, AiConnectionProbeStage.BasicChat, 1, 6, "普通对话");
+            await SendBasicChatAsync(profile, probeToken);
+            probeToken.ThrowIfCancellationRequested();
 
-            var streaming = await ProbeStreamingAsync(profile, cancellationToken);
-            var tools = await ProbeToolsAsync(profile, cancellationToken);
-            var streamingTools = tools && await ProbeStreamingToolsAsync(profile, cancellationToken);
-            var parallelTools = tools && await ProbeParallelToolsAsync(profile, cancellationToken);
-            var forcedToolChoice = tools && await ProbeForcedToolChoiceAsync(profile, cancellationToken);
+            Report(progress, AiConnectionProbeStage.Streaming, 2, 6, "流式文本");
+            var streaming = await ProbeStreamingAsync(profile, probeToken);
+            probeToken.ThrowIfCancellationRequested();
+
+            Report(progress, AiConnectionProbeStage.Tools, 3, 6, "工具闭环");
+            var tools = await ProbeToolsAsync(profile, probeToken);
+            probeToken.ThrowIfCancellationRequested();
+
+            Report(progress, AiConnectionProbeStage.StreamingTools, 4, 6, "流式工具");
+            var streamingTools = tools && await ProbeStreamingToolsAsync(profile, probeToken);
+            probeToken.ThrowIfCancellationRequested();
+
+            Report(progress, AiConnectionProbeStage.ParallelTools, 5, 6, "并行工具");
+            var parallelTools = tools && await ProbeParallelToolsAsync(profile, probeToken);
+            probeToken.ThrowIfCancellationRequested();
+
+            Report(progress, AiConnectionProbeStage.ForcedToolChoice, 6, 6, "强制工具选择");
+            var forcedToolChoice = tools && await ProbeForcedToolChoiceAsync(profile, probeToken);
+            probeToken.ThrowIfCancellationRequested();
             return new AiConnectionCapabilities(
                 true,
                 streaming,
@@ -53,28 +129,42 @@ public sealed class AiConnectionProbeService(IAgentModelGateway gateway)
         }
         catch (AiModelException exception)
         {
-            return new AiConnectionCapabilities(
-                false,
-                false,
-                false,
-                DateTimeOffset.UtcNow,
-                exception.Code,
-                exception.Message);
+            if (cancellationToken.IsCancellationRequested)
+                throw new OperationCanceledException(cancellationToken);
+            if (budget.IsCancellationRequested)
+            {
+                LogFailure(profile, "完整能力探测", exception, "probe_timeout");
+                return Failed("probe_timeout", "完整能力探测超过 90 秒，已停止。", exception, profile, log: false);
+            }
+            return Failed(exception.Code, exception.Message, exception, profile);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException exception) when (cancellationToken.IsCancellationRequested)
         {
-            throw;
+            throw new OperationCanceledException("连接测试已取消。", exception, cancellationToken);
         }
-        catch (Exception)
+        catch (OperationCanceledException exception) when (budget.IsCancellationRequested)
         {
-            return new AiConnectionCapabilities(
-                false,
-                false,
-                false,
-                DateTimeOffset.UtcNow,
-                "probe_failed",
-                "连接探测失败；详细信息仅记录在本地诊断中。");
+            LogFailure(profile, "完整能力探测", exception, "probe_timeout");
+            return Failed("probe_timeout", "完整能力探测超过 90 秒，已停止。", exception, profile, log: false);
         }
+        catch (Exception exception)
+        {
+            return Failed("probe_failed", "连接探测失败，请查看本地诊断日志。", exception, profile);
+        }
+    }
+
+    private async ValueTask SendBasicChatAsync(
+        AiConnectionProfile profile,
+        CancellationToken cancellationToken)
+    {
+        var chatRequest = new AgentModelRequest(
+            profile.Model,
+            "Reply with a short acknowledgement.",
+            [AgentMessage.User("Connection probe")],
+            [],
+            false,
+            32);
+        _ = await _gateway.SendAsync(chatRequest, profile, cancellationToken);
     }
 
     private async ValueTask<bool> ProbeStreamingAsync(
@@ -91,7 +181,7 @@ public sealed class AiConnectionProbeService(IAgentModelGateway gateway)
                 [],
                 true,
                 32);
-            await foreach (var item in gateway.StreamAsync(request, profile, cancellationToken))
+            await foreach (var item in _gateway.StreamAsync(request, profile, cancellationToken))
             {
                 if (item.Kind == AgentStreamEventKind.ProtocolError)
                     return false;
@@ -102,6 +192,8 @@ public sealed class AiConnectionProbeService(IAgentModelGateway gateway)
         }
         catch (Exception exception) when (exception is AiModelException or HttpRequestException or JsonException)
         {
+            ThrowIfCancelled(cancellationToken);
+            LogCapabilityFailure(profile, "流式文本", exception);
             return false;
         }
     }
@@ -123,7 +215,7 @@ public sealed class AiConnectionProbeService(IAgentModelGateway gateway)
                 [definition],
                 false,
                 64);
-            var first = await gateway.SendAsync(firstRequest, profile, cancellationToken);
+            var first = await _gateway.SendAsync(firstRequest, profile, cancellationToken);
             var call = first.ToolCalls.SingleOrDefault(item => item.Name == definition.Name);
             if (call is null)
                 return false;
@@ -138,11 +230,13 @@ public sealed class AiConnectionProbeService(IAgentModelGateway gateway)
                 ],
                 ProtocolState = first.ProtocolState,
             };
-            var second = await gateway.SendAsync(secondRequest, profile, cancellationToken);
+            var second = await _gateway.SendAsync(secondRequest, profile, cancellationToken);
             return second.ToolCalls.Count == 0;
         }
         catch (Exception exception) when (exception is AiModelException or InvalidOperationException or JsonException)
         {
+            ThrowIfCancelled(cancellationToken);
+            LogCapabilityFailure(profile, "工具闭环", exception);
             return false;
         }
     }
@@ -184,6 +278,8 @@ public sealed class AiConnectionProbeService(IAgentModelGateway gateway)
                                            or HttpRequestException
                                            or JsonException)
         {
+            ThrowIfCancelled(cancellationToken);
+            LogCapabilityFailure(profile, "流式工具", exception);
             return false;
         }
     }
@@ -204,7 +300,7 @@ public sealed class AiConnectionProbeService(IAgentModelGateway gateway)
                 false,
                 96,
                 AllowParallelToolCalls: true);
-            var first = await gateway.SendAsync(firstRequest, profile, cancellationToken);
+            var first = await _gateway.SendAsync(firstRequest, profile, cancellationToken);
             var expectedNames = new HashSet<string>(
                 [firstDefinition.Name, secondDefinition.Name],
                 StringComparer.Ordinal);
@@ -225,7 +321,7 @@ public sealed class AiConnectionProbeService(IAgentModelGateway gateway)
                 ],
                 ProtocolState = first.ProtocolState,
             };
-            var second = await gateway.SendAsync(secondRequest, profile, cancellationToken);
+            var second = await _gateway.SendAsync(secondRequest, profile, cancellationToken);
             return second.ToolCalls.Count == 0;
         }
         catch (Exception exception) when (exception is AiModelException
@@ -233,6 +329,8 @@ public sealed class AiConnectionProbeService(IAgentModelGateway gateway)
                                            or HttpRequestException
                                            or JsonException)
         {
+            ThrowIfCancelled(cancellationToken);
+            LogCapabilityFailure(profile, "并行工具", exception);
             return false;
         }
     }
@@ -254,7 +352,7 @@ public sealed class AiConnectionProbeService(IAgentModelGateway gateway)
                 false,
                 64,
                 RequiredToolName: definition.Name);
-            var response = await gateway.SendAsync(request, profile, cancellationToken);
+            var response = await _gateway.SendAsync(request, profile, cancellationToken);
             return response.ToolCalls.Count == 1
                    && response.ToolCalls[0].Name == definition.Name
                    && response.ToolCalls[0].Arguments.ValueKind == JsonValueKind.Object;
@@ -264,6 +362,8 @@ public sealed class AiConnectionProbeService(IAgentModelGateway gateway)
                                            or HttpRequestException
                                            or JsonException)
         {
+            ThrowIfCancelled(cancellationToken);
+            LogCapabilityFailure(profile, "强制工具选择", exception);
             return false;
         }
     }
@@ -277,7 +377,7 @@ public sealed class AiConnectionProbeService(IAgentModelGateway gateway)
         var calls = new Dictionary<int, StreamedProbeToolCall>();
         AgentProtocolState? protocolState = null;
         var completed = false;
-        await foreach (var item in gateway.StreamAsync(request, profile, cancellationToken))
+        await foreach (var item in _gateway.StreamAsync(request, profile, cancellationToken))
         {
             switch (item.Kind)
             {
@@ -331,6 +431,72 @@ public sealed class AiConnectionProbeService(IAgentModelGateway gateway)
         && arguments.TryGetProperty("value", out var value)
         && value.ValueKind == JsonValueKind.String
         && value.GetString() == "probe";
+
+    private AiConnectionCapabilities Failed(
+        string code,
+        string message,
+        Exception exception,
+        AiConnectionProfile profile,
+        bool log = true)
+    {
+        if (log)
+            LogFailure(profile, "连接测试", exception, code);
+        return new AiConnectionCapabilities(
+            false,
+            false,
+            false,
+            DateTimeOffset.UtcNow,
+            code,
+            message);
+    }
+
+    private void LogCapabilityFailure(AiConnectionProfile profile, string stage, Exception exception) =>
+        LogFailure(profile, stage, exception, GetErrorCode(exception));
+
+    private void LogFailure(
+        AiConnectionProfile profile,
+        string stage,
+        Exception exception,
+        string code)
+    {
+        var modelException = exception as AiModelException;
+        _logger.LogWarning(
+            exception,
+            "AI 连接探测失败。Stage={Stage} ConnectionId={ConnectionId} Protocol={Protocol} BaseUri={BaseUri} RequestPath={RequestPath} Model={Model} ProxyMode={ProxyMode} ProxyAddress={ProxyAddress} ErrorCategory={ErrorCategory} ErrorCode={ErrorCode} HttpStatus={HttpStatus}",
+            stage,
+            profile.Id,
+            profile.Protocol,
+            profile.BaseUri.GetLeftPart(UriPartial.Path),
+            profile.RequestPathOverride ?? "<protocol-default>",
+            profile.Model,
+            profile.Proxy.Mode,
+            profile.Proxy.Address?.GetLeftPart(UriPartial.Authority) ?? "<none>",
+            modelException?.Category.ToString() ?? "Unexpected",
+            code,
+            modelException?.StatusCode);
+    }
+
+    private static string GetErrorCode(Exception exception) =>
+        exception is AiModelException modelException ? modelException.Code : "probe_failed";
+
+    private static string GetErrorMessage(Exception exception) =>
+        exception is AiModelException modelException
+            ? modelException.Message
+            : "连接探测失败，请查看本地诊断日志。";
+
+    private static void ThrowIfCancelled(CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested)
+            throw new OperationCanceledException(cancellationToken);
+    }
+
+    private static void Report(
+        IProgress<AiConnectionProbeProgress>? progress,
+        AiConnectionProbeStage stage,
+        int current,
+        int total,
+        string displayName) =>
+        progress?.Report(new AiConnectionProbeProgress(stage, current, total, displayName));
 
     private sealed class StreamedProbeToolCall(string? id, string? name)
     {
@@ -395,6 +561,7 @@ public sealed class AiConnectionManager
 
     public async ValueTask<AiConnectionCapabilities> TestAsync(
         AiConnectionProfile workingCopy,
+        IProgress<AiConnectionProbeProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         var errors = AiConnectionProfileValidator.Validate(workingCopy);
@@ -408,7 +575,28 @@ public sealed class AiConnectionManager
                 "configuration_invalid",
                 string.Join(" ", errors));
         }
-        var result = await _probe.ProbeAsync(workingCopy, cancellationToken);
+        var result = await _probe.ProbeAsync(workingCopy, progress, cancellationToken);
+        _capabilities[workingCopy.Id] = result;
+        return result;
+    }
+
+    public async ValueTask<AiConnectionCapabilities> TestConnectionAsync(
+        AiConnectionProfile workingCopy,
+        IProgress<AiConnectionProbeProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        var errors = AiConnectionProfileValidator.Validate(workingCopy);
+        if (errors.Count > 0)
+        {
+            return new AiConnectionCapabilities(
+                false,
+                false,
+                false,
+                DateTimeOffset.UtcNow,
+                "configuration_invalid",
+                string.Join(" ", errors));
+        }
+        var result = await _probe.ProbeConnectionAsync(workingCopy, progress, cancellationToken);
         _capabilities[workingCopy.Id] = result;
         return result;
     }
