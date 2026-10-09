@@ -19,6 +19,9 @@ public sealed partial class AiConnectionEditorViewModel : ObservableObject
         BaseUri = profile.BaseUri.AbsoluteUri;
         RequestPathOverride = profile.RequestPathOverride ?? string.Empty;
         Model = profile.Model;
+        ContextWindowTokens = profile.ContextWindowTokens;
+        AutomaticContextCompression = profile.AutomaticContextCompression;
+        ContextCompressionThresholdPercent = profile.ContextCompressionThresholdPercent;
         AuthenticationKind = profile.Authentication.Kind;
         CredentialReference = profile.Authentication.CredentialReference;
         HeaderName = profile.Authentication.HeaderName;
@@ -62,6 +65,9 @@ public sealed partial class AiConnectionEditorViewModel : ObservableObject
     [ObservableProperty] private string _baseUri = string.Empty;
     [ObservableProperty] private string _requestPathOverride = string.Empty;
     [ObservableProperty] private string _model = string.Empty;
+    [ObservableProperty] private int _contextWindowTokens = AiConnectionProfile.DefaultContextWindowTokens;
+    [ObservableProperty] private bool _automaticContextCompression = true;
+    [ObservableProperty] private int _contextCompressionThresholdPercent = 75;
     [ObservableProperty] private AiAuthenticationKind _authenticationKind;
     [ObservableProperty] private string _credentialReference = string.Empty;
     [ObservableProperty] private string _headerName = "Authorization";
@@ -117,6 +123,9 @@ public sealed partial class AiConnectionEditorViewModel : ObservableObject
                 ? null
                 : RequestPathOverride.Trim(),
             Model = Model.Trim(),
+            ContextWindowTokens = ContextWindowTokens,
+            AutomaticContextCompression = AutomaticContextCompression,
+            ContextCompressionThresholdPercent = ContextCompressionThresholdPercent,
             Authentication = new AiAuthenticationConfiguration
             {
                 Kind = AuthenticationKind,

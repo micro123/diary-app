@@ -297,6 +297,9 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
                         completedCard.DurationText = $"{Math.Max(0, (DateTimeOffset.UtcNow - completedCard.StartedAtUtc).TotalMilliseconds):F0} ms";
                     }
                     break;
+                case AgentRunEventKind.ContextCompacted:
+                    StatusText = item.Text ?? "已自动压缩较早的会话历史。";
+                    break;
             }
         });
         try
@@ -313,7 +316,9 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
                 progress);
             StatusText = result.Status switch
             {
-                AgentSessionStatus.Completed => $"已完成 · {result.Rounds} 轮 · {result.ToolCalls} 次工具调用",
+                AgentSessionStatus.Completed => _session.ContextCompactionCount > 0
+                    ? $"已完成 · {result.Rounds} 轮 · {result.ToolCalls} 次工具调用 · 已压缩 {_session.ContextCompactionCount} 次"
+                    : $"已完成 · {result.Rounds} 轮 · {result.ToolCalls} 次工具调用",
                 AgentSessionStatus.Cancelled => "已停止；未完成内容不会进入下一轮历史。",
                 _ => $"运行失败：{result.ErrorMessage}",
             };
@@ -434,10 +439,13 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
             };
             ToolCalls.Add(card);
         }
-        _session.RestoreSession(record.Messages.Select(message =>
-            message.Role == "user"
-                ? AgentMessage.User(message.Content)
-                : AgentMessage.Assistant(message.Content)));
+        _session.RestoreSession(
+            record.Messages.Select(message =>
+                message.Role == "user"
+                    ? AgentMessage.User(message.Content)
+                    : AgentMessage.Assistant(message.Content)),
+            record.ContextSummary,
+            record.ContextCompactionCount);
         OnPropertyChanged(nameof(IsEmpty));
         StatusText = $"已恢复会话：{record.Title}";
     }
@@ -512,13 +520,18 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
 
     private async Task SaveConversationAsync(AgentRunResult result, AiConnectionProfile profile)
     {
-        var messages = Messages
-            .Where(message => !string.IsNullOrWhiteSpace(message.Content))
+        var messages = _session.Messages
+            .Where(message => message.Role == AgentMessageRole.User
+                              || (message.Role == AgentMessageRole.Assistant
+                                  && message.ToolCalls.Count == 0
+                                  && !string.IsNullOrWhiteSpace(message.Text)))
             .Select(message => new AgentConversationMessage(
-                message.Role == "你" ? "user" : "assistant",
-                message.Content))
+                message.Role == AgentMessageRole.User ? "user" : "assistant",
+                message.Text))
             .ToArray();
-        var firstUser = messages.FirstOrDefault(message => message.Role == "user")?.Content ?? "新会话";
+        var firstUser = Messages.FirstOrDefault(message => message.Role == "你")?.Content
+            ?? messages.FirstOrDefault(message => message.Role == "user")?.Content
+            ?? "新会话";
         var title = firstUser.Length <= 60 ? firstUser : firstUser[..60] + "…";
         var tools = ToolCalls.Select(tool => new AgentConversationToolCall(
             tool.Name,
@@ -536,7 +549,9 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
             messages,
             tools,
             result.Status.ToString(),
-            result.Usage));
+            result.Usage,
+            _session.ContextSummary,
+            _session.ContextCompactionCount));
         await LoadConversationListAsync();
         SelectedConversation = Conversations.FirstOrDefault(item => item.Record.Id == _conversationId);
     }

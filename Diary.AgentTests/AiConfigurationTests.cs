@@ -45,6 +45,9 @@ public sealed class AiConfigurationTests
         Assert.IsTrue(loaded.Settings?.Capabilities[profile.Id].SupportsStreamingTools);
         Assert.IsTrue(loaded.Settings?.Capabilities[profile.Id].SupportsParallelTools);
         Assert.IsTrue(loaded.Settings?.Capabilities[profile.Id].SupportsForcedToolChoice);
+        Assert.AreEqual(1_000_000, loaded.Settings?.Profiles.Single().ContextWindowTokens);
+        Assert.AreEqual(70, loaded.Settings?.Profiles.Single().ContextCompressionThresholdPercent);
+        Assert.IsTrue(loaded.Settings?.Profiles.Single().AutomaticContextCompression);
         StringAssert.Contains(raw, "diary.ai/internal/api-key");
         Assert.IsFalse(raw.Contains("actual-secret-value", StringComparison.Ordinal));
     }
@@ -161,6 +164,9 @@ public sealed class AiConfigurationTests
         Protocol = AiProtocol.OpenAiResponses,
         BaseUri = new Uri("https://models.example.test/v1/"),
         Model = "glm-test",
+        ContextWindowTokens = 1_000_000,
+        ContextCompressionThresholdPercent = 70,
+        AutomaticContextCompression = true,
         Authentication = new AiAuthenticationConfiguration
         {
             Kind = AiAuthenticationKind.Bearer,

@@ -38,6 +38,7 @@ public sealed class AiAgentModule : IAppModule
         services.AddSingleton(new AgentConversationStore(
             Path.Combine(settingsDirectory, "conversations.json")));
         services.AddSingleton<AgentToolExecutor>();
+        services.AddSingleton<AgentContextCompactor>();
         services.AddSingleton<AgentConfirmationCoordinator>();
         services.AddSingleton<IAgentConfirmationService>(provider =>
             provider.GetRequiredService<AgentConfirmationCoordinator>());

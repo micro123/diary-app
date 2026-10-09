@@ -56,7 +56,9 @@ public sealed class AgentPersistenceTests
                     null,
                     "12 ms")],
                 "Completed",
-                new AgentUsage(10, 5, 15));
+                new AgentUsage(10, 5, 15),
+                "已压缩的历史摘要",
+                2);
 
             await store.SaveAsync(record);
             var loaded = await store.LoadAsync();
@@ -64,6 +66,8 @@ public sealed class AgentPersistenceTests
             Assert.AreEqual(1, loaded.Count);
             Assert.AreEqual(id, loaded[0].Id);
             Assert.AreEqual("connection-1", loaded[0].ConnectionId);
+            Assert.AreEqual("已压缩的历史摘要", loaded[0].ContextSummary);
+            Assert.AreEqual(2, loaded[0].ContextCompactionCount);
             var raw = await File.ReadAllTextAsync(path);
             StringAssert.Contains(raw, "\"schemaVersion\": 1");
             Assert.IsFalse(raw.Contains("local-note-secret", StringComparison.Ordinal));

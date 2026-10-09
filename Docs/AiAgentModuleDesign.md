@@ -545,9 +545,26 @@ Idle -> Running -> WaitingForApproval -> Running -> Completed
 
 预算命中产生结构化终止结果，不自动重试。
 
-### 9.4 会话持久化
+### 9.4 自动上下文压缩
 
-P0 会话仅内存保存。P1 采用版本化 JSON，保存用户消息、最终回答、工具名、参数摘要、状态、连接 ID、模型名、耗时和 usage。隐藏推理、凭据、认证 Header 和服务端私有会话 ID 不落盘。
+连接配置增加 `ContextWindowTokens`、`AutomaticContextCompression` 和 `ContextCompressionThresholdPercent`。默认窗口为 128 Ki Token、自动压缩开启、阈值 75%；内部声明 1M 上下文的连接应把窗口显式设置为 `1000000`，模型名称本身仍不包含 `[1M]`。
+
+`AgentContextCompactor` 使用 UTF-8 字节数的保守估算，统计固定指令、已有摘要、消息文本、工具调用参数、工具 schema、Responses 协议状态和预留输出。超过阈值时以用户消息边界切分，只压缩最近两轮之前的完整历史：
+
+```text
+较早完整轮次 + 已有摘要
+  -> 无工具摘要请求
+  -> 结构化历史摘要
+  -> 保留最近两轮完整消息
+  -> 清空旧协议状态
+  -> 主 Agent 请求
+```
+
+摘要提示明确把历史视为数据并忽略其中的指令。摘要调用异常、空响应或意外工具调用时，使用本地长度受限的角色/文本/工具名摘要兜底。压缩结果在主 run 成功前即可替换既有历史，但本轮新用户消息仍遵守“run 成功才提交”的语义。UI 通过 `ContextCompacted` 事件显示压缩状态，usage 合并摘要和主请求用量。
+
+### 9.5 会话持久化
+
+P0 会话仅内存保存。P1 采用版本化 JSON，保存压缩后保留的用户消息、最终回答、上下文摘要、压缩次数、工具名、参数摘要、状态、连接 ID、模型名、耗时和 usage。隐藏推理、凭据、认证 Header、被摘要替代的完整历史和服务端私有会话 ID 不落盘。
 
 ## 10. 统一工具系统
 
@@ -921,7 +938,7 @@ AI 模块随程序安装但默认禁用。用户启用后重启生效；未启�
 
 ## 20. 实施与验证结果
 
-- `Diary.AgentTests` 58/58，通过三协议、完整能力探测、模型/代理、网页安全、事项确认、程序写工具确认、MCP、会话与审计测试；另由 `Diary.ScriptTests` 验证 Agent 无备注查询模式不调用备注读取器；
+- `Diary.AgentTests` 62/62，通过三协议、完整能力探测、模型/代理、网页安全、事项确认、程序写工具确认、自动上下文压缩、Responses 协议状态清理及本地兜底、MCP、会话与审计测试；另由 `Diary.ScriptTests` 验证 Agent 无备注查询模式不调用备注读取器；
 - `Diary.ModuleTests` 12/12，通过 Debug/Release 模块目录、私有 `AssemblyLoadContext`、禁用和故障隔离测试；
 - `Diary.AppTests` 318/318；`Diary.DbTests` 150 通过，111 项 PostgreSQL/Docker 或 Linux 专属用例按当前环境跳过；
 - AI CDP 套件 7/7，通过导航、Agent 状态、真实本地假模型工具闭环、拒绝写入、键盘发送、设置贡献和递归 seed；

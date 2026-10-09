@@ -22,7 +22,9 @@ public sealed record AgentConversationRecord(
     IReadOnlyList<AgentConversationMessage> Messages,
     IReadOnlyList<AgentConversationToolCall> ToolCalls,
     string LastRunStatus,
-    AgentUsage? Usage);
+    AgentUsage? Usage,
+    string? ContextSummary = null,
+    int ContextCompactionCount = 0);
 
 public sealed class AgentConversationStore(string path)
 {

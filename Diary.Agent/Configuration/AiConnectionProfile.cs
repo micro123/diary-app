@@ -70,6 +70,8 @@ public sealed record AiRequestHeader
 
 public sealed record AiConnectionProfile
 {
+    public const int DefaultContextWindowTokens = 128 * 1024;
+
     public required string Id { get; init; }
 
     public required string DisplayName { get; init; }
@@ -81,6 +83,12 @@ public sealed record AiConnectionProfile
     public string? RequestPathOverride { get; init; }
 
     public required string Model { get; init; }
+
+    public int ContextWindowTokens { get; init; } = DefaultContextWindowTokens;
+
+    public bool AutomaticContextCompression { get; init; } = true;
+
+    public int ContextCompressionThresholdPercent { get; init; } = 75;
 
     public AiAuthenticationConfiguration Authentication { get; init; } = new();
 
@@ -117,6 +125,10 @@ public static partial class AiConnectionProfileValidator
             errors.Add("显示名称不能为空且不能超过 100 个字符。");
         if (string.IsNullOrWhiteSpace(profile.Model) || profile.Model.Length > 200)
             errors.Add("模型名不能为空且不能超过 200 个字符。");
+        if (profile.ContextWindowTokens is < 4096 or > 4 * 1024 * 1024)
+            errors.Add("上下文窗口必须在 4096 到 4194304 Token 之间。");
+        if (profile.ContextCompressionThresholdPercent is < 50 or > 95)
+            errors.Add("自动压缩阈值必须在 50% 到 95% 之间。");
         ValidateBaseUri(profile.BaseUri, errors);
         ValidateRequestPath(profile.RequestPathOverride, errors);
         if (profile.ConnectTimeout < TimeSpan.FromSeconds(1)
