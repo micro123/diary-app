@@ -74,6 +74,7 @@ public sealed class AiAgentModule : IAppModule
                 provider.GetRequiredService<ITemplateScriptApi>(),
                 provider.GetRequiredService<ITrackerInstanceScriptApi>(),
                 provider.GetRequiredService<IWorkTagScriptApi>(),
+                provider.GetRequiredService<ITagExtraFieldScriptApi>(),
                 provider.GetRequiredService<ICurrentContextScriptApi>(),
                 provider.GetRequiredService<IScriptValidationScriptApi>(),
                 provider.GetService<IExportApi>());

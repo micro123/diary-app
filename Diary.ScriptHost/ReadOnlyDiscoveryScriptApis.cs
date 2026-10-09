@@ -1,4 +1,5 @@
 using Diary.Core.Data.Base;
+using Diary.Database;
 using Diary.Script.Runtime;
 using Diary.ScriptBase;
 
@@ -30,6 +31,55 @@ public sealed class WorkTagScriptApi(
         .ThenBy(tag => tag.Name, StringComparer.OrdinalIgnoreCase)
         .ThenBy(tag => tag.Id)
         .ToArray();
+}
+
+public sealed record ScriptTagExtraFieldInfo(
+    string FieldId,
+    string FieldKey,
+    int TagId,
+    string TagName,
+    string Label,
+    string Type,
+    string Description,
+    int SortOrder,
+    IReadOnlyList<string> Options,
+    string DefaultValue,
+    bool Enabled);
+
+public interface ITagExtraFieldScriptApi
+{
+    IReadOnlyList<ScriptTagExtraFieldInfo> List(bool includeDisabled = false);
+}
+
+public sealed class TagExtraFieldScriptApi(
+    Func<DbInterfaceBase?> databaseProvider) : ITagExtraFieldScriptApi
+{
+    public IReadOnlyList<ScriptTagExtraFieldInfo> List(bool includeDisabled = false)
+    {
+        var database = databaseProvider();
+        if (database is null)
+            return [];
+        var tags = database.AllWorkTags().ToDictionary(tag => tag.Id);
+        return database.GetAllTagExtraFieldDefinitions(includeDisabled)
+            .Where(field => tags.ContainsKey(field.TagId))
+            .Select(field => new ScriptTagExtraFieldInfo(
+                field.FieldId,
+                field.FieldKey,
+                field.TagId,
+                tags[field.TagId].Name,
+                field.Label,
+                field.Type.ToString(),
+                field.Description,
+                field.SortOrder,
+                field.Options,
+                field.DefaultValue,
+                field.Enabled))
+            .OrderBy(field => field.TagName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(field => field.SortOrder)
+            .ThenBy(field => field.Label, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(field => field.FieldId, StringComparer.Ordinal)
+            .ToArray();
+    }
 }
 
 public sealed record ScriptCurrentContext(

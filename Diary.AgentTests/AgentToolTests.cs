@@ -146,6 +146,78 @@ public sealed class AgentToolTests
         StringAssert.Contains(result.Content, "100");
     }
 
+    [TestMethod]
+    public async Task ListExtraFieldsFiltersTagsAndDisabledDefinitions()
+    {
+        var api = new FakeExtraFieldApi([
+            new ScriptTagExtraFieldInfo("field-1", "project.code", 1, "项目", "项目代码", "Text", "", 0, [], "", true),
+            new ScriptTagExtraFieldInfo("field-2", "project.closed", 1, "项目", "已关闭", "Boolean", "", 1, [], "false", false),
+            new ScriptTagExtraFieldInfo("field-3", "client.name", 2, "客户", "客户", "Text", "", 0, [], "", true),
+        ]);
+        var tool = new ListExtraFieldsTool(api);
+        using var arguments = JsonDocument.Parse("{\"tagIds\":[1]}");
+
+        var result = await tool.InvokeAsync(arguments.RootElement, CreateContext());
+
+        Assert.IsTrue(result.Succeeded);
+        using var document = JsonDocument.Parse(result.Content);
+        Assert.AreEqual(1, document.RootElement.GetProperty("count").GetInt32());
+        Assert.AreEqual("project.code", document.RootElement.GetProperty("fields")[0].GetProperty("FieldKey").GetString());
+    }
+
+    [TestMethod]
+    public async Task WorkLogQualityFindsMissingDayDuplicatesAndUntaggedItems()
+    {
+        var items = ImmutableArray.Create(
+            new ScriptWorkItem(1, "2026-10-05", "实现功能", 2, 1, null, []),
+            new ScriptWorkItem(2, "2026-10-05", "实现功能", 3, 1, null, []),
+            new ScriptWorkItem(3, "2026-10-07", "测试", 8, 2, null,
+                [new ScriptWorkTag(9, "停用", 0, 0, true)]));
+        var tool = new AnalyzeWorkLogQualityTool(new FakeWorkItemApi(items));
+        using var arguments = JsonDocument.Parse("""
+            {"startDate":"2026-10-05","endDate":"2026-10-07","expectedDailyHours":8}
+            """);
+
+        var result = await tool.InvokeAsync(arguments.RootElement, CreateContext());
+
+        Assert.IsTrue(result.Succeeded);
+        using var document = JsonDocument.Parse(result.Content);
+        Assert.AreEqual("2026-10-06", document.RootElement.GetProperty("missingDates")[0].GetString());
+        Assert.AreEqual(2, document.RootElement.GetProperty("duplicates")[0].GetProperty("workItemIds").GetArrayLength());
+        Assert.AreEqual(2, document.RootElement.GetProperty("untaggedWorkItemIds").GetArrayLength());
+        Assert.AreEqual(1, document.RootElement.GetProperty("disabledTagReferences").GetArrayLength());
+    }
+
+    [TestMethod]
+    public async Task PeriodComparisonAndCalendarOverviewReturnLocalAggregates()
+    {
+        var items = ImmutableArray.Create(
+            new ScriptWorkItem(1, "2026-09-28", "上周", 4, 1, null, []),
+            new ScriptWorkItem(2, "2026-10-05", "本周 A", 6, 1, null, []),
+            new ScriptWorkItem(3, "2026-10-05", "本周 B", 2, 2, null, []));
+        var api = new FilteringWorkItemApi(items);
+        var compare = new CompareWorkPeriodsTool(api);
+        using var compareArguments = JsonDocument.Parse("""
+            {"leftStartDate":"2026-09-28","leftEndDate":"2026-09-28","rightStartDate":"2026-10-05","rightEndDate":"2026-10-05"}
+            """);
+
+        var compareResult = await compare.InvokeAsync(compareArguments.RootElement, CreateContext());
+
+        Assert.IsTrue(compareResult.Succeeded);
+        using var comparison = JsonDocument.Parse(compareResult.Content);
+        Assert.AreEqual(4, comparison.RootElement.GetProperty("delta").GetProperty("totalHours").GetDouble());
+
+        var calendar = new GetCalendarOverviewTool(api);
+        using var calendarArguments = JsonDocument.Parse("""
+            {"startDate":"2026-10-05","endDate":"2026-10-06"}
+            """);
+        var calendarResult = await calendar.InvokeAsync(calendarArguments.RootElement, CreateContext());
+        using var overview = JsonDocument.Parse(calendarResult.Content);
+        Assert.AreEqual(1, overview.RootElement.GetProperty("recordedDays").GetInt32());
+        Assert.AreEqual(1, overview.RootElement.GetProperty("missingDays").GetInt32());
+        Assert.AreEqual(8, overview.RootElement.GetProperty("totalHours").GetDouble());
+    }
+
     private sealed class FakeWorkItemApi(ImmutableArray<ScriptWorkItem> items) : IWorkItemQueryScriptApi
     {
         public ScriptWorkItemQuery? LastQuery { get; private set; }
@@ -155,9 +227,35 @@ public sealed class AgentToolTests
             CancellationToken cancellationToken = default)
         {
             LastQuery = query;
-            return ValueTask.FromResult(ScriptWorkItemQueryResult.Success(items, query));
+            var page = items.Skip(query.Offset).Take(query.Limit ?? items.Length).ToImmutableArray();
+            return ValueTask.FromResult(ScriptWorkItemQueryResult.Success(page, query));
         }
     }
+
+    private sealed class FilteringWorkItemApi(ImmutableArray<ScriptWorkItem> items) : IWorkItemQueryScriptApi
+    {
+        public ValueTask<ScriptWorkItemQueryResult> QueryAsync(
+            ScriptWorkItemQuery query,
+            CancellationToken cancellationToken = default)
+        {
+            var filtered = items.Where(item =>
+                    (query.StartDate is null || string.CompareOrdinal(item.Date, query.StartDate) >= 0)
+                    && (query.EndDate is null || string.CompareOrdinal(item.Date, query.EndDate) <= 0))
+                .Skip(query.Offset)
+                .Take(query.Limit ?? items.Length)
+                .ToImmutableArray();
+            return ValueTask.FromResult(ScriptWorkItemQueryResult.Success(filtered, query));
+        }
+    }
+
+    private sealed class FakeExtraFieldApi(IReadOnlyList<ScriptTagExtraFieldInfo> fields) : ITagExtraFieldScriptApi
+    {
+        public IReadOnlyList<ScriptTagExtraFieldInfo> List(bool includeDisabled = false) =>
+            fields.Where(field => includeDisabled || field.Enabled).ToArray();
+    }
+
+    private static AgentToolInvocationContext CreateContext() =>
+        new(Guid.NewGuid(), Guid.NewGuid(), EmptyServiceProvider.Instance);
 
     private sealed class FakeExportApi : IExportApi
     {

@@ -641,16 +641,20 @@ AllowAutomatically
 | 工具 | 宿主能力 | 默认状态 |
 | --- | --- | --- |
 | `diary_list_tags` | `DbShareData` 的只读适配器 | 启用 |
+| `diary_list_extra_fields` | `ITagExtraFieldScriptApi` | 启用 |
 | `diary_list_templates` | `ITemplateScriptApi` | 启用 |
 | `diary_list_tracker_instances` | `ITrackerInstanceScriptApi` | 启用 |
 | `diary_query_work_items` | `IWorkItemQueryScriptApi` | 启用 |
 | `diary_get_work_item_detail` | `IWorkItemQueryScriptApi` 精确 ID 查询 | 启用 |
 | `diary_summarize_work_items` | 查询结果的统计分析 | 启用 |
+| `diary_analyze_work_log_quality` | 宿主内记录完整性与异常分析 | 启用 |
+| `diary_compare_work_periods` | 两个日期范围的本地聚合对比 | 启用 |
+| `diary_get_calendar_overview` | 指定范围的逐日事项和工时概览 | 启用 |
 | `diary_list_export_options` | `IExportApi` 格式与模板目录 | 启用 |
 | `diary_get_current_context` | UI 当前日期/选择的只读快照 | 启用 |
 | `diary_validate_script` | 现有校验服务适配器 | 启用 |
 
-模块不得持有 `DbInterfaceBase`。宿主在 DI 中注册稳定 Script Host API 或只读 facade。事项查询契约提供可选的精确 ID 过滤，详情工具仍复用显式无备注模式，不调用 `WorkGetNote` 或 `GetWorkNotesByWorkItemIds`；工具 DTO 同样不定义本地备注字段。统计工具在宿主内计算平均工时、日期范围、日期/优先级分布和标签工时。导出目录工具只读取格式、能力和模板元数据，不生成文件。普通脚本 API 保持原有可读取备注的行为，其他普通工作字段可以按查询结果返回。
+模块不得持有 `DbInterfaceBase`。宿主在 DI 中注册稳定 Script Host API 或只读 facade。事项查询契约提供可选的精确 ID 过滤，详情工具仍复用显式无备注模式，不调用 `WorkGetNote` 或 `GetWorkNotesByWorkItemIds`；工具 DTO 同样不定义本地备注字段。统计和分析工具在宿主内计算平均工时、日期范围、日期/优先级分布、标签工时、缺失工作日、异常工时和重复标题；质量分析、周期对比和日历概览最多处理 2000 条事项与 366 天，只向模型返回聚合结果。导出目录工具只读取格式、能力和模板元数据，不生成文件。普通脚本 API 保持原有可读取备注的行为，其他普通工作字段可以按查询结果返回。
 
 ### 11.2 P1 草稿和写入
 
@@ -963,7 +967,7 @@ AI 模块随程序安装但默认禁用。用户启用后重启生效；未启�
 
 ## 20. 实施与验证结果
 
-- `Diary.AgentTests` 81/81，通过三协议、完整能力探测、模型/代理、静态网页安全、内网与本机访问策略、系统浏览器动态渲染、本机 CDP 运行时限制、事项详情与导出目录查询、事项创建/更新确认、报告导出确认、自动上下文压缩、Responses 协议状态清理及本地兜底、MCP 删除语义拦截、会话与审计测试；另由 `Diary.ScriptTests` 验证 Agent 无备注查询模式不调用备注读取器；
+- `Diary.AgentTests` 84/84，通过三协议、完整能力探测、模型/代理、静态网页安全、内网与本机访问策略、系统浏览器动态渲染、本机 CDP 运行时限制、附加字段目录、记录质量分析、周期对比、日历概览、事项详情与导出目录查询、事项创建/更新确认、报告导出确认、自动上下文压缩、Responses 协议状态清理及本地兜底、MCP 删除语义拦截、会话与审计测试；另由 `Diary.ScriptTests` 验证 Agent 无备注查询模式不调用备注读取器；
 - `Diary.ModuleTests` 13 项通过，1 项因未生成 Windows Release 发布目录跳过；已覆盖 Debug 模块目录、私有 `AssemblyLoadContext`、禁用和故障隔离测试；
 - `Diary.AppTests` 320/320；`Diary.DbTests` 264 通过，1 项因本机 `pg_dump` 与 PostgreSQL 服务端主版本不一致跳过；
 - AI CDP 套件 7/7，通过导航、Agent 状态、真实本地假模型工具闭环、拒绝写入、键盘发送、设置贡献和递归 seed；

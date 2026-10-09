@@ -52,6 +52,7 @@ public static class DiaryReadOnlyToolRegistration
         ITemplateScriptApi templates,
         ITrackerInstanceScriptApi trackers,
         IWorkTagScriptApi tags,
+        ITagExtraFieldScriptApi extraFields,
         ICurrentContextScriptApi currentContext,
         IScriptValidationScriptApi scriptValidation,
         IExportApi? exports = null)
@@ -64,6 +65,10 @@ public static class DiaryReadOnlyToolRegistration
             new ListTemplatesTool(templates),
             new ListTrackerInstancesTool(trackers),
             new ListTagsTool(tags),
+            new ListExtraFieldsTool(extraFields),
+            new AnalyzeWorkLogQualityTool(workItems),
+            new CompareWorkPeriodsTool(workItems),
+            new GetCalendarOverviewTool(workItems),
             new GetCurrentContextTool(currentContext),
             new ValidateScriptTool(scriptValidation),
         };
@@ -369,6 +374,22 @@ internal static class DiaryToolDescriptors
     public static AgentToolDescriptor ListTags { get; } = Create(
         "diary.list-tags", "diary_list_tags", "列出标签", "列出 DiaryApp 工作标签。", EmptySchema);
 
+    public static AgentToolDescriptor ListExtraFields { get; } = Create(
+        "diary.list-extra-fields", "diary_list_extra_fields", "列出附加字段", "列出标签附加字段定义、类型、默认值和可选值。", Schema("""
+            {"type":"object","properties":{"tagIds":{"type":"array","items":{"type":"integer"}},"includeDisabled":{"type":"boolean"}},"additionalProperties":false}
+            """));
+
+    public static AgentToolDescriptor AnalyzeWorkLogQuality { get; } = Create(
+        "diary.analyze-work-log-quality", "diary_analyze_work_log_quality", "分析记录质量", "分析日期范围内的缺失工作日、异常工时、重复标题、无标签事项和停用标签。", DateAnalysisSchema);
+
+    public static AgentToolDescriptor CompareWorkPeriods { get; } = Create(
+        "diary.compare-work-periods", "diary_compare_work_periods", "对比工作周期", "比较两个日期范围的事项数量、工时、标签和优先级变化。", Schema("""
+            {"type":"object","properties":{"leftStartDate":{"type":"string"},"leftEndDate":{"type":"string"},"rightStartDate":{"type":"string"},"rightEndDate":{"type":"string"}},"required":["leftStartDate","leftEndDate","rightStartDate","rightEndDate"],"additionalProperties":false}
+            """));
+
+    public static AgentToolDescriptor GetCalendarOverview { get; } = Create(
+        "diary.get-calendar-overview", "diary_get_calendar_overview", "读取日历概览", "按日汇总指定日期范围的事项数和工时，并标记无记录工作日。", DateAnalysisSchema);
+
     public static AgentToolDescriptor GetCurrentContext { get; } = Create(
         "diary.get-current-context", "diary_get_current_context", "读取当前上下文", "读取 UI 当前日期和选择事项的非敏感摘要。", EmptySchema);
 
@@ -381,6 +402,10 @@ internal static class DiaryToolDescriptors
         "diary.list-export-options", "diary_list_export_options", "列出导出选项", "列出可用的导出格式、能力和模板。", Schema("""
             {"type":"object","properties":{"formatId":{"type":["string","null"]}},"additionalProperties":false}
             """));
+
+    private static JsonElement DateAnalysisSchema { get; } = Schema("""
+        {"type":"object","properties":{"startDate":{"type":"string"},"endDate":{"type":"string"},"expectedDailyHours":{"type":"number","minimum":0,"maximum":24},"includeWeekends":{"type":"boolean"}},"required":["startDate","endDate"],"additionalProperties":false}
+        """);
 
     private static AgentToolDescriptor Create(
         string id,

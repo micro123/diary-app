@@ -520,6 +520,7 @@ namespace Diary.App
                 provider.GetRequiredService<PluginInstanceRegistry>()));
             services.AddSingleton<IWorkTagScriptApi>(provider => new WorkTagScriptApi(
                 () => provider.GetRequiredService<DbShareData>().WorkTags.ToArray()));
+            services.AddSingleton<ITagExtraFieldScriptApi>(_ => new TagExtraFieldScriptApi(() => UseDb));
             services.AddSingleton<ICurrentContextScriptApi>(_ => new CurrentContextScriptApi(() =>
             {
                 var editor = Services.GetRequiredService<DiaryEditorViewModel>();
