@@ -108,17 +108,17 @@
                             Classes="DetailPane" Padding="10" BorderBrush="#D97706" BorderThickness="1">
                         <Grid RowDefinitions="Auto,*,Auto" RowSpacing="7" MaxHeight="440"
                               DataContext="{Binding PendingExternalConfirmation}">
-                            <TextBlock Text="确认外部工具调用" FontWeight="SemiBold" />
+                            <TextBlock Text="确认写工具调用" FontWeight="SemiBold" />
                             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                                 <StackPanel Spacing="7" Margin="0,0,4,0">
-                                    <TextBlock Text="MCP Server" Opacity="0.65" />
+                                    <TextBlock Text="工具来源" Opacity="0.65" />
                                     <SelectableTextBlock Text="{Binding ServerName}" TextWrapping="Wrap" />
                                     <TextBlock Text="工具" Opacity="0.65" />
                                     <SelectableTextBlock Text="{Binding ToolName}" TextWrapping="Wrap" />
                                     <TextBlock Text="参数" Opacity="0.65" />
                                     <TextBox Text="{Binding ArgumentsJson}" IsReadOnly="True" AcceptsReturn="True"
                                              MinHeight="90" FontFamily="Consolas" TextWrapping="NoWrap" />
-                                    <TextBlock Text="服务器注解不会自动授予写权限；本次调用必须由你确认。"
+                                    <TextBlock Text="工具声明不会自动授予写权限；本次调用必须由你确认。"
                                                TextWrapping="Wrap" Opacity="0.72" />
                                 </StackPanel>
                             </ScrollViewer>

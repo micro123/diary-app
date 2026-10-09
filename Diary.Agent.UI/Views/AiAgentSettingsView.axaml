@@ -21,7 +21,7 @@
 
         <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" ColumnSpacing="12">
             <CheckBox Content="Diary 只读工具" IsChecked="{Binding DiaryToolsEnabled}" />
-            <CheckBox Grid.Column="1" Content="确认后创建事项" IsChecked="{Binding WorkItemWriteEnabled}" />
+            <CheckBox Grid.Column="1" Content="确认后写入工具" IsChecked="{Binding WorkItemWriteEnabled}" />
             <CheckBox Grid.Column="2" Content="网页搜索" IsChecked="{Binding WebSearchEnabled}" />
             <CheckBox Grid.Column="3" Content="网页读取" IsChecked="{Binding WebFetchEnabled}" />
             <CheckBox Grid.Column="4" Content="MCP 工具" IsChecked="{Binding McpEnabled}" />

@@ -565,7 +565,7 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
         Dispatcher.UIThread.Post(() =>
         {
             PendingExternalConfirmation = new AiExternalToolConfirmationViewModel(request);
-            StatusText = "外部 MCP 写工具正在等待你的确认。";
+            StatusText = "写工具正在等待你的确认。";
         });
 
     private void OnConfirmationCompleted(Guid confirmationId) =>

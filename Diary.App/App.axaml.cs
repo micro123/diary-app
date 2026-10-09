@@ -539,6 +539,13 @@ namespace Diary.App
                 provider.GetRequiredService<IWorkItemPersistenceCoordinator>(),
                 provider.GetRequiredService<IWorkItemCommandIdempotencyStore>(),
                 () => EventDispatcher.DbChanged(DbChangedEvent.ShareData)));
+            services.AddSingleton<ITemplateLogItemScriptApi>(provider => new TemplateLogItemScriptApi(
+                () => UseDb,
+                () => TemplateManager.Instance.Templates.ToArray(),
+                provider.GetRequiredService<IScriptIdempotencyStore>(),
+                () => EventDispatcher.DbChanged(DbChangedEvent.ShareData)));
+            services.AddSingleton<IClipboardScriptApi>(_ => new AppClipboardScriptApi(this));
+            services.AddSingleton<IUserInteractionScriptApi>(_ => new AppUserInteractionScriptApi());
             services.AddSingleton<IWorkerHostCallDispatcher>(_ =>
                  new WorkItemQueryWorkerDispatcher(
                       () => new WorkItemQueryScriptApi(() => UseDb),

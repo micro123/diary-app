@@ -654,6 +654,16 @@ public interface IWorkItemCommandApi
 
 首个版本支持日期、标题、工时、优先级、标签、备注和附加字段；Tracker 编辑扩展写入继续禁用，除非各扩展提供明确可预览、可校验的命令契约。命令包含幂等键和预览版本，确认执行时校验数据库状态、标签/字段版本和预览摘要，避免过期确认。
 
+在同一“确认后写入工具”能力组下，内置 Agent 还注册以下程序工具：
+
+| 工具 | 宿主能力 | 确认与执行约束 |
+| --- | --- | --- |
+| `diary_create_from_template` | `ITemplateLogItemScriptApi`、`ITemplateScriptApi` | 确认前展示模板名称、默认标签和预览，确认后重新预览，再使用幂等键创建 |
+| `diary_set_clipboard_text` | `IClipboardScriptApi` | 确认卡展示完整参数，确认后写入，限制为 20000 字符 |
+| `diary_notify` | `IUserInteractionScriptApi` | 确认卡展示标题和正文，确认后发送会话级应用通知 |
+
+这些工具复用写工具串行确认协调器：同一时刻只允许一个待确认操作，拒绝、取消或模块停止都不会执行宿主副作用。内置程序写工具与 MCP 写工具共用通用确认卡，但来源和工具名必须明确展示。工具仍受每次 run 的不可变快照、调用预算、参数校验和审计效果摘要约束。该扩展只增加 Agent 适配器和宿主 API 注册，不修改工作项核心数据结构。
+
 ## 12. 外部网页数据
 
 ### 12.1 `web_search`
@@ -911,7 +921,7 @@ AI 模块随程序安装但默认禁用。用户启用后重启生效；未启�
 
 ## 20. 实施与验证结果
 
-- `Diary.AgentTests` 52/52，通过三协议、完整能力探测、模型/代理、网页安全、事项确认、MCP、会话与审计测试；另由 `Diary.ScriptTests` 验证 Agent 无备注查询模式不调用备注读取器；
+- `Diary.AgentTests` 58/58，通过三协议、完整能力探测、模型/代理、网页安全、事项确认、程序写工具确认、MCP、会话与审计测试；另由 `Diary.ScriptTests` 验证 Agent 无备注查询模式不调用备注读取器；
 - `Diary.ModuleTests` 12/12，通过 Debug/Release 模块目录、私有 `AssemblyLoadContext`、禁用和故障隔离测试；
 - `Diary.AppTests` 318/318；`Diary.DbTests` 150 通过，111 项 PostgreSQL/Docker 或 Linux 专属用例按当前环境跳过；
 - AI CDP 套件 7/7，通过导航、Agent 状态、真实本地假模型工具闭环、拒绝写入、键盘发送、设置贡献和递归 seed；
