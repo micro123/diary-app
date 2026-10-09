@@ -44,7 +44,7 @@
                         <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />
                         <TextBlock Grid.Column="1" Text="{Binding ModeText}" Opacity="0.65" />
                     </Grid>
-                    <ScrollViewer Grid.Row="1">
+                    <ScrollViewer x:Name="ChatScrollViewer" Grid.Row="1">
                         <ItemsControl ItemsSource="{Binding Messages}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:AiChatMessageViewModel">
