@@ -8,22 +8,32 @@
              mc:Ignorable="d">
     <Grid RowDefinitions="Auto,*,Auto" Margin="16" RowSpacing="12">
         <Border Classes="PageHeader">
-            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8">
-                <StackPanel>
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="20" RowSpacing="8">
+                <StackPanel Grid.RowSpan="2" VerticalAlignment="Center">
                     <TextBlock Text="AI 助手" Classes="PageTitle" />
                     <TextBlock Text="模型只能通过已启用工具读取 DiaryApp 数据；本地备注不会提供给模型。"
                                TextWrapping="Wrap" Opacity="0.72" />
                 </StackPanel>
-                <ComboBox Grid.Column="1" MinWidth="220"
-                          ItemsSource="{Binding Profiles}"
-                          SelectedItem="{Binding SelectedProfile}"
-                          DisplayMemberBinding="{Binding DisplayName}" />
-                <ComboBox Grid.Column="2" MinWidth="220" ItemsSource="{Binding Conversations}"
-                          SelectedItem="{Binding SelectedConversation}"
-                          DisplayMemberBinding="{Binding DisplayText}" />
-                <Button Grid.Column="3" Content="恢复" Command="{Binding LoadConversationCommand}" />
-                <Button Grid.Column="4" Content="删除" Command="{Binding DeleteConversationCommand}" />
-                <Button Grid.Column="5" Content="新建会话" Command="{Binding NewSessionCommand}" />
+                <Grid Grid.Column="1" ColumnDefinitions="Auto,240,Auto" ColumnSpacing="8">
+                    <TextBlock Text="模型连接" VerticalAlignment="Center" Opacity="0.72" />
+                    <ComboBox Grid.Column="1" MinWidth="240" PlaceholderText="选择模型连接"
+                              ItemsSource="{Binding Profiles}"
+                              SelectedItem="{Binding SelectedProfile}"
+                              DisplayMemberBinding="{Binding DisplayName}" />
+                    <Button Grid.Column="2" Classes="Primary" MinWidth="88" Content="新建会话"
+                            Command="{Binding NewSessionCommand}" />
+                </Grid>
+                <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="Auto,240,Auto,Auto" ColumnSpacing="8">
+                    <TextBlock Text="历史会话" VerticalAlignment="Center" Opacity="0.72" />
+                    <ComboBox Grid.Column="1" MinWidth="240" PlaceholderText="选择历史会话"
+                              ItemsSource="{Binding Conversations}"
+                              SelectedItem="{Binding SelectedConversation}"
+                              DisplayMemberBinding="{Binding DisplayText}" />
+                    <Button Grid.Column="2" MinWidth="88" Content="恢复会话"
+                            Command="{Binding LoadConversationCommand}" />
+                    <Button Grid.Column="3" MinWidth="72" Content="删除"
+                            Command="{Binding DeleteConversationCommand}" />
+                </Grid>
             </Grid>
         </Border>
 
