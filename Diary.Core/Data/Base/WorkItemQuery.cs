@@ -13,6 +13,7 @@ public enum WorkItemTagFilter
 
 public sealed record WorkItemQuery
 {
+    public int? WorkItemId { get; init; }
     public string? StartDate { get; init; }
     public string? EndDate { get; init; }
     public IReadOnlyCollection<int> TagIds { get; init; } = Array.Empty<int>();
@@ -47,6 +48,8 @@ public static class WorkItemQueryNormalizer
             return Fail("标签筛选模式无效", out error);
         if (query.Priority is not null && !Enum.IsDefined(query.Priority.Value))
             return Fail("优先级无效", out error);
+        if (query.WorkItemId is <= 0)
+            return Fail("工作项 ID 必须为正整数", out error);
         if (query.TagIds is null)
             return Fail("标签列表不能为空", out error);
 

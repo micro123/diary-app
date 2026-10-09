@@ -72,6 +72,7 @@ public sealed class WorkItemQueryScriptApiTests
             new() { StartDate = "2026-8-01" },
             new() { TagFilter = ScriptWorkItemTagFilter.Any },
             new() { Priority = 10 },
+            new() { WorkItemId = 0 },
         ];
         var providerCalled = false;
         var api = CreateApi(() =>
@@ -187,6 +188,21 @@ public sealed class WorkItemQueryScriptApiTests
         Assert.IsTrue(result.Succeeded, result.Error?.Message);
         Assert.IsFalse(noteProviderCalled);
         Assert.IsNull(result.Items.Single().Note);
+    }
+
+    [TestMethod]
+    public async Task QueryAsync_FiltersByExactWorkItemId()
+    {
+        using var db = TestDatabase.Create();
+        var expected = db.CreateWorkItem("2026-10-09", "expected");
+        db.CreateWorkItem("2026-10-09", "other");
+        var api = CreateApi(() => db);
+
+        var result = await api.QueryAsync(new ScriptWorkItemQuery { WorkItemId = expected.Id });
+
+        Assert.IsTrue(result.Succeeded, result.Error?.Message);
+        Assert.AreEqual(expected.Id, result.Items.Single().Id);
+        Assert.AreEqual(expected.Id, result.NormalizedQuery?.WorkItemId);
     }
 
     [TestMethod]

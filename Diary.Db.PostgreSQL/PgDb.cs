@@ -931,6 +931,8 @@ public sealed partial class PgDb(IDbFactory factory) : DbInterfaceBase(factory),
             return placeholder;
         }
 
+        if (query.WorkItemId is not null)
+            sql.Append(" AND work_items.id = ").Append(AddParameter(query.WorkItemId.Value));
         if (!string.IsNullOrWhiteSpace(query.StartDate))
             sql.Append(" AND work_items.create_date >= ").Append(AddParameter(query.StartDate));
         if (!string.IsNullOrWhiteSpace(query.EndDate))

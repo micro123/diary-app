@@ -127,6 +127,7 @@ public sealed class WorkItemQueryScriptApi(
 
         databaseQuery = new WorkItemQuery
         {
+            WorkItemId = query.WorkItemId,
             StartDate = query.StartDate,
             EndDate = query.EndDate,
             TagIds = tagIds,
@@ -141,6 +142,7 @@ public sealed class WorkItemQueryScriptApi(
 
         normalized = new ScriptWorkItemQuery
         {
+            WorkItemId = databaseQuery.WorkItemId,
             StartDate = databaseQuery.StartDate,
             EndDate = databaseQuery.EndDate,
             TagIds = [.. databaseQuery.TagIds],

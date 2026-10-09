@@ -55,6 +55,47 @@ public sealed class AgentToolTests
         Assert.IsFalse(result.Content.Contains(localNote, StringComparison.Ordinal));
         Assert.IsFalse(result.Content.Contains("事项 A", StringComparison.Ordinal));
         StringAssert.Contains(result.Content, "3.5");
+        StringAssert.Contains(result.Content, "averageHours");
+        StringAssert.Contains(result.Content, "byPriority");
+    }
+
+    [TestMethod]
+    public async Task DetailToolUsesExactIdAndNeverReturnsLocalNote()
+    {
+        const string localNote = "PRIVATE_DETAIL_NOTE";
+        var api = new FakeWorkItemApi([
+            new ScriptWorkItem(42, "2026-10-09", "详情事项", 1.25, 2, localNote, []),
+        ]);
+        var tool = new GetWorkItemDetailTool(api);
+        using var arguments = JsonDocument.Parse("{\"workItemId\":42}");
+
+        var result = await tool.InvokeAsync(
+            arguments.RootElement,
+            new AgentToolInvocationContext(Guid.NewGuid(), Guid.NewGuid(), EmptyServiceProvider.Instance));
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.AreEqual(42, api.LastQuery?.WorkItemId);
+        Assert.IsFalse(result.Content.Contains(localNote, StringComparison.Ordinal));
+        using var resultDocument = JsonDocument.Parse(result.Content);
+        Assert.AreEqual("详情事项", resultDocument.RootElement.GetProperty("Title").GetString());
+    }
+
+    [TestMethod]
+    public async Task ExportOptionsToolReturnsFormatsAndFilteredTemplates()
+    {
+        var api = new FakeExportApi();
+        var tool = new ListExportOptionsTool(api);
+        using var arguments = JsonDocument.Parse("{\"formatId\":\"csv\"}");
+
+        var result = await tool.InvokeAsync(
+            arguments.RootElement,
+            new AgentToolInvocationContext(Guid.NewGuid(), Guid.NewGuid(), EmptyServiceProvider.Instance));
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.AreEqual("csv", api.LastTemplateFormatId);
+        using var resultDocument = JsonDocument.Parse(result.Content);
+        Assert.AreEqual("CSV", resultDocument.RootElement.GetProperty("formats")[0].GetProperty("DisplayName").GetString());
+        Assert.AreEqual("日报模板", resultDocument.RootElement.GetProperty("templates")[0].GetProperty("DisplayName").GetString());
     }
 
     [TestMethod]
@@ -107,10 +148,55 @@ public sealed class AgentToolTests
 
     private sealed class FakeWorkItemApi(ImmutableArray<ScriptWorkItem> items) : IWorkItemQueryScriptApi
     {
+        public ScriptWorkItemQuery? LastQuery { get; private set; }
+
         public ValueTask<ScriptWorkItemQueryResult> QueryAsync(
             ScriptWorkItemQuery query,
             CancellationToken cancellationToken = default)
-            => ValueTask.FromResult(ScriptWorkItemQueryResult.Success(items, query));
+        {
+            LastQuery = query;
+            return ValueTask.FromResult(ScriptWorkItemQueryResult.Success(items, query));
+        }
+    }
+
+    private sealed class FakeExportApi : IExportApi
+    {
+        public string? LastTemplateFormatId { get; private set; }
+
+        public ValueTask<ExportResult> ExportAsync(
+            ExportRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public ValueTask<IReadOnlyList<ExportFormatDescriptor>> ListFormatsAsync(
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult<IReadOnlyList<ExportFormatDescriptor>>([
+                new ExportFormatDescriptor(
+                    "csv",
+                    "CSV",
+                    ".csv",
+                    [".csv"],
+                    [new ExportContentCapabilities(ExportContentKind.Table, [ExportFeature.UnicodeText])]),
+            ]);
+
+        public ValueTask<IReadOnlyList<ExportTemplateDescriptor>> ListTemplatesAsync(
+            string? formatId = null,
+            CancellationToken cancellationToken = default)
+        {
+            LastTemplateFormatId = formatId;
+            return ValueTask.FromResult<IReadOnlyList<ExportTemplateDescriptor>>([
+                new ExportTemplateDescriptor(
+                    "daily",
+                    "1",
+                    "tests",
+                    "csv",
+                    ".csv",
+                    "日报模板",
+                    null,
+                    [],
+                    []),
+            ]);
+        }
     }
 
     private sealed class EchoTool(string id, string modelName, string value) : IAgentTool

@@ -644,11 +644,13 @@ AllowAutomatically
 | `diary_list_templates` | `ITemplateScriptApi` | 启用 |
 | `diary_list_tracker_instances` | `ITrackerInstanceScriptApi` | 启用 |
 | `diary_query_work_items` | `IWorkItemQueryScriptApi` | 启用 |
-| `diary_summarize_work_items` | 查询结果的本地汇总 | 启用 |
+| `diary_get_work_item_detail` | `IWorkItemQueryScriptApi` 精确 ID 查询 | 启用 |
+| `diary_summarize_work_items` | 查询结果的统计分析 | 启用 |
+| `diary_list_export_options` | `IExportApi` 格式与模板目录 | 启用 |
 | `diary_get_current_context` | UI 当前日期/选择的只读快照 | 启用 |
 | `diary_validate_script` | 现有校验服务适配器 | 启用 |
 
-模块不得持有 `DbInterfaceBase`。宿主在 DI 中注册稳定 Script Host API 或只读 facade。Agent 使用 `WorkItemQueryScriptApi` 的显式无备注模式，该模式不会调用 `WorkGetNote` 或 `GetWorkNotesByWorkItemIds`；工具 DTO 同样不定义本地备注字段。普通脚本 API 保持原有可读取备注的行为，其他普通工作字段可以按查询结果返回。
+模块不得持有 `DbInterfaceBase`。宿主在 DI 中注册稳定 Script Host API 或只读 facade。事项查询契约提供可选的精确 ID 过滤，详情工具仍复用显式无备注模式，不调用 `WorkGetNote` 或 `GetWorkNotesByWorkItemIds`；工具 DTO 同样不定义本地备注字段。统计工具在宿主内计算平均工时、日期范围、日期/优先级分布和标签工时。导出目录工具只读取格式、能力和模板元数据，不生成文件。普通脚本 API 保持原有可读取备注的行为，其他普通工作字段可以按查询结果返回。
 
 ### 11.2 P1 草稿和写入
 
@@ -938,7 +940,7 @@ AI 模块随程序安装但默认禁用。用户启用后重启生效；未启�
 
 ## 20. 实施与验证结果
 
-- `Diary.AgentTests` 62/62，通过三协议、完整能力探测、模型/代理、网页安全、事项确认、程序写工具确认、自动上下文压缩、Responses 协议状态清理及本地兜底、MCP、会话与审计测试；另由 `Diary.ScriptTests` 验证 Agent 无备注查询模式不调用备注读取器；
+- `Diary.AgentTests` 64/64，通过三协议、完整能力探测、模型/代理、网页安全、事项详情与导出目录查询、事项确认、程序写工具确认、自动上下文压缩、Responses 协议状态清理及本地兜底、MCP、会话与审计测试；另由 `Diary.ScriptTests` 验证 Agent 无备注查询模式不调用备注读取器；
 - `Diary.ModuleTests` 12/12，通过 Debug/Release 模块目录、私有 `AssemblyLoadContext`、禁用和故障隔离测试；
 - `Diary.AppTests` 318/318；`Diary.DbTests` 150 通过，111 项 PostgreSQL/Docker 或 Linux 专属用例按当前环境跳过；
 - AI CDP 套件 7/7，通过导航、Agent 状态、真实本地假模型工具闭环、拒绝写入、键盘发送、设置贡献和递归 seed；

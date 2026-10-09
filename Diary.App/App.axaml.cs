@@ -721,6 +721,7 @@ namespace Diary.App
             services.AddSingleton<IExportTemplateCatalog>(services =>
                 services.GetRequiredService<ExportTemplateCatalog>());
             services.AddSingleton<ScriptExportService>();
+            services.AddSingleton<IExportApi>(provider => provider.GetRequiredService<ScriptExportService>());
             services.AddSingleton<IScriptExecutionContextFactory>(_ =>
                 new ScriptExecutionContextFactory((metadata, request) =>
                 {

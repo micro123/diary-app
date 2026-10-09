@@ -791,6 +791,18 @@ public abstract class DbContractTests
     }
 
     [TestMethod]
+    public void QueryWorkItems_WorkItemIdReturnsOnlyExactItem()
+    {
+        using var db = CreateDb();
+        var expected = db.CreateWorkItem("2026-08-01", "expected");
+        db.CreateWorkItem("2026-08-01", "other");
+
+        var items = db.QueryWorkItems(new WorkItemQuery { WorkItemId = expected.Id });
+
+        Assert.AreEqual(expected.Id, items.Single().Id);
+    }
+
+    [TestMethod]
     public void QueryWorkItems_PriorityCombinesWithTagFilter()
     {
         using var db = CreateDb();

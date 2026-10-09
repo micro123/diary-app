@@ -53,11 +53,13 @@ public static class DiaryReadOnlyToolRegistration
         ITrackerInstanceScriptApi trackers,
         IWorkTagScriptApi tags,
         ICurrentContextScriptApi currentContext,
-        IScriptValidationScriptApi scriptValidation)
+        IScriptValidationScriptApi scriptValidation,
+        IExportApi? exports = null)
     {
-        var tools = new IAgentTool[]
+        var tools = new List<IAgentTool>
         {
             new QueryWorkItemsTool(workItems),
+            new GetWorkItemDetailTool(workItems),
             new SummarizeWorkItemsTool(workItems),
             new ListTemplatesTool(templates),
             new ListTrackerInstancesTool(trackers),
@@ -65,6 +67,8 @@ public static class DiaryReadOnlyToolRegistration
             new GetCurrentContextTool(currentContext),
             new ValidateScriptTool(scriptValidation),
         };
+        if (exports is not null)
+            tools.Add(new ListExportOptionsTool(exports));
         foreach (var tool in tools)
             registry.TryRegister(tool);
         return registry.RegistrationErrors;
@@ -127,6 +131,7 @@ public sealed class QueryWorkItemsTool(IWorkItemQueryScriptApi api) : IAgentTool
             query = new ScriptWorkItemQuery
             {
                 StartDate = TryReadString(arguments, "startDate"),
+                WorkItemId = TryReadNullableInt(arguments, "workItemId"),
                 EndDate = TryReadString(arguments, "endDate"),
                 Range = TryReadString(arguments, "range"),
                 Text = TryReadString(arguments, "text"),
@@ -156,6 +161,34 @@ public sealed class QueryWorkItemsTool(IWorkItemQueryScriptApi api) : IAgentTool
             : null;
 }
 
+public sealed class GetWorkItemDetailTool(IWorkItemQueryScriptApi api) : IAgentTool
+{
+    public AgentToolDescriptor Descriptor { get; } = DiaryToolDescriptors.GetWorkItemDetail;
+
+    public async ValueTask<AgentToolResult> InvokeAsync(
+        JsonElement arguments,
+        AgentToolInvocationContext context,
+        CancellationToken cancellationToken = default)
+    {
+        if (!arguments.TryGetProperty("workItemId", out var idElement)
+            || !idElement.TryGetInt32(out var workItemId)
+            || workItemId <= 0)
+        {
+            return AgentToolResult.Failure("invalid_arguments", "workItemId 必须是正整数。");
+        }
+        var result = await api.QueryAsync(
+            new ScriptWorkItemQuery { WorkItemId = workItemId, Limit = 1 },
+            cancellationToken);
+        if (!result.Succeeded)
+            return AgentToolResult.Failure(result.ApiError?.Code ?? "query_failed", result.Error?.Message ?? "查询失败。");
+        if (result.Items.Length == 0)
+            return AgentToolResult.Failure("work_item_not_found", $"工作项 {workItemId} 不存在。");
+        return AgentToolResult.Success(
+            JsonSerializer.Serialize(AgentWorkItemDto.FromScriptWorkItem(result.Items[0])),
+            "DiaryApp");
+    }
+}
+
 public sealed class SummarizeWorkItemsTool(IWorkItemQueryScriptApi api) : IAgentTool
 {
     public AgentToolDescriptor Descriptor { get; } = DiaryToolDescriptors.SummarizeWorkItems;
@@ -174,13 +207,57 @@ public sealed class SummarizeWorkItemsTool(IWorkItemQueryScriptApi api) : IAgent
         {
             count = result.Items.Length,
             totalHours = result.Items.Sum(item => item.Hours),
+            averageHours = result.Items.Length == 0 ? 0 : result.Items.Average(item => item.Hours),
+            dateRange = result.Items.Length == 0
+                ? null
+                : new
+                {
+                    start = result.Items.Min(item => item.Date),
+                    end = result.Items.Max(item => item.Date),
+                },
             byDate = result.Items.GroupBy(item => item.Date).OrderBy(group => group.Key)
                 .Select(group => new { date = group.Key, count = group.Count(), hours = group.Sum(item => item.Hours) }),
+            byPriority = result.Items.GroupBy(item => item.Priority).OrderBy(group => group.Key)
+                .Select(group => new { priority = group.Key, count = group.Count(), hours = group.Sum(item => item.Hours) }),
             byTag = result.Items.SelectMany(item => item.Tags).GroupBy(tag => new { tag.Id, tag.Name })
                 .OrderByDescending(group => group.Count()).ThenBy(group => group.Key.Name, StringComparer.OrdinalIgnoreCase)
-                .Select(group => new { id = group.Key.Id, name = group.Key.Name, count = group.Count() }),
+                .Select(group => new
+                {
+                    id = group.Key.Id,
+                    name = group.Key.Name,
+                    count = group.Count(),
+                    hours = result.Items.Where(item => item.Tags.Any(tag => tag.Id == group.Key.Id)).Sum(item => item.Hours),
+                }),
         };
         return AgentToolResult.Success(JsonSerializer.Serialize(summary), "DiaryApp");
+    }
+}
+
+public sealed class ListExportOptionsTool(IExportApi api) : IAgentTool
+{
+    public AgentToolDescriptor Descriptor { get; } = DiaryToolDescriptors.ListExportOptions;
+
+    public async ValueTask<AgentToolResult> InvokeAsync(
+        JsonElement arguments,
+        AgentToolInvocationContext context,
+        CancellationToken cancellationToken = default)
+    {
+        string? formatId = null;
+        if (arguments.TryGetProperty("formatId", out var formatElement)
+            && formatElement.ValueKind != JsonValueKind.Null)
+        {
+            if (formatElement.ValueKind != JsonValueKind.String)
+                return AgentToolResult.Failure("invalid_arguments", "formatId 必须是字符串。");
+            formatId = formatElement.GetString();
+        }
+        var formats = await api.ListFormatsAsync(cancellationToken);
+        if (!string.IsNullOrWhiteSpace(formatId)
+            && !formats.Any(item => string.Equals(item.FormatId, formatId, StringComparison.Ordinal)))
+        {
+            return AgentToolResult.Failure("export_format_not_found", $"导出格式 {formatId} 不存在。");
+        }
+        var templates = await api.ListTemplatesAsync(formatId, cancellationToken);
+        return AgentToolResult.Success(JsonSerializer.Serialize(new { formats, templates }), "DiaryApp");
     }
 }
 
@@ -262,6 +339,7 @@ internal static class DiaryToolDescriptors
         {
           "type":"object",
           "properties":{
+            "workItemId":{"type":"integer","minimum":1},
             "startDate":{"type":"string"},"endDate":{"type":"string"},"range":{"type":"string"},
             "text":{"type":"string"},"priority":{"type":"integer"},"limit":{"type":"integer","minimum":1,"maximum":100},
             "offset":{"type":"integer","minimum":0},"tagIds":{"type":"array","items":{"type":"integer"}},
@@ -273,6 +351,11 @@ internal static class DiaryToolDescriptors
 
     public static AgentToolDescriptor QueryWorkItems { get; } = Create(
         "diary.query-work-items", "diary_query_work_items", "查询工作事项", "按日期、文本、优先级和标签查询 DiaryApp 工作事项。", QuerySchema);
+
+    public static AgentToolDescriptor GetWorkItemDetail { get; } = Create(
+        "diary.get-work-item-detail", "diary_get_work_item_detail", "读取事项详情", "按 ID 读取单个工作事项的非敏感详情，不包含本地备注。", Schema("""
+            {"type":"object","properties":{"workItemId":{"type":"integer","minimum":1}},"required":["workItemId"],"additionalProperties":false}
+            """));
 
     public static AgentToolDescriptor SummarizeWorkItems { get; } = Create(
         "diary.summarize-work-items", "diary_summarize_work_items", "汇总工作事项", "本地汇总工作事项数量、工时、日期和标签。", QuerySchema);
@@ -292,6 +375,11 @@ internal static class DiaryToolDescriptors
     public static AgentToolDescriptor ValidateScript { get; } = Create(
         "diary.validate-script", "diary_validate_script", "校验脚本", "只校验脚本，不执行脚本。", Schema("""
             {"type":"object","properties":{"language":{"type":"string"},"source":{"type":"string"}},"required":["language","source"],"additionalProperties":false}
+            """));
+
+    public static AgentToolDescriptor ListExportOptions { get; } = Create(
+        "diary.list-export-options", "diary_list_export_options", "列出导出选项", "列出可用的导出格式、能力和模板。", Schema("""
+            {"type":"object","properties":{"formatId":{"type":["string","null"]}},"additionalProperties":false}
             """));
 
     private static AgentToolDescriptor Create(

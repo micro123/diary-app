@@ -910,6 +910,11 @@ public sealed partial class SQLiteDb(IDbFactory factory) : DbInterfaceBase(facto
 
         var sql = new StringBuilder("SELECT work_items.* FROM work_items WHERE 1=1");
         var args = new List<(string Name, object? Value)>();
+        if (query.WorkItemId is not null)
+        {
+            sql.Append(" AND work_items.id = $workItemId");
+            args.Add(("$workItemId", query.WorkItemId.Value));
+        }
         if (!string.IsNullOrWhiteSpace(query.StartDate))
         {
             sql.Append(" AND work_items.create_date >= $start");

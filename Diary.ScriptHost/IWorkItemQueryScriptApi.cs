@@ -14,6 +14,7 @@ public enum ScriptWorkItemTagFilter
 
 public sealed record ScriptWorkItemQuery
 {
+    public int? WorkItemId { get; init; }
     public string? StartDate { get; init; }
     public string? EndDate { get; init; }
     public ImmutableArray<int> TagIds { get; init; } = ImmutableArray<int>.Empty;

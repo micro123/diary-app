@@ -66,7 +66,8 @@ public sealed class AiAgentModule : IAppModule
                 provider.GetRequiredService<ITrackerInstanceScriptApi>(),
                 provider.GetRequiredService<IWorkTagScriptApi>(),
                 provider.GetRequiredService<ICurrentContextScriptApi>(),
-                provider.GetRequiredService<IScriptValidationScriptApi>());
+                provider.GetRequiredService<IScriptValidationScriptApi>(),
+                provider.GetService<IExportApi>());
             registry.TryRegister(provider.GetRequiredService<WorkItemDraftTool>());
             registry.TryRegister(provider.GetRequiredService<ReportDraftTool>());
             registry.TryRegister(provider.GetRequiredService<ScriptDraftTool>());

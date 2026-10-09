@@ -32,6 +32,7 @@ public sealed class WorkItemQueryNormalizerTests
             new() { StartDate = "2026-08-02", EndDate = "2026-08-01" },
             new() { TagFilter = (WorkItemTagFilter)99 },
             new() { Priority = (WorkPriorities)99 },
+            new() { WorkItemId = 0 },
             new() { TagIds = null! },
             new() { TagIds = Enumerable.Range(1, WorkItemQueryNormalizer.MaxTagCount + 1).ToArray() },
             new() { TagIds = new[] { 0 } },
