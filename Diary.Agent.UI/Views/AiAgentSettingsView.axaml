@@ -40,7 +40,7 @@
 
         <Expander Grid.Row="3" Header="网页访问策略（重启后生效）">
             <StackPanel Spacing="6" Margin="0,6,0,0">
-                <TextBlock Text="配置独立代理、预算、浏览器模式和显式内部站点白名单；动态网页默认复用系统 Edge/Chrome/Chromium，不自动下载浏览器。"
+                <TextBlock Text="配置内网/本机访问开关、独立代理、预算、浏览器模式和带认证的内部站点；动态网页默认复用系统 Edge/Chrome/Chromium，不自动下载浏览器。"
                            TextWrapping="Wrap" Opacity="0.7" />
                 <TextBox Text="{Binding WebAccessJson}" AcceptsReturn="True" MinHeight="120"
                          FontFamily="Consolas" TextWrapping="NoWrap" />

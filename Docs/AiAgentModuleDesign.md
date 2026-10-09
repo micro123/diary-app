@@ -713,7 +713,7 @@ public interface IWorkItemCommandApi
 8. HTML 解析移除脚本、样式、表单、隐藏内容并提取正文；
 9. 返回 requested URL、final URL、title、content type、时间、截断和外部内容标记。
 
-公网策略拒绝 loopback、unspecified、link-local、private、multicast、保留地址和已知云元数据目标。内部模式只允许显式 host/域后缀/端口白名单，不默认允许整个私网。
+网页策略默认允许 loopback、localhost、常见 IPv4 私网、CGNAT、IPv6 ULA 和站点本地地址，以覆盖本机服务与公司内网页面。`AllowLoopback` 和 `AllowPrivateNetwork` 可分别关闭这两类访问；关闭后仍可通过 `InternalSites` 的 host/域后缀/端口规则精确放行并附加认证。unspecified、link-local、multicast、保留、测试地址和已知云元数据目标始终拒绝。
 
 ### 12.3 `web_render_page`
 
@@ -730,9 +730,9 @@ public interface IWorkItemCommandApi
 自定义或系统代理可能由代理端解析目标域名，客户端无法像直连一样固定目标 IP。P1 保留以下基础约束：
 
 - 只允许 HTTP/HTTPS；
-- 公网模式拒绝明确解析到 localhost、链路本地、私网和元数据地址的目标；
+- 按 `AllowLoopback`、`AllowPrivateNetwork` 和 `InternalSites` 检查本机与内网目标，并始终拒绝链路本地、保留和元数据地址；
 - 每次重定向重新校验 URL，并移除跨主机认证 Header；
-- 内部地址只能在用户显式配置内部站点后访问。
+- 关闭内网或本机开关后，内部地址只能通过显式内部站点规则访问。
 
 不要求 DiaryApp 验证公司代理的完整出口策略，也不把代理侧 DNS 行为作为 P1 发布阻塞项。
 
@@ -963,7 +963,7 @@ AI 模块随程序安装但默认禁用。用户启用后重启生效；未启�
 
 ## 20. 实施与验证结果
 
-- `Diary.AgentTests` 78/78，通过三协议、完整能力探测、模型/代理、静态网页安全、系统浏览器动态渲染、本机 CDP 运行时限制、事项详情与导出目录查询、事项创建/更新确认、报告导出确认、自动上下文压缩、Responses 协议状态清理及本地兜底、MCP 删除语义拦截、会话与审计测试；另由 `Diary.ScriptTests` 验证 Agent 无备注查询模式不调用备注读取器；
+- `Diary.AgentTests` 81/81，通过三协议、完整能力探测、模型/代理、静态网页安全、内网与本机访问策略、系统浏览器动态渲染、本机 CDP 运行时限制、事项详情与导出目录查询、事项创建/更新确认、报告导出确认、自动上下文压缩、Responses 协议状态清理及本地兜底、MCP 删除语义拦截、会话与审计测试；另由 `Diary.ScriptTests` 验证 Agent 无备注查询模式不调用备注读取器；
 - `Diary.ModuleTests` 13 项通过，1 项因未生成 Windows Release 发布目录跳过；已覆盖 Debug 模块目录、私有 `AssemblyLoadContext`、禁用和故障隔离测试；
 - `Diary.AppTests` 320/320；`Diary.DbTests` 264 通过，1 项因本机 `pg_dump` 与 PostgreSQL 服务端主版本不一致跳过；
 - AI CDP 套件 7/7，通过导航、Agent 状态、真实本地假模型工具闭环、拒绝写入、键盘发送、设置贡献和递归 seed；

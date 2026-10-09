@@ -92,7 +92,7 @@ Agent 不提供页面跳转、日期切换、事项选择或筛选等 UI 操作�
 
 ## 6. 网页访问
 
-`web_fetch` 只允许 GET/HEAD 的 HTTP/HTTPS 目标。默认拒绝 loopback、私网、链路本地、组播、保留、测试网段和云元数据地址；每次 DNS 解析、实际连接和重定向都会重新校验。内部站点必须在“网页访问策略”中显式配置 host 和端口白名单。
+`web_fetch` 只允许 GET/HEAD 的 HTTP/HTTPS 目标。默认允许 loopback 和常见内网地址，以便访问本机服务与公司内网页面；链路本地、组播、保留、测试网段和已知云元数据地址仍会拒绝。每次 DNS 解析、实际连接和重定向都会重新校验。需要限制端口或附加认证 Header 的内部站点仍可通过 `internalSites` 显式配置。
 
 认证只发送给配置的 origin，跨 origin 重定向会移除认证。响应受 Header、压缩体、解压体、字符数、重定向和总超时预算限制。静态 HTML 会移除脚本、样式、表单和隐藏内容，并把结果标记为外部不可信内容；网页文字不能改变工具策略或自动触发写入。
 
@@ -102,6 +102,8 @@ Agent 不提供页面跳转、日期切换、事项选择或筛选等 UI 操作�
 
 ```json
 {
+  "allowPrivateNetwork": true,
+  "allowLoopback": true,
   "browser": {
     "mode": "System",
     "executablePath": null,
@@ -113,7 +115,7 @@ Agent 不提供页面跳转、日期切换、事项选择或筛选等 UI 操作�
 }
 ```
 
-`mode` 可选 `Disabled`、`System`、`Executable` 或 `Cdp`。`Executable` 必须填写浏览器程序路径；`Cdp` 只接受本机 HTTP(S)、`ws` 或 `wss` Endpoint。找不到系统浏览器时，动态工具会返回明确错误，静态 `web_fetch` 仍可使用。系统代理、直连、自定义代理和代理凭据继续由同一网页访问策略控制。
+`allowPrivateNetwork` 和 `allowLoopback` 可分别关闭内网与本机地址访问；关闭后仍可用 `internalSites` 按 host 和端口精确放行。`mode` 可选 `Disabled`、`System`、`Executable` 或 `Cdp`。`Executable` 必须填写浏览器程序路径；`Cdp` 只接受本机 HTTP(S)、`ws` 或 `wss` Endpoint。找不到系统浏览器时，动态工具会返回明确错误，静态 `web_fetch` 仍可使用。系统代理、直连、自定义代理和代理凭据继续由同一网页访问策略控制。
 
 ## 7. MCP Client
 

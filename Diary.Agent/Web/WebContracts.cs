@@ -60,6 +60,10 @@ public sealed record WebAccessPolicy
 {
     public AiProxyConfiguration Proxy { get; init; } = new() { Mode = AiProxyMode.System };
 
+    public bool AllowPrivateNetwork { get; init; } = true;
+
+    public bool AllowLoopback { get; init; } = true;
+
     public IReadOnlyList<InternalWebSitePolicy> InternalSites { get; init; } = [];
 
     public BrowserAccessPolicy Browser { get; init; } = new();

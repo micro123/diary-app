@@ -12,12 +12,62 @@ namespace Diary.AgentTests;
 public sealed class WebFetchTests
 {
     [TestMethod]
-    public async Task LoopbackIsBlockedUnlessExplicitlyAllowed()
+    public async Task LoopbackCanBeDisabledUnlessExplicitlyAllowed()
     {
-        var service = CreateService(new WebAccessPolicy { Proxy = DirectProxy });
+        var service = CreateService(new WebAccessPolicy
+        {
+            Proxy = DirectProxy,
+            AllowLoopback = false,
+        });
 
         var exception = await Assert.ThrowsExactlyAsync<WebFetchException>(async () =>
             await service.FetchAsync(new Uri("http://127.0.0.1:43210/")));
+
+        Assert.AreEqual(WebFetchErrorCode.TargetBlocked, exception.Code);
+    }
+
+    [TestMethod]
+    public async Task LoopbackIsAllowedByDefault()
+    {
+        await using var server = new TestHttpServer(_ => new TestResponse(
+            HttpStatusCode.OK,
+            "text/plain",
+            "local service"));
+        var service = CreateService(new WebAccessPolicy { Proxy = DirectProxy });
+
+        var result = await service.FetchAsync(server.BaseUri);
+
+        Assert.AreEqual("local service", result.Content);
+    }
+
+    [TestMethod]
+    public async Task PrivateNetworkPolicyAllowsPrivateRangesButStillBlocksMetadata()
+    {
+        var validator = new WebTargetValidator(new WebAccessPolicy
+        {
+            Proxy = DirectProxy,
+            AllowPrivateNetwork = true,
+        });
+
+        var target = await validator.ValidateAsync(new Uri("http://192.168.10.20/"));
+        var exception = await Assert.ThrowsExactlyAsync<WebFetchException>(
+            () => validator.ValidateAsync(new Uri("http://100.100.100.200/")).AsTask());
+
+        CollectionAssert.Contains(target.Addresses.ToArray(), IPAddress.Parse("192.168.10.20"));
+        Assert.AreEqual(WebFetchErrorCode.TargetBlocked, exception.Code);
+    }
+
+    [TestMethod]
+    public async Task PrivateNetworkCanBeDisabled()
+    {
+        var validator = new WebTargetValidator(new WebAccessPolicy
+        {
+            Proxy = DirectProxy,
+            AllowPrivateNetwork = false,
+        });
+
+        var exception = await Assert.ThrowsExactlyAsync<WebFetchException>(
+            () => validator.ValidateAsync(new Uri("http://10.20.30.40/")).AsTask());
 
         Assert.AreEqual(WebFetchErrorCode.TargetBlocked, exception.Code);
     }
@@ -270,6 +320,8 @@ public sealed class WebFetchTests
     private static WebAccessPolicy InternalPolicy(params int[] ports) => new()
     {
         Proxy = DirectProxy,
+        AllowPrivateNetwork = false,
+        AllowLoopback = false,
         InternalSites =
         [
             new InternalWebSitePolicy("127.0.0.1", ports.ToHashSet()),

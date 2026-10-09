@@ -5,9 +5,8 @@ namespace Diary.Agent.Web;
 
 public sealed class WebTargetValidator(WebAccessPolicy policy)
 {
-    private static readonly HashSet<string> BlockedHostNames = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> MetadataHostNames = new(StringComparer.OrdinalIgnoreCase)
     {
-        "localhost",
         "metadata.google.internal",
         "metadata.azure.internal",
         "instance-data.ec2.internal",
@@ -32,8 +31,12 @@ public sealed class WebTargetValidator(WebAccessPolicy policy)
         }
         if (addresses.Length == 0)
             throw new WebFetchException(WebFetchErrorCode.DnsFailure, "网页目标没有可用地址。");
-        if (internalSite is null && addresses.Any(IsBlockedPublicAddress))
-            throw new WebFetchException(WebFetchErrorCode.TargetBlocked, "网页目标解析到本机、私网、保留或元数据地址。");
+        if (internalSite is null && addresses.Any(IsBlockedAddress))
+        {
+            throw new WebFetchException(
+                WebFetchErrorCode.TargetBlocked,
+                "网页目标解析到策略未允许的本机、私网、保留或元数据地址。");
+        }
         return new ValidatedWebTarget(uri, addresses, internalSite);
     }
 
@@ -42,18 +45,19 @@ public sealed class WebTargetValidator(WebAccessPolicy policy)
         && string.Equals(left.DnsSafeHost, right.DnsSafeHost, StringComparison.OrdinalIgnoreCase)
         && left.Port == right.Port;
 
-    private static void ValidateUriShape(Uri uri, bool explicitlyAllowedInternalSite)
+    private void ValidateUriShape(Uri uri, bool explicitlyAllowedInternalSite)
     {
         if (!uri.IsAbsoluteUri || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
             throw new WebFetchException(WebFetchErrorCode.InvalidUrl, "网页地址必须是绝对 HTTP/HTTPS URI。");
         if (!string.IsNullOrEmpty(uri.UserInfo))
             throw new WebFetchException(WebFetchErrorCode.InvalidUrl, "网页地址不得包含 userinfo。");
-        if (!explicitlyAllowedInternalSite
-            && (BlockedHostNames.Contains(uri.DnsSafeHost)
-            || uri.DnsSafeHost.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase))
-           )
+        if (explicitlyAllowedInternalSite)
+            return;
+        if (MetadataHostNames.Contains(uri.DnsSafeHost))
+            throw new WebFetchException(WebFetchErrorCode.TargetBlocked, "网页目标属于云元数据主机。");
+        if (!policy.AllowLoopback && IsLocalhostName(uri.DnsSafeHost))
         {
-            throw new WebFetchException(WebFetchErrorCode.TargetBlocked, "网页目标属于本机或元数据主机。");
+            throw new WebFetchException(WebFetchErrorCode.TargetBlocked, "网页访问策略未允许本机地址。");
         }
     }
 
@@ -75,37 +79,40 @@ public sealed class WebTargetValidator(WebAccessPolicy policy)
         return null;
     }
 
-    private static bool IsBlockedPublicAddress(IPAddress address)
+    private bool IsBlockedAddress(IPAddress address)
     {
-        if (IPAddress.IsLoopback(address)
-            || address.Equals(IPAddress.Any)
+        if (address.IsIPv4MappedToIPv6)
+            return IsBlockedAddress(address.MapToIPv4());
+        if (IsAlwaysBlockedAddress(address))
+            return true;
+        if (IPAddress.IsLoopback(address))
+            return !policy.AllowLoopback;
+        if (IsPrivateNetworkAddress(address))
+            return !policy.AllowPrivateNetwork;
+        return false;
+    }
+
+    private static bool IsAlwaysBlockedAddress(IPAddress address)
+    {
+        if (address.Equals(IPAddress.Any)
             || address.Equals(IPAddress.None)
             || address.Equals(IPAddress.IPv6Any)
             || address.Equals(IPAddress.IPv6None)
-            || address.Equals(IPAddress.IPv6Loopback)
             || address.IsIPv6LinkLocal
-            || address.IsIPv6Multicast
-            || address.IsIPv6SiteLocal)
+            || address.IsIPv6Multicast)
         {
             return true;
         }
-        if (address.IsIPv4MappedToIPv6)
-            return IsBlockedPublicAddress(address.MapToIPv4());
         var bytes = address.GetAddressBytes();
         if (address.AddressFamily == AddressFamily.InterNetworkV6)
-            return (bytes[0] & 0xFE) == 0xFC;
+            return false;
         if (address.AddressFamily != AddressFamily.InterNetwork)
             return true;
         return bytes[0] switch
         {
             0 => true,
-            10 => true,
-            100 when bytes[1] is >= 64 and <= 127 => true,
-            127 => true,
             169 when bytes[1] == 254 => true,
-            172 when bytes[1] is >= 16 and <= 31 => true,
             192 when bytes[1] == 0 => true,
-            192 when bytes[1] == 168 => true,
             198 when bytes[1] is 18 or 19 => true,
             198 when bytes[1] == 51 && bytes[2] == 100 => true,
             203 when bytes[1] == 0 && bytes[2] == 113 => true,
@@ -113,4 +120,25 @@ public sealed class WebTargetValidator(WebAccessPolicy policy)
             _ => address.Equals(IPAddress.Parse("100.100.100.200")),
         };
     }
+
+    private static bool IsPrivateNetworkAddress(IPAddress address)
+    {
+        var bytes = address.GetAddressBytes();
+        if (address.AddressFamily == AddressFamily.InterNetworkV6)
+            return address.IsIPv6SiteLocal || (bytes[0] & 0xFE) == 0xFC;
+        if (address.AddressFamily != AddressFamily.InterNetwork)
+            return false;
+        return bytes[0] switch
+        {
+            10 => true,
+            100 when bytes[1] is >= 64 and <= 127 => true,
+            172 when bytes[1] is >= 16 and <= 31 => true,
+            192 when bytes[1] == 168 => true,
+            _ => false,
+        };
+    }
+
+    private static bool IsLocalhostName(string host) =>
+        string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase)
+        || host.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase);
 }
