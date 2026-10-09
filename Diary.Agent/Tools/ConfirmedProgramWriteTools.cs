@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Diary.ScriptBase;
 using Diary.ScriptHost;
 
 namespace Diary.Agent.Tools;
@@ -28,7 +29,8 @@ internal static class ConfirmedProgramWrite
 public sealed class TemplateWorkItemWriteTool(
     ITemplateLogItemScriptApi templateApi,
     ITemplateScriptApi templateDiscovery,
-    IAgentConfirmationService confirmationService) : IAgentTool
+    IAgentConfirmationService confirmationService,
+    IWorkItemAutomationPublisher? automationPublisher = null) : IAgentTool
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -134,6 +136,8 @@ public sealed class TemplateWorkItemWriteTool(
         var result = await templateApi.CreateAsync(request with { Preview = false }, cancellationToken);
         if (!result.Succeeded || result.Item is null)
             return Failure(result, "按模板创建事项失败。");
+        if (!result.Duplicate)
+            PublishAutomation(result.Item);
         return new AgentToolResult(
             true,
             JsonSerializer.Serialize(new
@@ -153,6 +157,41 @@ public sealed class TemplateWorkItemWriteTool(
         AgentToolResult.Failure(
             result.ApiError?.Code ?? "template_create_failed",
             result.Error?.Message ?? fallback);
+
+    private void PublishAutomation(ScriptWorkItem item)
+    {
+        if (automationPublisher is null)
+            return;
+        try
+        {
+            automationPublisher.Publish(new WorkItemAutomationEvent(
+                ScriptAutomationTriggerKind.WorkItemCreated,
+                item.Id,
+                item.Date,
+                item.Comment,
+                item.Hours,
+                item.Priority));
+            for (var index = 0; index < item.Tags.Length; index++)
+            {
+                var tag = item.Tags[index];
+                automationPublisher.Publish(new WorkItemAutomationEvent(
+                    ScriptAutomationTriggerKind.TagAdded,
+                    item.Id,
+                    item.Date,
+                    item.Comment,
+                    item.Hours,
+                    item.Priority,
+                    tag.Id,
+                    tag.Name,
+                    tag.Level,
+                    "Agent",
+                    index));
+            }
+        }
+        catch
+        {
+        }
+    }
 
     private sealed record TemplateWriteInput(
         string Date,

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using Diary.ScriptBase;
 
 namespace Diary.ScriptHost;
 
@@ -80,6 +81,24 @@ public sealed record WorkItemBatchUpdateResult(
     string? PreviewVersion,
     string? ErrorCode = null,
     string? ErrorMessage = null);
+
+public sealed record WorkItemAutomationEvent(
+    ScriptAutomationTriggerKind Trigger,
+    int WorkItemId,
+    string Date,
+    string Title,
+    double Hours,
+    int Priority,
+    int? TagId = null,
+    string? TagName = null,
+    int? TagLevel = null,
+    string Source = "Agent",
+    int Sequence = 0);
+
+public interface IWorkItemAutomationPublisher
+{
+    void Publish(WorkItemAutomationEvent automationEvent);
+}
 
 public interface IWorkItemCommandApi
 {

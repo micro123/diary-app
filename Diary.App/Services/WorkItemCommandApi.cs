@@ -5,6 +5,7 @@ using System.Text.Json;
 using Diary.App.Models;
 using Diary.Core.Data.Base;
 using Diary.Database;
+using Diary.ScriptBase;
 using Diary.ScriptHost;
 
 namespace Diary.App.Services;
@@ -13,7 +14,8 @@ public sealed class WorkItemCommandApi(
     Func<DbInterfaceBase?> databaseProvider,
     IWorkItemPersistenceCoordinator persistence,
     IWorkItemCommandIdempotencyStore idempotencyStore,
-    Action? databaseChanged = null) : IWorkItemCommandApi
+    Action? databaseChanged = null,
+    IWorkItemAutomationPublisher? automationPublisher = null) : IWorkItemCommandApi
 {
     private const int MaxTitleLength = 500;
     private const int MaxNoteLength = 10_000;
@@ -96,6 +98,8 @@ public sealed class WorkItemCommandApi(
         idempotencyStore.Save(normalized.IdempotencyKey, result);
         try { databaseChanged?.Invoke(); }
         catch { }
+        PublishAutomation(ScriptAutomationTriggerKind.WorkItemCreated, saveResult.WorkItem);
+        PublishAddedTags(saveResult.WorkItem, tags!, []);
         return ValueTask.FromResult(result);
     }
 
@@ -190,6 +194,8 @@ public sealed class WorkItemCommandApi(
         idempotencyStore.Save(idempotencyKey, result);
         try { databaseChanged?.Invoke(); }
         catch { }
+        PublishAutomation(ScriptAutomationTriggerKind.WorkItemSaved, saveResult.WorkItem);
+        PublishAddedTags(saveResult.WorkItem, tags!, before!.TagIds);
         return ValueTask.FromResult(result);
     }
 
@@ -246,7 +252,8 @@ public sealed class WorkItemCommandApi(
             return ValueTask.FromResult(FailedBatchResult("database_unavailable", databaseError));
         if (!TryNormalizeBatchUpdate(database, command, out _, out var prepared, out var errorCode, out var error))
             return ValueTask.FromResult(FailedBatchResult(errorCode, error));
-        var currentVersion = CreateBatchUpdatePreviewVersion(database, prepared!);
+        var preparedItems = prepared!;
+        var currentVersion = CreateBatchUpdatePreviewVersion(database, preparedItems);
         if (string.IsNullOrWhiteSpace(command.PreviewVersion)
             || !CryptographicOperations.FixedTimeEquals(
                 Encoding.UTF8.GetBytes(command.PreviewVersion),
@@ -258,7 +265,7 @@ public sealed class WorkItemCommandApi(
                 currentVersion));
         }
 
-        var requests = prepared!.Select(item => new WorkItemSaveRequest(
+        var requests = preparedItems.Select(item => new WorkItemSaveRequest(
             item.Existing,
             item.Command.Date!,
             item.Command.Title!,
@@ -294,6 +301,13 @@ public sealed class WorkItemCommandApi(
         idempotencyStore.Save(storeKey, marker);
         try { databaseChanged?.Invoke(); }
         catch { }
+        for (var index = 0; index < saveResult.Results.Count; index++)
+        {
+            var savedItem = saveResult.Results[index].WorkItem!;
+            var preparedItem = preparedItems[index];
+            PublishAutomation(ScriptAutomationTriggerKind.WorkItemSaved, savedItem);
+            PublishAddedTags(savedItem, preparedItem.Tags, preparedItem.Before.TagIds);
+        }
         return ValueTask.FromResult(new WorkItemBatchUpdateResult(
             true,
             workItemIds,
@@ -313,6 +327,48 @@ public sealed class WorkItemCommandApi(
         {
             error = "数据库提供程序不可用。";
             return null;
+        }
+    }
+
+    private void PublishAddedTags(
+        WorkItem item,
+        IReadOnlyCollection<WorkTag> tags,
+        IReadOnlyCollection<int> existingTagIds)
+    {
+        var existing = existingTagIds.ToHashSet();
+        var sequence = 0;
+        foreach (var tag in tags.Where(tag => !existing.Contains(tag.Id)).OrderBy(tag => tag.Id))
+        {
+            PublishAutomation(ScriptAutomationTriggerKind.TagAdded, item, tag, sequence);
+            sequence++;
+        }
+    }
+
+    private void PublishAutomation(
+        ScriptAutomationTriggerKind trigger,
+        WorkItem item,
+        WorkTag? tag = null,
+        int sequence = 0)
+    {
+        if (automationPublisher is null)
+            return;
+        try
+        {
+            automationPublisher.Publish(new WorkItemAutomationEvent(
+                trigger,
+                item.Id,
+                item.CreateDate,
+                item.Comment,
+                item.Time,
+                (int)item.Priority,
+                tag?.Id,
+                tag?.Name,
+                tag is null ? null : (int)tag.Level,
+                "Agent",
+                sequence));
+        }
+        catch
+        {
         }
     }
 

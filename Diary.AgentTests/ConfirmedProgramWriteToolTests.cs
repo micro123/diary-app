@@ -13,8 +13,9 @@ public sealed class ConfirmedProgramWriteToolTests
     public async Task TemplateCreateRejectDoesNotWrite()
     {
         var api = new RecordingTemplateApi();
+        var automation = new RecordingAutomationPublisher();
         var confirmations = new AgentConfirmationCoordinator();
-        var tool = new TemplateWorkItemWriteTool(api, new RecordingTemplateDiscovery(), confirmations);
+        var tool = new TemplateWorkItemWriteTool(api, new RecordingTemplateDiscovery(), confirmations, automation);
         var requested = WaitForRequest(confirmations);
 
         var invocation = tool.InvokeAsync(TemplateArguments(), CreateContext()).AsTask();
@@ -26,14 +27,16 @@ public sealed class ConfirmedProgramWriteToolTests
         Assert.AreEqual("user_rejected", result.ErrorCode);
         Assert.AreEqual(1, api.PreviewCount);
         Assert.AreEqual(0, api.CreateCount);
+        Assert.AreEqual(0, automation.Events.Count);
     }
 
     [TestMethod]
     public async Task TemplateCreateConfirmRepreviewsAndWritesOnce()
     {
         var api = new RecordingTemplateApi();
+        var automation = new RecordingAutomationPublisher();
         var confirmations = new AgentConfirmationCoordinator();
-        var tool = new TemplateWorkItemWriteTool(api, new RecordingTemplateDiscovery(), confirmations);
+        var tool = new TemplateWorkItemWriteTool(api, new RecordingTemplateDiscovery(), confirmations, automation);
         var requested = WaitForRequest(confirmations);
 
         var invocation = tool.InvokeAsync(TemplateArguments(), CreateContext()).AsTask();
@@ -48,6 +51,17 @@ public sealed class ConfirmedProgramWriteToolTests
         Assert.AreEqual(1, api.CreateCount);
         Assert.AreEqual("template-write-test", api.LastCreate?.IdempotencyKey);
         StringAssert.Contains(result.EffectSummary!, "已从模板创建事项");
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                ScriptAutomationTriggerKind.WorkItemCreated,
+                ScriptAutomationTriggerKind.TagAdded,
+                ScriptAutomationTriggerKind.TagAdded,
+            },
+            automation.Events.Select(item => item.Trigger).ToArray());
+        CollectionAssert.AreEqual(
+            new int?[] { null, 1, 2 },
+            automation.Events.Select(item => item.TagId).ToArray());
     }
 
     [TestMethod]
@@ -185,9 +199,22 @@ public sealed class ConfirmedProgramWriteToolTests
                 request.Hours,
                 0,
                 request.Note,
-                ImmutableArray<ScriptWorkTag>.Empty);
+                request.Preview
+                    ? ImmutableArray<ScriptWorkTag>.Empty
+                    :
+                    [
+                        new ScriptWorkTag(1, "主标签", 0, 0, false),
+                        new ScriptWorkTag(2, "次标签", 0, 1, false),
+                    ]);
             return ValueTask.FromResult(ScriptLogItemResult.Success(item));
         }
+    }
+
+    private sealed class RecordingAutomationPublisher : IWorkItemAutomationPublisher
+    {
+        public List<WorkItemAutomationEvent> Events { get; } = [];
+
+        public void Publish(WorkItemAutomationEvent automationEvent) => Events.Add(automationEvent);
     }
 
     private sealed class RecordingTemplateDiscovery : ITemplateScriptApi

@@ -535,11 +535,13 @@ namespace Diary.App
                 Path.Combine(FsTools.GetApplicationConfigDirectory(), "scripts", "idempotency.json")));
             services.AddSingleton<IWorkItemCommandIdempotencyStore>(_ => new WorkItemCommandIdempotencyStore(
                 Path.Combine(FsTools.GetApplicationConfigDirectory(), "ai-agent", "work-item-idempotency.json")));
+            services.AddSingleton<IWorkItemAutomationPublisher, ScriptWorkItemAutomationPublisher>();
             services.AddSingleton<IWorkItemCommandApi>(provider => new WorkItemCommandApi(
                 () => UseDb,
                 provider.GetRequiredService<IWorkItemPersistenceCoordinator>(),
                 provider.GetRequiredService<IWorkItemCommandIdempotencyStore>(),
-                () => EventDispatcher.DbChanged(DbChangedEvent.ShareData)));
+                () => EventDispatcher.DbChanged(DbChangedEvent.ShareData),
+                provider.GetRequiredService<IWorkItemAutomationPublisher>()));
             services.AddSingleton<ITemplateLogItemScriptApi>(provider => new TemplateLogItemScriptApi(
                 () => UseDb,
                 () => TemplateManager.Instance.Templates.ToArray(),

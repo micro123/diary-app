@@ -1,6 +1,7 @@
 using Diary.App.Models;
 using Diary.App.Services;
 using Diary.Core.Data.Base;
+using Diary.ScriptBase;
 using Diary.ScriptHost;
 
 namespace Diary.DbTests;
@@ -22,7 +23,8 @@ public sealed class WorkItemCommandApiTests
             Type = TagExtraFieldType.Text,
         };
         Assert.IsTrue(db.CreateTagExtraFieldDefinition(definition));
-        var api = CreateApi(db);
+        var automation = new RecordingAutomationPublisher();
+        var api = CreateApi(db, automation);
         var command = new WorkItemCreateCommand(
             "2026-10-08",
             "Agent 创建事项",
@@ -52,6 +54,11 @@ public sealed class WorkItemCommandApiTests
         Assert.AreEqual("用户确认写入的备注", db.WorkGetNote(item));
         Assert.AreEqual(tag.Id, db.GetWorkItemTags(item).Single().Id);
         Assert.AreEqual("D-42", db.GetWorkItemExtraFields(item).Single().Value);
+        CollectionAssert.AreEqual(
+            new[] { ScriptAutomationTriggerKind.WorkItemCreated, ScriptAutomationTriggerKind.TagAdded },
+            automation.Events.Select(item => item.Trigger).ToArray());
+        Assert.AreEqual(item.Id, automation.Events[0].WorkItemId);
+        Assert.AreEqual(tag.Id, automation.Events[1].TagId);
     }
 
     [TestMethod]
@@ -145,7 +152,8 @@ public sealed class WorkItemCommandApiTests
         var oldTag = db.CreateWorkTag("旧标签", true, 0);
         var newTag = db.CreateWorkTag("新标签", false, 0);
         Assert.IsTrue(db.WorkItemAddTag(item, oldTag));
-        var api = CreateApi(db);
+        var automation = new RecordingAutomationPublisher();
+        var api = CreateApi(db, automation);
 
         var preview = await api.PreviewUpdateAsync(new WorkItemUpdateCommand(
             item.Id,
@@ -169,6 +177,10 @@ public sealed class WorkItemCommandApiTests
         Assert.AreEqual(WorkPriorities.P3, updated.Priority);
         Assert.AreEqual("LOCAL_NOTE_MUST_BE_PRESERVED", db.WorkGetNote(updated));
         CollectionAssert.AreEqual(new[] { newTag.Id }, db.GetWorkItemTags(updated).Select(tag => tag.Id).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { ScriptAutomationTriggerKind.WorkItemSaved, ScriptAutomationTriggerKind.TagAdded },
+            automation.Events.Select(item => item.Trigger).ToArray());
+        Assert.AreEqual(newTag.Id, automation.Events[1].TagId);
     }
 
     [TestMethod]
@@ -249,7 +261,8 @@ public sealed class WorkItemCommandApiTests
         second.Time = 1;
         Assert.IsTrue(db.UpdateWorkItem(second));
         Assert.IsTrue(db.WorkItemAddTag(second, tag));
-        var api = CreateApi(db);
+        var automation = new RecordingAutomationPublisher();
+        var api = CreateApi(db, automation);
         var command = new WorkItemBatchUpdateCommand([
             new WorkItemUpdateCommand(first.Id, null, "事项 A+", null, null, null, string.Empty,
                 [new WorkItemExtraFieldCommand(field.FieldId, "A")]),
@@ -276,6 +289,8 @@ public sealed class WorkItemCommandApiTests
         Assert.AreEqual(2, updatedSecond.Time);
         Assert.AreEqual("A", db.GetWorkItemExtraFields(updatedFirst).Single(value => value.FieldId == field.FieldId).Value);
         Assert.AreEqual("B", db.GetWorkItemExtraFields(updatedSecond).Single(value => value.FieldId == field.FieldId).Value);
+        Assert.AreEqual(2, automation.Events.Count);
+        Assert.IsTrue(automation.Events.All(item => item.Trigger == ScriptAutomationTriggerKind.WorkItemSaved));
     }
 
     private static TagExtraFieldDefinition CreateField(
@@ -296,10 +311,20 @@ public sealed class WorkItemCommandApiTests
         return field;
     }
 
-    private static WorkItemCommandApi CreateApi(Diary.Database.DbInterfaceBase db) => new(
+    private static WorkItemCommandApi CreateApi(
+        Diary.Database.DbInterfaceBase db,
+        IWorkItemAutomationPublisher? automationPublisher = null) => new(
         () => db,
         new WorkItemPersistenceCoordinator(),
-        new WorkItemCommandIdempotencyStore());
+        new WorkItemCommandIdempotencyStore(),
+        automationPublisher: automationPublisher);
+
+    private sealed class RecordingAutomationPublisher : IWorkItemAutomationPublisher
+    {
+        public List<WorkItemAutomationEvent> Events { get; } = [];
+
+        public void Publish(WorkItemAutomationEvent automationEvent) => Events.Add(automationEvent);
+    }
 
     private sealed class FailingPersistence : IWorkItemPersistenceCoordinator
     {
