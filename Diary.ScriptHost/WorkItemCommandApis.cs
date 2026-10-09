@@ -31,6 +31,32 @@ public sealed record WorkItemCommandResult(
     string? ErrorCode = null,
     string? ErrorMessage = null);
 
+public sealed record WorkItemUpdateCommand(
+    int WorkItemId,
+    string? Date,
+    string? Title,
+    double? Hours,
+    int? Priority,
+    IReadOnlyList<int>? TagIds,
+    string IdempotencyKey,
+    string? PreviewVersion = null);
+
+public sealed record WorkItemUpdateSnapshot(
+    int WorkItemId,
+    string Date,
+    string Title,
+    double Hours,
+    int Priority,
+    IReadOnlyList<int> TagIds);
+
+public sealed record WorkItemUpdatePreview(
+    bool Succeeded,
+    WorkItemUpdateSnapshot? Before,
+    WorkItemUpdateCommand? Command,
+    string? PreviewVersion,
+    string? ErrorCode = null,
+    string? ErrorMessage = null);
+
 public interface IWorkItemCommandApi
 {
     ValueTask<WorkItemCommandPreview> PreviewCreateAsync(
@@ -40,6 +66,28 @@ public interface IWorkItemCommandApi
     ValueTask<WorkItemCommandResult> CreateAsync(
         WorkItemCreateCommand command,
         CancellationToken cancellationToken = default);
+
+    ValueTask<WorkItemUpdatePreview> PreviewUpdateAsync(
+        WorkItemUpdateCommand command,
+        CancellationToken cancellationToken = default) =>
+        ValueTask.FromResult(new WorkItemUpdatePreview(
+            false,
+            null,
+            null,
+            null,
+            "update_not_supported",
+            "当前宿主不支持事项更新。"));
+
+    ValueTask<WorkItemCommandResult> UpdateAsync(
+        WorkItemUpdateCommand command,
+        CancellationToken cancellationToken = default) =>
+        ValueTask.FromResult(new WorkItemCommandResult(
+            false,
+            command.WorkItemId,
+            false,
+            command.PreviewVersion,
+            "update_not_supported",
+            "当前宿主不支持事项更新。"));
 }
 
 public interface IWorkItemCommandIdempotencyStore

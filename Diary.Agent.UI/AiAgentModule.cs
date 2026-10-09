@@ -43,6 +43,7 @@ public sealed class AiAgentModule : IAppModule
         services.AddSingleton<IAgentConfirmationService>(provider =>
             provider.GetRequiredService<AgentConfirmationCoordinator>());
         services.AddSingleton<WorkItemWriteTool>();
+        services.AddSingleton<WorkItemUpdateTool>();
         services.AddSingleton<TemplateWorkItemWriteTool>();
         services.AddSingleton<ClipboardWriteTool>();
         services.AddSingleton<AppNotificationWriteTool>();
@@ -72,9 +73,16 @@ public sealed class AiAgentModule : IAppModule
             registry.TryRegister(provider.GetRequiredService<ReportDraftTool>());
             registry.TryRegister(provider.GetRequiredService<ScriptDraftTool>());
             registry.TryRegister(provider.GetRequiredService<WorkItemWriteTool>());
+            registry.TryRegister(provider.GetRequiredService<WorkItemUpdateTool>());
             registry.TryRegister(provider.GetRequiredService<TemplateWorkItemWriteTool>());
             registry.TryRegister(provider.GetRequiredService<ClipboardWriteTool>());
             registry.TryRegister(provider.GetRequiredService<AppNotificationWriteTool>());
+            if (provider.GetService<IAgentReportExportApi>() is { } reportExports)
+            {
+                registry.TryRegister(new ReportExportTool(
+                    reportExports,
+                    provider.GetRequiredService<IAgentConfirmationService>()));
+            }
             registry.TryRegister(provider.GetRequiredService<WebFetchTool>());
             if (provider.GetService<IWebSearchProvider>() is { } searchProvider)
                 registry.TryRegister(new WebSearchTool(searchProvider));

@@ -1,4 +1,5 @@
 using Diary.Agent.Tools;
+using System.Text.RegularExpressions;
 
 namespace Diary.Agent.Configuration;
 
@@ -15,6 +16,31 @@ public sealed record McpToolPolicy
     public bool Enabled { get; init; }
 
     public AgentToolRisk Risk { get; init; } = AgentToolRisk.ReadOnly;
+}
+
+public static class McpToolPolicyGuard
+{
+    private static readonly HashSet<string> ProhibitedDestructiveTokens = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "delete",
+        "destroy",
+        "drop",
+        "erase",
+        "purge",
+        "remove",
+        "rmdir",
+        "truncate",
+        "unlink",
+    };
+
+    public static bool IsProhibitedDestructiveToolName(string toolName)
+    {
+        if (string.IsNullOrWhiteSpace(toolName))
+            return false;
+        var segmented = Regex.Replace(toolName, "(?<=[a-z0-9])(?=[A-Z])", "_");
+        return Regex.Split(segmented, "[^A-Za-z0-9]+")
+            .Any(ProhibitedDestructiveTokens.Contains);
+    }
 }
 
 public sealed record McpServerProfile
@@ -87,6 +113,8 @@ public static class McpServerProfileValidator
                 errors.Add("MCP 本地工具策略名称不能为空或重复。");
             if (tool.Risk == AgentToolRisk.Destructive)
                 errors.Add("首版内置 MCP Client 不允许启用破坏性工具。");
+            if (tool.Enabled && McpToolPolicyGuard.IsProhibitedDestructiveToolName(tool.ToolName))
+                errors.Add($"MCP 工具 {tool.ToolName} 具有删除语义，不允许向 Agent 开放。");
         }
         return errors;
     }

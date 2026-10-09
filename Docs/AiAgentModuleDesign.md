@@ -632,7 +632,7 @@ ConfirmWrites
 AllowAutomatically
 ```
 
-服务器或模块声明的只读、破坏性、幂等等信息只是输入；最终策略由本地 `AgentToolPolicyService` 决定。内置只读工具默认允许，外部工具由用户在设置中启用，写工具默认确认。
+服务器或模块声明的只读、破坏性、幂等等信息只是输入；最终策略由本地策略决定。内置只读工具默认允许，外部工具由用户在设置中逐项启用，写工具默认逐次确认。MCP 策略不接受 `Destructive` 风险；此外，策略校验和运行时注册会双重拒绝名称中含 `delete`、`remove`、`destroy`、`drop`、`purge`、`erase`、`unlink`、`rmdir` 或 `truncate` 独立语义段的工具，防止旧配置或错误标记将明显的删除工具暴露给模型。
 
 ## 11. DiaryApp 工具适配
 
@@ -668,20 +668,30 @@ public interface IWorkItemCommandApi
     ValueTask<WorkItemCommandResult> CreateAsync(
         WorkItemCreateCommand command,
         CancellationToken cancellationToken = default);
+
+    ValueTask<WorkItemUpdatePreview> PreviewUpdateAsync(
+        WorkItemUpdateCommand command,
+        CancellationToken cancellationToken = default);
+
+    ValueTask<WorkItemCommandResult> UpdateAsync(
+        WorkItemUpdateCommand command,
+        CancellationToken cancellationToken = default);
 }
 ```
 
-首个版本支持日期、标题、工时、优先级、标签、备注和附加字段；Tracker 编辑扩展写入继续禁用，除非各扩展提供明确可预览、可校验的命令契约。命令包含幂等键和预览版本，确认执行时校验数据库状态、标签/字段版本和预览摘要，避免过期确认。
+创建支持日期、标题、工时、优先级、标签、备注和附加字段。更新仅开放日期、标题、工时、优先级和标签，并由宿主在事务内保留本地备注及仍适用的附加字段；备注不会进入更新预览或模型结果。Tracker 编辑扩展写入继续禁用，除非各扩展提供明确可预览、可校验的命令契约。命令包含幂等键和预览版本，确认执行时校验数据库状态、标签/字段版本和预览摘要，避免过期确认。
 
 在同一“确认后写入工具”能力组下，内置 Agent 还注册以下程序工具：
 
 | 工具 | 宿主能力 | 确认与执行约束 |
 | --- | --- | --- |
 | `diary_create_from_template` | `ITemplateLogItemScriptApi`、`ITemplateScriptApi` | 确认前展示模板名称、默认标签和预览，确认后重新预览，再使用幂等键创建 |
+| `diary_update_work_item` | `IWorkItemCommandApi` | 确认卡展示修改前后字段；确认时重新校验事项状态，保留本地备注，不提供删除能力 |
+| `diary_export_report` | `IAgentReportExportApi`、`ScriptExportService` | 日报/周报按无备注事项生成表格；确认后只写入应用管理的 `ai-agent/exports` 目录，不接受任意路径 |
 | `diary_set_clipboard_text` | `IClipboardScriptApi` | 确认卡展示完整参数，确认后写入，限制为 20000 字符 |
 | `diary_notify` | `IUserInteractionScriptApi` | 确认卡展示标题和正文，确认后发送会话级应用通知 |
 
-这些工具复用写工具串行确认协调器：同一时刻只允许一个待确认操作，拒绝、取消或模块停止都不会执行宿主副作用。内置程序写工具与 MCP 写工具共用通用确认卡，但来源和工具名必须明确展示。工具仍受每次 run 的不可变快照、调用预算、参数校验和审计效果摘要约束。该扩展只增加 Agent 适配器和宿主 API 注册，不修改工作项核心数据结构。
+这些工具复用写工具串行确认协调器：同一时刻只允许一个待确认操作，拒绝、取消或模块停止都不会执行宿主副作用。事项更新和报告导出均使用预览版本与幂等键；报告确认后还会再次计算数据版本，避免确认期间的数据变化被静默导出。内置程序写工具与 MCP 写工具共用通用确认卡，但来源和工具名必须明确展示。工具仍受每次 run 的不可变快照、调用预算、参数校验和审计效果摘要约束。该扩展只增加 Agent 适配器和宿主 API 注册，不修改工作项核心数据结构。
 
 ## 12. 外部网页数据
 
@@ -731,6 +741,7 @@ MCP Client 属于 P2，不是 P0/P1 网页访问的前置条件。实现时支�
 - `tools/list`、`tools/call` 和工具列表变化通知；
 - 服务器级代理、认证、超时和 Secret Reference；
 - 工具名命名空间和本地策略；
+- 删除语义工具的配置校验与运行时注册双重拦截；
 - 文本和有预算的结构化结果。
 
 首版 MCP Client 不开放 Resources、Prompts、Sampling、Elicitation、Roots、Tasks 或 MCP Apps。外部工具注解不作为自动授权依据。内置 Agent 不通过 `Diary.Mcp` 查询 DiaryApp，自身数据访问继续走进程内稳定宿主 API。
@@ -940,9 +951,9 @@ AI 模块随程序安装但默认禁用。用户启用后重启生效；未启�
 
 ## 20. 实施与验证结果
 
-- `Diary.AgentTests` 64/64，通过三协议、完整能力探测、模型/代理、网页安全、事项详情与导出目录查询、事项确认、程序写工具确认、自动上下文压缩、Responses 协议状态清理及本地兜底、MCP、会话与审计测试；另由 `Diary.ScriptTests` 验证 Agent 无备注查询模式不调用备注读取器；
+- `Diary.AgentTests` 74/74，通过三协议、完整能力探测、模型/代理、网页安全、事项详情与导出目录查询、事项创建/更新确认、报告导出确认、自动上下文压缩、Responses 协议状态清理及本地兜底、MCP 删除语义拦截、会话与审计测试；另由 `Diary.ScriptTests` 验证 Agent 无备注查询模式不调用备注读取器；
 - `Diary.ModuleTests` 12/12，通过 Debug/Release 模块目录、私有 `AssemblyLoadContext`、禁用和故障隔离测试；
-- `Diary.AppTests` 318/318；`Diary.DbTests` 150 通过，111 项 PostgreSQL/Docker 或 Linux 专属用例按当前环境跳过；
+- `Diary.AppTests` 320/320；`Diary.DbTests` 264 通过，1 项因本机 `pg_dump` 与 PostgreSQL 服务端主版本不一致跳过；
 - AI CDP 套件 7/7，通过导航、Agent 状态、真实本地假模型工具闭环、拒绝写入、键盘发送、设置贡献和递归 seed；
 - `win-x64`、`linux-x64` 自包含发布成功，模块目录只包含 `module.json`、`Diary.Agent.UI.dll`、`Diary.Agent.UI.deps.json`、`Diary.Agent.dll`、`AngleSharp.dll`，宿主根目录无 AI 私有程序集；
 - Windows 发布包在默认禁用、`--core-only` 和模块目录缺失三种形态下均可持续启动且不加载 AI 私有能力；

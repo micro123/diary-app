@@ -5,6 +5,7 @@ using System.Text.Json;
 using Diary.Agent.Configuration;
 using Diary.Agent.Credentials;
 using Diary.Agent.Mcp;
+using Diary.Agent.Tools;
 using Diary.AiContext;
 
 namespace Diary.AgentTests;
@@ -12,6 +13,52 @@ namespace Diary.AgentTests;
 [TestClass]
 public sealed class McpClientTests
 {
+    [TestMethod]
+    [DataRow("delete_work_item")]
+    [DataRow("remove-work-item")]
+    [DataRow("purgeCache")]
+    [DataRow("filesystem_unlink")]
+    public void EnabledDeleteSemanticToolPolicyIsRejected(string toolName)
+    {
+        var errors = McpServerProfileValidator.Validate(CreatePolicyValidationProfile(
+            new McpToolPolicy
+            {
+                ToolName = toolName,
+                Enabled = true,
+                Risk = AgentToolRisk.ReadOnly,
+            }));
+
+        Assert.IsTrue(errors.Any(error => error.Contains("删除语义", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void DisabledDeleteSemanticToolPolicyCanRemainInSettings()
+    {
+        var errors = McpServerProfileValidator.Validate(CreatePolicyValidationProfile(
+            new McpToolPolicy
+            {
+                ToolName = "delete_work_item",
+                Enabled = false,
+                Risk = AgentToolRisk.ReadOnly,
+            }));
+
+        Assert.IsFalse(errors.Any(error => error.Contains("删除语义", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void NonDeleteWriteToolPolicyRemainsSupported()
+    {
+        var errors = McpServerProfileValidator.Validate(CreatePolicyValidationProfile(
+            new McpToolPolicy
+            {
+                ToolName = "update_work_item",
+                Enabled = true,
+                Risk = AgentToolRisk.Write,
+            }));
+
+        Assert.AreEqual(0, errors.Count);
+    }
+
     [TestMethod]
     [Timeout(30_000)]
     public async Task StdioClientInitializesListsAndCallsRealDiaryMcpServer()
@@ -106,6 +153,16 @@ public sealed class McpClientTests
         }
         throw new DirectoryNotFoundException("找不到 DiaryApp.sln。");
     }
+
+    private static McpServerProfile CreatePolicyValidationProfile(McpToolPolicy policy) => new()
+    {
+        Id = "policy-test",
+        DisplayName = "Policy Test",
+        Enabled = true,
+        Transport = McpTransportKind.Stdio,
+        Command = "test-mcp-server",
+        Tools = [policy],
+    };
 
     private static AiContextSnapshot CreateSnapshot() => new()
     {

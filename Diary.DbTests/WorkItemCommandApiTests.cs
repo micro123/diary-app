@@ -133,6 +133,70 @@ public sealed class WorkItemCommandApiTests
         Assert.AreEqual(1, db.GetWorkItemByDate("2026-10-08").Count);
     }
 
+    [TestMethod]
+    public async Task UpdatePreservesLocalNoteAndAppliesConfirmedFieldsAndTagsOnce()
+    {
+        using var db = TestDb.Create();
+        var item = db.CreateWorkItem("2026-10-08", "旧标题");
+        item.Time = 1;
+        item.Priority = WorkPriorities.P1;
+        Assert.IsTrue(db.UpdateWorkItem(item));
+        db.WorkUpdateNote(item, "LOCAL_NOTE_MUST_BE_PRESERVED");
+        var oldTag = db.CreateWorkTag("旧标签", true, 0);
+        var newTag = db.CreateWorkTag("新标签", false, 0);
+        Assert.IsTrue(db.WorkItemAddTag(item, oldTag));
+        var api = CreateApi(db);
+
+        var preview = await api.PreviewUpdateAsync(new WorkItemUpdateCommand(
+            item.Id,
+            "2026-10-09",
+            "新标题",
+            2.5,
+            3,
+            [newTag.Id],
+            "agent-update-1"));
+        var first = await api.UpdateAsync(preview.Command!);
+        var duplicate = await api.UpdateAsync(preview.Command!);
+
+        Assert.IsTrue(first.Succeeded, first.ErrorMessage);
+        Assert.IsFalse(first.Duplicate);
+        Assert.IsTrue(duplicate.Succeeded);
+        Assert.IsTrue(duplicate.Duplicate);
+        var updated = db.QueryWorkItems(new WorkItemQuery { WorkItemId = item.Id }).Single();
+        Assert.AreEqual("2026-10-09", updated.CreateDate);
+        Assert.AreEqual("新标题", updated.Comment);
+        Assert.AreEqual(2.5, updated.Time);
+        Assert.AreEqual(WorkPriorities.P3, updated.Priority);
+        Assert.AreEqual("LOCAL_NOTE_MUST_BE_PRESERVED", db.WorkGetNote(updated));
+        CollectionAssert.AreEqual(new[] { newTag.Id }, db.GetWorkItemTags(updated).Select(tag => tag.Id).ToArray());
+    }
+
+    [TestMethod]
+    public async Task ChangedWorkItemInvalidatesUpdatePreview()
+    {
+        using var db = TestDb.Create();
+        var item = db.CreateWorkItem("2026-10-08", "原始标题");
+        item.Time = 1;
+        Assert.IsTrue(db.UpdateWorkItem(item));
+        var api = CreateApi(db);
+        var preview = await api.PreviewUpdateAsync(new WorkItemUpdateCommand(
+            item.Id,
+            null,
+            "Agent 标题",
+            null,
+            null,
+            null,
+            "agent-update-stale"));
+        item.Comment = "用户已修改";
+        Assert.IsTrue(db.UpdateWorkItem(item));
+
+        var result = await api.UpdateAsync(preview.Command!);
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual("preview_stale", result.ErrorCode);
+        Assert.AreEqual("用户已修改", db.QueryWorkItems(new WorkItemQuery { WorkItemId = item.Id }).Single().Comment);
+    }
+
     private static WorkItemCommandApi CreateApi(Diary.Database.DbInterfaceBase db) => new(
         () => db,
         new WorkItemPersistenceCoordinator(),

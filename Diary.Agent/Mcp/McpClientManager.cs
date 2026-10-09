@@ -116,6 +116,7 @@ public sealed class McpClientManager(
                 .ToDictionary(policy => policy.ToolName, StringComparer.Ordinal);
             var adapters = remoteTools
                 .Where(tool => policies.ContainsKey(tool.Name))
+                .Where(tool => !McpToolPolicyGuard.IsProhibitedDestructiveToolName(tool.Name))
                 .Select(tool => new McpAgentTool(
                     this,
                     confirmations,

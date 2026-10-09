@@ -14,7 +14,8 @@ public sealed record WorkItemSaveRequest(
     WorkPriorities Priority,
     IReadOnlyCollection<WorkTag> Tags,
     IReadOnlyCollection<WorkItemExtraFieldValue> ExtraFieldValues,
-    IReadOnlyCollection<ITrackerEditorExtension> Extensions);
+    IReadOnlyCollection<ITrackerEditorExtension> Extensions,
+    bool PreserveNote = false);
 
 public sealed record WorkItemSaveResult(
     bool Success,
@@ -61,10 +62,13 @@ public sealed class WorkItemPersistenceCoordinator : IWorkItemPersistenceCoordin
             if (!db.UpdateWorkItem(item))
                 throw new InvalidOperationException("更新工作项失败");
 
-            if (!string.IsNullOrWhiteSpace(request.Note))
-                db.WorkUpdateNote(item, request.Note);
-            else
-                db.WorkDeleteNote(item);
+            if (!request.PreserveNote)
+            {
+                if (!string.IsNullOrWhiteSpace(request.Note))
+                    db.WorkUpdateNote(item, request.Note);
+                else
+                    db.WorkDeleteNote(item);
+            }
 
             foreach (var extension in request.Extensions)
             {
@@ -72,13 +76,19 @@ public sealed class WorkItemPersistenceCoordinator : IWorkItemPersistenceCoordin
                     throw new InvalidOperationException($"保存 tracker 扩展失败: {extension.Key}");
             }
 
-            if (created)
+            var existingTags = created
+                ? new Dictionary<int, WorkTag>()
+                : db.GetWorkItemTags(item).ToDictionary(tag => tag.Id);
+            var desiredTags = request.Tags.ToDictionary(tag => tag.Id);
+            foreach (var tag in existingTags.Values.Where(tag => !desiredTags.ContainsKey(tag.Id)))
             {
-                foreach (var tag in request.Tags)
-                {
-                    if (!db.WorkItemAddTag(item, tag))
-                        throw new InvalidOperationException($"保存工作项标签失败: {tag.Id}");
-                }
+                if (!db.WorkItemRemoveTag(item, tag))
+                    throw new InvalidOperationException($"移除工作项标签失败: {tag.Id}");
+            }
+            foreach (var tag in desiredTags.Values.Where(tag => !existingTags.ContainsKey(tag.Id)))
+            {
+                if (!db.WorkItemAddTag(item, tag))
+                    throw new InvalidOperationException($"保存工作项标签失败: {tag.Id}");
             }
 
             if (!db.SaveWorkItemExtraFieldValues(item.Id, request.ExtraFieldValues))

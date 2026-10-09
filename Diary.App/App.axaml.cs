@@ -722,6 +722,10 @@ namespace Diary.App
                 services.GetRequiredService<ExportTemplateCatalog>());
             services.AddSingleton<ScriptExportService>();
             services.AddSingleton<IExportApi>(provider => provider.GetRequiredService<ScriptExportService>());
+            services.AddSingleton<IAgentReportExportApi>(provider => new AgentReportExportApi(
+                provider.GetRequiredService<IWorkItemQueryScriptApi>(),
+                provider.GetRequiredService<ScriptExportService>(),
+                Path.Combine(FsTools.GetApplicationConfigDirectory(), "ai-agent", "exports")));
             services.AddSingleton<IScriptExecutionContextFactory>(_ =>
                 new ScriptExecutionContextFactory((metadata, request) =>
                 {
