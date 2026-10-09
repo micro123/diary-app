@@ -158,6 +158,8 @@
                     <MenuFlyout ShowMode="TransientWithDismissOnPointerMoveAway">
                         <MenuItem Name="ProgramSettingsMenuItem" Header="程序设置"
                                   Command="{Binding ShowSettingsCommand}" />
+                        <MenuItem Name="ModuleSettingsMenuItem" Header="模块设置"
+                                  Command="{Binding ShowModuleSettingsCommand}" />
                         <Separator />
                         <MenuItem Name="TagSettingsMenuItem" Header="标签设置"
                                   Command="{Binding ShowTagSettingsCommand}" />

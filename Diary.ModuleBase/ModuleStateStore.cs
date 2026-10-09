@@ -10,6 +10,7 @@ public sealed class ModuleStateStore(string path)
         PropertyNameCaseInsensitive = true,
         ReadCommentHandling = JsonCommentHandling.Disallow,
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        WriteIndented = true,
     };
 
     public ModuleStateLoadResult Load()
@@ -37,6 +38,45 @@ public sealed class ModuleStateStore(string path)
         catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
         {
             return new ModuleStateLoadResult(true, true, new Dictionary<string, bool>(StringComparer.Ordinal), exception.Message);
+        }
+    }
+
+    public void Save(IReadOnlyDictionary<string, bool> moduleStates)
+    {
+        ArgumentNullException.ThrowIfNull(moduleStates);
+        var current = Load();
+        if (current.IsCorrupt)
+            throw new InvalidOperationException("模块状态文件不可读取，已阻止覆盖。");
+
+        var modules = new Dictionary<string, ModuleStateEntry>(StringComparer.Ordinal);
+        foreach (var pair in moduleStates)
+        {
+            if (string.IsNullOrWhiteSpace(pair.Key))
+                throw new ArgumentException("模块状态包含无效模块 ID。", nameof(moduleStates));
+            modules.Add(pair.Key, new ModuleStateEntry { Enabled = pair.Value });
+        }
+
+        var directory = Path.GetDirectoryName(path)
+            ?? throw new InvalidOperationException("模块状态路径缺少父目录。");
+        Directory.CreateDirectory(directory);
+        var temporaryPath = path + ".tmp-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            using (var stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                JsonSerializer.Serialize(stream, new ModuleStateDocument
+                {
+                    SchemaVersion = 1,
+                    Modules = modules,
+                }, JsonOptions);
+                stream.Flush(flushToDisk: true);
+            }
+            File.Move(temporaryPath, path, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+                File.Delete(temporaryPath);
         }
     }
 

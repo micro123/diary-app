@@ -19,6 +19,7 @@ public sealed partial class AppModuleCatalog
     private readonly AppModuleCatalogOptions _options;
     private readonly List<AppModuleDiagnostic> _diagnostics = [];
     private readonly List<LoadedAppModule> _loadedModules = [];
+    private readonly List<AppModuleManifest> _discoveredManifests = [];
 
     public AppModuleCatalog(AppModuleCatalogOptions options)
     {
@@ -29,6 +30,10 @@ public sealed partial class AppModuleCatalog
 
     public IReadOnlyList<AppModuleManifest> LoadedManifests =>
         _loadedModules.Select(module => module.Manifest).ToArray();
+
+    public IReadOnlyList<AppModuleManifest> DiscoveredManifests => _discoveredManifests.ToArray();
+
+    public string StateFilePath => _options.StateFilePath;
 
     public void DiscoverAndConfigure(IServiceCollection services)
     {
@@ -53,6 +58,11 @@ public sealed partial class AppModuleCatalog
             .Where(group => group.Count() > 1)
             .Select(group => group.Key)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        _discoveredManifests.Clear();
+        _discoveredManifests.AddRange(candidates
+            .Where(candidate => !duplicateIds.Contains(candidate.Manifest.Id))
+            .Select(candidate => candidate.Manifest)
+            .OrderBy(manifest => manifest.Id, StringComparer.Ordinal));
 
         foreach (var candidate in candidates.OrderBy(item => item.Manifest.Id, StringComparer.Ordinal))
         {

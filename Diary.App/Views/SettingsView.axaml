@@ -16,7 +16,7 @@
         <Border Classes="PageHeader">
             <Grid Classes="PageHeading" ColumnDefinitions="Auto,*">
                 <TextBlock Text="程序设置" Classes="PageTitle" />
-                <TextBlock Grid.Column="1" Text="界面、工作流、数据库、更新与 AI" Classes="PageSubtitle" />
+                <TextBlock Grid.Column="1" Text="界面、工作流、数据库、更新与本地集成" Classes="PageSubtitle" />
             </Grid>
         </Border>
         <Border Grid.Row="1" Classes="DetailPane" Padding="6" ClipToBounds="True">

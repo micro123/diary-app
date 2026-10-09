@@ -52,6 +52,7 @@ public sealed class AppModuleCatalogTests
         Assert.IsTrue(catalog.Diagnostics.Any(item => item.Code == "module.disabled"));
         Assert.IsFalse(catalog.Diagnostics.Any(item => item.Code == "module.load-failed"));
         Assert.AreEqual(0, catalog.LoadedManifests.Count);
+        Assert.AreEqual("sample.disabled", catalog.DiscoveredManifests.Single().Id);
     }
 
     [TestMethod]
@@ -185,6 +186,42 @@ public sealed class AppModuleCatalogTests
 
         Assert.AreEqual(2, catalog.Diagnostics.Count(item => item.Code == "manifest.id-conflict"));
         Assert.AreEqual(0, catalog.LoadedManifests.Count);
+        Assert.AreEqual(0, catalog.DiscoveredManifests.Count);
+    }
+
+    [TestMethod]
+    public void ModuleStateStoreSaveRoundTripsStates()
+    {
+        var root = CreateTemporaryRoot();
+        var statePath = Path.Combine(root, "module-states.json");
+        var store = new ModuleStateStore(statePath);
+
+        store.Save(new Dictionary<string, bool>(StringComparer.Ordinal)
+        {
+            ["sample.enabled"] = true,
+            ["sample.disabled"] = false,
+        });
+
+        var loaded = store.Load();
+        Assert.IsTrue(loaded.Exists);
+        Assert.IsFalse(loaded.IsCorrupt);
+        Assert.IsTrue(loaded.ModuleStates["sample.enabled"]);
+        Assert.IsFalse(loaded.ModuleStates["sample.disabled"]);
+    }
+
+    [TestMethod]
+    public void ModuleStateStoreDoesNotOverwriteCorruptFile()
+    {
+        var root = CreateTemporaryRoot();
+        var statePath = Path.Combine(root, "module-states.json");
+        const string corruptContent = "{not-json";
+        File.WriteAllText(statePath, corruptContent);
+        var store = new ModuleStateStore(statePath);
+
+        Assert.ThrowsExactly<InvalidOperationException>(() =>
+            store.Save(new Dictionary<string, bool> { ["sample.module"] = true }));
+
+        Assert.AreEqual(corruptContent, File.ReadAllText(statePath));
     }
 
     private string CreateTemporaryRoot()

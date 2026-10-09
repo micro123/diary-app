@@ -10,8 +10,6 @@ using Diary.GUIBase;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
-using Diary.ModuleBase;
-using Diary.ModuleUI;
 using Diary.PluginUI;
 using Diary.Core.Utils;
 using Diary.Utils;
@@ -41,8 +39,6 @@ public partial class SettingsViewModel : ViewModelBase, IDialogContext
         AppFontService fontService,
         McpSetupService mcpSetupService,
         IScriptLastArgumentsStore scriptLastArgumentsStore,
-        AppModuleCatalog appModuleCatalog,
-        SettingsContributionRegistry settingsContributionRegistry,
         IEnumerable<ITrackerConfigurationProvider> configurationProviders)
     {
         _logger = logger;
@@ -51,7 +47,7 @@ public partial class SettingsViewModel : ViewModelBase, IDialogContext
         _mcpSetupService = mcpSetupService;
         _scriptLastArgumentsStore = scriptLastArgumentsStore;
         _logger.LogDebug("Tracker 配置提供者：{Count} 个", configurationProviders.Count());
-        BuildTree(appModuleCatalog, settingsContributionRegistry);
+        BuildTree();
         RefreshMcpStatus();
     }
 
@@ -59,9 +55,7 @@ public partial class SettingsViewModel : ViewModelBase, IDialogContext
 
     public void Close() => RequestClose?.Invoke(this, null);
 
-    private void BuildTree(
-        AppModuleCatalog appModuleCatalog,
-        SettingsContributionRegistry settingsContributionRegistry)
+    private void BuildTree()
     {
         var app = BaseApp.Instance;
         SettingTreeBuilder.BuildTree(SettingsTree, app.AppConfig, app);
@@ -105,37 +99,6 @@ public partial class SettingsViewModel : ViewModelBase, IDialogContext
             "清除参数历史",
             ClearScriptArgumentHistoryCommand));
         SettingsTree.Children.Add(scriptGroup);
-        if (appModuleCatalog.Diagnostics.Count > 0)
-        {
-            var diagnosticsGroup = new SettingGroup(
-                "可选模块诊断",
-                "显示本次启动中模块 manifest、启用状态、兼容性和加载结果；启停修改在重启后生效。");
-            foreach (var diagnostic in appModuleCatalog.Diagnostics
-                         .GroupBy(item => item.ModuleId, StringComparer.Ordinal)
-                         .Select(group => group.Last())
-                         .OrderBy(item => item.ModuleId, StringComparer.Ordinal))
-            {
-                diagnosticsGroup.Children.Add(new McpStatusSetting(
-                    diagnostic.ModuleId,
-                    diagnostic.Code)
-                {
-                    Status = $"{diagnostic.State} · {diagnostic.Message}",
-                });
-            }
-            SettingsTree.Children.Add(diagnosticsGroup);
-        }
-        var modulePages = settingsContributionRegistry.GetPages();
-        if (modulePages.Count > 0)
-        {
-            var moduleGroup = new SettingGroup(
-                "可选模块",
-                "这些设置页由已安装且启用的可选模块提供；启停在重启应用后生效。");
-            foreach (var page in modulePages)
-            {
-                moduleGroup.Children.Add(new ModuleSettingsItem(page.Title, page.Id, page.ViewModel));
-            }
-            SettingsTree.Children.Add(moduleGroup);
-        }
         SettingsTree.Load();
     }
 

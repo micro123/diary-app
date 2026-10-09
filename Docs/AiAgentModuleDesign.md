@@ -204,6 +204,8 @@ public interface IAppModule
 
 状态文件损坏时不覆盖原文件，所有非核心模块按禁用处理并展示诊断。Manifest 的 `enabledByDefault` 只在状态缺失时生效，AI 固定为 `false`。
 
+宿主提供独立“模块设置”对话框。“模块管理”列出所有通过 manifest 校验的可选模块，允许修改启用状态并显示当前加载状态与启动诊断；保存采用同目录临时文件和原子替换，损坏文件保持只读。“模块配置”承载当前已加载模块提供的 `ISettingsContribution` 页面。模块启停不进行热加载或热卸载，统一在下次启动时生效。
+
 `--core-only` 启动参数跳过全部可选应用模块和 Tracker/UI 扫描，用于验证核心功能不依赖 AI 或其他扩展；它不修改模块启用状态。
 
 ### 4.6 UI 贡献
@@ -229,7 +231,7 @@ public interface ISettingsContribution
 }
 ```
 
-`MainWindowViewModel` 构建页面时合并固定页、通用模块页和 Tracker 页，再按最终位置分配快捷键。设置对话框增加模块设置入口，不再由核心 `SettingsViewModel` 直接引用 AI 类型。
+`MainWindowViewModel` 构建页面时合并固定页、通用模块页和 Tracker 页，再按最终位置分配快捷键。标题栏设置菜单分别提供“程序设置”和“模块设置”：前者只包含核心应用配置，后者管理可选模块启停、诊断和模块贡献设置页；核心 `SettingsViewModel` 不引用 AI 类型或模块设置贡献。
 
 AI 的 View 与 ViewModel 均放在 `Diary.Agent.UI`，继续兼容现有 `ViewLocator` 的同程序集命名约定。
 
