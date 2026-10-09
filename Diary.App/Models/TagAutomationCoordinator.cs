@@ -11,6 +11,7 @@ public enum TagAddSource
     Template,
     Batch,
     Duplicate,
+    Agent,
 }
 
 public sealed record TagAutomationContext(

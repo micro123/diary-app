@@ -536,12 +536,14 @@ namespace Diary.App
             services.AddSingleton<IWorkItemCommandIdempotencyStore>(_ => new WorkItemCommandIdempotencyStore(
                 Path.Combine(FsTools.GetApplicationConfigDirectory(), "ai-agent", "work-item-idempotency.json")));
             services.AddSingleton<IWorkItemAutomationPublisher, ScriptWorkItemAutomationPublisher>();
+            services.AddSingleton<IWorkItemTagAutomationService, WorkItemTagAutomationService>();
             services.AddSingleton<IWorkItemCommandApi>(provider => new WorkItemCommandApi(
                 () => UseDb,
                 provider.GetRequiredService<IWorkItemPersistenceCoordinator>(),
                 provider.GetRequiredService<IWorkItemCommandIdempotencyStore>(),
                 () => EventDispatcher.DbChanged(DbChangedEvent.ShareData),
-                provider.GetRequiredService<IWorkItemAutomationPublisher>()));
+                provider.GetRequiredService<IWorkItemAutomationPublisher>(),
+                provider.GetRequiredService<IWorkItemTagAutomationService>()));
             services.AddSingleton<ITemplateLogItemScriptApi>(provider => new TemplateLogItemScriptApi(
                 () => UseDb,
                 () => TemplateManager.Instance.Templates.ToArray(),

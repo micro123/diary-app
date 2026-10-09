@@ -15,7 +15,8 @@ public sealed class WorkItemCommandApi(
     IWorkItemPersistenceCoordinator persistence,
     IWorkItemCommandIdempotencyStore idempotencyStore,
     Action? databaseChanged = null,
-    IWorkItemAutomationPublisher? automationPublisher = null) : IWorkItemCommandApi
+    IWorkItemAutomationPublisher? automationPublisher = null,
+    IWorkItemTagAutomationService? tagAutomation = null) : IWorkItemCommandApi
 {
     private const int MaxTitleLength = 500;
     private const int MaxNoteLength = 10_000;
@@ -77,6 +78,13 @@ public sealed class WorkItemCommandApi(
                 currentVersion));
         }
 
+        using var tagPreparation = PrepareTagAutomation(null, tags!, []);
+        if (!tagPreparation.Succeeded)
+            return ValueTask.FromResult(FailedResult(
+                "tag_automation_failed",
+                tagPreparation.Error ?? "应用标签自动化失败。",
+                currentVersion));
+
         var saveResult = persistence.Save(database, new WorkItemSaveRequest(
             null,
             normalized!.Date,
@@ -86,7 +94,7 @@ public sealed class WorkItemCommandApi(
             (WorkPriorities)normalized.Priority,
             tags!,
             extraFields!,
-            []));
+            tagPreparation.Extensions));
         if (!saveResult.Success || saveResult.WorkItem is null)
             return ValueTask.FromResult(FailedResult("persistence_failed", saveResult.Error ?? "创建事项失败。", currentVersion));
 
@@ -172,6 +180,13 @@ public sealed class WorkItemCommandApi(
                 currentVersion));
         }
 
+        using var tagPreparation = PrepareTagAutomation(existing, tags!, before!.TagIds);
+        if (!tagPreparation.Succeeded)
+            return ValueTask.FromResult(FailedResult(
+                "tag_automation_failed",
+                tagPreparation.Error ?? "应用标签自动化失败。",
+                currentVersion));
+
         var saveResult = persistence.Save(database, new WorkItemSaveRequest(
             existing,
             normalized!.Date!,
@@ -181,7 +196,7 @@ public sealed class WorkItemCommandApi(
             (WorkPriorities)normalized.Priority!.Value,
             tags!,
             extraFields!,
-            [],
+            tagPreparation.Extensions,
             PreserveNote: true));
         if (!saveResult.Success || saveResult.WorkItem is null)
             return ValueTask.FromResult(FailedResult("persistence_failed", saveResult.Error ?? "更新事项失败。", currentVersion));
@@ -265,18 +280,42 @@ public sealed class WorkItemCommandApi(
                 currentVersion));
         }
 
-        var requests = preparedItems.Select(item => new WorkItemSaveRequest(
-            item.Existing,
-            item.Command.Date!,
-            item.Command.Title!,
-            string.Empty,
-            item.Command.Hours!.Value,
-            (WorkPriorities)item.Command.Priority!.Value,
-            item.Tags,
-            item.ExtraFields,
-            [],
-            PreserveNote: true)).ToArray();
-        var saveResult = persistence.SaveBatch(database, requests);
+        var tagPreparations = new List<WorkItemTagAutomationPreparation>(preparedItems.Count);
+        WorkItemBatchSaveResult saveResult;
+        WorkItemSaveRequest[] requests;
+        try
+        {
+            foreach (var item in preparedItems)
+            {
+                var preparation = PrepareTagAutomation(item.Existing, item.Tags, item.Before.TagIds);
+                tagPreparations.Add(preparation);
+                if (!preparation.Succeeded)
+                {
+                    return ValueTask.FromResult(FailedBatchResult(
+                        "tag_automation_failed",
+                        preparation.Error ?? $"应用事项 {item.Existing.Id} 的标签自动化失败。",
+                        currentVersion));
+                }
+            }
+
+            requests = preparedItems.Select((item, index) => new WorkItemSaveRequest(
+                item.Existing,
+                item.Command.Date!,
+                item.Command.Title!,
+                string.Empty,
+                item.Command.Hours!.Value,
+                (WorkPriorities)item.Command.Priority!.Value,
+                item.Tags,
+                item.ExtraFields,
+                tagPreparations[index].Extensions,
+                PreserveNote: true)).ToArray();
+            saveResult = persistence.SaveBatch(database, requests);
+        }
+        finally
+        {
+            foreach (var preparation in tagPreparations)
+                preparation.Dispose();
+        }
         if (!saveResult.Success)
             return ValueTask.FromResult(FailedBatchResult("persistence_failed", saveResult.Error ?? "批量更新事项失败。", currentVersion));
         if (saveResult.Results.Count != requests.Length
@@ -328,6 +367,21 @@ public sealed class WorkItemCommandApi(
             error = "数据库提供程序不可用。";
             return null;
         }
+    }
+
+    private WorkItemTagAutomationPreparation PrepareTagAutomation(
+        WorkItem? existing,
+        IReadOnlyCollection<WorkTag> desiredTags,
+        IReadOnlyCollection<int> existingTagIds)
+    {
+        if (tagAutomation is null)
+            return WorkItemTagAutomationPreparation.Empty;
+        var existingIds = existingTagIds.ToHashSet();
+        var addedTags = desiredTags
+            .Where(tag => !existingIds.Contains(tag.Id))
+            .OrderBy(tag => tag.Id)
+            .ToArray();
+        return tagAutomation.Prepare(existing, addedTags, TagAddSource.Agent);
     }
 
     private void PublishAddedTags(

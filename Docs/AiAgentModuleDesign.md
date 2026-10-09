@@ -704,7 +704,9 @@ public interface IWorkItemCommandApi
 
 创建支持日期、标题、工时、优先级、标签、备注和附加字段。更新开放日期、标题、工时、优先级、标签和标签附加字段，并由宿主在事务内保留本地备注；备注不会进入更新预览或模型结果。附加字段使用 patch 语义：`ExtraFields == null` 表示不主动修改并保留更新后仍适用的值，提供的字段只覆盖对应字段，空白值清空指定字段，未提供字段保持不变，标签被移除后对应字段值随之清理。字段必须处于启用状态、属于最终标签集合，并通过 `TagExtraFieldValueValidator`。
 
-批量更新限制为 1–20 个互不重复的事项。预览包含逐项 `before/after` 和覆盖整个批次的版本摘要，摘要同时纳入事项状态、标签及字段定义；确认后重新标准化并比较版本。`IWorkItemPersistenceCoordinator.SaveBatch` 在一个数据库事务中保存全部事项，任一保存或提交失败都会回滚；只有完整返回全部保存结果后才记录 `batch:` 幂等标记并触发一次数据库变更通知。该能力扩展命令 DTO 和持久化协调器，不修改 `WorkItem`、`WorkTag` 或附加字段等核心数据结构。Tracker 编辑扩展写入继续禁用，除非各扩展提供明确可预览、可校验的命令契约。
+批量更新限制为 1–20 个互不重复的事项。预览包含逐项 `before/after` 和覆盖整个批次的版本摘要，摘要同时纳入事项状态、标签及字段定义；确认后重新标准化并比较版本。`IWorkItemPersistenceCoordinator.SaveBatch` 在一个数据库事务中保存全部事项，任一保存或提交失败都会回滚；只有完整返回全部保存结果后才记录 `batch:` 幂等标记并触发一次数据库变更通知。该能力扩展命令 DTO 和持久化协调器，不修改 `WorkItem`、`WorkTag` 或附加字段等核心数据结构。
+
+Agent 事项创建、单项更新和批量更新会通过 `IWorkItemTagAutomationService` 为新增标签创建现有 Tracker 编辑扩展、加载已有本地绑定，并复用 `ITagAutomationCoordinator` 应用标签默认值。自动化准备在持久化前完成，结果扩展随 `WorkItemSaveRequest` 在同一数据库事务内保存；任一实例应用失败会拒绝写入，批量场景不会产生部分更新。该路径只允许宿主标签规则产生的本地 Tracker 默认值，模型不能直接指定 Tracker 字段，也不会调用 `UploadAsync` 或向远程 Tracker 提交工时。已有标签不会重复应用默认值；幂等重复不会再次执行。模板创建仍沿用独立模板宿主，Tracker 默认值接入另行处理。
 
 事项命令宿主通过 `IWorkItemAutomationPublisher` 在提交成功且首次写入后发布脚本自动化事件。普通创建和模板创建先发布 `WorkItemCreated`，再按标签 ID/模板标签顺序发布 `TagAdded`；单项和批量更新发布 `WorkItemSaved`，并仅对相对保存前快照新增的标签发布 `TagAdded`。事件数据与普通编辑器一致，包含事项 ID、日期、标题、工时、优先级和可选标签信息，但不包含本地备注。预览、拒绝、事务失败和幂等重复不会发布事件；自动化调度失败不回滚已经提交的事项。
 

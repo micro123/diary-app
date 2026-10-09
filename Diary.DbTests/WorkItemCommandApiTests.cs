@@ -1,6 +1,9 @@
 using Diary.App.Models;
 using Diary.App.Services;
 using Diary.Core.Data.Base;
+using Diary.GUIBase.ViewModels;
+using Diary.PluginBase;
+using Diary.PluginUI;
 using Diary.ScriptBase;
 using Diary.ScriptHost;
 
@@ -59,6 +62,60 @@ public sealed class WorkItemCommandApiTests
             automation.Events.Select(item => item.Trigger).ToArray());
         Assert.AreEqual(item.Id, automation.Events[0].WorkItemId);
         Assert.AreEqual(tag.Id, automation.Events[1].TagId);
+    }
+
+    [TestMethod]
+    public async Task CreatePersistsPreparedTrackerDefaultsWithoutRemoteUpload()
+    {
+        using var db = TestDb.Create();
+        var tag = db.CreateWorkTag("Redmine 项目", true, 0);
+        var tagAutomation = new RecordingTagAutomationService();
+        var api = CreateApi(db, tagAutomation: tagAutomation);
+        var command = new WorkItemCreateCommand(
+            "2026-10-09",
+            "Agent 创建并应用 Redmine 默认值",
+            1,
+            (int)WorkPriorities.P2,
+            [tag.Id],
+            [],
+            null,
+            "agent-create-redmine-defaults");
+
+        var preview = await api.PreviewCreateAsync(command);
+        var result = await api.CreateAsync(preview.Command!);
+
+        Assert.IsTrue(result.Succeeded, result.ErrorMessage);
+        Assert.AreEqual(1, tagAutomation.PrepareCount);
+        Assert.AreEqual(TagAddSource.Agent, tagAutomation.Source);
+        CollectionAssert.AreEqual(new[] { tag.Id }, tagAutomation.AddedTagIds);
+        Assert.AreEqual(1, tagAutomation.Extension.SaveCount);
+        Assert.AreEqual(result.WorkItemId, tagAutomation.Extension.SavedItemId);
+        Assert.AreEqual(0, tagAutomation.Extension.UploadCount);
+        Assert.IsTrue(tagAutomation.Extension.Disposed);
+    }
+
+    [TestMethod]
+    public async Task TagAutomationFailureDoesNotCreateWorkItem()
+    {
+        using var db = TestDb.Create();
+        var tag = db.CreateWorkTag("失败规则", true, 0);
+        var api = CreateApi(db, tagAutomation: new FailingTagAutomationService());
+        var command = new WorkItemCreateCommand(
+            "2026-10-09",
+            "不应写入",
+            1,
+            (int)WorkPriorities.P2,
+            [tag.Id],
+            [],
+            null,
+            "agent-create-tag-automation-failure");
+
+        var preview = await api.PreviewCreateAsync(command);
+        var result = await api.CreateAsync(preview.Command!);
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual("tag_automation_failed", result.ErrorCode);
+        Assert.AreEqual(0, db.GetWorkItemByDate("2026-10-09").Count);
     }
 
     [TestMethod]
@@ -293,6 +350,36 @@ public sealed class WorkItemCommandApiTests
         Assert.IsTrue(automation.Events.All(item => item.Trigger == ScriptAutomationTriggerKind.WorkItemSaved));
     }
 
+    [TestMethod]
+    public async Task BatchTagAutomationFailureDoesNotWriteAnyItem()
+    {
+        using var db = TestDb.Create();
+        var tag = db.CreateWorkTag("批量新增标签", true, 0);
+        var first = db.CreateWorkItem("2026-10-08", "事项 A");
+        first.Time = 1;
+        Assert.IsTrue(db.UpdateWorkItem(first));
+        var second = db.CreateWorkItem("2026-10-08", "事项 B");
+        second.Time = 1;
+        Assert.IsTrue(db.UpdateWorkItem(second));
+        var api = CreateApi(db, tagAutomation: new FailOnSecondTagAutomationService());
+        var command = new WorkItemBatchUpdateCommand(
+            [
+                new WorkItemUpdateCommand(first.Id, null, "事项 A+", null, null, [tag.Id], "item-a"),
+                new WorkItemUpdateCommand(second.Id, null, "事项 B+", null, null, [tag.Id], "item-b"),
+            ],
+            "batch-tag-automation-failure");
+
+        var preview = await api.PreviewBatchUpdateAsync(command);
+        var result = await api.BatchUpdateAsync(preview.Command!);
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual("tag_automation_failed", result.ErrorCode);
+        Assert.AreEqual("事项 A", db.QueryWorkItems(new WorkItemQuery { WorkItemId = first.Id }).Single().Comment);
+        Assert.AreEqual("事项 B", db.QueryWorkItems(new WorkItemQuery { WorkItemId = second.Id }).Single().Comment);
+        Assert.AreEqual(0, db.GetWorkItemTags(first).Count);
+        Assert.AreEqual(0, db.GetWorkItemTags(second).Count);
+    }
+
     private static TagExtraFieldDefinition CreateField(
         Diary.Database.DbInterfaceBase db,
         int tagId,
@@ -313,11 +400,13 @@ public sealed class WorkItemCommandApiTests
 
     private static WorkItemCommandApi CreateApi(
         Diary.Database.DbInterfaceBase db,
-        IWorkItemAutomationPublisher? automationPublisher = null) => new(
+        IWorkItemAutomationPublisher? automationPublisher = null,
+        IWorkItemTagAutomationService? tagAutomation = null) => new(
         () => db,
         new WorkItemPersistenceCoordinator(),
         new WorkItemCommandIdempotencyStore(),
-        automationPublisher: automationPublisher);
+        automationPublisher: automationPublisher,
+        tagAutomation: tagAutomation);
 
     private sealed class RecordingAutomationPublisher : IWorkItemAutomationPublisher
     {
@@ -330,5 +419,82 @@ public sealed class WorkItemCommandApiTests
     {
         public WorkItemSaveResult Save(Diary.Database.DbInterfaceBase db, WorkItemSaveRequest request) =>
             new(false, false, Error: "模拟事务失败");
+    }
+
+    private sealed class RecordingTagAutomationService : IWorkItemTagAutomationService
+    {
+        public int PrepareCount { get; private set; }
+        public TagAddSource Source { get; private set; }
+        public int[] AddedTagIds { get; private set; } = [];
+        public RecordingTrackerExtension Extension { get; } = new();
+
+        public WorkItemTagAutomationPreparation Prepare(
+            WorkItem? existing,
+            IReadOnlyCollection<WorkTag> addedTags,
+            TagAddSource source)
+        {
+            PrepareCount++;
+            Source = source;
+            AddedTagIds = addedTags.Select(tag => tag.Id).ToArray();
+            return WorkItemTagAutomationPreparation.Success(
+                [Extension],
+                new TagAutomationResult([]));
+        }
+    }
+
+    private sealed class FailingTagAutomationService : IWorkItemTagAutomationService
+    {
+        public WorkItemTagAutomationPreparation Prepare(
+            WorkItem? existing,
+            IReadOnlyCollection<WorkTag> addedTags,
+            TagAddSource source) => WorkItemTagAutomationPreparation.Failure("模拟标签自动化失败");
+    }
+
+    private sealed class FailOnSecondTagAutomationService : IWorkItemTagAutomationService
+    {
+        private int _count;
+
+        public WorkItemTagAutomationPreparation Prepare(
+            WorkItem? existing,
+            IReadOnlyCollection<WorkTag> addedTags,
+            TagAddSource source)
+        {
+            _count++;
+            return _count == 2
+                ? WorkItemTagAutomationPreparation.Failure("第二项标签自动化失败")
+                : WorkItemTagAutomationPreparation.Success([new RecordingTrackerExtension()], new TagAutomationResult([]));
+        }
+    }
+
+    private sealed class RecordingTrackerExtension : ITrackerEditorExtension, IDisposable
+    {
+        public TrackerKey Key => new("redmine", "company");
+        public string InstanceId => Key.InstanceId;
+        public ViewModelBase View { get; } = new();
+        public bool IsLocked => false;
+        public bool CanDelete => true;
+        public int SaveCount { get; private set; }
+        public int? SavedItemId { get; private set; }
+        public int UploadCount { get; private set; }
+        public bool Disposed { get; private set; }
+
+        public void Load(WorkItem? item, object? binding = null) { }
+
+        public bool Save(WorkItem item)
+        {
+            SaveCount++;
+            SavedItemId = item.Id;
+            return true;
+        }
+
+        public void CloneTo(ITrackerEditorExtension? target) { }
+
+        public Task<TrackerOperationResult> UploadAsync(WorkItem item)
+        {
+            UploadCount++;
+            return Task.FromResult(new TrackerOperationResult(true));
+        }
+
+        public void Dispose() => Disposed = true;
     }
 }
