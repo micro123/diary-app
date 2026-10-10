@@ -653,7 +653,7 @@ AllowAutomatically
 
 ### 11.1 P0 只读工具
 
-用户手册工具包含 `diary_search_user_manual` 和 `diary_read_user_manual_section`。`UserManualIndexService` 只从固定的发布目录 `Docs/UserManual/DiaryApp-User-Manual.html` 读取手册；开发环境可向上查找仓库的 `_output` 产物，但模型不能传入文件路径。服务使用 AngleSharp 解析 Quarto 正文，将章节标题、ID 和直接正文缓存在内存；搜索最多返回 10 个短摘要，章节读取默认 6000、最多 12000 字符。工具结果视为 DiaryApp 内置信息，不具备网页外部内容的指令地位。
+用户手册工具包含 `diary_search_user_manual` 和 `diary_read_user_manual_section`。`UserManualIndexService` 只从固定的发布目录 `Docs/UserManual/DiaryApp-User-Manual.html` 读取手册；开发环境可向上查找仓库的 `_output` 产物，但模型不能传入文件路径。服务使用 AngleSharp 解析 Quarto 正文，将章节标题、ID 和直接正文缓存在内存。搜索是紧凑导航索引，默认 3 条、最多 5 条，每条片段最多约 120 字符；章节读取默认 2000、单次最多 4000 字符，并用 `offset`/`nextOffset` 分段续读。系统指令要求只读取最相关的一个章节，避免多个长结果阻塞工具续答。工具结果视为 DiaryApp 内置信息，不具备网页外部内容的指令地位。
 
 | 工具 | 宿主能力 | 默认状态 |
 | --- | --- | --- |
@@ -788,6 +788,7 @@ MCP Client 属于 P2，不是 P0/P1 网页访问的前置条件。实现时支�
 - 远程 Streamable HTTP；
 - `tools/list`、`tools/call` 和工具列表变化通知；
 - 服务器级代理、认证、超时和 Secret Reference；
+- stdio 默认严格 UTF-8，并允许按 Server 显式配置 `stdioEncoding`；兼容值包括 `utf-8`、`gb18030`、`gbk` 和 `cp936`，其中后三者统一使用 GB18030 编解码；
 - 工具名命名空间和本地策略；
 - 删除语义工具的配置校验与运行时注册双重拦截；
 - 文本和有预算的结构化结果。
@@ -803,6 +804,10 @@ MCP Client 属于 P2，不是 P0/P1 网页访问的前置条件。实现时支�
 - 测试结果显示远端 `tools/list` 返回的工具名；“探测并导入工具”把当前 JSON 中缺失的工具补为本地策略，普通未知工具默认启用并按 `Write` 逐次确认，名称具有删除语义的工具保持禁用，用户核对风险类型并保存后才影响运行时；
 - 停止会从运行时注册表移除该 Server 暴露的工具；刷新使用原连接重新发现工具，重启则释放原连接后重新初始化；
 - 同一 Server 的生命周期操作与工具调用通过连接级互斥串行，避免重启时截断正在执行的工具；单个 Server 故障只更新自身诊断，不影响模型连接、内置工具或其他 MCP Server。
+
+stdio transport 同时设置子进程标准输入、输出和错误流编码。UTF-8 模式额外向 Python 子进程注入 `PYTHONUTF8=1` 与 `PYTHONIOENCODING=utf-8`；GB18030 仅用于无法修正输出编码的旧 Windows 中文 Server。JSON 解析错误必须记录 stdout 行号、字符数、配置编码、PID、退出码和异常链，但不记录原始消息正文。
+
+AI/MCP 使用结构化诊断日志覆盖 run、模型轮次、工具调用、上下文压缩、取消/强制停止、Server 生命周期、JSON-RPC method/request ID、工具发现数量、stdio PID/编码/行数、HTTP Session 和异常链。日志不得写入提示词、工具参数/结果、思考正文、认证 Header、Token 或工作项本地备注。
 
 ## 14. UI 设计
 

@@ -586,6 +586,10 @@ Base URL 应填写包含公共前缀且以 `/` 结尾的地址，例如 `https:/
 
 工作项本地备注不会被 Agent 查询 API 读取，也不会进入模型请求、会话或审计。模型新建事项时提出的备注会显示在确认卡中，只有用户确认后才写入。
 
+用户手册搜索默认只返回 3 条紧凑章节索引、最多 5 条；助手随后只读取最相关的一个章节。章节正文默认返回 2000 字符，截断时可按偏移继续读取，避免一次工具调用把大段手册正文送回模型。
+
+当前运行的工具卡片提供“查看输出 / 收起输出”。展开后可以在只读、可滚动的文本框中查看和复制实际工具结果，JSON 会格式化显示。完整输出只保留在当前进程内，不写入会话文件；恢复历史会话时仍只显示脱敏摘要。
+
 写工具没有“永久跳过确认”。确认卡会展示预览或字段差异；选择“编辑后确认”会重新生成预览，选择“拒绝”不会产生副作用。批量更新在一个事务中执行，任一事项失败会整体回滚。Agent 不开放删除、任意文件、Shell、任意 SQL、UI 操作、脚本执行或 Tracker 远程提交工具。
 
 Agent 创建或更新事项成功后，会触发与普通事项编辑相同的脚本自动化。新增标签还会应用标签默认值和本地 Tracker 默认关联，但不会自动把工时上传到 Redmine 或 Jira。
@@ -619,6 +623,7 @@ stdio 示例：
     "command": "/opt/company-mcp/company-mcp",
     "arguments": ["--stdio"],
     "workingDirectory": "/opt/company-mcp",
+    "stdioEncoding": "utf-8",
     "timeout": "00:02:00",
     "tools": [
       { "toolName": "search_documents", "enabled": true, "risk": 0 },
@@ -627,6 +632,8 @@ stdio 示例：
   }
 ]
 ```
+
+stdio 按行传输 JSON-RPC，默认严格使用 UTF-8。UTF-8 模式会给 Python 子进程设置 `PYTHONUTF8=1` 和 `PYTHONIOENCODING=utf-8`，避免 Windows 中文区域设置把重定向输出切换为本地代码页。只有无法修改且确认按 GBK/CP936 输出的旧 Server 才应把 `stdioEncoding` 改成 `gb18030`；也接受 `gbk` 和 `cp936` 作为别名，并统一按 GB18030 解码。
 
 Streamable HTTP 示例：
 
@@ -672,10 +679,11 @@ Streamable HTTP 示例：
 - 点击停止后仍未结束：再次点击“停止”执行强制停止；出现“已强制停止，可以继续发送”后可立即开始下一轮；
 - HTTP 407：检查模型、网页或 MCP 对应的代理配置及代理凭据引用；
 - MCP 工具不出现：先保存 Server，执行“探测并导入工具”，核对策略并再次保存；然后检查 `enabled`、最近错误和发现/开放工具数，再执行启动和刷新工具；
+- MCP stdio 报 `Expected end of string`、`reached end of data` 或“stdout 第 N 行不是完整 JSON”：确认 Server 没有向 stdout 写普通日志或把一条 JSON 拆成多行；Windows 中文旧 Server 再尝试 `"stdioEncoding": "gb18030"`；
 - 动态网页不可用：确认本机已安装受支持浏览器，或改用静态 `web_fetch`；
 - 设置文件损坏：先备份并修复原文件，程序会阻止直接覆盖不可读取的设置。
 
-程序设置底部可以打开或导出应用日志。日志会记录连接 ID、协议、Base URL、代理模式、错误分类和 HTTP 状态，但不记录凭据正文。
+程序设置底部可以打开或导出应用日志。AI/MCP 日志会记录 Agent run、模型轮次、工具阶段、连接或 Server ID、协议、脱敏 Endpoint、stdio PID/编码/行号、HTTP Session、工具数量、耗时、错误分类和完整异常链；不会记录 Token、认证 Header、提示词、工具参数/结果、思考正文或本地备注。
 
 # 数据库、备份与还原
 
