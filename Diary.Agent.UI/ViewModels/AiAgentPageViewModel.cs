@@ -175,6 +175,8 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
     private Guid _conversationId = Guid.NewGuid();
     private DateTimeOffset _conversationCreatedAtUtc = DateTimeOffset.UtcNow;
     private bool _suppressProfileSessionReset;
+    private TaskCompletionSource? _activeSendDetached;
+    private long _sendGeneration;
 
     public AiAgentPageViewModel(
         AiConnectionManager connections,
@@ -292,9 +294,14 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
         ToolCalls.Clear();
         IsBusy = true;
         StatusText = "正在生成…";
+        var sendGeneration = ++_sendGeneration;
+        var detached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _activeSendDetached = detached;
         var toolCards = new Dictionary<string, AiToolCallViewModel>(StringComparer.Ordinal);
         var progress = new Progress<AgentRunEvent>(item =>
         {
+            if (sendGeneration != _sendGeneration)
+                return;
             switch (item.Kind)
             {
                 case AgentRunEventKind.ModelRequestStarted:
@@ -347,7 +354,7 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
         {
             if (_connections.Settings.EnabledTools.Mcp)
                 await _mcp.RefreshToolsAsync(_tools);
-            var result = await _session.RunAsync(
+            var runTask = _session.RunAsync(
                 userText,
                 SelectedProfile,
                 CreateEnabledToolSnapshot(),
@@ -356,6 +363,17 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
                     SupportsTools: capabilities.SupportsTools,
                     SupportsStreamingTools: capabilities.SupportsStreamingTools),
                 progress);
+            if (await Task.WhenAny(runTask, detached.Task) != runTask)
+            {
+                assistant.IsThinking = false;
+                if (string.IsNullOrWhiteSpace(assistant.Content))
+                    assistant.Content = "（已强制停止，本轮未写入会话历史）";
+                _ = ObserveDetachedRunAsync(runTask);
+                return;
+            }
+            var result = await runTask;
+            if (sendGeneration != _sendGeneration)
+                return;
             StatusText = result.Status switch
             {
                 AgentSessionStatus.Completed => _session.ContextCompactionCount > 0
@@ -369,15 +387,50 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
         }
         finally
         {
-            IsBusy = false;
+            if (sendGeneration == _sendGeneration)
+            {
+                _activeSendDetached = null;
+                IsBusy = false;
+            }
         }
     }
 
     [RelayCommand]
-    private void Stop()
+    private async Task Stop()
     {
-        _session.Cancel();
-        StatusText = "正在停止…";
+        if (_session.Status == AgentSessionStatus.Running)
+        {
+            _session.Cancel();
+            StatusText = "正在停止…若请求未结束，可再次点击强制停止。";
+            return;
+        }
+        if (_session.Status == AgentSessionStatus.Cancelling)
+        {
+            StatusText = "正在强制停止并重置模型连接…";
+            if (await _session.ForceCancelAsync())
+            {
+                _sendGeneration++;
+                var detached = _activeSendDetached;
+                _activeSendDetached = null;
+                detached?.TrySetResult();
+                IsBusy = false;
+                StatusText = "已强制停止，可以继续发送。";
+            }
+            return;
+        }
+        StatusText = "当前没有正在运行的请求。";
+    }
+
+    private static async Task ObserveDetachedRunAsync(Task<AgentRunResult> runTask)
+    {
+        try
+        {
+            await runTask;
+        }
+        catch
+        {
+            // 强制停止后的旧运行只负责后台清理，不再影响当前页面。
+        }
     }
 
     [RelayCommand]

@@ -117,6 +117,13 @@ public interface IAgentModelGateway
         CancellationToken cancellationToken = default);
 }
 
+public interface IAgentModelRequestAborter
+{
+    ValueTask AbortConnectionAsync(
+        AiConnectionProfile connection,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IAiProtocolAdapter
 {
     AiProtocol Protocol { get; }

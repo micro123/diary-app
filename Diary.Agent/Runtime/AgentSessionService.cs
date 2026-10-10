@@ -90,11 +90,11 @@ public sealed class AgentSessionService
     private readonly AgentContextCompactor _contextCompactor;
     private readonly IServiceProvider _services;
     private readonly IAgentAuditStore _audit;
-    private readonly SemaphoreSlim _runGate = new(1, 1);
+    private readonly object _stateLock = new();
     private readonly List<AgentMessage> _messages = [];
     private AgentProtocolState? _protocolState;
     private string? _protocolStateConnection;
-    private CancellationTokenSource? _activeRunCancellation;
+    private ActiveRun? _activeRun;
 
     public AgentSessionService(
         IAgentModelGateway modelGateway,
@@ -112,7 +112,14 @@ public sealed class AgentSessionService
 
     public AgentSessionStatus Status { get; private set; } = AgentSessionStatus.Idle;
 
-    public IReadOnlyList<AgentMessage> Messages => _messages.ToArray();
+    public IReadOnlyList<AgentMessage> Messages
+    {
+        get
+        {
+            lock (_stateLock)
+                return _messages.ToArray();
+        }
+    }
 
     public string? ContextSummary { get; private set; }
 
@@ -120,14 +127,17 @@ public sealed class AgentSessionService
 
     public void NewSession()
     {
-        if (Status is AgentSessionStatus.Running or AgentSessionStatus.Cancelling)
-            throw new InvalidOperationException("Agent 正在运行，不能新建会话。");
-        _messages.Clear();
-        ContextSummary = null;
-        ContextCompactionCount = 0;
-        _protocolState = null;
-        _protocolStateConnection = null;
-        Status = AgentSessionStatus.Idle;
+        lock (_stateLock)
+        {
+            if (_activeRun is not null)
+                throw new InvalidOperationException("Agent 正在运行，不能新建会话。");
+            _messages.Clear();
+            ContextSummary = null;
+            ContextCompactionCount = 0;
+            _protocolState = null;
+            _protocolStateConnection = null;
+            Status = AgentSessionStatus.Idle;
+        }
     }
 
     public void RestoreSession(
@@ -136,26 +146,58 @@ public sealed class AgentSessionService
         int contextCompactionCount = 0)
     {
         ArgumentNullException.ThrowIfNull(messages);
-        if (Status is AgentSessionStatus.Running or AgentSessionStatus.Cancelling)
-            throw new InvalidOperationException("Agent 正在运行，不能恢复会话。");
         var restored = messages.ToArray();
         if (restored.Any(message => message.Role == AgentMessageRole.Tool || message.ToolCalls.Count > 0))
             throw new ArgumentException("持久化会话只能恢复用户消息和最终回答。", nameof(messages));
-        _messages.Clear();
-        _messages.AddRange(restored);
-        ContextSummary = string.IsNullOrWhiteSpace(contextSummary) ? null : contextSummary;
-        ContextCompactionCount = Math.Max(0, contextCompactionCount);
-        _protocolState = null;
-        _protocolStateConnection = null;
-        Status = AgentSessionStatus.Idle;
+        lock (_stateLock)
+        {
+            if (_activeRun is not null)
+                throw new InvalidOperationException("Agent 正在运行，不能恢复会话。");
+            _messages.Clear();
+            _messages.AddRange(restored);
+            ContextSummary = string.IsNullOrWhiteSpace(contextSummary) ? null : contextSummary;
+            ContextCompactionCount = Math.Max(0, contextCompactionCount);
+            _protocolState = null;
+            _protocolStateConnection = null;
+            Status = AgentSessionStatus.Idle;
+        }
     }
 
-    public void Cancel()
+    public bool Cancel()
     {
-        if (Status != AgentSessionStatus.Running)
-            return;
-        Status = AgentSessionStatus.Cancelling;
-        _activeRunCancellation?.Cancel();
+        ActiveRun activeRun;
+        lock (_stateLock)
+        {
+            if (Status != AgentSessionStatus.Running || _activeRun is null)
+                return false;
+            Status = AgentSessionStatus.Cancelling;
+            activeRun = _activeRun;
+        }
+        TryCancel(activeRun.Cancellation);
+        return true;
+    }
+
+    public ValueTask<bool> ForceCancelAsync(CancellationToken cancellationToken = default)
+    {
+        ActiveRun activeRun;
+        lock (_stateLock)
+        {
+            if (_activeRun is null)
+                return ValueTask.FromResult(false);
+            activeRun = _activeRun;
+            _activeRun = null;
+            Status = AgentSessionStatus.Cancelled;
+            _protocolState = null;
+            _protocolStateConnection = null;
+        }
+        TryCancel(activeRun.Cancellation);
+        Report(activeRun.Progress, new AgentRunEvent(
+            AgentRunEventKind.StatusChanged,
+            activeRun.RunId,
+            Status: AgentSessionStatus.Cancelled));
+        if (_modelGateway is IAgentModelRequestAborter aborter)
+            _ = AbortConnectionSafelyAsync(aborter, activeRun.Connection, cancellationToken);
+        return ValueTask.FromResult(true);
     }
 
     public async Task<AgentRunResult> RunAsync(
@@ -168,14 +210,29 @@ public sealed class AgentSessionService
     {
         if (string.IsNullOrWhiteSpace(userText))
             throw new ArgumentException("用户消息不能为空。", nameof(userText));
-        if (!await _runGate.WaitAsync(0, cancellationToken))
-            throw new InvalidOperationException("同一会话同时只允许一个 Agent run。");
 
         var runId = Guid.NewGuid();
         var effectiveOptions = options ?? new AgentRunOptions();
         var budget = (effectiveOptions.Budget ?? new AgentRunBudget()).Validate();
         using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _activeRunCancellation = linkedCancellation;
+        var activeRun = new ActiveRun(runId, linkedCancellation, connection, progress);
+        List<AgentMessage> sessionMessages;
+        string? contextSummary;
+        int contextCompactionCount;
+        AgentProtocolState? protocolState;
+        string? protocolStateConnection;
+        lock (_stateLock)
+        {
+            if (_activeRun is not null)
+                throw new InvalidOperationException("同一会话同时只允许一个 Agent run。");
+            _activeRun = activeRun;
+            Status = AgentSessionStatus.Running;
+            sessionMessages = _messages.ToList();
+            contextSummary = ContextSummary;
+            contextCompactionCount = ContextCompactionCount;
+            protocolState = _protocolState;
+            protocolStateConnection = _protocolStateConnection;
+        }
         var totalToolCalls = 0;
         var roundsCompleted = 0;
         AgentUsage? latestUsage = null;
@@ -184,7 +241,10 @@ public sealed class AgentSessionService
         var runStopwatch = Stopwatch.StartNew();
         try
         {
-            SetStatus(AgentSessionStatus.Running, runId, progress);
+            ReportIfCurrent(activeRun, new AgentRunEvent(
+                AgentRunEventKind.StatusChanged,
+                runId,
+                Status: AgentSessionStatus.Running));
             var definitions = effectiveOptions.SupportsTools
                 ? toolSnapshot.Descriptors.Select(ToModelDefinition).ToArray()
                 : [];
@@ -192,14 +252,14 @@ public sealed class AgentSessionService
                                && (definitions.Length == 0 || effectiveOptions.SupportsStreamingTools);
             var connectionIdentity = CreateConnectionIdentity(connection);
             var activeProtocolState = string.Equals(
-                _protocolStateConnection,
+                protocolStateConnection,
                 connectionIdentity,
                 StringComparison.Ordinal)
-                ? _protocolState
+                ? protocolState
                 : null;
             var compaction = await _contextCompactor.CompactIfNeededAsync(
-                ContextSummary,
-                _messages,
+                contextSummary,
+                sessionMessages,
                 userText,
                 definitions,
                 connection,
@@ -208,14 +268,22 @@ public sealed class AgentSessionService
                 cancellationToken: linkedCancellation.Token);
             if (compaction.Compacted)
             {
-                _messages.Clear();
-                _messages.AddRange(compaction.RetainedMessages);
-                ContextSummary = compaction.Summary;
-                ContextCompactionCount++;
-                _protocolState = null;
-                _protocolStateConnection = null;
+                sessionMessages = compaction.RetainedMessages.ToList();
+                contextSummary = compaction.Summary;
+                contextCompactionCount++;
+                protocolState = null;
+                protocolStateConnection = null;
+                if (!TryCommitCompaction(
+                        activeRun,
+                        sessionMessages,
+                        contextSummary,
+                        contextCompactionCount))
+                {
+                    linkedCancellation.Token.ThrowIfCancellationRequested();
+                    throw new OperationCanceledException(linkedCancellation.Token);
+                }
                 latestUsage = MergeUsage(latestUsage, compaction.Usage);
-                Report(progress, new AgentRunEvent(
+                ReportIfCurrent(activeRun, new AgentRunEvent(
                     AgentRunEventKind.ContextCompacted,
                     runId,
                     Text: compaction.UsedFallback
@@ -223,19 +291,19 @@ public sealed class AgentSessionService
                         : $"已自动压缩 {compaction.CompactedMessageCount} 条历史消息。"));
             }
 
-            var workingMessages = _messages.ToList();
+            var workingMessages = sessionMessages.ToList();
             workingMessages.Add(AgentMessage.User(userText));
             var workingProtocolState = string.Equals(
-                _protocolStateConnection,
+                protocolStateConnection,
                 connectionIdentity,
                 StringComparison.Ordinal)
-                ? _protocolState
+                ? protocolState
                 : null;
             for (var round = 1; round <= budget.MaxRounds; round++)
             {
                 roundsCompleted = round;
                 linkedCancellation.Token.ThrowIfCancellationRequested();
-                Report(progress, new AgentRunEvent(
+                ReportIfCurrent(activeRun, new AgentRunEvent(
                     AgentRunEventKind.ModelRequestStarted,
                     runId,
                     Text: totalToolCalls > 0
@@ -253,22 +321,22 @@ public sealed class AgentSessionService
                     ? await CollectStreamingResponseAsync(
                         request,
                         connection,
-                        runId,
-                        progress,
+                        activeRun,
                         linkedCancellation.Token)
                     : await _modelGateway.SendAsync(request, connection, linkedCancellation.Token);
+                linkedCancellation.Token.ThrowIfCancellationRequested();
                 latestUsage = MergeUsage(latestUsage, response.Usage);
                 if (!useStreaming && !string.IsNullOrEmpty(response.ReasoningText))
                 {
-                    Report(progress, new AgentRunEvent(
+                    ReportIfCurrent(activeRun, new AgentRunEvent(
                         AgentRunEventKind.ReasoningDelta,
                         runId,
                         Text: response.ReasoningText));
                 }
                 if (!useStreaming && !string.IsNullOrEmpty(response.Text))
-                    Report(progress, new AgentRunEvent(AgentRunEventKind.TextDelta, runId, Text: response.Text));
+                    ReportIfCurrent(activeRun, new AgentRunEvent(AgentRunEventKind.TextDelta, runId, Text: response.Text));
                 if (response.Usage is not null)
-                    Report(progress, new AgentRunEvent(AgentRunEventKind.UsageUpdated, runId, Usage: response.Usage));
+                    ReportIfCurrent(activeRun, new AgentRunEvent(AgentRunEventKind.UsageUpdated, runId, Usage: response.Usage));
 
                 workingProtocolState = response.ProtocolState;
                 if (response.ToolCalls.Count == 0)
@@ -277,12 +345,18 @@ public sealed class AgentSessionService
                         response.Text,
                         reasoningText: response.ReasoningText,
                         reasoningContentBlocks: response.ReasoningContentBlocks));
-                    _messages.Clear();
-                    _messages.AddRange(workingMessages);
-                    _protocolState = workingProtocolState;
-                    _protocolStateConnection = connectionIdentity;
-                    SetStatus(AgentSessionStatus.Completed, runId, progress);
-                    Report(progress, new AgentRunEvent(AgentRunEventKind.Completed, runId, Text: response.Text));
+                    if (!TryCommitCompletion(
+                            activeRun,
+                            workingMessages,
+                            contextSummary,
+                            contextCompactionCount,
+                            workingProtocolState,
+                            connectionIdentity))
+                    {
+                        linkedCancellation.Token.ThrowIfCancellationRequested();
+                        throw new OperationCanceledException(linkedCancellation.Token);
+                    }
+                    ReportIfCurrent(activeRun, new AgentRunEvent(AgentRunEventKind.Completed, runId, Text: response.Text));
                     return new AgentRunResult(
                         runId,
                         AgentSessionStatus.Completed,
@@ -295,12 +369,12 @@ public sealed class AgentSessionService
                 if (!effectiveOptions.SupportsTools)
                 {
                     finalErrorCode = "tools_not_supported";
-                    return Fail(runId, round, totalToolCalls, latestUsage, "tools_not_supported", "当前连接仅支持普通对话。", progress);
+                    return Fail(activeRun, round, totalToolCalls, latestUsage, "tools_not_supported", "当前连接仅支持普通对话。");
                 }
                 if (totalToolCalls + response.ToolCalls.Count > budget.MaxToolCalls)
                 {
                     finalErrorCode = "tool_budget_exceeded";
-                    return Fail(runId, round, totalToolCalls, latestUsage, "tool_budget_exceeded", "工具调用次数达到预算上限。", progress);
+                    return Fail(activeRun, round, totalToolCalls, latestUsage, "tool_budget_exceeded", "工具调用次数达到预算上限。");
                 }
 
                 workingMessages.Add(AgentMessage.Assistant(
@@ -315,7 +389,7 @@ public sealed class AgentSessionService
                     var invocationId = Guid.NewGuid();
                     var toolStartedAt = DateTimeOffset.UtcNow;
                     var toolStopwatch = Stopwatch.StartNew();
-                    Report(progress, new AgentRunEvent(
+                    ReportIfCurrent(activeRun, new AgentRunEvent(
                         AgentRunEventKind.ToolStarted,
                         runId,
                         ToolName: call.Name,
@@ -336,7 +410,7 @@ public sealed class AgentSessionService
                         toolStartedAt,
                         toolStopwatch.ElapsedMilliseconds,
                         toolResult);
-                    Report(progress, new AgentRunEvent(
+                    ReportIfCurrent(activeRun, new AgentRunEvent(
                         AgentRunEventKind.ToolCompleted,
                         runId,
                         ToolName: call.Name,
@@ -354,17 +428,35 @@ public sealed class AgentSessionService
                 }
             }
             finalErrorCode = "round_budget_exceeded";
-            return Fail(runId, budget.MaxRounds, totalToolCalls, latestUsage, finalErrorCode, "Agent 轮次达到预算上限。", progress);
+            return Fail(activeRun, budget.MaxRounds, totalToolCalls, latestUsage, finalErrorCode, "Agent 轮次达到预算上限。");
         }
         catch (OperationCanceledException)
         {
             finalErrorCode = "cancelled";
-            SetStatus(AgentSessionStatus.Cancelled, runId, progress);
+            ResetProtocolStateAfterCancellation(activeRun);
+            TrySetStatus(activeRun, AgentSessionStatus.Cancelled);
             return new AgentRunResult(
                 runId,
                 AgentSessionStatus.Cancelled,
                 string.Empty,
                 0,
+                totalToolCalls,
+                latestUsage,
+                "cancelled",
+                "Agent run 已取消。");
+        }
+        catch (AiModelException exception) when (
+            exception.Category == AiModelErrorCategory.Cancelled
+            || linkedCancellation.IsCancellationRequested)
+        {
+            finalErrorCode = "cancelled";
+            ResetProtocolStateAfterCancellation(activeRun);
+            TrySetStatus(activeRun, AgentSessionStatus.Cancelled);
+            return new AgentRunResult(
+                runId,
+                AgentSessionStatus.Cancelled,
+                string.Empty,
+                roundsCompleted,
                 totalToolCalls,
                 latestUsage,
                 "cancelled",
@@ -376,23 +468,38 @@ public sealed class AgentSessionService
             var message = exception.Code == "request_timeout" && totalToolCalls > 0
                 ? "工具结果已回传，但模型响应超时。可提高连接的请求/空闲超时，或缩小查询范围后重试。"
                 : exception.Message;
-            return Fail(runId, roundsCompleted, totalToolCalls, latestUsage, exception.Code, message, progress);
+            return Fail(activeRun, roundsCompleted, totalToolCalls, latestUsage, exception.Code, message);
+        }
+        catch (Exception) when (linkedCancellation.IsCancellationRequested)
+        {
+            finalErrorCode = "cancelled";
+            ResetProtocolStateAfterCancellation(activeRun);
+            TrySetStatus(activeRun, AgentSessionStatus.Cancelled);
+            return new AgentRunResult(
+                runId,
+                AgentSessionStatus.Cancelled,
+                string.Empty,
+                roundsCompleted,
+                totalToolCalls,
+                latestUsage,
+                "cancelled",
+                "Agent run 已取消。");
         }
         catch (Exception)
         {
             finalErrorCode = "agent_run_failed";
             return Fail(
-                runId,
+                activeRun,
                 0,
                 totalToolCalls,
                 latestUsage,
                 "agent_run_failed",
-                "Agent run 失败；详细信息仅记录在本地诊断中。",
-                progress);
+                "Agent run 失败；详细信息仅记录在本地诊断中。");
         }
         finally
         {
             runStopwatch.Stop();
+            CompleteRun(activeRun);
             await RecordRunAuditAsync(new AgentRunAuditRecord(
                 runId,
                 connection.Id,
@@ -400,21 +507,34 @@ public sealed class AgentSessionService
                 connection.Protocol.ToString(),
                 startedAt,
                 startedAt + runStopwatch.Elapsed,
-                Status.ToString(),
+                finalErrorCode switch
+                {
+                    null => AgentSessionStatus.Completed.ToString(),
+                    "cancelled" => AgentSessionStatus.Cancelled.ToString(),
+                    _ => AgentSessionStatus.Failed.ToString(),
+                },
                 roundsCompleted,
                 totalToolCalls,
                 finalErrorCode,
                 latestUsage));
-            _activeRunCancellation = null;
-            _runGate.Release();
+        }
+    }
+
+    private void ResetProtocolStateAfterCancellation(ActiveRun activeRun)
+    {
+        lock (_stateLock)
+        {
+            if (!ReferenceEquals(_activeRun, activeRun))
+                return;
+            _protocolState = null;
+            _protocolStateConnection = null;
         }
     }
 
     private async Task<AgentModelResponse> CollectStreamingResponseAsync(
         AgentModelRequest request,
         AiConnectionProfile connection,
-        Guid runId,
-        IProgress<AgentRunEvent>? progress,
+        ActiveRun activeRun,
         CancellationToken cancellationToken)
     {
         var text = new StringBuilder();
@@ -431,14 +551,17 @@ public sealed class AgentSessionService
             {
                 case AgentStreamEventKind.ReasoningDelta:
                     reasoning.Append(item.Text);
-                    Report(progress, new AgentRunEvent(
+                    ReportIfCurrent(activeRun, new AgentRunEvent(
                         AgentRunEventKind.ReasoningDelta,
-                        runId,
+                        activeRun.RunId,
                         Text: item.Text));
                     break;
                 case AgentStreamEventKind.TextDelta:
                     text.Append(item.Text);
-                    Report(progress, new AgentRunEvent(AgentRunEventKind.TextDelta, runId, Text: item.Text));
+                    ReportIfCurrent(activeRun, new AgentRunEvent(
+                        AgentRunEventKind.TextDelta,
+                        activeRun.RunId,
+                        Text: item.Text));
                     break;
                 case AgentStreamEventKind.ToolCallStarted:
                     {
@@ -500,18 +623,21 @@ public sealed class AgentSessionService
     }
 
     private AgentRunResult Fail(
-        Guid runId,
+        ActiveRun activeRun,
         int rounds,
         int toolCalls,
         AgentUsage? usage,
         string code,
-        string message,
-        IProgress<AgentRunEvent>? progress)
+        string message)
     {
-        SetStatus(AgentSessionStatus.Failed, runId, progress);
-        Report(progress, new AgentRunEvent(AgentRunEventKind.Failed, runId, Text: message, ErrorCode: code));
+        TrySetStatus(activeRun, AgentSessionStatus.Failed);
+        ReportIfCurrent(activeRun, new AgentRunEvent(
+            AgentRunEventKind.Failed,
+            activeRun.RunId,
+            Text: message,
+            ErrorCode: code));
         return new AgentRunResult(
-            runId,
+            activeRun.RunId,
             AgentSessionStatus.Failed,
             string.Empty,
             rounds,
@@ -521,13 +647,110 @@ public sealed class AgentSessionService
             message);
     }
 
-    private void SetStatus(
-        AgentSessionStatus status,
-        Guid runId,
-        IProgress<AgentRunEvent>? progress)
+    private bool TryCommitCompaction(
+        ActiveRun activeRun,
+        IReadOnlyList<AgentMessage> messages,
+        string? contextSummary,
+        int contextCompactionCount)
     {
-        Status = status;
-        Report(progress, new AgentRunEvent(AgentRunEventKind.StatusChanged, runId, Status: status));
+        lock (_stateLock)
+        {
+            if (!ReferenceEquals(_activeRun, activeRun))
+                return false;
+            _messages.Clear();
+            _messages.AddRange(messages);
+            ContextSummary = contextSummary;
+            ContextCompactionCount = contextCompactionCount;
+            _protocolState = null;
+            _protocolStateConnection = null;
+            return true;
+        }
+    }
+
+    private bool TryCommitCompletion(
+        ActiveRun activeRun,
+        IReadOnlyList<AgentMessage> messages,
+        string? contextSummary,
+        int contextCompactionCount,
+        AgentProtocolState? protocolState,
+        string protocolStateConnection)
+    {
+        lock (_stateLock)
+        {
+            if (!ReferenceEquals(_activeRun, activeRun))
+                return false;
+            _messages.Clear();
+            _messages.AddRange(messages);
+            ContextSummary = contextSummary;
+            ContextCompactionCount = contextCompactionCount;
+            _protocolState = protocolState;
+            _protocolStateConnection = protocolStateConnection;
+            Status = AgentSessionStatus.Completed;
+            return true;
+        }
+    }
+
+    private bool TrySetStatus(ActiveRun activeRun, AgentSessionStatus status)
+    {
+        lock (_stateLock)
+        {
+            if (!ReferenceEquals(_activeRun, activeRun))
+                return false;
+            Status = status;
+        }
+        Report(activeRun.Progress, new AgentRunEvent(
+            AgentRunEventKind.StatusChanged,
+            activeRun.RunId,
+            Status: status));
+        return true;
+    }
+
+    private void ReportIfCurrent(ActiveRun activeRun, AgentRunEvent item)
+    {
+        lock (_stateLock)
+        {
+            if (!ReferenceEquals(_activeRun, activeRun))
+                return;
+        }
+        Report(activeRun.Progress, item);
+    }
+
+    private void CompleteRun(ActiveRun activeRun)
+    {
+        lock (_stateLock)
+        {
+            if (ReferenceEquals(_activeRun, activeRun))
+                _activeRun = null;
+        }
+    }
+
+    private static void TryCancel(CancellationTokenSource cancellation)
+    {
+        try
+        {
+            cancellation.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // 运行已经结束，不需要再次取消。
+        }
+    }
+
+    private static async Task AbortConnectionSafelyAsync(
+        IAgentModelRequestAborter aborter,
+        AiConnectionProfile connection,
+        CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        try
+        {
+            await aborter.AbortConnectionAsync(connection, timeout.Token).AsTask().WaitAsync(timeout.Token);
+        }
+        catch (Exception)
+        {
+            // 连接回收是强制停止的兜底，不应阻塞页面恢复使用。
+        }
     }
 
     private static void Report(IProgress<AgentRunEvent>? progress, AgentRunEvent item)
@@ -562,6 +785,12 @@ public sealed class AgentSessionService
 
     private static long? Add(long? left, long? right) =>
         left is null && right is null ? null : left.GetValueOrDefault() + right.GetValueOrDefault();
+
+    private sealed record ActiveRun(
+        Guid RunId,
+        CancellationTokenSource Cancellation,
+        AiConnectionProfile Connection,
+        IProgress<AgentRunEvent>? Progress);
 
     private async ValueTask RecordToolAuditAsync(
         Guid runId,

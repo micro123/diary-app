@@ -40,6 +40,30 @@ public sealed class AiHttpClientPool(
         }
     }
 
+    public async ValueTask<bool> EvictAsync(
+        AiConnectionProfile profile,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var proxy = ResolveProxy(profile.Proxy);
+        var proxyIdentity = await ResolveProxyIdentityAsync(proxy, cancellationToken);
+        var fingerprint = CreateFingerprint(profile, proxyIdentity);
+        if (!_clients.TryRemove(fingerprint, out var lazy))
+            return false;
+        if (!lazy.IsValueCreated)
+            return true;
+        try
+        {
+            var client = await lazy.Value.WaitAsync(cancellationToken);
+            client.Dispose();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // 创建失败的客户端已经从池中移除，无需阻止强制停止。
+        }
+        return true;
+    }
+
     public void Dispose()
     {
         if (_disposed)

@@ -117,6 +117,75 @@ public sealed class AgentSessionServiceTests
     }
 
     [TestMethod]
+    public async Task ModelWrappedCancellationReturnsCancelledAndNextRunCompletes()
+    {
+        var gateway = new WrappedCancellationGateway();
+        var session = CreateSession(gateway);
+        var registry = new AgentToolRegistry();
+
+        var firstRun = session.RunAsync("first", CreateProfile(), registry.CreateSnapshot());
+        await gateway.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.IsTrue(session.Cancel());
+
+        var cancelled = await firstRun.WaitAsync(TimeSpan.FromSeconds(5));
+        var completed = await session.RunAsync("second", CreateProfile(), registry.CreateSnapshot());
+
+        Assert.AreEqual(AgentSessionStatus.Cancelled, cancelled.Status);
+        Assert.AreEqual(AgentSessionStatus.Completed, completed.Status);
+        Assert.AreEqual("second answer", completed.FinalText);
+        Assert.AreEqual(2, session.Messages.Count);
+    }
+
+    [TestMethod]
+    public async Task ForceCancelAbortsConnectionAndAllowsNextRun()
+    {
+        var gateway = new ForceAbortGateway();
+        var session = CreateSession(gateway);
+        var registry = new AgentToolRegistry();
+
+        var firstRun = session.RunAsync("first", CreateProfile(), registry.CreateSnapshot());
+        await gateway.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.IsTrue(session.Cancel());
+        Assert.IsTrue(await session.ForceCancelAsync());
+
+        var cancelled = await firstRun.WaitAsync(TimeSpan.FromSeconds(5));
+        var completed = await session.RunAsync("second", CreateProfile(), registry.CreateSnapshot());
+
+        Assert.AreEqual(1, gateway.AbortCount);
+        Assert.AreEqual(AgentSessionStatus.Cancelled, cancelled.Status);
+        Assert.AreEqual(AgentSessionStatus.Completed, completed.Status);
+        Assert.AreEqual("recovered", completed.FinalText);
+    }
+
+    [TestMethod]
+    public async Task ForceCancelDetachesUncooperativeRunAndIgnoresItsLateResult()
+    {
+        var gateway = new UncooperativeAbortGateway();
+        var session = CreateSession(gateway);
+        var registry = new AgentToolRegistry();
+
+        var firstRun = session.RunAsync("first", CreateProfile(), registry.CreateSnapshot());
+        await gateway.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.IsTrue(session.Cancel());
+
+        var forceResult = await session.ForceCancelAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        var completed = await session.RunAsync("second", CreateProfile(), registry.CreateSnapshot())
+            .WaitAsync(TimeSpan.FromSeconds(5));
+        gateway.ReleaseFirst.TrySetResult();
+        var cancelled = await firstRun.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.IsTrue(forceResult);
+        await gateway.AbortStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.AreEqual(AgentSessionStatus.Completed, completed.Status);
+        Assert.AreEqual("new answer", completed.FinalText);
+        Assert.AreEqual(AgentSessionStatus.Cancelled, cancelled.Status);
+        Assert.AreEqual(AgentSessionStatus.Completed, session.Status);
+        Assert.AreEqual(2, session.Messages.Count);
+        Assert.AreEqual("second", session.Messages[0].Text);
+        Assert.AreEqual("new answer", session.Messages[1].Text);
+    }
+
+    [TestMethod]
     public async Task ChatOnlyConnectionReceivesNoToolsAndCompletesNormally()
     {
         var gateway = new SequencedGateway(TextStream("chat response"));
@@ -357,6 +426,132 @@ public sealed class AgentSessionServiceTests
             yield return new AgentStreamEvent(AgentStreamEventKind.ResponseStarted);
             yield return new AgentStreamEvent(AgentStreamEventKind.TextDelta, Text: "partial");
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+        }
+    }
+
+    private sealed class WrappedCancellationGateway : IAgentModelGateway
+    {
+        private int _runCount;
+
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ValueTask<AgentModelResponse> SendAsync(
+            AgentModelRequest request,
+            AiConnectionProfile connection,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public async IAsyncEnumerable<AgentStreamEvent> StreamAsync(
+            AgentModelRequest request,
+            AiConnectionProfile connection,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref _runCount) == 1)
+            {
+                Started.TrySetResult();
+                try
+                {
+                    await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                }
+                catch (OperationCanceledException exception)
+                {
+                    throw new AiModelException(
+                        AiModelErrorCategory.Cancelled,
+                        "request_cancelled",
+                        "模型请求已取消。",
+                        innerException: exception);
+                }
+                yield break;
+            }
+            yield return new AgentStreamEvent(AgentStreamEventKind.ResponseStarted);
+            yield return new AgentStreamEvent(AgentStreamEventKind.TextDelta, Text: "second answer");
+            yield return new AgentStreamEvent(AgentStreamEventKind.ResponseCompleted, FinishReason: "stop");
+        }
+    }
+
+    private sealed class ForceAbortGateway : IAgentModelGateway, IAgentModelRequestAborter
+    {
+        private readonly TaskCompletionSource _aborted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _runCount;
+
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int AbortCount { get; private set; }
+
+        public ValueTask<AgentModelResponse> SendAsync(
+            AgentModelRequest request,
+            AiConnectionProfile connection,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public async IAsyncEnumerable<AgentStreamEvent> StreamAsync(
+            AgentModelRequest request,
+            AiConnectionProfile connection,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref _runCount) == 1)
+            {
+                Started.TrySetResult();
+                await _aborted.Task;
+                throw new OperationCanceledException(cancellationToken);
+            }
+            yield return new AgentStreamEvent(AgentStreamEventKind.ResponseStarted);
+            yield return new AgentStreamEvent(AgentStreamEventKind.TextDelta, Text: "recovered");
+            yield return new AgentStreamEvent(AgentStreamEventKind.ResponseCompleted, FinishReason: "stop");
+        }
+
+        public ValueTask AbortConnectionAsync(
+            AiConnectionProfile connection,
+            CancellationToken cancellationToken = default)
+        {
+            AbortCount++;
+            _aborted.TrySetResult();
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class UncooperativeAbortGateway : IAgentModelGateway, IAgentModelRequestAborter
+    {
+        private readonly TaskCompletionSource _neverFinishAbort = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _runCount;
+
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource AbortStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource ReleaseFirst { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ValueTask<AgentModelResponse> SendAsync(
+            AgentModelRequest request,
+            AiConnectionProfile connection,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public async IAsyncEnumerable<AgentStreamEvent> StreamAsync(
+            AgentModelRequest request,
+            AiConnectionProfile connection,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref _runCount) == 1)
+            {
+                Started.TrySetResult();
+                yield return new AgentStreamEvent(AgentStreamEventKind.ResponseStarted);
+                await ReleaseFirst.Task;
+                yield return new AgentStreamEvent(AgentStreamEventKind.TextDelta, Text: "stale answer");
+                yield return new AgentStreamEvent(AgentStreamEventKind.ResponseCompleted, FinishReason: "stop");
+                yield break;
+            }
+            yield return new AgentStreamEvent(AgentStreamEventKind.ResponseStarted);
+            yield return new AgentStreamEvent(AgentStreamEventKind.TextDelta, Text: "new answer");
+            yield return new AgentStreamEvent(AgentStreamEventKind.ResponseCompleted, FinishReason: "stop");
+        }
+
+        public ValueTask AbortConnectionAsync(
+            AiConnectionProfile connection,
+            CancellationToken cancellationToken = default)
+        {
+            AbortStarted.TrySetResult();
+            return new ValueTask(_neverFinishAbort.Task);
         }
     }
 

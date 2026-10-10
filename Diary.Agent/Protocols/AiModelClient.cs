@@ -7,7 +7,7 @@ using Diary.Agent.Networking;
 
 namespace Diary.Agent.Protocols;
 
-public sealed class AiModelClient : IAgentModelGateway
+public sealed class AiModelClient : IAgentModelGateway, IAgentModelRequestAborter
 {
     private readonly IAiCredentialStore _credentialStore;
     private readonly AiHttpClientPool _clientPool;
@@ -101,6 +101,13 @@ public sealed class AiModelClient : IAgentModelGateway
             timeout.CancelAfter(connection.RequestTimeout);
             yield return current;
         }
+    }
+
+    public async ValueTask AbortConnectionAsync(
+        AiConnectionProfile connection,
+        CancellationToken cancellationToken = default)
+    {
+        await _clientPool.EvictAsync(connection, cancellationToken);
     }
 
     private async IAsyncEnumerable<AgentStreamEvent> StreamCoreAsync(
