@@ -4,6 +4,8 @@ using System.Diagnostics;
 using Diary.Agent.Configuration;
 using Diary.Agent.Protocols;
 using Diary.Agent.Tools;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Diary.Agent.Runtime;
 
@@ -90,6 +92,7 @@ public sealed class AgentSessionService
     private readonly AgentContextCompactor _contextCompactor;
     private readonly IServiceProvider _services;
     private readonly IAgentAuditStore _audit;
+    private readonly ILogger<AgentSessionService> _logger;
     private readonly object _stateLock = new();
     private readonly List<AgentMessage> _messages = [];
     private AgentProtocolState? _protocolState;
@@ -101,13 +104,15 @@ public sealed class AgentSessionService
         AgentToolExecutor toolExecutor,
         IServiceProvider services,
         IAgentAuditStore? audit = null,
-        AgentContextCompactor? contextCompactor = null)
+        AgentContextCompactor? contextCompactor = null,
+        ILogger<AgentSessionService>? logger = null)
     {
         _modelGateway = modelGateway;
         _toolExecutor = toolExecutor;
         _contextCompactor = contextCompactor ?? new AgentContextCompactor(modelGateway);
         _services = services;
         _audit = audit ?? new NullAgentAuditStore();
+        _logger = logger ?? NullLogger<AgentSessionService>.Instance;
     }
 
     public AgentSessionStatus Status { get; private set; } = AgentSessionStatus.Idle;
@@ -173,6 +178,11 @@ public sealed class AgentSessionService
             Status = AgentSessionStatus.Cancelling;
             activeRun = _activeRun;
         }
+        _logger.LogInformation(
+            "正在取消 Agent run。RunId={RunId}, ConnectionId={ConnectionId}, Status={Status}",
+            activeRun.RunId,
+            activeRun.Connection.Id,
+            Status);
         TryCancel(activeRun.Cancellation);
         return true;
     }
@@ -190,6 +200,10 @@ public sealed class AgentSessionService
             _protocolState = null;
             _protocolStateConnection = null;
         }
+        _logger.LogWarning(
+            "正在强制停止 Agent run 并废弃其后续结果。RunId={RunId}, ConnectionId={ConnectionId}",
+            activeRun.RunId,
+            activeRun.Connection.Id);
         TryCancel(activeRun.Cancellation);
         Report(activeRun.Progress, new AgentRunEvent(
             AgentRunEventKind.StatusChanged,
@@ -250,6 +264,18 @@ public sealed class AgentSessionService
                 : [];
             var useStreaming = effectiveOptions.SupportsStreaming
                                && (definitions.Length == 0 || effectiveOptions.SupportsStreamingTools);
+            _logger.LogInformation(
+                "Agent run 开始。RunId={RunId}, ConnectionId={ConnectionId}, Protocol={Protocol}, Model={Model}, HistoryMessages={HistoryMessages}, Tools={ToolCount}, Streaming={Streaming}, MaxRounds={MaxRounds}, MaxToolCalls={MaxToolCalls}, MaxOutputTokens={MaxOutputTokens}",
+                runId,
+                connection.Id,
+                connection.Protocol,
+                connection.Model,
+                sessionMessages.Count,
+                definitions.Length,
+                useStreaming,
+                budget.MaxRounds,
+                budget.MaxToolCalls,
+                budget.MaxOutputTokens);
             var connectionIdentity = CreateConnectionIdentity(connection);
             var activeProtocolState = string.Equals(
                 protocolStateConnection,
@@ -283,6 +309,13 @@ public sealed class AgentSessionService
                     throw new OperationCanceledException(linkedCancellation.Token);
                 }
                 latestUsage = MergeUsage(latestUsage, compaction.Usage);
+                _logger.LogInformation(
+                    "Agent 上下文已压缩。RunId={RunId}, CompactedMessages={CompactedMessages}, RetainedMessages={RetainedMessages}, UsedFallback={UsedFallback}, CompactionCount={CompactionCount}",
+                    runId,
+                    compaction.CompactedMessageCount,
+                    sessionMessages.Count,
+                    compaction.UsedFallback,
+                    contextCompactionCount);
                 ReportIfCurrent(activeRun, new AgentRunEvent(
                     AgentRunEventKind.ContextCompacted,
                     runId,
@@ -303,6 +336,13 @@ public sealed class AgentSessionService
             {
                 roundsCompleted = round;
                 linkedCancellation.Token.ThrowIfCancellationRequested();
+                _logger.LogInformation(
+                    "Agent 模型轮次开始。RunId={RunId}, Round={Round}, MessageCount={MessageCount}, CompletedToolCalls={ToolCalls}, Streaming={Streaming}",
+                    runId,
+                    round,
+                    workingMessages.Count,
+                    totalToolCalls,
+                    useStreaming);
                 ReportIfCurrent(activeRun, new AgentRunEvent(
                     AgentRunEventKind.ModelRequestStarted,
                     runId,
@@ -326,6 +366,13 @@ public sealed class AgentSessionService
                     : await _modelGateway.SendAsync(request, connection, linkedCancellation.Token);
                 linkedCancellation.Token.ThrowIfCancellationRequested();
                 latestUsage = MergeUsage(latestUsage, response.Usage);
+                _logger.LogInformation(
+                    "Agent 模型轮次完成。RunId={RunId}, Round={Round}, ToolCalls={ToolCalls}, HasText={HasText}, HasReasoning={HasReasoning}",
+                    runId,
+                    round,
+                    response.ToolCalls.Count,
+                    !string.IsNullOrEmpty(response.Text),
+                    !string.IsNullOrEmpty(response.ReasoningText));
                 if (!useStreaming && !string.IsNullOrEmpty(response.ReasoningText))
                 {
                     ReportIfCurrent(activeRun, new AgentRunEvent(
@@ -356,6 +403,11 @@ public sealed class AgentSessionService
                         linkedCancellation.Token.ThrowIfCancellationRequested();
                         throw new OperationCanceledException(linkedCancellation.Token);
                     }
+                    _logger.LogInformation(
+                        "Agent run 已完成。RunId={RunId}, Rounds={Rounds}, ToolCalls={ToolCalls}",
+                        runId,
+                        round,
+                        totalToolCalls);
                     ReportIfCurrent(activeRun, new AgentRunEvent(AgentRunEventKind.Completed, runId, Text: response.Text));
                     return new AgentRunResult(
                         runId,
@@ -389,6 +441,13 @@ public sealed class AgentSessionService
                     var invocationId = Guid.NewGuid();
                     var toolStartedAt = DateTimeOffset.UtcNow;
                     var toolStopwatch = Stopwatch.StartNew();
+                    _logger.LogInformation(
+                        "Agent 工具调用开始。RunId={RunId}, InvocationId={InvocationId}, ToolName={ToolName}, ToolCallId={ToolCallId}, Index={ToolCallIndex}",
+                        runId,
+                        invocationId,
+                        call.Name,
+                        call.Id,
+                        totalToolCalls);
                     ReportIfCurrent(activeRun, new AgentRunEvent(
                         AgentRunEventKind.ToolStarted,
                         runId,
@@ -410,6 +469,18 @@ public sealed class AgentSessionService
                         toolStartedAt,
                         toolStopwatch.ElapsedMilliseconds,
                         toolResult);
+                    _logger.LogInformation(
+                        "Agent 工具调用完成。RunId={RunId}, InvocationId={InvocationId}, ToolName={ToolName}, ToolCallId={ToolCallId}, Succeeded={Succeeded}, ErrorCode={ErrorCode}, DurationMs={DurationMs}, External={External}, Truncated={Truncated}, ContentLength={ContentLength}",
+                        runId,
+                        invocationId,
+                        call.Name,
+                        call.Id,
+                        toolResult.Succeeded,
+                        toolResult.ErrorCode,
+                        toolStopwatch.ElapsedMilliseconds,
+                        toolResult.IsExternalContent,
+                        toolResult.IsTruncated,
+                        toolResult.Content.Length);
                     ReportIfCurrent(activeRun, new AgentRunEvent(
                         AgentRunEventKind.ToolCompleted,
                         runId,
@@ -430,8 +501,14 @@ public sealed class AgentSessionService
             finalErrorCode = "round_budget_exceeded";
             return Fail(activeRun, budget.MaxRounds, totalToolCalls, latestUsage, finalErrorCode, "Agent 轮次达到预算上限。");
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException exception)
         {
+            _logger.LogInformation(
+                exception,
+                "Agent run 已取消。RunId={RunId}, Rounds={Rounds}, ToolCalls={ToolCalls}",
+                runId,
+                roundsCompleted,
+                totalToolCalls);
             finalErrorCode = "cancelled";
             ResetProtocolStateAfterCancellation(activeRun);
             TrySetStatus(activeRun, AgentSessionStatus.Cancelled);
@@ -449,6 +526,13 @@ public sealed class AgentSessionService
             exception.Category == AiModelErrorCategory.Cancelled
             || linkedCancellation.IsCancellationRequested)
         {
+            _logger.LogInformation(
+                exception,
+                "模型侧确认 Agent run 已取消。RunId={RunId}, Rounds={Rounds}, ToolCalls={ToolCalls}, Code={Code}",
+                runId,
+                roundsCompleted,
+                totalToolCalls,
+                exception.Code);
             finalErrorCode = "cancelled";
             ResetProtocolStateAfterCancellation(activeRun);
             TrySetStatus(activeRun, AgentSessionStatus.Cancelled);
@@ -464,14 +548,29 @@ public sealed class AgentSessionService
         }
         catch (AiModelException exception)
         {
+            _logger.LogWarning(
+                exception,
+                "Agent 模型调用失败。RunId={RunId}, Rounds={Rounds}, ToolCalls={ToolCalls}, Category={Category}, Code={Code}, StatusCode={StatusCode}",
+                runId,
+                roundsCompleted,
+                totalToolCalls,
+                exception.Category,
+                exception.Code,
+                exception.StatusCode);
             finalErrorCode = exception.Code;
             var message = exception.Code == "request_timeout" && totalToolCalls > 0
                 ? "工具结果已回传，但模型响应超时。可提高连接的请求/空闲超时，或缩小查询范围后重试。"
                 : exception.Message;
             return Fail(activeRun, roundsCompleted, totalToolCalls, latestUsage, exception.Code, message);
         }
-        catch (Exception) when (linkedCancellation.IsCancellationRequested)
+        catch (Exception exception) when (linkedCancellation.IsCancellationRequested)
         {
+            _logger.LogInformation(
+                exception,
+                "Agent run 在取消期间结束。RunId={RunId}, Rounds={Rounds}, ToolCalls={ToolCalls}",
+                runId,
+                roundsCompleted,
+                totalToolCalls);
             finalErrorCode = "cancelled";
             ResetProtocolStateAfterCancellation(activeRun);
             TrySetStatus(activeRun, AgentSessionStatus.Cancelled);
@@ -485,8 +584,15 @@ public sealed class AgentSessionService
                 "cancelled",
                 "Agent run 已取消。");
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            _logger.LogError(
+                exception,
+                "Agent run 未处理异常。RunId={RunId}, ConnectionId={ConnectionId}, Rounds={Rounds}, ToolCalls={ToolCalls}",
+                runId,
+                connection.Id,
+                roundsCompleted,
+                totalToolCalls);
             finalErrorCode = "agent_run_failed";
             return Fail(
                 activeRun,
@@ -499,6 +605,14 @@ public sealed class AgentSessionService
         finally
         {
             runStopwatch.Stop();
+            _logger.LogInformation(
+                "Agent run 结束。RunId={RunId}, ConnectionId={ConnectionId}, Outcome={Outcome}, Rounds={Rounds}, ToolCalls={ToolCalls}, DurationMs={DurationMs}",
+                runId,
+                connection.Id,
+                finalErrorCode ?? "completed",
+                roundsCompleted,
+                totalToolCalls,
+                runStopwatch.ElapsedMilliseconds);
             CompleteRun(activeRun);
             await RecordRunAuditAsync(new AgentRunAuditRecord(
                 runId,
@@ -736,7 +850,7 @@ public sealed class AgentSessionService
         }
     }
 
-    private static async Task AbortConnectionSafelyAsync(
+    private async Task AbortConnectionSafelyAsync(
         IAgentModelRequestAborter aborter,
         AiConnectionProfile connection,
         CancellationToken cancellationToken)
@@ -747,8 +861,14 @@ public sealed class AgentSessionService
         {
             await aborter.AbortConnectionAsync(connection, timeout.Token).AsTask().WaitAsync(timeout.Token);
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            _logger.LogWarning(
+                exception,
+                "强制停止后的模型连接回收失败。ConnectionId={ConnectionId}, Protocol={Protocol}, Model={Model}",
+                connection.Id,
+                connection.Protocol,
+                connection.Model);
             // 连接回收是强制停止的兜底，不应阻塞页面恢复使用。
         }
     }
@@ -823,8 +943,14 @@ public sealed class AgentSessionService
                     ? result.EffectSummary
                     : null));
         }
-        catch
+        catch (Exception exception)
         {
+            _logger.LogWarning(
+                exception,
+                "Agent 工具审计写入失败。RunId={RunId}, InvocationId={InvocationId}, ToolName={ToolName}",
+                runId,
+                invocationId,
+                modelName);
             // 审计写入失败不得改变 Agent 运行结果。
         }
     }
@@ -835,8 +961,13 @@ public sealed class AgentSessionService
         {
             await _audit.RecordRunAsync(record);
         }
-        catch
+        catch (Exception exception)
         {
+            _logger.LogWarning(
+                exception,
+                "Agent run 审计写入失败。RunId={RunId}, ConnectionId={ConnectionId}",
+                record.RunId,
+                record.ConnectionId);
             // 审计写入失败不得改变 Agent 运行结果。
         }
     }

@@ -4,6 +4,8 @@ using System.Security.Authentication;
 using Diary.Agent.Configuration;
 using Diary.Agent.Credentials;
 using Diary.Agent.Networking;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Diary.Agent.Protocols;
 
@@ -12,15 +14,18 @@ public sealed class AiModelClient : IAgentModelGateway, IAgentModelRequestAborte
     private readonly IAiCredentialStore _credentialStore;
     private readonly AiHttpClientPool _clientPool;
     private readonly IReadOnlyDictionary<AiProtocol, IAiProtocolAdapter> _adapters;
+    private readonly ILogger<AiModelClient> _logger;
 
     public AiModelClient(
         IAiCredentialStore credentialStore,
         AiHttpClientPool clientPool,
-        IEnumerable<IAiProtocolAdapter> adapters)
+        IEnumerable<IAiProtocolAdapter> adapters,
+        ILogger<AiModelClient>? logger = null)
     {
         _credentialStore = credentialStore;
         _clientPool = clientPool;
         _adapters = adapters.ToDictionary(adapter => adapter.Protocol);
+        _logger = logger ?? NullLogger<AiModelClient>.Instance;
     }
 
     public async ValueTask<AgentModelResponse> SendAsync(
@@ -35,23 +40,49 @@ public sealed class AiModelClient : IAgentModelGateway, IAgentModelRequestAborte
         using var message = adapter.CreateRequest(request, connection, credential);
         await ApplyAdditionalHeadersAsync(message, connection, cancellationToken);
         using var timeout = CreateTimeout(connection.RequestTimeout, cancellationToken);
+        _logger.LogInformation(
+            "开始模型请求。ConnectionId={ConnectionId}, Protocol={Protocol}, Model={Model}, Endpoint={Endpoint}, Stream=false, Messages={MessageCount}, Tools={ToolCount}, TimeoutSeconds={TimeoutSeconds}",
+            connection.Id,
+            connection.Protocol,
+            connection.Model,
+            SafeEndpoint(message.RequestUri),
+            request.Messages.Count,
+            request.Tools.Count,
+            connection.RequestTimeout.TotalSeconds);
         try
         {
             var client = await _clientPool.GetClientAsync(connection, timeout.Token);
             using var response = await client.SendAsync(message, HttpCompletionOption.ResponseContentRead, timeout.Token);
-            return await adapter.ParseResponseAsync(response, timeout.Token);
+            var parsed = await adapter.ParseResponseAsync(response, timeout.Token);
+            _logger.LogInformation(
+                "模型请求完成。ConnectionId={ConnectionId}, Protocol={Protocol}, Model={Model}, StatusCode={StatusCode}, ToolCalls={ToolCalls}, HasText={HasText}",
+                connection.Id,
+                connection.Protocol,
+                connection.Model,
+                (int)response.StatusCode,
+                parsed.ToolCalls.Count,
+                !string.IsNullOrEmpty(parsed.Text));
+            return parsed;
         }
         catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
         {
+            _logger.LogWarning(exception, "模型请求超时。ConnectionId={ConnectionId}, Protocol={Protocol}, Model={Model}", connection.Id, connection.Protocol, connection.Model);
             throw new AiModelException(AiModelErrorCategory.Timeout, "request_timeout", "模型请求超时。", innerException: exception);
         }
         catch (OperationCanceledException exception)
         {
+            _logger.LogInformation("模型请求已取消。ConnectionId={ConnectionId}, Protocol={Protocol}, Model={Model}", connection.Id, connection.Protocol, connection.Model);
             throw new AiModelException(AiModelErrorCategory.Cancelled, "request_cancelled", "模型请求已取消。", innerException: exception);
         }
         catch (HttpRequestException exception)
         {
+            _logger.LogError(exception, "模型网络请求失败。ConnectionId={ConnectionId}, Protocol={Protocol}, Model={Model}, Endpoint={Endpoint}", connection.Id, connection.Protocol, connection.Model, SafeEndpoint(message.RequestUri));
             throw NormalizeNetworkException(exception);
+        }
+        catch (AiModelException exception)
+        {
+            _logger.LogWarning(exception, "模型协议响应失败。ConnectionId={ConnectionId}, Protocol={Protocol}, Model={Model}, Category={Category}, Code={Code}, HttpStatus={HttpStatus}", connection.Id, connection.Protocol, connection.Model, exception.Category, exception.Code, exception.StatusCode);
+            throw;
         }
     }
 
@@ -68,18 +99,38 @@ public sealed class AiModelClient : IAgentModelGateway, IAgentModelRequestAborte
         await ApplyAdditionalHeadersAsync(message, connection, cancellationToken);
         using var timeout = CreateTimeout(connection.RequestTimeout, cancellationToken);
         var stream = StreamCoreAsync(message, connection, adapter, timeout.Token);
+        _logger.LogInformation(
+            "开始模型流式请求。ConnectionId={ConnectionId}, Protocol={Protocol}, Model={Model}, Endpoint={Endpoint}, Messages={MessageCount}, Tools={ToolCount}, IdleTimeoutSeconds={TimeoutSeconds}",
+            connection.Id,
+            connection.Protocol,
+            connection.Model,
+            SafeEndpoint(message.RequestUri),
+            request.Messages.Count,
+            request.Tools.Count,
+            connection.RequestTimeout.TotalSeconds);
         await using var enumerator = stream.GetAsyncEnumerator(timeout.Token);
+        var eventCount = 0;
         while (true)
         {
             AgentStreamEvent current;
             try
             {
                 if (!await enumerator.MoveNextAsync())
+                {
+                    _logger.LogInformation(
+                        "模型流式请求结束。ConnectionId={ConnectionId}, Protocol={Protocol}, Model={Model}, EventCount={EventCount}",
+                        connection.Id,
+                        connection.Protocol,
+                        connection.Model,
+                        eventCount);
                     yield break;
+                }
                 current = enumerator.Current;
+                eventCount++;
             }
             catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
             {
+                _logger.LogWarning(exception, "模型流式请求空闲超时。ConnectionId={ConnectionId}, Protocol={Protocol}, Model={Model}, EventCount={EventCount}", connection.Id, connection.Protocol, connection.Model, eventCount);
                 throw new AiModelException(
                     AiModelErrorCategory.Timeout,
                     "request_timeout",
@@ -88,6 +139,7 @@ public sealed class AiModelClient : IAgentModelGateway, IAgentModelRequestAborte
             }
             catch (OperationCanceledException exception)
             {
+                _logger.LogInformation("模型流式请求已取消。ConnectionId={ConnectionId}, Protocol={Protocol}, Model={Model}, EventCount={EventCount}", connection.Id, connection.Protocol, connection.Model, eventCount);
                 throw new AiModelException(
                     AiModelErrorCategory.Cancelled,
                     "request_cancelled",
@@ -96,7 +148,13 @@ public sealed class AiModelClient : IAgentModelGateway, IAgentModelRequestAborte
             }
             catch (HttpRequestException exception)
             {
+                _logger.LogError(exception, "模型流式网络请求失败。ConnectionId={ConnectionId}, Protocol={Protocol}, Model={Model}, Endpoint={Endpoint}, EventCount={EventCount}", connection.Id, connection.Protocol, connection.Model, SafeEndpoint(message.RequestUri), eventCount);
                 throw NormalizeNetworkException(exception);
+            }
+            catch (AiModelException exception)
+            {
+                _logger.LogWarning(exception, "模型流式协议响应失败。ConnectionId={ConnectionId}, Protocol={Protocol}, Model={Model}, Category={Category}, Code={Code}, EventCount={EventCount}", connection.Id, connection.Protocol, connection.Model, exception.Category, exception.Code, eventCount);
+                throw;
             }
             timeout.CancelAfter(connection.RequestTimeout);
             yield return current;
@@ -107,7 +165,13 @@ public sealed class AiModelClient : IAgentModelGateway, IAgentModelRequestAborte
         AiConnectionProfile connection,
         CancellationToken cancellationToken = default)
     {
-        await _clientPool.EvictAsync(connection, cancellationToken);
+        var evicted = await _clientPool.EvictAsync(connection, cancellationToken);
+        _logger.LogWarning(
+            "已请求回收模型 HTTP 连接。ConnectionId={ConnectionId}, Protocol={Protocol}, Model={Model}, Evicted={Evicted}",
+            connection.Id,
+            connection.Protocol,
+            connection.Model,
+            evicted);
     }
 
     private async IAsyncEnumerable<AgentStreamEvent> StreamCoreAsync(
@@ -227,5 +291,19 @@ public sealed class AiModelClient : IAgentModelGateway, IAgentModelRequestAborte
                 return matched;
         }
         return null;
+    }
+
+    private static string SafeEndpoint(Uri? endpoint)
+    {
+        if (endpoint is null)
+            return string.Empty;
+        var sanitized = new UriBuilder(endpoint)
+        {
+            UserName = string.Empty,
+            Password = string.Empty,
+            Query = string.Empty,
+            Fragment = string.Empty,
+        };
+        return sanitized.Uri.GetLeftPart(UriPartial.Path);
     }
 }

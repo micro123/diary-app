@@ -5,6 +5,8 @@ using System.Text.Json;
 using Diary.Agent.Configuration;
 using Diary.Agent.Credentials;
 using Diary.Agent.Tools;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Diary.Agent.Mcp;
 
@@ -42,8 +44,12 @@ public sealed record McpServerTestResult(
 public sealed class McpClientManager(
     AiConnectionManager settings,
     IAiCredentialStore credentials,
-    IAgentConfirmationService confirmations) : IAsyncDisposable
+    IAgentConfirmationService confirmations,
+    ILoggerFactory? loggerFactory = null,
+    ILogger<McpClientManager>? logger = null) : IAsyncDisposable
 {
+    private readonly ILoggerFactory _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
+    private readonly ILogger<McpClientManager> _logger = logger ?? NullLogger<McpClientManager>.Instance;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private readonly ConcurrentDictionary<string, ConnectionEntry> _connections = new(StringComparer.Ordinal);
     private readonly Dictionary<string, McpServerDiagnostic> _diagnostics = new(StringComparer.Ordinal);
@@ -85,6 +91,10 @@ public sealed class McpClientManager(
             var profiles = settings.Settings.McpServers
                 .Where(profile => profile.Enabled)
                 .ToDictionary(profile => profile.Id, StringComparer.Ordinal);
+            _logger.LogInformation(
+                "正在刷新全部 MCP Server。EnabledServers={EnabledServers}, ExistingConnections={ExistingConnections}",
+                profiles.Count,
+                _connections.Count);
             foreach (var removed in _connections.Keys.Where(id => !profiles.ContainsKey(id)).ToArray())
                 await StopServerCoreAsync(removed, registry, cancellationToken);
             foreach (var profile in profiles.Values)
@@ -147,17 +157,39 @@ public sealed class McpClientManager(
     {
         ThrowIfDisposed();
         var profile = GetSavedProfile(serverId, requireEnabled: false);
-        await using var connection = new McpClientConnection(profile, credentials);
+        _logger.LogInformation(
+            "开始测试 MCP Server。ServerId={ServerId}, Transport={Transport}, Endpoint={Endpoint}, Encoding={Encoding}",
+            profile.Id,
+            profile.Transport,
+            SafeEndpoint(profile),
+            profile.Transport == McpTransportKind.Stdio ? profile.StdioEncoding : string.Empty);
+        await using var connection = new McpClientConnection(
+            profile,
+            credentials,
+            _loggerFactory,
+            _loggerFactory.CreateLogger<McpClientConnection>());
         try
         {
             var tools = await connection.ListToolsAsync(cancellationToken);
             var names = string.Join("、", tools.Take(12).Select(tool => tool.Name));
             var suffix = tools.Count > 12 ? $" 等 {tools.Count} 个" : string.Empty;
             var detail = tools.Count == 0 ? string.Empty : $"：{names}{suffix}";
+            _logger.LogInformation(
+                "MCP Server 测试成功。ServerId={ServerId}, DiscoveredTools={DiscoveredTools}, Tools={Tools}",
+                profile.Id,
+                tools.Count,
+                string.Join(',', tools.Take(50).Select(tool => tool.Name)));
             return new McpServerTestResult(true, tools, $"连接成功，发现 {tools.Count} 个工具{detail}。");
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
+            _logger.LogError(
+                exception,
+                "MCP Server 测试失败。ServerId={ServerId}, Transport={Transport}, Endpoint={Endpoint}, Encoding={Encoding}",
+                profile.Id,
+                profile.Transport,
+                SafeEndpoint(profile),
+                profile.Transport == McpTransportKind.Stdio ? profile.StdioEncoding : string.Empty);
             return new McpServerTestResult(false, [], exception.Message);
         }
     }
@@ -240,6 +272,13 @@ public sealed class McpClientManager(
         CancellationToken cancellationToken)
     {
         var fingerprint = CreateFingerprint(profile);
+        _logger.LogInformation(
+            "开始连接 MCP Server。ServerId={ServerId}, Restart={Restart}, Transport={Transport}, Endpoint={Endpoint}, ConfiguredPolicies={ConfiguredPolicies}",
+            profile.Id,
+            restart,
+            profile.Transport,
+            SafeEndpoint(profile),
+            profile.Tools.Count);
         if (restart)
             await StopServerCoreAsync(profile.Id, registry, cancellationToken, keepStoppingState: true);
         if (!_connections.TryGetValue(profile.Id, out var entry)
@@ -247,7 +286,11 @@ public sealed class McpClientManager(
         {
             if (entry is not null)
                 await RemoveEntryAsync(profile.Id, entry, registry, cancellationToken);
-            var connection = new McpClientConnection(profile, credentials);
+            var connection = new McpClientConnection(
+                profile,
+                credentials,
+                _loggerFactory,
+                _loggerFactory.CreateLogger<McpClientConnection>());
             connection.ToolsChanged += OnToolsChangedAsync;
             entry = new ConnectionEntry(fingerprint, connection);
             _connections[profile.Id] = entry;
@@ -280,6 +323,13 @@ public sealed class McpClientManager(
                 adapters.Length,
                 entry.Connection.RuntimeInfo);
             UpdateDiagnostic(diagnostic);
+            _logger.LogInformation(
+                "MCP Server 已连接。ServerId={ServerId}, DiscoveredTools={DiscoveredTools}, ExposedTools={ExposedTools}, ProcessId={ProcessId}, SessionId={SessionId}",
+                profile.Id,
+                remoteTools.Count,
+                adapters.Length,
+                diagnostic.ProcessId,
+                diagnostic.SessionId);
             return diagnostic;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -294,6 +344,15 @@ public sealed class McpClientManager(
                 runtime: runtime,
                 error: exception.Message);
             UpdateDiagnostic(diagnostic);
+            _logger.LogError(
+                exception,
+                "MCP Server 连接或工具刷新失败。ServerId={ServerId}, Transport={Transport}, Endpoint={Endpoint}, ProcessId={ProcessId}, ExitCode={ExitCode}, SessionId={SessionId}",
+                profile.Id,
+                profile.Transport,
+                SafeEndpoint(profile),
+                runtime.ProcessId,
+                runtime.ExitCode,
+                runtime.SessionId);
             return diagnostic;
         }
         finally
@@ -329,6 +388,7 @@ public sealed class McpClientManager(
                 DateTimeOffset.UtcNow);
         }
         UpdateDiagnostic(CreateDiagnostic(profile, McpServerRuntimeState.Stopping));
+        _logger.LogInformation("正在停止 MCP Server。ServerId={ServerId}", serverId);
         if (_connections.TryRemove(serverId, out var entry))
             await DisposeEntryAsync(entry, cancellationToken);
         registry?.ReplaceOwnerTools(OwnerId(serverId), []);
@@ -336,6 +396,7 @@ public sealed class McpClientManager(
             profile,
             keepStoppingState ? McpServerRuntimeState.Stopping : McpServerRuntimeState.Stopped);
         UpdateDiagnostic(diagnostic);
+        _logger.LogInformation("MCP Server 已停止。ServerId={ServerId}", serverId);
         return diagnostic;
     }
 
@@ -416,8 +477,12 @@ public sealed class McpClientManager(
                 if (profile is not null && profile.Enabled)
                     await RefreshToolsAsync(registry);
             }
-            catch
+            catch (Exception exception)
             {
+                _logger.LogWarning(
+                    exception,
+                    "MCP tools/list_changed 通知触发的后台刷新失败。ServerId={ServerId}",
+                    connection.Profile.Id);
                 // 通知触发的刷新失败保留诊断；下一次 run 会再次显式刷新。
             }
         });
@@ -429,6 +494,22 @@ public sealed class McpClientManager(
         this);
 
     private static string OwnerId(string serverId) => $"diary.ai-agent.mcp.{serverId}";
+
+    private static string SafeEndpoint(McpServerProfile profile)
+    {
+        if (profile.Transport == McpTransportKind.Stdio)
+            return profile.Command;
+        if (profile.Endpoint is null)
+            return string.Empty;
+        var sanitized = new UriBuilder(profile.Endpoint)
+        {
+            UserName = string.Empty,
+            Password = string.Empty,
+            Query = string.Empty,
+            Fragment = string.Empty,
+        };
+        return sanitized.Uri.GetLeftPart(UriPartial.Path);
+    }
 
     private static string CreateModelName(string serverId, string toolName)
     {

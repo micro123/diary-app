@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Diary.Agent.Configuration;
 using Diary.Agent.Credentials;
+using Microsoft.Extensions.Logging;
 
 namespace Diary.Agent.Mcp;
 
@@ -39,7 +40,9 @@ internal interface IMcpJsonRpcTransport : IAsyncDisposable
 internal sealed class McpTransportException(string message, Exception? innerException = null)
     : Exception(message, innerException);
 
-internal sealed class StdioMcpTransport(McpServerProfile profile) : IMcpJsonRpcTransport
+internal sealed class StdioMcpTransport(
+    McpServerProfile profile,
+    ILogger<StdioMcpTransport> logger) : IMcpJsonRpcTransport
 {
     private const int MaxMessageCharacters = 4 * 1024 * 1024;
     private readonly ConcurrentDictionary<long, TaskCompletionSource<JsonElement>> _pending = new();
@@ -49,6 +52,8 @@ internal sealed class StdioMcpTransport(McpServerProfile profile) : IMcpJsonRpcT
     private Task? _readLoop;
     private Task? _errorLoop;
     private long _nextId;
+    private long _receivedLineCount;
+    private long _stderrLineCount;
 
     public event Func<string, JsonElement, CancellationToken, ValueTask>? NotificationReceived;
 
@@ -76,6 +81,7 @@ internal sealed class StdioMcpTransport(McpServerProfile profile) : IMcpJsonRpcT
     {
         if (_process is not null)
             return ValueTask.CompletedTask;
+        var encoding = McpStdioEncoding.Resolve(profile.StdioEncoding);
         var startInfo = new ProcessStartInfo
         {
             FileName = profile.Command,
@@ -88,11 +94,29 @@ internal sealed class StdioMcpTransport(McpServerProfile profile) : IMcpJsonRpcT
             UseShellExecute = false,
             CreateNoWindow = true,
             WindowStyle = ProcessWindowStyle.Hidden,
+            StandardInputEncoding = encoding,
+            StandardOutputEncoding = encoding,
+            StandardErrorEncoding = encoding,
         };
+        if (string.Equals(encoding.WebName, "utf-8", StringComparison.OrdinalIgnoreCase))
+        {
+            startInfo.Environment["PYTHONUTF8"] = "1";
+            startInfo.Environment["PYTHONIOENCODING"] = "utf-8";
+        }
         foreach (var argument in profile.Arguments)
             startInfo.ArgumentList.Add(argument);
+        logger.LogInformation(
+            "正在启动 stdio MCP Server。ServerId={ServerId}, Command={Command}, WorkingDirectory={WorkingDirectory}, Encoding={Encoding}",
+            profile.Id,
+            profile.Command,
+            startInfo.WorkingDirectory,
+            encoding.WebName);
         _process = Process.Start(startInfo)
             ?? throw new McpTransportException($"无法启动 MCP Server：{profile.DisplayName}。");
+        logger.LogInformation(
+            "stdio MCP Server 已启动。ServerId={ServerId}, ProcessId={ProcessId}",
+            profile.Id,
+            _process.Id);
         _readLoop = ReadLoopAsync(_shutdown.Token);
         _errorLoop = DrainStandardErrorAsync(_shutdown.Token);
         return ValueTask.CompletedTask;
@@ -115,8 +139,19 @@ internal sealed class StdioMcpTransport(McpServerProfile profile) : IMcpJsonRpcT
         });
         try
         {
+            logger.LogInformation(
+                "发送 MCP stdio JSON-RPC 请求。ServerId={ServerId}, Method={Method}, RequestId={RequestId}",
+                profile.Id,
+                method,
+                id);
             await WriteAsync(CreateMessage(id, method, parameters), cancellationToken);
-            return await completion.Task;
+            var result = await completion.Task;
+            logger.LogInformation(
+                "收到 MCP stdio JSON-RPC 响应。ServerId={ServerId}, Method={Method}, RequestId={RequestId}",
+                profile.Id,
+                method,
+                id);
+            return result;
         }
         finally
         {
@@ -156,6 +191,10 @@ internal sealed class StdioMcpTransport(McpServerProfile profile) : IMcpJsonRpcT
                 catch { }
             }
             process.Dispose();
+            logger.LogInformation(
+                "stdio MCP Server 已停止。ServerId={ServerId}, StderrLines={StderrLines}",
+                profile.Id,
+                Interlocked.Read(ref _stderrLineCount));
         }
         foreach (var pending in _pending.Values)
             pending.TrySetException(new McpTransportException("MCP stdio 连接已关闭。"));
@@ -182,10 +221,26 @@ internal sealed class StdioMcpTransport(McpServerProfile profile) : IMcpJsonRpcT
                 var line = await _process!.StandardOutput.ReadLineAsync(cancellationToken);
                 if (line is null)
                     break;
+                var lineNumber = Interlocked.Increment(ref _receivedLineCount);
                 if (line.Length > MaxMessageCharacters)
                     throw new McpTransportException("MCP stdio 消息超过大小限制。");
-                using var document = JsonDocument.Parse(line);
-                await HandleMessageAsync(document.RootElement, cancellationToken);
+                JsonDocument document;
+                try
+                {
+                    document = JsonDocument.Parse(line);
+                }
+                catch (JsonException exception)
+                {
+                    throw new McpTransportException(
+                        $"MCP stdio Server {profile.DisplayName} 的 stdout 第 {lineNumber} 行不是完整 JSON；"
+                        + $"字符数 {line.Length}，按 {McpStdioEncoding.Resolve(profile.StdioEncoding).WebName} 解码。"
+                        + "请检查输出编码、是否把一条 JSON 分成多行，以及是否向 stdout 写入普通日志。",
+                        exception);
+                }
+                using (document)
+                {
+                    await HandleMessageAsync(document.RootElement, cancellationToken);
+                }
             }
             throw new McpTransportException("MCP stdio Server 已退出。", CreateExitException());
         }
@@ -194,6 +249,14 @@ internal sealed class StdioMcpTransport(McpServerProfile profile) : IMcpJsonRpcT
         }
         catch (Exception exception)
         {
+            logger.LogError(
+                exception,
+                "MCP stdio 读取循环失败。ServerId={ServerId}, ProcessId={ProcessId}, ExitCode={ExitCode}, ReceivedLines={ReceivedLines}, StderrLines={StderrLines}",
+                profile.Id,
+                RuntimeInfo.ProcessId,
+                RuntimeInfo.ExitCode,
+                Interlocked.Read(ref _receivedLineCount),
+                Interlocked.Read(ref _stderrLineCount));
             foreach (var pending in _pending.Values)
                 pending.TrySetException(exception);
         }
@@ -251,9 +314,14 @@ internal sealed class StdioMcpTransport(McpServerProfile profile) : IMcpJsonRpcT
     {
         try
         {
-            while (await _process!.StandardError.ReadLineAsync(cancellationToken) is not null)
+            while (await _process!.StandardError.ReadLineAsync(cancellationToken) is { } line)
             {
-                // 防止子进程 stderr 管道阻塞；不记录正文，避免服务端意外输出凭据。
+                var count = Interlocked.Increment(ref _stderrLineCount);
+                logger.LogWarning(
+                    "MCP stdio Server 写入 stderr。ServerId={ServerId}, Line={Line}, CharacterCount={CharacterCount}; 正文已抑制以避免泄漏凭据",
+                    profile.Id,
+                    count,
+                    line.Length);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -322,6 +390,7 @@ internal sealed class HttpMcpTransport : IMcpJsonRpcTransport
 {
     private readonly McpServerProfile _profile;
     private readonly IAiCredentialStore _credentials;
+    private readonly ILogger<HttpMcpTransport> _logger;
     private readonly Lazy<Task<HttpClient>> _client;
     private readonly CancellationTokenSource _shutdown = new();
     private long _nextId;
@@ -329,10 +398,14 @@ internal sealed class HttpMcpTransport : IMcpJsonRpcTransport
     private Task? _notificationPump;
     private int _disposed;
 
-    public HttpMcpTransport(McpServerProfile profile, IAiCredentialStore credentials)
+    public HttpMcpTransport(
+        McpServerProfile profile,
+        IAiCredentialStore credentials,
+        ILogger<HttpMcpTransport> logger)
     {
         _profile = profile;
         _credentials = credentials;
+        _logger = logger;
         _client = new Lazy<Task<HttpClient>>(
             () => CreateClient(profile, credentials),
             LazyThreadSafetyMode.ExecutionAndPublication);
@@ -355,11 +428,25 @@ internal sealed class HttpMcpTransport : IMcpJsonRpcTransport
     {
         ThrowIfDisposed();
         var id = Interlocked.Increment(ref _nextId);
+        _logger.LogInformation(
+            "发送 MCP HTTP JSON-RPC 请求。ServerId={ServerId}, Method={Method}, RequestId={RequestId}, Endpoint={Endpoint}",
+            _profile.Id,
+            method,
+            id,
+            SafeEndpoint(_profile.Endpoint));
         using var request = await CreateRequestAsync(
             HttpMethod.Post,
             StdioMcpTransport.CreateMessage(id, method, parameters).ToJsonString(),
             cancellationToken);
         using var response = await SendAsync(request, cancellationToken);
+        _logger.LogInformation(
+            "收到 MCP HTTP 响应。ServerId={ServerId}, Method={Method}, RequestId={RequestId}, StatusCode={StatusCode}, ContentType={ContentType}, SessionId={SessionId}",
+            _profile.Id,
+            method,
+            id,
+            (int)response.StatusCode,
+            response.Content.Headers.ContentType?.MediaType,
+            _sessionId);
         return await ReadResponseAsync(response, id, cancellationToken);
     }
 
@@ -507,8 +594,14 @@ internal sealed class HttpMcpTransport : IMcpJsonRpcTransport
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
-        catch
+        catch (Exception exception)
         {
+            _logger.LogWarning(
+                exception,
+                "MCP HTTP 通知流中断。ServerId={ServerId}, Endpoint={Endpoint}, SessionId={SessionId}; 后续显式刷新可重建连接",
+                _profile.Id,
+                SafeEndpoint(_profile.Endpoint),
+                _sessionId);
             // 通知流失败不使已完成的请求失败；下一次显式刷新仍可恢复工具列表。
         }
     }
@@ -621,5 +714,19 @@ internal sealed class HttpMcpTransport : IMcpJsonRpcTransport
         if (string.IsNullOrWhiteSpace(reference))
             return null;
         return (await credentials.GetAsync(reference))?.Reveal();
+    }
+
+    private static string SafeEndpoint(Uri? endpoint)
+    {
+        if (endpoint is null)
+            return string.Empty;
+        var sanitized = new UriBuilder(endpoint)
+        {
+            UserName = string.Empty,
+            Password = string.Empty,
+            Query = string.Empty,
+            Fragment = string.Empty,
+        };
+        return sanitized.Uri.GetLeftPart(UriPartial.Path);
     }
 }

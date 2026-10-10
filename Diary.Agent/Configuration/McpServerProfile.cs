@@ -1,4 +1,5 @@
 using Diary.Agent.Tools;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Diary.Agent.Configuration;
@@ -7,6 +8,33 @@ public enum McpTransportKind
 {
     Stdio,
     StreamableHttp,
+}
+
+public static class McpStdioEncoding
+{
+    public const string Utf8 = "utf-8";
+    public const string Gb18030 = "gb18030";
+
+    public static Encoding Resolve(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)
+            || string.Equals(name, Utf8, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(name, "utf8", StringComparison.OrdinalIgnoreCase))
+        {
+            return new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+        }
+        if (string.Equals(name, Gb18030, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(name, "gbk", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(name, "cp936", StringComparison.OrdinalIgnoreCase))
+        {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            return Encoding.GetEncoding(
+                54936,
+                EncoderFallback.ExceptionFallback,
+                DecoderFallback.ExceptionFallback);
+        }
+        throw new ArgumentException("stdioEncoding 仅支持 utf-8、gb18030、gbk 或 cp936。", nameof(name));
+    }
 }
 
 public sealed record McpToolPolicy
@@ -87,6 +115,8 @@ public sealed record McpServerProfile
 
     public string? WorkingDirectory { get; init; }
 
+    public string StdioEncoding { get; init; } = McpStdioEncoding.Utf8;
+
     public Uri? Endpoint { get; init; }
 
     public AiAuthenticationConfiguration Authentication { get; init; } = new()
@@ -126,6 +156,14 @@ public static class McpServerProfileValidator
             }
             if (profile.Arguments.Any(argument => argument.Contains('\0')))
                 errors.Add("stdio MCP 参数不得包含 NUL。");
+            try
+            {
+                _ = McpStdioEncoding.Resolve(profile.StdioEncoding);
+            }
+            catch (ArgumentException exception)
+            {
+                errors.Add(exception.Message);
+            }
         }
         else if (profile.Endpoint is null
                  || !profile.Endpoint.IsAbsoluteUri

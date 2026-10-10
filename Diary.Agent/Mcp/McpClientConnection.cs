@@ -2,6 +2,8 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Diary.Agent.Configuration;
 using Diary.Agent.Credentials;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Diary.Agent.Mcp;
 
@@ -25,17 +27,29 @@ public sealed class McpClientConnection : IAsyncDisposable
 {
     private const string ProtocolVersion = "2025-11-25";
     private readonly IMcpJsonRpcTransport _transport;
+    private readonly ILogger<McpClientConnection> _logger;
     private readonly SemaphoreSlim _connectGate = new(1, 1);
     private bool _connected;
     private int _disposed;
 
-    public McpClientConnection(McpServerProfile profile, IAiCredentialStore credentials)
+    public McpClientConnection(
+        McpServerProfile profile,
+        IAiCredentialStore credentials,
+        ILoggerFactory? loggerFactory = null,
+        ILogger<McpClientConnection>? logger = null)
     {
+        loggerFactory ??= NullLoggerFactory.Instance;
         Profile = profile;
+        _logger = logger ?? NullLogger<McpClientConnection>.Instance;
         _transport = profile.Transport switch
         {
-            McpTransportKind.Stdio => new StdioMcpTransport(profile),
-            McpTransportKind.StreamableHttp => new HttpMcpTransport(profile, credentials),
+            McpTransportKind.Stdio => new StdioMcpTransport(
+                profile,
+                loggerFactory.CreateLogger<StdioMcpTransport>()),
+            McpTransportKind.StreamableHttp => new HttpMcpTransport(
+                profile,
+                credentials,
+                loggerFactory.CreateLogger<HttpMcpTransport>()),
             _ => throw new ArgumentOutOfRangeException(nameof(profile.Transport)),
         };
         _transport.NotificationReceived += OnNotificationAsync;
@@ -68,6 +82,10 @@ public sealed class McpClientConnection : IAsyncDisposable
         {
             if (_connected)
                 return;
+            _logger.LogInformation(
+                "正在初始化 MCP Server。ServerId={ServerId}, Transport={Transport}",
+                Profile.Id,
+                Profile.Transport);
             await _transport.StartAsync(cancellationToken);
             using var initializeDocument = JsonDocument.Parse(JsonSerializer.Serialize(new
             {
@@ -87,6 +105,12 @@ public sealed class McpClientConnection : IAsyncDisposable
                 cancellationToken);
             await _transport.StartNotificationPumpAsync(cancellationToken);
             _connected = true;
+            _logger.LogInformation(
+                "MCP Server 初始化完成。ServerId={ServerId}, ProtocolVersion={ProtocolVersion}, ProcessId={ProcessId}, SessionId={SessionId}",
+                Profile.Id,
+                initialize.GetProperty("protocolVersion").GetString(),
+                RuntimeInfo.ProcessId,
+                RuntimeInfo.SessionId);
         }
         finally
         {
@@ -132,6 +156,11 @@ public sealed class McpClientConnection : IAsyncDisposable
                 ? nextCursor.GetString()
                 : null;
         } while (!string.IsNullOrWhiteSpace(cursor));
+        _logger.LogInformation(
+            "MCP tools/list 完成。ServerId={ServerId}, ToolCount={ToolCount}, Tools={Tools}",
+            Profile.Id,
+            tools.Count,
+            string.Join(',', tools.Take(50).Select(tool => tool.Name)));
         return tools;
     }
 

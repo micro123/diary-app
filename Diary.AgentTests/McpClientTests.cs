@@ -9,12 +9,55 @@ using Diary.Agent.Mcp;
 using Diary.Agent.Protocols;
 using Diary.Agent.Tools;
 using Diary.AiContext;
+using Microsoft.Extensions.Logging;
 
 namespace Diary.AgentTests;
 
 [TestClass]
 public sealed class McpClientTests
 {
+    [TestMethod]
+    [DataRow("utf-8", 65001)]
+    [DataRow("utf8", 65001)]
+    [DataRow("gb18030", 54936)]
+    [DataRow("gbk", 54936)]
+    [DataRow("cp936", 54936)]
+    public void StdioEncodingAliasesResolveToExpectedCodePage(string name, int expectedCodePage)
+    {
+        var encoding = McpStdioEncoding.Resolve(name);
+
+        Assert.AreEqual(expectedCodePage, encoding.CodePage);
+    }
+
+    [TestMethod]
+    public void Gb18030EncodingRoundTripsChineseJson()
+    {
+        var encoding = McpStdioEncoding.Resolve("gbk");
+        const string json = "{\"jsonrpc\":\"2.0\",\"result\":{\"message\":\"中文系统\"}}";
+
+        var decoded = encoding.GetString(encoding.GetBytes(json));
+
+        Assert.AreEqual(json, decoded);
+    }
+
+    [TestMethod]
+    public void UnsupportedStdioEncodingIsRejected()
+    {
+        var profile = CreatePolicyValidationProfile(new McpToolPolicy
+        {
+            ToolName = "query",
+            Enabled = true,
+            Risk = AgentToolRisk.ReadOnly,
+        }) with
+        {
+            StdioEncoding = "big5",
+        };
+
+        var errors = McpServerProfileValidator.Validate(profile);
+
+        Assert.IsTrue(errors.Any(error => error.Contains("stdioEncoding", StringComparison.Ordinal)));
+    }
+
     [TestMethod]
     [DataRow("delete_work_item")]
     [DataRow("remove-work-item")]
@@ -241,6 +284,48 @@ public sealed class McpClientTests
         }
     }
 
+    [TestMethod]
+    public async Task ManagerLogsMcpServerTestFailure()
+    {
+        var settingsRoot = Path.Combine(Path.GetTempPath(), $"diary-agent-mcp-log-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(settingsRoot);
+        try
+        {
+            var profile = new McpServerProfile
+            {
+                Id = "missing-server",
+                DisplayName = "Missing Server",
+                Enabled = true,
+                Transport = McpTransportKind.Stdio,
+                Command = $"missing-diary-mcp-{Guid.NewGuid():N}",
+            };
+            var store = new AiConnectionStore(Path.Combine(settingsRoot, "settings.json"));
+            store.Save(new AiAgentSettings { McpServers = [profile] });
+            var connections = new AiConnectionManager(
+                store,
+                new AiConnectionProbeService(new UnusedModelGateway()));
+            var logger = new RecordingLogger<McpClientManager>();
+            await using var manager = new McpClientManager(
+                connections,
+                new TestCredentialStore(),
+                new AgentConfirmationCoordinator(),
+                logger: logger);
+
+            var result = await manager.TestServerAsync(profile.Id);
+
+            Assert.IsFalse(result.Succeeded);
+            Assert.IsTrue(logger.Entries.Any(entry =>
+                entry.Level == LogLevel.Error
+                && entry.Message.Contains("MCP Server 测试失败", StringComparison.Ordinal)
+                && entry.Message.Contains(profile.Id, StringComparison.Ordinal)
+                && entry.Exception is not null));
+        }
+        finally
+        {
+            Directory.Delete(settingsRoot, recursive: true);
+        }
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
@@ -308,6 +393,25 @@ public sealed class McpClientTests
             yield break;
         }
     }
+
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<LogEntry> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entries.Add(new LogEntry(logLevel, formatter(state, exception), exception));
+    }
+
+    private sealed record LogEntry(LogLevel Level, string Message, Exception? Exception);
 
     private sealed record CapturedHttpRequest(
         string Method,
