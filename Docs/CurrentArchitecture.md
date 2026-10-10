@@ -200,6 +200,8 @@ Debug 构建还提供显式启用的本地 UI 自动化入口：设置 `DIARY_CD
 
 工作项克隆会先以空事项加载目标 Tracker 扩展的选项，再按用途决定是否复制选择：普通“重复当前事项”保留 Tracker 设置；跨日期复制仅复制本地字段、标签和附加字段，并绕过标签默认值自动化，确保不会创建 Tracker 本地绑定。Debug CDP 提供独立 `date-performance` 重负载场景，为 SQLite 或 PostgreSQL 生成 25,920 条稀疏富数据，并可加载真实 Jira 插件与 20% 本地绑定；报告日期导航延迟、CPU、工作集、进程 I/O 和数据库无变化证据，用于同机同后端趋势回归。
 
+日记页的 `WorkRecordCalendar` 是独立 Avalonia 控件，复用日记 ViewModel 的日期选择和周期菜单。程序设置可选择周视图或月视图；月视图按当月实际覆盖的完整周生成 28、35 或 42 个日期格。ViewModel 只请求当前可见范围的按日汇总，SQLite/PostgreSQL 通过 `GROUP BY create_date` 返回每天的条目数和总工时，避免为状态日历加载完整工作项。视图模式和条目数显示偏好保存到现有应用配置，`ConfigUpdateEvent` 使缓存的日记页保存后立即刷新；不修改工作项模型、数据库 schema 或数据版本。
+
 脚本宿主的普通日志项和模板日志项创建 API 接收应用层提供的数据库变更回调。只有 provider 事务真实提交成功后才调用该回调；应用内执行和 Worker HostCall 均将其映射为 `DbChangedEvent.ShareData`，事件记录页随后在 UI Dispatcher 上重新读取当前日期。Preview、幂等重放和失败回滚不会发送变更通知，通知回调自身失败也不改变已经提交的脚本结果。
 
 ## 5. CrashDump 与诊断进程

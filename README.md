@@ -42,6 +42,7 @@ dotnet test --solution DiaryApp.sln --configuration Release
 
 ## 文档
 
+- 开发验证与已知避坑：[`Docs/DevelopmentVerificationGuide.md`](Docs/DevelopmentVerificationGuide.md)
 - 最终用户手册（提交 Quarto 源文件与截图；CI 生成 HTML/PDF 并附加到 Release）：[`Docs/UserManual`](Docs/UserManual/index.qmd)
 - 脚本 API 参考：[C#](Docs/ScriptApi/CSharp.md)、[Lua](Docs/ScriptApi/Lua.md)、[Python](Docs/ScriptApi/Python.md)
 - AI：[脚本上下文使用指南](Docs/AiScriptContextGuide.md)、[只读 MCP 设计](Docs/AiScriptContextDesign.md)、[可选 Agent 模块需求](Docs/AiAgentModuleRequirements.md)、[详细设计](Docs/AiAgentModuleDesign.md)、[设计评审](Docs/AiAgentModuleDesignReview.md)

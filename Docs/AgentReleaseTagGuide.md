@@ -291,6 +291,8 @@ dotnet format DiaryApp.sln --no-restore --verify-no-changes
 
 ### 6.2 Release 构建与测试
 
+本地验证不要并行启动多个共享依赖图的 `dotnet build/test`；`Diary.App`、应用测试和数据库测试会共同写入依赖项目的 `bin/obj`，可能产生 `.deps.json`、`.pdb` 或 DLL 文件锁。应串行执行。当前 .NET 10 测试命令使用 `dotnet test --project <csproj>` 或 `--solution <sln>`，详见 [`DevelopmentVerificationGuide.md`](DevelopmentVerificationGuide.md)。
+
 工作流使用：
 
 ```bash

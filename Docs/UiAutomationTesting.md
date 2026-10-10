@@ -16,6 +16,8 @@ DiaryApp 在 Windows 和 Linux Debug 构建中提供基于 Chrome DevTools Proto
 
 当前使用兼容 Avalonia 11 和 SkiaSharp 2.88.9 的 `Chrome.DevTools.Avalonia.v11 0.1.0-preview.30`。升级 SkiaSharp 3.x 后应重新评估更新版本。
 
+Debug/CDP 包是条件依赖。如果刚执行过 Release restore，不能直接复用该资产文件构建 Debug；出现 `Avalonia.Diagnostics.Cdp` 命名空间缺失时，应先执行 `dotnet restore Diary.App/Diary.App.csproj -p:Configuration=Debug`，再构建 Debug。不要修改 `DebugUiAutomation` 来绕过 restore 配置问题。构建和测试还应串行执行，避免多个 MSBuild 进程争用共享 `bin/obj`；通用说明见 [`DevelopmentVerificationGuide.md`](DevelopmentVerificationGuide.md)。
+
 完整功能级状态见 [`UiAutomationCoverage.md`](UiAutomationCoverage.md)，UI 功能入口见 [`UiFeatureInventory.md`](UiFeatureInventory.md)。
 
 ## 2. 生命周期和测试场景
@@ -99,9 +101,9 @@ seed 只复制加密配置文件，不应提交到 Git，也不得写入报告�
 
 | 套件 | 结构化步骤 | 主要覆盖 |
 | --- | ---: | --- |
-| `ui-settings-full` | 9 | 首次引导、设置分组、保存/丢弃、导航动态重建、数据库/迁移对话框、运行日志导出、更新检查、设置性能 |
+| `ui-settings-full` | 9 | 首次引导、设置分组、保存/丢弃、导航动态重建、工时日历周/月与数量设置保存后即时刷新、数据库/迁移对话框、运行日志导出、更新检查、设置性能 |
 | `ui-smoke` | 单独断言集 | 标签随机默认色、新建选中和仅保存关闭、模板候选与仅保存关闭、事项重载后排除已选次标签、主题、新建草稿、`新建 -> 修改 -> 新建`、模板替换前草稿保留、视觉树和截图性能 |
-| `ui-core-full` | 16 | 主外壳、数据库/Tracker/通知中心/紧凑日期状态栏入口、通知历史 Flyout、清空全部危险色、版本菜单、应用菜单、开发者页面关闭时的程序脚本入口、`Alt+数字`、仅日记页面生效且编辑框焦点下可用的 `Alt+J/K/L/;` 日期导航、日期操作按钮左右对齐、固定一周日历、滚轮逐周浏览、非选中日期真实右键选中并打开日/周菜单、周度/月度工时概要对话框、今天/选中状态分离、月份标题月/季度/年度菜单、完整月历自然尺寸与边框防裁切、重新展开恢复月视图、相邻月份日期精确选择并自动关闭、跨月回到今天、编辑器字段对齐、标题说明横向底部对齐、未保存/中性状态胶囊类、复制、快捷键、查询、统计和核心性能 |
+| `ui-core-full` | 16 | 主外壳、数据库/Tracker/通知中心/紧凑日期状态栏入口、通知历史 Flyout、清空全部危险色、版本菜单、应用菜单、开发者页面关闭时的程序脚本入口、`Alt+数字`、仅日记页面生效且编辑框焦点下可用的 `Alt+J/K/L/;` 日期导航、日期操作按钮左右对齐、默认周视图、滚轮逐周浏览、非选中日期真实右键选中并打开日/周菜单、周度/月度工时概要对话框、今天/选中状态分离、月份标题月/季度/年度菜单、完整月历自然尺寸与边框防裁切、重新展开恢复月视图、相邻月份日期精确选择并自动关闭、跨月回到今天、编辑器字段对齐、标题说明横向底部对齐、未保存/中性状态胶囊类、复制、快捷键、查询、统计和核心性能 |
 | `ui-extended-full` | 11 | AI 上下文默认/显式授权、预览、MCP 快照和手册截图，程序设置标准分组布局、配置生成/复制和跳转，以及 C#/Lua/Python 脚本创建、筛选、重新加载、预览运行、执行历史、日志、删除、性能 |
 | `ui-script-editor` | 4 | 独立脚本编辑器、按语言打开 API 文档的入口、命令区、编译检查和安全关闭 |
 | `ui-database-error` | 8 | 日记/查询/统计数据库异常状态、重试、设置入口、诊断导出和异常状态性能 |
