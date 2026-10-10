@@ -20,11 +20,11 @@
         </StackPanel>
 
         <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" ColumnSpacing="12">
-            <CheckBox Content="Diary 只读工具" IsChecked="{Binding DiaryToolsEnabled}" />
-            <CheckBox Grid.Column="1" Content="确认后写入工具" IsChecked="{Binding WorkItemWriteEnabled}" />
-            <CheckBox Grid.Column="2" Content="网页搜索" IsChecked="{Binding WebSearchEnabled}" />
-            <CheckBox Grid.Column="3" Content="网页读取" IsChecked="{Binding WebFetchEnabled}" />
-            <CheckBox Grid.Column="4" Content="MCP 工具" IsChecked="{Binding McpEnabled}" />
+            <CheckBox Classes="ToolbarCheckBox" Content="Diary 只读工具" IsChecked="{Binding DiaryToolsEnabled}" />
+            <CheckBox Grid.Column="1" Classes="ToolbarCheckBox" Content="确认后写入工具" IsChecked="{Binding WorkItemWriteEnabled}" />
+            <CheckBox Grid.Column="2" Classes="ToolbarCheckBox" Content="网页搜索" IsChecked="{Binding WebSearchEnabled}" />
+            <CheckBox Grid.Column="3" Classes="ToolbarCheckBox" Content="网页读取" IsChecked="{Binding WebFetchEnabled}" />
+            <CheckBox Grid.Column="4" Classes="ToolbarCheckBox" Content="MCP 工具" IsChecked="{Binding McpEnabled}" />
             <TextBox Grid.Column="5" Watermark="默认连接 ID" Text="{Binding DefaultProfileId}" />
             <Button Grid.Column="6" Content="设为默认" Command="{Binding SetDefaultProfileCommand}" />
         </Grid>
@@ -137,7 +137,7 @@
                     <Button x:Name="RemoveAiConnectionButton" Grid.Column="2" Content="删除"
                             Command="{Binding RemoveProfileCommand}" />
                 </Grid>
-                <CheckBox Grid.Row="2" IsChecked="{Binding DeleteCredentialsWithProfile}">
+                <CheckBox Grid.Row="2" Classes="ToolbarCheckBox" IsChecked="{Binding DeleteCredentialsWithProfile}">
                     <TextBlock Text="删除连接时清理未被其他连接使用的本地凭据"
                                TextWrapping="Wrap" />
                 </CheckBox>
@@ -181,7 +181,7 @@
                             <TextBlock Text="窗口 Token" VerticalAlignment="Center" Opacity="0.7" />
                             <NumericUpDown Grid.Column="1" Value="{Binding ContextWindowTokens}"
                                            Minimum="4096" Maximum="4194304" Increment="4096" />
-                            <CheckBox Grid.Column="2" Content="自动压缩"
+                            <CheckBox Grid.Column="2" Classes="ToolbarCheckBox" Content="自动压缩"
                                       IsChecked="{Binding AutomaticContextCompression}" />
                             <TextBlock Grid.Column="3" Text="阈值 %" VerticalAlignment="Center" Opacity="0.7" />
                             <NumericUpDown Grid.Column="4" Width="84"
@@ -189,7 +189,8 @@
                                            Minimum="50" Maximum="95" Increment="5" />
                         </Grid>
                         <TextBlock Grid.Row="7" Text="TLS" VerticalAlignment="Center" />
-                        <CheckBox Grid.Row="7" Grid.Column="1" IsChecked="{Binding CheckCertificateRevocation}">
+                        <CheckBox Grid.Row="7" Grid.Column="1" Classes="ToolbarCheckBox"
+                                  IsChecked="{Binding CheckCertificateRevocation}">
                             <TextBlock Text="检查证书吊销状态（内网无法访问 CRL/OCSP 时可关闭）" TextWrapping="Wrap" />
                         </CheckBox>
                         <TextBlock Grid.Row="8" Text="认证方式" VerticalAlignment="Center" />

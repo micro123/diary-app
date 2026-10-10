@@ -2,11 +2,12 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:i="https://github.com/projektanker/icons.avalonia"
              xmlns:vm="clr-namespace:Diary.Agent.UI.ViewModels"
              x:Class="Diary.Agent.UI.Views.AiAgentPageView"
              x:DataType="vm:AiAgentPageViewModel"
              mc:Ignorable="d">
-    <Grid RowDefinitions="Auto,*,Auto" Margin="16" RowSpacing="12">
+    <Grid RowDefinitions="Auto,*,Auto" Margin="8" RowSpacing="8">
         <Border Classes="PageHeader">
             <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="20" RowSpacing="8">
                 <StackPanel Grid.RowSpan="2" VerticalAlignment="Center">
@@ -37,8 +38,8 @@
             </Grid>
         </Border>
 
-        <Grid Grid.Row="1" ColumnDefinitions="3*,2*" ColumnSpacing="12">
-            <Border Classes="DetailPane" Padding="12">
+        <Grid Grid.Row="1" ColumnDefinitions="3*,2*" ColumnSpacing="8">
+            <Border Classes="DetailPane" Padding="8">
                 <Grid RowDefinitions="Auto,*" RowSpacing="8">
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />
@@ -74,7 +75,7 @@
                 </Grid>
             </Border>
 
-            <Border Grid.Column="1" Classes="DetailPane" Padding="12">
+            <Border Grid.Column="1" Classes="DetailPane" Padding="8">
                 <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8">
                     <TextBlock Text="工具调用" FontWeight="SemiBold" />
                     <Border Grid.Row="1" IsVisible="{Binding HasPendingConfirmation}"
@@ -181,16 +182,30 @@
             </Border>
         </Grid>
 
-        <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto"
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto"
               ColumnSpacing="8" RowSpacing="4">
             <TextBox x:Name="AiAgentInputTextBox" Text="{Binding Input}"
                      Watermark="输入问题或工作记录需求…"
                      AcceptsReturn="True" MinHeight="72" MaxHeight="180"
                      TextWrapping="Wrap"
                      ToolTip.Tip="Enter 或 Ctrl+Enter 发送；Shift+Enter 换行" />
-            <Button Grid.Column="1" Content="停止" Command="{Binding StopCommand}" />
-            <Button Grid.Column="2" Classes="Primary" Content="发送" Command="{Binding SendCommand}" />
-            <TextBlock Grid.Row="1" Grid.ColumnSpan="3"
+            <Grid Grid.Column="1" VerticalAlignment="Center">
+                <Button Width="40" Height="40" Padding="0" CornerRadius="20"
+                        Classes="Danger" Command="{Binding StopCommand}"
+                        IsVisible="{Binding IsBusy}"
+                        ToolTip.Tip="停止生成"
+                        AutomationProperties.Name="停止生成">
+                    <i:Icon Value="mdi-stop" FontSize="18" />
+                </Button>
+                <Button Width="40" Height="40" Padding="0" CornerRadius="20"
+                        Classes="Primary" Command="{Binding SendCommand}"
+                        IsVisible="{Binding !IsBusy}"
+                        ToolTip.Tip="发送消息"
+                        AutomationProperties.Name="发送消息">
+                    <i:Icon Value="mdi-send" FontSize="18" />
+                </Button>
+            </Grid>
+            <TextBlock Grid.Row="1" Grid.ColumnSpan="2"
                        Text="Enter / Ctrl+Enter 发送 · Shift+Enter 换行"
                        FontSize="11" Opacity="0.62" />
         </Grid>
