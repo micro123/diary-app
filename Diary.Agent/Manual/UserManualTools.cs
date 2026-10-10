@@ -135,7 +135,7 @@ public sealed class UserManualIndexService
         string query,
         IReadOnlyList<string> tokens)
     {
-        const int maxLength = 360;
+        const int maxLength = 120;
         if (content.Length <= maxLength)
             return content;
         var normalized = content.ToLowerInvariant();
@@ -148,7 +148,7 @@ public sealed class UserManualIndexService
                 .DefaultIfEmpty(0)
                 .Min();
         }
-        var start = Math.Max(0, index - 100);
+        var start = Math.Max(0, index - 40);
         var length = Math.Min(maxLength, content.Length - start);
         return $"{(start > 0 ? "…" : string.Empty)}{content.Substring(start, length)}{(start + length < content.Length ? "…" : string.Empty)}";
     }
@@ -197,14 +197,14 @@ public sealed class UserManualIndexService
 public sealed class SearchUserManualTool(UserManualIndexService manual) : IAgentTool
 {
     private static readonly JsonElement Schema = JsonDocument.Parse("""
-        {"type":"object","properties":{"query":{"type":"string","minLength":1,"maxLength":100},"limit":{"type":"integer","minimum":1,"maximum":10}},"required":["query"],"additionalProperties":false}
+        {"type":"object","properties":{"query":{"type":"string","minLength":1,"maxLength":100},"limit":{"type":"integer","minimum":1,"maximum":5}},"required":["query"],"additionalProperties":false}
         """).RootElement.Clone();
 
     public AgentToolDescriptor Descriptor { get; } = new(
         "diary.user-manual.search",
         "diary_search_user_manual",
         "搜索用户手册",
-        "按简短关键词搜索当前版本 DiaryApp 用户手册。回答功能用法、设置和故障排查问题时优先使用。",
+        "按简短关键词搜索当前版本 DiaryApp 用户手册，只返回紧凑章节索引。回答功能用法、设置和故障排查问题时先搜索，再只读取最相关的一个章节。",
         Schema,
         AgentToolOrigin.BuiltIn,
         AgentToolRisk.ReadOnly,
@@ -224,18 +224,23 @@ public sealed class SearchUserManualTool(UserManualIndexService manual) : IAgent
         var query = queryElement.GetString()?.Trim() ?? string.Empty;
         if (query.Length is 0 or > 100)
             return ValueTask.FromResult(AgentToolResult.Failure("invalid_arguments", "query 长度必须为 1–100 个字符。"));
-        var limit = arguments.TryGetProperty("limit", out var limitElement) ? limitElement.GetInt32() : 5;
-        if (limit is < 1 or > 10)
-            return ValueTask.FromResult(AgentToolResult.Failure("invalid_arguments", "limit 必须为 1–10。"));
+        var limit = arguments.TryGetProperty("limit", out var limitElement) ? limitElement.GetInt32() : 3;
+        if (limit is < 1 or > 5)
+            return ValueTask.FromResult(AgentToolResult.Failure("invalid_arguments", "limit 必须为 1–5。"));
         try
         {
             var results = manual.Search(query, limit);
             return ValueTask.FromResult(AgentToolResult.Success(JsonSerializer.Serialize(new
             {
-                manual = "DiaryApp 用户手册",
-                query,
                 count = results.Count,
-                results,
+                results = results.Select(result => new
+                {
+                    sectionId = result.SectionId,
+                    title = result.Title,
+                    level = result.Level,
+                    snippet = result.Snippet,
+                }),
+                guidance = "选择最相关的一个 sectionId 调用 diary_read_user_manual_section。",
             }), "DiaryApp 用户手册"));
         }
         catch (FileNotFoundException exception)
@@ -252,14 +257,14 @@ public sealed class SearchUserManualTool(UserManualIndexService manual) : IAgent
 public sealed class ReadUserManualSectionTool(UserManualIndexService manual) : IAgentTool
 {
     private static readonly JsonElement Schema = JsonDocument.Parse("""
-        {"type":"object","properties":{"sectionId":{"type":"string","minLength":1,"maxLength":200},"maxCharacters":{"type":"integer","minimum":500,"maximum":12000}},"required":["sectionId"],"additionalProperties":false}
+        {"type":"object","properties":{"sectionId":{"type":"string","minLength":1,"maxLength":200},"offset":{"type":"integer","minimum":0},"maxCharacters":{"type":"integer","minimum":300,"maximum":4000}},"required":["sectionId"],"additionalProperties":false}
         """).RootElement.Clone();
 
     public AgentToolDescriptor Descriptor { get; } = new(
         "diary.user-manual.read-section",
         "diary_read_user_manual_section",
         "读取用户手册章节",
-        "读取 diary_search_user_manual 返回的指定章节正文；只读取发布包内的 DiaryApp 用户手册。",
+        "读取 diary_search_user_manual 返回的一个指定章节。默认只返回 2000 字符；仅在结果截断且确有必要时使用 nextOffset 继续读取，不要一次读取多个章节。",
         Schema,
         AgentToolOrigin.BuiltIn,
         AgentToolRisk.ReadOnly,
@@ -279,27 +284,39 @@ public sealed class ReadUserManualSectionTool(UserManualIndexService manual) : I
         var sectionId = sectionElement.GetString()?.Trim() ?? string.Empty;
         if (sectionId.Length is 0 or > 200)
             return ValueTask.FromResult(AgentToolResult.Failure("invalid_arguments", "sectionId 长度必须为 1–200 个字符。"));
+        var offset = arguments.TryGetProperty("offset", out var offsetElement)
+            ? offsetElement.GetInt32()
+            : 0;
+        if (offset < 0)
+            return ValueTask.FromResult(AgentToolResult.Failure("invalid_arguments", "offset 不能小于 0。"));
         var maxCharacters = arguments.TryGetProperty("maxCharacters", out var maxElement)
             ? maxElement.GetInt32()
-            : 6000;
-        if (maxCharacters is < 500 or > 12_000)
-            return ValueTask.FromResult(AgentToolResult.Failure("invalid_arguments", "maxCharacters 必须为 500–12000。"));
+            : 2000;
+        if (maxCharacters is < 300 or > 4000)
+            return ValueTask.FromResult(AgentToolResult.Failure("invalid_arguments", "maxCharacters 必须为 300–4000。"));
         try
         {
             var section = manual.ReadSection(sectionId);
             if (section is null)
                 return ValueTask.FromResult(AgentToolResult.Failure("manual_section_not_found", "指定的用户手册章节不存在，请先重新搜索。"));
-            var truncated = section.Content.Length > maxCharacters;
-            var content = truncated ? section.Content[..maxCharacters] : section.Content;
+            if (offset >= section.Content.Length && (offset > 0 || section.Content.Length > 0))
+                return ValueTask.FromResult(AgentToolResult.Failure("manual_offset_out_of_range", "offset 已超出章节正文长度。"));
+            var length = Math.Min(maxCharacters, section.Content.Length - offset);
+            var content = length > 0 ? section.Content.Substring(offset, length) : string.Empty;
+            var nextOffset = offset + length;
+            var truncated = nextOffset < section.Content.Length;
             return ValueTask.FromResult(new AgentToolResult(
                 true,
                 JsonSerializer.Serialize(new
                 {
                     sectionId = section.Id,
-                    section.Title,
-                    section.Level,
+                    title = section.Title,
+                    level = section.Level,
+                    offset,
+                    totalCharacters = section.Content.Length,
                     content,
                     isTruncated = truncated,
+                    nextOffset = truncated ? nextOffset : (int?)null,
                 }),
                 Source: "DiaryApp 用户手册",
                 IsTruncated: truncated));

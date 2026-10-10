@@ -40,10 +40,12 @@ public sealed class UserManualToolsTests
                 CreateContext());
 
             Assert.IsTrue(search.Succeeded, search.Content);
+            Assert.IsTrue(search.Content.Length < 1500, $"搜索结果过长：{search.Content.Length}");
             using var searchResult = JsonDocument.Parse(search.Content);
             var match = searchResult.RootElement.GetProperty("results")[0];
-            Assert.AreEqual("redmine-tag-rules", match.GetProperty("SectionId").GetString());
-            Assert.AreEqual("Redmine 标签自动化", match.GetProperty("Title").GetString());
+            Assert.AreEqual("redmine-tag-rules", match.GetProperty("sectionId").GetString());
+            Assert.AreEqual("Redmine 标签自动化", match.GetProperty("title").GetString());
+            Assert.IsTrue(match.GetProperty("snippet").GetString()!.Length <= 122);
             Assert.IsFalse(search.Content.Contains("PRIVATE_STYLE", StringComparison.Ordinal));
 
             using var readArguments = JsonDocument.Parse(
@@ -56,6 +58,48 @@ public sealed class UserManualToolsTests
             using var readResult = JsonDocument.Parse(read.Content);
             Assert.AreEqual(500, readResult.RootElement.GetProperty("content").GetString()!.Length);
             Assert.IsTrue(readResult.RootElement.GetProperty("isTruncated").GetBoolean());
+            Assert.AreEqual(500, readResult.RootElement.GetProperty("nextOffset").GetInt32());
+
+            using var continuationArguments = JsonDocument.Parse(
+                """{"sectionId":"redmine-tag-rules","offset":500,"maxCharacters":300}""");
+            var continuation = await readTool.InvokeAsync(continuationArguments.RootElement, CreateContext());
+
+            Assert.IsTrue(continuation.Succeeded, continuation.Content);
+            using var continuationResult = JsonDocument.Parse(continuation.Content);
+            Assert.AreEqual(500, continuationResult.RootElement.GetProperty("offset").GetInt32());
+            Assert.AreEqual(300, continuationResult.RootElement.GetProperty("content").GetString()!.Length);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task SearchDefaultsToThreeCompactMatchesAndRejectsLargeLimit()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"diary-manual-search-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var path = Path.Combine(root, UserManualIndexService.HtmlFileName);
+        try
+        {
+            var sections = string.Join(Environment.NewLine, Enumerable.Range(1, 8).Select(index =>
+                $"<section id=\"section-{index}\"><h2>代理设置 {index}</h2><p>{new string('文', 500)} 代理设置说明</p></section>"));
+            await File.WriteAllTextAsync(path, $"<html><body><main id=\"quarto-document-content\">{sections}</main></body></html>");
+            var tool = new SearchUserManualTool(new UserManualIndexService(path));
+            using var defaultArguments = JsonDocument.Parse("""{"query":"代理设置"}""");
+
+            var result = await tool.InvokeAsync(defaultArguments.RootElement, CreateContext());
+
+            Assert.IsTrue(result.Succeeded, result.Content);
+            Assert.IsTrue(result.Content.Length < 1500, $"搜索结果过长：{result.Content.Length}");
+            using var document = JsonDocument.Parse(result.Content);
+            Assert.AreEqual(3, document.RootElement.GetProperty("results").GetArrayLength());
+
+            using var invalidArguments = JsonDocument.Parse("""{"query":"代理设置","limit":6}""");
+            var invalid = await tool.InvokeAsync(invalidArguments.RootElement, CreateContext());
+            Assert.IsFalse(invalid.Succeeded);
+            Assert.AreEqual("invalid_arguments", invalid.ErrorCode);
         }
         finally
         {
