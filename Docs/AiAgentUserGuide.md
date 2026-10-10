@@ -34,7 +34,7 @@ Windows 默认配置目录是 `%APPDATA%\Diary.App`，Linux 默认是 `~/.config
 
 AI 助手输入框支持 `Enter` 或 `Ctrl+Enter` 发送，使用 `Shift+Enter` 插入换行；运行期间仍可点击“停止”取消当前请求。
 
-模型服务显式返回思考内容时，AI 消息中会出现默认展开的“思考过程”。页面状态会区分“正在等待模型响应”“模型正在思考”“模型正在生成回答”和“工具结果已回传，正在等待模型回答”。OpenAI-compatible 的 `reasoning_content`、Responses reasoning 事件以及 Anthropic-compatible 的 thinking 事件都会刷新流式空闲计时，因此模型持续思考时不会被误判为无响应。部分服务只返回加密或签名思考块，此时页面只能显示“模型正在思考”，不能展示正文。
+模型服务显式返回思考内容时，AI 消息中会出现默认折叠的“思考过程”，可按需展开。页面状态会区分“正在等待模型响应”“模型正在思考”“模型正在生成回答”和“工具结果已回传，正在等待模型回答”。OpenAI-compatible 的 `reasoning_content`、Responses reasoning 事件以及 Anthropic-compatible 的 thinking 事件都会刷新流式空闲计时，因此模型持续思考时不会被误判为无响应。部分服务只返回加密或签名思考块，此时页面只能显示“模型正在思考”，不能展示正文。
 
 工具调用后的续答会在内存中保留并回传协议要求的 reasoning/thinking 内容，兼容 DeepSeek 等要求携带思考上下文的模型。思考正文和签名块不会保存到历史会话、审计或日志；恢复历史会话时只恢复用户消息和最终回答。
 
@@ -139,12 +139,62 @@ Agent 确认创建、从模板创建、单项更新或批量更新事项后，�
 
 ## 7. MCP Client
 
+先在“模块设置 → 模块配置 → AI 助手设置”启用“MCP 工具”，再展开“MCP Servers（高级 JSON 配置）”。这里配置的是内置 Agent 作为 MCP Client 访问外部工具，与程序设置中供外部客户端连接的 Diary MCP Server 不是同一方向。
+
 支持：
 
 - stdio：直接启动可执行文件，不经过 Shell，子进程窗口隐藏；
 - Streamable HTTP：JSON 或 SSE 响应、`Mcp-Session-Id`、GET 通知流、独立代理和认证。
 
-配置必须为每个远端工具声明本地策略。未列入策略的工具不会向模型公开；`ReadOnly` 直接调用，`Write` 每次显示确认卡片，`Destructive` 在首版配置校验中被拒绝。服务器自己的工具注解不授予权限。
+高级 JSON 使用数字枚举：`transport` 的 `0` 是 stdio、`1` 是 Streamable HTTP；工具 `risk` 的 `0` 是只读、`1` 是写入、`2` 是破坏性。stdio 配置示例：
+
+```json
+[
+  {
+    "id": "company-data",
+    "displayName": "公司数据",
+    "enabled": true,
+    "transport": 0,
+    "command": "/opt/company-mcp/company-mcp",
+    "arguments": ["--stdio"],
+    "workingDirectory": "/opt/company-mcp",
+    "timeout": "00:02:00",
+    "tools": [
+      { "toolName": "search_documents", "enabled": true, "risk": 0 },
+      { "toolName": "update_document", "enabled": true, "risk": 1 }
+    ]
+  }
+]
+```
+
+Streamable HTTP 配置示例：
+
+```json
+[
+  {
+    "id": "intranet-mcp",
+    "displayName": "内网 MCP",
+    "enabled": true,
+    "transport": 1,
+    "endpoint": "https://mcp.example.internal/mcp",
+    "authentication": {
+      "kind": 1,
+      "credentialReference": "env:INTRANET_MCP_TOKEN",
+      "headerName": "Authorization",
+      "headerPrefix": "Bearer "
+    },
+    "proxy": { "mode": 2 },
+    "timeout": "00:02:00",
+    "tools": [
+      { "toolName": "search_knowledge", "enabled": true, "risk": 0 }
+    ]
+  }
+]
+```
+
+认证 `kind` 的 `0` 是无认证、`1` 是 Bearer、`2` 是自定义 Header；代理 `mode` 的 `1` 是系统代理、`2` 是直连、`3` 是自定义代理。Token 和代理密码应通过 Credential Reference 提供，不要直接写进 JSON。
+
+配置必须为每个远端工具声明本地策略。未列入策略的工具不会向模型公开；只读工具直接调用，写工具每次显示确认卡片，破坏性策略和名称带常见删除语义的工具会被拒绝。服务器自己的工具注解不授予权限。保存后配置在下一次 Agent 运行时连接；单个 Server 失败不会禁用模型连接、内置工具或其他正常的 MCP Server。
 
 ## 8. 会话与审计
 
