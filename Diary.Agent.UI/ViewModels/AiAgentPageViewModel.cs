@@ -69,6 +69,25 @@ public sealed partial class AiToolCallViewModel(
 
     [ObservableProperty]
     private string _durationText = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasOutput))]
+    private string _output = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OutputButtonText))]
+    private bool _isOutputVisible;
+
+    public bool HasOutput => !string.IsNullOrEmpty(Output);
+
+    public string OutputButtonText => IsOutputVisible ? "收起输出" : "查看输出";
+
+    [RelayCommand]
+    private void ToggleOutput()
+    {
+        if (HasOutput)
+            IsOutputVisible = !IsOutputVisible;
+    }
 }
 
 public sealed partial class AiWorkItemConfirmationViewModel : ObservableObject
@@ -337,6 +356,7 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
                         completedCard.Summary = item.ToolResult?.Succeeded == true
                             ? CreateResultSummary(item.ToolResult.Content)
                             : item.ToolResult?.Content ?? "工具调用失败";
+                        completedCard.Output = FormatToolOutput(item.ToolResult?.Content);
                         completedCard.Source = item.ToolResult?.Source ?? string.Empty;
                         completedCard.DurationText = $"{Math.Max(0, (DateTimeOffset.UtcNow - completedCard.StartedAtUtc).TotalMilliseconds):F0} ms";
                     }
@@ -604,6 +624,25 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
     {
         const int limit = 160;
         return content.Length <= limit ? content : content[..limit] + "…";
+    }
+
+    private static string FormatToolOutput(string? content)
+    {
+        if (string.IsNullOrEmpty(content))
+            return string.Empty;
+        if (content.Length > 64 * 1024)
+            return content;
+        try
+        {
+            using var document = JsonDocument.Parse(content);
+            return JsonSerializer.Serialize(
+                document.RootElement,
+                new JsonSerializerOptions { WriteIndented = true });
+        }
+        catch (JsonException)
+        {
+            return content;
+        }
     }
 
     private void BeginNewSession()

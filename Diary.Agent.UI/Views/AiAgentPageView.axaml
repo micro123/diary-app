@@ -154,10 +154,23 @@
                                             </Grid>
                                             <SelectableTextBlock Text="{Binding ArgumentsSummary}" TextWrapping="Wrap" Opacity="0.65" />
                                             <SelectableTextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
-                                            <Grid ColumnDefinitions="*,Auto">
+                                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                                                 <SelectableTextBlock Text="{Binding Source}" TextWrapping="Wrap" Opacity="0.6" />
-                                                <TextBlock Grid.Column="1" Text="{Binding DurationText}" Opacity="0.6" />
+                                                <Button Grid.Column="1" Content="{Binding OutputButtonText}"
+                                                        IsVisible="{Binding HasOutput}"
+                                                        Command="{Binding ToggleOutputCommand}" />
+                                                <TextBlock Grid.Column="2" Text="{Binding DurationText}" Opacity="0.6"
+                                                           VerticalAlignment="Center" />
                                             </Grid>
+                                            <Border IsVisible="{Binding IsOutputVisible}"
+                                                    BorderBrush="{DynamicResource ThemeBorderLowBrush}"
+                                                    BorderThickness="1" CornerRadius="5" Padding="6">
+                                                <TextBox Text="{Binding Output}" IsReadOnly="True" AcceptsReturn="True"
+                                                         MinHeight="90" MaxHeight="280" FontFamily="Consolas"
+                                                         TextWrapping="NoWrap"
+                                                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                                         ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                                            </Border>
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
