@@ -2,6 +2,7 @@ using System.Runtime.Loader;
 using Diary.ModuleBase;
 using Diary.ModuleUI;
 using Diary.ScriptHost;
+using Diary.Survey;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Diary.ModuleTests;
@@ -22,6 +23,81 @@ public sealed class AiAgentModulePackagingTests
         Assert.IsFalse(File.Exists(Path.Combine(appOutput, "Diary.Agent.UI.dll")));
         Assert.IsFalse(File.Exists(Path.Combine(appOutput, "Diary.Agent.dll")));
         StringAssert.Contains(File.ReadAllText(Path.Combine(moduleDirectory, "module.json")), "\"enabledByDefault\": false");
+    }
+
+    [TestMethod]
+    public void AppOutputContainsIsolatedDefaultDisabledRemoteMcpModule()
+    {
+        var appOutput = GetAppOutputDirectory();
+        var moduleDirectory = Path.Combine(appOutput, "Modules", "diary.mcp.remote");
+
+        Assert.IsTrue(File.Exists(Path.Combine(moduleDirectory, "module.json")));
+        Assert.IsTrue(File.Exists(Path.Combine(moduleDirectory, "Diary.Mcp.Remote.dll")));
+        Assert.IsTrue(File.Exists(Path.Combine(moduleDirectory, "Diary.Mcp.Remote.deps.json")));
+        Assert.IsFalse(File.Exists(Path.Combine(appOutput, "Diary.Mcp.Remote.dll")));
+        StringAssert.Contains(
+            File.ReadAllText(Path.Combine(moduleDirectory, "module.json")),
+            "\"enabledByDefault\": false");
+    }
+
+    [TestMethod]
+    public async Task EnabledPackagedRemoteMcpModuleStartsAndAdvertisesReadOnlyService()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Diary.RemoteMcpModuleLoad", Guid.NewGuid().ToString("N"));
+        var moduleRoot = Path.Combine(root, "Modules");
+        var copiedModule = Path.Combine(moduleRoot, "diary.mcp.remote");
+        Directory.CreateDirectory(copiedModule);
+        foreach (var file in Directory.EnumerateFiles(
+                     Path.Combine(GetAppOutputDirectory(), "Modules", "diary.mcp.remote")))
+        {
+            File.Copy(file, Path.Combine(copiedModule, Path.GetFileName(file)));
+        }
+        var statePath = Path.Combine(root, "module-states.json");
+        File.WriteAllText(statePath, """
+            {"schemaVersion":1,"modules":{"diary.mcp.remote":{"enabled":true}}}
+            """);
+        var services = new ServiceCollection();
+        services.AddLogging();
+        RegisterHostStubs(services);
+        services.AddSingleton<ExtendedSurveyServiceRegistry>();
+        services.AddSingleton(new SurveyMcpPeerAccessPolicy(() => "127.0.0.1"));
+        var sharedNames = AssemblyLoadContext.Default.Assemblies
+            .Select(assembly => assembly.GetName().Name)
+            .Where(name => name is not null)
+            .Cast<string>()
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var catalog = new AppModuleCatalog(new AppModuleCatalogOptions(
+            moduleRoot,
+            statePath,
+            Path.Combine(root, "config"),
+            new Version(1, 0, 1),
+            1,
+            new HashSet<string>(StringComparer.Ordinal)
+            {
+                "script.work_items.query",
+                "survey.extended.discovery",
+            },
+            sharedNames));
+
+        try
+        {
+            catalog.DiscoverAndConfigure(services);
+            await using var provider = services.BuildServiceProvider();
+            await catalog.StartAsync(provider);
+
+            var advertisement = provider.GetRequiredService<ExtendedSurveyServiceRegistry>().Snapshot().Single();
+            Assert.AreEqual("diary.readonly", advertisement.ServiceId);
+            CollectionAssert.Contains(advertisement.Capabilities.ToArray(), "diary_query_work_items");
+            Assert.IsFalse(advertisement.Capabilities.Any(name =>
+                name.Contains("create", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("update", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("delete", StringComparison.OrdinalIgnoreCase)));
+        }
+        finally
+        {
+            await catalog.StopAsync();
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     [TestMethod]
@@ -165,6 +241,7 @@ public sealed class AiAgentModulePackagingTests
         services.AddSingleton<ITemplateScriptApi, EmptyTemplateApi>();
         services.AddSingleton<ITrackerInstanceScriptApi, EmptyTrackerApi>();
         services.AddSingleton<IWorkTagScriptApi, EmptyTagApi>();
+        services.AddSingleton<ITagExtraFieldScriptApi, EmptyExtraFieldApi>();
         services.AddSingleton<ICurrentContextScriptApi, EmptyContextApi>();
         services.AddSingleton<IScriptValidationScriptApi, EmptyValidationApi>();
     }
@@ -198,6 +275,11 @@ public sealed class AiAgentModulePackagingTests
     private sealed class EmptyContextApi : ICurrentContextScriptApi
     {
         public ScriptCurrentContext Get() => new("2026-10-08", null, null);
+    }
+
+    private sealed class EmptyExtraFieldApi : ITagExtraFieldScriptApi
+    {
+        public IReadOnlyList<ScriptTagExtraFieldInfo> List(bool includeDisabled = false) => [];
     }
 
     private sealed class EmptyValidationApi : IScriptValidationScriptApi

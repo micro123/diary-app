@@ -60,6 +60,7 @@ namespace Diary.App
             _startupDbFactories = startupDbFactories?.ToArray();
             Name = AppInfo.AppName;
             Services = ConfigureServices();
+            var mcpDiscovery = Services.GetRequiredService<McpServiceDiscoveryCoordinator>();
 
             _surveyor.ReceiveMessage += (_, s) =>
             {
@@ -72,10 +73,14 @@ namespace Diary.App
             };
             _extendedSurveyor.ReceiveMessage += (_, s) =>
             {
+                if (mcpDiscovery.TryHandleResponse(s))
+                    return;
                 Dispatcher.UIThread.Post(() => EventDispatcher.Msg(new ExtendedRespondEvent(s)));
             };
             _extendedRespondent.ReceiveMessage += (_, s) =>
             {
+                if (mcpDiscovery.TryHandleRequest(s))
+                    return;
                 Dispatcher.UIThread.Post(() => EventDispatcher.Msg(new ExtendedSurveyRequestEvent(s)));
             };
         }
@@ -473,6 +478,18 @@ namespace Diary.App
             services.AddSingleton<ILoggerFactory>(Logging.Factory);
             services.AddSingleton(typeof(ILogger<>), typeof(Logger<>));
             services.AddSingleton<BaseApp>(this);
+            services.AddSingleton<ExtendedSurveyServiceRegistry>();
+            services.AddSingleton<ExtendedSurveyServiceDirectory>();
+            services.AddSingleton(_ => new SurveyMcpPeerAccessPolicy(() =>
+                AppConfig.SurveySettings.IsRespondentEnabled
+                    ? AppConfig.SurveySettings.ServerAddress
+                    : null));
+            services.AddSingleton(provider => new McpServiceDiscoveryCoordinator(
+                _extendedSurveyor,
+                _extendedRespondent,
+                provider.GetRequiredService<ExtendedSurveyServiceRegistry>(),
+                provider.GetRequiredService<ExtendedSurveyServiceDirectory>(),
+                provider.GetRequiredService<ILogger<McpServiceDiscoveryCoordinator>>()));
             services.AddSingleton<PluginInstanceRegistry>();
             services.AddSingleton<TrackerInstanceCoordinator>();
             services.AddSingleton<TrackerPluginLifecycleCoordinator>();
@@ -936,6 +953,7 @@ namespace Diary.App
                         or "Diary.ModuleUI"
                         or "Diary.Core"
                         or "Diary.GUIBase"
+                        or "Diary.Survey"
                         or "Diary.ScriptBase"
                         or "Diary.ScriptHost"))
                 .Cast<string>()
@@ -954,6 +972,7 @@ namespace Diary.App
                     "module.navigation",
                     "module.settings",
                     "script.work_items.query",
+                    "survey.extended.discovery",
                 },
                 sharedNames));
         }
@@ -1261,6 +1280,7 @@ namespace Diary.App
             if (Design.IsDesignMode)
                 return;
 
+            await Services.GetRequiredService<McpServiceDiscoveryCoordinator>().StopAsync();
             await _surveyor.StopServerAsync();
             await _respondent.ShutdownAsync();
             await _extendedSurveyor.StopServerAsync();
@@ -1273,7 +1293,8 @@ namespace Diary.App
             if (surveyConfig.IsServerEnabled)
             {
                 _surveyor.StartServer();
-                _extendedSurveyor.StartServer();
+                if (_extendedSurveyor.StartServer())
+                    Services.GetRequiredService<McpServiceDiscoveryCoordinator>().Start();
             }
 
             if (surveyConfig.TryGetRespondentAddress(out var address))
@@ -1290,6 +1311,7 @@ namespace Diary.App
 #if DEBUG
             DebugUiAutomation.Stop();
 #endif
+            await Services.GetRequiredService<McpServiceDiscoveryCoordinator>().StopAsync();
             await _surveyor.StopServerAsync();
             await _respondent.ShutdownAsync();
             await _extendedSurveyor.StopServerAsync();

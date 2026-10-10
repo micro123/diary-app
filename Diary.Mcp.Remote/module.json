@@ -1,0 +1,15 @@
+{
+  "id": "diary.mcp.remote",
+  "displayName": "远程 MCP 服务",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "entryAssembly": "Diary.Mcp.Remote.dll",
+  "entryType": "Diary.Mcp.Remote.RemoteMcpModule",
+  "enabledByDefault": false,
+  "minAppVersion": "1.0.0",
+  "maxAppVersion": null,
+  "requiredCapabilities": [
+    "survey.extended.discovery",
+    "script.work_items.query"
+  ]
+}

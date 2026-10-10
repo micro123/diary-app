@@ -53,6 +53,7 @@ public sealed class McpClientManager(
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private readonly ConcurrentDictionary<string, ConnectionEntry> _connections = new(StringComparer.Ordinal);
     private readonly Dictionary<string, McpServerDiagnostic> _diagnostics = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, McpServerProfile> _discoveredProfiles = new(StringComparer.Ordinal);
     private AgentToolRegistry? _registry;
     private int _disposed;
 
@@ -62,7 +63,7 @@ public sealed class McpClientManager(
         {
             lock (_diagnostics)
             {
-                return settings.Settings.McpServers
+                return GetAllProfiles()
                     .Select(profile => _diagnostics.TryGetValue(profile.Id, out var diagnostic)
                         ? diagnostic with
                         {
@@ -88,7 +89,7 @@ public sealed class McpClientManager(
         try
         {
             ThrowIfDisposed();
-            var profiles = settings.Settings.McpServers
+            var profiles = GetAllProfiles()
                 .Where(profile => profile.Enabled)
                 .ToDictionary(profile => profile.Id, StringComparer.Ordinal);
             _logger.LogInformation(
@@ -104,6 +105,42 @@ public sealed class McpClientManager(
         {
             _refreshGate.Release();
         }
+    }
+
+    public async ValueTask ReplaceDiscoveredServersAsync(
+        IEnumerable<McpServerProfile> profiles,
+        AgentToolRegistry registry,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(profiles);
+        var replacements = profiles.ToArray();
+        foreach (var profile in replacements)
+        {
+            var errors = McpServerProfileValidator.Validate(profile);
+            if (errors.Count > 0)
+                throw new ArgumentException($"发现的 MCP Server {profile.Id} 无效：{string.Join(" ", errors)}", nameof(profiles));
+            if (!profile.Enabled || profile.Transport != McpTransportKind.StreamableHttp)
+                throw new ArgumentException("自动发现的 MCP Server 必须是已启用的 Streamable HTTP 服务。", nameof(profiles));
+        }
+        if (replacements.Select(profile => profile.Id).Distinct(StringComparer.Ordinal).Count() != replacements.Length)
+            throw new ArgumentException("自动发现的 MCP Server ID 重复。", nameof(profiles));
+
+        var changed = false;
+        lock (_discoveredProfiles)
+        {
+            changed = _discoveredProfiles.Count != replacements.Length
+                || replacements.Any(profile => !_discoveredProfiles.TryGetValue(profile.Id, out var existing)
+                    || !string.Equals(
+                        CreateFingerprint(profile),
+                        CreateFingerprint(existing),
+                        StringComparison.Ordinal));
+            if (!changed)
+                return;
+            _discoveredProfiles.Clear();
+            foreach (var profile in replacements)
+                _discoveredProfiles[profile.Id] = profile;
+        }
+        await RefreshToolsAsync(registry, cancellationToken);
     }
 
     public async ValueTask<McpServerDiagnostic> StartServerAsync(
@@ -367,7 +404,8 @@ public sealed class McpClientManager(
         CancellationToken cancellationToken,
         bool keepStoppingState = false)
     {
-        var profile = settings.Settings.McpServers.FirstOrDefault(item => item.Id == serverId);
+        var profile = FindProfile(serverId)
+            ?? (_connections.TryGetValue(serverId, out var existing) ? existing.Connection.Profile : null);
         if (profile is null)
         {
             registry?.ReplaceOwnerTools(OwnerId(serverId), []);
@@ -473,7 +511,7 @@ public sealed class McpClientManager(
         {
             try
             {
-                var profile = settings.Settings.McpServers.FirstOrDefault(item => item.Id == connection.Profile.Id);
+                var profile = FindProfile(connection.Profile.Id);
                 if (profile is not null && profile.Enabled)
                     await RefreshToolsAsync(registry);
             }
@@ -492,6 +530,26 @@ public sealed class McpClientManager(
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(
         Volatile.Read(ref _disposed) != 0,
         this);
+
+    private IReadOnlyList<McpServerProfile> GetAllProfiles()
+    {
+        var configured = settings.Settings.McpServers.ToDictionary(profile => profile.Id, StringComparer.Ordinal);
+        lock (_discoveredProfiles)
+        {
+            foreach (var profile in _discoveredProfiles.Values)
+                configured.TryAdd(profile.Id, profile);
+        }
+        return configured.Values.ToArray();
+    }
+
+    private McpServerProfile? FindProfile(string serverId)
+    {
+        var configured = settings.Settings.McpServers.FirstOrDefault(item => item.Id == serverId);
+        if (configured is not null)
+            return configured;
+        lock (_discoveredProfiles)
+            return _discoveredProfiles.GetValueOrDefault(serverId);
+    }
 
     private static string OwnerId(string serverId) => $"diary.ai-agent.mcp.{serverId}";
 

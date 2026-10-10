@@ -201,6 +201,22 @@ Streamable HTTP 配置示例：
 
 保存后，设置页下方的 MCP Server 管理列表会按已保存配置显示每个 Server；JSON 编辑区的未保存内容不会直接影响运行状态。可执行“测试”“探测并导入工具”“启动/连接”“停止/断开”“重启/重连”“刷新工具”和“刷新状态”。测试结果会列出远端工具名；“探测并导入工具”会把缺失工具写入下方 JSON 编辑区。新发现的普通工具默认启用并按写入工具逐次确认，名称带删除语义的工具保持禁用；可以把确认过的纯查询工具的 `risk` 改为 `0`，核对后还需要点击“保存设置”。stdio Server 会显示 PID 和最近退出码，Streamable HTTP Server 会显示 Session ID，两者都会显示当前状态、发现/开放工具数和最近错误。测试允许验证禁用的 Server，启动、重启和刷新工具只对已启用 Server 生效；停止后该 Server 的工具会立即从 Agent 工具列表移除。生命周期操作会等待同一 Server 正在执行的工具结束，单个 Server 失败不会禁用模型连接、内置工具或其他正常的 MCP Server。
 
+### 7.1 Survey v2 自动发现的 DiaryApp MCP
+
+“远程 MCP 服务”是另一个默认关闭的可选模块。受访者在“模块设置 → 模块管理”中启用 `远程 MCP 服务` 并重启后，模块会在随机端口开放以下只读工具：标签、标签附加字段、当前上下文、事项查询和事项汇总。它不提供创建、更新、批量更新、删除、脚本执行、Tracker 上传或 UI 操作，也不会返回工作项本地备注。
+
+调查功能启用且当前实例作为调查者时，应用会通过 Survey v2 启动即查询一次，之后每 30 秒自动发现；服务连续 90 秒未刷新会自动下线。自动发现会忽略与调查者主机名相同的响应，只接入其他机器上的 DiaryApp MCP。发现结果只保存在内存中，不写入上方的 MCP Server JSON。AI 助手模块同时启用时，在线服务声明的工具会按只读策略自动接入；服务下线后对应工具自动移除。
+
+远程 MCP 只接受本机地址和受访者配置的调查者 IP，其他来源返回 403。每个来源 IP 默认最多 60 个 HTTP 请求/分钟，超过后返回 429。RPM 设置位于应用配置目录的 `remote-mcp/settings.json`：
+
+```json
+{
+  "requestsPerMinute": 60
+}
+```
+
+允许值为 1 到 6000。修改后需要重启应用模块；配置损坏只会导致该模块启动失败，可在“模块设置 → 模块管理 → 启动诊断”中查看，不会阻止 DiaryApp 核心功能启动。完整协议和生命周期见 [`RemoteMcpDiscoveryDesign.md`](RemoteMcpDiscoveryDesign.md)。
+
 ## 8. 会话与审计
 
 会话保存用户消息、最终回答、连接、模型、工具名、脱敏参数摘要、状态、来源、耗时和 usage，不保存完整工具结果、思考/推理正文、thinking 签名或加密块、认证 Header 或服务端私有状态。最多保留 50 个会话；损坏文件只读为空且禁止覆盖。
@@ -219,6 +235,14 @@ Diary.Agent.UI.dll
 Diary.Agent.UI.deps.json
 Diary.Agent.dll
 AngleSharp.dll
+```
+
+远程只读 MCP 模块文件只位于 `Modules/diary.mcp.remote`：
+
+```text
+module.json
+Diary.Mcp.Remote.dll
+Diary.Mcp.Remote.deps.json
 ```
 
 常见处理：

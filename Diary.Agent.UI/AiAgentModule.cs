@@ -11,14 +11,20 @@ using Diary.Agent.UI.ViewModels;
 using Diary.ModuleBase;
 using Diary.ModuleUI;
 using Diary.ScriptHost;
+using Diary.Survey;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Diary.Agent.UI;
 
 public sealed class AiAgentModule : IAppModule
 {
     private IServiceProvider? _services;
+    private ExtendedSurveyServiceDirectory? _serviceDirectory;
+    private EventHandler? _serviceDirectoryChanged;
+    private CancellationTokenSource? _discoveryCancellation;
 
     public void ConfigureServices(IServiceCollection services, AppModuleRegistrationContext context)
     {
@@ -116,12 +122,19 @@ public sealed class AiAgentModule : IAppModule
         services.AddSingleton<ISettingsContribution, AiSettingsContribution>();
     }
 
-    public ValueTask StartAsync(
+    public async ValueTask StartAsync(
         AppModuleRuntimeContext context,
         CancellationToken cancellationToken = default)
     {
         _services = context.Services;
-        return ValueTask.CompletedTask;
+        _serviceDirectory = context.Services.GetService<ExtendedSurveyServiceDirectory>();
+        if (_serviceDirectory is null)
+            return;
+
+        _discoveryCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _serviceDirectoryChanged = (_, _) => QueueDiscoveredServerRefresh();
+        _serviceDirectory.Changed += _serviceDirectoryChanged;
+        await RefreshDiscoveredServersAsync(_discoveryCancellation.Token);
     }
 
     public async ValueTask StopAsync(CancellationToken cancellationToken = default)
@@ -130,6 +143,13 @@ public sealed class AiAgentModule : IAppModule
         _services = null;
         if (services is null)
             return;
+        if (_serviceDirectory is not null && _serviceDirectoryChanged is not null)
+            _serviceDirectory.Changed -= _serviceDirectoryChanged;
+        _serviceDirectoryChanged = null;
+        _serviceDirectory = null;
+        _discoveryCancellation?.Cancel();
+        _discoveryCancellation?.Dispose();
+        _discoveryCancellation = null;
         services.GetService<AgentSessionService>()?.Cancel();
         if (services.GetService<AgentConfirmationCoordinator>() is { } confirmations)
             confirmations.RejectCurrent();
@@ -137,6 +157,81 @@ public sealed class AiAgentModule : IAppModule
             await mcp.DisposeAsync();
         services.GetService<WebHttpClientFactory>()?.Dispose();
         services.GetService<AiHttpClientPool>()?.Dispose();
+    }
+
+    private void QueueDiscoveredServerRefresh()
+    {
+        var cancellationToken = _discoveryCancellation?.Token ?? new CancellationToken(canceled: true);
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await RefreshDiscoveredServersAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            catch (Exception exception)
+            {
+                _services?.GetService<ILogger<AiAgentModule>>()?.LogWarning(
+                    exception,
+                    "刷新自动发现的 MCP 服务失败。");
+            }
+        }, CancellationToken.None);
+    }
+
+    private async ValueTask RefreshDiscoveredServersAsync(CancellationToken cancellationToken)
+    {
+        var services = _services;
+        var directory = _serviceDirectory;
+        if (services is null || directory is null)
+            return;
+        var profiles = directory.Snapshot()
+            .Select(CreateDiscoveredProfile)
+            .Where(profile => profile is not null)
+            .Cast<McpServerProfile>()
+            .ToArray();
+        await services.GetRequiredService<McpClientManager>().ReplaceDiscoveredServersAsync(
+            profiles,
+            services.GetRequiredService<AgentToolRegistry>(),
+            cancellationToken);
+    }
+
+    private static McpServerProfile? CreateDiscoveredProfile(DiscoveredExtendedSurveyMcpService discovered)
+    {
+        var endpoint = discovered.Service.Endpoints
+            .Select(value => Uri.TryCreate(value, UriKind.Absolute, out var uri) ? uri : null)
+            .FirstOrDefault(uri => uri is { Scheme: "http" or "https" });
+        if (endpoint is null)
+            return null;
+        var rawId = $"{discovered.InstanceId}:{discovered.Service.ServiceId}";
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rawId))).ToLowerInvariant()[..24];
+        var policies = (discovered.Service.Capabilities ?? [])
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Where(name => !McpToolPolicyGuard.IsProhibitedDestructiveToolName(name))
+            .Distinct(StringComparer.Ordinal)
+            .Select(name => new McpToolPolicy
+            {
+                ToolName = name,
+                Enabled = true,
+                Risk = AgentToolRisk.ReadOnly,
+            })
+            .ToArray();
+        return new McpServerProfile
+        {
+            Id = $"discovered.{hash}",
+            DisplayName = $"{discovered.Hostname} · {discovered.Service.DisplayName}",
+            Enabled = true,
+            Transport = McpTransportKind.StreamableHttp,
+            Endpoint = endpoint,
+            Authentication = new AiAuthenticationConfiguration { Kind = AiAuthenticationKind.None },
+            Proxy = new AiProxyConfiguration { Mode = AiProxyMode.Direct },
+            Timeout = TimeSpan.FromMinutes(2),
+            Tools = policies,
+        };
     }
 }
 

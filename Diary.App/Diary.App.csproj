@@ -88,6 +88,7 @@
         <ProjectReference Include="..\Diary.Db.PostgreSQL\Diary.Db.PostgreSQL.csproj" />
         <ProjectReference Include="..\Diary.GUIBase\Diary.GUIBase.csproj" />
         <ProjectReference Include="..\Diary.Agent.UI\Diary.Agent.UI.csproj" ReferenceOutputAssembly="false" />
+        <ProjectReference Include="..\Diary.Mcp.Remote\Diary.Mcp.Remote.csproj" ReferenceOutputAssembly="false" />
         <ProjectReference Include="..\Diary.ModuleBase\Diary.ModuleBase.csproj" />
         <ProjectReference Include="..\Diary.ModuleUI\Diary.ModuleUI.csproj" />
         <ProjectReference Include="..\Diary.MigrationTool\Diary.MigrationTool.csproj" />
@@ -148,6 +149,26 @@
         <MakeDir Directories="$(AiAgentModuleDirectory)" />
         <Copy SourceFiles="@(AiAgentModuleOutput)"
               DestinationFolder="$(AiAgentModuleDirectory)"
+              SkipUnchangedFiles="true" />
+    </Target>
+
+    <Target Name="BuildAndCopyRemoteMcpModule" AfterTargets="Build">
+        <MSBuild Projects="..\Diary.Mcp.Remote\Diary.Mcp.Remote.csproj"
+                 Targets="Build"
+                 Properties="Configuration=$(Configuration)"
+                 RemoveProperties="RuntimeIdentifier;SelfContained;PublishSingleFile" />
+        <PropertyGroup>
+            <RemoteMcpBuildDirectory>$(MSBuildProjectDirectory)\..\Diary.Mcp.Remote\bin\$(Configuration)\net10.0\</RemoteMcpBuildDirectory>
+            <RemoteMcpModuleDirectory>$(OutputPath)Modules\diary.mcp.remote\</RemoteMcpModuleDirectory>
+        </PropertyGroup>
+        <ItemGroup>
+            <RemoteMcpModuleOutput Include="$(RemoteMcpBuildDirectory)Diary.Mcp.Remote.dll" />
+            <RemoteMcpModuleOutput Include="$(RemoteMcpBuildDirectory)Diary.Mcp.Remote.deps.json" />
+            <RemoteMcpModuleOutput Include="$(MSBuildProjectDirectory)\..\Diary.Mcp.Remote\module.json" />
+        </ItemGroup>
+        <MakeDir Directories="$(RemoteMcpModuleDirectory)" />
+        <Copy SourceFiles="@(RemoteMcpModuleOutput)"
+              DestinationFolder="$(RemoteMcpModuleDirectory)"
               SkipUnchangedFiles="true" />
     </Target>
 
@@ -212,6 +233,11 @@
             <AiAgentModulePublishOutput Include="$(OutputPath)Modules\diary.ai-agent\**\*" />
             <ResolvedFileToPublish Include="@(AiAgentModulePublishOutput)">
                 <RelativePath>Modules\diary.ai-agent\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+                <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            </ResolvedFileToPublish>
+            <RemoteMcpModulePublishOutput Include="$(OutputPath)Modules\diary.mcp.remote\**\*" />
+            <ResolvedFileToPublish Include="@(RemoteMcpModulePublishOutput)">
+                <RelativePath>Modules\diary.mcp.remote\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
                 <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
             </ResolvedFileToPublish>
         </ItemGroup>

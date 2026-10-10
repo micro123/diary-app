@@ -17,8 +17,10 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Diary.App\Diary.App.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Diary.Agent\Diary.Agent.csproj" />
     <ProjectReference Include="..\Diary.ModuleBase\Diary.ModuleBase.csproj" />
     <ProjectReference Include="..\Diary.ModuleUI\Diary.ModuleUI.csproj" />
+    <ProjectReference Include="..\Diary.Mcp.Remote\Diary.Mcp.Remote.csproj" />
     <ProjectReference Include="..\Diary.ModuleTestFixture\Diary.ModuleTestFixture.csproj" />
     <ProjectReference Include="..\Diary.ScriptHost\Diary.ScriptHost.csproj" />
   </ItemGroup>
