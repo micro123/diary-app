@@ -17,6 +17,74 @@ public sealed class DiaryEditorCalendarTests
     }
 
     [TestMethod]
+    public void MonthCalendarTitleOmitsWeekNumber()
+    {
+        Assert.AreEqual(
+            "2026年8月",
+            DiaryEditorViewModel.FormatCompactCalendarTitle(
+                new DateTime(2026, 8, 25),
+                WorkRecordCalendarView.Month));
+    }
+
+    [TestMethod]
+    [DataRow("周视图", WorkRecordCalendarView.Week)]
+    [DataRow("月视图", WorkRecordCalendarView.Month)]
+    [DataRow("Week", WorkRecordCalendarView.Week)]
+    [DataRow("Month", WorkRecordCalendarView.Month)]
+    [DataRow("unknown", WorkRecordCalendarView.Week)]
+    public void CalendarViewPreferenceSupportsLocalizedAndLegacyValues(
+        string value,
+        WorkRecordCalendarView expected)
+    {
+        Assert.AreEqual(expected, DiaryEditorViewModel.ParseCompactCalendarView(value));
+    }
+
+    [TestMethod]
+    public void EntryCountBadgeReplacesFilledIndicatorWhenVisible()
+    {
+        var day = new CompactCalendarDay
+        {
+            Date = new DateTime(2026, 10, 10),
+            DayText = "10",
+            HasEntries = true,
+        };
+
+        Assert.IsTrue(day.IsFilledIndicatorVisible);
+        Assert.IsFalse(day.IsEntryCountVisible);
+
+        day.IsEntryCountVisible = true;
+
+        Assert.IsFalse(day.IsFilledIndicatorVisible);
+        Assert.IsTrue(day.IsEntryCountVisible);
+    }
+
+    [TestMethod]
+    public void WeekCalendarRangeStartsOnMondayAndContainsSevenDays()
+    {
+        var range = DiaryEditorViewModel.GetCompactCalendarRange(
+            new DateTime(2026, 8, 25),
+            WorkRecordCalendarView.Week);
+
+        Assert.AreEqual(new DateTime(2026, 8, 24), range.FirstDate);
+        Assert.AreEqual(7, range.DayCount);
+    }
+
+    [TestMethod]
+    [DataRow(2026, 8, 1, 42)]
+    [DataRow(2026, 9, 1, 35)]
+    [DataRow(2027, 2, 1, 28)]
+    public void MonthCalendarRangeUsesOnlyRequiredWholeWeeks(int year, int month, int day, int expectedDays)
+    {
+        var range = DiaryEditorViewModel.GetCompactCalendarRange(
+            new DateTime(year, month, day),
+            WorkRecordCalendarView.Month);
+
+        Assert.AreEqual(DayOfWeek.Monday, range.FirstDate.DayOfWeek);
+        Assert.AreEqual(expectedDays, range.DayCount);
+        Assert.AreEqual(0, range.DayCount % 7);
+    }
+
+    [TestMethod]
     public void TrackerUploadWeekRangeUsesMondayThroughSunday()
     {
         var range = DiaryEditorViewModel.GetTrackerUploadRange(

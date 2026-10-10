@@ -80,6 +80,12 @@ public abstract partial class DbInterfaceBase : IDisposable, IDbExtensionHost
     public abstract bool UpdateWorkItem(WorkItem item);
     public abstract bool DeleteWorkItem(WorkItem item);
     public abstract ICollection<WorkItem> GetWorkItemByDateRange(string beginData, string endData);
+    public virtual ICollection<WorkItemDaySummary> GetWorkItemDaySummaries(string beginDate, string endDate) =>
+        GetWorkItemByDateRange(beginDate, endDate)
+            .GroupBy(item => item.CreateDate)
+            .Select(group => new WorkItemDaySummary(group.Key, group.Count(), group.Sum(item => item.Time)))
+            .OrderBy(summary => summary.Date)
+            .ToArray();
     public abstract ICollection<WorkItem> GetWorkItemByDate(string data);
     public abstract ICollection<WorkItem> QueryWorkItems(WorkItemQuery query);
     public abstract bool UpdateWorkItemId(int oldId, int newId);

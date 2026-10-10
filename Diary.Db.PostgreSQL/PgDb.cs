@@ -1,5 +1,6 @@
 using System.Data.Common;
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using Diary.Core.Data.Base;
 using Diary.Core.Data.Statistics;
@@ -556,6 +557,25 @@ public sealed partial class PgDb(IDbFactory factory) : DbInterfaceBase(factory),
                   ORDER BY priority;
                   """;
         return Query(sql, MapWorkItem, ("$1", beginData), ("$2", endData));
+    }
+
+    public override ICollection<WorkItemDaySummary> GetWorkItemDaySummaries(string beginDate, string endDate)
+    {
+        const string sql = """
+                           SELECT create_date, COUNT(*), COALESCE(SUM(hours), 0.0)
+                           FROM work_items
+                           WHERE create_date BETWEEN $1 AND $2
+                           GROUP BY create_date
+                           ORDER BY create_date;
+                           """;
+        return Query(
+            sql,
+            reader => new WorkItemDaySummary(
+                ReadString(reader, 0),
+                Convert.ToInt32(reader.GetValue(1), CultureInfo.InvariantCulture),
+                Convert.ToDouble(reader.GetValue(2), CultureInfo.InvariantCulture)),
+            ("$1", beginDate),
+            ("$2", endDate));
     }
 
     // $1=date

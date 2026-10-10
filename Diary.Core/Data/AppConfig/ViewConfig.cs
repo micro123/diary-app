@@ -34,4 +34,12 @@ public class ViewConfig
 
     /// <summary>最近使用的主标签 ID，供新建工作项排序使用。</summary>
     public List<int> RecentPrimaryTagIds { get; set; } = new();
+
+    /// <summary>日记页记录日历视图，可选 Week 或 Month。</summary>
+    [ConfigureChoice("工时日历视图", "周视图更紧凑；月视图按月份实际跨度显示 4 至 6 个完整周。", "周视图", "月视图")]
+    public string WorkRecordCalendarView { get; set; } = "周视图";
+
+    /// <summary>日记页记录日历是否在日期格中显示条目数量。</summary>
+    [ConfigureSwitch("显示每日记录数", "开启后在有记录日期的实心状态点旁显示工作项条目数。")]
+    public bool ShowWorkRecordCalendarEntryCount { get; set; }
 }

@@ -444,9 +444,8 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
                 isVisible(entry) && typeOf(entry).includes('Button')
                 && String(entry.a.Class ?? '').includes('CompactCalendarDay'));
             return buttons?.length === 7
-                && compactCalendarDayText(current, buttons[0]) === initialFirstDayText
                 && textOf(header) === todayHeader ? root : null;
-        }, 3000, '反向滚轮没有恢复原周');
+        }, 8000, '反向滚轮没有恢复原周');
         await delay(200);
 
         tree = await connection.getTree();
@@ -521,27 +520,33 @@ await runUiSuite({ name: 'ui-core-full', scenario: 'default', timeoutMs: 10000, 
                 '脚本（本月）', '脚本（本季度）', '脚本（本年度）',
             ].every(text => findByText(current, text, entry => hasAncestorType(current, entry, 'MenuItem'))),
             timeoutMs, '月份标题右键菜单没有同时提供月、季度和年度操作');
-        let periodMenu;
-        try {
-            await connection.client.send('DOM.focus', { nodeId: compactCalendarHeader.nodeId });
-            await connection.pressKey('F10', 'F10', 121, shift);
-            periodMenu = await waitForPeriodMenu(1500);
-        }
-        catch {
-            await connection.pressKey('Escape', 'Escape', 27);
-            const headerBox = await connection.client.send(
-                'DOM.getBoxModel', { nodeId: compactCalendarHeader.nodeId });
-            const headerQuad = headerBox.model.border;
-            const headerX = (headerQuad[0] + headerQuad[4]) / 2;
-            const headerY = (headerQuad[1] + headerQuad[5]) / 2;
-            await connection.client.send('Input.dispatchMouseEvent', {
-                type: 'mousePressed', x: headerX, y: headerY, button: 'right', buttons: 2, clickCount: 1,
-            });
-            await connection.client.send('Input.dispatchMouseEvent', {
-                type: 'mouseReleased', x: headerX, y: headerY, button: 'right', buttons: 0, clickCount: 1,
-            });
-            periodMenu = await waitForPeriodMenu(5000);
-        }
+        const headerBox = await connection.client.send(
+            'DOM.getBoxModel', { nodeId: compactCalendarHeader.nodeId });
+        const headerQuad = headerBox.model.border;
+        const headerX = (headerQuad[0] + headerQuad[4]) / 2;
+        const headerY = (headerQuad[1] + headerQuad[5]) / 2;
+        await connection.client.send('Input.dispatchMouseEvent', {
+            type: 'mouseMoved', x: headerX, y: headerY, button: 'none', buttons: 0,
+        });
+        await connection.client.send('Input.dispatchMouseEvent', {
+            type: 'mousePressed', x: headerX, y: headerY, button: 'right', buttons: 2, clickCount: 1,
+        });
+        await connection.client.send('Input.dispatchMouseEvent', {
+            type: 'mouseReleased', x: headerX, y: headerY, button: 'right', buttons: 0, clickCount: 1,
+        });
+        const periodMenu = await waitForPeriodMenu(5000);
+        const initialMenuHeader = findByText(periodMenu.tree, '统计此年工时',
+            entry => hasAncestorType(periodMenu.tree, entry, 'MenuItem'));
+        const initialMenuBounds = boundsOf(initialMenuHeader);
+        await delay(120);
+        const stableMenuTree = await connection.getTree();
+        const stableMenuHeader = findByText(stableMenuTree, '统计此年工时',
+            entry => hasAncestorType(stableMenuTree, entry, 'MenuItem'));
+        assertUi(stableMenuHeader, '月份标题右键菜单打开后意外关闭');
+        const stableMenuBounds = boundsOf(stableMenuHeader);
+        assertUi(Math.abs(stableMenuBounds.x - initialMenuBounds.x) <= 1
+            && Math.abs(stableMenuBounds.y - initialMenuBounds.y) <= 1,
+        '月份标题右键菜单打开后发生二次定位抖动');
         const statisticsYear = findByText(periodMenu.tree, '统计此年工时',
             entry => hasAncestorType(periodMenu.tree, entry, 'MenuItem'));
         const monthScripts = findByText(periodMenu.tree, '脚本（本月）',

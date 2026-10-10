@@ -436,6 +436,30 @@ public abstract class DbContractTests
     }
 
     [TestMethod]
+    public void GetWorkItemDaySummaries_GroupsCountAndHoursByDate()
+    {
+        using var db = CreateDb();
+        var first = db.CreateWorkItem("2026-08-01", "a");
+        first.Time = 1.5;
+        Assert.IsTrue(db.UpdateWorkItem(first));
+        var second = db.CreateWorkItem("2026-08-01", "b");
+        second.Time = 2.25;
+        Assert.IsTrue(db.UpdateWorkItem(second));
+        db.CreateWorkItem("2026-08-03", "c");
+        db.CreateWorkItem("2026-08-10", "outside");
+
+        var summaries = db.GetWorkItemDaySummaries("2026-08-01", "2026-08-05").ToArray();
+
+        Assert.HasCount(2, summaries);
+        Assert.AreEqual("2026-08-01", summaries[0].Date);
+        Assert.AreEqual(2, summaries[0].ItemCount);
+        Assert.AreEqual(3.75, summaries[0].TotalHours, 0.001);
+        Assert.AreEqual("2026-08-03", summaries[1].Date);
+        Assert.AreEqual(1, summaries[1].ItemCount);
+        Assert.AreEqual(0, summaries[1].TotalHours, 0.001);
+    }
+
+    [TestMethod]
     public void UpdateWorkItem_Persists()
     {
         using var db = CreateDb();

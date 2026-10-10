@@ -1,6 +1,7 @@
 using System.Data.Common;
 using System.Data.SQLite;
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using Diary.Core.Data.Base;
 using Diary.Core.Data.Statistics;
@@ -569,6 +570,25 @@ public sealed partial class SQLiteDb(IDbFactory factory) : DbInterfaceBase(facto
                   WHERE create_date BETWEEN $beginDate AND $endDate;
                   """;
         return Query(sql, MapWorkItem, ("$beginDate", beginData), ("$endDate", endData));
+    }
+
+    public override ICollection<WorkItemDaySummary> GetWorkItemDaySummaries(string beginDate, string endDate)
+    {
+        const string sql = """
+                           SELECT create_date, COUNT(*), COALESCE(SUM(hours), 0.0)
+                           FROM work_items
+                           WHERE create_date BETWEEN $beginDate AND $endDate
+                           GROUP BY create_date
+                           ORDER BY create_date;
+                           """;
+        return Query(
+            sql,
+            reader => new WorkItemDaySummary(
+                ReadString(reader, 0),
+                Convert.ToInt32(reader.GetValue(1), CultureInfo.InvariantCulture),
+                Convert.ToDouble(reader.GetValue(2), CultureInfo.InvariantCulture)),
+            ("$beginDate", beginDate),
+            ("$endDate", endDate));
     }
 
     public override ICollection<WorkItem> GetWorkItemByDate(string date)

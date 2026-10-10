@@ -100,6 +100,50 @@ function settingToggle(tree, settings, labelText) {
     return item && descendants(tree, item).find(entry => typeOf(entry).includes('ToggleSwitch'));
 }
 
+function settingChoice(tree, settings, labelText) {
+    const item = settingItem(tree, settings, labelText, 'Diary.GUIBase.ViewModels.SettingChoice');
+    return item && descendants(tree, item).find(entry => typeOf(entry).includes('ComboBox'));
+}
+
+function settingChoiceText(tree, choice) {
+    if (!choice)
+        return '';
+    const selected = descendants(tree, choice).find(entry => isVisible(entry)
+        && ['周视图', '月视图'].includes(textOf(entry))
+        && !ancestor(tree, entry, current => current !== entry
+            && typeOf(current).includes('ComboBoxItem')));
+    return selected ? textOf(selected) : '';
+}
+
+async function setCalendarPreferences(connection, monthView, showCount) {
+    await expandGroup(connection, '视图设置', '工时日历视图:');
+    let tree = await connection.getTree();
+    let settings = rootOf(tree, 'SettingsView');
+    const choice = settingChoice(tree, settings, '工时日历视图:');
+    const countToggle = settingToggle(tree, settings, '显示每日记录数:');
+    assertUi(choice, '找不到工时日历视图选项');
+    assertUi(countToggle, '找不到显示每日记录数开关');
+
+    const expectedChoice = monthView ? '月视图' : '周视图';
+    if (settingChoiceText(tree, choice) !== expectedChoice) {
+        await connection.clickNode(choice);
+        await connection.pressKey(monthView ? 'End' : 'Home', monthView ? 'End' : 'Home', monthView ? 35 : 36);
+        await connection.pressKey('Enter', 'Enter', 13);
+    }
+    if (isChecked(countToggle) !== showCount) {
+        await connection.client.send('DOM.focus', { nodeId: countToggle.nodeId });
+        await connection.pressKey('Space', 'Space', 32);
+    }
+
+    await connection.waitForTree(current => {
+        const currentSettings = rootOf(current, 'SettingsView');
+        const currentChoice = settingChoice(current, currentSettings, '工时日历视图:');
+        const currentToggle = settingToggle(current, currentSettings, '显示每日记录数:');
+        return currentChoice && settingChoiceText(current, currentChoice) === expectedChoice
+            && currentToggle && isChecked(currentToggle) === showCount;
+    }, 3000, '工时日历设置没有切换到预期值');
+}
+
 async function setDeveloperFeatures(connection, enabled) {
     await expandGroup(connection, '视图设置', '显示开发者功能:');
     let tree = await connection.getTree();
@@ -147,7 +191,7 @@ await runUiSuite({ name: 'ui-settings-full', scenario: 'default', timeoutMs: 100
     await runStep('settings.groups', '程序设置分组和关键字段', async () => {
         await openSettings(connection);
         const groups = [
-            ['视图设置', ['界面字体:', '默认配色主题:', '始终显示托盘:', '隐藏到托盘:', '显示开发者功能:', '重新打开']],
+            ['视图设置', ['界面字体:', '默认配色主题:', '始终显示托盘:', '隐藏到托盘:', '显示开发者功能:', '工时日历视图:', '显示每日记录数:', '重新打开']],
             ['工作设置', ['默认事项名称:']],
             ['数据库设置', ['数据库驱动:', '配置', '创建备份', '选择备份', '迁移向导']],
             ['调查统计功能设置', ['启用调查功能:', '作为调查者:', '调查者 IP 地址:']],
@@ -187,15 +231,40 @@ await runUiSuite({ name: 'ui-settings-full', scenario: 'default', timeoutMs: 100
     await runStep('settings.save-navigation', '保存开发者设置并动态重建导航', async () => {
         await openSettings(connection);
         await setDeveloperFeatures(connection, true);
+        await setCalendarPreferences(connection, true, true);
         await closeSettings(connection, '保存');
         const enabled = await connection.waitForTree(tree => findByText(tree, '脚本管理'),
             8000, '保存后脚本管理导航未出现');
+        const monthCalendar = await connection.waitForTree(tree => {
+            const days = findByName(tree, 'CompactCalendarDays');
+            const header = findByName(tree, 'CompactCalendarHeader');
+            const buttons = days && descendants(tree, days).filter(entry =>
+                isVisible(entry) && typeOf(entry).includes('Button')
+                && String(entry.a.Class ?? '').includes('CompactCalendarDay'));
+            return buttons && [28, 35, 42].includes(buttons.length)
+                && /^\d{4}年\d{1,2}月$/.test(textOf(header)) ? days : null;
+        }, 8000, '保存设置后日记页没有立即切换为月视图');
         await openSettings(connection);
         await setDeveloperFeatures(connection, false);
+        await setCalendarPreferences(connection, false, false);
         await closeSettings(connection, '保存');
         const disabled = await connection.waitForTree(tree => !findByText(tree, '脚本管理'),
             8000, '恢复设置后脚本管理导航未移除');
-        return { enableMs: enabled.elapsedMs, disableMs: disabled.elapsedMs };
+        const weekCalendar = await connection.waitForTree(tree => {
+            const days = findByName(tree, 'CompactCalendarDays');
+            const header = findByName(tree, 'CompactCalendarHeader');
+            const buttons = days && descendants(tree, days).filter(entry =>
+                isVisible(entry) && typeOf(entry).includes('Button')
+                && String(entry.a.Class ?? '').includes('CompactCalendarDay'));
+            return buttons?.length === 7
+                && /^\d{4}年\d{1,2}月 第\d{1,2}周$/.test(textOf(header)) ? days : null;
+        }, 8000, '恢复设置后日记页没有立即切回周视图');
+        return {
+            enableMs: enabled.elapsedMs,
+            monthCalendarMs: monthCalendar.elapsedMs,
+            disableMs: disabled.elapsedMs,
+            weekCalendarMs: weekCalendar.elapsedMs,
+        };
     });
 
     await runStep('settings.onboarding-reopen', '从程序设置重新打开首次使用引导', async () => {

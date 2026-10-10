@@ -15,6 +15,7 @@ using Diary.App.ViewModels.Dialogs;
 using Diary.Core.Constants;
 using Diary.Core.Data.App;
 using Diary.Core.Data.Base;
+using Diary.Core.Data.Statistics;
 using Diary.Core.Utils;
 using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
@@ -40,12 +41,36 @@ public sealed class DayMenuItem
     public static DayMenuItem Separator { get; } = new DayMenuItem() { Header = "-" };
 }
 
+public enum WorkRecordCalendarView
+{
+    Week,
+    Month,
+}
+
 
 public sealed partial class CompactCalendarDay : ObservableObject
 {
     public required DateTime Date { get; init; }
     public required string DayText { get; init; }
-    public required string ToolTip { get; init; }
+
+    [ObservableProperty]
+    private string _toolTip = string.Empty;
+
+    [ObservableProperty]
+    private int _entryCount;
+
+    [ObservableProperty]
+    private string _entryCountText = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFilledIndicatorVisible))]
+    private bool _hasEntries;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFilledIndicatorVisible))]
+    private bool _isEntryCountVisible;
+
+    public bool IsFilledIndicatorVisible => HasEntries && !IsEntryCountVisible;
 
     [ObservableProperty]
     private bool _isToday;
@@ -84,15 +109,27 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private DateTime _compactCalendarAnchorDate;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CompactCalendarTitle))]
+    private WorkRecordCalendarView _compactCalendarView;
+
+    [ObservableProperty]
+    private bool _showCompactCalendarEntryCount;
+
+    [ObservableProperty]
     private ObservableCollection<CompactCalendarDay> _compactCalendarDays = new();
 
-    public string CompactCalendarTitle => FormatCompactCalendarTitle(CompactCalendarAnchorDate);
+    public string CompactCalendarTitle => FormatCompactCalendarTitle(CompactCalendarAnchorDate, CompactCalendarView);
 
     internal static string FormatCompactCalendarTitle(DateTime date)
     {
         var weekOfYear = GetCalendarWeekNumber(date);
         return $"{date.ToString("yyyy年M月", CultureInfo.CurrentCulture)} 第{weekOfYear}周";
     }
+
+    internal static string FormatCompactCalendarTitle(DateTime date, WorkRecordCalendarView view) =>
+        view == WorkRecordCalendarView.Month
+            ? date.ToString("yyyy年M月", CultureInfo.CurrentCulture)
+            : FormatCompactCalendarTitle(date);
 
     private static int GetCalendarWeekNumber(DateTime date) =>
         CultureInfo.InvariantCulture.Calendar.GetWeekOfYear(
@@ -218,6 +255,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         SortDailyWorks();
 
         UpdateTimeInfos();
+        RefreshCompactCalendar();
         DuplicateWorkItemCommand.NotifyCanExecuteChanged();
         return true;
     }
@@ -306,6 +344,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         SortDailyWorks();
         SelectedWork = lastCopied;
         UpdateTimeInfos();
+        RefreshCompactCalendar();
         EventDispatcher.Notify(
             "复制完成",
             $"已复制 {copied}/{sourceItems.Length} 条记录。",
@@ -358,6 +397,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         SortDailyWorks();
         SelectedWork = copiedWork;
         UpdateTimeInfos();
+        RefreshCompactCalendar();
         EventDispatcher.Notify(
             "复制完成",
             $"已将 {sourceItem.CreateDate} 的最近记录复制到 {CurrentDateString}。",
@@ -415,6 +455,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         SortDailyWorks();
         SelectedWork = lastCopied;
         UpdateTimeInfos();
+        RefreshCompactCalendar();
         EventDispatcher.Notify(
             "复制完成",
             $"已从 {sourceDate} 复制 {copied}/{sourceItems.Length} 条记录到 {CurrentDateString}。",
@@ -475,6 +516,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
                 return;
             DailyWorks.Remove(selected);
             SelectedWork = DailyWorks.FirstOrDefault();
+            UpdateTimeInfos();
+            RefreshCompactCalendar();
         }
         finally
         {
@@ -656,10 +699,10 @@ public partial class DiaryEditorViewModel : ViewModelBase
     private void SelectCompactCalendarDate(DateTime date) => GoDate(date.Date);
 
     [RelayCommand]
-    private void ShowPreviousCalendarPeriod() => ShiftCompactCalendarWeeks(-1);
+    private void ShowPreviousCalendarPeriod() => ShiftCompactCalendarPeriod(-1);
 
     [RelayCommand]
-    private void ShowNextCalendarPeriod() => ShiftCompactCalendarWeeks(1);
+    private void ShowNextCalendarPeriod() => ShiftCompactCalendarPeriod(1);
 
     public void NavigateCompactCalendarSelection(int days) => GoDate(SelectedDate.AddDays(days));
 
@@ -667,7 +710,11 @@ public partial class DiaryEditorViewModel : ViewModelBase
     {
         if (direction == 0)
             return;
-        ShiftCompactCalendarWeeks(Math.Sign(direction));
+
+        CompactCalendarAnchorDate = CompactCalendarView == WorkRecordCalendarView.Month
+            ? new DateTime(CompactCalendarAnchorDate.Year, CompactCalendarAnchorDate.Month, 1)
+                .AddMonths(Math.Sign(direction))
+            : CompactCalendarAnchorDate.AddDays(7 * Math.Sign(direction));
     }
 
     public void ShiftCompactCalendarWeeks(int weeks)
@@ -701,12 +748,56 @@ public partial class DiaryEditorViewModel : ViewModelBase
 
     partial void OnCompactCalendarAnchorDateChanged(DateTime value) => RefreshCompactCalendar();
 
+    partial void OnCompactCalendarViewChanged(WorkRecordCalendarView value)
+    {
+        RefreshCompactCalendar();
+    }
+
+    partial void OnShowCompactCalendarEntryCountChanged(bool value)
+    {
+        RefreshCompactCalendar();
+    }
+
+    private void ApplyCompactCalendarPreferences()
+    {
+        var settings = App.Instance.AppConfig.ViewSettings;
+        CompactCalendarView = ParseCompactCalendarView(settings.WorkRecordCalendarView);
+        ShowCompactCalendarEntryCount = settings.ShowWorkRecordCalendarEntryCount;
+    }
+
+    internal static WorkRecordCalendarView ParseCompactCalendarView(string? value) =>
+        string.Equals(value, "Month", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(value, "月视图", StringComparison.Ordinal)
+            ? WorkRecordCalendarView.Month
+            : WorkRecordCalendarView.Week;
+
+    internal static (DateTime FirstDate, int DayCount) GetCompactCalendarRange(
+        DateTime anchor,
+        WorkRecordCalendarView view)
+    {
+        anchor = anchor.Date;
+        if (view == WorkRecordCalendarView.Week)
+            return (StartOfWeek(anchor), 7);
+
+        var monthStart = new DateTime(anchor.Year, anchor.Month, 1);
+        var monthEnd = monthStart.AddMonths(1).AddDays(-1);
+        var firstDate = StartOfWeek(monthStart);
+        var lastDate = StartOfWeek(monthEnd).AddDays(6);
+        return (firstDate, (lastDate - firstDate).Days + 1);
+    }
+
     private void RefreshCompactCalendar()
     {
         var anchor = CompactCalendarAnchorDate == default ? DateTime.Today : CompactCalendarAnchorDate.Date;
-        var firstDate = StartOfWeek(anchor);
+        var (firstDate, dayCount) = GetCompactCalendarRange(anchor, CompactCalendarView);
+        var lastDate = firstDate.AddDays(dayCount - 1);
         var today = DateTime.Today;
-        const int dayCount = 7;
+        var summaries = App.Instance.UseDb?
+            .GetWorkItemDaySummaries(
+                TimeTools.FormatDateTime(firstDate),
+                TimeTools.FormatDateTime(lastDate))
+            .ToDictionary(summary => summary.Date, StringComparer.Ordinal)
+            ?? new Dictionary<string, WorkItemDaySummary>(StringComparer.Ordinal);
 
         if (CompactCalendarDays.Count == dayCount
             && CompactCalendarDays.Select((day, index) => day.Date == firstDate.AddDays(index)).All(matches => matches))
@@ -716,6 +807,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
                 day.IsToday = day.Date == today;
                 day.IsSelected = day.Date == SelectedDate.Date;
                 day.IsOutsideMonth = day.Date.Month != anchor.Month || day.Date.Year != anchor.Year;
+                ApplyCompactCalendarSummary(day, summaries, today);
             }
             return;
         }
@@ -728,12 +820,35 @@ public partial class DiaryEditorViewModel : ViewModelBase
                 {
                     Date = date,
                     DayText = date.Day.ToString(CultureInfo.InvariantCulture),
-                    ToolTip = date.ToString("yyyy年M月d日 dddd", CultureInfo.CurrentCulture),
                     IsToday = date == today,
                     IsSelected = date == SelectedDate.Date,
                     IsOutsideMonth = date.Month != anchor.Month || date.Year != anchor.Year,
                 };
             }));
+
+        foreach (var day in CompactCalendarDays)
+            ApplyCompactCalendarSummary(day, summaries, today);
+    }
+
+    private void ApplyCompactCalendarSummary(
+        CompactCalendarDay day,
+        IReadOnlyDictionary<string, WorkItemDaySummary> summaries,
+        DateTime today)
+    {
+        summaries.TryGetValue(TimeTools.FormatDateTime(day.Date), out var summary);
+        var count = summary?.ItemCount ?? 0;
+        var hours = summary?.TotalHours ?? 0;
+        var dateText = day.Date.ToString("yyyy年M月d日 dddd", CultureInfo.CurrentCulture);
+
+        day.EntryCount = count;
+        day.EntryCountText = count.ToString(CultureInfo.InvariantCulture);
+        day.HasEntries = count > 0;
+        day.IsEntryCountVisible = ShowCompactCalendarEntryCount && count > 0;
+        day.ToolTip = count > 0
+            ? $"{dateText} · 已填写 {count} 项 · {hours:0.##} 小时"
+            : day.Date > today
+                ? $"{dateText} · 尚未到达"
+                : $"{dateText} · 未填写";
     }
 
     partial void OnSelectedDateChanged(DateTime value)
@@ -841,13 +956,22 @@ public partial class DiaryEditorViewModel : ViewModelBase
         _logger = logger;
         _serviceProvider = serviceProvider;
         _scriptCatalog = scriptCatalog;
-        _scriptManager = scriptManager;        CompactCalendarAnchorDate = DateTime.Today;
+        _scriptManager = scriptManager;
+        var calendarSettings = App.Instance.AppConfig.ViewSettings;
+        _compactCalendarView = ParseCompactCalendarView(calendarSettings.WorkRecordCalendarView);
+        _showCompactCalendarEntryCount = calendarSettings.ShowWorkRecordCalendarEntryCount;
+        CompactCalendarAnchorDate = DateTime.Today;
         SelectedDate = DateTime.Today;
 
         Messenger.Register<DbChangedEvent>(this, (r, m) =>
         {
             if ((m.Value & DbChangedEvent.ShareData) != 0)
                 Dispatcher.UIThread.Post(FetchWorks);
+        });
+
+        Messenger.Register<ConfigUpdateEvent>(this, (r, m) =>
+        {
+            Dispatcher.UIThread.Post(ApplyCompactCalendarPreferences);
         });
 
         Messenger.Register<TemplateChangedEvent>(this, (r, m) =>
@@ -969,6 +1093,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
                     work => work.WorkId));
             SelectedWork = DailyWorks.FirstOrDefault();
             UpdateTimeInfos();
+            RefreshCompactCalendar();
         }
         finally
         {
