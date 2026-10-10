@@ -26,6 +26,20 @@ public sealed record AgentConversationRecord(
     string? ContextSummary = null,
     int ContextCompactionCount = 0);
 
+public static class AgentConversationProjection
+{
+    public static IReadOnlyList<AgentConversationMessage> CreatePersistedMessages(
+        IEnumerable<AgentMessage> messages) => messages
+        .Where(message => message.Role == AgentMessageRole.User
+                          || (message.Role == AgentMessageRole.Assistant
+                              && message.ToolCalls.Count == 0
+                              && !string.IsNullOrWhiteSpace(message.Text)))
+        .Select(message => new AgentConversationMessage(
+            message.Role == AgentMessageRole.User ? "user" : "assistant",
+            message.Text))
+        .ToArray();
+}
+
 public sealed class AgentConversationStore(string path)
 {
     private const int MaxConversations = 50;

@@ -2,6 +2,7 @@ using Diary.Agent.Configuration;
 using Diary.Agent.Credentials;
 using Diary.Agent.Networking;
 using Diary.Agent.Mcp;
+using Diary.Agent.Manual;
 using Diary.Agent.Protocols;
 using Diary.Agent.Runtime;
 using Diary.Agent.Tools;
@@ -54,6 +55,9 @@ public sealed class AiAgentModule : IAppModule
         services.AddSingleton<WorkItemDraftTool>();
         services.AddSingleton<ReportDraftTool>();
         services.AddSingleton<ScriptDraftTool>();
+        services.AddSingleton<UserManualIndexService>();
+        services.AddSingleton<SearchUserManualTool>();
+        services.AddSingleton<ReadUserManualSectionTool>();
         services.AddSingleton<McpClientManager>();
         services.AddSingleton(provider =>
             provider.GetRequiredService<AiConnectionManager>().Settings.WebAccess);
@@ -85,6 +89,8 @@ public sealed class AiAgentModule : IAppModule
             registry.TryRegister(provider.GetRequiredService<WorkItemDraftTool>());
             registry.TryRegister(provider.GetRequiredService<ReportDraftTool>());
             registry.TryRegister(provider.GetRequiredService<ScriptDraftTool>());
+            registry.TryRegister(provider.GetRequiredService<SearchUserManualTool>());
+            registry.TryRegister(provider.GetRequiredService<ReadUserManualSectionTool>());
             registry.TryRegister(provider.GetRequiredService<WorkItemWriteTool>());
             registry.TryRegister(provider.GetRequiredService<WorkItemUpdateTool>());
             registry.TryRegister(provider.GetRequiredService<WorkItemBatchUpdateTool>());

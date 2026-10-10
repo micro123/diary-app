@@ -8,6 +8,32 @@ namespace Diary.AgentTests;
 public sealed class AgentPersistenceTests
 {
     [TestMethod]
+    public void ConversationProjectionNeverPersistsReasoningOrToolProtocolMessages()
+    {
+        const string reasoningMarker = "PRIVATE_REASONING_MUST_NOT_PERSIST";
+        using var arguments = JsonDocument.Parse("{}");
+        var messages = new AgentMessage[]
+        {
+            AgentMessage.User("用户问题"),
+            AgentMessage.Assistant(
+                string.Empty,
+                [new AgentToolCall("call-1", "diary_search_user_manual", arguments.RootElement.Clone())],
+                reasoningMarker),
+            AgentMessage.Tool("call-1", "工具结果"),
+            AgentMessage.Assistant("最终回答", reasoningText: reasoningMarker),
+        };
+
+        var persisted = AgentConversationProjection.CreatePersistedMessages(messages);
+        var json = JsonSerializer.Serialize(persisted);
+
+        Assert.AreEqual(2, persisted.Count);
+        Assert.AreEqual("用户问题", persisted[0].Content);
+        Assert.AreEqual("最终回答", persisted[1].Content);
+        Assert.IsFalse(json.Contains(reasoningMarker, StringComparison.Ordinal));
+        Assert.IsFalse(json.Contains("工具结果", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void ArgumentSummaryRedactsNotesCredentialsAndNestedSecrets()
     {
         using var document = JsonDocument.Parse("""

@@ -566,15 +566,7 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
 
     private async Task SaveConversationAsync(AgentRunResult result, AiConnectionProfile profile)
     {
-        var messages = _session.Messages
-            .Where(message => message.Role == AgentMessageRole.User
-                              || (message.Role == AgentMessageRole.Assistant
-                                  && message.ToolCalls.Count == 0
-                                  && !string.IsNullOrWhiteSpace(message.Text)))
-            .Select(message => new AgentConversationMessage(
-                message.Role == AgentMessageRole.User ? "user" : "assistant",
-                message.Text))
-            .ToArray();
+        var messages = AgentConversationProjection.CreatePersistedMessages(_session.Messages);
         var firstUser = Messages.FirstOrDefault(message => message.Role == "你")?.Content
             ?? messages.FirstOrDefault(message => message.Role == "user")?.Content
             ?? "新会话";

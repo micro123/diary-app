@@ -495,6 +495,8 @@ ProtocolError
 
 `ReasoningDelta` 统一承载模型服务显式返回的思考文本或思考活动。OpenAI Chat Completions 识别 `reasoning_content` 及常见兼容字段，Responses 识别 reasoning summary/text 增量，Anthropic 识别 thinking/signature 增量。思考事件与文本事件一样刷新流式空闲超时；签名或加密思考块只报告活动，不作为可见正文。思考内容仅用于当前页面展示和同一内存会话的协议续答，不进入会话文件、审计或日志。
 
+会话保存前统一通过 `AgentConversationProjection` 投影，仅保留用户正文和无工具调用的最终助手正文；tool 协议消息、`ReasoningText` 与 Anthropic thinking/signature 块均不属于持久化 DTO。页面仍可在当前进程内展示服务显式返回的思考内容，但 `Expander` 默认折叠，用户主动展开后才显示正文。
+
 ### 8.6 错误归一化
 
 统一错误类别：配置、DNS、代理、TLS、认证、模型不存在、限流、服务端、超时、取消、协议格式、流中断、上下文超限。证书吊销端点不可达单独归一化为 `tls_revocation_offline`，提示用户恢复 CRL/OCSP 网络或在可信内网关闭当前连接的吊销检查。错误保留 HTTP 状态和脱敏 request ID，不保存响应正文；开发诊断只允许保存受长度限制且脱敏的错误摘要。
@@ -649,6 +651,8 @@ AllowAutomatically
 
 ### 11.1 P0 只读工具
 
+用户手册工具包含 `diary_search_user_manual` 和 `diary_read_user_manual_section`。`UserManualIndexService` 只从固定的发布目录 `Docs/UserManual/DiaryApp-User-Manual.html` 读取手册；开发环境可向上查找仓库的 `_output` 产物，但模型不能传入文件路径。服务使用 AngleSharp 解析 Quarto 正文，将章节标题、ID 和直接正文缓存在内存；搜索最多返回 10 个短摘要，章节读取默认 6000、最多 12000 字符。工具结果视为 DiaryApp 内置信息，不具备网页外部内容的指令地位。
+
 | 工具 | 宿主能力 | 默认状态 |
 | --- | --- | --- |
 | `diary_list_tags` | `IWorkTagScriptApi`；返回 ID、名称、颜色、层级、停用状态和标签元数据 | 启用 |
@@ -664,6 +668,8 @@ AllowAutomatically
 | `diary_list_export_options` | `IExportApi` 格式与模板目录 | 启用 |
 | `diary_get_current_context` | UI 当前日期/选择的只读快照 | 启用 |
 | `diary_validate_script` | 现有校验服务适配器 | 启用 |
+| `diary_search_user_manual` | 固定发布路径的用户手册章节索引 | 启用 |
+| `diary_read_user_manual_section` | 按章节 ID 读取限长正文 | 启用 |
 
 模块不得持有 `DbInterfaceBase`。宿主在 DI 中注册稳定 Script Host API 或只读 facade。事项查询契约提供可选的精确 ID 过滤，详情工具仍复用显式无备注模式，不调用 `WorkGetNote` 或 `GetWorkNotesByWorkItemIds`；工具 DTO 同样不定义本地备注字段。统计和分析工具在宿主内计算平均工时、日期范围、日期/优先级分布、标签工时、缺失工作日、异常工时和重复标题；质量分析、周期对比和日历概览最多处理 2000 条事项与 366 天，只向模型返回聚合结果。导出目录工具只读取格式、能力和模板元数据，不生成文件。普通脚本 API 保持原有可读取备注的行为，其他普通工作字段可以按查询结果返回。
 
@@ -797,7 +803,7 @@ AI 模块贡献“AI 助手”导航页。模块未加载时没有导航项。�
 布局包含：
 
 - 消息列表和流式文本；
-- 可展开的思考过程；收到 reasoning/thinking 事件时显示“模型正在思考”，开始正文后切换为“模型正在生成回答”；
+- 默认折叠、可主动展开的思考过程；收到 reasoning/thinking 事件时显示“模型正在思考”，开始正文后切换为“模型正在生成回答”；
 - 新消息和流式文本增长时自动跟随底部；用户主动向上滚动后暂停跟随，回到底部后恢复；
 - 输入框、发送、停止；
 - 工具调用卡片：来源、参数摘要、状态、耗时和结果摘要；

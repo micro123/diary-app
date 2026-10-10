@@ -53,7 +53,7 @@
                                             <TextBlock Text="{Binding Role}" FontWeight="SemiBold" />
                                             <Expander Grid.Row="1" Header="思考过程"
                                                       IsVisible="{Binding HasReasoning}"
-                                                      IsExpanded="True">
+                                                      IsExpanded="False">
                                                 <Border Margin="0,4,0,2" Padding="10"
                                                         Background="#0D6B7280"
                                                         CornerRadius="6">
