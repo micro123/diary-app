@@ -4,6 +4,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.Agent.Configuration;
 using Diary.Agent.Credentials;
+using Diary.Agent.Mcp;
+using Diary.Agent.Tools;
 using Diary.Agent.Web;
 using Diary.GUIBase.ViewModels;
 
@@ -275,11 +277,99 @@ public sealed partial class AiConnectionEditorViewModel : ObservableObject
     }
 }
 
+public sealed partial class McpServerRuntimeViewModel : ObservableObject
+{
+    public McpServerRuntimeViewModel(McpServerProfile profile)
+    {
+        ServerId = profile.Id;
+        DisplayName = profile.DisplayName;
+        Transport = profile.Transport;
+        Enabled = profile.Enabled;
+        ApplyDiagnostic(new McpServerDiagnostic(
+            profile.Id,
+            profile.DisplayName,
+            profile.Transport,
+            profile.Enabled,
+            McpServerRuntimeState.Stopped,
+            0,
+            0,
+            null,
+            null,
+            null,
+            null,
+            DateTimeOffset.UtcNow));
+    }
+
+    public string ServerId { get; }
+
+    public string DisplayName { get; }
+
+    public McpTransportKind Transport { get; }
+
+    public bool Enabled { get; }
+
+    public string TransportText => Transport == McpTransportKind.Stdio ? "stdio" : "Streamable HTTP";
+
+    public string StartText => Transport == McpTransportKind.Stdio ? "启动" : "连接";
+
+    public string StopText => Transport == McpTransportKind.Stdio ? "停止" : "断开";
+
+    public string RestartText => Transport == McpTransportKind.Stdio ? "重启" : "重连";
+
+    public bool CanManage => Enabled && !IsBusy;
+
+    public bool HasError => !string.IsNullOrWhiteSpace(LastError);
+
+    [ObservableProperty] private bool _isBusy;
+    [ObservableProperty] private string _stateText = "已停止";
+    [ObservableProperty] private string _toolCountText = "尚未发现工具";
+    [ObservableProperty] private string _runtimeDetails = string.Empty;
+    [ObservableProperty] private string _lastError = string.Empty;
+    [ObservableProperty] private string _operationStatus = string.Empty;
+
+    partial void OnIsBusyChanged(bool value) => OnPropertyChanged(nameof(CanManage));
+
+    partial void OnLastErrorChanged(string value) => OnPropertyChanged(nameof(HasError));
+
+    public void ApplyDiagnostic(McpServerDiagnostic diagnostic)
+    {
+        StateText = diagnostic.State switch
+        {
+            McpServerRuntimeState.Connecting => Transport == McpTransportKind.Stdio ? "正在启动" : "正在连接",
+            McpServerRuntimeState.Connected => "已连接",
+            McpServerRuntimeState.Stopping => Transport == McpTransportKind.Stdio ? "正在停止" : "正在断开",
+            McpServerRuntimeState.Faulted => "连接异常",
+            _ => "已停止",
+        };
+        ToolCountText = diagnostic.State == McpServerRuntimeState.Connected
+            ? $"发现 {diagnostic.DiscoveredToolCount} 个工具，已开放 {diagnostic.ExposedToolCount} 个"
+            : "尚未注册工具";
+        var details = new List<string>();
+        if (diagnostic.ProcessId is not null)
+            details.Add($"进程 PID {diagnostic.ProcessId}");
+        if (diagnostic.ExitCode is not null)
+            details.Add($"退出码 {diagnostic.ExitCode}");
+        if (!string.IsNullOrWhiteSpace(diagnostic.SessionId))
+            details.Add($"Session {diagnostic.SessionId}");
+        details.Add($"更新于 {diagnostic.UpdatedAtUtc.ToLocalTime():HH:mm:ss}");
+        RuntimeDetails = string.Join(" · ", details);
+        LastError = diagnostic.Error ?? string.Empty;
+    }
+}
+
 public sealed partial class AiAgentSettingsViewModel : ViewModelBase
 {
+    private static readonly JsonSerializerOptions McpJsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = true,
+    };
+
     private readonly AiConnectionManager _manager;
     private readonly IAiCredentialStore _credentials;
     private readonly AiAgentPageViewModel _page;
+    private readonly McpClientManager _mcp;
+    private readonly AgentToolRegistry _tools;
     private readonly HashSet<string> _pendingCredentialDeletes = new(StringComparer.Ordinal);
     private CancellationTokenSource? _profileTestCancellation;
     private AiConnectionEditorViewModel? _testingProfile;
@@ -287,16 +377,26 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
     public AiAgentSettingsViewModel(
         AiConnectionManager manager,
         IAiCredentialStore credentials,
-        AiAgentPageViewModel page)
+        AiAgentPageViewModel page,
+        McpClientManager mcp,
+        AgentToolRegistry tools)
     {
         _manager = manager;
         _credentials = credentials;
         _page = page;
+        _mcp = mcp;
+        _tools = tools;
         Load();
         _ = RefreshCredentialStatusesAsync();
     }
 
     public ObservableCollection<AiConnectionEditorViewModel> Profiles { get; } = [];
+
+    public ObservableCollection<McpServerRuntimeViewModel> McpServers { get; } = [];
+
+    public bool HasMcpServers => McpServers.Count > 0;
+
+    public bool HasNoMcpServers => McpServers.Count == 0;
 
     [ObservableProperty] private AiConnectionEditorViewModel? _selectedProfile;
     public bool HasSelectedProfile => SelectedProfile is not null;
@@ -329,6 +429,141 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
         var profile = AiConnectionEditorViewModel.CreateNew(index);
         Profiles.Add(profile);
         SelectedProfile = profile;
+    }
+
+    [RelayCommand]
+    private void RefreshMcpServerStatuses()
+    {
+        ApplyMcpDiagnostics();
+        SaveStatus = McpServers.Count == 0
+            ? "尚未保存 MCP Server 配置。"
+            : "已刷新 MCP Server 运行状态。";
+    }
+
+    [RelayCommand]
+    private async Task StartMcpServer(McpServerRuntimeViewModel? server) =>
+        await RunMcpOperationAsync(
+            server,
+            "启动",
+            item => _mcp.StartServerAsync(item.ServerId, _tools));
+
+    [RelayCommand]
+    private async Task StopMcpServer(McpServerRuntimeViewModel? server) =>
+        await RunMcpOperationAsync(
+            server,
+            "停止",
+            item => _mcp.StopServerAsync(item.ServerId, _tools));
+
+    [RelayCommand]
+    private async Task RestartMcpServer(McpServerRuntimeViewModel? server) =>
+        await RunMcpOperationAsync(
+            server,
+            "重启",
+            item => _mcp.RestartServerAsync(item.ServerId, _tools));
+
+    [RelayCommand]
+    private async Task RefreshMcpServerTools(McpServerRuntimeViewModel? server) =>
+        await RunMcpOperationAsync(
+            server,
+            "刷新工具",
+            item => _mcp.RefreshServerToolsAsync(item.ServerId, _tools));
+
+    [RelayCommand]
+    private async Task TestMcpServer(McpServerRuntimeViewModel? server)
+    {
+        if (server is null || server.IsBusy)
+            return;
+        server.IsBusy = true;
+        server.OperationStatus = "正在测试连接…";
+        try
+        {
+            var result = await _mcp.TestServerAsync(server.ServerId);
+            server.OperationStatus = result.Succeeded
+                ? result.Message
+                : $"测试失败：{result.Message}";
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            server.OperationStatus = $"测试失败：{exception.Message}";
+        }
+        finally
+        {
+            server.IsBusy = false;
+            ApplyMcpDiagnostics();
+        }
+    }
+
+    [RelayCommand]
+    private async Task ImportMcpServerTools(McpServerRuntimeViewModel? server)
+    {
+        if (server is null || server.IsBusy)
+            return;
+        server.IsBusy = true;
+        server.OperationStatus = "正在探测远端工具…";
+        try
+        {
+            var result = await _mcp.TestServerAsync(server.ServerId);
+            if (!result.Succeeded)
+            {
+                server.OperationStatus = $"探测失败：{result.Message}";
+                return;
+            }
+            var profiles = DeserializeMcpProfiles();
+            var index = Array.FindIndex(profiles, item => item.Id == server.ServerId);
+            if (index < 0)
+                throw new InvalidOperationException("当前 JSON 中找不到该 Server；请重新加载或先保存配置。");
+            var before = profiles[index].Tools.Count;
+            profiles[index] = McpToolPolicyImporter.MergeDiscoveredTools(
+                profiles[index],
+                result.Tools.Select(tool => tool.Name));
+            var imported = profiles[index].Tools.Count - before;
+            McpServersJson = JsonSerializer.Serialize(profiles, McpJsonOptions);
+            server.OperationStatus = imported == 0
+                ? $"已发现 {result.DiscoveredToolCount} 个工具，当前 JSON 已包含全部策略。"
+                : $"已导入 {imported} 个工具策略。默认启用并按写入工具逐次确认；请核对 risk 后保存设置。";
+            SaveStatus = imported == 0
+                ? SaveStatus
+                : "MCP 工具策略已写入编辑区，尚未保存。";
+        }
+        catch (Exception exception) when (exception is ArgumentException
+                                           or InvalidOperationException
+                                           or JsonException)
+        {
+            server.OperationStatus = $"导入失败：{exception.Message}";
+        }
+        finally
+        {
+            server.IsBusy = false;
+            ApplyMcpDiagnostics();
+        }
+    }
+
+    private async Task RunMcpOperationAsync(
+        McpServerRuntimeViewModel? server,
+        string operationName,
+        Func<McpServerRuntimeViewModel, ValueTask<McpServerDiagnostic>> operation)
+    {
+        if (server is null || server.IsBusy)
+            return;
+        server.IsBusy = true;
+        server.OperationStatus = $"正在{operationName}…";
+        try
+        {
+            var diagnostic = await operation(server);
+            server.ApplyDiagnostic(diagnostic);
+            server.OperationStatus = diagnostic.State == McpServerRuntimeState.Faulted
+                ? $"{operationName}失败：{diagnostic.Error}"
+                : $"{operationName}完成。";
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            server.OperationStatus = $"{operationName}失败：{exception.Message}";
+        }
+        finally
+        {
+            server.IsBusy = false;
+            ApplyMcpDiagnostics();
+        }
     }
 
     [RelayCommand]
@@ -528,12 +763,7 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
             var capabilities = Profiles
                 .Where(profile => profile.Capabilities is not null)
                 .ToDictionary(profile => profile.Id.Trim(), profile => profile.Capabilities!, StringComparer.Ordinal);
-            var mcpServers = JsonSerializer.Deserialize<McpServerProfile[]>(
-                string.IsNullOrWhiteSpace(McpServersJson) ? "[]" : McpServersJson,
-                new JsonSerializerOptions(JsonSerializerDefaults.Web)
-                {
-                    PropertyNameCaseInsensitive = true,
-                }) ?? [];
+            var mcpServers = DeserializeMcpProfiles();
             var webAccess = JsonSerializer.Deserialize<WebAccessPolicy>(
                 string.IsNullOrWhiteSpace(WebAccessJson) ? "{}" : WebAccessJson,
                 new JsonSerializerOptions(JsonSerializerDefaults.Web)
@@ -596,6 +826,7 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
             }
             await RefreshCredentialStatusesAsync();
             _page.RefreshProfiles();
+            LoadMcpServers();
             SaveStatus = "设置已保存。凭据正文保存在加密文件、环境变量或当前会话内，不写入 settings.json。"
                          + (string.IsNullOrEmpty(cleanupSummary) ? string.Empty : " " + cleanupSummary);
         }
@@ -630,6 +861,7 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
         McpServersJson = JsonSerializer.Serialize(
             _manager.Settings.McpServers,
             new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true });
+        LoadMcpServers();
         WebAccessJson = JsonSerializer.Serialize(
             _manager.Settings.WebAccess,
             new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true });
@@ -642,6 +874,31 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
             : string.Empty;
         _ = RefreshCredentialStatusesAsync();
     }
+
+    private void LoadMcpServers()
+    {
+        McpServers.Clear();
+        foreach (var profile in _manager.Settings.McpServers)
+            McpServers.Add(new McpServerRuntimeViewModel(profile));
+        ApplyMcpDiagnostics();
+        OnPropertyChanged(nameof(HasMcpServers));
+        OnPropertyChanged(nameof(HasNoMcpServers));
+    }
+
+    private void ApplyMcpDiagnostics()
+    {
+        var diagnostics = _mcp.Diagnostics.ToDictionary(item => item.ServerId, StringComparer.Ordinal);
+        foreach (var server in McpServers)
+        {
+            if (diagnostics.TryGetValue(server.ServerId, out var diagnostic))
+                server.ApplyDiagnostic(diagnostic);
+        }
+    }
+
+    private McpServerProfile[] DeserializeMcpProfiles() =>
+        JsonSerializer.Deserialize<McpServerProfile[]>(
+            string.IsNullOrWhiteSpace(McpServersJson) ? "[]" : McpServersJson,
+            McpJsonOptions) ?? [];
 
     private async Task RefreshCredentialStatusesAsync()
     {

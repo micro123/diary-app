@@ -1,10 +1,12 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using Diary.Agent.Configuration;
 using Diary.Agent.Credentials;
 using Diary.Agent.Mcp;
+using Diary.Agent.Protocols;
 using Diary.Agent.Tools;
 using Diary.AiContext;
 
@@ -57,6 +59,28 @@ public sealed class McpClientTests
             }));
 
         Assert.AreEqual(0, errors.Count);
+    }
+
+    [TestMethod]
+    public void DiscoveredToolsAreImportedAsConfirmedWritesAndDeleteToolsStayDisabled()
+    {
+        var profile = CreatePolicyValidationProfile(new McpToolPolicy
+        {
+            ToolName = "existing_query",
+            Enabled = true,
+            Risk = AgentToolRisk.ReadOnly,
+        });
+
+        var merged = McpToolPolicyImporter.MergeDiscoveredTools(
+            profile,
+            ["existing_query", "search_documents", "update_document", "delete_document"]);
+
+        Assert.AreEqual(4, merged.Tools.Count);
+        Assert.AreEqual(AgentToolRisk.ReadOnly, merged.Tools.Single(item => item.ToolName == "existing_query").Risk);
+        Assert.IsTrue(merged.Tools.Single(item => item.ToolName == "search_documents").Enabled);
+        Assert.AreEqual(AgentToolRisk.Write, merged.Tools.Single(item => item.ToolName == "search_documents").Risk);
+        Assert.AreEqual(AgentToolRisk.Write, merged.Tools.Single(item => item.ToolName == "update_document").Risk);
+        Assert.IsFalse(merged.Tools.Single(item => item.ToolName == "delete_document").Enabled);
     }
 
     [TestMethod]
@@ -142,6 +166,81 @@ public sealed class McpClientTests
                                                         && value == "session-1"));
     }
 
+    [TestMethod]
+    [Timeout(40_000)]
+    public async Task ManagerStartsRefreshesRestartsAndStopsStdioServer()
+    {
+        var root = FindRepositoryRoot();
+        var snapshotPath = Path.Combine(Path.GetTempPath(), $"diary-agent-mcp-manager-{Guid.NewGuid():N}.json");
+        var settingsRoot = Path.Combine(Path.GetTempPath(), "Diary.AgentTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(settingsRoot);
+        await AiContextSerializer.SaveAsync(snapshotPath, CreateSnapshot());
+        try
+        {
+            var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent?.Name ?? "Debug";
+            var serverPath = Path.Combine(root, "Diary.Mcp", "bin", configuration, "net10.0", "Diary.Mcp.dll");
+            var profile = new McpServerProfile
+            {
+                Id = "managed-diary",
+                DisplayName = "Managed Diary MCP",
+                Enabled = true,
+                Transport = McpTransportKind.Stdio,
+                Command = "dotnet",
+                Arguments = [serverPath, "--snapshot", snapshotPath],
+                WorkingDirectory = root,
+                Tools =
+                [
+                    new McpToolPolicy
+                    {
+                        ToolName = "diary_list_tags",
+                        Enabled = true,
+                        Risk = AgentToolRisk.ReadOnly,
+                    },
+                ],
+            };
+            var store = new AiConnectionStore(Path.Combine(settingsRoot, "settings.json"));
+            store.Save(new AiAgentSettings
+            {
+                EnabledTools = new AiAgentToolSettings { Mcp = true },
+                McpServers = [profile],
+            });
+            var connections = new AiConnectionManager(
+                store,
+                new AiConnectionProbeService(new UnusedModelGateway()));
+            var registry = new AgentToolRegistry();
+            await using var manager = new McpClientManager(
+                connections,
+                new TestCredentialStore(),
+                new AgentConfirmationCoordinator());
+
+            var tested = await manager.TestServerAsync(profile.Id);
+            var started = await manager.StartServerAsync(profile.Id, registry);
+            var firstProcessId = started.ProcessId;
+            var refreshed = await manager.RefreshServerToolsAsync(profile.Id, registry);
+            var restarted = await manager.RestartServerAsync(profile.Id, registry);
+            var stopped = await manager.StopServerAsync(profile.Id, registry);
+
+            Assert.IsTrue(tested.Succeeded);
+            CollectionAssert.Contains(tested.Tools.Select(tool => tool.Name).ToArray(), "diary_list_tags");
+            Assert.AreEqual(McpServerRuntimeState.Connected, started.State);
+            Assert.IsTrue(started.DiscoveredToolCount >= 1);
+            Assert.AreEqual(1, started.ExposedToolCount);
+            Assert.IsNotNull(firstProcessId);
+            Assert.AreEqual(firstProcessId, refreshed.ProcessId);
+            Assert.AreEqual(McpServerRuntimeState.Connected, restarted.State);
+            Assert.IsNotNull(restarted.ProcessId);
+            Assert.AreNotEqual(firstProcessId, restarted.ProcessId);
+            Assert.AreEqual(McpServerRuntimeState.Stopped, stopped.State);
+            Assert.AreEqual(0, registry.CreateSnapshot().Descriptors.Count);
+            Assert.AreEqual(McpServerRuntimeState.Stopped, manager.Diagnostics.Single().State);
+        }
+        finally
+        {
+            File.Delete(snapshotPath);
+            Directory.Delete(settingsRoot, recursive: true);
+        }
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
@@ -190,6 +289,24 @@ public sealed class McpClientTests
 
         public ValueTask DeleteAsync(string reference, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class UnusedModelGateway : IAgentModelGateway
+    {
+        public ValueTask<AgentModelResponse> SendAsync(
+            AgentModelRequest request,
+            AiConnectionProfile connection,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public async IAsyncEnumerable<AgentStreamEvent> StreamAsync(
+            AgentModelRequest request,
+            AiConnectionProfile connection,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
     }
 
     private sealed record CapturedHttpRequest(

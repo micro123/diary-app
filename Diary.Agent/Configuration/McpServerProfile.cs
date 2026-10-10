@@ -43,6 +43,34 @@ public static class McpToolPolicyGuard
     }
 }
 
+public static class McpToolPolicyImporter
+{
+    public static McpServerProfile MergeDiscoveredTools(
+        McpServerProfile profile,
+        IEnumerable<string> discoveredToolNames)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(discoveredToolNames);
+        var policies = profile.Tools.ToList();
+        var knownNames = policies.Select(item => item.ToolName).ToHashSet(StringComparer.Ordinal);
+        foreach (var toolName in discoveredToolNames
+                     .Where(item => !string.IsNullOrWhiteSpace(item))
+                     .Distinct(StringComparer.Ordinal))
+        {
+            if (!knownNames.Add(toolName))
+                continue;
+            var prohibited = McpToolPolicyGuard.IsProhibitedDestructiveToolName(toolName);
+            policies.Add(new McpToolPolicy
+            {
+                ToolName = toolName,
+                Enabled = !prohibited,
+                Risk = prohibited ? AgentToolRisk.ReadOnly : AgentToolRisk.Write,
+            });
+        }
+        return profile with { Tools = policies };
+    }
+}
+
 public sealed record McpServerProfile
 {
     public required string Id { get; init; }

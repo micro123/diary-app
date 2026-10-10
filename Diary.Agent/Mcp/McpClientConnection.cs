@@ -15,12 +15,19 @@ public sealed record McpRemoteCallResult(
     JsonElement Result,
     bool IsError);
 
+public sealed record McpConnectionRuntimeInfo(
+    bool Connected,
+    int? ProcessId,
+    int? ExitCode,
+    string? SessionId);
+
 public sealed class McpClientConnection : IAsyncDisposable
 {
     private const string ProtocolVersion = "2025-11-25";
     private readonly IMcpJsonRpcTransport _transport;
     private readonly SemaphoreSlim _connectGate = new(1, 1);
     private bool _connected;
+    private int _disposed;
 
     public McpClientConnection(McpServerProfile profile, IAiCredentialStore credentials)
     {
@@ -36,10 +43,24 @@ public sealed class McpClientConnection : IAsyncDisposable
 
     public McpServerProfile Profile { get; }
 
+    public McpConnectionRuntimeInfo RuntimeInfo
+    {
+        get
+        {
+            var transport = _transport.RuntimeInfo;
+            return new McpConnectionRuntimeInfo(
+                _connected,
+                transport.ProcessId,
+                transport.ExitCode,
+                transport.SessionId);
+        }
+    }
+
     public event Func<McpClientConnection, ValueTask>? ToolsChanged;
 
     public async ValueTask ConnectAsync(CancellationToken cancellationToken = default)
     {
+        ThrowIfDisposed();
         if (_connected)
             return;
         await _connectGate.WaitAsync(cancellationToken);
@@ -134,10 +155,17 @@ public sealed class McpClientConnection : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            return;
+        _connected = false;
         _transport.NotificationReceived -= OnNotificationAsync;
         await _transport.DisposeAsync();
         _connectGate.Dispose();
     }
+
+    private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(
+        Volatile.Read(ref _disposed) != 0,
+        this);
 
     private async ValueTask OnNotificationAsync(
         string method,

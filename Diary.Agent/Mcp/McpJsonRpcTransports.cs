@@ -10,9 +10,16 @@ using Diary.Agent.Credentials;
 
 namespace Diary.Agent.Mcp;
 
+internal sealed record McpTransportRuntimeInfo(
+    int? ProcessId = null,
+    int? ExitCode = null,
+    string? SessionId = null);
+
 internal interface IMcpJsonRpcTransport : IAsyncDisposable
 {
     event Func<string, JsonElement, CancellationToken, ValueTask>? NotificationReceived;
+
+    McpTransportRuntimeInfo RuntimeInfo { get; }
 
     ValueTask StartAsync(CancellationToken cancellationToken = default);
 
@@ -44,6 +51,26 @@ internal sealed class StdioMcpTransport(McpServerProfile profile) : IMcpJsonRpcT
     private long _nextId;
 
     public event Func<string, JsonElement, CancellationToken, ValueTask>? NotificationReceived;
+
+    public McpTransportRuntimeInfo RuntimeInfo
+    {
+        get
+        {
+            var process = _process;
+            if (process is null)
+                return new McpTransportRuntimeInfo();
+            try
+            {
+                return process.HasExited
+                    ? new McpTransportRuntimeInfo(process.Id, process.ExitCode)
+                    : new McpTransportRuntimeInfo(process.Id);
+            }
+            catch (InvalidOperationException)
+            {
+                return new McpTransportRuntimeInfo();
+            }
+        }
+    }
 
     public ValueTask StartAsync(CancellationToken cancellationToken = default)
     {
@@ -312,6 +339,8 @@ internal sealed class HttpMcpTransport : IMcpJsonRpcTransport
     }
 
     public event Func<string, JsonElement, CancellationToken, ValueTask>? NotificationReceived;
+
+    public McpTransportRuntimeInfo RuntimeInfo => new(SessionId: _sessionId);
 
     public async ValueTask StartAsync(CancellationToken cancellationToken = default)
     {
