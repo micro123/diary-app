@@ -9,7 +9,7 @@ public sealed record RedMineInstanceConfiguration(
     RedMineConfig Configuration,
     IRedMineDb Database);
 
-public sealed class RedMineInstance(RedMineInstanceConfiguration configuration) : ITrackerInstance
+public sealed class RedMineInstance(RedMineInstanceConfiguration configuration) : ITrackerInstance, ITrackerLocalCatalog
 {
     private static readonly Regex IconPattern = new("^(fa|mdi)-[a-z0-9-]+$", RegexOptions.CultureInvariant);
     public RedMineInstanceSettings Settings => (RedMineInstanceSettings)configuration.Configuration;
@@ -35,5 +35,41 @@ public sealed class RedMineInstance(RedMineInstanceConfiguration configuration) 
     {
         var bindings = configuration.Database.GetWorkTimeEntriesByWorkItemIds(workItemIds);
         return bindings.ToDictionary(item => item.Key, item => (object?)item.Value);
+    }
+
+    public IReadOnlyList<TrackerLocalItem> SearchLocalItems(string? query, int limit)
+    {
+        var text = query?.Trim();
+        return Database.GetRedMineIssues(null)
+            .Where(issue => string.IsNullOrEmpty(text)
+                || issue.Id.ToString().Contains(text, StringComparison.OrdinalIgnoreCase)
+                || issue.Title.Contains(text, StringComparison.OrdinalIgnoreCase)
+                || issue.Project.Contains(text, StringComparison.OrdinalIgnoreCase))
+            .Take(Math.Clamp(limit, 1, 100))
+            .Select(issue => new TrackerLocalItem(
+                issue.Id.ToString(),
+                issue.Title,
+                issue.Project,
+                issue.Disabled ? "Closed" : "Open",
+                issue.Disabled || issue.Invalid,
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["assignedTo"] = issue.AssignedTo,
+                }))
+            .ToArray();
+    }
+
+    public TrackerLocalItem? GetLocalItem(string itemId)
+    {
+        if (!int.TryParse(itemId, out var id))
+            return null;
+        var issue = Database.GetRedMineIssues(null).FirstOrDefault(value => value.Id == id);
+        return issue is null ? null : new TrackerLocalItem(
+            issue.Id.ToString(),
+            issue.Title,
+            issue.Project,
+            issue.Disabled ? "Closed" : "Open",
+            issue.Disabled || issue.Invalid,
+            new Dictionary<string, string>(StringComparer.Ordinal) { ["assignedTo"] = issue.AssignedTo });
     }
 }

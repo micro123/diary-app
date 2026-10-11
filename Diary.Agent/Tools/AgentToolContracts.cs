@@ -26,7 +26,8 @@ public sealed record AgentToolDescriptor(
     JsonElement InputSchema,
     AgentToolOrigin Origin,
     AgentToolRisk Risk,
-    string OwnerId);
+    string OwnerId,
+    string? PermissionGroup = null);
 
 public sealed record AgentToolInvocationContext(
     Guid RunId,

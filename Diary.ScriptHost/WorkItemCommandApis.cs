@@ -82,6 +82,27 @@ public sealed record WorkItemBatchUpdateResult(
     string? ErrorCode = null,
     string? ErrorMessage = null);
 
+public sealed record WorkItemBatchCreateCommand(
+    IReadOnlyList<WorkItemCreateCommand> Items,
+    string IdempotencyKey,
+    string? PreviewVersion = null);
+
+public sealed record WorkItemBatchCreatePreview(
+    bool Succeeded,
+    WorkItemBatchCreateCommand? Command,
+    IReadOnlyList<WorkItemCommandPreview> Items,
+    string? PreviewVersion,
+    string? ErrorCode = null,
+    string? ErrorMessage = null);
+
+public sealed record WorkItemBatchCreateResult(
+    bool Succeeded,
+    IReadOnlyList<int> WorkItemIds,
+    bool Duplicate,
+    string? PreviewVersion,
+    string? ErrorCode = null,
+    string? ErrorMessage = null);
+
 public sealed record WorkItemAutomationEvent(
     ScriptAutomationTriggerKind Trigger,
     int WorkItemId,
@@ -153,6 +174,28 @@ public interface IWorkItemCommandApi
             command.PreviewVersion,
             "batch_update_not_supported",
             "当前宿主不支持批量事项更新。"));
+
+    ValueTask<WorkItemBatchCreatePreview> PreviewBatchCreateAsync(
+        WorkItemBatchCreateCommand command,
+        CancellationToken cancellationToken = default) =>
+        ValueTask.FromResult(new WorkItemBatchCreatePreview(
+            false,
+            null,
+            [],
+            null,
+            "batch_create_not_supported",
+            "当前宿主不支持批量创建事项。"));
+
+    ValueTask<WorkItemBatchCreateResult> BatchCreateAsync(
+        WorkItemBatchCreateCommand command,
+        CancellationToken cancellationToken = default) =>
+        ValueTask.FromResult(new WorkItemBatchCreateResult(
+            false,
+            [],
+            false,
+            command.PreviewVersion,
+            "batch_create_not_supported",
+            "当前宿主不支持批量创建事项。"));
 }
 
 public interface IWorkItemCommandIdempotencyStore

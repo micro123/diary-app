@@ -18,10 +18,12 @@ public sealed class ScriptDirectoryLoadStateTests
         Assert.AreSame(first, second);
 
         await loader.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        loader.Result.TrySetResult(new ScriptDirectoryLoadResult([], []));
+        var expected = new ScriptDirectoryLoadResult([], []);
+        loader.Result.TrySetResult(expected);
         await first;
 
         Assert.AreSame(first, state.EnsureLoadedAsync(root));
+        Assert.AreSame(expected, state.LatestResult);
         var reloaded = state.ReloadAsync(root);
         Assert.AreNotSame(first, reloaded);
         await reloaded;

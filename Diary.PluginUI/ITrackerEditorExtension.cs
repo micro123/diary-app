@@ -68,6 +68,9 @@ public interface ITrackerEditorExtension
     /// </summary>
     TrackerUploadValidation ValidateUpload(WorkItem item) => TrackerUploadValidation.Unsupported;
 
+    /// <summary>返回供确认页显示的非敏感远程目标摘要。</summary>
+    string DescribeUploadTarget() => $"{Key.PluginId}/{Key.InstanceId}";
+
     /// <summary>上传到远程，返回统一结果。</summary>
     Task<TrackerOperationResult> UploadAsync(WorkItem item);
 

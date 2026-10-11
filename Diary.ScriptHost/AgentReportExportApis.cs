@@ -4,6 +4,10 @@ public enum AgentReportPeriod
 {
     Day,
     Week,
+    Month,
+    Quarter,
+    Year,
+    Custom,
 }
 
 public sealed record AgentReportExportCommand(
@@ -12,7 +16,14 @@ public sealed record AgentReportExportCommand(
     string FormatId,
     string FileName,
     string IdempotencyKey,
-    string? PreviewVersion = null);
+    string? PreviewVersion = null,
+    string? StartDate = null,
+    string? EndDate = null,
+    string? SavedQueryId = null,
+    string? TemplateId = null,
+    bool IncludeSummary = false,
+    bool IncludeTagStatistics = false,
+    bool IncludeDailyHours = false);
 
 public sealed record AgentReportExportPreview(
     bool Succeeded,
@@ -32,7 +43,16 @@ public sealed record AgentReportExportResult(
     bool Duplicate,
     string? PreviewVersion,
     string? ErrorCode = null,
-    string? ErrorMessage = null);
+    string? ErrorMessage = null,
+    string? ArtifactId = null);
+
+public sealed record AgentReportArtifact(
+    string ArtifactId,
+    string FileName,
+    string FormatId,
+    DateTimeOffset CreatedAt,
+    long Size,
+    bool Exists);
 
 public interface IAgentReportExportApi
 {
@@ -43,4 +63,9 @@ public interface IAgentReportExportApi
     ValueTask<AgentReportExportResult> ExportAsync(
         AgentReportExportCommand command,
         CancellationToken cancellationToken = default);
+
+    IReadOnlyList<AgentReportArtifact> ListArtifacts(int limit = 20) => [];
+
+    AgentReportExportResult LocateArtifact(string artifactId) =>
+        new(false, null, null, false, null, "artifact_not_supported", "当前宿主不支持报告定位。");
 }

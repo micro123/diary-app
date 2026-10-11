@@ -61,3 +61,22 @@ public interface ITrackerInstance
         IReadOnlyCollection<int> workItemIds)
         => LoadBindingsByDate(date);
 }
+
+/// <summary>
+/// Tracker 实例可选的本地只读目录。实现只能读取已经同步到本地的数据，
+/// 不得在这些方法中访问远程服务或暴露认证信息。
+/// </summary>
+public interface ITrackerLocalCatalog
+{
+    IReadOnlyList<TrackerLocalItem> SearchLocalItems(string? query, int limit);
+
+    TrackerLocalItem? GetLocalItem(string itemId);
+}
+
+public sealed record TrackerLocalItem(
+    string ItemId,
+    string Title,
+    string? Project = null,
+    string? Status = null,
+    bool Closed = false,
+    IReadOnlyDictionary<string, string>? Metadata = null);

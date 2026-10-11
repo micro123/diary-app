@@ -62,7 +62,8 @@ public sealed class TemplateWorkItemWriteTool(
         Schema,
         AgentToolOrigin.BuiltIn,
         AgentToolRisk.Write,
-        "diary.ai-agent");
+        "diary.ai-agent",
+        "WorkItemWrite");
 
     public async ValueTask<AgentToolResult> InvokeAsync(
         JsonElement arguments,
@@ -224,7 +225,8 @@ public sealed class ClipboardWriteTool(
         Schema,
         AgentToolOrigin.BuiltIn,
         AgentToolRisk.Write,
-        "diary.ai-agent");
+        "diary.ai-agent",
+        "AppInteraction");
 
     public async ValueTask<AgentToolResult> InvokeAsync(
         JsonElement arguments,
@@ -283,7 +285,8 @@ public sealed class AppNotificationWriteTool(
         Schema,
         AgentToolOrigin.BuiltIn,
         AgentToolRisk.Write,
-        "diary.ai-agent");
+        "diary.ai-agent",
+        "AppInteraction");
 
     public async ValueTask<AgentToolResult> InvokeAsync(
         JsonElement arguments,

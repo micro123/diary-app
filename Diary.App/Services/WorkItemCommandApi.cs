@@ -22,6 +22,7 @@ public sealed class WorkItemCommandApi(
     private const int MaxNoteLength = 10_000;
     private const int MaxIdempotencyKeyLength = 200;
     private const int MaxBatchUpdateCount = 20;
+    private const int MaxBatchCreateCount = 20;
 
     public ValueTask<WorkItemCommandPreview> PreviewCreateAsync(
         WorkItemCreateCommand command,
@@ -239,6 +240,120 @@ public sealed class WorkItemCommandApi(
             normalized! with { PreviewVersion = version },
             itemPreviews,
             version));
+    }
+
+    public ValueTask<WorkItemBatchCreatePreview> PreviewBatchCreateAsync(
+        WorkItemBatchCreateCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var database = TryGetDatabase(out var databaseError);
+        if (database is null)
+            return ValueTask.FromResult(FailedBatchCreatePreview("database_unavailable", databaseError));
+        if (!TryPrepareBatchCreate(database, command, out var normalized, out var prepared, out var errorCode, out var error))
+            return ValueTask.FromResult(FailedBatchCreatePreview(errorCode, error));
+        var versions = prepared!.Select(item => CreatePreviewVersion(database, item.Command)).ToArray();
+        var version = HashBatchCreate(normalized!, versions);
+        var previews = prepared!.Select((item, index) => new WorkItemCommandPreview(
+            true,
+            item.Command with { PreviewVersion = versions[index] },
+            versions[index])).ToArray();
+        return ValueTask.FromResult(new WorkItemBatchCreatePreview(
+            true,
+            normalized! with { PreviewVersion = version },
+            previews,
+            version));
+    }
+
+    public ValueTask<WorkItemBatchCreateResult> BatchCreateAsync(
+        WorkItemBatchCreateCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var key = command.IdempotencyKey?.Trim() ?? string.Empty;
+        if (key.Length is 0 or > MaxIdempotencyKeyLength - 13)
+            return ValueTask.FromResult(FailedBatchCreateResult("idempotency_key_required", "批量创建必须提供有效幂等键。"));
+        var storeKey = "batch-create:" + key;
+        using var lease = idempotencyStore.Acquire(storeKey);
+        if (idempotencyStore.TryGet(storeKey, out var previous))
+        {
+            return ValueTask.FromResult(new WorkItemBatchCreateResult(
+                previous.Succeeded,
+                previous.WorkItemIds ?? [],
+                true,
+                previous.PreviewVersion,
+                previous.ErrorCode,
+                previous.ErrorMessage));
+        }
+
+        var database = TryGetDatabase(out var databaseError);
+        if (database is null)
+            return ValueTask.FromResult(FailedBatchCreateResult("database_unavailable", databaseError));
+        if (!TryPrepareBatchCreate(database, command, out var normalized, out var prepared, out var errorCode, out var error))
+            return ValueTask.FromResult(FailedBatchCreateResult(errorCode, error));
+        var versions = prepared!.Select(item => CreatePreviewVersion(database, item.Command)).ToArray();
+        var currentVersion = HashBatchCreate(normalized!, versions);
+        if (string.IsNullOrWhiteSpace(command.PreviewVersion)
+            || !CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(command.PreviewVersion),
+                Encoding.UTF8.GetBytes(currentVersion)))
+        {
+            return ValueTask.FromResult(FailedBatchCreateResult(
+                "preview_stale",
+                "批量创建预览已过期，请重新预览并确认。",
+                currentVersion));
+        }
+
+        var preparedItems = prepared!;
+        var preparations = new List<WorkItemTagAutomationPreparation>(preparedItems.Count);
+        try
+        {
+            foreach (var item in preparedItems)
+            {
+                var preparation = PrepareTagAutomation(null, item.Tags, []);
+                preparations.Add(preparation);
+                if (!preparation.Succeeded)
+                    return ValueTask.FromResult(FailedBatchCreateResult(
+                        "tag_automation_failed",
+                        preparation.Error ?? "应用标签自动化失败。",
+                        currentVersion));
+            }
+            var requests = preparedItems.Select((item, index) => new WorkItemSaveRequest(
+                null,
+                item.Command.Date,
+                item.Command.Title,
+                item.Command.Note ?? string.Empty,
+                item.Command.Hours,
+                (WorkPriorities)item.Command.Priority,
+                item.Tags,
+                item.ExtraFields,
+                preparations[index].Extensions)).ToArray();
+            var saved = persistence.SaveBatch(database, requests);
+            if (!saved.Success || saved.Results.Any(item => !item.Success || item.WorkItem is null))
+                return ValueTask.FromResult(FailedBatchCreateResult(
+                    "persistence_failed",
+                    saved.Error ?? "批量创建事项失败，事务已回滚。",
+                    currentVersion));
+            var items = saved.Results.Select(item => item.WorkItem!).ToArray();
+            var result = new WorkItemBatchCreateResult(true, items.Select(item => item.Id).ToArray(), false, currentVersion);
+            idempotencyStore.Save(storeKey, new WorkItemCommandResult(
+                true,
+                items[0].Id,
+                false,
+                currentVersion,
+                WorkItemIds: result.WorkItemIds));
+            try { databaseChanged?.Invoke(); } catch { }
+            foreach (var item in items)
+                PublishAutomation(ScriptAutomationTriggerKind.WorkItemCreated, item);
+            foreach (var pair in items.Zip(preparedItems))
+                PublishAddedTags(pair.First, pair.Second.Tags, []);
+            return ValueTask.FromResult(result);
+        }
+        finally
+        {
+            foreach (var preparation in preparations)
+                preparation.Dispose();
+        }
     }
 
     public ValueTask<WorkItemBatchUpdateResult> BatchUpdateAsync(
@@ -783,6 +898,46 @@ public sealed class WorkItemCommandApi(
         return true;
     }
 
+    private static bool TryPrepareBatchCreate(
+        DbInterfaceBase database,
+        WorkItemBatchCreateCommand command,
+        out WorkItemBatchCreateCommand? normalized,
+        out IReadOnlyList<PreparedCreate>? prepared,
+        out string errorCode,
+        out string error)
+    {
+        normalized = null;
+        prepared = null;
+        errorCode = "invalid_command";
+        error = string.Empty;
+        var key = command.IdempotencyKey?.Trim() ?? string.Empty;
+        if (key.Length is 0 or > MaxIdempotencyKeyLength - 13)
+            return Fail($"批量创建幂等键不能为空且不能超过 {MaxIdempotencyKeyLength - 13} 个字符。", out error);
+        if (command.Items.Count is 0 or > MaxBatchCreateCount)
+            return Fail($"单次批量创建必须包含 1 到 {MaxBatchCreateCount} 个事项。", out error);
+        var items = new List<PreparedCreate>(command.Items.Count);
+        for (var index = 0; index < command.Items.Count; index++)
+        {
+            var candidate = command.Items[index] with { IdempotencyKey = $"{key}:{index + 1}", PreviewVersion = null };
+            if (!TryNormalizeAndResolve(database, candidate, out var item, out var tags, out var fields, out errorCode, out error))
+            {
+                error = $"第 {index + 1} 项：{error}";
+                return false;
+            }
+            items.Add(new PreparedCreate(item!, tags!, fields!));
+        }
+        prepared = items;
+        normalized = new WorkItemBatchCreateCommand(items.Select(item => item.Command).ToArray(), key);
+        return true;
+    }
+
+    private static string HashBatchCreate(WorkItemBatchCreateCommand command, IReadOnlyList<string> versions) =>
+        Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            Command = command with { PreviewVersion = null },
+            Versions = versions,
+        })));
+
     private static WorkItemCommandPreview FailedPreview(string code, string message) =>
         new(false, null, null, code, message);
 
@@ -792,10 +947,19 @@ public sealed class WorkItemCommandApi(
     private static WorkItemBatchUpdatePreview FailedBatchPreview(string code, string message) =>
         new(false, null, [], null, code, message);
 
+    private static WorkItemBatchCreatePreview FailedBatchCreatePreview(string code, string message) =>
+        new(false, null, [], null, code, message);
+
     private static WorkItemCommandResult FailedResult(string code, string message, string? previewVersion = null) =>
         new(false, null, false, previewVersion, code, message);
 
     private static WorkItemBatchUpdateResult FailedBatchResult(
+        string code,
+        string message,
+        string? previewVersion = null) =>
+        new(false, [], false, previewVersion, code, message);
+
+    private static WorkItemBatchCreateResult FailedBatchCreateResult(
         string code,
         string message,
         string? previewVersion = null) =>
@@ -811,6 +975,11 @@ public sealed class WorkItemCommandApi(
         WorkItem Existing,
         WorkItemUpdateSnapshot Before,
         WorkItemUpdateCommand Command,
+        IReadOnlyCollection<WorkTag> Tags,
+        IReadOnlyCollection<WorkItemExtraFieldValue> ExtraFields);
+
+    private sealed record PreparedCreate(
+        WorkItemCreateCommand Command,
         IReadOnlyCollection<WorkTag> Tags,
         IReadOnlyCollection<WorkItemExtraFieldValue> ExtraFields);
 }

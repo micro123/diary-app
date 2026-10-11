@@ -317,9 +317,10 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
         var detached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _activeSendDetached = detached;
         var toolCards = new Dictionary<string, AiToolCallViewModel>(StringComparer.Ordinal);
+        var acceptProgress = true;
         var progress = new Progress<AgentRunEvent>(item =>
         {
-            if (sendGeneration != _sendGeneration)
+            if (!acceptProgress || sendGeneration != _sendGeneration)
                 return;
             switch (item.Kind)
             {
@@ -392,6 +393,7 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
                 return;
             }
             var result = await runTask;
+            acceptProgress = false;
             if (sendGeneration != _sendGeneration)
                 return;
             StatusText = result.Status switch
@@ -407,6 +409,7 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
         }
         finally
         {
+            acceptProgress = false;
             if (sendGeneration == _sendGeneration)
             {
                 _activeSendDetached = null;
@@ -596,15 +599,7 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
     private AgentToolSnapshot CreateEnabledToolSnapshot()
     {
         var settings = _connections.Settings.EnabledTools;
-        return _tools.CreateSnapshot(descriptor => descriptor.Origin switch
-        {
-            AgentToolOrigin.BuiltIn when descriptor.Risk == AgentToolRisk.Write => settings.WorkItemWrite,
-            AgentToolOrigin.BuiltIn => settings.Diary,
-            AgentToolOrigin.ExternalWeb when descriptor.ModelName == "web_search" => settings.WebSearch,
-            AgentToolOrigin.ExternalWeb => settings.WebFetch,
-            AgentToolOrigin.Mcp => settings.Mcp,
-            _ => true,
-        });
+        return _tools.CreateSnapshot(descriptor => AgentToolPermissionPolicy.IsEnabled(descriptor, settings));
     }
 
     private string DescribeConnection(AiConnectionProfile profile) =>

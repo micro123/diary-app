@@ -86,6 +86,51 @@ public sealed class AgentReportExportApiTests
         }
     }
 
+    [TestMethod]
+    public async Task CustomReportRegistersManagedArtifactAndOptionalSections()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "DiaryApp-agent-report-custom-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var tag = new ScriptWorkTag(1, "项目", 0, 0, false);
+            var queryApi = new FixedWorkItemQueryApi([
+                new ScriptWorkItem(1, "2026-09-30", "范围外", 8, 1, null, [tag]),
+                new ScriptWorkItem(2, "2026-10-01", "范围内 A", 1, 1, null, [tag]),
+                new ScriptWorkItem(3, "2026-10-02", "范围内 B", 2, 1, null, [tag]),
+            ]);
+            var api = new AgentReportExportApi(queryApi, CreateCsvService(directory), directory);
+            var preview = await api.PreviewAsync(new AgentReportExportCommand(
+                AgentReportPeriod.Custom,
+                string.Empty,
+                "csv",
+                "custom.csv",
+                "custom-report",
+                StartDate: "2026-10-01",
+                EndDate: "2026-10-02",
+                IncludeSummary: true,
+                IncludeTagStatistics: true,
+                IncludeDailyHours: true));
+
+            var result = await api.ExportAsync(preview.Command!);
+            var artifacts = api.ListArtifacts();
+
+            Assert.IsTrue(result.Succeeded, result.ErrorMessage);
+            Assert.IsFalse(string.IsNullOrWhiteSpace(result.ArtifactId));
+            Assert.AreEqual(result.ArtifactId, artifacts.Single().ArtifactId);
+            Assert.IsTrue(artifacts[0].Exists);
+            var content = await File.ReadAllTextAsync(Path.Combine(directory, result.FileName!));
+            StringAssert.Contains(content, "合计");
+            StringAssert.Contains(content, "每日工时");
+            StringAssert.Contains(content, "标签统计：项目");
+            Assert.IsFalse(content.Contains("范围外", StringComparison.Ordinal));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static ScriptExportService CreateCsvService(string directory)
     {
         var plugin = new CsvExportPlugin();

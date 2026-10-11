@@ -411,6 +411,11 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
     [ObservableProperty] private string? _defaultProfileId;
     [ObservableProperty] private bool _diaryToolsEnabled = true;
     [ObservableProperty] private bool _workItemWriteEnabled;
+    [ObservableProperty] private bool _reportExportEnabled;
+    [ObservableProperty] private bool _appInteractionEnabled;
+    [ObservableProperty] private bool _reminderWriteEnabled;
+    [ObservableProperty] private bool _trackerSubmitEnabled;
+    [ObservableProperty] private bool _scriptExecuteEnabled;
     [ObservableProperty] private bool _webSearchEnabled;
     [ObservableProperty] private bool _webFetchEnabled;
     [ObservableProperty] private bool _mcpEnabled;
@@ -788,6 +793,11 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
                 {
                     Diary = DiaryToolsEnabled,
                     WorkItemWrite = WorkItemWriteEnabled,
+                    ReportExport = ReportExportEnabled,
+                    AppInteraction = AppInteractionEnabled,
+                    ReminderWrite = ReminderWriteEnabled,
+                    TrackerSubmit = TrackerSubmitEnabled,
+                    ScriptExecute = ScriptExecuteEnabled,
                     WebSearch = WebSearchEnabled,
                     WebFetch = WebFetchEnabled,
                     Mcp = McpEnabled,
@@ -855,6 +865,11 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
         DefaultProfileId = _manager.Settings.DefaultProfileId;
         DiaryToolsEnabled = _manager.Settings.EnabledTools.Diary;
         WorkItemWriteEnabled = _manager.Settings.EnabledTools.WorkItemWrite;
+        ReportExportEnabled = _manager.Settings.EnabledTools.ReportExport;
+        AppInteractionEnabled = _manager.Settings.EnabledTools.AppInteraction;
+        ReminderWriteEnabled = _manager.Settings.EnabledTools.ReminderWrite;
+        TrackerSubmitEnabled = _manager.Settings.EnabledTools.TrackerSubmit;
+        ScriptExecuteEnabled = _manager.Settings.EnabledTools.ScriptExecute;
         WebSearchEnabled = _manager.Settings.EnabledTools.WebSearch;
         WebFetchEnabled = _manager.Settings.EnabledTools.WebFetch;
         McpEnabled = _manager.Settings.EnabledTools.Mcp;

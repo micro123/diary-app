@@ -19,14 +19,23 @@
                        TextWrapping="Wrap" Opacity="0.7" />
         </StackPanel>
 
-        <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" ColumnSpacing="12">
-            <CheckBox Classes="ToolbarCheckBox" Content="Diary 只读工具" IsChecked="{Binding DiaryToolsEnabled}" />
-            <CheckBox Grid.Column="1" Classes="ToolbarCheckBox" Content="确认后写入工具" IsChecked="{Binding WorkItemWriteEnabled}" />
-            <CheckBox Grid.Column="2" Classes="ToolbarCheckBox" Content="网页搜索" IsChecked="{Binding WebSearchEnabled}" />
-            <CheckBox Grid.Column="3" Classes="ToolbarCheckBox" Content="网页读取" IsChecked="{Binding WebFetchEnabled}" />
-            <CheckBox Grid.Column="4" Classes="ToolbarCheckBox" Content="MCP 工具" IsChecked="{Binding McpEnabled}" />
-            <TextBox Grid.Column="5" Watermark="默认连接 ID" Text="{Binding DefaultProfileId}" />
-            <Button Grid.Column="6" Content="设为默认" Command="{Binding SetDefaultProfileCommand}" />
+        <Grid Grid.Row="1" RowDefinitions="Auto,Auto" RowSpacing="8">
+            <WrapPanel Orientation="Horizontal" ItemSpacing="12" LineSpacing="6">
+                <CheckBox Classes="ToolbarCheckBox" Content="Diary 只读工具" IsChecked="{Binding DiaryToolsEnabled}" />
+                <CheckBox Classes="ToolbarCheckBox" Content="事项写入" IsChecked="{Binding WorkItemWriteEnabled}" />
+                <CheckBox Classes="ToolbarCheckBox" Content="报表导出" IsChecked="{Binding ReportExportEnabled}" />
+                <CheckBox Classes="ToolbarCheckBox" Content="剪贴板与通知" IsChecked="{Binding AppInteractionEnabled}" />
+                <CheckBox Classes="ToolbarCheckBox" Content="定时提醒" IsChecked="{Binding ReminderWriteEnabled}" />
+                <CheckBox Classes="ToolbarCheckBox" Content="Tracker 提交" IsChecked="{Binding TrackerSubmitEnabled}" />
+                <CheckBox Classes="ToolbarCheckBox" Content="执行已保存脚本" IsChecked="{Binding ScriptExecuteEnabled}" />
+                <CheckBox Classes="ToolbarCheckBox" Content="网页搜索" IsChecked="{Binding WebSearchEnabled}" />
+                <CheckBox Classes="ToolbarCheckBox" Content="网页读取" IsChecked="{Binding WebFetchEnabled}" />
+                <CheckBox Classes="ToolbarCheckBox" Content="MCP 工具" IsChecked="{Binding McpEnabled}" />
+            </WrapPanel>
+            <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <TextBox Watermark="默认连接 ID" Text="{Binding DefaultProfileId}" />
+                <Button Grid.Column="1" Content="设为默认" Command="{Binding SetDefaultProfileCommand}" />
+            </Grid>
         </Grid>
 
         <Expander Grid.Row="2" Header="MCP Servers（管理与高级 JSON 配置）">

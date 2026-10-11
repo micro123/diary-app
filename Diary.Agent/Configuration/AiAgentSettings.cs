@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Diary.Agent.Tools;
 using Diary.Agent.Web;
 
 namespace Diary.Agent.Configuration;
@@ -15,6 +16,37 @@ public sealed record AiAgentToolSettings
     public bool Mcp { get; init; }
 
     public bool WorkItemWrite { get; init; }
+
+    public bool ReportExport { get; init; }
+
+    public bool AppInteraction { get; init; }
+
+    public bool ReminderWrite { get; init; }
+
+    public bool TrackerSubmit { get; init; }
+
+    public bool ScriptExecute { get; init; }
+}
+
+public static class AgentToolPermissionPolicy
+{
+    public static bool IsEnabled(AgentToolDescriptor descriptor, AiAgentToolSettings settings) =>
+        descriptor.Origin switch
+        {
+            AgentToolOrigin.BuiltIn when descriptor.PermissionGroup == "WorkItemWrite" => settings.WorkItemWrite,
+            AgentToolOrigin.BuiltIn when descriptor.PermissionGroup == "ReportExport" => settings.ReportExport,
+            AgentToolOrigin.BuiltIn when descriptor.PermissionGroup == "AppInteraction" => settings.AppInteraction,
+            AgentToolOrigin.BuiltIn when descriptor.PermissionGroup == "ReminderWrite" => settings.ReminderWrite,
+            AgentToolOrigin.BuiltIn when descriptor.PermissionGroup == "TrackerSubmit" => settings.TrackerSubmit,
+            AgentToolOrigin.BuiltIn when descriptor.PermissionGroup == "ScriptExecute" => settings.ScriptExecute,
+            AgentToolOrigin.BuiltIn when descriptor.PermissionGroup == "Mcp" => settings.Mcp,
+            AgentToolOrigin.BuiltIn when descriptor.Risk == AgentToolRisk.Write => settings.WorkItemWrite,
+            AgentToolOrigin.BuiltIn => settings.Diary,
+            AgentToolOrigin.ExternalWeb when descriptor.ModelName == "web_search" => settings.WebSearch,
+            AgentToolOrigin.ExternalWeb => settings.WebFetch,
+            AgentToolOrigin.Mcp => settings.Mcp,
+            _ => true,
+        };
 }
 
 public sealed record AiAgentSettings

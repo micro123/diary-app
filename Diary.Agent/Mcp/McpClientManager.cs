@@ -41,12 +41,36 @@ public sealed record McpServerTestResult(
     public int DiscoveredToolCount => Tools.Count;
 }
 
+public sealed record McpConfiguredToolSummary(
+    string ToolName,
+    bool Enabled,
+    AgentToolRisk Risk);
+
+public sealed record McpConfiguredServerSummary(
+    string ServerId,
+    string DisplayName,
+    bool Enabled,
+    McpTransportKind Transport,
+    McpServerRuntimeState State,
+    IReadOnlyList<McpConfiguredToolSummary> Tools,
+    int DiscoveredToolCount,
+    int ExposedToolCount,
+    bool HasActiveProcess,
+    bool HasSession,
+    bool HasError,
+    DateTimeOffset UpdatedAtUtc);
+
+public interface IMcpServerCatalog
+{
+    IReadOnlyList<McpConfiguredServerSummary> ListConfiguredServers();
+}
+
 public sealed class McpClientManager(
     AiConnectionManager settings,
     IAiCredentialStore credentials,
     IAgentConfirmationService confirmations,
     ILoggerFactory? loggerFactory = null,
-    ILogger<McpClientManager>? logger = null) : IAsyncDisposable
+    ILogger<McpClientManager>? logger = null) : IAsyncDisposable, IMcpServerCatalog
 {
     private readonly ILoggerFactory _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
     private readonly ILogger<McpClientManager> _logger = logger ?? NullLogger<McpClientManager>.Instance;
@@ -77,6 +101,36 @@ public sealed class McpClientManager(
                     .ToArray();
             }
         }
+    }
+
+    public IReadOnlyList<McpConfiguredServerSummary> ListConfiguredServers()
+    {
+        var diagnostics = Diagnostics.ToDictionary(item => item.ServerId, StringComparer.Ordinal);
+        return settings.Settings.McpServers
+            .Select(profile =>
+            {
+                var diagnostic = diagnostics.GetValueOrDefault(profile.Id)
+                    ?? CreateDiagnostic(profile, McpServerRuntimeState.Stopped);
+                return new McpConfiguredServerSummary(
+                    profile.Id,
+                    profile.DisplayName,
+                    profile.Enabled,
+                    profile.Transport,
+                    diagnostic.State,
+                    profile.Tools
+                        .Select(tool => new McpConfiguredToolSummary(tool.ToolName, tool.Enabled, tool.Risk))
+                        .OrderBy(tool => tool.ToolName, StringComparer.Ordinal)
+                        .ToArray(),
+                    diagnostic.DiscoveredToolCount,
+                    diagnostic.ExposedToolCount,
+                    diagnostic.ProcessId is not null,
+                    !string.IsNullOrWhiteSpace(diagnostic.SessionId),
+                    !string.IsNullOrWhiteSpace(diagnostic.Error),
+                    diagnostic.UpdatedAtUtc);
+            })
+            .OrderBy(item => item.DisplayName, StringComparer.CurrentCulture)
+            .ThenBy(item => item.ServerId, StringComparer.Ordinal)
+            .ToArray();
     }
 
     public async ValueTask RefreshToolsAsync(

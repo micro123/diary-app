@@ -111,9 +111,12 @@ async function dismissOnboarding(connection) {
 }
 
 async function openSettings(connection) {
-    await connection.openSettingsMenuItem('ProgramSettingsMenuItem');
-    return connection.waitForTree(tree => rootOf(tree, 'SettingsView'), 8000,
-        '程序设置未打开');
+    await connection.openSettingsMenuItem('ModuleSettingsMenuItem');
+    await connection.waitForTree(tree => rootOf(tree, 'ModuleSettingsDialogView'), 8000,
+        '模块设置未打开');
+    await activateTextWithin(connection, 'ModuleSettingsDialogView', '模块配置');
+    return connection.waitForTree(tree => rootOf(tree, 'AiAgentSettingsView'), 8000,
+        'AI 模块设置未打开');
 }
 
 async function expandSettingsGroup(connection, groupName, expectedText) {
@@ -245,17 +248,21 @@ await runUiSuite({ name: 'ui-ai-agent', stopOnFailure: true }, async ({ connecti
     });
 
     await runStep('settings', 'AI 设置贡献完整可见', async () => {
-        await openSettings(connection);
-        const result = await expandSettingsGroup(connection, '可选模块', 'AI 助手设置');
+        const result = await openSettings(connection);
         const tree = result.tree;
-        const settings = rootOf(tree, 'SettingsView');
+        const settings = rootOf(tree, 'AiAgentSettingsView');
         for (const text of [
             'Diary 只读工具',
-            '确认后创建事项',
+            '事项写入',
+            '报表导出',
+            '剪贴板与通知',
+            '定时提醒',
+            'Tracker 提交',
+            '执行已保存脚本',
             '网页搜索',
             '网页读取',
             'MCP 工具',
-            'MCP Servers（高级 JSON 配置）',
+            'MCP Servers（管理与高级 JSON 配置）',
             '网页访问策略（重启后生效）',
             'AI 默认代理（连接选择“继承”时使用）',
             '新增',
@@ -290,18 +297,18 @@ await runUiSuite({ name: 'ui-ai-agent', stopOnFailure: true }, async ({ connecti
         removeButton = findByName(currentTree, 'RemoveAiConnectionButton');
         await connection.clickNode(removeButton);
         await connection.waitForTree(current => {
-            const currentSettings = rootOf(current, 'SettingsView');
+            const currentSettings = rootOf(current, 'AiAgentSettingsView');
             return textWithin(current, currentSettings, '保存设置成功后将清理未被其他连接使用的本地凭据。', true);
         }, 5000, '删除连接没有进入保存后清理状态');
         const emptyState = await connection.waitForTree(current => {
-            const currentSettings = rootOf(current, 'SettingsView');
+            const currentSettings = rootOf(current, 'AiAgentSettingsView');
             const prompt = textWithin(current, currentSettings, '尚未添加模型连接');
             const addButton = findByName(current, 'AddAiConnectionEmptyButton');
             return prompt && addButton ? addButton : null;
         }, 5000, '删除最后一个连接后没有显示明确的空状态');
         await connection.clickNode(emptyState.value);
         await connection.waitForTree(current => {
-            const currentSettings = rootOf(current, 'SettingsView');
+            const currentSettings = rootOf(current, 'AiAgentSettingsView');
             return textWithin(current, currentSettings, '连接 1');
         }, 5000, '从空状态新增连接后没有打开连接编辑器');
         currentTree = await connection.getTree();
@@ -313,7 +320,7 @@ await runUiSuite({ name: 'ui-ai-agent', stopOnFailure: true }, async ({ connecti
         reloadButton = findByName(currentTree, 'ReloadAiSettingsButton');
         await connection.clickNode(reloadButton);
         await connection.waitForTree(current => {
-            const currentSettings = rootOf(current, 'SettingsView');
+            const currentSettings = rootOf(current, 'AiAgentSettingsView');
             return textWithin(current, currentSettings, 'UI 假模型');
         }, 5000, '重新加载未恢复尚未保存的连接');
         return screenshot;

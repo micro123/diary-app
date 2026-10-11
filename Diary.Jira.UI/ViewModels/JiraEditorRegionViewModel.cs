@@ -87,6 +87,10 @@ public partial class JiraEditorRegionViewModel : ViewModelBase, ITrackerEditorEx
         return TrackerUploadValidation.Valid;
     }
 
+    public string DescribeUploadTarget() => SelectedIssueKey is null
+        ? "未选择 Jira Issue"
+        : $"Jira Issue {SelectedIssueKey}";
+
     public async Task<TrackerOperationResult> UploadAsync(WorkItem item)
     {
         if (Uploaded) return new TrackerOperationResult(false);

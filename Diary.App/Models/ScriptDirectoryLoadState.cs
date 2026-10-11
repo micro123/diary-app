@@ -9,6 +9,16 @@ public sealed class ScriptDirectoryLoadState(IScriptDirectoryLoader directoryLoa
     private readonly object _sync = new();
     private Task<ScriptDirectoryLoadResult>? _loadTask;
     private string? _rootDirectory;
+    private ScriptDirectoryLoadResult? _latestResult;
+
+    public ScriptDirectoryLoadResult? LatestResult
+    {
+        get
+        {
+            lock (_sync)
+                return _latestResult;
+        }
+    }
 
     public Task<ScriptDirectoryLoadResult> EnsureLoadedAsync(string rootDirectory)
         => GetOrStart(rootDirectory, forceReload: false);
@@ -32,9 +42,19 @@ public sealed class ScriptDirectoryLoadState(IScriptDirectoryLoader directoryLoa
             }
 
             _rootDirectory = normalizedRoot;
-            _loadTask = Task.Run(async () =>
-                await directoryLoader.LoadAsync(normalizedRoot).ConfigureAwait(false));
+            _loadTask = Task.Run(() => LoadAndRememberAsync(normalizedRoot));
             return _loadTask;
         }
+    }
+
+    private async Task<ScriptDirectoryLoadResult> LoadAndRememberAsync(string rootDirectory)
+    {
+        var result = await directoryLoader.LoadAsync(rootDirectory).ConfigureAwait(false);
+        lock (_sync)
+        {
+            if (string.Equals(_rootDirectory, rootDirectory, StringComparison.Ordinal))
+                _latestResult = result;
+        }
+        return result;
     }
 }

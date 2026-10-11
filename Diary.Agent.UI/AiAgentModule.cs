@@ -65,6 +65,8 @@ public sealed class AiAgentModule : IAppModule
         services.AddSingleton<SearchUserManualTool>();
         services.AddSingleton<ReadUserManualSectionTool>();
         services.AddSingleton<McpClientManager>();
+        services.AddSingleton<IMcpServerCatalog>(provider => provider.GetRequiredService<McpClientManager>());
+        services.AddSingleton<ListConfiguredMcpServersTool>();
         services.AddSingleton(provider =>
             provider.GetRequiredService<AiConnectionManager>().Settings.WebAccess);
         services.AddSingleton<WebTargetValidator>();
@@ -92,11 +94,20 @@ public sealed class AiAgentModule : IAppModule
                 provider.GetRequiredService<ICurrentContextScriptApi>(),
                 provider.GetRequiredService<IScriptValidationScriptApi>(),
                 provider.GetService<IExportApi>());
+            if (provider.GetService<IAgentCapabilityApi>() is { } capabilities)
+            {
+                AgentCapabilityToolRegistration.RegisterAll(
+                    registry,
+                    capabilities,
+                    provider.GetRequiredService<IWorkItemCommandApi>(),
+                    provider.GetRequiredService<IAgentConfirmationService>());
+            }
             registry.TryRegister(provider.GetRequiredService<WorkItemDraftTool>());
             registry.TryRegister(provider.GetRequiredService<ReportDraftTool>());
             registry.TryRegister(provider.GetRequiredService<ScriptDraftTool>());
             registry.TryRegister(provider.GetRequiredService<SearchUserManualTool>());
             registry.TryRegister(provider.GetRequiredService<ReadUserManualSectionTool>());
+            registry.TryRegister(provider.GetRequiredService<ListConfiguredMcpServersTool>());
             registry.TryRegister(provider.GetRequiredService<WorkItemWriteTool>());
             registry.TryRegister(provider.GetRequiredService<WorkItemUpdateTool>());
             registry.TryRegister(provider.GetRequiredService<WorkItemBatchUpdateTool>());
@@ -106,6 +117,10 @@ public sealed class AiAgentModule : IAppModule
             if (provider.GetService<IAgentReportExportApi>() is { } reportExports)
             {
                 registry.TryRegister(new ReportExportTool(
+                    reportExports,
+                    provider.GetRequiredService<IAgentConfirmationService>()));
+                registry.TryRegister(new ListReportArtifactsTool(reportExports));
+                registry.TryRegister(new LocateReportArtifactTool(
                     reportExports,
                     provider.GetRequiredService<IAgentConfirmationService>()));
             }

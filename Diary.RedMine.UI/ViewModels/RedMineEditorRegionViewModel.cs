@@ -108,6 +108,17 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
         return TrackerUploadValidation.Valid;
     }
 
+    public string DescribeUploadTarget()
+    {
+        var issue = IssueIndex >= 0 && IssueIndex < RedMineIssues.Count
+            ? $"#{RedMineIssues[IssueIndex].Id} {RedMineIssues[IssueIndex].Title}"
+            : "未选择问题";
+        var activity = ActivityIndex >= 0 && ActivityIndex < RedMineActivities.Count
+            ? RedMineActivities[ActivityIndex].Title
+            : "未选择活动";
+        return $"Redmine {issue} / {activity}";
+    }
+
     public async Task<TrackerOperationResult> UploadAsync(WorkItem item)
     {
         if (Uploaded)

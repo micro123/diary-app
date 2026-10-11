@@ -747,7 +747,17 @@ namespace Diary.App
             services.AddSingleton<IAgentReportExportApi>(provider => new AgentReportExportApi(
                 provider.GetRequiredService<IWorkItemQueryScriptApi>(),
                 provider.GetRequiredService<ScriptExportService>(),
-                Path.Combine(FsTools.GetApplicationConfigDirectory(), "ai-agent", "exports")));
+                Path.Combine(FsTools.GetApplicationConfigDirectory(), "ai-agent", "exports"),
+                provider.GetRequiredService<IAgentCapabilityApi>()));
+            services.AddSingleton<IAgentCapabilityApi>(provider => new AgentCapabilityApi(
+                () => UseDb,
+                provider.GetRequiredService<PluginInstanceRegistry>(),
+                provider.GetRequiredService<TrackerUiContributionRegistry>(),
+                provider.GetRequiredService<IScriptCatalog>(),
+                provider.GetRequiredService<IScriptManager>(),
+                provider.GetRequiredService<ScriptDirectoryLoadState>(),
+                provider.GetRequiredService<IUserInteractionScriptApi>(),
+                Path.Combine(FsTools.GetApplicationConfigDirectory(), "ai-agent")));
             services.AddSingleton<IScriptExecutionContextFactory>(_ =>
                 new ScriptExecutionContextFactory((metadata, request) =>
                 {

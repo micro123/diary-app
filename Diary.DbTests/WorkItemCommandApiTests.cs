@@ -398,6 +398,49 @@ public sealed class WorkItemCommandApiTests
         return field;
     }
 
+    [TestMethod]
+    public async Task BatchCreateCommitsAtomicallyAndIsIdempotent()
+    {
+        using var db = TestDb.Create();
+        var automation = new RecordingAutomationPublisher();
+        var api = CreateApi(db, automation);
+        var command = new WorkItemBatchCreateCommand(
+        [
+            new WorkItemCreateCommand("2026-10-11", "批量 A", 1, (int)WorkPriorities.P2, [], [], null, "batch-create:1"),
+            new WorkItemCreateCommand("2026-10-11", "批量 B", 2, (int)WorkPriorities.P1, [], [], null, "batch-create:2"),
+        ], "batch-create");
+
+        var preview = await api.PreviewBatchCreateAsync(command);
+        var first = await api.BatchCreateAsync(preview.Command!);
+        var duplicate = await api.BatchCreateAsync(preview.Command!);
+
+        Assert.IsTrue(first.Succeeded, first.ErrorMessage);
+        Assert.AreEqual(2, first.WorkItemIds.Count);
+        Assert.IsTrue(duplicate.Duplicate);
+        Assert.AreEqual(2, db.GetWorkItemByDate("2026-10-11").Count);
+        Assert.AreEqual(2, automation.Events.Count(item => item.Trigger == ScriptAutomationTriggerKind.WorkItemCreated));
+    }
+
+    [TestMethod]
+    public async Task BatchCreateTagAutomationFailureRollsBackEverything()
+    {
+        using var db = TestDb.Create();
+        var tag = db.CreateWorkTag("批量标签", true, 0);
+        var api = CreateApi(db, tagAutomation: new FailOnSecondTagAutomationService());
+        var command = new WorkItemBatchCreateCommand(
+        [
+            new WorkItemCreateCommand("2026-10-11", "不应创建 A", 1, (int)WorkPriorities.P2, [tag.Id], [], null, "batch-fail:1"),
+            new WorkItemCreateCommand("2026-10-11", "不应创建 B", 1, (int)WorkPriorities.P2, [tag.Id], [], null, "batch-fail:2"),
+        ], "batch-fail");
+
+        var preview = await api.PreviewBatchCreateAsync(command);
+        var result = await api.BatchCreateAsync(preview.Command!);
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual("tag_automation_failed", result.ErrorCode);
+        Assert.AreEqual(0, db.GetWorkItemByDate("2026-10-11").Count);
+    }
+
     private static WorkItemCommandApi CreateApi(
         Diary.Database.DbInterfaceBase db,
         IWorkItemAutomationPublisher? automationPublisher = null,

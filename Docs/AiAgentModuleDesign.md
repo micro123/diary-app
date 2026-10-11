@@ -790,6 +790,7 @@ MCP Client 属于 P2，不是 P0/P1 网页访问的前置条件。实现时支�
 - 服务器级代理、认证、超时和 Secret Reference；
 - stdio 默认严格 UTF-8，并允许按 Server 显式配置 `stdioEncoding`；兼容值包括 `utf-8`、`gb18030`、`gbk` 和 `cp936`，其中后三者统一使用 GB18030 编解码；
 - 工具名命名空间和本地策略；
+- 内置只读 `diary_list_mcp_servers` 目录工具，仅返回已保存 Server 的 ID、显示名、启停/运行状态、传输类型、工具策略及发现/开放数量，不返回 Endpoint、命令、参数、工作目录、Credential Reference、认证 Header、Token 或代理凭据；
 - 删除语义工具的配置校验与运行时注册双重拦截；
 - 文本和有预算的结构化结果。
 
@@ -996,6 +997,10 @@ AI 模块随程序安装但默认禁用。用户启用后重启生效；未启�
 ### 阶段 E：P2 扩展
 
 - MCP Client：已完成 stdio、Streamable HTTP、Session ID、SSE 通知、工具列表原子替换、写工具确认，以及启动/停止/重启、测试连接、刷新工具和运行诊断；
+- 已完成保存查询、本地 Tracker 搜索、脚本目录、原子批量创建、扩展报表与 artifact 管理、持久提醒、Tracker 工时提交和已保存脚本执行；
+- 高风险能力拆为 `ReportExport`、`AppInteraction`、`ReminderWrite`、`TrackerSubmit`、`ScriptExecute` 独立开关，默认关闭；每次 run 继续使用不可变工具快照；
+- 新能力不增加数据库表、字段、索引或迁移。提醒、报表登记与远程提交幂等状态使用 `%APPDATA%/Diary.App/ai-agent` 下原子 JSON；
+- Tracker 搜索通过插件实例的 `ITrackerLocalCatalog` 读取本地缓存；脚本目录复用最近一次 `ScriptDirectoryLoadResult`，同时呈现 Ready、Invalid 和 NeedsConfiguration 状态，诊断中的路径收敛为文件名；脚本执行只接受脚本目录中已登记 ID，并复用现有 Worker 隔离；
 - 浏览器登录态持久化、交互操作和复杂内容；
 - 独立模块在线更新；
 - 更多协议和多模态。
@@ -1019,9 +1024,9 @@ AI 模块随程序安装但默认禁用。用户启用后重启生效；未启�
 
 ## 20. 实施与验证结果
 
-- `Diary.AgentTests` 109/109，通过三协议、基础连接测试、完整能力探测阶段进度与取消、脱敏失败日志、模型/代理、静态网页安全、内网与本机访问策略、系统浏览器动态渲染、本机 CDP 运行时限制、附加字段目录、记录质量分析、周期对比、日历概览、事项详情与导出目录查询、事项创建/单项与批量更新确认、附加字段确认预览、报告导出确认、自动上下文压缩、Responses 协议状态清理及本地兜底、两阶段停止与旧 run 隔离、MCP 生命周期管理、远端工具探测与策略导入、MCP 删除语义拦截、会话与审计测试；另由 `Diary.ScriptTests` 验证 Agent 无备注查询模式不调用备注读取器；
+- `Diary.AgentTests` 126/126，通过三协议、基础连接测试、完整能力探测阶段进度与取消、脱敏失败日志、模型/代理、静态网页安全、内网与本机访问策略、系统浏览器动态渲染、本机 CDP 运行时限制、附加字段目录、记录质量分析、周期对比、日历概览、事项详情与导出目录查询、事项创建/单项与批量更新确认、附加字段确认预览、报告导出确认、新能力独立权限裁剪、提醒/脚本/Tracker 提交确认、非 Ready 脚本执行拦截、MCP Server 安全目录、自动上下文压缩、Responses 协议状态清理及本地兜底、两阶段停止与旧 run 隔离、MCP 生命周期管理、远端工具探测与策略导入、MCP 删除语义拦截、会话与审计测试；`Diary.ScriptTests` 247/247，继续验证 Agent 无备注查询和脚本运行边界；
 - `Diary.ModuleTests` 13 项通过，1 项因未生成 Windows Release 发布目录跳过；已覆盖 Debug 模块目录、私有 `AssemblyLoadContext`、禁用和故障隔离测试；
-- `Diary.AppTests` 320/320；`Diary.DbTests` 267 通过，1 项因本机 `pg_dump` 与 PostgreSQL 服务端主版本不一致跳过；数据库测试覆盖附加字段 patch、批量幂等和批次中途失败整体回滚；
+- `Diary.AppTests` 341/341，覆盖扩展报表、artifact、脚本目录失败/待配置诊断与绝对路径收敛；`Diary.DbTests` 在当前 Windows 环境 162 项通过、113 项因 PostgreSQL/Docker 不可用或平台条件跳过、0 项失败，覆盖附加字段 patch、批量幂等和批次中途失败整体回滚；
 - AI CDP 套件 7/7，通过导航、Agent 状态、真实本地假模型工具闭环、拒绝写入、键盘发送、设置贡献和递归 seed；
 - `win-x64`、`linux-x64` 自包含发布成功，模块目录只包含 `module.json`、`Diary.Agent.UI.dll`、`Diary.Agent.UI.deps.json`、`Diary.Agent.dll`、`AngleSharp.dll`，宿主根目录无 AI 私有程序集；
 - Windows 发布包在默认禁用、`--core-only` 和模块目录缺失三种形态下均可持续启动且不加载 AI 私有能力；

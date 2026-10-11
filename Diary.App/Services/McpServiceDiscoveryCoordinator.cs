@@ -9,7 +9,7 @@ public sealed class McpServiceDiscoveryCoordinator(
     AppRespondent respondent,
     ExtendedSurveyServiceRegistry registry,
     ExtendedSurveyServiceDirectory directory,
-    ILogger<McpServiceDiscoveryCoordinator> logger) : IAsyncDisposable
+    ILogger<McpServiceDiscoveryCoordinator> logger) : IAsyncDisposable, IDisposable
 {
     public static readonly TimeSpan DefaultInterval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan RequestLifetime = TimeSpan.FromSeconds(90);
@@ -116,6 +116,8 @@ public sealed class McpServiceDiscoveryCoordinator(
     }
 
     public async ValueTask DisposeAsync() => await StopAsync().ConfigureAwait(false);
+
+    public void Dispose() => StopAsync().GetAwaiter().GetResult();
 
     internal static bool IsLocalHost(string? responseHostname, string? localHostname) =>
         !string.IsNullOrWhiteSpace(responseHostname)
