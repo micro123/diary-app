@@ -1,6 +1,7 @@
-using System.Diagnostics;
+using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
 using Diary.RedMine.Response;
@@ -21,6 +22,8 @@ public partial class RedMineIssueManageViewModel : PaginatedSearchViewModel<Issu
     private readonly IRedMineApi _api;
     private readonly IRedMineDb _database;
     protected override int PageSize => _api.PageSize;
+    protected override string SearchFailureMessage =>
+        _api.DescribeLastFailure("Redmine 问题查询失败");
 
     public RedMineIssueManageViewModel(IRedMineApi api, IRedMineDb database)
     {
@@ -50,13 +53,22 @@ public partial class RedMineIssueManageViewModel : PaginatedSearchViewModel<Issu
     [RelayCommand]
     private async Task Import(IssueInfo issue)
     {
-        await Task.Run(() =>
+        var result = await Task.Run(() =>
         {
-            _api.GetProject(out var project, issue.Project.Id);
-            Debug.Assert(project is not null);
-            _database.AddRedMineProject(project!.Id, project.Name, project.Description);
+            if (!_api.GetProject(out var project, issue.Project.Id) || project is null)
+                return (Success: false, Error: _api.DescribeLastFailure("无法读取问题所属的 Redmine 项目"));
+            _database.AddRedMineProject(project.Id, project.Name, project.Description);
             _database.AddRedMineIssue(issue.Id, issue.Subject, issue.AssignedTo.Name, issue.Project.Id, issue.Status.IsClosed);
+            return (Success: true, Error: string.Empty);
         });
+        if (!result.Success)
+        {
+            EventDispatcher.ShowToast(
+                result.Error,
+                NotificationType.Error,
+                NotificationRetention.Session);
+            return;
+        }
         EventDispatcher.DbChanged(RedMineUiEvents.IssueChanged);
     }
 }

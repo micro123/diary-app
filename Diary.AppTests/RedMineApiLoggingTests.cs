@@ -37,6 +37,35 @@ public sealed class RedMineApiLoggingTests
     }
 
     [TestMethod]
+    public async Task GetUserInfo_WhenUnauthorized_RecordsStructuredFailureWithoutResponseBodyOrApiKey()
+    {
+        const string responseSecret = "response-body-must-not-be-logged";
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var responseTask = ServeUnauthorizedAsync(listener, responseSecret);
+        var logger = new RecordingLogger<RedMineApi>();
+        using var api = new RedMineApi(new RedMineConfig
+        {
+            RedMineServerUrl = $"http://127.0.0.1:{port}/",
+            RedMineApiKey = "request-api-key",
+        }, logger);
+
+        Assert.IsFalse(api.GetUserInfo(out var user));
+        await responseTask;
+
+        Assert.IsNull(user);
+        Assert.IsNotNull(api.LastFailure);
+        Assert.AreEqual(HttpStatusCode.Unauthorized, api.LastFailure.StatusCode);
+        StringAssert.Contains(api.LastFailure.Message, "API Key");
+        var messages = string.Join(Environment.NewLine, logger.Entries.Select(entry => entry.Message));
+        StringAssert.Contains(messages, "Operation=读取当前用户");
+        StringAssert.Contains(messages, "StatusCode=Unauthorized");
+        Assert.IsFalse(messages.Contains(responseSecret, StringComparison.Ordinal));
+        Assert.IsFalse(messages.Contains("request-api-key", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public async Task Dispose_WhileRequestIsInFlight_AllowsRequestToComplete()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -122,6 +151,23 @@ public sealed class RedMineApiLoggingTests
         }));
         var header = Encoding.ASCII.GetBytes(
             $"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n");
+        await stream.WriteAsync(header);
+        await stream.WriteAsync(body);
+        await stream.FlushAsync();
+    }
+
+    private static async Task ServeUnauthorizedAsync(TcpListener listener, string secret)
+    {
+        using var client = await listener.AcceptTcpClientAsync();
+        await using var stream = client.GetStream();
+        using var reader = new StreamReader(stream, Encoding.ASCII, leaveOpen: true);
+        while (!string.IsNullOrEmpty(await reader.ReadLineAsync()))
+        {
+        }
+
+        var body = Encoding.UTF8.GetBytes(secret);
+        var header = Encoding.ASCII.GetBytes(
+            $"HTTP/1.1 401 Unauthorized\r\nContent-Type: text/plain\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n");
         await stream.WriteAsync(header);
         await stream.WriteAsync(body);
         await stream.FlushAsync();

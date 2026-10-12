@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.GUIBase.Events;
@@ -29,6 +30,7 @@ public partial class RedMineManageViewModel : ViewModelBase
 
     [ObservableProperty] private ObservableCollection<RedMineTabItemModel> _tabs = new();
     [ObservableProperty] private bool _serverOk;
+    [ObservableProperty] private string _connectionError = "正在检查 Redmine 服务地址、API Key 和网络连接。";
 
     public RedMineManageViewModel(
         ILogger logger,
@@ -69,8 +71,19 @@ public partial class RedMineManageViewModel : ViewModelBase
 
     private void CheckServer()
     {
-        ServerOk = _api.GetUserInfo(out var info);
-        _logger.LogInformation("RedMine Server Ok? {Ok}", ServerOk);
-        _redmineInfo.UpdateUserInfo(info);
+        var serverOk = _api.GetUserInfo(out var info);
+        var connectionError = serverOk
+            ? string.Empty
+            : _api.DescribeLastFailure("无法连接 Redmine 服务器");
+        _logger.LogInformation(
+            "RedMine Server Ok? {Ok}. Error={Error}",
+            serverOk,
+            connectionError);
+        Dispatcher.UIThread.Post(() =>
+        {
+            ServerOk = serverOk;
+            ConnectionError = connectionError;
+            _redmineInfo.UpdateUserInfo(info);
+        });
     }
 }

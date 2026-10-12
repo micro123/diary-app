@@ -136,24 +136,27 @@ public partial class RedMineEditorRegionViewModel : ViewModelBase, ITrackerEdito
 
         try
         {
-            var success = await Task.Run(() =>
-                _api.CreateTimeEntry(out var entry, TimeEntry.IssueId,
-                    TimeEntry.ActivityId, item.CreateDate, item.Time, item.Comment)
-                    ? entry
-                    : null);
-            if (success is null)
+            var result = await Task.Run(() =>
             {
-                const string error = "可能是网络问题";
+                var created = _api.CreateTimeEntry(out var entry, TimeEntry.IssueId,
+                    TimeEntry.ActivityId, item.CreateDate, item.Time, item.Comment);
+                return (
+                    Entry: created ? entry : null,
+                    Error: created ? null : _api.DescribeLastFailure("Redmine 工时提交失败"));
+            });
+            if (result.Entry is null)
+            {
+                var error = result.Error ?? "Redmine 工时提交失败。";
                 SaveUploadState(TrackerUploadState.Failed, error);
                 return new TrackerOperationResult(false, error);
             }
 
-            TimeEntry.EntryId = success.Id;
-            Uploaded = SaveUploadState(TrackerUploadState.Succeeded, remoteId: success.Id.ToString());
+            TimeEntry.EntryId = result.Entry.Id;
+            Uploaded = SaveUploadState(TrackerUploadState.Succeeded, remoteId: result.Entry.Id.ToString());
             return Uploaded
-                ? new TrackerOperationResult(true, remoteId: success.Id.ToString())
+                ? new TrackerOperationResult(true, remoteId: result.Entry.Id.ToString())
                 : new TrackerOperationResult(false, "RedMine 工时已提交，但本地状态保存失败。",
-                    success.Id.ToString(), TrackerUploadState.Uncertain);
+                    result.Entry.Id.ToString(), TrackerUploadState.Uncertain);
         }
         catch (Exception exception)
         {

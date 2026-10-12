@@ -21,6 +21,8 @@ public abstract partial class PaginatedSearchViewModel<T> : ViewModelBase
 
     protected abstract int PageSize { get; }
 
+    protected virtual string SearchFailureMessage => "查询失败，请检查连接和应用日志。";
+
     protected abstract Task<(bool ok, IEnumerable<T>? results, int total)> ExecuteSearchAsync(int page);
 
     protected void UpdateSearchResults(IEnumerable<T>? items, int total)
@@ -37,7 +39,7 @@ public abstract partial class PaginatedSearchViewModel<T> : ViewModelBase
     {
         var (ok, results, total) = await ExecuteSearchAsync(CurrentPage - 1);
         if (!ok)
-            NotificationManager?.Show("似乎有什么出错了 >_!", NotificationType.Error);
+            NotificationManager?.Show(SearchFailureMessage, NotificationType.Error);
         await Dispatcher.UIThread.InvokeAsync(() => UpdateSearchResults(results, total));
     }
 

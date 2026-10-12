@@ -11,7 +11,7 @@
         <StackPanel IsVisible="{Binding !ServerOk}" HorizontalAlignment="Center"
                     VerticalAlignment="Center" Spacing="6">
             <TextBlock Text="无法连接 Redmine 服务器" Classes="EmptyStateTitle" />
-            <TextBlock Text="请检查 Redmine 服务地址、API Key 和网络连接。"
+            <TextBlock Text="{Binding ConnectionError}"
                        Classes="EmptyStateDescription" />
         </StackPanel>
         <Border Classes="DetailPane" IsVisible="{Binding ServerOk}">

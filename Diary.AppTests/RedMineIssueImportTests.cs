@@ -1,4 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Net;
+using Avalonia.Controls.Notifications;
 using CommunityToolkit.Mvvm.Messaging;
 using Diary.Core.Data.Base;
 using Diary.GUIBase.Events;
@@ -43,12 +45,64 @@ public sealed class RedMineIssueImportTests
         }
     }
 
-    private sealed class ProjectApi : IRedMineApi
+    [TestMethod]
+    public async Task ImportCommand_WhenProjectRequestFails_ShowsDetailedErrorAndDoesNotWriteDatabase()
+    {
+        var database = new RecordingDatabase();
+        var viewModel = new RedMineIssueManageViewModel(new ProjectApi(fail: true), database);
+        var recipient = new object();
+        string? toast = null;
+        NotificationType? toastType = null;
+        uint changed = 0;
+        WeakReferenceMessenger.Default.Register<ToastEvent>(recipient, (_, message) =>
+        {
+            toast = message.Value;
+            toastType = message.Type;
+        });
+        WeakReferenceMessenger.Default.Register<DbChangedEvent>(recipient, (_, message) => changed = message.Value);
+        var issue = new IssueInfo
+        {
+            Id = 10,
+            Subject = "Imported issue",
+            Project = new CommonInfo { Id = 1, Name = "Test project" },
+            AssignedTo = new CommonInfo { Id = 1, Name = "admin" },
+        };
+
+        try
+        {
+            await viewModel.ImportCommand.ExecuteAsync(issue);
+
+            Assert.AreEqual(0, database.ProjectId);
+            Assert.AreEqual(0, database.IssueId);
+            Assert.AreEqual(0u, changed);
+            Assert.AreEqual(NotificationType.Error, toastType);
+            StringAssert.Contains(toast, "API Key");
+        }
+        finally
+        {
+            WeakReferenceMessenger.Default.UnregisterAll(recipient);
+        }
+    }
+
+    private sealed class ProjectApi(bool fail = false) : IRedMineApi
     {
         public int PageSize => 50;
+        public RedMineApiFailure? LastFailure { get; private set; }
 
         public bool GetProject([NotNullWhen(true)] out ProjectInfo? project, int id)
         {
+            if (fail)
+            {
+                project = null;
+                LastFailure = new RedMineApiFailure(
+                    "读取项目",
+                    "身份验证或权限检查失败（HTTP 401），请检查 API Key 和 Redmine 权限。",
+                    HttpStatusCode.Unauthorized,
+                    "Completed",
+                    null,
+                    DateTimeOffset.UtcNow);
+                return false;
+            }
             project = new ProjectInfo { Id = id, Name = "Test project", Description = "Imported" };
             return true;
         }

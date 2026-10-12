@@ -793,6 +793,7 @@ SupportedProviders: PostgreSQL
 - 实例创建、数据库初始化、迁移和 UI/模板注册已由宿主统一编排，数据库扩展细节仍由插件负责。
 - 接入 `SupportsMultipleInstances`，贯通导航、管理页和编辑器上下文。
 - Redmine 项目查询统一通过兼容 `projects`/`results` 的结果集合读取；Issue 本地启停在数据库成功后由实例级 UI 数据仓库原位替换状态，并同步开放 Issue 集合，避免全量重载 DataGrid 和重置当前视口。
+- Redmine REST 失败统一生成脱敏诊断：应用日志记录实例 ID、脱敏服务器地址、操作名、HTTP 方法、资源路径、状态码、RestSharp 响应状态、异常类型和错误摘要，不记录 API Key、请求正文或响应正文；API 同时保留最近一次可读失败原因，供连接状态、查询、同步、导入和工时上传界面展示。
 
 验收标准：新增测试 tracker 不需要修改 `Diary.App` 的 tracker 专用分支即可创建两个实例。
 
@@ -825,6 +826,7 @@ SupportedProviders: PostgreSQL
 - 插件诊断页面、迁移重试、实例启用/禁用和日志错误导出已完成。
 - 禁用/卸载时保留配置和数据，删除数据必须显式确认。
 - 外部 Redmine API 测试通过 `DIARY_RUN_REDMINE_EXTERNAL_TESTS=1` 显式启用，默认测试不依赖网络。
+- 本地契约测试覆盖 Redmine 401、日志脱敏、失败原因映射和 Issue 导入失败提示；网络、TLS、代理和 4xx/5xx 错误均应在 UI 中显示明确摘要，并可在应用日志中查看结构化详情。
 
 验收标准：单个插件可以独立禁用、重试和移除，不影响核心数据或其他插件。
 

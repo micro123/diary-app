@@ -18,6 +18,8 @@ public partial class RedMineProjectViewModel : PaginatedSearchViewModel<ProjectI
     [ObservableProperty] private string _searchTerm = string.Empty;
     private readonly IRedMineApi _api;
     protected override int PageSize => _api.PageSize;
+    protected override string SearchFailureMessage =>
+        _api.DescribeLastFailure("Redmine 项目查询失败");
 
     public RedMineProjectViewModel(IRedMineApi api) => _api = api;
 
@@ -72,7 +74,10 @@ public partial class RedMineProjectViewModel : PaginatedSearchViewModel<ProjectI
                     $"新问题ID为: {createdIssue!.Id}",
                     NotificationRetention.Session);
             else
-                ToastManager?.Show("创建问题失败了>_<");
+                EventDispatcher.ShowToast(
+                    _api.DescribeLastFailure("Redmine 问题创建失败"),
+                    Avalonia.Controls.Notifications.NotificationType.Error,
+                    NotificationRetention.Session);
         } while (!finished);
     }
 

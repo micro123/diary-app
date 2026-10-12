@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
+using Avalonia.Controls.Notifications;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Diary.GUIBase.Events;
 using Diary.GUIBase.Utils;
 using Diary.GUIBase.ViewModels;
 using Diary.RedMine.Models;
@@ -43,20 +45,28 @@ public partial class RedMineInfoViewModel : ViewModelBase
     {
         try
         {
-            var synchronized = await Task.Run(() =>
+            var result = await Task.Run(() =>
             {
                 if (!_api.GetActivities(out var activities) || activities is null)
-                    return false;
+                    return (Synchronized: false, Error: _api.DescribeLastFailure("Redmine 活动同步失败"));
                 foreach (var activity in activities)
                     _database.AddRedMineActivity(activity.Id, activity.Name);
-                return true;
+                return (Synchronized: true, Error: string.Empty);
             });
-            if (synchronized)
+            if (result.Synchronized)
                 EventDispatcher.DbChanged(RedMineUiEvents.ActivityChanged);
+            else
+                ShowApiFailure(result.Error);
         }
         catch (ObjectDisposedException exception)
         {
             _logger.LogInformation(exception, "RedMine 配置重载时活动同步已停止");
+            ShowApiFailure("Redmine 配置正在重新加载，请稍后重试。");
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "同步 Redmine 活动失败");
+            ShowApiFailure($"Redmine 活动同步失败：{exception.Message}");
         }
     }
 
@@ -73,17 +83,22 @@ public partial class RedMineInfoViewModel : ViewModelBase
     [RelayCommand]
     private async Task SyncIssueState()
     {
-        var changed = await Task.Run(() =>
+        var result = await Task.Run(() =>
         {
             var batches = Issues.Where(x => !x.Disabled)
                 .Select((issue, index) => new { Issue = issue, Index = index })
                 .GroupBy(x => x.Index / _api.PageSize)
                 .Select(group => group.Select(x => x.Issue));
             var result = false;
+            string? error = null;
             foreach (var batch in batches)
             {
                 var ids = string.Join(',', batch.Select(x => x.Id));
-                if (!_api.SearchIssueByIds(out var infos, out _, false, false, 0, ids)) continue;
+                if (!_api.SearchIssueByIds(out var infos, out _, false, false, 0, ids))
+                {
+                    error ??= _api.DescribeLastFailure("Redmine 问题状态同步失败");
+                    continue;
+                }
                 foreach (var issue in infos!.Where(x => x.Status.IsClosed))
                 {
                     result = true;
@@ -91,9 +106,12 @@ public partial class RedMineInfoViewModel : ViewModelBase
                         issue.Id, issue.Subject, issue.AssignedTo.Name, issue.Project.Id, issue.Status.IsClosed);
                 }
             }
-            return result;
+            return (Changed: result, Error: error);
         });
-        if (changed) EventDispatcher.DbChanged(RedMineUiEvents.IssueChanged);
+        if (result.Changed)
+            EventDispatcher.DbChanged(RedMineUiEvents.IssueChanged);
+        if (result.Error is not null)
+            ShowApiFailure(result.Error);
     }
 
     [RelayCommand]
@@ -110,4 +128,10 @@ public partial class RedMineInfoViewModel : ViewModelBase
 
     [RelayCommand]
     private void DeleteIssue(RedMineIssueDisplay issue) => EventDispatcher.ShowToast("暂时不支持删除！");
+
+    private static void ShowApiFailure(string message) =>
+        EventDispatcher.ShowToast(
+            message,
+            NotificationType.Error,
+            NotificationRetention.Session);
 }
