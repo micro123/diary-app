@@ -24,7 +24,7 @@
                           ItemsSource="{Binding SettingsTree.Children}" />
         </Border>
         <StackPanel Grid.Row="2" Classes="DialogFooter">
-            <Button Content="打开当前日志" Command="{Binding OpenCurrentLogCommand}" />
+            <Button Content="打开日志文件" Command="{Binding OpenCurrentLogCommand}" />
             <Button Content="导出日志" Command="{Binding ExportLogsCommand}" />
             <Button Content="关闭" Command="{Binding LoadCommand}" />
             <Button Classes="Primary" Content="保存" Command="{Binding SaveCommand}" />

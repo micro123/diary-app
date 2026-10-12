@@ -41,6 +41,7 @@ using TrackerSettingsDialogViewModel = Diary.App.ViewModels.Dialogs.TrackerSetti
 using ModuleSettingsDialogViewModel = Diary.App.ViewModels.Dialogs.ModuleSettingsDialogViewModel;
 using ExportTemplateManagerViewModel = Diary.App.ViewModels.Dialogs.ExportTemplateManagerViewModel;
 using ApplicationScriptLauncherDialogViewModel = Diary.App.ViewModels.Dialogs.ApplicationScriptLauncherDialogViewModel;
+using LogViewerDialogViewModel = Diary.App.ViewModels.Dialogs.LogViewerDialogViewModel;
 
 namespace Diary.App.ViewModels;
 
@@ -541,25 +542,28 @@ public partial class MainWindowViewModel : ViewModelBase
         _ => AppStatusLevel.Information,
     };
 
+    [RelayCommand]
     private void OpenCurrentLog()
     {
-        try
+        PostUiAsync(async () =>
         {
-            var path = _serviceProvider.GetRequiredService<DiagnosticLogExportService>()
-                .GetCurrentLogFile();
-            if (path is null)
+            var viewModel = _serviceProvider.GetRequiredService<LogViewerDialogViewModel>();
+            viewModel.Initialize();
+            try
             {
-                EventDispatcher.ShowToast("没有可打开的日志");
-                return;
+                await OverlayDialog.ShowCustomModal<object>(viewModel, options: new OverlayDialogOptions
+                {
+                    CanDragMove = false,
+                    CanResize = true,
+                    CanLightDismiss = false,
+                    IsCloseButtonVisible = false,
+                });
             }
-
-            ProcUtils.OpenFileCrossPlatform(path);
-        }
-        catch (Exception exception)
-        {
-            _logger.LogError(exception, "从状态栏打开当前日志失败");
-            EventDispatcher.ShowToast("打开当前日志失败", NotificationType.Error);
-        }
+            finally
+            {
+                viewModel.Deactivate();
+            }
+        }, "日志查看器");
     }
 
     private async Task CheckForUpdatesAsync(bool automatic)

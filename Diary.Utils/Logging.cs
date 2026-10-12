@@ -9,12 +9,15 @@ public static class Logging
 {
     internal const long ApplicationLogFileSizeLimitBytes = 16L * 1024 * 1024;
     internal const int ApplicationLogRetainedFileCount = 4;
+    public const int InMemoryLogCapacity = 1000;
 
     private const string OutputTemplate =
         "[{Timestamp:MM-dd HH:mm:ss}] [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}";
 
     private static ILogger? _logger;
     private static ILoggerFactory? _factory;
+
+    public static InMemoryLogStore MemoryLogs { get; } = new(InMemoryLogCapacity);
 
     private static ILoggerFactory InitLoggerFactory()
     {
@@ -27,6 +30,7 @@ public static class Logging
         var configuration = new LoggerConfiguration()
             .MinimumLevel.Verbose()
             .Enrich.FromLogContext()
+            .WriteTo.Sink(new InMemoryLogSink(MemoryLogs), restrictedToMinimumLevel: minLevel)
             .WriteTo.Console(
                 restrictedToMinimumLevel: minLevel,
                 standardErrorFromLevel: LogEventLevel.Error,

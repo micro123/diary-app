@@ -1,0 +1,145 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:dialogs="clr-namespace:Diary.App.ViewModels.Dialogs"
+             xmlns:i="https://github.com/projektanker/icons.avalonia"
+             mc:Ignorable="d"
+             d:DesignWidth="980"
+             d:DesignHeight="680"
+             x:Class="Diary.App.Views.Dialogs.LogViewerDialogView"
+             x:DataType="dialogs:LogViewerDialogViewModel"
+             Width="980"
+             Height="680"
+             MinWidth="760"
+             MinHeight="520"
+             Padding="8">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8">
+        <Border Classes="PageHeader">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                <Border Classes="MessageIconBadge StatusInfo">
+                    <i:Icon Value="mdi-text-box-search-outline" />
+                </Border>
+                <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                    <TextBlock Text="运行日志" Classes="PageTitle" />
+                    <TextBlock Text="显示当前进程最近的日志，最新记录排在最前面。" Classes="PageSubtitle" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" ColumnDefinitions="*,180,Auto,Auto,Auto,Auto" ColumnSpacing="8">
+            <TextBox Text="{Binding SearchText, Mode=TwoWay}"
+                     Watermark="搜索来源、消息、属性或异常…"
+                     VerticalContentAlignment="Center" />
+            <ComboBox Grid.Column="1"
+                      ItemsSource="{Binding LevelOptions}"
+                      SelectedItem="{Binding SelectedLevel, Mode=TwoWay}" />
+            <Button Grid.Column="2" Command="{Binding RefreshCommand}" ToolTip.Tip="立即刷新">
+                <StackPanel Orientation="Horizontal" Spacing="5">
+                    <i:Icon Value="mdi-refresh" />
+                    <TextBlock Text="刷新" />
+                </StackPanel>
+            </Button>
+            <Button Grid.Column="3" Command="{Binding ToggleRefreshCommand}" ToolTip.Tip="暂停时仍会继续收集日志">
+                <StackPanel Orientation="Horizontal" Spacing="5">
+                    <i:Icon Value="mdi-pause" IsVisible="{Binding !IsRefreshPaused}" />
+                    <i:Icon Value="mdi-play" IsVisible="{Binding IsRefreshPaused}" />
+                    <TextBlock Text="{Binding RefreshToggleText}" />
+                </StackPanel>
+            </Button>
+            <Button Grid.Column="4" Command="{Binding CopyVisibleCommand}" ToolTip.Tip="复制当前筛选结果">
+                <StackPanel Orientation="Horizontal" Spacing="5">
+                    <i:Icon Value="mdi-content-copy" />
+                    <TextBlock Text="复制列表" />
+                </StackPanel>
+            </Button>
+            <Button Grid.Column="5" Command="{Binding ClearCommand}" Classes="Danger" ToolTip.Tip="清空内存日志">
+                <StackPanel Orientation="Horizontal" Spacing="5">
+                    <i:Icon Value="mdi-broom" />
+                    <TextBlock Text="清空" />
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <Grid Grid.Row="2" ColumnDefinitions="2*,3*" ColumnSpacing="8" MinHeight="0">
+            <Border Classes="DetailPane" ClipToBounds="True">
+                <Grid RowDefinitions="Auto,*">
+                    <Border Classes="DetailHeader">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="日志列表" FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="1" Text="{Binding Summary}" Classes="PageSubtitle" />
+                        </Grid>
+                    </Border>
+                    <Grid Grid.Row="1">
+                        <TextBlock Text="当前没有符合条件的日志。"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Classes="EmptyStateDescription"
+                                   IsVisible="{Binding !HasEntries}" />
+                        <ListBox ItemsSource="{Binding Entries}"
+                                 SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
+                                 IsVisible="{Binding HasEntries}"
+                                 Background="Transparent"
+                                 BorderThickness="0">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="dialogs:LogViewerItemViewModel">
+                                    <Grid RowDefinitions="Auto,Auto" Margin="4" ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                        <Border Classes="StatusPill"
+                                                Classes.StatusInfo="{Binding IsInformation}"
+                                                Classes.StatusWarning="{Binding IsWarning}"
+                                                Classes.StatusError="{Binding IsError}">
+                                            <TextBlock Text="{Binding LevelText}" FontSize="11" />
+                                        </Border>
+                                        <Grid Grid.Column="1" ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                            <TextBlock Text="{Binding TimeText}" FontFamily="monospace" Opacity="0.7" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Source}"
+                                                       TextTrimming="CharacterEllipsis" Opacity="0.55" />
+                                        </Grid>
+                                        <TextBlock Grid.Row="1" Grid.ColumnSpan="2"
+                                                   Text="{Binding Message}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Margin="0 4 0 0" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="1" Classes="DetailPane" ClipToBounds="True">
+                <Grid RowDefinitions="Auto,*">
+                    <Border Classes="DetailHeader">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="日志详情" FontWeight="SemiBold" />
+                            <Button Grid.Column="1"
+                                    Theme="{DynamicResource BorderlessButton}"
+                                    Command="{Binding CopySelectedCommand}"
+                                    ToolTip.Tip="复制当前日志详情">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <i:Icon Value="mdi-content-copy" />
+                                    <TextBlock Text="复制" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </Border>
+                    <ScrollViewer Grid.Row="1"
+                                  Padding="12"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Auto">
+                        <SelectableTextBlock Text="{Binding SelectedEntry.Details}"
+                                             FontFamily="monospace"
+                                             TextWrapping="Wrap" />
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Classes="DialogFooter">
+            <TextBlock Text="内存中最多保留 1000 条；关闭程序后清空，文件日志仍按原策略保留。"
+                       Classes="PageSubtitle"
+                       VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="Primary" Content="关闭" Command="{Binding CloseCommand}" />
+        </Grid>
+    </Grid>
+</UserControl>

@@ -15,5 +15,6 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Diary.UtilTests" />
+    <InternalsVisibleTo Include="Diary.AppTests" />
   </ItemGroup>
 </Project>

@@ -112,7 +112,7 @@
 
     <!-- 标题栏 -->
     <u:UrsaWindow.TitleBarContent>
-        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" Height="32" Margin="4 0" ColumnSpacing="0">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto" Height="32" Margin="4 0" ColumnSpacing="0">
             <Button Name="ApplicationMenuButton" Grid.Column="0" Margin="0" Padding="0" BorderThickness="0"
                     Background="Transparent">
                 <Image Source="/Assets/Icons/diary-app.ico" Width="32" Height="32" />
@@ -122,6 +122,7 @@
                         <MenuItem Name="UserManualMenuItem" Header="用户手册"
                                   Command="{Binding OpenUserManualCommand}"
                                   IsVisible="{Binding IsUserManualVisible}" />
+                        <MenuItem Header="运行日志" Command="{Binding OpenCurrentLogCommand}" />
                         <Separator />
                         <MenuItem Header="最大化" Command="{Binding MaximizedCommand}" />
                         <MenuItem Header="最小化" Command="{Binding MinimizedCommand}" />
@@ -149,7 +150,15 @@
                 </Button.Flyout>
             </Button>
             <u:ThemeToggleButton Grid.Column="3" IsThreeState="False" Mode="Indicator" />
-            <Button Grid.Column="4" Name="SettingsMenuButton" Classes="Success ActionButton"
+            <Button Grid.Column="4" Name="LogViewerButton" Classes="Success ActionButton"
+                    Theme="{DynamicResource BorderlessButton}"
+                    Command="{Binding OpenCurrentLogCommand}"
+                    ToolTip.Tip="查看运行日志" ToolTip.ShowDelay="250"
+                    Width="32" Height="32" Padding="0" BorderThickness="0"
+                    Background="Transparent">
+                <i:Icon Value="mdi-text-box-search-outline" />
+            </Button>
+            <Button Grid.Column="5" Name="SettingsMenuButton" Classes="Success ActionButton"
                     Theme="{DynamicResource BorderlessButton}"
                     ToolTip.Tip="设置菜单" ToolTip.ShowDelay="250" Width="32" Height="32" Padding="0" BorderThickness="0"
                     Background="Transparent">

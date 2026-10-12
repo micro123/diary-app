@@ -208,7 +208,9 @@ Debug 构建还提供显式启用的本地 UI 自动化入口：设置 `DIARY_CD
 
 `Diary.App` 在正常模式之外提供 `--capture-crash-dump` 和 `--show-crash-report` 两个内部模式。
 终止性托管异常到达 `AppDomain.UnhandledException` 后，正常进程启动独立捕获进程；捕获进程使用
-`Microsoft.Diagnostics.NETCore.Client` 对目标 PID 生成 Triage Dump，并把应用当前保留的滚动日志压缩为同名 `.logs.zip`，再启动不加载数据库、插件和脚本的最小 Avalonia 提示窗口。应用日志只按 16 MiB 文件上限滚动，固定使用 `Diary.App.log` 和 `_001` 等序号文件，最多保留 4 个；归档读取允许原日志继续写入。
+`Microsoft.Diagnostics.NETCore.Client` 对目标 PID 生成 Triage Dump，并把应用当前保留的滚动日志压缩为同名 `.logs.zip`，再启动不加载数据库、插件和脚本的最小 Avalonia 提示窗口。应用日志按 16 MiB 文件上限滚动，固定使用 `Diary.App.log` 和 `_001` 等序号文件，最多保留 4 个；归档读取允许原日志继续写入。
+
+同一 Serilog 管线还写入线程安全的内存环形缓冲区，固定只保留当前进程最近 1000 条。条目在写入时固化时间、级别、来源、渲染后消息、结构化属性和异常文本，避免 UI 持有 Serilog 事件对象；超过容量时从最旧条目开始淘汰。主窗口日志查看器读取快照并按日志序号降序展示，支持级别/文本筛选、复制和清空，打开期间通过合并后的 UI Dispatcher 自动接收新日志。用户可暂停列表刷新而不停止后台收集，恢复时重新读取完整快照。该缓冲区不持久化、不改变磁盘日志、CrashDump 或诊断导出的保留策略。
 崩溃提示窗口将异常、Dump 和日志归档详情放入可滚动区域，底部操作始终可见，长路径可选择复制且窗口允许调整大小。
 Dump 默认位于 LocalApplicationData 下的 `Diary.App/CrashDumps`，只保留最近 5 个并同步清理对应日志归档，所有诊断文件均不自动上传。
 详细边界见 [`CrashDumpDesign.md`](CrashDumpDesign.md)。
