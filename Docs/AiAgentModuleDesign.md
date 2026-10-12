@@ -464,6 +464,7 @@ P0 不向 Responses 注册服务端托管的网页搜索、文件搜索、代码
 - `input_json_delta` 工具参数拼接；
 - `thinking`、`redacted_thinking`、`thinking_delta` 和 `signature_delta`；
 - 工具调用后将 thinking/signature 块原样放回对应 assistant 消息，满足兼容模型的续答要求；
+- 同一 assistant 轮次产生多个 `tool_use` 时，将随后连续的工具结果合并为一条 user 消息中的多个 `tool_result` content block，并保持调用结果顺序；
 - stop reason、usage 和协议版本 Header。
 
 认证 Header 和协议版本允许连接级已知字段覆盖，以适配内部兼容网关，但不开放任意请求体模板。

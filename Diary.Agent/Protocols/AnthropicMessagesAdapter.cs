@@ -19,8 +19,30 @@ public sealed class AnthropicMessagesAdapter : ProtocolAdapterBase
         CredentialValue? credential)
     {
         var messages = new JsonArray();
-        foreach (var message in request.Messages)
-            AddMessage(messages, message);
+        for (var index = 0; index < request.Messages.Count; index++)
+        {
+            var message = request.Messages[index];
+            if (message.Role != AgentMessageRole.Tool)
+            {
+                AddMessage(messages, message);
+                continue;
+            }
+
+            var toolResults = new JsonArray();
+            do
+            {
+                toolResults.Add(CreateToolResult(request.Messages[index]));
+                index++;
+            }
+            while (index < request.Messages.Count && request.Messages[index].Role == AgentMessageRole.Tool);
+
+            messages.Add(new JsonObject
+            {
+                ["role"] = "user",
+                ["content"] = toolResults,
+            });
+            index--;
+        }
         var body = new JsonObject
         {
             ["model"] = request.Model,
@@ -267,22 +289,7 @@ public sealed class AnthropicMessagesAdapter : ProtocolAdapterBase
     private static void AddMessage(JsonArray messages, AgentMessage message)
     {
         if (message.Role == AgentMessageRole.Tool)
-        {
-            messages.Add(new JsonObject
-            {
-                ["role"] = "user",
-                ["content"] = new JsonArray
-                {
-                    new JsonObject
-                    {
-                        ["type"] = "tool_result",
-                        ["tool_use_id"] = message.ToolCallId,
-                        ["content"] = message.Text,
-                    },
-                },
-            });
-            return;
-        }
+            throw new InvalidOperationException("工具结果必须由请求序列化器按连续消息合并。");
         var content = new JsonArray();
         foreach (var block in message.ReasoningContentBlocks)
             content.Add(JsonNode.Parse(block.GetRawText()));
@@ -303,6 +310,16 @@ public sealed class AnthropicMessagesAdapter : ProtocolAdapterBase
             ["role"] = message.Role == AgentMessageRole.User ? "user" : "assistant",
             ["content"] = content,
         });
+    }
+
+    private static JsonObject CreateToolResult(AgentMessage message)
+    {
+        return new JsonObject
+        {
+            ["type"] = "tool_result",
+            ["tool_use_id"] = message.ToolCallId,
+            ["content"] = message.Text,
+        };
     }
 
     private static JsonDocument ParseEvent(string data)

@@ -156,6 +156,42 @@ public sealed class ProtocolAdapterTests
     }
 
     [TestMethod]
+    public async Task AnthropicRequestMergesConsecutiveToolResultsIntoOneUserMessage()
+    {
+        var adapter = new AnthropicMessagesAdapter();
+        var request = CreateRequest(AiProtocol.AnthropicMessages, stream: false) with
+        {
+            Messages =
+            [
+                AgentMessage.User("查询"),
+                AgentMessage.Assistant(
+                    "",
+                    [CreateToolCall("toolu_1"), CreateToolCall("toolu_2")]),
+                AgentMessage.Tool("toolu_1", "{\"count\":1}"),
+                AgentMessage.Tool("toolu_2", "{\"count\":2}"),
+            ],
+        };
+
+        using var message = adapter.CreateRequest(
+            request,
+            CreateProfile(AiProtocol.AnthropicMessages),
+            new CredentialValue("anthropic-secret"));
+        var body = await message.Content!.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(body);
+        var messages = document.RootElement.GetProperty("messages");
+
+        Assert.AreEqual(3, messages.GetArrayLength());
+        var resultMessage = messages[2];
+        Assert.AreEqual("user", resultMessage.GetProperty("role").GetString());
+        var results = resultMessage.GetProperty("content");
+        Assert.AreEqual(2, results.GetArrayLength());
+        Assert.AreEqual("tool_result", results[0].GetProperty("type").GetString());
+        Assert.AreEqual("toolu_1", results[0].GetProperty("tool_use_id").GetString());
+        Assert.AreEqual("tool_result", results[1].GetProperty("type").GetString());
+        Assert.AreEqual("toolu_2", results[1].GetProperty("tool_use_id").GetString());
+    }
+
+    [TestMethod]
     public async Task ChatStreamMergesSplitToolArgumentEvents()
     {
         const string sse = """
