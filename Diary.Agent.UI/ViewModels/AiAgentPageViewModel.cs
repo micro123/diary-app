@@ -191,11 +191,13 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
     private readonly AgentConfirmationCoordinator _confirmations;
     private readonly McpClientManager _mcp;
     private readonly AgentConversationStore _conversationStore;
+    private readonly PromptHistoryNavigator _promptHistory = new();
     private Guid _conversationId = Guid.NewGuid();
     private DateTimeOffset _conversationCreatedAtUtc = DateTimeOffset.UtcNow;
     private bool _suppressProfileSessionReset;
     private TaskCompletionSource? _activeSendDetached;
     private long _sendGeneration;
+    private bool _applyingPromptHistory;
 
     public AiAgentPageViewModel(
         AiConnectionManager connections,
@@ -236,6 +238,12 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _input = string.Empty;
+
+    partial void OnInputChanged(string value)
+    {
+        if (!_applyingPromptHistory)
+            _promptHistory.UpdateDraft(value);
+    }
 
     [ObservableProperty]
     private string _statusText = "请在 AI 助手设置中添加并测试连接。";
@@ -305,6 +313,7 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
         }
 
         var userText = Input.Trim();
+        _promptHistory.Record(userText);
         Input = string.Empty;
         Messages.Add(new AiChatMessageViewModel("你", userText));
         var assistant = new AiChatMessageViewModel("AI", string.Empty);
@@ -416,6 +425,27 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
                 IsBusy = false;
             }
         }
+    }
+
+    public bool TryNavigateInputHistory(bool previous, string currentInput)
+    {
+        string value;
+        var changed = previous
+            ? _promptHistory.TryMovePrevious(currentInput, out value)
+            : _promptHistory.TryMoveNext(currentInput, out value);
+        if (!changed)
+            return false;
+
+        _applyingPromptHistory = true;
+        try
+        {
+            Input = value;
+        }
+        finally
+        {
+            _applyingPromptHistory = false;
+        }
+        return true;
     }
 
     [RelayCommand]

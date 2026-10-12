@@ -20,6 +20,7 @@
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Diary.Agent.UI\Diary.Agent.UI.csproj" />
     <ProjectReference Include="..\Diary.App\Diary.App.csproj" />
     <ProjectReference Include="..\Diary.Export.Mustache\Diary.Export.Mustache.csproj" />
     <ProjectReference Include="..\Diary.Jira.UI\Diary.Jira.UI.csproj" />

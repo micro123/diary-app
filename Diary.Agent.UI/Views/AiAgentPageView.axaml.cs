@@ -45,8 +45,23 @@ public partial class AiAgentPageView : UserControl
 
     private void OnInputKeyDown(object? sender, KeyEventArgs e)
     {
+        if (DataContext is not AiAgentPageViewModel viewModel)
+            return;
+        if (sender is TextBox textBox
+            && ShouldNavigateHistory(
+                e.Key,
+                e.KeyModifiers,
+                textBox.Text ?? string.Empty,
+                textBox.CaretIndex,
+                textBox.SelectionStart,
+                textBox.SelectionEnd)
+            && viewModel.TryNavigateInputHistory(e.Key == Key.Up, textBox.Text ?? string.Empty))
+        {
+            e.Handled = true;
+            Dispatcher.UIThread.Post(() => MoveCaretToEnd(textBox));
+            return;
+        }
         if (!ShouldSend(e.Key, e.KeyModifiers)
-            || DataContext is not AiAgentPageViewModel viewModel
             || !viewModel.SendCommand.CanExecute(null))
         {
             return;
@@ -56,9 +71,43 @@ public partial class AiAgentPageView : UserControl
         viewModel.SendCommand.Execute(null);
     }
 
+    internal static bool ShouldNavigateHistory(
+        Key key,
+        KeyModifiers modifiers,
+        string text,
+        int caretIndex,
+        int selectionStart,
+        int selectionEnd)
+    {
+        if (modifiers != KeyModifiers.None
+            || selectionStart != selectionEnd
+            || key is not (Key.Up or Key.Down))
+        {
+            return false;
+        }
+
+        caretIndex = Math.Clamp(caretIndex, 0, text.Length);
+        if (key == Key.Up)
+        {
+            var firstLineEnd = text.IndexOf('\n');
+            return firstLineEnd < 0 || caretIndex <= firstLineEnd;
+        }
+
+        var lastLineStart = text.LastIndexOf('\n') + 1;
+        return caretIndex >= lastLineStart;
+    }
+
     internal static bool ShouldSend(Key key, KeyModifiers modifiers) =>
         key == Key.Enter
         && modifiers is KeyModifiers.None or KeyModifiers.Control;
+
+    private static void MoveCaretToEnd(TextBox textBox)
+    {
+        var end = textBox.Text?.Length ?? 0;
+        textBox.CaretIndex = end;
+        textBox.SelectionStart = end;
+        textBox.SelectionEnd = end;
+    }
 
     internal static bool IsNearLatest(double extentHeight, double viewportHeight, double offsetY) =>
         extentHeight <= viewportHeight
