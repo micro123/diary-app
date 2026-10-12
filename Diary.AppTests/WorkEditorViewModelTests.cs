@@ -53,6 +53,8 @@ public sealed class WorkEditorViewModelTests
             Comment = "测试工作项",
             Time = 1.5,
         });
+        var changedProperties = new List<string?>();
+        viewModel.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName);
 
         await _session.Dispatch(async () =>
         {
@@ -62,6 +64,11 @@ public sealed class WorkEditorViewModelTests
             Assert.AreEqual(1, viewModel.UploadResults.Count);
             Assert.AreEqual(TrackerUploadState.Succeeded, viewModel.UploadResults[0].State);
             Assert.AreEqual(42, coordinator.LastItem?.Id);
+            CollectionAssert.Contains(changedProperties, nameof(WorkEditorViewModel.HasUploadedTracker));
+            Assert.IsTrue(DiaryEditorViewModel.ShouldRefreshTimeInfos(
+                nameof(WorkEditorViewModel.HasUploadedTracker)));
+            Assert.IsFalse(DiaryEditorViewModel.ShouldRefreshTimeInfos(
+                nameof(WorkEditorViewModel.UploadStatusText)));
         }, CancellationToken.None);
     }
 
@@ -91,6 +98,14 @@ public sealed class WorkEditorViewModelTests
         Assert.IsNull(secondViewModel.View);
         Assert.IsNull(attachedViewModel);
     }, CancellationToken.None);
+
+    [TestMethod]
+    public void WorkDatePickerUsesPlainPlaceholderWithoutAngleBrackets()
+    {
+        Assert.AreEqual("yyyy-MM-dd", WorkEditorView.DateWatermark);
+        Assert.DoesNotContain("<", WorkEditorView.DateWatermark);
+        Assert.DoesNotContain(">", WorkEditorView.DateWatermark);
+    }
 
     [TestMethod]
     public void RefreshTrackerEditorsUpdatesVisibilityAfterRegistryChanges()

@@ -7,6 +7,8 @@ namespace Diary.App.Views;
 
 public partial class WorkEditorView : UserControl
 {
+    public static string DateWatermark => "yyyy-MM-dd";
+
     private WorkEditorViewModel? _attachedViewModel;
 
     public WorkEditorView()

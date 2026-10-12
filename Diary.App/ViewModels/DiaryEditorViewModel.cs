@@ -894,6 +894,18 @@ public partial class DiaryEditorViewModel : ViewModelBase
     {
         if (value is not null)
             value.PropertyChanged += OnSelectedWorkPropertyChanged;
+        if (_loadingWorks)
+        {
+            NotifySelectedWorkCommandStates();
+            return;
+        }
+
+        UpdateEditorWork(value);
+        NotifySelectedWorkCommandStates();
+    }
+
+    private void UpdateEditorWork(WorkEditorViewModel? value)
+    {
         if (value is not null && _workEditorPreloadModel is { } preloadModel)
         {
             _workEditorPreloadModel = null;
@@ -902,11 +914,17 @@ public partial class DiaryEditorViewModel : ViewModelBase
         }
 
         EditorWork = value ?? _workEditorPreloadModel;
-        NotifySelectedWorkCommandStates();
     }
 
     private void OnSelectedWorkPropertyChanged(object? sender, PropertyChangedEventArgs args)
-        => NotifySelectedWorkCommandStates();
+    {
+        if (ShouldRefreshTimeInfos(args.PropertyName))
+            UpdateTimeInfos();
+        NotifySelectedWorkCommandStates();
+    }
+
+    internal static bool ShouldRefreshTimeInfos(string? propertyName)
+        => propertyName == nameof(WorkEditorViewModel.HasUploadedTracker);
 
     private void NotifySelectedWorkCommandStates()
     {
@@ -1092,6 +1110,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
                     work => work.Priority,
                     work => work.WorkId));
             SelectedWork = DailyWorks.FirstOrDefault();
+            UpdateEditorWork(SelectedWork);
             UpdateTimeInfos();
             RefreshCompactCalendar();
         }
