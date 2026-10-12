@@ -220,6 +220,26 @@
                  Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=true;PublishSingleFile=false;DebugType=None;DebugSymbols=false;PublishDir=$(AiMcpPublishDirectory)" />
         <Exec Command="$(AiMcpMergePython) &quot;$(MSBuildProjectDirectory)/../Tools/merge-publish-directory.py&quot; --source &quot;$(AiMcpMergeSourceDirectory)&quot; --target &quot;$(AiMcpMergeTargetDirectory)&quot;$(AiMcpCaseInsensitiveArgument)" />
     </Target>
+
+    <Target Name="PublishConfigurationTool" AfterTargets="Publish"
+            Condition="'$(RuntimeIdentifier)' != ''">
+        <PropertyGroup>
+            <ConfigurationToolPublishDirectory>$(MSBuildProjectDirectory)\$(IntermediateOutputPath)DiaryConfigToolPublish\</ConfigurationToolPublishDirectory>
+            <ConfigurationToolMergePython Condition="$([MSBuild]::IsOSPlatform('Windows'))">python</ConfigurationToolMergePython>
+            <ConfigurationToolMergePython Condition="!$([MSBuild]::IsOSPlatform('Windows'))">python3</ConfigurationToolMergePython>
+            <ConfigurationToolCaseInsensitiveArgument Condition="$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win-'))"> --case-insensitive</ConfigurationToolCaseInsensitiveArgument>
+            <ConfigurationToolMergeSourceDirectory>$(ConfigurationToolPublishDirectory).</ConfigurationToolMergeSourceDirectory>
+            <ConfigurationToolMergeTargetDirectory>$(PublishDir).</ConfigurationToolMergeTargetDirectory>
+        </PropertyGroup>
+        <RemoveDir Directories="$(ConfigurationToolPublishDirectory)" />
+        <MSBuild Projects="..\Diary.ConfigTool\Diary.ConfigTool.csproj"
+                 Targets="Restore"
+                 Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=true" />
+        <MSBuild Projects="..\Diary.ConfigTool\Diary.ConfigTool.csproj"
+                 Targets="Publish"
+                 Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=true;PublishSingleFile=false;DebugType=None;DebugSymbols=false;PublishDir=$(ConfigurationToolPublishDirectory)" />
+        <Exec Command="$(ConfigurationToolMergePython) &quot;$(MSBuildProjectDirectory)/../Tools/merge-publish-directory.py&quot; --source &quot;$(ConfigurationToolMergeSourceDirectory)&quot; --target &quot;$(ConfigurationToolMergeTargetDirectory)&quot;$(ConfigurationToolCaseInsensitiveArgument)" />
+    </Target>
     
     <Target Name="IncludeRuntimeExtensionsInPublish" AfterTargets="ComputeFilesToPublish">
         <ItemGroup>

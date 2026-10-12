@@ -147,6 +147,7 @@ def validate() -> None:
     worker_entry = "Diary.Script.Worker.exe" if args.rid == "win-x64" else "Diary.Script.Worker"
     updater_entry = "Diary.Updater.exe" if args.rid == "win-x64" else "Diary.Updater"
     mcp_entry = "Diary.Mcp.exe" if args.rid == "win-x64" else "Diary.Mcp"
+    config_tool_entry = "Diary.ConfigTool.exe" if args.rid == "win-x64" else "Diary.ConfigTool"
     runtime_markers = (
         ("coreclr.dll", "hostfxr.dll")
         if args.rid == "win-x64"
@@ -162,6 +163,10 @@ def validate() -> None:
         "Diary.Mcp.dll",
         "Diary.Mcp.deps.json",
         "Diary.Mcp.runtimeconfig.json",
+        config_tool_entry,
+        "Diary.ConfigTool.dll",
+        "Diary.ConfigTool.deps.json",
+        "Diary.ConfigTool.runtimeconfig.json",
         *runtime_markers,
     }
     if args.require_user_manual:

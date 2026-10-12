@@ -1,0 +1,150 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Diary.ConfigTool.ViewModels"
+        x:Class="Diary.ConfigTool.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="Diary 配置管理工具"
+        Width="1260" Height="800" MinWidth="980" MinHeight="620"
+        WindowStartupLocation="CenterScreen">
+    <Grid RowDefinitions="Auto,*,Auto" Margin="12">
+        <Border Grid.Row="0" Padding="10" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                CornerRadius="6" Margin="0,0,0,10">
+            <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+                <TextBlock Text="配置目录" VerticalAlignment="Center" Margin="0,0,10,0" />
+                <TextBox Grid.Column="1" Text="{Binding ConfigDirectory, Mode=TwoWay}" />
+                <Button Grid.Column="2" Content="应用路径" Click="ApplyDirectoryClick" Margin="8,0,0,0" />
+                <Button Grid.Column="3" Content="选择目录" Click="ChooseDirectoryClick" Margin="8,0,0,0" />
+                <Button Grid.Column="4" Content="重新扫描" Click="ReloadDirectoryClick" Margin="8,0,0,0" />
+                <StackPanel Grid.Row="1" Grid.ColumnSpan="5" Margin="0,8,0,0" Spacing="3">
+                    <TextBlock Text="{Binding CurrentIdentity}" Opacity="0.72" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding MasterKeyStatusText}" Opacity="0.72" TextWrapping="Wrap" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" ColumnDefinitions="260,8,*,8,285" MinHeight="0">
+            <Border Grid.Column="0" Padding="8" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    CornerRadius="6">
+                <Grid RowDefinitions="Auto,*">
+                    <TextBlock Text="配置文件" FontWeight="SemiBold" FontSize="16" Margin="4,2,4,8" />
+                    <ListBox Grid.Row="1" ItemsSource="{Binding Configurations}"
+                             SelectedItem="{Binding SelectedConfiguration, Mode=TwoWay}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ConfigurationItemViewModel">
+                                <Grid ColumnDefinitions="*,Auto" Margin="4,5">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding Category}" FontSize="11" Opacity="0.62" />
+                                        <TextBlock Text="{Binding RelativePath}" FontSize="11" Opacity="0.62"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                                        <TextBlock Text="{Binding Status}" FontSize="11" HorizontalAlignment="Right" />
+                                        <TextBlock Text="有备份" FontSize="10" Opacity="0.65"
+                                                   IsVisible="{Binding HasBackup}" HorizontalAlignment="Right" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="2" Padding="8" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    CornerRadius="6">
+                <TabControl>
+                    <TabItem Header="属性表">
+                        <Grid RowDefinitions="Auto,*" Margin="4,8,4,4">
+                            <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,8">
+                                <TextBlock Text="仅显示标量值；对象和数组结构请在 JSON 页调整。"
+                                           VerticalAlignment="Center" Opacity="0.68" />
+                                <CheckBox Grid.Column="1" Content="显示敏感值"
+                                          IsChecked="{Binding ShowSensitiveValues, Mode=TwoWay}"
+                                          VerticalAlignment="Center" Margin="10,0" />
+                                <Button Grid.Column="2" Content="应用到 JSON" Click="ApplyPropertiesClick" />
+                            </Grid>
+                            <DataGrid Grid.Row="1" ItemsSource="{Binding PropertyRows}"
+                                      AutoGenerateColumns="False" CanUserSortColumns="True"
+                                      GridLinesVisibility="Horizontal" IsReadOnly="False">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="属性路径" Binding="{Binding Path}" IsReadOnly="True" Width="2*" />
+                                    <DataGridTextColumn Header="类型" Binding="{Binding Type}" IsReadOnly="True" Width="110" />
+                                    <DataGridTextColumn Header="值" Binding="{Binding Value, Mode=TwoWay}" Width="3*" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+                    </TabItem>
+
+                    <TabItem Header="JSON">
+                        <Grid RowDefinitions="Auto,*" Margin="4,8,4,4">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="这里显示解密后的明文；可能包含密码、令牌或 API Key。"
+                                           Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                           VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <Button Grid.Column="1" Content="格式化并校验" Click="ValidateJsonClick" Margin="8,0,0,8" />
+                            </Grid>
+                            <TextBox Grid.Row="1" Classes="json-editor" Text="{Binding JsonText, Mode=TwoWay}"
+                                     AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     VerticalContentAlignment="Top" HorizontalContentAlignment="Left" />
+                        </Grid>
+                    </TabItem>
+
+                    <TabItem Header="保存前比较">
+                        <Grid ColumnDefinitions="*,8,*" Margin="4,8,4,4">
+                            <Grid RowDefinitions="Auto,*">
+                                <TextBlock Text="磁盘原始内容" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                <TextBox Grid.Row="1" Classes="json-editor" Text="{Binding OriginalJsonText}"
+                                         IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                            </Grid>
+                            <Grid Grid.Column="2" RowDefinitions="Auto,*">
+                                <TextBlock Text="当前编辑内容" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                <TextBox Grid.Row="1" Classes="json-editor" Text="{Binding JsonText}"
+                                         IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                            </Grid>
+                        </Grid>
+                    </TabItem>
+                </TabControl>
+            </Border>
+
+            <Border Grid.Column="4" Padding="12" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    CornerRadius="6">
+                <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto">
+                    <TextBlock Text="文件状态" FontWeight="SemiBold" FontSize="16" />
+                    <TextBlock Grid.Row="1" Text="{Binding DocumentDetails}" Margin="0,10,0,12"
+                               TextWrapping="Wrap" />
+                    <Button Grid.Row="2" Content="保存当前配置" Click="SaveClick"
+                            IsEnabled="{Binding CanSave}" HorizontalAlignment="Stretch" />
+                    <Button Grid.Row="3" Content="从 .bak 恢复" Click="RestoreBackupClick"
+                            Margin="0,8,0,0" HorizontalAlignment="Stretch" />
+                    <Button Grid.Row="4" Content="导入当前明文 JSON" Click="ImportCurrentClick"
+                            Margin="0,16,0,0" HorizontalAlignment="Stretch" />
+                    <Button Grid.Row="5" Content="导出当前明文 JSON" Click="ExportCurrentClick"
+                            Margin="0,8,0,0" HorizontalAlignment="Stretch" />
+                    <Button Grid.Row="6" Content="重新初始化加密身份" Click="ResetEncryptionIdentityClick"
+                            Margin="0,16,0,0" HorizontalAlignment="Stretch" />
+                    <Button Grid.Row="7" Content="使用旧 SID 和密码迁移" Click="MigrateWindowsDpapiClick"
+                            IsVisible="{Binding IsWindows}" IsEnabled="{Binding CanMigrateWindowsDpapi}"
+                            Margin="0,8,0,0" HorizontalAlignment="Stretch" />
+                    <StackPanel Grid.Row="9" Spacing="8">
+                        <Separator Margin="0,8" />
+                        <Button Content="导入明文配置包" Click="ImportAllClick" HorizontalAlignment="Stretch" />
+                        <Button Content="导出全部明文配置" Click="ExportAllClick" HorizontalAlignment="Stretch" />
+                        <TextBlock Text="整包导入前会在配置目录的 ConfigBackups 下创建快照。"
+                                   TextWrapping="Wrap" FontSize="11" Opacity="0.68" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="2" Padding="10,8" Margin="0,10,0,0"
+                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" CornerRadius="6">
+            <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />
+        </Border>
+    </Grid>
+</Window>

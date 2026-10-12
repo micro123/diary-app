@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <ApplicationIcon>..\Diary.App\Assets\Icons\diary-app.ico</ApplicationIcon>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <CETCompat>false</CETCompat>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Diary.Core\Diary.Core.csproj" />
+    <ProjectReference Include="..\Diary.GUIBase\Diary.GUIBase.csproj" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.18" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Semi.Avalonia" Version="11.3.14" />
+    <PackageReference Include="Semi.Avalonia.DataGrid" Version="11.3.7.3" />
+  </ItemGroup>
+</Project>

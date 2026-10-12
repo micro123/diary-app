@@ -233,6 +233,7 @@ function Assert-PublishOutput([string] $PublishDirectory) {
         'Diary.App.exe', 'Diary.App.dll', 'Diary.Script.Worker.dll', 'Diary.Script.Worker.exe',
         'Diary.Script.Worker.deps.json', 'Diary.Script.Worker.runtimeconfig.json', 'Diary.Updater.exe',
         'Diary.Mcp.exe', 'Diary.Mcp.dll', 'Diary.Mcp.deps.json', 'Diary.Mcp.runtimeconfig.json',
+        'Diary.ConfigTool.exe', 'Diary.ConfigTool.dll', 'Diary.ConfigTool.deps.json', 'Diary.ConfigTool.runtimeconfig.json',
         'Microsoft.Diagnostics.NETCore.Client.dll', 'Diary.RedMine.dll', 'Diary.RedMine.UI.dll',
         'Diary.RedMine.SQLite.dll', 'Diary.RedMine.PostgreSQL.dll', 'Diary.Jira.dll', 'Diary.Jira.UI.dll',
         'Diary.Jira.SQLite.dll', 'Diary.Jira.PostgreSQL.dll', 'nng.NET.dll', 'nng.NET.Shared.dll',

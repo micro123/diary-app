@@ -1,0 +1,21 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:semi="https://irihi.tech/semi"
+             x:Class="Diary.ConfigTool.App">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://Diary.GUIBase/Resources/AppResources.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+    <Application.Styles>
+        <semi:SemiTheme Locale="zh-CN" />
+        <StyleInclude Source="avares://Diary.GUIBase/Resources/AppStyles.axaml" />
+        <StyleInclude Source="avares://Semi.Avalonia.DataGrid/Index.axaml" />
+        <Style Selector="TextBox.json-editor">
+            <Setter Property="FontFamily" Value="Consolas, Cascadia Mono, monospace" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+    </Application.Styles>
+</Application>
