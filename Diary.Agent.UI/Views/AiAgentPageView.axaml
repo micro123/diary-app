@@ -51,7 +51,33 @@
                                 <DataTemplate x:DataType="vm:AiChatMessageViewModel">
                                     <Border Margin="0,0,0,10" Padding="12" Classes="DetailPane">
                                         <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
-                                            <TextBlock Text="{Binding Role}" FontWeight="SemiBold" />
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Text="{Binding Role}" FontWeight="SemiBold"
+                                                           VerticalAlignment="Center" />
+                                                <StackPanel Grid.Column="1" Classes="CompactActions"
+                                                            IsVisible="{Binding HasUserActions}">
+                                                    <Button Theme="{DynamicResource BorderlessButton}"
+                                                            Padding="5,2"
+                                                            Command="{Binding $parent[UserControl].DataContext.CopyMessageCommand}"
+                                                            CommandParameter="{Binding}"
+                                                            ToolTip.Tip="复制这条用户消息">
+                                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                                            <i:Icon Value="mdi-content-copy" FontSize="14" />
+                                                            <TextBlock Text="复制" FontSize="12" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <Button Theme="{DynamicResource BorderlessButton}"
+                                                            Padding="5,2"
+                                                            Command="{Binding $parent[UserControl].DataContext.FillMessageInputCommand}"
+                                                            CommandParameter="{Binding}"
+                                                            ToolTip.Tip="用这条消息替换当前输入">
+                                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                                            <i:Icon Value="mdi-arrow-down-bold-box-outline" FontSize="14" />
+                                                            <TextBlock Text="填入" FontSize="12" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                </StackPanel>
+                                            </Grid>
                                             <Expander Grid.Row="1" Header="思考过程"
                                                       IsVisible="{Binding HasReasoning}"
                                                       IsExpanded="False">
@@ -187,6 +213,7 @@
             <TextBox x:Name="AiAgentInputTextBox" Text="{Binding Input}"
                      Watermark="输入问题或工作记录需求…"
                      AcceptsReturn="True" MinHeight="72" MaxHeight="180"
+                     Padding="10,8"
                      TextWrapping="Wrap" TextAlignment="Left"
                      VerticalContentAlignment="Top"
                      ToolTip.Tip="Enter 或 Ctrl+Enter 发送；Shift+Enter 换行；↑/↓ 浏览当前运行期提示词历史" />

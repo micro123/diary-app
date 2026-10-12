@@ -66,6 +66,21 @@ public sealed class AiAgentPromptHistoryTests
     }
 
     [TestMethod]
+    public void OnlyNonEmptyUserMessagesExposeQuickActions()
+    {
+        var user = new AiChatMessageViewModel("你", "重新整理本月工作");
+        var assistant = new AiChatMessageViewModel("AI", "这是整理结果");
+
+        Assert.IsTrue(user.IsUser);
+        Assert.IsTrue(user.HasUserActions);
+        Assert.IsFalse(assistant.IsUser);
+        Assert.IsFalse(assistant.HasUserActions);
+
+        user.Content = "   ";
+        Assert.IsFalse(user.HasUserActions);
+    }
+
+    [TestMethod]
     public void AgentJsonViewsDisplayUnicodeAndKeepValidJsonEscaping()
     {
         const string escaped = """{"title":"\u52A0\u73ED","html":"\u003Ctag\u003E"}""";

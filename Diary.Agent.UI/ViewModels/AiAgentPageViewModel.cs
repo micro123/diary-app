@@ -18,6 +18,7 @@ public sealed partial class AiChatMessageViewModel(string role, string content) 
     public string Role { get; } = role;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasUserActions))]
     private string _content = content;
 
     [ObservableProperty]
@@ -27,6 +28,10 @@ public sealed partial class AiChatMessageViewModel(string role, string content) 
     private bool _isThinking;
 
     public bool HasReasoning => IsThinking || !string.IsNullOrWhiteSpace(Reasoning);
+
+    public bool IsUser => string.Equals(Role, "你", StringComparison.Ordinal);
+
+    public bool HasUserActions => IsUser && !string.IsNullOrWhiteSpace(Content);
 
     public string ReasoningDisplayText => string.IsNullOrWhiteSpace(Reasoning)
         ? "模型正在思考…"
@@ -194,6 +199,8 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
     private TaskCompletionSource? _activeSendDetached;
     private long _sendGeneration;
     private bool _applyingPromptHistory;
+
+    public event EventHandler? InputFocusRequested;
 
     public AiAgentPageViewModel(
         AiConnectionManager connections,
@@ -442,6 +449,28 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
             _applyingPromptHistory = false;
         }
         return true;
+    }
+
+    [RelayCommand]
+    private async Task CopyMessage(AiChatMessageViewModel? message)
+    {
+        if (message is not { HasUserActions: true }
+            || !await CopyStringToClipboardAsync(message.Content))
+        {
+            return;
+        }
+
+        ToastManager?.Show("用户消息已复制");
+    }
+
+    [RelayCommand]
+    private void FillMessageInput(AiChatMessageViewModel? message)
+    {
+        if (message is not { HasUserActions: true })
+            return;
+
+        Input = message.Content;
+        InputFocusRequested?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]

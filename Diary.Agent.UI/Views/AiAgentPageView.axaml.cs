@@ -118,14 +118,27 @@ public partial class AiAgentPageView : UserControl
         if (ReferenceEquals(_messageSource, viewModel))
             return;
         if (_messageSource is not null)
+        {
             _messageSource.Messages.CollectionChanged -= OnMessagesChanged;
+            _messageSource.InputFocusRequested -= OnInputFocusRequested;
+        }
         ClearTrackedMessages();
         _messageSource = viewModel;
         if (_messageSource is null)
             return;
         _messageSource.Messages.CollectionChanged += OnMessagesChanged;
+        _messageSource.InputFocusRequested += OnInputFocusRequested;
         foreach (var message in _messageSource.Messages)
             TrackMessage(message);
+    }
+
+    private void OnInputFocusRequested(object? sender, EventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            AiAgentInputTextBox.Focus();
+            MoveCaretToEnd(AiAgentInputTextBox);
+        }, DispatcherPriority.Background);
     }
 
     private void OnMessagesChanged(object? sender, NotifyCollectionChangedEventArgs e)
