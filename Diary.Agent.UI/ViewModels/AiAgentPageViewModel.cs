@@ -103,9 +103,7 @@ public sealed partial class AiWorkItemConfirmationViewModel : ObservableObject
         Priority = request.Command.Priority;
         TagIdsText = string.Join(", ", request.Command.TagIds);
         Note = request.Command.Note ?? string.Empty;
-        ExtraFieldsJson = JsonSerializer.Serialize(
-            request.Command.ExtraFields,
-            new JsonSerializerOptions { WriteIndented = true });
+        ExtraFieldsJson = AgentJson.Serialize(request.Command.ExtraFields, writeIndented: true);
     }
 
     public Guid ConfirmationId { get; }
@@ -165,9 +163,7 @@ public sealed class AiExternalToolConfirmationViewModel(ExternalToolConfirmation
 
     public string ToolName { get; } = request.ToolName;
 
-    public string ArgumentsJson { get; } = JsonSerializer.Serialize(
-        request.Arguments,
-        new JsonSerializerOptions { WriteIndented = true });
+    public string ArgumentsJson { get; } = AgentJson.Format(request.Arguments);
 }
 
 public sealed class AiConversationItemViewModel
@@ -651,23 +647,13 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
         return content.Length <= limit ? content : content[..limit] + "…";
     }
 
-    private static string FormatToolOutput(string? content)
+    internal static string FormatToolOutput(string? content)
     {
         if (string.IsNullOrEmpty(content))
             return string.Empty;
         if (content.Length > 64 * 1024)
             return content;
-        try
-        {
-            using var document = JsonDocument.Parse(content);
-            return JsonSerializer.Serialize(
-                document.RootElement,
-                new JsonSerializerOptions { WriteIndented = true });
-        }
-        catch (JsonException)
-        {
-            return content;
-        }
+        return AgentJson.Normalize(content, writeIndented: true);
     }
 
     private void BeginNewSession()

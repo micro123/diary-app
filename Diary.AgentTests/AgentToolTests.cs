@@ -150,6 +150,32 @@ public sealed class AgentToolTests
     }
 
     [TestMethod]
+    public async Task ExecutorNormalizesEscapedUnicodeJsonWithoutRelaxingHtmlEscaping()
+    {
+        var registry = new AgentToolRegistry();
+        registry.TryRegister(new EchoTool(
+            "unicode",
+            "unicode_tool",
+            """{"message":"\u4E2D\u6587","html":"\u003Ctag\u003E"}"""));
+        var snapshot = registry.CreateSnapshot();
+        var executor = new AgentToolExecutor();
+        using var arguments = JsonDocument.Parse("{}");
+
+        var result = await executor.InvokeAsync(
+            snapshot,
+            "unicode_tool",
+            arguments.RootElement,
+            CreateContext());
+
+        Assert.IsTrue(result.Succeeded);
+        StringAssert.Contains(result.Content, "中文");
+        Assert.IsFalse(result.Content.Contains("\\u4E2D", StringComparison.OrdinalIgnoreCase));
+        StringAssert.Contains(result.Content, "\\u003Ctag\\u003E");
+        using var document = JsonDocument.Parse(result.Content);
+        Assert.AreEqual("<tag>", document.RootElement.GetProperty("html").GetString());
+    }
+
+    [TestMethod]
     public async Task QueryToolRejectsMoreThanOneHundredItems()
     {
         var tool = new QueryWorkItemsTool(new FakeWorkItemApi([]));

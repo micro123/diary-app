@@ -204,7 +204,7 @@ public sealed class AgentToolExecutor(
         try
         {
             var result = await tool.InvokeAsync(arguments, context, cancellationToken);
-            return Truncate(result);
+            return Truncate(result with { Content = AgentJson.Normalize(result.Content) });
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Avalonia.Input;
+using Diary.Agent.Tools;
 using Diary.Agent.UI.ViewModels;
 using Diary.Agent.UI.Views;
 
@@ -61,5 +63,27 @@ public sealed class AiAgentPromptHistoryTests
             Key.Up, KeyModifiers.None, text, caretIndex: 2, selectionStart: 0, selectionEnd: 2));
         Assert.IsTrue(AiAgentPageView.ShouldNavigateHistory(
             Key.Up, KeyModifiers.None, "单行", caretIndex: 1, selectionStart: 1, selectionEnd: 1));
+    }
+
+    [TestMethod]
+    public void AgentJsonViewsDisplayUnicodeAndKeepValidJsonEscaping()
+    {
+        const string escaped = """{"title":"\u52A0\u73ED","html":"\u003Ctag\u003E"}""";
+
+        var formatted = AiAgentPageViewModel.FormatToolOutput(escaped);
+
+        StringAssert.Contains(formatted, "加班");
+        Assert.IsFalse(formatted.Contains("\\u52A0", StringComparison.OrdinalIgnoreCase));
+        StringAssert.Contains(formatted, "\\u003Ctag\\u003E");
+        using var document = JsonDocument.Parse(formatted);
+        var confirmation = new AiExternalToolConfirmationViewModel(new ExternalToolConfirmationRequest(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "DiaryApp 内置工具",
+            "测试工具",
+            document.RootElement.Clone()));
+        StringAssert.Contains(confirmation.ArgumentsJson, "加班");
+        Assert.IsFalse(confirmation.ArgumentsJson.Contains("\\u52A0", StringComparison.OrdinalIgnoreCase));
     }
 }

@@ -36,9 +36,10 @@ public sealed partial class AiConnectionEditorViewModel : ObservableObject
         ProxyUsernameCredentialReference = profile.Proxy.UsernameCredentialReference;
         ProxyPasswordCredentialReference = profile.Proxy.PasswordCredentialReference;
         BypassList = string.Join(Environment.NewLine, profile.Proxy.BypassList);
-        HeadersJson = JsonSerializer.Serialize(
+        HeadersJson = AgentJson.Serialize(
             profile.Headers,
-            new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true });
+            JsonSerializerDefaults.Web,
+            writeIndented: true);
         Capabilities = capabilities;
         TestStatus = DescribeCapabilities(capabilities);
     }
@@ -363,6 +364,7 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
     {
         PropertyNameCaseInsensitive = true,
         WriteIndented = true,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Create(System.Text.Unicode.UnicodeRanges.All),
     };
 
     private readonly AiConnectionManager _manager;
@@ -873,16 +875,19 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
         WebSearchEnabled = _manager.Settings.EnabledTools.WebSearch;
         WebFetchEnabled = _manager.Settings.EnabledTools.WebFetch;
         McpEnabled = _manager.Settings.EnabledTools.Mcp;
-        McpServersJson = JsonSerializer.Serialize(
+        McpServersJson = AgentJson.Serialize(
             _manager.Settings.McpServers,
-            new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true });
+            JsonSerializerDefaults.Web,
+            writeIndented: true);
         LoadMcpServers();
-        WebAccessJson = JsonSerializer.Serialize(
+        WebAccessJson = AgentJson.Serialize(
             _manager.Settings.WebAccess,
-            new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true });
-        DefaultProxyJson = JsonSerializer.Serialize(
+            JsonSerializerDefaults.Web,
+            writeIndented: true);
+        DefaultProxyJson = AgentJson.Serialize(
             _manager.Settings.DefaultProxy,
-            new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true });
+            JsonSerializerDefaults.Web,
+            writeIndented: true);
         SelectedProfile = Profiles.FirstOrDefault(profile => profile.Id == DefaultProfileId) ?? Profiles.FirstOrDefault();
         SaveStatus = _manager.LoadStatus == AiSettingsLoadStatus.Unreadable
             ? $"设置文件不可读取，已阻止覆盖：{_manager.LoadError}"
