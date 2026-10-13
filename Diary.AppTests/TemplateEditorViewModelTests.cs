@@ -93,6 +93,55 @@ public sealed class TemplateEditorViewModelTests
     }
 
     [TestMethod]
+    public void LegacyTemplateInfersEnabledFieldsAndPersistsExplicitChoices()
+    {
+        var shareData = new DbShareData(NullLogger.Instance);
+        var tag = new WorkTag { Id = 1, Name = "模板标签", Level = TagLevels.Primary };
+        shareData.WorkTags.Add(tag);
+        var viewModel = new TemplateViewModel(new Template
+        {
+            Name = "旧模板",
+            DefaultTitle = "默认标题",
+            DefaultTime = 1.5,
+            DefaultWorkTags = [tag.Id],
+        }, shareData);
+
+        Assert.IsTrue(viewModel.OverwriteTitle);
+        Assert.IsTrue(viewModel.OverwriteTime);
+        Assert.IsTrue(viewModel.ReplaceTags);
+
+        viewModel.OverwriteTitle = false;
+        viewModel.OverwriteTime = false;
+        viewModel.ReplaceTags = false;
+        var saved = viewModel.ToTemplate();
+
+        Assert.AreEqual(false, saved.OverwriteTitle);
+        Assert.AreEqual(false, saved.OverwriteTime);
+        Assert.AreEqual(false, saved.ReplaceTags);
+    }
+
+    [TestMethod]
+    public void EditingTemplateValuesAutomaticallyEnablesTheirApplyOptions()
+    {
+        var shareData = new DbShareData(NullLogger.Instance);
+        var tag = new WorkTag { Id = 1, Name = "模板标签", Level = TagLevels.Primary };
+        shareData.WorkTags.Add(tag);
+        var viewModel = new TemplateViewModel(new Template { Name = "新模板" }, shareData);
+
+        Assert.IsFalse(viewModel.OverwriteTitle);
+        Assert.IsFalse(viewModel.OverwriteTime);
+        Assert.IsFalse(viewModel.ReplaceTags);
+
+        viewModel.DefaultTitle = "默认标题";
+        viewModel.Time = 1;
+        viewModel.AddTagCommand.Execute(tag);
+
+        Assert.IsTrue(viewModel.OverwriteTitle);
+        Assert.IsTrue(viewModel.OverwriteTime);
+        Assert.IsTrue(viewModel.ReplaceTags);
+    }
+
+    [TestMethod]
     public void SaveFailureKeepsDialogOpenAndRestoresTemplates()
     {
         var manager = TemplateManager.Instance;

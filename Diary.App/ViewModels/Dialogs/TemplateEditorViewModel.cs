@@ -21,8 +21,11 @@ public partial class TemplateViewModel : ObservableObject
 
     public required string Id { get; init; }
     public required string Name { get; set; }
-    public string DefaultTitle { get; set; } = string.Empty;
-    public double Time { get; set; } = 0.0;
+    [ObservableProperty] private string _defaultTitle = string.Empty;
+    [ObservableProperty] private double _time;
+    [ObservableProperty] private bool _overwriteTitle;
+    [ObservableProperty] private bool _overwriteTime;
+    [ObservableProperty] private bool _replaceTags;
     public required ObservableCollection<WorkTag> Tags { get; set; }
     public IReadOnlyList<WorkTag> AvailableTags => ResolveAvailableTags(_allTags, Tags);
     public bool HasAvailableTags => AvailableTags.Count > 0;
@@ -33,8 +36,10 @@ public partial class TemplateViewModel : ObservableObject
         _allTags = shareData.WorkTags;
         Id = template.Id;
         Name = template.Name;
-        DefaultTitle = template.DefaultTitle;
-        Time = template.DefaultTime;
+        _defaultTitle = template.DefaultTitle;
+        _time = template.DefaultTime;
+        _overwriteTitle = template.ShouldOverwriteTitle();
+        _overwriteTime = template.ShouldOverwriteTime();
         Tags = new ObservableCollection<WorkTag>();
         foreach (var tagId in template.DefaultWorkTags)
         {
@@ -42,6 +47,7 @@ public partial class TemplateViewModel : ObservableObject
             if (wt != null)
                 Tags.Add(wt);
         }
+        _replaceTags = template.ReplaceTags ?? Tags.Count > 0;
     }
 
     public Template ToTemplate()
@@ -52,8 +58,23 @@ public partial class TemplateViewModel : ObservableObject
             Name = Name,
             DefaultTitle = DefaultTitle,
             DefaultTime = Time,
+            OverwriteTitle = OverwriteTitle,
+            OverwriteTime = OverwriteTime,
+            ReplaceTags = ReplaceTags,
             DefaultWorkTags = Tags.Select(x => x.Id).ToList(),
         };
+    }
+
+    partial void OnDefaultTitleChanged(string value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+            OverwriteTitle = true;
+    }
+
+    partial void OnTimeChanged(double value)
+    {
+        if (value > 0)
+            OverwriteTime = true;
     }
 
     [RelayCommand]
@@ -62,6 +83,7 @@ public partial class TemplateViewModel : ObservableObject
         if (AvailableTags.All(candidate => candidate.Id != tag.Id))
             return;
         Tags.Add(tag);
+        ReplaceTags = true;
         NotifyAvailableTagsChanged();
     }
 

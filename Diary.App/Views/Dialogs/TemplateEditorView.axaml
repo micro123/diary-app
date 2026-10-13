@@ -73,12 +73,24 @@
                                 </StackPanel>
                                 <TextBlock Grid.Column="0" Grid.Row="1" Text="默认标题" Classes="FieldLabel" />
                                 <TextBox Name="TemplateDefaultTitleInput" Grid.Column="1" Grid.Row="1"
-                                         Grid.ColumnSpan="2" Text="{Binding DefaultTitle}" />
+                                         Text="{Binding DefaultTitle}" />
+                                <CheckBox Grid.Column="2" Grid.Row="1" Content="覆盖标题"
+                                          IsChecked="{Binding OverwriteTitle}"
+                                          VerticalAlignment="Center"
+                                          ToolTip.Tip="启用后，覆盖应用可以将标题替换为模板值；模板值为空时会清空标题。" />
                                 <TextBlock Grid.Column="0" Grid.Row="2" Text="默认工时" Classes="FieldLabel" />
                                 <u:NumericDoubleUpDown Name="TemplateDefaultTimeInput"
                                                        Grid.Column="1" Grid.Row="2" Value="{Binding Time}"
                                                        ShowButtonSpinner="False" Watermark="小时" />
+                                <CheckBox Grid.Column="2" Grid.Row="2" Content="覆盖工时"
+                                          IsChecked="{Binding OverwriteTime}"
+                                          VerticalAlignment="Center"
+                                          ToolTip.Tip="启用后，覆盖应用可以将工时替换为模板值；模板值为 0 时会清零。" />
                                 <TextBlock Grid.Column="0" Grid.Row="3" Text="默认标签" Classes="FieldLabel" />
+                                <CheckBox Grid.Column="1" Grid.Row="3" Content="替换标签"
+                                          IsChecked="{Binding ReplaceTags}"
+                                          VerticalAlignment="Center"
+                                          ToolTip.Tip="启用后，覆盖应用会替换现有标签；模板没有标签时会清空标签。" />
                                 <Button Name="TemplateAddTagButton" Grid.Column="2" Grid.Row="3" Classes="Primary"
                                          IsEnabled="{Binding HasAvailableTags}"
                                          Click="OnAddTagClick">

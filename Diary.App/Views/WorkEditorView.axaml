@@ -57,7 +57,7 @@
                         </MenuFlyout>
                     </SplitButton.Flyout>
                 </SplitButton>
-                <Grid Grid.Column="2" ColumnDefinitions="Auto,Auto">
+                <Grid Grid.Column="2" ColumnDefinitions="Auto,Auto" ColumnSpacing="8">
                     <Button Name="TemplateActionButton"
                             Content="从模板更新"
                             IsEnabled="{Binding CanUseTemplates}"
@@ -65,12 +65,11 @@
                             ToolTip.Tip="只补充尚未填写的内容" />
                     <Button Name="ApplyTemplateMenuButton"
                             Grid.Column="1"
-                            Content="▼"
-                            MinWidth="32"
-                            Padding="6,0"
+                            Content="覆盖应用"
+                            Classes="Danger"
                             IsEnabled="{Binding CanUseTemplates}"
                             Click="OnApplyTemplateClick"
-                            ToolTip.Tip="应用模板并替换当前内容" />
+                            ToolTip.Tip="预览模板将覆盖的字段，确认后替换当前内容" />
                 </Grid>
             </Grid>
 

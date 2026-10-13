@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Text;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Threading;
@@ -53,6 +54,7 @@ public partial class WorkEditorViewModel : ViewModelBase
     private readonly ScriptAutomationScheduler? _scriptAutomationScheduler;
     private readonly TrackerUiContributionRegistry _trackerRegistry;
     private readonly DbInterfaceBase? _database;
+    private readonly Func<string, string, Task<bool>> _confirmTemplateApply;
     private readonly List<(WorkTag Tag, TagAddSource Source, int Sequence)> _pendingTagAutomation = [];
     private IReadOnlyList<int> _recentTagIds = Array.Empty<int>();
     private string _persistedNote = string.Empty;
@@ -210,7 +212,8 @@ public partial class WorkEditorViewModel : ViewModelBase
         string? defaultTaskTitle = null,
         ITagAutomationCoordinator? tagAutomation = null,
         ScriptAutomationScheduler? scriptAutomationScheduler = null,
-        DbInterfaceBase? database = null)
+        DbInterfaceBase? database = null,
+        Func<string, string, Task<bool>>? confirmTemplateApply = null)
     {
         _shareData = shareData;
         _persistence = persistence
@@ -224,6 +227,7 @@ public partial class WorkEditorViewModel : ViewModelBase
         _trackerRegistry = trackerRegistry ?? App.Instance.Services
             .GetRequiredService<TrackerUiContributionRegistry>();
         _database = database;
+        _confirmTemplateApply = confirmTemplateApply ?? EventDispatcher.Confirm;
         Date = TimeTools.Today();
         Comment = defaultTaskTitle ?? App.Instance.AppConfig.WorkSettings.DefaultTaskTitle;
         Note = string.Empty;
@@ -820,16 +824,41 @@ public partial class WorkEditorViewModel : ViewModelBase
         TimeInput = formatted;
     }
 
-    [RelayCommand]
-    public void ApplyTemplate(Template template)
+    internal void ApplyConfirmedTemplate(Template template)
     {
         ArgumentNullException.ThrowIfNull(template);
-        if (IsLocked || !TryClearTagsForTemplate())
+        if (IsLocked)
             return;
 
-        Comment = template.DefaultTitle;
-        Time = template.DefaultTime;
-        AddTags(ResolveTemplateTags(template), TagAddSource.Template);
+        var templateTags = ResolveTemplateTags(template);
+        var replaceTags = ShouldReplaceTags(template, templateTags) && !HasSameTags(templateTags);
+        if (replaceTags && !TryClearTagsForTemplate())
+            return;
+
+        if (template.ShouldOverwriteTitle())
+            Comment = template.DefaultTitle;
+        if (template.ShouldOverwriteTime())
+            Time = template.DefaultTime;
+        if (replaceTags)
+            AddTags(templateTags, TagAddSource.Template);
+    }
+
+    [RelayCommand]
+    public async Task ConfirmApplyTemplate(Template template)
+    {
+        ArgumentNullException.ThrowIfNull(template);
+        if (IsLocked)
+            return;
+
+        var preview = BuildTemplateApplyPreview(template);
+        if (preview is null)
+        {
+            EventDispatcher.ShowToast("当前内容与模板一致，或模板没有启用任何覆盖字段。");
+            return;
+        }
+
+        if (await _confirmTemplateApply("确认覆盖应用模板", preview))
+            ApplyConfirmedTemplate(template);
     }
 
     [RelayCommand]
@@ -839,11 +868,25 @@ public partial class WorkEditorViewModel : ViewModelBase
         if (IsLocked)
             return;
 
-        if (string.IsNullOrWhiteSpace(Comment))
+        if (!string.IsNullOrWhiteSpace(template.DefaultTitle) && string.IsNullOrWhiteSpace(Comment))
             Comment = template.DefaultTitle;
-        if (Time <= 0)
+        if (template.DefaultTime > 0 && Time <= 0)
             Time = template.DefaultTime;
-        if (WorkTags.Count == 0)
+        if (template.DefaultWorkTags.Count > 0 && WorkTags.Count == 0)
+            AddTags(ResolveTemplateTags(template), TagAddSource.Template);
+    }
+
+    public void InitializeFromTemplate(Template template)
+    {
+        ArgumentNullException.ThrowIfNull(template);
+        if (IsLocked)
+            return;
+
+        if (!string.IsNullOrWhiteSpace(template.DefaultTitle))
+            Comment = template.DefaultTitle;
+        if (template.DefaultTime > 0)
+            Time = template.DefaultTime;
+        if (template.DefaultWorkTags.Count > 0)
             AddTags(ResolveTemplateTags(template), TagAddSource.Template);
     }
 
@@ -861,6 +904,66 @@ public partial class WorkEditorViewModel : ViewModelBase
             .Distinct()
             .Select(tagId => tagsById[tagId])
             .ToArray();
+    }
+
+    private string? BuildTemplateApplyPreview(Template template)
+    {
+        var changes = new List<string>();
+        if (template.ShouldOverwriteTitle()
+            && !string.Equals(Comment, template.DefaultTitle, StringComparison.Ordinal))
+        {
+            changes.Add($"标题：{FormatPreviewText(Comment)} → {FormatPreviewText(template.DefaultTitle)}");
+        }
+
+        if (template.ShouldOverwriteTime() && Math.Abs(Time - template.DefaultTime) > 0.0000001)
+        {
+            changes.Add(
+                $"工时：{FormatPreviewTime(Time)} → {FormatPreviewTime(template.DefaultTime)}");
+        }
+
+        var templateTags = ResolveTemplateTags(template);
+        if (ShouldReplaceTags(template, templateTags) && !HasSameTags(templateTags))
+        {
+            var currentIds = WorkTags.Select(tag => tag.Id).ToHashSet();
+            var targetIds = templateTags.Select(tag => tag.Id).ToHashSet();
+            var removed = WorkTags.Where(tag => !targetIds.Contains(tag.Id)).ToArray();
+            var added = templateTags.Where(tag => !currentIds.Contains(tag.Id)).ToArray();
+            changes.Add($"标签移除：{FormatPreviewTags(removed)}");
+            changes.Add($"标签添加：{FormatPreviewTags(added)}");
+            changes.Add($"最终标签：{FormatPreviewTags(templateTags)}");
+        }
+
+        if (changes.Count == 0)
+            return null;
+
+        var preview = new StringBuilder();
+        preview.AppendLine($"模板：{template.Name}");
+        preview.AppendLine("确认后将执行以下更改：");
+        foreach (var change in changes)
+            preview.AppendLine($"• {change}");
+        preview.Append("事项日期不会改变。是否继续？");
+        return preview.ToString();
+    }
+
+    private bool HasSameTags(IReadOnlyCollection<WorkTag> templateTags)
+    {
+        var currentIds = WorkTags.Select(tag => tag.Id).ToHashSet();
+        return currentIds.SetEquals(templateTags.Select(tag => tag.Id));
+    }
+
+    private static bool ShouldReplaceTags(Template template, IReadOnlyCollection<WorkTag> templateTags)
+        => template.ReplaceTags ?? templateTags.Count > 0;
+
+    private static string FormatPreviewText(string value)
+        => string.IsNullOrWhiteSpace(value) ? "（空）" : $"“{value}”";
+
+    private static string FormatPreviewTime(double value)
+        => $"{value.ToString("0.######", CultureInfo.InvariantCulture)} 小时";
+
+    private static string FormatPreviewTags(IEnumerable<WorkTag> tags)
+    {
+        var names = tags.Select(tag => tag.Name).ToArray();
+        return names.Length == 0 ? "（无）" : string.Join("、", names);
     }
 
     private bool TryClearTagsForTemplate()

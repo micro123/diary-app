@@ -222,7 +222,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
             || !TryCreateNewWorkItem()
             || SelectedWork is null)
             return;
-        SelectedWork.ApplyTemplate(template);
+        SelectedWork.InitializeFromTemplate(template);
     }
 
     [RelayCommand(CanExecute = nameof(CanSave))]

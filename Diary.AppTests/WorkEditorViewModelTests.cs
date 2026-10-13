@@ -108,6 +108,19 @@ public sealed class WorkEditorViewModelTests
     }
 
     [TestMethod]
+    public void TemplateButtonsResolveUpdateAndConfirmedOverwriteCommands()
+    {
+        var viewModel = CreateViewModel();
+
+        Assert.AreSame(
+            viewModel.UpdateFromTemplateCommand,
+            WorkEditorView.ResolveTemplateCommand(viewModel, applyTemplate: false));
+        Assert.AreSame(
+            viewModel.ConfirmApplyTemplateCommand,
+            WorkEditorView.ResolveTemplateCommand(viewModel, applyTemplate: true));
+    }
+
+    [TestMethod]
     public void RefreshTrackerEditorsUpdatesVisibilityAfterRegistryChanges()
     {
         var registry = new TrackerUiContributionRegistry();
@@ -283,7 +296,7 @@ public sealed class WorkEditorViewModelTests
         Assert.AreEqual("invalid", viewModel.TimeInput);
     }
     [TestMethod]
-    public void ApplyTemplateOverwritesFieldsAndReplacesAllTags()
+    public void ApplyTemplateUsesLegacyConfiguredFieldsAndIgnoresLegacyEmptyFields()
     {
         var currentTag = new WorkTag { Id = 1, Name = "当前标签", Level = TagLevels.Primary };
         var templateTag = new WorkTag { Id = 2, Name = "模板标签", Level = TagLevels.Primary };
@@ -301,17 +314,126 @@ public sealed class WorkEditorViewModelTests
             DefaultWorkTags = [templateTag.Id],
         };
 
-        viewModel.ApplyTemplate(template);
+        viewModel.ApplyConfirmedTemplate(template);
 
         Assert.AreEqual("模板标题", viewModel.Comment);
         Assert.AreEqual(1.5, viewModel.Time, 0.0001);
         CollectionAssert.AreEqual(new[] { templateTag }, viewModel.WorkTags.ToArray());
 
-        viewModel.ApplyTemplate(new Template { Name = "空模板" });
+        viewModel.ApplyConfirmedTemplate(new Template { Name = "空模板" });
+
+        Assert.AreEqual("模板标题", viewModel.Comment);
+        Assert.AreEqual(1.5, viewModel.Time, 0.0001);
+        CollectionAssert.AreEqual(new[] { templateTag }, viewModel.WorkTags.ToArray());
+    }
+
+    [TestMethod]
+    public void ApplyTemplateExplicitFlagsCanClearFieldsAndTags()
+    {
+        var currentTag = new WorkTag { Id = 1, Name = "当前标签", Level = TagLevels.Primary };
+        var viewModel = CreateViewModel();
+        viewModel.AllTags.Add(currentTag);
+        viewModel.Comment = "当前标题";
+        viewModel.Time = 2;
+        viewModel.AddTags([currentTag], TagAddSource.User);
+
+        viewModel.ApplyConfirmedTemplate(new Template
+        {
+            Name = "清空模板",
+            OverwriteTitle = true,
+            OverwriteTime = true,
+            ReplaceTags = true,
+        });
 
         Assert.AreEqual(string.Empty, viewModel.Comment);
         Assert.AreEqual(0, viewModel.Time, 0.0001);
         Assert.IsEmpty(viewModel.WorkTags);
+    }
+
+    [TestMethod]
+    public void LegacyMissingTemplateTagsDoNotClearUnlessReplacementIsExplicit()
+    {
+        var currentTag = new WorkTag { Id = 1, Name = "当前标签", Level = TagLevels.Primary };
+        var viewModel = CreateViewModel();
+        viewModel.AllTags.Add(currentTag);
+        viewModel.AddTags([currentTag], TagAddSource.User);
+
+        viewModel.ApplyConfirmedTemplate(new Template
+        {
+            Name = "失效标签模板",
+            DefaultWorkTags = [999],
+        });
+
+        CollectionAssert.AreEqual(new[] { currentTag }, viewModel.WorkTags.ToArray());
+
+        viewModel.ApplyConfirmedTemplate(new Template
+        {
+            Name = "显式清空标签模板",
+            ReplaceTags = true,
+            DefaultWorkTags = [999],
+        });
+
+        Assert.IsEmpty(viewModel.WorkTags);
+    }
+
+    [TestMethod]
+    public async Task ConfirmApplyTemplateShowsChangesAndRejectsWithoutMutatingItem()
+    {
+        string? preview = null;
+        var currentTag = new WorkTag { Id = 1, Name = "当前标签", Level = TagLevels.Primary };
+        var templateTag = new WorkTag { Id = 2, Name = "模板标签", Level = TagLevels.Primary };
+        var viewModel = CreateViewModel(confirmTemplateApply: (_, body) =>
+        {
+            preview = body;
+            return Task.FromResult(false);
+        });
+        viewModel.AllTags.Add(currentTag);
+        viewModel.AllTags.Add(templateTag);
+        viewModel.Comment = "当前标题";
+        viewModel.Time = 2;
+        viewModel.AddTags([currentTag], TagAddSource.User);
+
+        await viewModel.ConfirmApplyTemplate(new Template
+        {
+            Name = "覆盖模板",
+            DefaultTitle = "模板标题",
+            DefaultTime = 1.5,
+            DefaultWorkTags = [templateTag.Id],
+        });
+
+        Assert.IsNotNull(preview);
+        StringAssert.Contains(preview, "标题：“当前标题” → “模板标题”");
+        StringAssert.Contains(preview, "工时：2 小时 → 1.5 小时");
+        StringAssert.Contains(preview, "标签移除：当前标签");
+        StringAssert.Contains(preview, "标签添加：模板标签");
+        StringAssert.Contains(preview, "事项日期不会改变");
+        Assert.AreEqual("当前标题", viewModel.Comment);
+        Assert.AreEqual(2, viewModel.Time, 0.0001);
+        CollectionAssert.AreEqual(new[] { currentTag }, viewModel.WorkTags.ToArray());
+    }
+
+    [TestMethod]
+    public async Task ConfirmApplyTemplateAppliesOnlyAfterAcceptance()
+    {
+        var confirmations = 0;
+        var viewModel = CreateViewModel(confirmTemplateApply: (_, _) =>
+        {
+            confirmations++;
+            return Task.FromResult(true);
+        });
+        viewModel.Comment = "当前标题";
+        viewModel.Time = 2;
+
+        await viewModel.ConfirmApplyTemplate(new Template
+        {
+            Name = "覆盖模板",
+            DefaultTitle = "模板标题",
+            DefaultTime = 1.5,
+        });
+
+        Assert.AreEqual(1, confirmations);
+        Assert.AreEqual("模板标题", viewModel.Comment);
+        Assert.AreEqual(1.5, viewModel.Time, 0.0001);
     }
 
     [TestMethod]
@@ -327,7 +449,7 @@ public sealed class WorkEditorViewModelTests
         viewModel.AddTags([originalTag], TagAddSource.User);
         automation.Calls.Clear();
 
-        viewModel.ApplyTemplate(new Template
+        viewModel.ApplyConfirmedTemplate(new Template
         {
             Name = "主次标签模板",
             DefaultWorkTags = [primaryTag.Id, secondaryTag.Id],
@@ -378,6 +500,32 @@ public sealed class WorkEditorViewModelTests
         Assert.AreEqual("模板标题", empty.Comment);
         Assert.AreEqual(1.5, empty.Time, 0.0001);
         CollectionAssert.AreEqual(new[] { templateTag }, empty.WorkTags.ToArray());
+    }
+
+    [TestMethod]
+    public void InitializeAndUpdateUseConfiguredDefaultsEvenWhenOverwriteIsDisabled()
+    {
+        var template = new Template
+        {
+            Name = "仅新建和补全",
+            DefaultTitle = "模板标题",
+            DefaultTime = 1.5,
+            OverwriteTitle = false,
+            OverwriteTime = false,
+        };
+        var initialized = CreateViewModel();
+        initialized.Comment = "程序默认标题";
+
+        initialized.InitializeFromTemplate(template);
+
+        Assert.AreEqual("模板标题", initialized.Comment);
+        Assert.AreEqual(1.5, initialized.Time, 0.0001);
+
+        var updated = CreateViewModel();
+        updated.UpdateFromTemplate(template);
+
+        Assert.AreEqual("模板标题", updated.Comment);
+        Assert.AreEqual(1.5, updated.Time, 0.0001);
     }
 
     [TestMethod]
@@ -435,7 +583,7 @@ public sealed class WorkEditorViewModelTests
             DefaultWorkTags = [templateTag.Id],
         };
 
-        viewModel.ApplyTemplate(template);
+        viewModel.ApplyConfirmedTemplate(template);
 
         CollectionAssert.AreEqual(
             new[] { templateTag.Id },
@@ -467,7 +615,7 @@ public sealed class WorkEditorViewModelTests
             DefaultWorkTags = [templateTag.Id],
         };
 
-        viewModel.ApplyTemplate(template);
+        viewModel.ApplyConfirmedTemplate(template);
         viewModel.UpdateFromTemplate(template);
 
         Assert.AreEqual("锁定标题", viewModel.Comment);
@@ -1020,7 +1168,8 @@ public sealed class WorkEditorViewModelTests
         DbShareData? shareData = null,
         DbInterfaceBase? database = null,
         ITagAutomationCoordinator? tagAutomation = null,
-        IWorkItemPersistenceCoordinator? persistence = null)
+        IWorkItemPersistenceCoordinator? persistence = null,
+        Func<string, string, Task<bool>>? confirmTemplateApply = null)
         => new(
             shareData ?? new DbShareData(NullLogger<DbShareData>.Instance),
             persistence ?? new NoopPersistenceCoordinator(),
@@ -1028,7 +1177,8 @@ public sealed class WorkEditorViewModelTests
             trackerRegistry ?? new TrackerUiContributionRegistry(),
             string.Empty,
             tagAutomation ?? new NoopTagAutomationCoordinator(),
-            database: database);
+            database: database,
+            confirmTemplateApply: confirmTemplateApply);
 
     private static SQLiteDb CreateDatabase()
     {

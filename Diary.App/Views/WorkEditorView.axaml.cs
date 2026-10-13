@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using System.Windows.Input;
 using Diary.App.ViewModels;
 
 namespace Diary.App.Views;
@@ -81,9 +82,7 @@ public partial class WorkEditorView : UserControl
         WorkEditorViewModel viewModel,
         bool applyTemplate)
     {
-        var command = applyTemplate
-            ? viewModel.ApplyTemplateCommand
-            : viewModel.UpdateFromTemplateCommand;
+        var command = ResolveTemplateCommand(viewModel, applyTemplate);
         OpenContextMenu(
             anchor,
             viewModel.Templates.Select(template => new MenuItem
@@ -93,6 +92,11 @@ public partial class WorkEditorView : UserControl
                 CommandParameter = template,
             }));
     }
+
+    internal static ICommand ResolveTemplateCommand(WorkEditorViewModel viewModel, bool applyTemplate)
+        => applyTemplate
+            ? viewModel.ConfirmApplyTemplateCommand
+            : viewModel.UpdateFromTemplateCommand;
 
     private static void OpenContextMenu(Control anchor, IEnumerable<MenuItem> items)
     {
