@@ -41,9 +41,13 @@
         <Grid Grid.Row="1" ColumnDefinitions="3*,2*" ColumnSpacing="8">
             <Border Classes="DetailPane" Padding="8">
                 <Grid RowDefinitions="Auto,*" RowSpacing="8">
-                    <Grid ColumnDefinitions="*,Auto">
+                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
                         <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />
                         <TextBlock Grid.Column="1" Text="{Binding ModeText}" Opacity="0.65" />
+                        <TextBlock Grid.Column="2" Text="{Binding ContextUsageText}"
+                                   Foreground="{Binding ContextUsageBrush}"
+                                   IsVisible="{Binding IsContextUsageVisible}"
+                                   ToolTip.Tip="{Binding ContextUsageToolTip}" />
                     </Grid>
                     <ScrollViewer x:Name="ChatScrollViewer" Grid.Row="1">
                         <ItemsControl ItemsSource="{Binding Messages}">

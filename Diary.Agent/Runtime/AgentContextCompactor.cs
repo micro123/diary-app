@@ -195,6 +195,39 @@ public sealed class AgentContextCompactor(IAgentModelGateway modelGateway)
         return tokens;
     }
 
+    internal static int EstimateRequestInputTokens(AgentModelRequest request)
+    {
+        var tokens = EstimateTextTokens(request.SystemInstruction);
+        foreach (var message in request.Messages)
+        {
+            tokens += 8 + EstimateTextTokens(message.Text);
+            if (message.ReasoningContentBlocks.Count > 0)
+            {
+                foreach (var block in message.ReasoningContentBlocks)
+                    tokens += 8 + EstimateTextTokens(block.GetRawText());
+            }
+            else
+            {
+                tokens += EstimateTextTokens(message.ReasoningText);
+            }
+            foreach (var call in message.ToolCalls)
+                tokens += 12 + EstimateTextTokens(call.Name) + EstimateTextTokens(call.Arguments.GetRawText());
+        }
+        foreach (var tool in request.Tools)
+        {
+            tokens += 16
+                + EstimateTextTokens(tool.Name)
+                + EstimateTextTokens(tool.Description)
+                + EstimateTextTokens(tool.InputSchema.GetRawText());
+        }
+        if (request.ProtocolState is OpenAiResponsesProtocolState responsesState)
+        {
+            foreach (var item in responsesState.OutputItems)
+                tokens += 8 + EstimateTextTokens(item.GetRawText());
+        }
+        return tokens;
+    }
+
     private static AgentContextCompactionResult Unchanged(
         string? summary,
         IReadOnlyList<AgentMessage> history,

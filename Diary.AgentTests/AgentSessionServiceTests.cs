@@ -82,6 +82,74 @@ public sealed class AgentSessionServiceTests
     }
 
     [TestMethod]
+    public async Task ContextUsageReportsLatestRequestInsteadOfCumulativeRunUsage()
+    {
+        var gateway = new SequencedGateway(
+            ToolCallStream(
+                "call_1",
+                "echo_tool",
+                "{\"value\":\"one\"}",
+                usage: new AgentUsage(100, 10, 110)),
+            TextStream("final answer", usage: new AgentUsage(250, 20, 270)));
+        var registry = new AgentToolRegistry();
+        registry.TryRegister(new RecordingTool());
+        var session = CreateSession(gateway);
+        var progress = new EventCollector();
+        var profile = CreateProfile() with
+        {
+            ContextWindowTokens = 4096,
+            ContextCompressionThresholdPercent = 75,
+        };
+
+        var result = await session.RunAsync(
+            "question",
+            profile,
+            registry.CreateSnapshot(),
+            new AgentRunOptions(Budget: new AgentRunBudget(MaxOutputTokens: 512)),
+            progress);
+
+        var contextEvents = progress.Events
+            .Where(item => item.Kind == AgentRunEventKind.ContextUsageUpdated)
+            .Select(item => item.ContextUsage!)
+            .ToArray();
+        Assert.AreEqual(4, contextEvents.Length);
+        Assert.IsTrue(contextEvents[0].IsEstimated);
+        Assert.IsFalse(contextEvents[1].IsEstimated);
+        Assert.AreEqual(100, contextEvents[1].InputTokens);
+        Assert.IsTrue(contextEvents[2].IsEstimated);
+        Assert.IsFalse(contextEvents[3].IsEstimated);
+        Assert.AreEqual(250, contextEvents[3].InputTokens);
+        Assert.AreEqual(762, contextEvents[3].UsedTokens);
+        Assert.AreEqual(4096, contextEvents[3].ContextWindowTokens);
+        Assert.AreEqual(3072, contextEvents[3].CompressionThresholdTokens);
+        Assert.AreEqual(350, result.Usage?.InputTokens);
+    }
+
+    [TestMethod]
+    public async Task ContextUsageKeepsLocalEstimateWhenProviderOmitsUsage()
+    {
+        var gateway = new SequencedGateway(TextStream("done"));
+        var session = CreateSession(gateway);
+        var progress = new EventCollector();
+
+        var result = await session.RunAsync(
+            "question",
+            CreateProfile(),
+            new AgentToolRegistry().CreateSnapshot(),
+            progress: progress);
+
+        var contextEvents = progress.Events
+            .Where(item => item.Kind == AgentRunEventKind.ContextUsageUpdated)
+            .Select(item => item.ContextUsage!)
+            .ToArray();
+        Assert.AreEqual(AgentSessionStatus.Completed, result.Status);
+        Assert.AreEqual(1, contextEvents.Length);
+        Assert.IsTrue(contextEvents[0].IsEstimated);
+        Assert.IsTrue(contextEvents[0].InputTokens > 0);
+        Assert.AreEqual(4096, contextEvents[0].ReservedOutputTokens);
+    }
+
+    [TestMethod]
     public async Task IncompleteToolStreamDoesNotExecuteOrCommitHistory()
     {
         var gateway = new SequencedGateway(IncompleteToolCallStream());
@@ -332,7 +400,8 @@ public sealed class AgentSessionServiceTests
         string id,
         string name,
         string arguments,
-        string? reasoning = null)
+        string? reasoning = null,
+        AgentUsage? usage = null)
     {
         var events = new List<AgentStreamEvent>
         {
@@ -345,12 +414,17 @@ public sealed class AgentSessionServiceTests
             new(AgentStreamEventKind.ToolCallStarted, ToolCallId: id, ToolName: name, ToolIndex: 0),
             new(AgentStreamEventKind.ToolArgumentsDelta, Text: arguments, ToolCallId: id, ToolName: name, ToolIndex: 0),
             new(AgentStreamEventKind.ToolCallCompleted, ToolCallId: id, ToolName: name, ToolIndex: 0),
-            new(AgentStreamEventKind.ResponseCompleted, FinishReason: "tool_calls"),
         ]);
+        if (usage is not null)
+            events.Add(new AgentStreamEvent(AgentStreamEventKind.UsageUpdated, Usage: usage));
+        events.Add(new AgentStreamEvent(AgentStreamEventKind.ResponseCompleted, FinishReason: "tool_calls"));
         return events;
     }
 
-    private static IReadOnlyList<AgentStreamEvent> TextStream(string text, string? reasoning = null)
+    private static IReadOnlyList<AgentStreamEvent> TextStream(
+        string text,
+        string? reasoning = null,
+        AgentUsage? usage = null)
     {
         var events = new List<AgentStreamEvent>
         {
@@ -359,6 +433,8 @@ public sealed class AgentSessionServiceTests
         if (reasoning is not null)
             events.Add(new AgentStreamEvent(AgentStreamEventKind.ReasoningDelta, Text: reasoning));
         events.Add(new AgentStreamEvent(AgentStreamEventKind.TextDelta, Text: text));
+        if (usage is not null)
+            events.Add(new AgentStreamEvent(AgentStreamEventKind.UsageUpdated, Usage: usage));
         events.Add(new AgentStreamEvent(AgentStreamEventKind.ResponseCompleted, FinishReason: "stop"));
         return events;
     }

@@ -29,6 +29,7 @@ public enum AgentRunEventKind
     ToolStarted,
     ToolCompleted,
     UsageUpdated,
+    ContextUsageUpdated,
     Completed,
     Failed,
 }
@@ -42,8 +43,23 @@ public sealed record AgentRunEvent(
     string? ToolArgumentsSummary = null,
     AgentToolResult? ToolResult = null,
     AgentUsage? Usage = null,
+    AgentContextUsage? ContextUsage = null,
     AgentSessionStatus? Status = null,
     string? ErrorCode = null);
+
+public sealed record AgentContextUsage(
+    long InputTokens,
+    int ReservedOutputTokens,
+    int ContextWindowTokens,
+    int CompressionThresholdTokens,
+    bool IsEstimated)
+{
+    public long UsedTokens => InputTokens + ReservedOutputTokens;
+
+    public double UtilizationPercent => ContextWindowTokens <= 0
+        ? 0
+        : UsedTokens * 100d / ContextWindowTokens;
+}
 
 public sealed record AgentRunBudget(
     int MaxRounds = 8,
@@ -371,6 +387,15 @@ public sealed class AgentSessionService
                     useStreaming,
                     budget.MaxOutputTokens,
                     workingProtocolState);
+                var estimatedContextUsage = CreateContextUsage(
+                    AgentContextCompactor.EstimateRequestInputTokens(request),
+                    budget.MaxOutputTokens,
+                    connection,
+                    isEstimated: true);
+                ReportIfCurrent(activeRun, new AgentRunEvent(
+                    AgentRunEventKind.ContextUsageUpdated,
+                    runId,
+                    ContextUsage: estimatedContextUsage));
                 var response = useStreaming
                     ? await CollectStreamingResponseAsync(
                         request,
@@ -398,6 +423,17 @@ public sealed class AgentSessionService
                     ReportIfCurrent(activeRun, new AgentRunEvent(AgentRunEventKind.TextDelta, runId, Text: response.Text));
                 if (response.Usage is not null)
                     ReportIfCurrent(activeRun, new AgentRunEvent(AgentRunEventKind.UsageUpdated, runId, Usage: response.Usage));
+                if (response.Usage?.InputTokens is { } actualInputTokens)
+                {
+                    ReportIfCurrent(activeRun, new AgentRunEvent(
+                        AgentRunEventKind.ContextUsageUpdated,
+                        runId,
+                        ContextUsage: CreateContextUsage(
+                            actualInputTokens,
+                            budget.MaxOutputTokens,
+                            connection,
+                            isEstimated: false)));
+                }
 
                 workingProtocolState = response.ProtocolState;
                 if (response.ToolCalls.Count == 0)
@@ -942,6 +978,22 @@ public sealed class AgentSessionService
 
     private static long? Add(long? left, long? right) =>
         left is null && right is null ? null : left.GetValueOrDefault() + right.GetValueOrDefault();
+
+    private static AgentContextUsage CreateContextUsage(
+        long inputTokens,
+        int reservedOutputTokens,
+        AiConnectionProfile connection,
+        bool isEstimated)
+    {
+        var window = Math.Max(1, connection.ContextWindowTokens);
+        var threshold = window * connection.ContextCompressionThresholdPercent / 100;
+        return new AgentContextUsage(
+            Math.Max(0, inputTokens),
+            reservedOutputTokens,
+            window,
+            threshold,
+            isEstimated);
+    }
 
     internal static string CreateToolArgumentsSummary(
         AgentToolSnapshot snapshot,

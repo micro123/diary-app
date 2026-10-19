@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Text.Json;
+using Avalonia.Media;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -192,6 +194,9 @@ public sealed class AiConversationItemViewModel
 
 public sealed partial class AiAgentPageViewModel : ViewModelBase
 {
+    private static readonly IBrush ContextNormalBrush = new SolidColorBrush(Color.Parse("#6B7280"));
+    private static readonly IBrush ContextWarningBrush = new SolidColorBrush(Color.Parse("#D97706"));
+    private static readonly IBrush ContextCriticalBrush = new SolidColorBrush(Color.Parse("#DC2626"));
     private readonly AiConnectionManager _connections;
     private readonly AgentSessionService _session;
     private readonly AgentToolRegistry _tools;
@@ -258,6 +263,18 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
     private string _statusText = "请在 AI 助手设置中添加并测试连接。";
 
     [ObservableProperty]
+    private string _contextUsageText = "上下文 —";
+
+    [ObservableProperty]
+    private string _contextUsageToolTip = "选择模型连接后显示上下文窗口。";
+
+    [ObservableProperty]
+    private IBrush _contextUsageBrush = ContextNormalBrush;
+
+    [ObservableProperty]
+    private bool _isContextUsageVisible;
+
+    [ObservableProperty]
     private bool _isBusy;
 
     [ObservableProperty]
@@ -289,6 +306,7 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
     partial void OnSelectedProfileChanged(AiConnectionProfile? oldValue, AiConnectionProfile? newValue)
     {
         OnPropertyChanged(nameof(ModeText));
+        ResetContextUsage(newValue);
         if (!_suppressProfileSessionReset
             && oldValue is not null
             && newValue is not null
@@ -382,6 +400,10 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
                     break;
                 case AgentRunEventKind.ContextCompacted:
                     StatusText = item.Text ?? "已自动压缩较早的会话历史。";
+                    break;
+                case AgentRunEventKind.ContextUsageUpdated:
+                    if (item.ContextUsage is { } contextUsage)
+                        ApplyContextUsage(contextUsage);
                     break;
                 case AgentRunEventKind.Completed:
                 case AgentRunEventKind.Failed:
@@ -626,6 +648,7 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
                     : AgentMessage.Assistant(message.Content)),
             record.ContextSummary,
             record.ContextCompactionCount);
+        ResetContextUsage(profile);
         OnPropertyChanged(nameof(IsEmpty));
         StatusText = $"已恢复会话：{record.Title}";
     }
@@ -703,7 +726,58 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
         SelectedConversation = null;
         Messages.Clear();
         ToolCalls.Clear();
+        ResetContextUsage(SelectedProfile);
         OnPropertyChanged(nameof(IsEmpty));
+    }
+
+    private void ApplyContextUsage(AgentContextUsage usage)
+    {
+        var prefix = usage.IsEstimated ? "≈" : string.Empty;
+        var percent = usage.UtilizationPercent;
+        ContextUsageText = $"上下文 {prefix}{FormatTokenCount(usage.UsedTokens)} / "
+                           + $"{FormatTokenCount(usage.ContextWindowTokens)} · {percent:F0}%";
+        ContextUsageToolTip = $"输入上下文：{usage.InputTokens.ToString("N0", CultureInfo.InvariantCulture)} Token"
+                              + (usage.IsEstimated ? "（本地估算值）" : "（服务端实际值）")
+                              + $"\n输出预留：{usage.ReservedOutputTokens.ToString("N0", CultureInfo.InvariantCulture)} Token"
+                              + $"\n窗口占用：{usage.UsedTokens.ToString("N0", CultureInfo.InvariantCulture)} Token"
+                              + $"\n上下文窗口：{usage.ContextWindowTokens.ToString("N0", CultureInfo.InvariantCulture)} Token"
+                              + $"\n自动压缩阈值：{usage.CompressionThresholdTokens.ToString("N0", CultureInfo.InvariantCulture)} Token"
+                              + "\n总窗口来自当前连接配置；兼容模型服务未返回 usage 时使用本地估算。";
+        ContextUsageBrush = percent >= 90
+            ? ContextCriticalBrush
+            : percent >= 75
+                ? ContextWarningBrush
+                : ContextNormalBrush;
+        IsContextUsageVisible = true;
+    }
+
+    private void ResetContextUsage(AiConnectionProfile? profile)
+    {
+        IsContextUsageVisible = profile is not null;
+        ContextUsageBrush = ContextNormalBrush;
+        if (profile is null)
+        {
+            ContextUsageText = "上下文 —";
+            ContextUsageToolTip = "选择模型连接后显示上下文窗口。";
+            return;
+        }
+        ContextUsageText = $"上下文 — / {FormatTokenCount(profile.ContextWindowTokens)}";
+        ContextUsageToolTip = $"上下文窗口：{profile.ContextWindowTokens.ToString("N0", CultureInfo.InvariantCulture)} Token"
+                              + "\n发送消息后显示最新一次模型请求的上下文占用。"
+                              + "\n总窗口来自当前连接配置。";
+    }
+
+    internal static string FormatTokenCount(long tokens)
+    {
+        if (tokens >= 1_048_576 && tokens % 1_048_576 == 0)
+            return $"{tokens / 1_048_576d:0.#}M";
+        if (tokens >= 1_000_000)
+            return $"{tokens / 1_000_000d:0.#}M";
+        if (tokens >= 1_024 && tokens % 1_024 == 0)
+            return $"{tokens / 1_024d:0.#}K";
+        if (tokens >= 1_000)
+            return $"{tokens / 1_000d:0.#}K";
+        return tokens.ToString(CultureInfo.InvariantCulture);
     }
 
     private async Task SaveConversationAsync(AgentRunResult result, AiConnectionProfile profile)
