@@ -43,6 +43,7 @@ public sealed class AiAgentModule : IAppModule
             provider.GetRequiredService<IAgentModelGateway>(),
             provider.GetRequiredService<ILoggerFactory>().CreateLogger<AiConnectionProbeService>()));
         services.AddSingleton<AiConnectionManager>();
+        services.AddSingleton<AiConnectionSharePackageService>();
         services.AddSingleton<IAgentAuditStore>(new AgentAuditStore(
             Path.Combine(settingsDirectory, "audit.jsonl")));
         services.AddSingleton(new AgentConversationStore(

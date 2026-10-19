@@ -4,6 +4,12 @@
 
 本文件只记录完成结果，不作为当前待办列表。
 
+## 2026-10-19 Agent 模型连接导入导出
+
+- [x] AI 助手设置新增 `.diaryaiconnections` 导入、导出所选和导出全部；支持 Chat Completions、Responses、Anthropic Messages 及连接级模型、上下文、压缩、TLS、超时、代理、兼容选项和普通非秘密 Header。
+- [x] 分享服务不依赖凭据存储，包内不存在原 Credential Reference，不包含 API Key、代理用户名/密码或秘密 Header 正文；导入只追加 working copy，冲突 ID 自动改名并生成新的本机凭据引用，需补填、测试和保存后才生效。
+- [x] 严格拒绝未知版本/字段、数字枚举、空嵌套配置、重复 ID、非法连接和超限包；未修改数据库、工作项核心结构和现有 AI 设置 schema。
+
 ## 2026-10-19 Agent 上下文占用显示
 
 - [x] AI 页面状态区显示最新模型请求的上下文已用、连接总窗口和使用率；请求前使用与自动压缩一致的本地估算，响应 usage 可用时以该次请求的实际输入 Token 修正。

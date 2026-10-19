@@ -67,6 +67,7 @@ Diary.Agent
   |- AgentToolRegistry
   |- AgentToolPolicyService
   |- AiConnectionManager
+  |- AiConnectionSharePackageService
   |- CredentialStore facade
   |- WebSearch/WebFetch
   `- Audit/Event stream
@@ -332,7 +333,28 @@ AI 模块启用并选中连接后，标题、日期、时长、标签、附加�
 - 模型名和显示名称有长度上限；
 - 超时有最小和最大值。
 
-### 6.3 凭据存储抽象
+### 6.3 连接共享包
+
+`AiConnectionSharePackageService` 负责 `.diaryaiconnections` 的版本化导入导出。该服务只依赖 `AiConnectionProfile` 与校验器，不注入 `IAiCredentialStore`，从结构上保证导出过程无法读取 API Key、代理用户名/密码或凭据型额外 Header 正文。
+
+包头固定包含：
+
+```json
+{
+  "format": "diary-ai-connections",
+  "version": 1,
+  "exportedAtUtc": "2026-10-19T00:00:00Z",
+  "profiles": []
+}
+```
+
+分享 DTO 与持久化 DTO 分离，不定义任何 Credential Reference 字段。认证、代理和额外 Header 只使用 `requiresCredential` 一类布尔标记；导入时按最终连接 ID 生成 `diary.ai/{id}/api-key`、`proxy-user`、`proxy-password` 和 `header-N` 新引用。普通额外 Header 值保留，因此 UI 和文档必须继续明确：秘密 Header 只能使用 Credential Reference，不能误填为普通值。
+
+导出先验证全部连接，限制 100 个连接和 1 MiB UTF-8 大小，然后一次性序列化。导入使用严格 UTF-8、拒绝未知 JSON 字段和数字枚举，验证格式、版本、必需嵌套对象、重复 ID、URL、协议与连接规则；任一连接失败则整包拒绝。导入把当前编辑区和已保存配置的 ID 一并视为保留项，冲突 ID 追加 `-imported`、`-imported-2` 等后缀；结果只追加到 working copy，不携带能力缓存、不改变默认连接，也不立即保存。
+
+设置页通过 Avalonia StorageProvider 提供“导入”“导出所选”“导出全部”。导出使用当前 working copy，因此可分享尚未保存但已经通过本地校验的连接；导入完成后显示连接数、改名数和待补凭据数，用户补填凭据、测试并保存后才更新运行时。该能力不修改 `settings.json` schema、数据库或工作项核心结构。
+
+### 6.4 凭据存储抽象
 
 ```csharp
 public interface IAiCredentialStore
@@ -881,6 +903,8 @@ AI 设置页分为：
 
 编辑连接使用 working copy。“测试连接”执行 30 秒基础测试，“完整能力探测”执行最多 90 秒的六阶段探测；运行中显示当前阶段并提供“取消测试”。两者都不提交配置；保存前校验，保存成功后替换运行时客户端。密钥字段只显示“已保存/未保存/来自环境变量”，不回显正文。
 
+连接列表下方提供“导入”“导出所选”“导出全部”。导出前校验当前编辑值，文件选择器取消不改变状态；导入只追加 working copy，ID 冲突自动改名，凭据状态显示为未保存，能力状态显示为尚未测试。文件读写失败、格式错误和大小超限在设置页状态区给出明确错误，不产生部分修改。
+
 ### 14.4 模块管理
 
 核心模块诊断页显示已发现、启用、兼容、阻塞和加载失败状态。启停操作提示重启生效。首版不在 App 内下载任意第三方模块。
@@ -965,6 +989,7 @@ AI 模块随程序安装但默认禁用。用户启用后重启生效；未启�
 - Anthropic content blocks、tool use/result 和 `input_json_delta`；
 - Agent 轮次、取消、等待确认、预算和历史配对；
 - 配置迁移、损坏保护和 Credential Reference；
+- 连接共享包三协议往返、凭据引用剥离、普通 Header 保留、兼容选项保留、冲突改名、未知字段/版本/数字枚举/null 嵌套对象/超限拒绝；
 - 代理指纹和客户端替换；
 - URL/IP/重定向/跨域认证校验；
 - HTML 正文和大小预算；
@@ -1059,6 +1084,7 @@ AI 模块随程序安装但默认禁用。用户启用后重启生效；未启�
 | 外部网页 | 受控 `web_search`/`web_fetch`/`web_render_page`，不开放任意 HTTP 或浏览器交互 |
 | MCP | P2 外部工具扩展，现有 Server 保持只读 |
 | 凭据 | 复用现有认证加密，支持环境变量和会话内存 |
+| 连接共享 | 独立版本化 `.diaryaiconnections`；只含非秘密连接配置，导入追加 working copy |
 | 模型数据边界 | 普通工作数据可用；工作项本地备注在工具适配层排除 |
 | 写入 | P1 新增稳定命令网关，不直接使用不完整简化 API |
 | 长期记忆 | 固定 UTF-8 Markdown 文件；每轮注入，模型更新需独立开关和逐次确认 |
@@ -1067,7 +1093,7 @@ AI 模块随程序安装但默认禁用。用户启用后重启生效；未启�
 
 ## 20. 实施与验证结果
 
-- `Diary.AgentTests` 144/144，通过三协议、基础连接测试、完整能力探测阶段进度与取消、脱敏失败日志、模型/代理、静态网页安全、内网与本机访问策略、系统浏览器动态渲染、本机 CDP 运行时限制、附加字段目录、记录质量分析、周期对比、日历概览、事项详情与导出目录查询、事项创建/单项与批量更新确认、附加字段确认预览、报告导出确认、新能力独立权限裁剪、提醒/脚本/Tracker 提交确认、非 Ready 脚本执行拦截、MCP Server 安全目录、自动上下文压缩、最新请求上下文估算/服务端修正/工具多轮与无 usage 回退、运行时日期时区注入/跨 run 刷新/三协议系统字段/只读时间工具、长期记忆存储/三协议注入/压缩后保留/确认冲突/备份恢复/工具参数摘要隐藏、Responses 协议状态清理及本地兜底、两阶段停止与旧 run 隔离、MCP 生命周期管理、远端工具探测与策略导入、MCP 删除语义拦截、会话与审计测试；既有 `Diary.ScriptTests` 247/247 证据继续验证 Agent 无备注查询和脚本运行边界；
+- `Diary.AgentTests` 151/151，通过三协议、模型连接共享包凭据剥离/兼容配置往返/冲突改名/严格输入拒绝、基础连接测试、完整能力探测阶段进度与取消、脱敏失败日志、模型/代理、静态网页安全、内网与本机访问策略、系统浏览器动态渲染、本机 CDP 运行时限制、附加字段目录、记录质量分析、周期对比、日历概览、事项详情与导出目录查询、事项创建/单项与批量更新确认、附加字段确认预览、报告导出确认、新能力独立权限裁剪、提醒/脚本/Tracker 提交确认、非 Ready 脚本执行拦截、MCP Server 安全目录、自动上下文压缩、最新请求上下文估算/服务端修正/工具多轮与无 usage 回退、运行时日期时区注入/跨 run 刷新/三协议系统字段/只读时间工具、长期记忆存储/三协议注入/压缩后保留/确认冲突/备份恢复/工具参数摘要隐藏、Responses 协议状态清理及本地兜底、两阶段停止与旧 run 隔离、MCP 生命周期管理、远端工具探测与策略导入、MCP 删除语义拦截、会话与审计测试；既有 `Diary.ScriptTests` 247/247 证据继续验证 Agent 无备注查询和脚本运行边界；
 - `Diary.ModuleTests` 13 项通过，1 项因未生成 Windows Release 发布目录跳过；已覆盖 Debug 模块目录、私有 `AssemblyLoadContext`、禁用和故障隔离测试；
 - `Diary.AppTests` 341/341，覆盖扩展报表、artifact、脚本目录失败/待配置诊断与绝对路径收敛；`Diary.DbTests` 在当前 Windows 环境 162 项通过、113 项因 PostgreSQL/Docker 不可用或平台条件跳过、0 项失败，覆盖附加字段 patch、批量幂等和批次中途失败整体回滚；
 - AI CDP 套件 7/7，通过导航、Agent 状态、真实本地假模型工具闭环、拒绝写入、键盘发送、设置贡献和递归 seed；

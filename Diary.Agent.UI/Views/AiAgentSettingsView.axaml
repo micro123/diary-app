@@ -158,7 +158,7 @@
         </Expander>
 
         <Grid Grid.Row="6" ColumnDefinitions="220,*" ColumnSpacing="12">
-            <Grid RowDefinitions="*,Auto,Auto" RowSpacing="8">
+            <Grid RowDefinitions="*,Auto,Auto,Auto" RowSpacing="8">
                 <ListBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:AiConnectionEditorViewModel">
@@ -175,7 +175,13 @@
                     <Button x:Name="RemoveAiConnectionButton" Grid.Column="2" Content="删除"
                             Command="{Binding RemoveProfileCommand}" />
                 </Grid>
-                <CheckBox Grid.Row="2" Classes="ToolbarCheckBox" IsChecked="{Binding DeleteCredentialsWithProfile}">
+                <Grid Grid.Row="2" ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                    <Button Content="导入" Command="{Binding ImportProfilesCommand}" />
+                    <Button Grid.Column="1" Content="导出所选" IsEnabled="{Binding HasSelectedProfile}"
+                            Command="{Binding ExportSelectedProfileCommand}" />
+                    <Button Grid.Column="2" Content="导出全部" Command="{Binding ExportAllProfilesCommand}" />
+                </Grid>
+                <CheckBox Grid.Row="3" Classes="ToolbarCheckBox" IsChecked="{Binding DeleteCredentialsWithProfile}">
                     <TextBlock Text="删除连接时清理未被其他连接使用的本地凭据"
                                TextWrapping="Wrap" />
                 </CheckBox>

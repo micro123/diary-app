@@ -42,6 +42,16 @@ AI 助手输入框支持 `Enter` 或 `Ctrl+Enter` 发送，使用 `Shift+Enter` 
 
 关闭“检查证书吊销状态”只会跳过 CRL/OCSP 查询，证书信任链、域名、有效期等 TLS 校验仍然保留。不要用它处理自签名证书或域名不匹配；这类问题应将内部 CA 安装到系统信任库或修复服务端证书。
 
+### 2.1 导入和导出连接
+
+连接列表下方提供“导入”“导出所选”“导出全部”。导出文件扩展名为 `.diaryaiconnections`，可用于把 OpenAI Chat Completions、OpenAI Responses 或 Anthropic Messages 连接的非秘密参数复制到其他 DiaryApp 实例。导出使用当前设置编辑区，因此尚未点击“保存设置”但已经填写完整、通过本地校验的连接也可以导出。
+
+共享包会保留连接 ID、名称、协议、Base URL、路径覆盖、模型名、上下文窗口、自动压缩、TLS/超时、认证类型和 Header 形态、代理地址和绕过列表、兼容选项以及普通额外 Header 值。它不会读取或包含 API Key、代理用户名/密码、原 Credential Reference、凭据型额外 Header 正文、能力探测结果、默认连接选择、MCP、工具权限或长期记忆。
+
+导入只把连接追加到当前编辑区，不会立即保存或覆盖现有连接。若 ID 已存在，程序会自动追加 `-imported`、`-imported-2` 等后缀，并为最终 ID 生成新的本机凭据引用。完成后请逐项补填 API Key 和代理凭据，重新执行连接测试，再点击“保存设置”；导入连接不会自动成为默认连接，也不会沿用导出端的能力探测结果。
+
+单包最多 100 个连接且不超过 1 MiB。未知格式或版本、未知字段、重复 ID、非法 URL、损坏 JSON 和不受支持的枚举会整体拒绝，不会只导入其中一部分。普通额外 Header 的 `value` 会进入共享包；Token 等秘密 Header 必须使用 `credentialReference`。凭据型额外 Header 导入后会得到新的本机引用，若需要为它提供正文，可改用 `env:` 引用或使用独立配置工具维护对应凭据。
+
 ## 3. 凭据
 
 凭据正文不会写入 `settings.json`，也不会在 UI 中回显。Credential Reference 支持：

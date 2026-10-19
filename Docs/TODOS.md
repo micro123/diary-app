@@ -200,6 +200,7 @@
 - [x] 流式模型请求使用可续期的空闲超时并将超时归一化为 `request_timeout`；设置页开放连接/请求超时，工具结果回传后的模型等待阶段显示明确状态和超时提示。
 - [x] 展示 OpenAI/DeepSeek reasoning、Responses reasoning 和 Anthropic thinking 流；思考事件续期空闲超时，工具闭环在内存中回传 `reasoning_content` 或 thinking/signature 块，思考正文不进入会话、审计或日志。
 - [x] 工作项本地备注在宿主无备注查询模式中不读取，在工具 DTO 边界再次排除，不进入工具结果、实际模型请求体、会话或审计；唯一标记端到端回归通过。
+- [x] 模型连接支持 `.diaryaiconnections` 导入、导出所选和导出全部；共享包保留三协议及非秘密连接参数，不读取或输出 API Key、代理凭据和原 Credential Reference，导入冲突改名并要求重新填凭据、测试和保存。
 - [ ] 使用部署方提供的真实 Base URL、模型名、协议、凭据和代理条件，完成内部 DeepSeek/GLM 实网探测；当前本地模拟已覆盖对应兼容协议，不得冒充实网验收。
 
 ### 11.3 网络代理与凭据配置

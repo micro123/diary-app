@@ -1,5 +1,8 @@
 using System.Collections.ObjectModel;
+using System.Text;
 using System.Text.Json;
+using Avalonia.Controls;
+using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Diary.Agent.Configuration;
@@ -14,6 +17,8 @@ namespace Diary.Agent.UI.ViewModels;
 
 public sealed partial class AiConnectionEditorViewModel : ObservableObject
 {
+    private readonly AiCompatibilityOptions _compatibility;
+
     public AiConnectionEditorViewModel(AiConnectionProfile profile, AiConnectionCapabilities? capabilities)
     {
         Id = profile.Id;
@@ -41,6 +46,7 @@ public sealed partial class AiConnectionEditorViewModel : ObservableObject
             profile.Headers,
             JsonSerializerDefaults.Web,
             writeIndented: true);
+        _compatibility = profile.Compatibility;
         Capabilities = capabilities;
         TestStatus = DescribeCapabilities(capabilities);
     }
@@ -164,6 +170,7 @@ public sealed partial class AiConnectionEditorViewModel : ObservableObject
                     ? proxyPasswordReference
                     : string.Empty,
             },
+            Compatibility = _compatibility,
             Headers = headers,
         };
     }
@@ -369,6 +376,7 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
     };
 
     private readonly AiConnectionManager _manager;
+    private readonly AiConnectionSharePackageService _connectionPackages;
     private readonly IAiCredentialStore _credentials;
     private readonly AiAgentPageViewModel _page;
     private readonly McpClientManager _mcp;
@@ -382,6 +390,7 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
 
     public AiAgentSettingsViewModel(
         AiConnectionManager manager,
+        AiConnectionSharePackageService connectionPackages,
         IAiCredentialStore credentials,
         AiAgentPageViewModel page,
         McpClientManager mcp,
@@ -389,6 +398,7 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
         AgentMemoryStore memoryStore)
     {
         _manager = manager;
+        _connectionPackages = connectionPackages;
         _credentials = credentials;
         _page = page;
         _mcp = mcp;
@@ -725,6 +735,152 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
         {
             SaveStatus = $"复制失败：{exception.Message}";
         }
+    }
+
+    [RelayCommand]
+    private async Task ImportProfiles()
+    {
+        var storageProvider = TopLevel.GetTopLevel(View)?.StorageProvider;
+        if (storageProvider is null)
+        {
+            SaveStatus = "当前文件选择器不可用，无法导入连接。";
+            return;
+        }
+        var files = await storageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "导入 AI 模型连接",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("DiaryApp AI 连接包")
+                {
+                    Patterns = [$"*{AiConnectionSharePackageService.FileExtension}"],
+                },
+            ],
+        });
+        var file = files.FirstOrDefault();
+        if (file is null)
+            return;
+        try
+        {
+            var properties = await file.GetBasicPropertiesAsync();
+            if (properties.Size is 0 or > AiConnectionSharePackageService.MaximumPackageBytes)
+                throw new InvalidDataException("连接包为空或超过 1 MiB 限制。");
+            await using var stream = await file.OpenReadAsync();
+            var content = await ReadConnectionPackageAsync(stream);
+            var reservedIds = Profiles.Select(profile => profile.Id.Trim())
+                .Concat(_manager.Settings.Profiles.Select(profile => profile.Id))
+                .ToHashSet(StringComparer.Ordinal);
+            var result = _connectionPackages.Import(content, reservedIds);
+            AiConnectionEditorViewModel? first = null;
+            foreach (var profile in result.Profiles)
+            {
+                var editor = new AiConnectionEditorViewModel(profile, null);
+                editor.ApplyCredentialStatuses("未保存", "未保存", "未保存");
+                Profiles.Add(editor);
+                first ??= editor;
+            }
+            SelectedProfile = first;
+            SaveStatus = $"已导入 {result.Profiles.Count} 个连接到编辑区"
+                         + (result.RenamedProfileCount == 0
+                             ? string.Empty
+                             : $"，其中 {result.RenamedProfileCount} 个因 ID 冲突已改名")
+                         + $"；{result.RequiredCredentialCount} 项凭据未导入，请补填、测试并保存设置。";
+            _ = RefreshCredentialStatusesAsync();
+        }
+        catch (Exception exception) when (exception is IOException
+                                           or UnauthorizedAccessException
+                                           or DecoderFallbackException
+                                           or InvalidDataException
+                                           or InvalidOperationException
+                                           or ArgumentException)
+        {
+            SaveStatus = $"导入连接失败：{exception.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private Task ExportSelectedProfile() =>
+        ExportProfilesAsync(
+            SelectedProfile is null ? [] : [SelectedProfile],
+            "DiaryApp-AI-connection");
+
+    [RelayCommand]
+    private Task ExportAllProfiles() =>
+        ExportProfilesAsync(Profiles.ToArray(), "DiaryApp-AI-connections");
+
+    private async Task ExportProfilesAsync(
+        IReadOnlyCollection<AiConnectionEditorViewModel> editors,
+        string fileNamePrefix)
+    {
+        if (editors.Count == 0)
+        {
+            SaveStatus = "当前没有可导出的模型连接。";
+            return;
+        }
+        var storageProvider = TopLevel.GetTopLevel(View)?.StorageProvider;
+        if (storageProvider is null)
+        {
+            SaveStatus = "当前文件选择器不可用，无法导出连接。";
+            return;
+        }
+        try
+        {
+            var result = _connectionPackages.Export(editors.Select(editor => editor.BuildProfile()).ToArray());
+            var file = await storageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "导出 AI 模型连接",
+                SuggestedFileName = $"{fileNamePrefix}-{DateTime.Now:yyyyMMdd-HHmmss}{AiConnectionSharePackageService.FileExtension}",
+                DefaultExtension = AiConnectionSharePackageService.FileExtension.TrimStart('.'),
+                FileTypeChoices =
+                [
+                    new FilePickerFileType("DiaryApp AI 连接包")
+                    {
+                        Patterns = [$"*{AiConnectionSharePackageService.FileExtension}"],
+                    },
+                ],
+            });
+            if (file is null)
+                return;
+            await using var stream = await file.OpenWriteAsync();
+            if (stream.CanSeek)
+                stream.SetLength(0);
+            await using var writer = new StreamWriter(
+                stream,
+                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            await writer.WriteAsync(result.Content);
+            SaveStatus = $"已导出 {result.ProfileCount} 个连接；"
+                         + $"已剥离 {result.StrippedCredentialCount} 项凭据引用，不包含 API Key 或代理凭据。";
+        }
+        catch (Exception exception) when (exception is IOException
+                                           or UnauthorizedAccessException
+                                           or InvalidOperationException
+                                           or ArgumentException
+                                           or UriFormatException
+                                           or JsonException)
+        {
+            SaveStatus = $"导出连接失败：{exception.Message}";
+        }
+    }
+
+    private static async Task<string> ReadConnectionPackageAsync(Stream stream)
+    {
+        var bytes = new byte[AiConnectionSharePackageService.MaximumPackageBytes + 1];
+        var count = 0;
+        while (count < bytes.Length)
+        {
+            var read = await stream.ReadAsync(bytes.AsMemory(count, bytes.Length - count));
+            if (read == 0)
+                break;
+            count += read;
+        }
+        if (count is 0 or > AiConnectionSharePackageService.MaximumPackageBytes)
+            throw new InvalidDataException("连接包为空或超过 1 MiB 限制。");
+        var offset = count >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF
+            ? 3
+            : 0;
+        return new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true)
+            .GetString(bytes, offset, count - offset);
     }
 
     [RelayCommand]
