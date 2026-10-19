@@ -14,7 +14,7 @@ public sealed class AgentCapabilityToolTests
         var defaults = new AiAgentToolSettings();
         Assert.IsTrue(AgentToolPermissionPolicy.IsEnabled(Descriptor(), defaults));
 
-        foreach (var group in new[] { "WorkItemWrite", "ReportExport", "AppInteraction", "ReminderWrite", "TrackerSubmit", "ScriptExecute", "Mcp" })
+        foreach (var group in new[] { "WorkItemWrite", "ReportExport", "AppInteraction", "ReminderWrite", "TrackerSubmit", "ScriptExecute", "AgentMemoryWrite", "Mcp" })
         {
             Assert.IsFalse(AgentToolPermissionPolicy.IsEnabled(Descriptor(group), defaults), group);
             Assert.IsTrue(AgentToolPermissionPolicy.IsEnabled(Descriptor(group), Enable(group)), group);
@@ -135,6 +135,7 @@ public sealed class AgentCapabilityToolTests
         "ReminderWrite" => new() { ReminderWrite = true },
         "TrackerSubmit" => new() { TrackerSubmit = true },
         "ScriptExecute" => new() { ScriptExecute = true },
+        "AgentMemoryWrite" => new() { AgentMemoryWrite = true },
         "Mcp" => new() { Mcp = true },
         _ => throw new ArgumentOutOfRangeException(nameof(group)),
     };

@@ -3,7 +3,7 @@
 ## 1. 文档状态
 
 - 状态：详细设计已实现并通过自动化、UI 与发布门禁
-- 日期：2026-10-10
+- 日期：2026-10-19
 - 需求基线：[`AiAgentModuleRequirements.md`](AiAgentModuleRequirements.md)
 - 评审记录：[`AiAgentModuleDesignReview.md`](AiAgentModuleDesignReview.md)
 - 实施状态：阶段 A、P0、P1、只读系统浏览器渲染和首版 MCP Client 已完成；浏览器交互与独立在线更新保留为后续边界
@@ -578,7 +578,34 @@ Idle -> Running -> WaitingForApproval -> Running -> Completed
 
 摘要提示明确把历史视为数据并忽略其中的指令。摘要调用异常、空响应或意外工具调用时，使用本地长度受限的角色/文本/工具名摘要兜底。压缩结果在主 run 成功前即可替换既有历史，但本轮新用户消息仍遵守“run 成功才提交”的语义。UI 通过 `ContextCompacted` 事件显示压缩状态，usage 合并摘要和主请求用量。
 
-### 9.5 会话持久化
+### 9.5 运行时日期与时区
+
+`AgentRuntimeContextSnapshot` 使用可注入的 `.NET TimeProvider` 在每个 run 开始时读取一次操作系统时间，记录本地日期时间、日期、星期、时区 ID、UTC 偏移、UTC 时间、昨天和明天。该快照只用于本轮系统上下文和 token 估算，不写入 `AgentMessage`、会话文件、压缩摘要、长期记忆、审计或日志正文。
+
+`AgentContextCompactor.BuildSystemInstruction` 把快照放入 `<runtime_context>`，并声明在用户未指定其他基准时，“今天、昨天、明天”等相对日期以 `current_local_date` 为准。DiaryApp 的页面日期仍由 `diary_get_current_context` 返回，它只是 UI 导航日期，不一定等于系统今天；工具描述明确禁止用页面日期解释相对时间。
+
+默认启用的只读 `diary_get_current_time` 使用同一个 `TimeProvider` 重新读取当前时间，返回本地日期时间、日期、星期、时区、UTC 时间、UTC 偏移、昨天和明天。它不访问数据库，也不需要确认，适用于精确到分钟的提醒、用户询问当前时间、接近午夜或长时间工具循环后重新确认日期。测试使用自定义 `TimeProvider` 冻结和推进时间，避免依赖测试机器时钟与时区。
+
+### 9.6 Agent 长期记忆
+
+`AgentMemoryStore` 只管理模块配置目录下固定的 `ai-agent/memory.md`，使用严格 UTF-8、32 KiB 上限和 SHA-256 内容版本。读取失败、无效 UTF-8 或超限不会阻断普通 Agent run，而是跳过本轮记忆注入并写入不含正文的诊断。用户直接保存或 Agent 确认写入均先写临时文件、刷新到磁盘，再原子替换正式文件；覆盖已有内容前保存 `memory.md.bak`。设置页可以恢复上一版本，恢复操作会把被替换的当前版本保留为新的备份。
+
+每个 run 开始时根据 `AgentMemorySettings.Enabled` 读取一次稳定快照。`AgentContextCompactor.BuildSystemInstruction` 按以下顺序组合上下文：
+
+```text
+DiaryApp 固定系统规则
+  -> <runtime_context> 本轮日期、时间和时区
+  -> <agent_memory> 用户长期规则、偏好和背景
+  -> <conversation_summary> 当前会话压缩摘要
+```
+
+记忆块明确声明为参考数据，不能覆盖应用规则、工具权限或当前用户请求。长期记忆参与上下文 token 估算，但不进入压缩输入；压缩完成后的主请求继续使用同一 run 的记忆快照。记忆不写入 `AgentMessage`、`AgentConversationRecord`、协议状态或思考内容，因此恢复会话时会读取当前记忆，而不是保存会话创建时的副本。
+
+`diary_update_agent_memory` 只接受更新后的完整 Markdown 内容和更新原因，不接受路径。工具属于独立的 `AgentMemoryWrite` 权限组，默认关闭；记忆注入关闭时该工具也不会进入 run 快照。调用时先读取当前版本并生成前后全文预览，通过通用串行确认协调器逐次确认；确认后使用预览版本执行 compare-and-swap，确认等待期间发生手工编辑则返回 `memory_conflict`。拒绝、取消、冲突和写入失败均不产生文件副作用。
+
+审计只记录工具 ID、成功状态、结果字符数和“已更新多少字节”等安全效果摘要；应用日志只记录是否加载、字节数和错误码，不记录记忆正文。工作项本地备注不得成为记忆输入来源，也不提供自动会话抽取功能。
+
+### 9.7 会话持久化
 
 P0 会话仅内存保存。P1 采用版本化 JSON，保存压缩后保留的用户消息、最终回答、上下文摘要、压缩次数、工具名、参数摘要、状态、连接 ID、模型名、耗时和 usage。模型服务显式返回的思考文本可在当前页面临时展示，并在工具闭环期间按协议保留在内存消息中；思考正文、thinking 签名/加密块、凭据、认证 Header、被摘要替代的完整历史和服务端私有会话 ID 均不落盘。
 
@@ -669,7 +696,8 @@ AllowAutomatically
 | `diary_compare_work_periods` | 两个日期范围的本地聚合对比 | 启用 |
 | `diary_get_calendar_overview` | 指定范围的逐日事项和工时概览 | 启用 |
 | `diary_list_export_options` | `IExportApi` 格式与模板目录 | 启用 |
-| `diary_get_current_context` | UI 当前日期/选择的只读快照 | 启用 |
+| `diary_get_current_time` | 操作系统当前日期、时间、时区和相对日期快照 | 启用 |
+| `diary_get_current_context` | UI 页面日期/选择的只读快照，不代表系统今天 | 启用 |
 | `diary_validate_script` | 现有校验服务适配器 | 启用 |
 | `diary_search_user_manual` | 固定发布路径的用户手册章节索引 | 启用 |
 | `diary_read_user_manual_section` | 按章节 ID 读取限长正文 | 启用 |
@@ -836,11 +864,12 @@ AI 模块贡献“AI 助手”导航页。模块未加载时没有导航项。�
 AI 设置页分为：
 
 1. 模块和工具启用；
-2. 模型连接；
-3. 网络和代理；
-4. 外部网页；
-5. 凭据状态；
-6. 诊断与连接测试。
+2. Agent 长期记忆启用、独立写入权限和 Markdown 编辑/备份恢复；
+3. 模型连接；
+4. 网络和代理；
+5. 外部网页；
+6. 凭据状态；
+7. 诊断与连接测试。
 
 编辑连接使用 working copy。“测试连接”执行 30 秒基础测试，“完整能力探测”执行最多 90 秒的六阶段探测；运行中显示当前阶段并提供“取消测试”。两者都不提交配置；保存前校验，保存成功后替换运行时客户端。密钥字段只显示“已保存/未保存/来自环境变量”，不回显正文。
 
@@ -864,6 +893,7 @@ AI 设置页分为：
 
 - API Key、代理密码和认证 Header；
 - 工作项本地备注；
+- Agent 长期记忆正文；
 - 模型思考/推理正文及 thinking 签名或加密块；
 - 数据库连接字符串和 Tracker Token。
 
@@ -1023,11 +1053,12 @@ AI 模块随程序安装但默认禁用。用户启用后重启生效；未启�
 | 凭据 | 复用现有认证加密，支持环境变量和会话内存 |
 | 模型数据边界 | 普通工作数据可用；工作项本地备注在工具适配层排除 |
 | 写入 | P1 新增稳定命令网关，不直接使用不完整简化 API |
+| 长期记忆 | 固定 UTF-8 Markdown 文件；每轮注入，模型更新需独立开关和逐次确认 |
 | 发布 | P0 随主程序安装但默认禁用；独立下载和更新后续实现 |
 
 ## 20. 实施与验证结果
 
-- `Diary.AgentTests` 126/126，通过三协议、基础连接测试、完整能力探测阶段进度与取消、脱敏失败日志、模型/代理、静态网页安全、内网与本机访问策略、系统浏览器动态渲染、本机 CDP 运行时限制、附加字段目录、记录质量分析、周期对比、日历概览、事项详情与导出目录查询、事项创建/单项与批量更新确认、附加字段确认预览、报告导出确认、新能力独立权限裁剪、提醒/脚本/Tracker 提交确认、非 Ready 脚本执行拦截、MCP Server 安全目录、自动上下文压缩、Responses 协议状态清理及本地兜底、两阶段停止与旧 run 隔离、MCP 生命周期管理、远端工具探测与策略导入、MCP 删除语义拦截、会话与审计测试；`Diary.ScriptTests` 247/247，继续验证 Agent 无备注查询和脚本运行边界；
+- `Diary.AgentTests` 142/142，通过三协议、基础连接测试、完整能力探测阶段进度与取消、脱敏失败日志、模型/代理、静态网页安全、内网与本机访问策略、系统浏览器动态渲染、本机 CDP 运行时限制、附加字段目录、记录质量分析、周期对比、日历概览、事项详情与导出目录查询、事项创建/单项与批量更新确认、附加字段确认预览、报告导出确认、新能力独立权限裁剪、提醒/脚本/Tracker 提交确认、非 Ready 脚本执行拦截、MCP Server 安全目录、自动上下文压缩、运行时日期时区注入/跨 run 刷新/三协议系统字段/只读时间工具、长期记忆存储/三协议注入/压缩后保留/确认冲突/备份恢复/工具参数摘要隐藏、Responses 协议状态清理及本地兜底、两阶段停止与旧 run 隔离、MCP 生命周期管理、远端工具探测与策略导入、MCP 删除语义拦截、会话与审计测试；既有 `Diary.ScriptTests` 247/247 证据继续验证 Agent 无备注查询和脚本运行边界；
 - `Diary.ModuleTests` 13 项通过，1 项因未生成 Windows Release 发布目录跳过；已覆盖 Debug 模块目录、私有 `AssemblyLoadContext`、禁用和故障隔离测试；
 - `Diary.AppTests` 341/341，覆盖扩展报表、artifact、脚本目录失败/待配置诊断与绝对路径收敛；`Diary.DbTests` 在当前 Windows 环境 162 项通过、113 项因 PostgreSQL/Docker 不可用或平台条件跳过、0 项失败，覆盖附加字段 patch、批量幂等和批次中途失败整体回滚；
 - AI CDP 套件 7/7，通过导航、Agent 状态、真实本地假模型工具闭环、拒绝写入、键盘发送、设置贡献和递归 seed；

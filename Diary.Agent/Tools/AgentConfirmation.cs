@@ -26,7 +26,9 @@ public sealed record ExternalToolConfirmationRequest(
     Guid InvocationId,
     string ServerName,
     string ToolName,
-    System.Text.Json.JsonElement Arguments);
+    System.Text.Json.JsonElement Arguments,
+    string? PreviewTitle = null,
+    string? PreviewText = null);
 
 public interface IAgentConfirmationService
 {

@@ -169,6 +169,12 @@ public sealed class AiExternalToolConfirmationViewModel(ExternalToolConfirmation
     public string ToolName { get; } = request.ToolName;
 
     public string ArgumentsJson { get; } = AgentJson.Format(request.Arguments);
+
+    public string PreviewTitle { get; } = request.PreviewTitle ?? "确认写工具调用";
+
+    public string PreviewText { get; } = request.PreviewText ?? string.Empty;
+
+    public bool HasPreview => !string.IsNullOrWhiteSpace(PreviewText);
 }
 
 public sealed class AiConversationItemViewModel
@@ -394,7 +400,8 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
                 new AgentRunOptions(
                     SupportsStreaming: capabilities.SupportsStreaming,
                     SupportsTools: capabilities.SupportsTools,
-                    SupportsStreamingTools: capabilities.SupportsStreamingTools),
+                    SupportsStreamingTools: capabilities.SupportsStreamingTools,
+                    UseMemory: _connections.Settings.Memory.Enabled),
                 progress);
             if (await Task.WhenAny(runTask, detached.Task) != runTask)
             {
@@ -654,7 +661,10 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
     private AgentToolSnapshot CreateEnabledToolSnapshot()
     {
         var settings = _connections.Settings.EnabledTools;
-        return _tools.CreateSnapshot(descriptor => AgentToolPermissionPolicy.IsEnabled(descriptor, settings));
+        return _tools.CreateSnapshot(descriptor =>
+            AgentToolPermissionPolicy.IsEnabled(descriptor, settings)
+            && (descriptor.PermissionGroup != "AgentMemoryWrite"
+                || _connections.Settings.Memory.Enabled));
     }
 
     private string DescribeConnection(AiConnectionProfile profile) =>

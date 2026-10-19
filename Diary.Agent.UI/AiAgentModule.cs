@@ -47,6 +47,9 @@ public sealed class AiAgentModule : IAppModule
             Path.Combine(settingsDirectory, "audit.jsonl")));
         services.AddSingleton(new AgentConversationStore(
             Path.Combine(settingsDirectory, "conversations.json")));
+        services.AddSingleton(new AgentMemoryStore(
+            Path.Combine(settingsDirectory, "memory.md")));
+        services.AddSingleton(TimeProvider.System);
         services.AddSingleton<AgentToolExecutor>();
         services.AddSingleton<AgentContextCompactor>();
         services.AddSingleton<AgentConfirmationCoordinator>();
@@ -58,6 +61,8 @@ public sealed class AiAgentModule : IAppModule
         services.AddSingleton<TemplateWorkItemWriteTool>();
         services.AddSingleton<ClipboardWriteTool>();
         services.AddSingleton<AppNotificationWriteTool>();
+        services.AddSingleton<AgentMemoryTool>();
+        services.AddSingleton<GetCurrentTimeTool>();
         services.AddSingleton<WorkItemDraftTool>();
         services.AddSingleton<ReportDraftTool>();
         services.AddSingleton<ScriptDraftTool>();
@@ -114,6 +119,8 @@ public sealed class AiAgentModule : IAppModule
             registry.TryRegister(provider.GetRequiredService<TemplateWorkItemWriteTool>());
             registry.TryRegister(provider.GetRequiredService<ClipboardWriteTool>());
             registry.TryRegister(provider.GetRequiredService<AppNotificationWriteTool>());
+            registry.TryRegister(provider.GetRequiredService<AgentMemoryTool>());
+            registry.TryRegister(provider.GetRequiredService<GetCurrentTimeTool>());
             if (provider.GetService<IAgentReportExportApi>() is { } reportExports)
             {
                 registry.TryRegister(new ReportExportTool(

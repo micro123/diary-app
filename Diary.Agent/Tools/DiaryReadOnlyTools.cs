@@ -1,5 +1,7 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Text.Json;
+using Diary.Agent.Runtime;
 using Diary.ScriptBase;
 using Diary.ScriptHost;
 
@@ -347,6 +349,30 @@ public sealed class GetCurrentContextTool(ICurrentContextScriptApi source) : IAg
         => ValueTask.FromResult(AgentToolResult.Success(JsonSerializer.Serialize(source.Get()), "DiaryApp"));
 }
 
+public sealed class GetCurrentTimeTool(TimeProvider timeProvider) : IAgentTool
+{
+    public AgentToolDescriptor Descriptor { get; } = DiaryToolDescriptors.GetCurrentTime;
+
+    public ValueTask<AgentToolResult> InvokeAsync(
+        JsonElement arguments,
+        AgentToolInvocationContext context,
+        CancellationToken cancellationToken = default)
+    {
+        var snapshot = AgentRuntimeContextSnapshot.Capture(timeProvider);
+        return ValueTask.FromResult(AgentToolResult.Success(JsonSerializer.Serialize(new
+        {
+            localDateTime = snapshot.LocalDateTime.ToString("yyyy-MM-dd'T'HH:mm:sszzz", CultureInfo.InvariantCulture),
+            localDate = snapshot.LocalDate,
+            dayOfWeek = snapshot.DayOfWeek,
+            timeZoneId = snapshot.TimeZoneId,
+            utcDateTime = snapshot.UtcDateTime.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture),
+            utcOffset = snapshot.UtcOffset,
+            yesterday = snapshot.Yesterday,
+            tomorrow = snapshot.Tomorrow,
+        }), "DiaryApp"));
+    }
+}
+
 public sealed class ValidateScriptTool(IScriptValidationScriptApi source) : IAgentTool
 {
     public AgentToolDescriptor Descriptor { get; } = DiaryToolDescriptors.ValidateScript;
@@ -442,7 +468,10 @@ internal static class DiaryToolDescriptors
         "diary.get-calendar-overview", "diary_get_calendar_overview", "读取日历概览", "按日汇总指定日期范围的事项数和工时，并标记无记录工作日。", DateAnalysisSchema);
 
     public static AgentToolDescriptor GetCurrentContext { get; } = Create(
-        "diary.get-current-context", "diary_get_current_context", "读取当前上下文", "读取 UI 当前日期和选择事项的非敏感摘要。", EmptySchema);
+        "diary.get-current-context", "diary_get_current_context", "读取当前上下文", "读取 DiaryApp 页面当前显示日期和选择事项的非敏感摘要。页面日期是 UI 导航日期，不一定是系统今天，不得用于解释今天、昨天、明天等相对日期。", EmptySchema);
+
+    public static AgentToolDescriptor GetCurrentTime { get; } = Create(
+        "diary.get-current-time", "diary_get_current_time", "读取当前时间", "读取操作系统当前本地日期、时间、星期、时区、UTC 偏移以及昨天和明天。需要精确时间、带时区时间或长时间运行后重新确认日期时使用。", EmptySchema);
 
     public static AgentToolDescriptor ValidateScript { get; } = Create(
         "diary.validate-script", "diary_validate_script", "校验脚本", "只校验脚本，不执行脚本。", Schema("""

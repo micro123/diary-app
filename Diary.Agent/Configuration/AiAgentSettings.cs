@@ -26,6 +26,8 @@ public sealed record AiAgentToolSettings
     public bool TrackerSubmit { get; init; }
 
     public bool ScriptExecute { get; init; }
+
+    public bool AgentMemoryWrite { get; init; }
 }
 
 public static class AgentToolPermissionPolicy
@@ -39,6 +41,7 @@ public static class AgentToolPermissionPolicy
             AgentToolOrigin.BuiltIn when descriptor.PermissionGroup == "ReminderWrite" => settings.ReminderWrite,
             AgentToolOrigin.BuiltIn when descriptor.PermissionGroup == "TrackerSubmit" => settings.TrackerSubmit,
             AgentToolOrigin.BuiltIn when descriptor.PermissionGroup == "ScriptExecute" => settings.ScriptExecute,
+            AgentToolOrigin.BuiltIn when descriptor.PermissionGroup == "AgentMemoryWrite" => settings.AgentMemoryWrite,
             AgentToolOrigin.BuiltIn when descriptor.PermissionGroup == "Mcp" => settings.Mcp,
             AgentToolOrigin.BuiltIn when descriptor.Risk == AgentToolRisk.Write => settings.WorkItemWrite,
             AgentToolOrigin.BuiltIn => settings.Diary,
@@ -47,6 +50,11 @@ public static class AgentToolPermissionPolicy
             AgentToolOrigin.Mcp => settings.Mcp,
             _ => true,
         };
+}
+
+public sealed record AgentMemorySettings
+{
+    public bool Enabled { get; init; } = true;
 }
 
 public sealed record AiAgentSettings
@@ -63,6 +71,8 @@ public sealed record AiAgentSettings
     public IReadOnlyList<McpServerProfile> McpServers { get; init; } = [];
 
     public WebAccessPolicy WebAccess { get; init; } = new();
+
+    public AgentMemorySettings Memory { get; init; } = new();
 
     public AiProxyConfiguration DefaultProxy { get; init; } = new() { Mode = AiProxyMode.System };
 }
@@ -135,6 +145,10 @@ public sealed class AiConnectionStore(string path)
 
     private static void ValidateSettings(AiAgentSettings settings)
     {
+        if (settings.EnabledTools is null)
+            throw new JsonException("AI 工具设置不能为空。");
+        if (settings.Memory is null)
+            throw new JsonException("Agent 记忆设置不能为空。");
         var ids = new HashSet<string>(StringComparer.Ordinal);
         foreach (var profile in settings.Profiles)
         {

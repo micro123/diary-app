@@ -4,6 +4,17 @@
 
 本文件只记录完成结果，不作为当前待办列表。
 
+## 2026-10-19 Agent 运行时日期与时区
+
+- [x] 每个 Agent run 使用可注入 `TimeProvider` 读取系统本地日期时间、星期、时区、UTC 偏移、昨天和明天，并在三种模型协议的系统字段中自动注入；跨 run 重新读取，运行时信息不进入会话、长期记忆或数据库。
+- [x] 新增默认启用的只读 `diary_get_current_time`，用于精确时间、带时区提醒及长时间运行后的重新确认；强化 `diary_get_current_context` 描述，明确页面导航日期不代表系统今天。
+
+## 2026-10-19 Agent 长期记忆
+
+- [x] 新增固定 `ai-agent/memory.md` 长期记忆文件，使用严格 UTF-8、32 KiB 上限、SHA-256 版本、原子替换和单份 `.bak`；设置页支持查看、编辑、独立保存、重新加载和恢复上一版本。
+- [x] 每个 Agent run 开始时读取稳定记忆快照，统一注入 Chat Completions、Responses 和 Anthropic 的系统字段；自动压缩后继续保留，记忆不进入会话消息、会话文件、思考、审计正文或普通日志。
+- [x] 新增独立默认关闭的 `AgentMemoryWrite` 权限和 `diary_update_agent_memory` 工具；模型不能指定路径，写入展示更新原因与前后全文，逐次确认并在确认后复核版本，拒绝、取消和冲突均不修改文件。
+
 ## 2026-10-10 AI/MCP 诊断与 Windows stdio 编码兼容
 
 - [x] Agent、模型客户端和 MCP Client 增加结构化本地诊断，覆盖 run、模型轮次、工具阶段、上下文压缩、取消/强制停止、Server 生命周期、JSON-RPC、PID/Session、工具数量、耗时和完整异常链；继续排除 Token、认证 Header、提示词、工具参数/结果、思考正文和本地备注。

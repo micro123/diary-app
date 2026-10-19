@@ -12,7 +12,7 @@
             <TextBlock Text="{Binding}" />
         </DataTemplate>
     </UserControl.Resources>
-    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" RowSpacing="10">
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*" RowSpacing="10">
         <StackPanel>
             <TextBlock Text="AI 助手设置" FontWeight="SemiBold" FontSize="18" />
             <TextBlock Text="连接测试使用 working copy；测试失败不会覆盖已保存配置。密钥正文不会显示或写入普通设置文件。"
@@ -38,7 +38,36 @@
             </Grid>
         </Grid>
 
-        <Expander Grid.Row="2" Header="MCP Servers（管理与高级 JSON 配置）">
+        <Expander Grid.Row="2" Header="Agent 长期记忆">
+            <StackPanel Spacing="7" Margin="0,6,0,0">
+                <WrapPanel Orientation="Horizontal" ItemSpacing="14" LineSpacing="6">
+                    <CheckBox Classes="ToolbarCheckBox" Content="在每轮会话中注入长期记忆"
+                              IsChecked="{Binding MemoryEnabled}" />
+                    <CheckBox Classes="ToolbarCheckBox" Content="允许 Agent 提议更新记忆（每次仍需确认）"
+                              IsChecked="{Binding AgentMemoryWriteEnabled}" />
+                </WrapPanel>
+                <TextBlock Text="记忆使用固定的 UTF-8 Markdown 文件，最多 32 KiB；它与会话历史和上下文压缩摘要分离，不会自动包含工作项本地备注。"
+                           TextWrapping="Wrap" Opacity="0.7" />
+                <TextBox Text="{Binding MemoryContent}" AcceptsReturn="True" MinHeight="130" MaxHeight="240"
+                         FontFamily="Consolas" TextWrapping="Wrap"
+                         Watermark="# 用户偏好&#x0a;&#x0a;- 默认使用中文回答。" />
+                <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*" ColumnSpacing="8">
+                    <Button Content="重新加载" Command="{Binding ReloadMemoryCommand}" />
+                    <Button Grid.Column="1" Content="恢复上一版本" IsEnabled="{Binding HasMemoryBackup}"
+                            Command="{Binding RestoreMemoryBackupCommand}" />
+                    <Button Grid.Column="2" Classes="Danger" Content="清空编辑区"
+                            Command="{Binding ClearMemoryEditorCommand}" />
+                    <Button Grid.Column="3" Classes="Primary" Content="保存记忆"
+                            Command="{Binding SaveMemoryCommand}" />
+                    <SelectableTextBlock Grid.Column="4" Text="{Binding MemoryStatus}"
+                                         TextWrapping="Wrap" VerticalAlignment="Center" />
+                </Grid>
+                <TextBlock Text="记忆正文单独保存；下方的“保存设置”只保存启用开关和 Agent 写入权限。"
+                           TextWrapping="Wrap" Opacity="0.65" />
+            </StackPanel>
+        </Expander>
+
+        <Expander Grid.Row="3" Header="MCP Servers（管理与高级 JSON 配置）">
             <StackPanel Spacing="6" Margin="0,6,0,0">
                 <TextBlock Text="生命周期操作只使用已保存配置。stdio 支持启动、停止和重启；Streamable HTTP 对应连接、断开和重连。"
                            TextWrapping="Wrap" Opacity="0.7" />
@@ -110,7 +139,7 @@
             </StackPanel>
         </Expander>
 
-        <Expander Grid.Row="3" Header="网页访问策略（重启后生效）">
+        <Expander Grid.Row="4" Header="网页访问策略（重启后生效）">
             <StackPanel Spacing="6" Margin="0,6,0,0">
                 <TextBlock Text="配置内网/本机访问开关、独立代理、预算、浏览器模式和带认证的内部站点；动态网页默认复用系统 Edge/Chrome/Chromium，不自动下载浏览器。"
                            TextWrapping="Wrap" Opacity="0.7" />
@@ -119,7 +148,7 @@
             </StackPanel>
         </Expander>
 
-        <Expander Grid.Row="4" Header="AI 默认代理（连接选择“继承”时使用）">
+        <Expander Grid.Row="5" Header="AI 默认代理（连接选择“继承”时使用）">
             <StackPanel Spacing="6" Margin="0,6,0,0">
                 <TextBlock Text="代理密码只填写 Credential Reference；配置保存后下一次新客户端生效。"
                            TextWrapping="Wrap" Opacity="0.7" />
@@ -128,7 +157,7 @@
             </StackPanel>
         </Expander>
 
-        <Grid Grid.Row="5" ColumnDefinitions="220,*" ColumnSpacing="12">
+        <Grid Grid.Row="6" ColumnDefinitions="220,*" ColumnSpacing="12">
             <Grid RowDefinitions="*,Auto,Auto" RowSpacing="8">
                 <ListBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}">
                     <ListBox.ItemTemplate>

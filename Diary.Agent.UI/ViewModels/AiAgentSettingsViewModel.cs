@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Diary.Agent.Configuration;
 using Diary.Agent.Credentials;
 using Diary.Agent.Mcp;
+using Diary.Agent.Runtime;
 using Diary.Agent.Tools;
 using Diary.Agent.Web;
 using Diary.GUIBase.ViewModels;
@@ -372,23 +373,29 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
     private readonly AiAgentPageViewModel _page;
     private readonly McpClientManager _mcp;
     private readonly AgentToolRegistry _tools;
+    private readonly AgentMemoryStore _memoryStore;
     private readonly HashSet<string> _pendingCredentialDeletes = new(StringComparer.Ordinal);
     private CancellationTokenSource? _profileTestCancellation;
     private AiConnectionEditorViewModel? _testingProfile;
+    private string? _memoryVersion;
+    private bool _memoryLoadedSuccessfully;
 
     public AiAgentSettingsViewModel(
         AiConnectionManager manager,
         IAiCredentialStore credentials,
         AiAgentPageViewModel page,
         McpClientManager mcp,
-        AgentToolRegistry tools)
+        AgentToolRegistry tools,
+        AgentMemoryStore memoryStore)
     {
         _manager = manager;
         _credentials = credentials;
         _page = page;
         _mcp = mcp;
         _tools = tools;
+        _memoryStore = memoryStore;
         Load();
+        _ = ReloadMemory();
         _ = RefreshCredentialStatusesAsync();
     }
 
@@ -418,6 +425,11 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
     [ObservableProperty] private bool _reminderWriteEnabled;
     [ObservableProperty] private bool _trackerSubmitEnabled;
     [ObservableProperty] private bool _scriptExecuteEnabled;
+    [ObservableProperty] private bool _agentMemoryWriteEnabled;
+    [ObservableProperty] private bool _memoryEnabled = true;
+    [ObservableProperty] private string _memoryContent = string.Empty;
+    [ObservableProperty] private string _memoryStatus = string.Empty;
+    [ObservableProperty] private bool _hasMemoryBackup;
     [ObservableProperty] private bool _webSearchEnabled;
     [ObservableProperty] private bool _webFetchEnabled;
     [ObservableProperty] private bool _mcpEnabled;
@@ -426,6 +438,83 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
     [ObservableProperty] private string _defaultProxyJson = "{}";
     [ObservableProperty] private bool _deleteCredentialsWithProfile = true;
     [ObservableProperty] private string _saveStatus = string.Empty;
+
+    [RelayCommand]
+    private async Task ReloadMemory()
+    {
+        try
+        {
+            ApplyMemorySnapshot(await _memoryStore.LoadAsync());
+            MemoryStatus = BuildMemoryStatus("已加载");
+        }
+        catch (AgentMemoryException exception)
+        {
+            _memoryLoadedSuccessfully = false;
+            _memoryVersion = null;
+            HasMemoryBackup = false;
+            MemoryStatus = $"记忆加载失败：{exception.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task SaveMemory()
+    {
+        if (!_memoryLoadedSuccessfully)
+        {
+            MemoryStatus = "记忆尚未成功加载，已阻止覆盖；请先重新加载。";
+            return;
+        }
+        try
+        {
+            ApplyMemorySnapshot(await _memoryStore.SaveAsync(MemoryContent, _memoryVersion));
+            MemoryStatus = BuildMemoryStatus("已保存");
+        }
+        catch (AgentMemoryException exception)
+        {
+            MemoryStatus = $"记忆保存失败：{exception.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private void ClearMemoryEditor()
+    {
+        MemoryContent = string.Empty;
+        MemoryStatus = "已清空编辑区；点击“保存记忆”后生效。";
+    }
+
+    [RelayCommand]
+    private async Task RestoreMemoryBackup()
+    {
+        if (!_memoryLoadedSuccessfully)
+        {
+            MemoryStatus = "记忆尚未成功加载，无法恢复备份。";
+            return;
+        }
+        try
+        {
+            ApplyMemorySnapshot(await _memoryStore.RestoreBackupAsync(_memoryVersion));
+            MemoryStatus = BuildMemoryStatus("已恢复上一版本");
+        }
+        catch (AgentMemoryException exception)
+        {
+            MemoryStatus = $"备份恢复失败：{exception.Message}";
+        }
+    }
+
+    private void ApplyMemorySnapshot(AgentMemorySnapshot snapshot)
+    {
+        MemoryContent = snapshot.Content;
+        _memoryVersion = snapshot.Version;
+        _memoryLoadedSuccessfully = true;
+        HasMemoryBackup = snapshot.HasBackup;
+    }
+
+    private string BuildMemoryStatus(string action)
+    {
+        var bytes = AgentMemoryStore.GetUtf8ByteCount(MemoryContent);
+        return $"{action} · {bytes}/{AgentMemoryStore.MaxBytes} 字节"
+               + $" · {_memoryStore.FilePath}";
+    }
 
     [RelayCommand]
     private void AddProfile()
@@ -791,6 +880,10 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
                 McpServers = mcpServers,
                 WebAccess = webAccess,
                 DefaultProxy = defaultProxy,
+                Memory = new AgentMemorySettings
+                {
+                    Enabled = MemoryEnabled,
+                },
                 EnabledTools = new AiAgentToolSettings
                 {
                     Diary = DiaryToolsEnabled,
@@ -800,6 +893,7 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
                     ReminderWrite = ReminderWriteEnabled,
                     TrackerSubmit = TrackerSubmitEnabled,
                     ScriptExecute = ScriptExecuteEnabled,
+                    AgentMemoryWrite = AgentMemoryWriteEnabled,
                     WebSearch = WebSearchEnabled,
                     WebFetch = WebFetchEnabled,
                     Mcp = McpEnabled,
@@ -853,7 +947,11 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void Reload() => Load();
+    private void Reload()
+    {
+        Load();
+        _ = ReloadMemory();
+    }
 
     private void Load()
     {
@@ -872,6 +970,8 @@ public sealed partial class AiAgentSettingsViewModel : ViewModelBase
         ReminderWriteEnabled = _manager.Settings.EnabledTools.ReminderWrite;
         TrackerSubmitEnabled = _manager.Settings.EnabledTools.TrackerSubmit;
         ScriptExecuteEnabled = _manager.Settings.EnabledTools.ScriptExecute;
+        AgentMemoryWriteEnabled = _manager.Settings.EnabledTools.AgentMemoryWrite;
+        MemoryEnabled = _manager.Settings.Memory.Enabled;
         WebSearchEnabled = _manager.Settings.EnabledTools.WebSearch;
         WebFetchEnabled = _manager.Settings.EnabledTools.WebFetch;
         McpEnabled = _manager.Settings.EnabledTools.Mcp;

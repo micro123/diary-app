@@ -33,6 +33,8 @@ public sealed class AiConfigurationTests
                     SupportsParallelTools: true,
                     SupportsForcedToolChoice: true),
             },
+            Memory = new AgentMemorySettings { Enabled = false },
+            EnabledTools = new AiAgentToolSettings { AgentMemoryWrite = true },
         };
         var store = new AiConnectionStore(path);
 
@@ -50,8 +52,65 @@ public sealed class AiConfigurationTests
         Assert.AreEqual(70, loaded.Settings?.Profiles.Single().ContextCompressionThresholdPercent);
         Assert.IsTrue(loaded.Settings?.Profiles.Single().AutomaticContextCompression);
         Assert.IsFalse(loaded.Settings?.Profiles.Single().CheckCertificateRevocation);
+        Assert.IsFalse(loaded.Settings?.Memory.Enabled);
+        Assert.IsTrue(loaded.Settings?.EnabledTools.AgentMemoryWrite);
         StringAssert.Contains(raw, "diary.ai/internal/api-key");
         Assert.IsFalse(raw.Contains("actual-secret-value", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void OlderSettingsWithoutMemoryFieldsUseSafeDefaults()
+    {
+        var root = CreateTemporaryDirectory();
+        var path = Path.Combine(root, "settings.json");
+        File.WriteAllText(path, """
+            {
+              "schemaVersion": 1,
+              "settings": {
+                "enabledTools": {},
+                "profiles": [],
+                "capabilities": {},
+                "mcpServers": [],
+                "webAccess": {},
+                "defaultProxy": { "mode": 1 }
+              }
+            }
+            """);
+
+        var loaded = new AiConnectionStore(path).Load();
+
+        Assert.AreEqual(AiSettingsLoadStatus.Loaded, loaded.Status);
+        Assert.IsTrue(loaded.Settings!.Memory.Enabled);
+        Assert.IsFalse(loaded.Settings.EnabledTools.AgentMemoryWrite);
+    }
+
+    [TestMethod]
+    public void NullMemorySettingsAreRejectedWithoutOverwritingFile()
+    {
+        var root = CreateTemporaryDirectory();
+        var path = Path.Combine(root, "settings.json");
+        const string invalid = """
+            {
+              "schemaVersion": 1,
+              "settings": {
+                "enabledTools": {},
+                "profiles": [],
+                "capabilities": {},
+                "mcpServers": [],
+                "webAccess": {},
+                "memory": null,
+                "defaultProxy": { "mode": 1 }
+              }
+            }
+            """;
+        File.WriteAllText(path, invalid);
+        var store = new AiConnectionStore(path);
+
+        var loaded = store.Load();
+
+        Assert.AreEqual(AiSettingsLoadStatus.Unreadable, loaded.Status);
+        Assert.ThrowsExactly<InvalidOperationException>(() => store.Save(new AiAgentSettings()));
+        Assert.AreEqual(invalid, File.ReadAllText(path));
     }
 
     [TestMethod]
