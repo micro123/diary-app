@@ -7,6 +7,7 @@ namespace Diary.App.Models;
 public enum PeriodTrackerUploadSkipKind
 {
     Imported,
+    LocalOnly,
     Synchronized,
     Uncertain,
     TrackerIncomplete,
@@ -36,6 +37,10 @@ public static class PeriodTrackerUploadPolicy
             return PeriodTrackerUploadEligibility.Skip(
                 PeriodTrackerUploadSkipKind.Imported,
                 "迁移导入的只读事项");
+        if (uploadStatus == WorkItemUploadStatus.LocalOnly)
+            return PeriodTrackerUploadEligibility.Skip(
+                PeriodTrackerUploadSkipKind.LocalOnly,
+                "标签已将事项标记为仅本地记录");
         if (uploadStatus == WorkItemUploadStatus.Synchronized)
             return PeriodTrackerUploadEligibility.Skip(
                 PeriodTrackerUploadSkipKind.Synchronized,

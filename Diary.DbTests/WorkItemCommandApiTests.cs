@@ -88,6 +88,7 @@ public sealed class WorkItemCommandApiTests
         Assert.AreEqual(1, tagAutomation.PrepareCount);
         Assert.AreEqual(TagAddSource.Agent, tagAutomation.Source);
         CollectionAssert.AreEqual(new[] { tag.Id }, tagAutomation.AddedTagIds);
+        CollectionAssert.AreEqual(new[] { tag.Id }, tagAutomation.FinalTagIds);
         Assert.AreEqual(1, tagAutomation.Extension.SaveCount);
         Assert.AreEqual(result.WorkItemId, tagAutomation.Extension.SavedItemId);
         Assert.AreEqual(0, tagAutomation.Extension.UploadCount);
@@ -469,16 +470,19 @@ public sealed class WorkItemCommandApiTests
         public int PrepareCount { get; private set; }
         public TagAddSource Source { get; private set; }
         public int[] AddedTagIds { get; private set; } = [];
+        public int[] FinalTagIds { get; private set; } = [];
         public RecordingTrackerExtension Extension { get; } = new();
 
         public WorkItemTagAutomationPreparation Prepare(
             WorkItem? existing,
             IReadOnlyCollection<WorkTag> addedTags,
-            TagAddSource source)
+            TagAddSource source,
+            IReadOnlyCollection<WorkTag>? finalTags = null)
         {
             PrepareCount++;
             Source = source;
             AddedTagIds = addedTags.Select(tag => tag.Id).ToArray();
+            FinalTagIds = (finalTags ?? addedTags).Select(tag => tag.Id).ToArray();
             return WorkItemTagAutomationPreparation.Success(
                 [Extension],
                 new TagAutomationResult([]));
@@ -490,7 +494,8 @@ public sealed class WorkItemCommandApiTests
         public WorkItemTagAutomationPreparation Prepare(
             WorkItem? existing,
             IReadOnlyCollection<WorkTag> addedTags,
-            TagAddSource source) => WorkItemTagAutomationPreparation.Failure("模拟标签自动化失败");
+            TagAddSource source,
+            IReadOnlyCollection<WorkTag>? finalTags = null) => WorkItemTagAutomationPreparation.Failure("模拟标签自动化失败");
     }
 
     private sealed class FailOnSecondTagAutomationService : IWorkItemTagAutomationService
@@ -500,7 +505,8 @@ public sealed class WorkItemCommandApiTests
         public WorkItemTagAutomationPreparation Prepare(
             WorkItem? existing,
             IReadOnlyCollection<WorkTag> addedTags,
-            TagAddSource source)
+            TagAddSource source,
+            IReadOnlyCollection<WorkTag>? finalTags = null)
         {
             _count++;
             return _count == 2

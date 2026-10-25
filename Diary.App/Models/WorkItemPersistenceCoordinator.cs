@@ -109,7 +109,10 @@ public sealed class WorkItemPersistenceCoordinator : IWorkItemPersistenceCoordin
                 db.WorkDeleteNote(item);
         }
 
-        foreach (var extension in request.Extensions)
+        var extensions = request.Tags.Any(WorkTagBehavior.IsLocalOnly)
+            ? Array.Empty<ITrackerEditorExtension>()
+            : request.Extensions;
+        foreach (var extension in extensions)
         {
             if (!extension.Save(item))
                 throw new InvalidOperationException($"保存 tracker 扩展失败: {extension.Key}");

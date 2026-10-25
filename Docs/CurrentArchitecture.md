@@ -418,6 +418,12 @@ SQLite 和 PostgreSQL 都支持日期范围、标题/备注关键字、优先级
 `ITagAutomationCoordinator`；数据库加载、重新同步和删除标签不会触发规则，已同步并锁定的 Tracker
 实例也会被跳过，避免本地标签调整改变已锁定的 Tracker 关联字段。
 
+标签还可以通过保留元数据 `diary.work.localOnly=true` 声明“仅本地记录”。事项标签按 `AnyOf`
+聚合：任意标签命中后，核心编辑器显示“仅本地”，禁用 Tracker 编辑和上传，不保存新的 Tracker
+绑定，也不执行 Tracker 标签默认值规则。该行为不伪造远端 ID、不改变普通工时统计，只把事项从待同步集合中排除；
+移除最后一个仅本地标签后，事项按现有 Tracker 绑定重新回到“待同步”或“未配置 Tracker”。该保留键由标签
+基础信息页的业务开关维护，不出现在通用元数据键值列表中，但会随 `.diarytags` 共享包导入导出。
+
 Tracker 编辑器可以选择实现 `ITrackerTagDefaults`。当前 Redmine 编辑器实现该能力，并从对应
 `RedMineInstanceSettings.TagRules` 读取实例级规则。规则按配置顺序为 Activity 和 Issue 填充默认值，
 已有字段不会被覆盖，删除标签也不会反向清除字段。

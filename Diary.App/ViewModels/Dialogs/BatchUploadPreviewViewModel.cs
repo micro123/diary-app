@@ -19,7 +19,9 @@ public partial class BatchUploadPreviewItem(WorkEditorViewModel work) : Observab
     public string Title => string.IsNullOrWhiteSpace(Work.Comment) ? "无标题事项" : Work.Comment;
     public double Hours => Work.Time;
     public string StatusText => Work.UploadStatusText;
-    public string TrackerText => Work.Extensions.Count == 0
+    public string TrackerText => Work.IsLocalOnly
+        ? "仅本地记录，不提交 Tracker"
+        : Work.Extensions.Count == 0
         ? "未配置 Tracker"
         : string.Join(", ", Work.Extensions.Select(extension =>
             $"{extension.Key.PluginId}/{extension.Key.InstanceId}"));

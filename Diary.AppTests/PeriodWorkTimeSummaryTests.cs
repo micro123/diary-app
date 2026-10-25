@@ -54,6 +54,24 @@ public sealed class PeriodWorkTimeSummaryTests
         Assert.AreEqual(new PeriodWorkTimeSummaryBucket(0, 0), summary.BlockedOrFailed);
     }
 
+    [TestMethod]
+    public void Calculate_CountsLocalOnlyWorkAsSubmittedAndKeepsItsHoursInTotal()
+    {
+        var localOnly = PeriodTrackerUploadEligibility.Skip(
+            PeriodTrackerUploadSkipKind.LocalOnly,
+            "仅本地记录");
+
+        var summary = PeriodWorkTimeSummaryCalculator.Calculate(
+            new DateTime(2026, 10, 1),
+            new DateTime(2026, 10, 31),
+            [Entry(8, WorkItemUploadStatus.LocalOnly, localOnly)]);
+
+        Assert.AreEqual(new PeriodWorkTimeSummaryBucket(1, 8), summary.Total);
+        Assert.AreEqual(new PeriodWorkTimeSummaryBucket(1, 8), summary.Submitted);
+        Assert.AreEqual(new PeriodWorkTimeSummaryBucket(0, 0), summary.Unsubmitted);
+        Assert.AreEqual(new PeriodWorkTimeSummaryBucket(0, 0), summary.BlockedOrFailed);
+    }
+
     private static PeriodWorkTimeSummaryEntry Entry(
         double hours,
         WorkItemUploadStatus status,

@@ -197,6 +197,20 @@
                                 </Grid>
 
                                 <Border Classes="SubtleCard">
+                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                        <ToggleSwitch IsChecked="{Binding SelectedTag.LocalOnly}"
+                                                      VerticalAlignment="Top" />
+                                        <StackPanel Grid.Column="1" Spacing="3">
+                                            <TextBlock Text="仅本地记录"
+                                                       FontWeight="SemiBold" />
+                                            <TextBlock Text="事项命中任意一个此类标签时，不提交到任何 Tracker，并在同步流程中视为已处理；工时仍计入统计。"
+                                                       TextWrapping="Wrap"
+                                                       Opacity="0.72" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <Border Classes="SubtleCard">
                                     <StackPanel Spacing="6">
                                         <TextBlock Text="说明"
                                                    FontWeight="SemiBold" />

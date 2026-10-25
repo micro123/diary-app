@@ -55,7 +55,7 @@ public static class PeriodWorkTimeSummaryCalculator
             return PeriodWorkTimeSubmissionCategory.BlockedOrFailed;
         }
 
-        if (entry.UploadStatus == WorkItemUploadStatus.Synchronized)
+        if (entry.UploadStatus is WorkItemUploadStatus.Synchronized or WorkItemUploadStatus.LocalOnly)
             return PeriodWorkTimeSubmissionCategory.Submitted;
 
         return entry.Eligibility.CanUpload

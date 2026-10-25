@@ -771,6 +771,99 @@ public sealed class WorkEditorViewModelTests
     }
 
     [TestMethod]
+    public void EditableWorkTagPersistsLocalOnlyAsReservedBusinessMetadata()
+    {
+        using var database = CreateDatabase();
+        var tag = database.CreateWorkTag("请假", false, 1);
+        var editable = new EditableWorkTag(tag, database) { LocalOnly = true };
+
+        Assert.IsTrue(editable.ApplyChanges(out var error), error);
+
+        var persisted = database.AllWorkTags().Single(item => item.Id == tag.Id);
+        Assert.IsTrue(WorkTagBehavior.IsLocalOnly(persisted));
+        Assert.IsFalse(editable.Metadata.Any(item =>
+            item.Key == WorkTagBehavior.LocalOnlyMetadataKey));
+
+        editable.LocalOnly = false;
+        Assert.IsTrue(editable.ApplyChanges(out error), error);
+        Assert.IsFalse(WorkTagBehavior.IsLocalOnly(
+            database.AllWorkTags().Single(item => item.Id == tag.Id)));
+    }
+
+    [TestMethod]
+    public async Task AnyLocalOnlyTagSkipsAllTrackerUploadsAndRemovingItRestoresPendingState()
+    {
+        using var database = CreateDatabase();
+        using var registry = CreateCloneTrackerRegistry();
+        var item = database.CreateWorkItem("2026-10-25", "请假");
+        item.Time = 8;
+        Assert.IsTrue(database.UpdateWorkItem(item));
+        var ordinary = database.CreateWorkTag("日常", true, 1);
+        var localOnly = database.CreateWorkTag("请假", false, 2);
+        WorkTagBehavior.SetLocalOnly(localOnly.Metadata, true);
+        Assert.IsTrue(database.UpdateWorkTag(localOnly));
+        var coordinator = new RecordingUploadCoordinator();
+        var viewModel = new WorkEditorViewModel(
+            new DbShareData(NullLogger<DbShareData>.Instance),
+            new NoopPersistenceCoordinator(),
+            coordinator,
+            registry,
+            string.Empty,
+            new NoopTagAutomationCoordinator(),
+            database: database);
+        LoadExistingItem(viewModel, item);
+
+        viewModel.AddTags([ordinary, localOnly], TagAddSource.User);
+
+        Assert.IsTrue(viewModel.IsLocalOnly);
+        Assert.IsTrue(viewModel.IsSynchronizationComplete);
+        Assert.AreEqual(WorkItemUploadStatus.LocalOnly, viewModel.UploadStatus);
+        Assert.AreEqual("仅本地", viewModel.UploadStatusText);
+        Assert.IsFalse(viewModel.CanUpload());
+        Assert.IsTrue(DiaryEditorViewModel.ShouldRefreshTimeInfos(
+            nameof(WorkEditorViewModel.IsSynchronizationComplete)));
+        Assert.IsTrue(viewModel.TrackerTabs.Single().IsHostReadOnly);
+
+        var upload = await viewModel.Upload();
+
+        Assert.IsTrue(upload.Item1);
+        StringAssert.Contains(upload.Item2, "无需同步");
+        Assert.IsNull(coordinator.LastItem);
+
+        viewModel.DelTagCommand.Execute(localOnly);
+
+        Assert.IsFalse(viewModel.IsLocalOnly);
+        Assert.IsFalse(viewModel.IsSynchronizationComplete);
+        Assert.AreEqual(WorkItemUploadStatus.Pending, viewModel.UploadStatus);
+        Assert.IsTrue(viewModel.CanUpload());
+        Assert.IsFalse(viewModel.TrackerTabs.Single().IsHostReadOnly);
+    }
+
+    [TestMethod]
+    public void LocalOnlySaveDoesNotPersistTrackerBindings()
+    {
+        using var database = CreateDatabase();
+        using var registry = CreateCloneTrackerRegistry();
+        var item = database.CreateWorkItem("2026-10-25", "调休");
+        var tag = database.CreateWorkTag("调休", false, 2);
+        WorkTagBehavior.SetLocalOnly(tag.Metadata, true);
+        Assert.IsTrue(database.UpdateWorkTag(tag));
+        var persistence = new RecordingPersistenceCoordinator();
+        var viewModel = CreateViewModel(
+            registry,
+            database: database,
+            persistence: persistence);
+        LoadExistingItem(viewModel, item);
+        viewModel.AddTags([tag], TagAddSource.User);
+
+        Assert.IsTrue(viewModel.Save(out var created));
+
+        Assert.IsFalse(created);
+        Assert.IsNotNull(persistence.LastRequest);
+        Assert.IsEmpty(persistence.LastRequest.Extensions);
+    }
+
+    [TestMethod]
     public void UnchangedExistingItemDoesNotNeedPersistenceBeforeReplacement()
     {
         var viewModel = CreateViewModel();

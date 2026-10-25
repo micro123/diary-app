@@ -228,7 +228,7 @@ public sealed class AgentCapabilityApi : IAgentCapabilityApi, IDisposable
             .ToArray();
         if (items.Length != ids.Length)
             return ValueTask.FromResult(new AgentTrackerTimePreview(false, [], 0, null, "work_item_not_found", "部分事项不存在。"));
-        var entries = BuildTrackerEntries(items);
+        var entries = BuildTrackerEntries(FilterLocalOnlyItems(database, items));
         var version = Hash(entries);
         return ValueTask.FromResult(new AgentTrackerTimePreview(
             true,
@@ -259,6 +259,7 @@ public sealed class AgentCapabilityApi : IAgentCapabilityApi, IDisposable
             .Select(id => database.QueryWorkItems(new WorkItemQuery { WorkItemId = id, Limit = 1 }).Single())
             .OrderBy(item => item.Id)
             .ToArray();
+        items = FilterLocalOnlyItems(database, items);
         var results = new List<AgentOperationResult>();
         foreach (var item in items)
         {
@@ -342,6 +343,12 @@ public sealed class AgentCapabilityApi : IAgentCapabilityApi, IDisposable
         }
         return entries;
     }
+
+    private static WorkItem[] FilterLocalOnlyItems(
+        DbInterfaceBase database,
+        IEnumerable<WorkItem> items)
+        => items.Where(item => !database.GetWorkItemTags(item).Any(WorkTagBehavior.IsLocalOnly))
+            .ToArray();
 
     private AgentTrackerTimeSubmitResult SaveSubmission(string key, AgentTrackerTimeSubmitResult result)
     {

@@ -52,6 +52,29 @@ public sealed class WorkItemTagAutomationServiceTests
         CollectionAssert.AreEqual(new[] { item.Id }, instance.LastRequestedWorkItemIds);
     }
 
+    [TestMethod]
+    public void PrepareSkipsAllTrackerAutomationWhenAnyFinalTagIsLocalOnly()
+    {
+        var instance = new RecordingTrackerInstance();
+        var factory = new RecordingContributionFactory();
+        using var registry = new TrackerUiContributionRegistry();
+        registry.Register([factory], [instance]);
+        var service = new WorkItemTagAutomationService(registry, new TagAutomationCoordinator());
+        var ordinary = new WorkTag { Id = 42, Name = "普通标签" };
+        var localOnly = new WorkTag { Id = 43, Name = "请假" };
+        WorkTagBehavior.SetLocalOnly(localOnly.Metadata, true);
+
+        using var preparation = service.Prepare(
+            null,
+            [ordinary],
+            TagAddSource.Agent,
+            [ordinary, localOnly]);
+
+        Assert.IsTrue(preparation.Succeeded, preparation.Error);
+        Assert.IsEmpty(preparation.Extensions);
+        Assert.IsNull(factory.LastContribution!.LastExtension);
+    }
+
     private sealed class RecordingContributionFactory : ITrackerUiContributionFactory
     {
         public string PluginId => "redmine-test";

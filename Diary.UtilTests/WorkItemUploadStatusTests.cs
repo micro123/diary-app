@@ -44,6 +44,7 @@ public sealed class WorkItemUploadStatusTests
     [TestMethod]
     [DataRow(WorkItemUploadStatus.Unsaved, "待保存")]
     [DataRow(WorkItemUploadStatus.NotConfigured, "未配置 Tracker")]
+    [DataRow(WorkItemUploadStatus.LocalOnly, "仅本地")]
     [DataRow(WorkItemUploadStatus.Pending, "待同步")]
     [DataRow(WorkItemUploadStatus.Synchronized, "已同步")]
     [DataRow(WorkItemUploadStatus.PartialFailure, "部分同步，存在失败")]

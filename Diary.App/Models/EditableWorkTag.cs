@@ -20,7 +20,9 @@ public partial class EditableWorkTag : ObservableObject
         Color = tag.Color;
         Primary = tag.Level == TagLevels.Primary;
         Disabled = tag.Disabled;
-        foreach (var (key, value) in tag.Metadata)
+        LocalOnly = WorkTagBehavior.IsLocalOnly(tag);
+        foreach (var (key, value) in tag.Metadata.Where(item =>
+                     !string.Equals(item.Key, WorkTagBehavior.LocalOnlyMetadataKey, StringComparison.Ordinal)))
             Metadata.Add(CreateMetadata(key, value));
         foreach (var field in _database.GetTagExtraFieldDefinitions(tag.Id, includeDisabled: true))
             ExtraFields.Add(new EditableTagExtraField(field));
@@ -32,6 +34,7 @@ public partial class EditableWorkTag : ObservableObject
     [ObservableProperty] private int _color;
     [ObservableProperty] private bool _primary;
     [ObservableProperty] private bool _disabled;
+    [ObservableProperty] private bool _localOnly;
     public ObservableCollection<EditableWorkTagMetadata> Metadata { get; } = new();
     public ObservableCollection<EditableTagExtraField> ExtraFields { get; } = new();
 
@@ -51,6 +54,7 @@ public partial class EditableWorkTag : ObservableObject
         error = null;
         if (!TryBuildMetadata(out var metadata, out error))
             return false;
+        WorkTagBehavior.SetLocalOnly(metadata, LocalOnly);
 
         var name = Name.Trim();
         if (name.Length == 0)

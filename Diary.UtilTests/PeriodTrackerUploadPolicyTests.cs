@@ -28,6 +28,16 @@ public sealed class PeriodTrackerUploadPolicyTests
     }
 
     [TestMethod]
+    public void Evaluate_SkipsLocalOnlyWorkItem()
+    {
+        var result = Evaluate(uploadStatus: WorkItemUploadStatus.LocalOnly);
+
+        Assert.IsFalse(result.CanUpload);
+        Assert.AreEqual(PeriodTrackerUploadSkipKind.LocalOnly, result.SkipKind);
+        StringAssert.Contains(result.Detail, "仅本地");
+    }
+
+    [TestMethod]
     public void Evaluate_SkipsPendingOrUncertainTrackerState()
     {
         var result = Evaluate(extension: new PolicyExtension(

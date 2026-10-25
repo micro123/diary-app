@@ -55,7 +55,8 @@ public interface IWorkItemTagAutomationService
     WorkItemTagAutomationPreparation Prepare(
         WorkItem? existing,
         IReadOnlyCollection<WorkTag> addedTags,
-        TagAddSource source);
+        TagAddSource source,
+        IReadOnlyCollection<WorkTag>? finalTags = null);
 }
 
 public sealed class WorkItemTagAutomationService(
@@ -65,9 +66,12 @@ public sealed class WorkItemTagAutomationService(
     public WorkItemTagAutomationPreparation Prepare(
         WorkItem? existing,
         IReadOnlyCollection<WorkTag> addedTags,
-        TagAddSource source)
+        TagAddSource source,
+        IReadOnlyCollection<WorkTag>? finalTags = null)
     {
         if (addedTags.Count == 0)
+            return WorkItemTagAutomationPreparation.Empty;
+        if ((finalTags ?? addedTags).Any(WorkTagBehavior.IsLocalOnly))
             return WorkItemTagAutomationPreparation.Empty;
 
         var extensions = new List<ITrackerEditorExtension>();

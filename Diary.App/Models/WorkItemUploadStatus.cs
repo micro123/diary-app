@@ -4,6 +4,7 @@ public enum WorkItemUploadStatus
 {
     Unsaved,
     NotConfigured,
+    LocalOnly,
     Pending,
     Synchronized,
     PartialFailure,
@@ -39,6 +40,7 @@ public static class WorkItemUploadStatusResolver
     {
         WorkItemUploadStatus.Unsaved => "待保存",
         WorkItemUploadStatus.NotConfigured => "未配置 Tracker",
+        WorkItemUploadStatus.LocalOnly => "仅本地",
         WorkItemUploadStatus.Pending => "待同步",
         WorkItemUploadStatus.Synchronized => "已同步",
         WorkItemUploadStatus.PartialFailure => "部分同步，存在失败",

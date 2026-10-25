@@ -496,7 +496,7 @@ public sealed class WorkItemCommandApi(
             .Where(tag => !existingIds.Contains(tag.Id))
             .OrderBy(tag => tag.Id)
             .ToArray();
-        return tagAutomation.Prepare(existing, addedTags, TagAddSource.Agent);
+        return tagAutomation.Prepare(existing, addedTags, TagAddSource.Agent, desiredTags);
     }
 
     private void PublishAddedTags(

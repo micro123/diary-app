@@ -33,8 +33,8 @@
             <Border Classes="SectionCard">
                 <StackPanel Spacing="8">
                     <i:Icon Value="mdi-check-circle-outline" FontSize="28" HorizontalAlignment="Left" />
-                    <TextBlock Text="已提交" FontSize="18" FontWeight="SemiBold" />
-                    <TextBlock Text="所有 Tracker 均已同步" Classes="PageSubtitle"
+                    <TextBlock Text="已处理" FontSize="18" FontWeight="SemiBold" />
+                    <TextBlock Text="所有 Tracker 均已同步，或事项被标记为仅本地记录" Classes="PageSubtitle"
                                TextWrapping="Wrap" />
                     <Border Classes="StatusPill StatusSuccess" HorizontalAlignment="Left">
                         <TextBlock Text="{Binding SubmittedText}" FontWeight="SemiBold" />

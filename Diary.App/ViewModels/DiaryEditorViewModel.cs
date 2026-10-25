@@ -924,7 +924,8 @@ public partial class DiaryEditorViewModel : ViewModelBase
     }
 
     internal static bool ShouldRefreshTimeInfos(string? propertyName)
-        => propertyName == nameof(WorkEditorViewModel.HasUploadedTracker);
+        => propertyName is nameof(WorkEditorViewModel.HasUploadedTracker)
+            or nameof(WorkEditorViewModel.IsSynchronizationComplete);
 
     private void NotifySelectedWorkCommandStates()
     {
@@ -1126,7 +1127,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         foreach (var work in DailyWorks)
         {
             sum += work.Time;
-            if (work.HasUploadedTracker)
+            if (work.IsSynchronizationComplete)
                 uploaded += work.Time;
         }
 
@@ -1447,6 +1448,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
             body.AppendLine();
             body.AppendLine("跳过明细：");
             AppendSkipCount(body, summary, PeriodTrackerUploadSkipKind.Imported, "导入记录");
+            AppendSkipCount(body, summary, PeriodTrackerUploadSkipKind.LocalOnly, "仅本地记录");
             AppendSkipCount(body, summary, PeriodTrackerUploadSkipKind.Synchronized, "已同步");
             AppendSkipCount(body, summary, PeriodTrackerUploadSkipKind.Uncertain, "同步中或结果待确认");
             AppendSkipCount(body, summary, PeriodTrackerUploadSkipKind.TrackerIncomplete, "Tracker 信息不完整或工时无效");
@@ -1653,7 +1655,7 @@ public partial class DiaryEditorViewModel : ViewModelBase
         QuickMenuItems.Clear();
         var weekOfYear = GetCalendarWeekNumber(date);
         AddMenuHeader($"{date:yyyy年MM月dd日} 第{weekOfYear}周");
-        AddMenuHeader($"今日总工时{TotalTime:0.##}小时，有{TotalTime - UploadedTime:0.##}小时未同步");
+        AddMenuHeader($"今日总工时{TotalTime:0.##}小时，有{TotalTime - UploadedTime:0.##}小时待处理");
         AddMenuSeparator();
         AddMenuAction("同步本日工时", UploadAllCommand);
         AddMenuAction("同步本周工时", CreatePeriodTrackerUploadCommand(date, AdjustPart.Week));
