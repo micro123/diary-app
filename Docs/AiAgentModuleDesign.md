@@ -3,7 +3,7 @@
 ## 1. 文档状态
 
 - 状态：详细设计已实现并通过自动化、UI 与发布门禁
-- 日期：2026-10-19
+- 日期：2026-10-26
 - 需求基线：[`AiAgentModuleRequirements.md`](AiAgentModuleRequirements.md)
 - 评审记录：[`AiAgentModuleDesignReview.md`](AiAgentModuleDesignReview.md)
 - 实施状态：阶段 A、P0、P1、只读系统浏览器渲染和首版 MCP Client 已完成；浏览器交互与独立在线更新保留为后续边界
@@ -610,11 +610,13 @@ Idle -> Running -> WaitingForApproval -> Running -> Completed
 
 ### 9.6 运行时日期与时区
 
-`AgentRuntimeContextSnapshot` 使用可注入的 `.NET TimeProvider` 在每个 run 开始时读取一次操作系统时间，记录本地日期时间、日期、星期、时区 ID、UTC 偏移、UTC 时间、昨天和明天。该快照只用于本轮系统上下文和 token 估算，不写入 `AgentMessage`、会话文件、压缩摘要、长期记忆、审计或日志正文。
+`AgentRuntimeContextSnapshot` 使用可注入的 `.NET TimeProvider` 在每个 run 开始时读取一次操作系统时间，记录本地日期时间、日期、星期、时区 ID、UTC 偏移、UTC 时间、昨天和明天。该快照是 Agent 获取“当前时间”的唯一来源，只用于本轮系统上下文和 token 估算，不写入 `AgentMessage`、会话文件、压缩摘要、长期记忆、审计或日志正文。新的用户消息会开始新 run 并重新读取，因此不再提供重复读取系统时钟的工具。
 
 `AgentContextCompactor.BuildSystemInstruction` 把快照放入 `<runtime_context>`，并声明在用户未指定其他基准时，“今天、昨天、明天”等相对日期以 `current_local_date` 为准。DiaryApp 的页面日期仍由 `diary_get_current_context` 返回，它只是 UI 导航日期，不一定等于系统今天；工具描述明确禁止用页面日期解释相对时间。
 
-默认启用的只读 `diary_get_current_time` 使用同一个 `TimeProvider` 重新读取当前时间，返回本地日期时间、日期、星期、时区、UTC 时间、UTC 偏移、昨天和明天。它不访问数据库，也不需要确认，适用于精确到分钟的提醒、用户询问当前时间、接近午夜或长时间工具循环后重新确认日期。测试使用自定义 `TimeProvider` 冻结和推进时间，避免依赖测试机器时钟与时区。
+默认启用的只读 `diary_calculate_time` 是无状态、确定性计算工具，不注入 `TimeProvider`，不读取系统当前时间，不访问数据库，也不需要用户确认。`add` 操作按年、月、日、小时、分钟的顺序对显式 `value` 执行加减；`difference` 操作计算显式 `start` 与 `end` 的日历天数或实际时长。输入可以是严格 `yyyy-MM-dd` 纯日期，或带 `Z`/`+08:00` 等明确 UTC 偏移的 ISO 8601 日期时间；拒绝不带偏移的日期时间、日期与日期时间混用，以及对纯日期应用小时或分钟。日期时间加减保留原固定偏移，不执行 IANA/Windows 时区的夏令时换算。
+
+运行时上下文测试使用自定义 `TimeProvider` 冻结和推进时间，避免依赖测试机器时钟与时区；时间计算工具单独覆盖闰年、月末、固定偏移、跨偏移差值与非法格式。
 
 ### 9.7 Agent 长期记忆
 
@@ -726,7 +728,7 @@ AllowAutomatically
 | `diary_compare_work_periods` | 两个日期范围的本地聚合对比 | 启用 |
 | `diary_get_calendar_overview` | 指定范围的逐日事项和工时概览 | 启用 |
 | `diary_list_export_options` | `IExportApi` 格式与模板目录 | 启用 |
-| `diary_get_current_time` | 操作系统当前日期、时间、时区和相对日期快照 | 启用 |
+| `diary_calculate_time` | 对显式日期/带偏移日期时间做确定性加减和差值计算 | 启用 |
 | `diary_get_current_context` | UI 页面日期/选择的只读快照，不代表系统今天 | 启用 |
 | `diary_validate_script` | 现有校验服务适配器 | 启用 |
 | `diary_search_user_manual` | 固定发布路径的用户手册章节索引 | 启用 |
@@ -1093,7 +1095,7 @@ AI 模块随程序安装但默认禁用。用户启用后重启生效；未启�
 
 ## 20. 实施与验证结果
 
-- `Diary.AgentTests` 151/151，通过三协议、模型连接共享包凭据剥离/兼容配置往返/冲突改名/严格输入拒绝、基础连接测试、完整能力探测阶段进度与取消、脱敏失败日志、模型/代理、静态网页安全、内网与本机访问策略、系统浏览器动态渲染、本机 CDP 运行时限制、附加字段目录、记录质量分析、周期对比、日历概览、事项详情与导出目录查询、事项创建/单项与批量更新确认、附加字段确认预览、报告导出确认、新能力独立权限裁剪、提醒/脚本/Tracker 提交确认、非 Ready 脚本执行拦截、MCP Server 安全目录、自动上下文压缩、最新请求上下文估算/服务端修正/工具多轮与无 usage 回退、运行时日期时区注入/跨 run 刷新/三协议系统字段/只读时间工具、长期记忆存储/三协议注入/压缩后保留/确认冲突/备份恢复/工具参数摘要隐藏、Responses 协议状态清理及本地兜底、两阶段停止与旧 run 隔离、MCP 生命周期管理、远端工具探测与策略导入、MCP 删除语义拦截、会话与审计测试；既有 `Diary.ScriptTests` 247/247 证据继续验证 Agent 无备注查询和脚本运行边界；
+- `Diary.AgentTests` 154/154，通过三协议、模型连接共享包凭据剥离/兼容配置往返/冲突改名/严格输入拒绝、基础连接测试、完整能力探测阶段进度与取消、脱敏失败日志、模型/代理、静态网页安全、内网与本机访问策略、系统浏览器动态渲染、本机 CDP 运行时限制、附加字段目录、记录质量分析、周期对比、日历概览、事项详情与导出目录查询、事项创建/单项与批量更新确认、附加字段确认预览、报告导出确认、新能力独立权限裁剪、提醒/脚本/Tracker 提交确认、非 Ready 脚本执行拦截、MCP Server 安全目录、自动上下文压缩、最新请求上下文估算/服务端修正/工具多轮与无 usage 回退、运行时日期时区注入/跨 run 刷新/三协议系统字段/确定性时间计算工具、长期记忆存储/三协议注入/压缩后保留/确认冲突/备份恢复/工具参数摘要隐藏、Responses 协议状态清理及本地兜底、两阶段停止与旧 run 隔离、MCP 生命周期管理、远端工具探测与策略导入、MCP 删除语义拦截、会话与审计测试；既有 `Diary.ScriptTests` 247/247 证据继续验证 Agent 无备注查询和脚本运行边界；
 - `Diary.ModuleTests` 13 项通过，1 项因未生成 Windows Release 发布目录跳过；已覆盖 Debug 模块目录、私有 `AssemblyLoadContext`、禁用和故障隔离测试；
 - `Diary.AppTests` 341/341，覆盖扩展报表、artifact、脚本目录失败/待配置诊断与绝对路径收敛；`Diary.DbTests` 在当前 Windows 环境 162 项通过、113 项因 PostgreSQL/Docker 不可用或平台条件跳过、0 项失败，覆盖附加字段 patch、批量幂等和批次中途失败整体回滚；
 - AI CDP 套件 7/7，通过导航、Agent 状态、真实本地假模型工具闭环、拒绝写入、键盘发送、设置贡献和递归 seed；

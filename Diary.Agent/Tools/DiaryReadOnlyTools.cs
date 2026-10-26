@@ -1,7 +1,5 @@
 using System.Collections.Immutable;
-using System.Globalization;
 using System.Text.Json;
-using Diary.Agent.Runtime;
 using Diary.ScriptBase;
 using Diary.ScriptHost;
 
@@ -62,6 +60,7 @@ public static class DiaryReadOnlyToolRegistration
             new CompareWorkPeriodsTool(workItems),
             new GetCalendarOverviewTool(workItems),
             new GetCurrentContextTool(currentContext),
+            new TimeCalculationTool(),
             new ValidateScriptTool(scriptValidation),
         };
         if (exports is not null)
@@ -349,30 +348,6 @@ public sealed class GetCurrentContextTool(ICurrentContextScriptApi source) : IAg
         => ValueTask.FromResult(AgentToolResult.Success(JsonSerializer.Serialize(source.Get()), "DiaryApp"));
 }
 
-public sealed class GetCurrentTimeTool(TimeProvider timeProvider) : IAgentTool
-{
-    public AgentToolDescriptor Descriptor { get; } = DiaryToolDescriptors.GetCurrentTime;
-
-    public ValueTask<AgentToolResult> InvokeAsync(
-        JsonElement arguments,
-        AgentToolInvocationContext context,
-        CancellationToken cancellationToken = default)
-    {
-        var snapshot = AgentRuntimeContextSnapshot.Capture(timeProvider);
-        return ValueTask.FromResult(AgentToolResult.Success(JsonSerializer.Serialize(new
-        {
-            localDateTime = snapshot.LocalDateTime.ToString("yyyy-MM-dd'T'HH:mm:sszzz", CultureInfo.InvariantCulture),
-            localDate = snapshot.LocalDate,
-            dayOfWeek = snapshot.DayOfWeek,
-            timeZoneId = snapshot.TimeZoneId,
-            utcDateTime = snapshot.UtcDateTime.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture),
-            utcOffset = snapshot.UtcOffset,
-            yesterday = snapshot.Yesterday,
-            tomorrow = snapshot.Tomorrow,
-        }), "DiaryApp"));
-    }
-}
-
 public sealed class ValidateScriptTool(IScriptValidationScriptApi source) : IAgentTool
 {
     public AgentToolDescriptor Descriptor { get; } = DiaryToolDescriptors.ValidateScript;
@@ -470,8 +445,25 @@ internal static class DiaryToolDescriptors
     public static AgentToolDescriptor GetCurrentContext { get; } = Create(
         "diary.get-current-context", "diary_get_current_context", "读取当前上下文", "读取 DiaryApp 页面当前显示日期和选择事项的非敏感摘要。页面日期是 UI 导航日期，不一定是系统今天，不得用于解释今天、昨天、明天等相对日期。", EmptySchema);
 
-    public static AgentToolDescriptor GetCurrentTime { get; } = Create(
-        "diary.get-current-time", "diary_get_current_time", "读取当前时间", "读取操作系统当前本地日期、时间、星期、时区、UTC 偏移以及昨天和明天。需要精确时间、带时区时间或长时间运行后重新确认日期时使用。", EmptySchema);
+    public static AgentToolDescriptor CalculateTime { get; } = Create(
+        "diary.calculate-time", "diary_calculate_time", "计算日期时间", "执行确定性的日期时间加减或差值计算，不读取系统当前时间。当前日期、时间和时区已在每轮系统上下文中提供；需要跨月、跨年、闰年或精确时长计算时，把明确日期或带偏移的 ISO 8601 日期时间传入本工具。", Schema("""
+            {
+              "type":"object",
+              "properties":{
+                "operation":{"type":"string","enum":["add","difference"]},
+                "value":{"type":"string"},
+                "start":{"type":"string"},
+                "end":{"type":"string"},
+                "years":{"type":"integer","minimum":-100,"maximum":100},
+                "months":{"type":"integer","minimum":-1200,"maximum":1200},
+                "days":{"type":"integer","minimum":-36600,"maximum":36600},
+                "hours":{"type":"integer","minimum":-100000,"maximum":100000},
+                "minutes":{"type":"integer","minimum":-1000000,"maximum":1000000}
+              },
+              "required":["operation"],
+              "additionalProperties":false
+            }
+            """));
 
     public static AgentToolDescriptor ValidateScript { get; } = Create(
         "diary.validate-script", "diary_validate_script", "校验脚本", "只校验脚本，不执行脚本。", Schema("""

@@ -63,7 +63,6 @@ public sealed class AiAgentModule : IAppModule
         services.AddSingleton<ClipboardWriteTool>();
         services.AddSingleton<AppNotificationWriteTool>();
         services.AddSingleton<AgentMemoryTool>();
-        services.AddSingleton<GetCurrentTimeTool>();
         services.AddSingleton<WorkItemDraftTool>();
         services.AddSingleton<ReportDraftTool>();
         services.AddSingleton<ScriptDraftTool>();
@@ -121,7 +120,6 @@ public sealed class AiAgentModule : IAppModule
             registry.TryRegister(provider.GetRequiredService<ClipboardWriteTool>());
             registry.TryRegister(provider.GetRequiredService<AppNotificationWriteTool>());
             registry.TryRegister(provider.GetRequiredService<AgentMemoryTool>());
-            registry.TryRegister(provider.GetRequiredService<GetCurrentTimeTool>());
             if (provider.GetService<IAgentReportExportApi>() is { } reportExports)
             {
                 registry.TryRegister(new ReportExportTool(

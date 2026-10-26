@@ -35,29 +35,6 @@ public sealed class AgentRuntimeContextTests
     }
 
     [TestMethod]
-    public async Task CurrentTimeToolReturnsFreshReadOnlySnapshot()
-    {
-        var provider = new MutableTimeProvider(
-            new DateTimeOffset(2026, 10, 18, 16, 30, 45, TimeSpan.Zero),
-            TestTimeZone);
-        var tool = new GetCurrentTimeTool(provider);
-        using var arguments = JsonDocument.Parse("{}");
-
-        var first = await tool.InvokeAsync(arguments.RootElement, CreateContext());
-        provider.SetUtcNow(new DateTimeOffset(2026, 10, 19, 16, 30, 45, TimeSpan.Zero));
-        var second = await tool.InvokeAsync(arguments.RootElement, CreateContext());
-
-        Assert.IsTrue(first.Succeeded);
-        Assert.IsTrue(second.Succeeded);
-        Assert.AreEqual(AgentToolRisk.ReadOnly, tool.Descriptor.Risk);
-        Assert.IsTrue(AgentToolPermissionPolicy.IsEnabled(tool.Descriptor, new AiAgentToolSettings()));
-        using var firstDocument = JsonDocument.Parse(first.Content);
-        using var secondDocument = JsonDocument.Parse(second.Content);
-        Assert.AreEqual("2026-10-19", firstDocument.RootElement.GetProperty("localDate").GetString());
-        Assert.AreEqual("2026-10-20", secondDocument.RootElement.GetProperty("localDate").GetString());
-    }
-
-    [TestMethod]
     public async Task SessionRefreshesRuntimeContextForEveryRunWithoutPersistingIt()
     {
         var provider = new MutableTimeProvider(
