@@ -244,10 +244,12 @@ public sealed class AgentSessionService
         AgentToolSnapshot toolSnapshot,
         AgentRunOptions? options = null,
         IProgress<AgentRunEvent>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyList<AgentImageContent>? images = null)
     {
-        if (string.IsNullOrWhiteSpace(userText))
-            throw new ArgumentException("用户消息不能为空。", nameof(userText));
+        images ??= [];
+        if (string.IsNullOrWhiteSpace(userText) && images.Count == 0)
+            throw new ArgumentException("用户消息或图片不能为空。", nameof(userText));
 
         var runId = Guid.NewGuid();
         var effectiveOptions = options ?? new AgentRunOptions();
@@ -321,6 +323,7 @@ public sealed class AgentSessionService
                 activeProtocolState,
                 agentMemory,
                 runtimeContext,
+                pendingImages: images,
                 cancellationToken: linkedCancellation.Token);
             if (compaction.Compacted)
             {
@@ -355,7 +358,7 @@ public sealed class AgentSessionService
             }
 
             var workingMessages = sessionMessages.ToList();
-            workingMessages.Add(AgentMessage.User(userText));
+            workingMessages.Add(AgentMessage.User(userText, images));
             var workingProtocolState = string.Equals(
                 protocolStateConnection,
                 connectionIdentity,

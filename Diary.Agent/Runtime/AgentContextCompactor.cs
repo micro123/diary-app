@@ -39,7 +39,8 @@ public sealed class AgentContextCompactor(IAgentModelGateway modelGateway)
         string? agentMemory = null,
         AgentRuntimeContextSnapshot? runtimeContext = null,
         bool force = false,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyList<AgentImageContent>? pendingImages = null)
     {
         var estimatedBefore = EstimateRequestTokens(
             existingSummary,
@@ -49,7 +50,8 @@ public sealed class AgentContextCompactor(IAgentModelGateway modelGateway)
             maxOutputTokens,
             protocolState,
             agentMemory,
-            runtimeContext);
+            runtimeContext,
+            pendingImages);
         var threshold = connection.ContextWindowTokens
             * connection.ContextCompressionThresholdPercent
             / 100;
@@ -101,7 +103,8 @@ public sealed class AgentContextCompactor(IAgentModelGateway modelGateway)
             maxOutputTokens,
             protocolState: null,
             agentMemory: agentMemory,
-            runtimeContext: runtimeContext);
+            runtimeContext: runtimeContext,
+            pendingImages: pendingImages);
         return new AgentContextCompactionResult(
             true,
             summary,
@@ -161,7 +164,8 @@ public sealed class AgentContextCompactor(IAgentModelGateway modelGateway)
         int maxOutputTokens,
         AgentProtocolState? protocolState = null,
         string? agentMemory = null,
-        AgentRuntimeContextSnapshot? runtimeContext = null)
+        AgentRuntimeContextSnapshot? runtimeContext = null,
+        IReadOnlyList<AgentImageContent>? pendingImages = null)
     {
         var tokens = EstimateTextTokens(BuildSystemInstruction(summary, agentMemory, runtimeContext)) + maxOutputTokens;
         foreach (var message in messages)
@@ -178,8 +182,11 @@ public sealed class AgentContextCompactor(IAgentModelGateway modelGateway)
             }
             foreach (var call in message.ToolCalls)
                 tokens += 12 + EstimateTextTokens(call.Name) + EstimateTextTokens(call.Arguments.GetRawText());
+            tokens += message.Images.Sum(EstimateImageTokens);
         }
         tokens += 8 + EstimateTextTokens(pendingUserText);
+        if (pendingImages is not null)
+            tokens += pendingImages.Sum(EstimateImageTokens);
         foreach (var tool in tools)
         {
             tokens += 16
@@ -212,6 +219,7 @@ public sealed class AgentContextCompactor(IAgentModelGateway modelGateway)
             }
             foreach (var call in message.ToolCalls)
                 tokens += 12 + EstimateTextTokens(call.Name) + EstimateTextTokens(call.Arguments.GetRawText());
+            tokens += message.Images.Sum(EstimateImageTokens);
         }
         foreach (var tool in request.Tools)
         {
@@ -312,7 +320,8 @@ public sealed class AgentContextCompactor(IAgentModelGateway modelGateway)
         var calls = message.ToolCalls.Count == 0
             ? string.Empty
             : $"；请求工具：{string.Join('、', message.ToolCalls.Select(call => call.Name))}";
-        return $"- {role}：{text}{calls}";
+        var images = message.Images.Count == 0 ? string.Empty : $"；图片：{message.Images.Count} 张";
+        return $"- {role}：{text}{images}{calls}";
     }
 
     private static string LimitSummary(string summary) =>
@@ -325,5 +334,14 @@ public sealed class AgentContextCompactor(IAgentModelGateway modelGateway)
         if (string.IsNullOrEmpty(text))
             return 0;
         return Math.Max(1, (Encoding.UTF8.GetByteCount(text) + 2) / 3);
+    }
+
+    private static int EstimateImageTokens(AgentImageContent image)
+    {
+        if (image.PixelWidth <= 0 || image.PixelHeight <= 0)
+            return 1024;
+        var tilesWide = Math.Max(1, (image.PixelWidth + 511) / 512);
+        var tilesHigh = Math.Max(1, (image.PixelHeight + 511) / 512);
+        return 85 + (tilesWide * tilesHigh * 170);
     }
 }

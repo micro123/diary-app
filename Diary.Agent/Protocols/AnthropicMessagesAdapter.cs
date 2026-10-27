@@ -51,6 +51,7 @@ public sealed class AnthropicMessagesAdapter : ProtocolAdapterBase
             ["stream"] = request.Stream,
             ["max_tokens"] = request.MaxOutputTokens ?? 16 * 1024,
         };
+        AddThinkingConfiguration(body, connection.Reasoning, request.MaxOutputTokens ?? 16 * 1024);
         if (request.Tools.Count > 0)
         {
             body["tools"] = new JsonArray(request.Tools.Select(tool => new JsonObject
@@ -293,6 +294,24 @@ public sealed class AnthropicMessagesAdapter : ProtocolAdapterBase
         var content = new JsonArray();
         foreach (var block in message.ReasoningContentBlocks)
             content.Add(JsonNode.Parse(block.GetRawText()));
+        if (message.Images.Count > 0)
+        {
+            if (message.Role != AgentMessageRole.User)
+                throw new InvalidOperationException("仅用户消息可以包含图片输入。");
+            foreach (var image in message.Images)
+            {
+                content.Add(new JsonObject
+                {
+                    ["type"] = "image",
+                    ["source"] = new JsonObject
+                    {
+                        ["type"] = "base64",
+                        ["media_type"] = image.MediaType,
+                        ["data"] = Convert.ToBase64String(image.Data),
+                    },
+                });
+            }
+        }
         if (!string.IsNullOrEmpty(message.Text))
             content.Add(new JsonObject { ["type"] = "text", ["text"] = message.Text });
         foreach (var call in message.ToolCalls)
@@ -310,6 +329,43 @@ public sealed class AnthropicMessagesAdapter : ProtocolAdapterBase
             ["role"] = message.Role == AgentMessageRole.User ? "user" : "assistant",
             ["content"] = content,
         });
+    }
+
+    private static void AddThinkingConfiguration(
+        JsonObject body,
+        AiReasoningOptions reasoning,
+        int maxOutputTokens)
+    {
+        if (reasoning.Effort == AiReasoningEffort.ProviderDefault)
+            return;
+        if (reasoning.Effort == AiReasoningEffort.Disabled)
+        {
+            body["thinking"] = new JsonObject { ["type"] = "disabled" };
+            return;
+        }
+
+        var effort = reasoning.Effort switch
+        {
+            AiReasoningEffort.Low => "low",
+            AiReasoningEffort.Medium => "medium",
+            AiReasoningEffort.High => "high",
+            AiReasoningEffort.XHigh => "xhigh",
+            _ => throw new ArgumentOutOfRangeException(nameof(reasoning)),
+        };
+        if (reasoning.BudgetTokens is { } budget)
+        {
+            if (maxOutputTokens <= budget)
+                body["max_tokens"] = budget + 1;
+            body["thinking"] = new JsonObject
+            {
+                ["type"] = "enabled",
+                ["budget_tokens"] = budget,
+            };
+            return;
+        }
+
+        body["thinking"] = new JsonObject { ["type"] = "adaptive" };
+        body["output_config"] = new JsonObject { ["effort"] = effort };
     }
 
     private static JsonObject CreateToolResult(AgentMessage message)

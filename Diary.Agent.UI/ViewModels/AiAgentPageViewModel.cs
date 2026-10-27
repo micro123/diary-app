@@ -1,7 +1,10 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text.Json;
+using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -15,9 +18,16 @@ using Diary.ScriptHost;
 
 namespace Diary.Agent.UI.ViewModels;
 
-public sealed partial class AiChatMessageViewModel(string role, string content) : ObservableObject
+public sealed partial class AiChatMessageViewModel(
+    string role,
+    string content,
+    IReadOnlyList<AiImageAttachmentViewModel>? images = null) : ObservableObject
 {
     public string Role { get; } = role;
+
+    public IReadOnlyList<AiImageAttachmentViewModel> Images { get; } = images ?? [];
+
+    public bool HasImages => Images.Count > 0;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasUserActions))]
@@ -242,6 +252,8 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
 
     public ObservableCollection<AiToolCallViewModel> ToolCalls { get; } = [];
 
+    public ObservableCollection<AiImageAttachmentViewModel> PendingImages { get; } = [];
+
     public ObservableCollection<AiConversationItemViewModel> Conversations { get; } = [];
 
     [ObservableProperty]
@@ -291,6 +303,26 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
 
     public bool IsEmpty => Messages.Count == 0;
 
+    public bool HasPendingImages => PendingImages.Count > 0;
+
+    public bool CanAttachImages => SelectedProfile switch
+    {
+        { ImageInputMode: AiImageInputMode.Enabled } => true,
+        { ImageInputMode: AiImageInputMode.Disabled } => false,
+        { } profile => TryGetCapabilities(profile, out var capabilities) && capabilities.SupportsImageInput,
+        _ => false,
+    };
+
+    public string ImageInputHint => SelectedProfile switch
+    {
+        null => "请先选择模型连接。",
+        { ImageInputMode: AiImageInputMode.Disabled } => "当前连接已关闭图片输入。",
+        { ImageInputMode: AiImageInputMode.Enabled } => "当前连接已强制启用图片输入。",
+        { } profile when TryGetCapabilities(profile, out var capabilities) && capabilities.SupportsImageInput =>
+            "完整能力探测已确认图片输入。",
+        _ => "图片输入使用 Auto，但完整能力探测尚未确认支持。",
+    };
+
     public string ModeText
     {
         get
@@ -306,7 +338,11 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
     partial void OnSelectedProfileChanged(AiConnectionProfile? oldValue, AiConnectionProfile? newValue)
     {
         OnPropertyChanged(nameof(ModeText));
+        OnPropertyChanged(nameof(CanAttachImages));
+        OnPropertyChanged(nameof(ImageInputHint));
         ResetContextUsage(newValue);
+        if (newValue is not null && !CanAttachImages && PendingImages.Count > 0)
+            ClearPendingImages();
         if (!_suppressProfileSessionReset
             && oldValue is not null
             && newValue is not null
@@ -326,7 +362,7 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
     [RelayCommand]
     private async Task Send()
     {
-        if (IsBusy || string.IsNullOrWhiteSpace(Input))
+        if (IsBusy || (string.IsNullOrWhiteSpace(Input) && PendingImages.Count == 0))
             return;
         if (SelectedProfile is null)
         {
@@ -338,11 +374,21 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
             StatusText = "连接尚未通过测试，暂不能发送请求。";
             return;
         }
+        if (PendingImages.Count > 0 && !CanAttachImages)
+        {
+            StatusText = "当前连接尚未启用或确认图片输入，请调整连接设置或执行完整能力探测。";
+            return;
+        }
 
         var userText = Input.Trim();
-        _promptHistory.Record(userText);
+        if (!string.IsNullOrWhiteSpace(userText))
+            _promptHistory.Record(userText);
+        var imageViewModels = PendingImages.ToArray();
+        var images = imageViewModels.Select(item => item.Content).ToArray();
+        PendingImages.Clear();
+        OnPropertyChanged(nameof(HasPendingImages));
         Input = string.Empty;
-        Messages.Add(new AiChatMessageViewModel("你", userText));
+        Messages.Add(new AiChatMessageViewModel("你", userText, imageViewModels));
         var assistant = new AiChatMessageViewModel("AI", string.Empty);
         Messages.Add(assistant);
         OnPropertyChanged(nameof(IsEmpty));
@@ -424,7 +470,8 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
                     SupportsTools: capabilities.SupportsTools,
                     SupportsStreamingTools: capabilities.SupportsStreamingTools,
                     UseMemory: _connections.Settings.Memory.Enabled),
-                progress);
+                progress,
+                images: images);
             if (await Task.WhenAny(runTask, detached.Task) != runTask)
             {
                 assistant.IsThinking = false;
@@ -500,6 +547,134 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
 
         Input = message.Content;
         InputFocusRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private async Task AddImages()
+    {
+        if (!CanAttachImages)
+        {
+            StatusText = ImageInputHint;
+            return;
+        }
+        var storageProvider = TopLevel.GetTopLevel(View)?.StorageProvider;
+        if (storageProvider is null)
+        {
+            StatusText = "当前文件选择器不可用。";
+            return;
+        }
+        var files = await storageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "添加图片",
+            AllowMultiple = true,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("图片")
+                {
+                    Patterns = ["*.png", "*.jpg", "*.jpeg", "*.webp"],
+                    MimeTypes = ["image/png", "image/jpeg", "image/webp"],
+                },
+            ],
+        });
+        await AddStorageFilesAsync(files);
+    }
+
+    [RelayCommand]
+    private void RemovePendingImage(AiImageAttachmentViewModel? image)
+    {
+        if (image is null || !PendingImages.Remove(image))
+            return;
+        image.Dispose();
+        OnPropertyChanged(nameof(HasPendingImages));
+        StatusText = PendingImages.Count == 0 ? "已移除全部待发送图片。" : $"待发送 {PendingImages.Count} 张图片。";
+    }
+
+    public Task AddClipboardBitmapAsync(Bitmap bitmap)
+    {
+        ArgumentNullException.ThrowIfNull(bitmap);
+        if (!CanAttachImages)
+        {
+            StatusText = ImageInputHint;
+            return Task.CompletedTask;
+        }
+        try
+        {
+            AddPendingImage(AiImageAttachmentProcessor.FromBitmap(bitmap, "clipboard.png"));
+        }
+        catch (Exception exception) when (exception is InvalidDataException or ArgumentException)
+        {
+            StatusText = $"无法添加剪贴板图片：{exception.Message}";
+        }
+        return Task.CompletedTask;
+    }
+
+    public void ReportImagePasteFailure(string message) => StatusText = $"读取剪贴板失败：{message}";
+
+    public async Task<bool> AddStorageFilesAsync(IEnumerable<IStorageItem>? storageItems)
+    {
+        if (storageItems is null)
+            return false;
+        var files = storageItems.OfType<IStorageFile>().ToArray();
+        if (files.Length == 0)
+            return false;
+        if (!CanAttachImages)
+        {
+            StatusText = ImageInputHint;
+            return true;
+        }
+        foreach (var file in files)
+        {
+            if (PendingImages.Count >= AiImageAttachmentProcessor.MaximumImageCount)
+            {
+                StatusText = $"每条消息最多添加 {AiImageAttachmentProcessor.MaximumImageCount} 张图片。";
+                break;
+            }
+            try
+            {
+                await using var stream = await file.OpenReadAsync();
+                var content = await AiImageAttachmentProcessor.FromStreamAsync(stream, file.Name);
+                AddPendingImage(content);
+            }
+            catch (Exception exception) when (exception is InvalidDataException
+                                               or IOException
+                                               or UnauthorizedAccessException
+                                               or ArgumentException)
+            {
+                StatusText = $"无法添加图片 {file.Name}：{exception.Message}";
+                return true;
+            }
+        }
+        return true;
+    }
+
+    private void AddPendingImage(AgentImageContent content)
+    {
+        if (PendingImages.Count >= AiImageAttachmentProcessor.MaximumImageCount)
+            throw new InvalidDataException($"每条消息最多添加 {AiImageAttachmentProcessor.MaximumImageCount} 张图片。");
+        var totalBytes = PendingImages.Sum(item => item.Content.Data.LongLength) + content.Data.LongLength;
+        if (totalBytes > AiImageAttachmentProcessor.MaximumTotalBytes)
+            throw new InvalidDataException("每条消息的图片总大小不能超过 20 MiB。");
+        PendingImages.Add(new AiImageAttachmentViewModel(content));
+        OnPropertyChanged(nameof(HasPendingImages));
+        StatusText = $"已添加 {PendingImages.Count} 张图片，可继续输入文字或直接发送。";
+    }
+
+    private void ClearPendingImages()
+    {
+        foreach (var image in PendingImages)
+            image.Dispose();
+        PendingImages.Clear();
+        OnPropertyChanged(nameof(HasPendingImages));
+    }
+
+    private void ClearMessages()
+    {
+        foreach (var message in Messages)
+        {
+            foreach (var image in message.Images)
+                image.Dispose();
+        }
+        Messages.Clear();
     }
 
     [RelayCommand]
@@ -605,7 +780,7 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void LoadConversation()
+    private async Task LoadConversation()
     {
         if (IsBusy || SelectedConversation is null)
             return;
@@ -616,6 +791,36 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
             StatusText = "该会话使用的连接已不存在，无法恢复。";
             return;
         }
+        var restoredMessages = new List<AgentMessage>(record.Messages.Count);
+        var restoredViewModels = new List<AiChatMessageViewModel>(record.Messages.Count);
+        try
+        {
+            foreach (var message in record.Messages)
+            {
+                var images = await _conversationStore.LoadAttachmentsAsync(message);
+                var imageViewModels = images.Select(image => new AiImageAttachmentViewModel(image)).ToArray();
+                restoredViewModels.Add(new AiChatMessageViewModel(
+                    message.Role == "user" ? "你" : "AI",
+                    message.Content,
+                    imageViewModels));
+                restoredMessages.Add(message.Role == "user"
+                    ? AgentMessage.User(message.Content, images)
+                    : AgentMessage.Assistant(message.Content));
+            }
+        }
+        catch (Exception exception) when (exception is IOException
+                                           or UnauthorizedAccessException
+                                           or InvalidDataException)
+        {
+            foreach (var message in restoredViewModels)
+            {
+                foreach (var image in message.Images)
+                    image.Dispose();
+            }
+            StatusText = $"会话附件读取失败：{exception.Message}";
+            return;
+        }
+
         _suppressProfileSessionReset = true;
         try
         {
@@ -627,9 +832,10 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
         }
         _conversationId = record.Id;
         _conversationCreatedAtUtc = record.CreatedAtUtc;
-        Messages.Clear();
-        foreach (var message in record.Messages)
-            Messages.Add(new AiChatMessageViewModel(message.Role == "user" ? "你" : "AI", message.Content));
+        ClearMessages();
+        ClearPendingImages();
+        foreach (var message in restoredViewModels)
+            Messages.Add(message);
         ToolCalls.Clear();
         foreach (var tool in record.ToolCalls)
         {
@@ -642,10 +848,7 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
             ToolCalls.Add(card);
         }
         _session.RestoreSession(
-            record.Messages.Select(message =>
-                message.Role == "user"
-                    ? AgentMessage.User(message.Content)
-                    : AgentMessage.Assistant(message.Content)),
+            restoredMessages,
             record.ContextSummary,
             record.ContextCompactionCount);
         ResetContextUsage(profile);
@@ -674,6 +877,8 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
             Profiles.Add(profile);
         SelectedProfile = Profiles.FirstOrDefault(profile => profile.Id == selectedId) ?? Profiles.FirstOrDefault();
         OnPropertyChanged(nameof(ModeText));
+        OnPropertyChanged(nameof(CanAttachImages));
+        OnPropertyChanged(nameof(ImageInputHint));
     }
 
     private bool TryGetCapabilities(
@@ -724,8 +929,9 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
         _conversationId = Guid.NewGuid();
         _conversationCreatedAtUtc = DateTimeOffset.UtcNow;
         SelectedConversation = null;
-        Messages.Clear();
+        ClearMessages();
         ToolCalls.Clear();
+        ClearPendingImages();
         ResetContextUsage(SelectedProfile);
         OnPropertyChanged(nameof(IsEmpty));
     }
@@ -782,10 +988,15 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
 
     private async Task SaveConversationAsync(AgentRunResult result, AiConnectionProfile profile)
     {
-        var messages = AgentConversationProjection.CreatePersistedMessages(_session.Messages);
+        var messages = await _conversationStore.CreatePersistedMessagesAsync(_conversationId, _session.Messages);
         var firstUser = Messages.FirstOrDefault(message => message.Role == "你")?.Content
             ?? messages.FirstOrDefault(message => message.Role == "user")?.Content
             ?? "新会话";
+        if (string.IsNullOrWhiteSpace(firstUser))
+        {
+            firstUser = messages.FirstOrDefault(message => message.Role == "user")?
+                .Attachments?.FirstOrDefault()?.FileName ?? "图片会话";
+        }
         var title = firstUser.Length <= 60 ? firstUser : firstUser[..60] + "…";
         var tools = ToolCalls.Select(tool => new AgentConversationToolCall(
             tool.Name,

@@ -54,7 +54,7 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:AiChatMessageViewModel">
                                     <Border Margin="0,0,0,10" Padding="12" Classes="DetailPane">
-                                        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+                                        <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="6">
                                             <Grid ColumnDefinitions="*,Auto">
                                                 <TextBlock Text="{Binding Role}" FontWeight="SemiBold"
                                                            VerticalAlignment="Center" />
@@ -94,7 +94,29 @@
                                                                          Opacity="0.78" />
                                                 </Border>
                                             </Expander>
-                                            <SelectableTextBlock Grid.Row="2" Text="{Binding Content}"
+                                            <ItemsControl Grid.Row="2" ItemsSource="{Binding Images}"
+                                                          IsVisible="{Binding HasImages}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="8" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:AiImageAttachmentViewModel">
+                                                        <Border Padding="4" CornerRadius="6"
+                                                                BorderBrush="{DynamicResource ThemeBorderLowBrush}"
+                                                                BorderThickness="1">
+                                                            <StackPanel Spacing="3">
+                                                                <Image Source="{Binding Preview}" Width="160" Height="120"
+                                                                       Stretch="Uniform" />
+                                                                <TextBlock Text="{Binding FileName}" MaxWidth="160"
+                                                                           TextTrimming="CharacterEllipsis" FontSize="11" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <SelectableTextBlock Grid.Row="3" Text="{Binding Content}"
                                                                  TextWrapping="Wrap" />
                                         </Grid>
                                     </Border>
@@ -216,16 +238,50 @@
             </Border>
         </Grid>
 
-        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto"
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto,Auto"
               ColumnSpacing="8" RowSpacing="4">
-            <TextBox x:Name="AiAgentInputTextBox" Text="{Binding Input}"
+            <ItemsControl Grid.ColumnSpan="3" ItemsSource="{Binding PendingImages}"
+                          IsVisible="{Binding HasPendingImages}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="6" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:AiImageAttachmentViewModel">
+                        <Border Padding="5" CornerRadius="6"
+                                BorderBrush="{DynamicResource ThemeBorderLowBrush}" BorderThickness="1">
+                            <Grid ColumnDefinitions="64,Auto" ColumnSpacing="5">
+                                <Image Source="{Binding Preview}" Width="64" Height="48" Stretch="UniformToFill" />
+                                <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding FileName}" MaxWidth="150" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding Details}" FontSize="10" Opacity="0.6" />
+                                    <Button Theme="{DynamicResource BorderlessButton}" Padding="2"
+                                            HorizontalAlignment="Left"
+                                            Command="{Binding $parent[UserControl].DataContext.RemovePendingImageCommand}"
+                                            CommandParameter="{Binding}" ToolTip.Tip="移除图片">
+                                        <i:Icon Value="mdi-close" FontSize="14" />
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBox x:Name="AiAgentInputTextBox" Grid.Row="1" Text="{Binding Input}"
                      Watermark="输入问题或工作记录需求…"
                      AcceptsReturn="True" MinHeight="72" MaxHeight="180"
                      Padding="10,8"
                      TextWrapping="Wrap" TextAlignment="Left"
                      VerticalContentAlignment="Top"
                      ToolTip.Tip="Enter 或 Ctrl+Enter 发送；Shift+Enter 换行；↑/↓ 浏览当前运行期提示词历史" />
-            <Grid Grid.Column="1" VerticalAlignment="Center">
+            <Button Grid.Row="1" Grid.Column="1" Width="36" Height="36" Padding="0"
+                    VerticalAlignment="Center" Command="{Binding AddImagesCommand}"
+                    IsEnabled="{Binding CanAttachImages}" ToolTip.Tip="{Binding ImageInputHint}"
+                    AutomationProperties.Name="添加图片">
+                <i:Icon Value="mdi-image-plus" FontSize="18" />
+            </Button>
+            <Grid Grid.Row="1" Grid.Column="2" VerticalAlignment="Center">
                 <Button Width="40" Height="40" Padding="0" CornerRadius="20"
                         Classes="Danger" Command="{Binding StopCommand}"
                         IsVisible="{Binding IsBusy}"
@@ -241,8 +297,8 @@
                     <i:Icon Value="mdi-send" FontSize="18" />
                 </Button>
             </Grid>
-            <TextBlock Grid.Row="1" Grid.ColumnSpan="2"
-                       Text="Enter / Ctrl+Enter 发送 · Shift+Enter 换行 · ↑/↓ 历史"
+            <TextBlock Grid.Row="2" Grid.ColumnSpan="3"
+                       Text="Enter / Ctrl+Enter 发送 · Shift+Enter 换行 · Ctrl+V 粘贴图片或文字 · ↑/↓ 历史"
                        FontSize="11" Opacity="0.62" />
         </Grid>
     </Grid>

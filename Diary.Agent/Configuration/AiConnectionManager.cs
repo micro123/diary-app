@@ -16,12 +16,14 @@ public sealed record AiConnectionCapabilities(
     string? ErrorMessage = null,
     bool SupportsStreamingTools = false,
     bool SupportsParallelTools = false,
-    bool SupportsForcedToolChoice = false);
+    bool SupportsForcedToolChoice = false,
+    bool SupportsImageInput = false);
 
 public enum AiConnectionProbeStage
 {
     BasicChat,
     Streaming,
+    ImageInput,
     Tools,
     StreamingTools,
     ParallelTools,
@@ -43,6 +45,8 @@ public sealed class AiConnectionProbeService
     private static readonly JsonElement ProbeSchema = JsonDocument.Parse("""
         {"type":"object","properties":{"value":{"type":"string"}},"required":["value"],"additionalProperties":false}
         """).RootElement.Clone();
+    private static readonly byte[] ProbeImage = Convert.FromBase64String(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nSAAAAAASUVORK5CYII=");
     private readonly IAgentModelGateway _gateway;
     private readonly ILogger<AiConnectionProbeService> _logger;
     private readonly TimeSpan _fullProbeTimeout;
@@ -101,34 +105,40 @@ public sealed class AiConnectionProbeService
         var probeToken = linked.Token;
         var chat = false;
         var streaming = false;
+        var imageInput = false;
         var tools = false;
         var streamingTools = false;
         var parallelTools = false;
         var forcedToolChoice = false;
         try
         {
-            Report(progress, AiConnectionProbeStage.BasicChat, 1, 6, "普通对话");
+            Report(progress, AiConnectionProbeStage.BasicChat, 1, 7, "普通对话");
             await SendBasicChatAsync(profile, probeToken);
             chat = true;
             probeToken.ThrowIfCancellationRequested();
 
-            Report(progress, AiConnectionProbeStage.Streaming, 2, 6, "流式文本");
+            Report(progress, AiConnectionProbeStage.Streaming, 2, 7, "流式文本");
             streaming = await ProbeStreamingAsync(profile, probeToken);
             probeToken.ThrowIfCancellationRequested();
 
-            Report(progress, AiConnectionProbeStage.Tools, 3, 6, "工具闭环");
+            Report(progress, AiConnectionProbeStage.ImageInput, 3, 7, "图片输入");
+            imageInput = profile.ImageInputMode != AiImageInputMode.Disabled
+                         && await ProbeImageInputAsync(profile, probeToken);
+            probeToken.ThrowIfCancellationRequested();
+
+            Report(progress, AiConnectionProbeStage.Tools, 4, 7, "工具闭环");
             tools = await ProbeToolsAsync(profile, probeToken);
             probeToken.ThrowIfCancellationRequested();
 
-            Report(progress, AiConnectionProbeStage.StreamingTools, 4, 6, "流式工具");
+            Report(progress, AiConnectionProbeStage.StreamingTools, 5, 7, "流式工具");
             streamingTools = tools && await ProbeStreamingToolsAsync(profile, probeToken);
             probeToken.ThrowIfCancellationRequested();
 
-            Report(progress, AiConnectionProbeStage.ParallelTools, 5, 6, "并行工具");
+            Report(progress, AiConnectionProbeStage.ParallelTools, 6, 7, "并行工具");
             parallelTools = tools && await ProbeParallelToolsAsync(profile, probeToken);
             probeToken.ThrowIfCancellationRequested();
 
-            Report(progress, AiConnectionProbeStage.ForcedToolChoice, 6, 6, "强制工具选择");
+            Report(progress, AiConnectionProbeStage.ForcedToolChoice, 7, 7, "强制工具选择");
             forcedToolChoice = tools && await ProbeForcedToolChoiceAsync(profile, probeToken);
             probeToken.ThrowIfCancellationRequested();
             return new AiConnectionCapabilities(
@@ -138,7 +148,8 @@ public sealed class AiConnectionProbeService
                 DateTimeOffset.UtcNow,
                 SupportsStreamingTools: streamingTools,
                 SupportsParallelTools: parallelTools,
-                SupportsForcedToolChoice: forcedToolChoice);
+                SupportsForcedToolChoice: forcedToolChoice,
+                SupportsImageInput: imageInput);
         }
         catch (AiModelException exception)
         {
@@ -151,6 +162,7 @@ public sealed class AiConnectionProbeService
                     exception,
                     chat,
                     streaming,
+                    imageInput,
                     tools,
                     streamingTools,
                     parallelTools,
@@ -169,6 +181,7 @@ public sealed class AiConnectionProbeService
                 exception,
                 chat,
                 streaming,
+                imageInput,
                 tools,
                 streamingTools,
                 parallelTools,
@@ -221,6 +234,33 @@ public sealed class AiConnectionProbeService
         {
             ThrowIfCancelled(cancellationToken);
             LogCapabilityFailure(profile, "流式文本", exception);
+            return false;
+        }
+    }
+
+    private async ValueTask<bool> ProbeImageInputAsync(
+        AiConnectionProfile profile,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var request = new AgentModelRequest(
+                profile.Model,
+                "Acknowledge that an image was received with one short word.",
+                [AgentMessage.User("Image capability probe", [new AgentImageContent("image/png", ProbeImage, "probe.png", 1, 1)])],
+                [],
+                false,
+                32);
+            var response = await _gateway.SendAsync(request, profile, cancellationToken);
+            return response.ToolCalls.Count == 0 && !string.IsNullOrWhiteSpace(response.Text);
+        }
+        catch (Exception exception) when (exception is AiModelException
+                                           or InvalidOperationException
+                                           or HttpRequestException
+                                           or JsonException)
+        {
+            ThrowIfCancelled(cancellationToken);
+            LogCapabilityFailure(profile, "图片输入", exception);
             return false;
         }
     }
@@ -482,6 +522,7 @@ public sealed class AiConnectionProbeService
         Exception exception,
         bool chat,
         bool streaming,
+        bool imageInput,
         bool tools,
         bool streamingTools,
         bool parallelTools,
@@ -510,7 +551,8 @@ public sealed class AiConnectionProbeService
             message,
             streamingTools,
             parallelTools,
-            forcedToolChoice);
+            forcedToolChoice,
+            imageInput);
     }
 
     private void LogCapabilityFailure(AiConnectionProfile profile, string stage, Exception exception) =>

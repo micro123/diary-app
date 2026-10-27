@@ -20,7 +20,7 @@ public sealed class AiConnectionSharePackageService
 {
     public const string FileExtension = ".diaryaiconnections";
     public const string FormatId = "diary-ai-connections";
-    public const int FormatVersion = 1;
+    public const int FormatVersion = 2;
     public const int MaximumProfiles = 100;
     public const int MaximumPackageBytes = 1024 * 1024;
 
@@ -85,6 +85,13 @@ public sealed class AiConnectionSharePackageService
                 BaseUrl = profile.BaseUri.AbsoluteUri,
                 RequestPathOverride = profile.RequestPathOverride,
                 Model = profile.Model,
+                ImageInputMode = profile.ImageInputMode,
+                Reasoning = new AiConnectionShareReasoning
+                {
+                    Effort = profile.Reasoning.Effort,
+                    BudgetTokens = profile.Reasoning.BudgetTokens,
+                    RequestSummary = profile.Reasoning.RequestSummary,
+                },
                 ContextWindowTokens = profile.ContextWindowTokens,
                 AutomaticContextCompression = profile.AutomaticContextCompression,
                 ContextCompressionThresholdPercent = profile.ContextCompressionThresholdPercent,
@@ -243,6 +250,13 @@ public sealed class AiConnectionSharePackageService
                 BaseUri = baseUri,
                 RequestPathOverride = source.RequestPathOverride,
                 Model = source.Model,
+                ImageInputMode = source.ImageInputMode,
+                Reasoning = new AiReasoningOptions
+                {
+                    Effort = source.Reasoning.Effort,
+                    BudgetTokens = source.Reasoning.BudgetTokens,
+                    RequestSummary = source.Reasoning.RequestSummary,
+                },
                 ContextWindowTokens = source.ContextWindowTokens,
                 AutomaticContextCompression = source.AutomaticContextCompression,
                 ContextCompressionThresholdPercent = source.ContextCompressionThresholdPercent,
@@ -285,7 +299,7 @@ public sealed class AiConnectionSharePackageService
     {
         if (!string.Equals(document.Format, FormatId, StringComparison.Ordinal))
             throw new InvalidDataException("文件不是 DiaryApp AI 连接包。");
-        if (document.Version != FormatVersion)
+        if (document.Version is < 1 or > FormatVersion)
             throw new InvalidDataException($"不支持的 AI 连接包版本：{document.Version}。");
         if (document.Profiles is null || document.Profiles.Count == 0)
             throw new InvalidDataException("连接包不包含模型连接。");
@@ -299,7 +313,7 @@ public sealed class AiConnectionSharePackageService
             throw new InvalidDataException("连接包不能包含空连接。");
         if (source.Id is null || source.DisplayName is null || source.BaseUrl is null || source.Model is null)
             throw new InvalidDataException("连接包中的连接缺少必需文本字段。");
-        if (source.Authentication is null || source.Proxy is null || source.Compatibility is null)
+        if (source.Authentication is null || source.Proxy is null || source.Compatibility is null || source.Reasoning is null)
             throw new InvalidDataException($"连接 {source.Id} 缺少认证、代理或兼容配置。");
         if (source.Authentication.HeaderName is null || source.Authentication.HeaderPrefix is null)
             throw new InvalidDataException($"连接 {source.Id} 的认证 Header 配置无效。");
@@ -366,6 +380,10 @@ public sealed class AiConnectionSharePackageService
         [JsonRequired]
         public string Model { get; set; } = string.Empty;
 
+        public AiImageInputMode ImageInputMode { get; set; } = AiImageInputMode.Auto;
+
+        public AiConnectionShareReasoning Reasoning { get; set; } = new();
+
         [JsonRequired]
         public int ContextWindowTokens { get; set; } = AiConnectionProfile.DefaultContextWindowTokens;
 
@@ -395,6 +413,15 @@ public sealed class AiConnectionSharePackageService
 
         [JsonRequired]
         public List<AiConnectionShareHeader> Headers { get; set; } = [];
+    }
+
+    private sealed class AiConnectionShareReasoning
+    {
+        public AiReasoningEffort Effort { get; set; } = AiReasoningEffort.ProviderDefault;
+
+        public int? BudgetTokens { get; set; }
+
+        public bool RequestSummary { get; set; } = true;
     }
 
     private sealed class AiConnectionShareAuthentication

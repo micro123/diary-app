@@ -258,6 +258,7 @@ public sealed class AiConfigurationTests
             {
                 AiConnectionProbeStage.BasicChat,
                 AiConnectionProbeStage.Streaming,
+                AiConnectionProbeStage.ImageInput,
                 AiConnectionProbeStage.Tools,
                 AiConnectionProbeStage.StreamingTools,
             },

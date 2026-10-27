@@ -31,6 +31,7 @@ public sealed class OpenAiChatCompletionsAdapter : ProtocolAdapterBase
         };
         if (request.MaxOutputTokens is not null)
             body["max_tokens"] = request.MaxOutputTokens.Value;
+        AddReasoningConfiguration(body, connection.Reasoning);
         if (request.Tools.Count > 0)
         {
             body["tools"] = new JsonArray(request.Tools.Select(tool => ToFunctionTool(tool)).ToArray());
@@ -207,7 +208,7 @@ public sealed class OpenAiChatCompletionsAdapter : ProtocolAdapterBase
                 AgentMessageRole.Tool => "tool",
                 _ => throw new ArgumentOutOfRangeException(nameof(message)),
             },
-            ["content"] = message.Text,
+            ["content"] = CreateContent(message),
         };
         if (message.Role == AgentMessageRole.Tool)
             result["tool_call_id"] = message.ToolCallId;
@@ -227,6 +228,43 @@ public sealed class OpenAiChatCompletionsAdapter : ProtocolAdapterBase
             }).ToArray());
         }
         return result;
+    }
+
+    private static JsonNode CreateContent(AgentMessage message)
+    {
+        if (message.Images.Count == 0)
+            return JsonValue.Create(message.Text)!;
+        if (message.Role != AgentMessageRole.User)
+            throw new InvalidOperationException("仅用户消息可以包含图片输入。");
+
+        var content = new JsonArray();
+        if (!string.IsNullOrWhiteSpace(message.Text))
+            content.Add(new JsonObject { ["type"] = "text", ["text"] = message.Text });
+        foreach (var image in message.Images)
+        {
+            content.Add(new JsonObject
+            {
+                ["type"] = "image_url",
+                ["image_url"] = new JsonObject { ["url"] = image.ToDataUri() },
+            });
+        }
+        return content;
+    }
+
+    private static void AddReasoningConfiguration(JsonObject body, AiReasoningOptions reasoning)
+    {
+        var effort = reasoning.Effort switch
+        {
+            AiReasoningEffort.ProviderDefault => null,
+            AiReasoningEffort.Disabled => "none",
+            AiReasoningEffort.Low => "low",
+            AiReasoningEffort.Medium => "medium",
+            AiReasoningEffort.High => "high",
+            AiReasoningEffort.XHigh => "xhigh",
+            _ => throw new ArgumentOutOfRangeException(nameof(reasoning)),
+        };
+        if (effort is not null)
+            body["reasoning_effort"] = effort;
     }
 
     private static string ReadContent(JsonElement message)

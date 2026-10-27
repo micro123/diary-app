@@ -27,6 +27,10 @@ public sealed partial class AiConnectionEditorViewModel : ObservableObject
         BaseUri = profile.BaseUri.AbsoluteUri;
         RequestPathOverride = profile.RequestPathOverride ?? string.Empty;
         Model = profile.Model;
+        ImageInputMode = profile.ImageInputMode;
+        ReasoningEffort = profile.Reasoning.Effort;
+        ReasoningBudgetTokens = profile.Reasoning.BudgetTokens;
+        RequestReasoningSummary = profile.Reasoning.RequestSummary;
         ContextWindowTokens = profile.ContextWindowTokens;
         AutomaticContextCompression = profile.AutomaticContextCompression;
         ContextCompressionThresholdPercent = profile.ContextCompressionThresholdPercent;
@@ -72,12 +76,20 @@ public sealed partial class AiConnectionEditorViewModel : ObservableObject
 
     public IReadOnlyList<AiProxyMode> ProxyOptions { get; } = Enum.GetValues<AiProxyMode>();
 
+    public IReadOnlyList<AiImageInputMode> ImageInputOptions { get; } = Enum.GetValues<AiImageInputMode>();
+
+    public IReadOnlyList<AiReasoningEffort> ReasoningEffortOptions { get; } = Enum.GetValues<AiReasoningEffort>();
+
     [ObservableProperty] private string _id = string.Empty;
     [ObservableProperty] private string _displayName = string.Empty;
     [ObservableProperty] private AiProtocol _protocol;
     [ObservableProperty] private string _baseUri = string.Empty;
     [ObservableProperty] private string _requestPathOverride = string.Empty;
     [ObservableProperty] private string _model = string.Empty;
+    [ObservableProperty] private AiImageInputMode _imageInputMode;
+    [ObservableProperty] private AiReasoningEffort _reasoningEffort;
+    [ObservableProperty] private int? _reasoningBudgetTokens;
+    [ObservableProperty] private bool _requestReasoningSummary = true;
     [ObservableProperty] private int _contextWindowTokens = AiConnectionProfile.DefaultContextWindowTokens;
     [ObservableProperty] private bool _automaticContextCompression = true;
     [ObservableProperty] private int _contextCompressionThresholdPercent = 75;
@@ -139,6 +151,13 @@ public sealed partial class AiConnectionEditorViewModel : ObservableObject
                 ? null
                 : RequestPathOverride.Trim(),
             Model = Model.Trim(),
+            ImageInputMode = ImageInputMode,
+            Reasoning = new AiReasoningOptions
+            {
+                Effort = ReasoningEffort,
+                BudgetTokens = ReasoningBudgetTokens,
+                RequestSummary = RequestReasoningSummary,
+            },
             ContextWindowTokens = ContextWindowTokens,
             AutomaticContextCompression = AutomaticContextCompression,
             ContextCompressionThresholdPercent = ContextCompressionThresholdPercent,
@@ -236,6 +255,7 @@ public sealed partial class AiConnectionEditorViewModel : ObservableObject
         {
             var verified = new List<string> { "普通对话" };
             AddVerifiedCapability("流式文本", capabilities.SupportsStreaming, verified);
+            AddVerifiedCapability("图片输入", capabilities.SupportsImageInput, verified);
             AddVerifiedCapability("工具闭环", capabilities.SupportsTools, verified);
             AddVerifiedCapability("流式工具", capabilities.SupportsStreamingTools, verified);
             AddVerifiedCapability("并行工具", capabilities.SupportsParallelTools, verified);
@@ -245,6 +265,7 @@ public sealed partial class AiConnectionEditorViewModel : ObservableObject
         var supported = new List<string> { "普通对话" };
         var unavailable = new List<string>();
         AddCapability("流式文本", capabilities.SupportsStreaming, supported, unavailable);
+        AddCapability("图片输入", capabilities.SupportsImageInput, supported, unavailable);
         AddCapability("工具闭环", capabilities.SupportsTools, supported, unavailable);
         if (capabilities.SupportsTools)
         {

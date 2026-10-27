@@ -5,6 +5,8 @@
 ## 未发布
 
 日期：2026-10-27
+- AI 助手新增连接级图片输入：可配置自动探测、强制启用或关闭，从文件选择或在输入框使用 `Ctrl+V` 粘贴剪贴板图片，支持纯图片/图文消息、待发送与历史缩略图；图片规范化后保存到 AI 模块附件目录，会话 JSON 仅保存相对路径和校验元数据，不修改数据库或工作事项结构。Chat Completions、Responses、Anthropic Messages 分别映射为 `image_url`、`input_image` 和 Base64 image block，完整能力探测增加图片阶段。
+- AI 助手新增连接级思考配置：服务默认、关闭、低、中、高、超高及可选 Anthropic 预算；服务默认不发送兼容字段，Chat Completions 使用 `reasoning_effort`，Responses 使用 `reasoning.effort`/summary，Anthropic 在无预算时使用 adaptive thinking、有预算时使用 extended thinking。连接共享包升级为 v2 并保留 v1 导入兼容，新增字段不包含凭据。
 - AI 助手每个模型轮次的默认最大输出由 4,096 Token 提高到 16,384 Token，Chat Completions、Responses 和 Anthropic Messages 统一使用新上限；工具调用后的续答也按每轮 16,384 Token 计算，该上限继续作为上下文占用的输出预留。
 - 标签编辑器新增“仅本地记录”业务开关：事项标签按 `AnyOf` 判断，任意标签命中后不保存新的 Tracker 绑定、不执行 Tracker 标签默认值规则，也不调用 Redmine、Jira 或其他 Tracker 上传接口；事项状态显示“仅本地”，同日及周/月同步直接跳过，工时仍计入总计并计为已处理。该属性使用标签元数据持久化并随 `.diarytags` 共享包传递，不修改数据库结构或伪造远端 ID。
 - AI 助手模型连接新增 `.diaryaiconnections` 导入、导出所选和导出全部：共享包保留协议、地址、模型、上下文、超时、代理、兼容选项和普通非秘密 Header，不读取或输出 API Key、代理凭据及原 Credential Reference；导入只追加设置编辑区，冲突 ID 自动改名，需重新填凭据、测试并保存后生效。

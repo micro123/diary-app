@@ -24,6 +24,32 @@ public enum AiProxyMode
     Custom,
 }
 
+public enum AiImageInputMode
+{
+    Auto,
+    Enabled,
+    Disabled,
+}
+
+public enum AiReasoningEffort
+{
+    ProviderDefault,
+    Disabled,
+    Low,
+    Medium,
+    High,
+    XHigh,
+}
+
+public sealed record AiReasoningOptions
+{
+    public AiReasoningEffort Effort { get; init; } = AiReasoningEffort.ProviderDefault;
+
+    public int? BudgetTokens { get; init; }
+
+    public bool RequestSummary { get; init; } = true;
+}
+
 public sealed record AiAuthenticationConfiguration
 {
     public AiAuthenticationKind Kind { get; init; } = AiAuthenticationKind.Bearer;
@@ -84,6 +110,10 @@ public sealed record AiConnectionProfile
 
     public required string Model { get; init; }
 
+    public AiImageInputMode ImageInputMode { get; init; } = AiImageInputMode.Auto;
+
+    public AiReasoningOptions Reasoning { get; init; } = new();
+
     public int ContextWindowTokens { get; init; } = DefaultContextWindowTokens;
 
     public bool AutomaticContextCompression { get; init; } = true;
@@ -131,6 +161,24 @@ public static partial class AiConnectionProfileValidator
             errors.Add("上下文窗口必须在 4096 到 4194304 Token 之间。");
         if (profile.ContextCompressionThresholdPercent is < 50 or > 95)
             errors.Add("自动压缩阈值必须在 50% 到 95% 之间。");
+        if (!Enum.IsDefined(profile.ImageInputMode))
+            errors.Add("图片输入模式无效。");
+        if (profile.Reasoning is null)
+        {
+            errors.Add("思考设置不能为空。");
+        }
+        else
+        {
+            if (!Enum.IsDefined(profile.Reasoning.Effort))
+                errors.Add("思考等级无效。");
+            if (profile.Reasoning.BudgetTokens is < 1024 or > 15360)
+                errors.Add("思考预算必须在 1024 到 15360 Token 之间，或留空使用自适应思考。");
+            if (profile.Reasoning.Effort is AiReasoningEffort.ProviderDefault or AiReasoningEffort.Disabled
+                && profile.Reasoning.BudgetTokens is not null)
+            {
+                errors.Add("服务默认或关闭思考时不能设置思考预算。");
+            }
+        }
         ValidateBaseUri(profile.BaseUri, errors);
         ValidateRequestPath(profile.RequestPathOverride, errors);
         if (profile.ConnectTimeout < TimeSpan.FromSeconds(1)

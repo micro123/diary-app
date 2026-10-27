@@ -192,6 +192,102 @@ public sealed class ProtocolAdapterTests
     }
 
     [TestMethod]
+    [DataRow(AiProtocol.OpenAiChatCompletions)]
+    [DataRow(AiProtocol.OpenAiResponses)]
+    [DataRow(AiProtocol.AnthropicMessages)]
+    public async Task MultimodalRequestSerializesImageWithoutFilePath(AiProtocol protocol)
+    {
+        var adapter = protocol switch
+        {
+            AiProtocol.OpenAiChatCompletions => (IAiProtocolAdapter)new OpenAiChatCompletionsAdapter(),
+            AiProtocol.OpenAiResponses => new OpenAiResponsesAdapter(),
+            AiProtocol.AnthropicMessages => new AnthropicMessagesAdapter(),
+            _ => throw new ArgumentOutOfRangeException(nameof(protocol)),
+        };
+        var image = new AgentImageContent("image/png", [1, 2, 3, 4], "secret-local-path.png", 32, 24);
+        var request = CreateRequest(protocol, stream: false) with
+        {
+            Messages = [AgentMessage.User("请描述图片", [image])],
+            Tools = [],
+        };
+
+        using var message = adapter.CreateRequest(request, CreateProfile(protocol), new CredentialValue("secret"));
+        var body = await message.Content!.ReadAsStringAsync();
+
+        StringAssert.Contains(body, Convert.ToBase64String(image.Data));
+        Assert.IsFalse(body.Contains(image.FileName, StringComparison.Ordinal));
+        StringAssert.Contains(body, protocol switch
+        {
+            AiProtocol.OpenAiChatCompletions => "image_url",
+            AiProtocol.OpenAiResponses => "input_image",
+            AiProtocol.AnthropicMessages => "base64",
+            _ => throw new ArgumentOutOfRangeException(nameof(protocol)),
+        });
+    }
+
+    [TestMethod]
+    [DataRow(AiProtocol.OpenAiChatCompletions)]
+    [DataRow(AiProtocol.OpenAiResponses)]
+    [DataRow(AiProtocol.AnthropicMessages)]
+    public async Task ReasoningConfigurationMapsToSelectedProtocol(AiProtocol protocol)
+    {
+        var adapter = protocol switch
+        {
+            AiProtocol.OpenAiChatCompletions => (IAiProtocolAdapter)new OpenAiChatCompletionsAdapter(),
+            AiProtocol.OpenAiResponses => new OpenAiResponsesAdapter(),
+            AiProtocol.AnthropicMessages => new AnthropicMessagesAdapter(),
+            _ => throw new ArgumentOutOfRangeException(nameof(protocol)),
+        };
+        var profile = CreateProfile(protocol) with
+        {
+            Reasoning = new AiReasoningOptions
+            {
+                Effort = AiReasoningEffort.High,
+                BudgetTokens = protocol == AiProtocol.AnthropicMessages ? 6000 : null,
+                RequestSummary = true,
+            },
+        };
+
+        using var message = adapter.CreateRequest(CreateRequest(protocol, stream: false), profile, new CredentialValue("secret"));
+        using var document = JsonDocument.Parse(await message.Content!.ReadAsStringAsync());
+        var root = document.RootElement;
+        switch (protocol)
+        {
+            case AiProtocol.OpenAiChatCompletions:
+                Assert.AreEqual("high", root.GetProperty("reasoning_effort").GetString());
+                break;
+            case AiProtocol.OpenAiResponses:
+                Assert.AreEqual("high", root.GetProperty("reasoning").GetProperty("effort").GetString());
+                Assert.AreEqual("auto", root.GetProperty("reasoning").GetProperty("summary").GetString());
+                break;
+            case AiProtocol.AnthropicMessages:
+                Assert.AreEqual("enabled", root.GetProperty("thinking").GetProperty("type").GetString());
+                Assert.AreEqual(6000, root.GetProperty("thinking").GetProperty("budget_tokens").GetInt32());
+                Assert.AreEqual(6001, root.GetProperty("max_tokens").GetInt32());
+                break;
+        }
+    }
+
+    [TestMethod]
+    public async Task AnthropicReasoningWithoutBudgetUsesAdaptiveThinking()
+    {
+        var adapter = new AnthropicMessagesAdapter();
+        var profile = CreateProfile(AiProtocol.AnthropicMessages) with
+        {
+            Reasoning = new AiReasoningOptions { Effort = AiReasoningEffort.XHigh },
+        };
+
+        using var message = adapter.CreateRequest(
+            CreateRequest(AiProtocol.AnthropicMessages, stream: false),
+            profile,
+            new CredentialValue("secret"));
+        using var document = JsonDocument.Parse(await message.Content!.ReadAsStringAsync());
+
+        Assert.AreEqual("adaptive", document.RootElement.GetProperty("thinking").GetProperty("type").GetString());
+        Assert.AreEqual("xhigh", document.RootElement.GetProperty("output_config").GetProperty("effort").GetString());
+    }
+
+    [TestMethod]
     public async Task ChatStreamMergesSplitToolArgumentEvents()
     {
         const string sse = """
@@ -345,6 +441,23 @@ public sealed class ProtocolAdapterTests
         Assert.IsTrue(errors.Count >= 3);
         Assert.ThrowsExactly<ArgumentException>(() =>
             AiConnectionProfileValidator.ResolveRequestUri(profile, "responses"));
+    }
+
+    [TestMethod]
+    public void ConnectionValidationCollectsOtherErrorsWhenReasoningIsMissing()
+    {
+        var profile = CreateProfile(AiProtocol.OpenAiResponses) with
+        {
+            Reasoning = null!,
+            BaseUri = new Uri("ftp://example.test/"),
+            RequestTimeout = TimeSpan.FromSeconds(1),
+        };
+
+        var errors = AiConnectionProfileValidator.Validate(profile);
+
+        Assert.IsTrue(errors.Any(error => error.Contains("思考设置", StringComparison.Ordinal)));
+        Assert.IsTrue(errors.Any(error => error.Contains("BaseUri", StringComparison.Ordinal)));
+        Assert.IsTrue(errors.Any(error => error.Contains("请求超时", StringComparison.Ordinal)));
     }
 
     [TestMethod]

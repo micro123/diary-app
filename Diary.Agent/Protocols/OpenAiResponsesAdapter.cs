@@ -35,6 +35,7 @@ public sealed class OpenAiResponsesAdapter : ProtocolAdapterBase
         };
         if (request.MaxOutputTokens is not null)
             body["max_output_tokens"] = request.MaxOutputTokens.Value;
+        AddReasoningConfiguration(body, connection.Reasoning);
         if (request.Tools.Count > 0)
         {
             body["tools"] = new JsonArray(request.Tools.Select(tool => new JsonObject
@@ -263,18 +264,33 @@ public sealed class OpenAiResponsesAdapter : ProtocolAdapterBase
             });
             return;
         }
+        var content = new JsonArray();
+        if (!string.IsNullOrWhiteSpace(message.Text) || message.Images.Count == 0)
+        {
+            content.Add(new JsonObject
+            {
+                ["type"] = message.Role == AgentMessageRole.User ? "input_text" : "output_text",
+                ["text"] = message.Text,
+            });
+        }
+        if (message.Images.Count > 0)
+        {
+            if (message.Role != AgentMessageRole.User)
+                throw new InvalidOperationException("仅用户消息可以包含图片输入。");
+            foreach (var image in message.Images)
+            {
+                content.Add(new JsonObject
+                {
+                    ["type"] = "input_image",
+                    ["image_url"] = image.ToDataUri(),
+                });
+            }
+        }
         input.Add(new JsonObject
         {
             ["type"] = "message",
             ["role"] = message.Role == AgentMessageRole.User ? "user" : "assistant",
-            ["content"] = new JsonArray
-            {
-                new JsonObject
-                {
-                    ["type"] = message.Role == AgentMessageRole.User ? "input_text" : "output_text",
-                    ["text"] = message.Text,
-                },
-            },
+            ["content"] = content,
         });
         foreach (var call in message.ToolCalls)
         {
@@ -286,6 +302,27 @@ public sealed class OpenAiResponsesAdapter : ProtocolAdapterBase
                 ["arguments"] = call.Arguments.GetRawText(),
             });
         }
+    }
+
+    private static void AddReasoningConfiguration(JsonObject body, AiReasoningOptions reasoning)
+    {
+        if (reasoning.Effort == AiReasoningEffort.ProviderDefault)
+            return;
+        var configuration = new JsonObject
+        {
+            ["effort"] = reasoning.Effort switch
+            {
+                AiReasoningEffort.Disabled => "none",
+                AiReasoningEffort.Low => "low",
+                AiReasoningEffort.Medium => "medium",
+                AiReasoningEffort.High => "high",
+                AiReasoningEffort.XHigh => "xhigh",
+                _ => throw new ArgumentOutOfRangeException(nameof(reasoning)),
+            },
+        };
+        if (reasoning.Effort != AiReasoningEffort.Disabled && reasoning.RequestSummary)
+            configuration["summary"] = "auto";
+        body["reasoning"] = configuration;
     }
 
     private static JsonDocument ParseEvent(string data)

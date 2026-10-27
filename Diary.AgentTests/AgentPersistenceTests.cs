@@ -95,12 +95,50 @@ public sealed class AgentPersistenceTests
             Assert.AreEqual("已压缩的历史摘要", loaded[0].ContextSummary);
             Assert.AreEqual(2, loaded[0].ContextCompactionCount);
             var raw = await File.ReadAllTextAsync(path);
-            StringAssert.Contains(raw, "\"schemaVersion\": 1");
+            StringAssert.Contains(raw, "\"schemaVersion\": 2");
             Assert.IsFalse(raw.Contains("local-note-secret", StringComparison.Ordinal));
             Assert.IsFalse(raw.Contains("api-key-secret", StringComparison.Ordinal));
 
             await store.DeleteAsync(id);
             Assert.AreEqual(0, (await store.LoadAsync()).Count);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task ConversationStorePersistsImageAsRelativeVerifiedAttachment()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"diary-agent-attachments-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var path = Path.Combine(root, "conversations.json");
+        try
+        {
+            var store = new AgentConversationStore(path);
+            var id = Guid.NewGuid();
+            var image = new AgentImageContent("image/png", [1, 2, 3, 4, 5], "screen.png", 20, 10);
+
+            var persisted = await store.CreatePersistedMessagesAsync(
+                id,
+                [AgentMessage.User("看图", [image])]);
+            var attachment = persisted.Single().Attachments!.Single();
+            Assert.IsFalse(Path.IsPathRooted(attachment.RelativePath));
+            Assert.AreEqual(image.Data.Length, attachment.Length);
+            var restored = await store.LoadAttachmentsAsync(persisted.Single());
+            CollectionAssert.AreEqual(image.Data, restored.Single().Data);
+
+            var record = new AgentConversationRecord(
+                id, "图片", "connection", "model", DateTimeOffset.UtcNow,
+                DateTimeOffset.UtcNow, persisted, [], "Completed", null);
+            await store.SaveAsync(record);
+            var raw = await File.ReadAllTextAsync(path);
+            Assert.IsFalse(raw.Contains(Convert.ToBase64String(image.Data), StringComparison.Ordinal));
+            StringAssert.Contains(raw, attachment.RelativePath.Replace("\\", "/", StringComparison.Ordinal));
+
+            await store.DeleteAsync(id);
+            Assert.IsFalse(Directory.Exists(Path.Combine(root, "attachments", id.ToString("N"))));
         }
         finally
         {

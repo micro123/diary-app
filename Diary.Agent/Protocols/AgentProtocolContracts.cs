@@ -13,11 +13,23 @@ public enum AgentMessageRole
 
 public sealed record AgentToolCall(string Id, string Name, JsonElement Arguments);
 
+public sealed record AgentImageContent(
+    string MediaType,
+    byte[] Data,
+    string FileName,
+    int PixelWidth = 0,
+    int PixelHeight = 0)
+{
+    public string ToDataUri() => $"data:{MediaType};base64,{Convert.ToBase64String(Data)}";
+}
+
 public sealed record AgentMessage
 {
     public required AgentMessageRole Role { get; init; }
 
     public string Text { get; init; } = string.Empty;
+
+    public IReadOnlyList<AgentImageContent> Images { get; init; } = [];
 
     public IReadOnlyList<AgentToolCall> ToolCalls { get; init; } = [];
 
@@ -27,7 +39,15 @@ public sealed record AgentMessage
 
     public IReadOnlyList<JsonElement> ReasoningContentBlocks { get; init; } = [];
 
-    public static AgentMessage User(string text) => new() { Role = AgentMessageRole.User, Text = text };
+    public static AgentMessage User(
+        string text,
+        IReadOnlyList<AgentImageContent>? images = null) =>
+        new()
+        {
+            Role = AgentMessageRole.User,
+            Text = text,
+            Images = images ?? [],
+        };
 
     public static AgentMessage Assistant(
         string text,

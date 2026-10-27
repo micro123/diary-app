@@ -2,6 +2,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Diary.Agent.UI.ViewModels;
@@ -43,10 +44,18 @@ public partial class AiAgentPageView : UserControl
         ChatScrollViewer.ScrollChanged += OnChatScrollChanged;
     }
 
-    private void OnInputKeyDown(object? sender, KeyEventArgs e)
+    private async void OnInputKeyDown(object? sender, KeyEventArgs e)
     {
         if (DataContext is not AiAgentPageViewModel viewModel)
             return;
+        if (sender is TextBox pasteTextBox
+            && e.Key == Key.V
+            && e.KeyModifiers == KeyModifiers.Control)
+        {
+            e.Handled = true;
+            await PasteClipboardAsync(viewModel, pasteTextBox);
+            return;
+        }
         if (sender is TextBox textBox
             && ShouldNavigateHistory(
                 e.Key,
@@ -69,6 +78,49 @@ public partial class AiAgentPageView : UserControl
 
         e.Handled = true;
         viewModel.SendCommand.Execute(null);
+    }
+
+    private async Task PasteClipboardAsync(AiAgentPageViewModel viewModel, TextBox textBox)
+    {
+        var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+        if (clipboard is null)
+            return;
+        try
+        {
+            var bitmap = await clipboard.TryGetBitmapAsync();
+            if (bitmap is not null)
+            {
+                using (bitmap)
+                    await viewModel.AddClipboardBitmapAsync(bitmap);
+                return;
+            }
+            var files = await clipboard.TryGetFilesAsync();
+            if (await viewModel.AddStorageFilesAsync(files))
+                return;
+            var text = await clipboard.TryGetTextAsync();
+            if (!string.IsNullOrEmpty(text))
+                InsertText(textBox, text);
+        }
+        catch (Exception exception) when (exception is IOException
+                                           or UnauthorizedAccessException
+                                           or InvalidOperationException)
+        {
+            viewModel.ReportImagePasteFailure(exception.Message);
+        }
+    }
+
+    private static void InsertText(TextBox textBox, string value)
+    {
+        var existing = textBox.Text ?? string.Empty;
+        var start = Math.Min(textBox.SelectionStart, textBox.SelectionEnd);
+        var end = Math.Max(textBox.SelectionStart, textBox.SelectionEnd);
+        start = Math.Clamp(start, 0, existing.Length);
+        end = Math.Clamp(end, start, existing.Length);
+        textBox.Text = existing[..start] + value + existing[end..];
+        var caret = start + value.Length;
+        textBox.CaretIndex = caret;
+        textBox.SelectionStart = caret;
+        textBox.SelectionEnd = caret;
     }
 
     internal static bool ShouldNavigateHistory(

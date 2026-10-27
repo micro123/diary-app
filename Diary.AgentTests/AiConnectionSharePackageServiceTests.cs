@@ -33,6 +33,13 @@ public sealed class AiConnectionSharePackageServiceTests
                 SendStreamOptions = false,
                 AnthropicVersion = "2024-01-01",
             },
+            ImageInputMode = AiImageInputMode.Enabled,
+            Reasoning = new AiReasoningOptions
+            {
+                Effort = AiReasoningEffort.XHigh,
+                BudgetTokens = 12288,
+                RequestSummary = false,
+            },
             Headers =
             [
                 new AiRequestHeader { Name = "X-Tenant", Value = "engineering" },
@@ -66,6 +73,10 @@ public sealed class AiConnectionSharePackageServiceTests
         Assert.AreEqual(profile.Protocol, result.Protocol);
         Assert.AreEqual(profile.BaseUri, result.BaseUri);
         Assert.AreEqual(profile.Model, result.Model);
+        Assert.AreEqual(AiImageInputMode.Enabled, result.ImageInputMode);
+        Assert.AreEqual(AiReasoningEffort.XHigh, result.Reasoning.Effort);
+        Assert.AreEqual(12288, result.Reasoning.BudgetTokens);
+        Assert.IsFalse(result.Reasoning.RequestSummary);
         Assert.AreEqual(profile.ContextWindowTokens, result.ContextWindowTokens);
         Assert.AreEqual("diary.ai/internal-anthropic-imported/api-key", result.Authentication.CredentialReference);
         Assert.AreEqual("diary.ai/internal-anthropic-imported/proxy-user", result.Proxy.UsernameCredentialReference);
@@ -107,6 +118,22 @@ public sealed class AiConnectionSharePackageServiceTests
         var exception = Assert.ThrowsExactly<InvalidDataException>(
             () => service.Import(document.ToJsonString(), []));
         StringAssert.Contains(exception.Message, "重复 ID");
+    }
+
+    [TestMethod]
+    public void Import_AcceptsVersionOneWithoutImageOrReasoningFields()
+    {
+        var service = new AiConnectionSharePackageService();
+        var document = JsonNode.Parse(service.Export([CreateProfile()]).Content)!.AsObject();
+        document["version"] = 1;
+        var profile = document["profiles"]![0]!.AsObject();
+        profile.Remove("imageInputMode");
+        profile.Remove("reasoning");
+
+        var imported = service.Import(document.ToJsonString(), []);
+
+        Assert.AreEqual(AiImageInputMode.Auto, imported.Profiles.Single().ImageInputMode);
+        Assert.AreEqual(AiReasoningEffort.ProviderDefault, imported.Profiles.Single().Reasoning.Effort);
     }
 
     [TestMethod]
