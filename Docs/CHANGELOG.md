@@ -5,6 +5,7 @@
 ## 未发布
 
 日期：2026-10-27
+- AI 助手会话管理新增自动恢复与过期清理：进入页面时加载最后活动会话，手工恢复后更新活动时间并移到列表首位；加载、保存或恢复时删除超过 30 天未活动的其他会话及其图片附件，最后活动会话始终豁免。
 - AI 助手新增连接级图片输入：可配置自动探测、强制启用或关闭，从文件选择或在输入框使用 `Ctrl+V` 粘贴剪贴板图片，支持纯图片/图文消息、待发送与历史缩略图；图片规范化后保存到 AI 模块附件目录，会话 JSON 仅保存相对路径和校验元数据，不修改数据库或工作事项结构。Chat Completions、Responses、Anthropic Messages 分别映射为 `image_url`、`input_image` 和 Base64 image block，完整能力探测增加图片阶段。
 - AI 助手新增连接级思考配置：服务默认、关闭、低、中、高、超高及可选 Anthropic 预算；服务默认不发送兼容字段，Chat Completions 使用 `reasoning_effort`，Responses 使用 `reasoning.effort`/summary，Anthropic 在无预算时使用 adaptive thinking、有预算时使用 extended thinking。连接共享包升级为 v2 并保留 v1 导入兼容，新增字段不包含凭据。
 - AI 助手每个模型轮次的默认最大输出由 4,096 Token 提高到 16,384 Token，Chat Completions、Responses 和 Anthropic Messages 统一使用新上限；工具调用后的续答也按每轮 16,384 Token 计算，该上限继续作为上下文占用的输出预留。

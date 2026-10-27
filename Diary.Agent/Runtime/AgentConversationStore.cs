@@ -53,18 +53,28 @@ public static class AgentConversationProjection
         .ToArray();
 }
 
-public sealed class AgentConversationStore(string path)
+public sealed class AgentConversationStore
 {
     private const int MaxConversations = 50;
+    private static readonly TimeSpan InactiveRetention = TimeSpan.FromDays(30);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true,
     };
     private readonly SemaphoreSlim _gate = new(1, 1);
-    private readonly string _attachmentsRoot = Path.Combine(
-        Path.GetDirectoryName(Path.GetFullPath(path))
-        ?? throw new InvalidOperationException("AI 会话文件目录无效。"),
-        "attachments");
+    private readonly string _path;
+    private readonly string _attachmentsRoot;
+    private readonly TimeProvider _timeProvider;
+
+    public AgentConversationStore(string path, TimeProvider? timeProvider = null)
+    {
+        _path = Path.GetFullPath(path);
+        _attachmentsRoot = Path.Combine(
+            Path.GetDirectoryName(_path)
+            ?? throw new InvalidOperationException("AI 会话文件目录无效。"),
+            "attachments");
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
 
     public async ValueTask<IReadOnlyList<AgentConversationMessage>> CreatePersistedMessagesAsync(
         Guid conversationId,
@@ -125,23 +135,33 @@ public sealed class AgentConversationStore(string path)
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            if (!File.Exists(path))
+            IReadOnlyList<AgentConversationRecord> result;
+            IReadOnlyList<Guid> removedIds;
+            try
+            {
+                if (!File.Exists(_path))
+                    return [];
+                await using var stream = File.OpenRead(_path);
+                var envelope = await JsonSerializer.DeserializeAsync<ConversationEnvelope>(
+                    stream,
+                    JsonOptions,
+                    cancellationToken);
+                if (envelope is null || envelope.SchemaVersion is < 1 or > 2)
+                    return [];
+                var retained = RemoveInactiveConversations(envelope.Conversations, out removedIds);
+                if (removedIds.Count > 0)
+                    await PersistWithoutLockAsync(retained, cancellationToken);
+                result = OrderByActivity(retained)
+                    .Take(MaxConversations)
+                    .ToArray();
+            }
+            catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
+            {
                 return [];
-            await using var stream = File.OpenRead(path);
-            var envelope = await JsonSerializer.DeserializeAsync<ConversationEnvelope>(
-                stream,
-                JsonOptions,
-                cancellationToken);
-            if (envelope is null || envelope.SchemaVersion is < 1 or > 2)
-                return [];
-            return envelope.Conversations
-                .OrderByDescending(item => item.UpdatedAtUtc)
-                .Take(MaxConversations)
-                .ToArray();
-        }
-        catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
-        {
-            return [];
+            }
+            foreach (var removedId in removedIds)
+                DeleteAttachmentDirectory(removedId);
+            return result;
         }
         finally
         {
@@ -157,16 +177,61 @@ public sealed class AgentConversationStore(string path)
         try
         {
             var records = await LoadWithoutLockAsync(cancellationToken);
-            var originalIds = records.Select(item => item.Id).ToHashSet();
             records.RemoveAll(item => item.Id == record.Id);
             records.Add(record);
-            var trimmed = records
-                .OrderByDescending(item => item.UpdatedAtUtc)
+            var retained = RemoveInactiveConversations(records, out _);
+            var trimmed = OrderByActivity(retained)
                 .Take(MaxConversations)
                 .ToArray();
+            var removedIds = records
+                .Select(item => item.Id)
+                .Except(trimmed.Select(item => item.Id))
+                .ToArray();
             await PersistWithoutLockAsync(trimmed, cancellationToken);
-            foreach (var removedId in originalIds.Except(trimmed.Select(item => item.Id)))
+            foreach (var removedId in removedIds)
                 DeleteAttachmentDirectory(removedId);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async ValueTask<AgentConversationRecord?> TouchAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            var records = await LoadWithoutLockAsync(cancellationToken);
+            var index = records.FindIndex(item => item.Id == id);
+            if (index < 0)
+                return null;
+            var existing = records[index];
+            var now = _timeProvider.GetUtcNow();
+            var latestActivity = records.Max(item => item.UpdatedAtUtc);
+            var touchedAt = now > latestActivity
+                ? now
+                : latestActivity < DateTimeOffset.MaxValue
+                    ? latestActivity.AddTicks(1)
+                    : latestActivity;
+            records[index] = existing with
+            {
+                UpdatedAtUtc = touchedAt,
+            };
+            var retained = RemoveInactiveConversations(records, out _);
+            var trimmed = OrderByActivity(retained)
+                .Take(MaxConversations)
+                .ToArray();
+            var removedIds = records
+                .Select(item => item.Id)
+                .Except(trimmed.Select(item => item.Id))
+                .ToArray();
+            await PersistWithoutLockAsync(trimmed, cancellationToken);
+            foreach (var removedId in removedIds)
+                DeleteAttachmentDirectory(removedId);
+            return trimmed.FirstOrDefault(item => item.Id == id);
         }
         finally
         {
@@ -194,11 +259,11 @@ public sealed class AgentConversationStore(string path)
 
     private async Task<List<AgentConversationRecord>> LoadWithoutLockAsync(CancellationToken cancellationToken)
     {
-        if (!File.Exists(path))
+        if (!File.Exists(_path))
             return [];
         try
         {
-            await using var stream = File.OpenRead(path);
+            await using var stream = File.OpenRead(_path);
             var envelope = await JsonSerializer.DeserializeAsync<ConversationEnvelope>(
                 stream,
                 JsonOptions,
@@ -217,7 +282,7 @@ public sealed class AgentConversationStore(string path)
         IReadOnlyList<AgentConversationRecord> records,
         CancellationToken cancellationToken)
     {
-        var fullPath = Path.GetFullPath(path);
+        var fullPath = _path;
         var directory = Path.GetDirectoryName(fullPath)
             ?? throw new InvalidOperationException("AI 会话文件目录无效。");
         Directory.CreateDirectory(directory);
@@ -252,6 +317,35 @@ public sealed class AgentConversationStore(string path)
     private sealed record ConversationEnvelope(
         int SchemaVersion,
         IReadOnlyList<AgentConversationRecord> Conversations);
+
+    private IReadOnlyList<AgentConversationRecord> RemoveInactiveConversations(
+        IEnumerable<AgentConversationRecord> records,
+        out IReadOnlyList<Guid> removedIds)
+    {
+        var ordered = OrderByActivity(records).ToArray();
+        if (ordered.Length <= 1)
+        {
+            removedIds = [];
+            return ordered;
+        }
+        var latestId = ordered[0].Id;
+        var cutoff = _timeProvider.GetUtcNow() - InactiveRetention;
+        var retained = ordered
+            .Where(item => item.Id == latestId || item.UpdatedAtUtc >= cutoff)
+            .ToArray();
+        var retainedIds = retained.Select(item => item.Id).ToHashSet();
+        removedIds = ordered
+            .Where(item => !retainedIds.Contains(item.Id))
+            .Select(item => item.Id)
+            .ToArray();
+        return retained;
+    }
+
+    private static IOrderedEnumerable<AgentConversationRecord> OrderByActivity(
+        IEnumerable<AgentConversationRecord> records) => records
+        .OrderByDescending(item => item.UpdatedAtUtc)
+        .ThenByDescending(item => item.CreatedAtUtc)
+        .ThenBy(item => item.Id);
 
     private static bool IsPersistable(AgentMessage message) =>
         message.Role == AgentMessageRole.User

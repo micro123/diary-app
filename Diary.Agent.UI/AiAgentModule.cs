@@ -44,13 +44,14 @@ public sealed class AiAgentModule : IAppModule
             provider.GetRequiredService<ILoggerFactory>().CreateLogger<AiConnectionProbeService>()));
         services.AddSingleton<AiConnectionManager>();
         services.AddSingleton<AiConnectionSharePackageService>();
+        services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IAgentAuditStore>(new AgentAuditStore(
             Path.Combine(settingsDirectory, "audit.jsonl")));
-        services.AddSingleton(new AgentConversationStore(
-            Path.Combine(settingsDirectory, "conversations.json")));
+        services.AddSingleton(provider => new AgentConversationStore(
+            Path.Combine(settingsDirectory, "conversations.json"),
+            provider.GetRequiredService<TimeProvider>()));
         services.AddSingleton(new AgentMemoryStore(
             Path.Combine(settingsDirectory, "memory.md")));
-        services.AddSingleton(TimeProvider.System);
         services.AddSingleton<AgentToolExecutor>();
         services.AddSingleton<AgentContextCompactor>();
         services.AddSingleton<AgentConfirmationCoordinator>();

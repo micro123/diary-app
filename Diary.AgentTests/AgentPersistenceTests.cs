@@ -109,6 +109,130 @@ public sealed class AgentPersistenceTests
     }
 
     [TestMethod]
+    public async Task ConversationStoreRemovesInactiveConversationsAndAttachmentsOnLoad()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"diary-agent-retention-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var path = Path.Combine(root, "conversations.json");
+        var now = new DateTimeOffset(2026, 10, 27, 8, 0, 0, TimeSpan.Zero);
+        var recentId = Guid.NewGuid();
+        var boundaryId = Guid.NewGuid();
+        var expiredId = Guid.NewGuid();
+        try
+        {
+            var seedStore = new AgentConversationStore(path, new FixedTimeProvider(now.AddDays(-60)));
+            await seedStore.SaveAsync(CreateConversation(recentId, now.AddDays(-5)));
+            await seedStore.SaveAsync(CreateConversation(boundaryId, now.AddDays(-30)));
+            await seedStore.SaveAsync(CreateConversation(expiredId, now.AddDays(-31)));
+            var recentDirectory = CreateAttachmentDirectory(root, recentId);
+            var expiredDirectory = CreateAttachmentDirectory(root, expiredId);
+
+            var store = new AgentConversationStore(path, new FixedTimeProvider(now));
+            var loaded = await store.LoadAsync();
+
+            CollectionAssert.AreEqual(
+                new[] { recentId, boundaryId },
+                loaded.Select(item => item.Id).ToArray());
+            Assert.IsTrue(Directory.Exists(recentDirectory));
+            Assert.IsFalse(Directory.Exists(expiredDirectory));
+            var persisted = await File.ReadAllTextAsync(path);
+            Assert.IsFalse(persisted.Contains(expiredId.ToString(), StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task ConversationStoreKeepsLatestConversationWhenAllAreInactive()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"diary-agent-retention-latest-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var path = Path.Combine(root, "conversations.json");
+        var now = new DateTimeOffset(2026, 10, 27, 8, 0, 0, TimeSpan.Zero);
+        var latestId = Guid.NewGuid();
+        var olderId = Guid.NewGuid();
+        try
+        {
+            var seedStore = new AgentConversationStore(path, new FixedTimeProvider(now.AddDays(-80)));
+            await seedStore.SaveAsync(CreateConversation(latestId, now.AddDays(-40)));
+            await seedStore.SaveAsync(CreateConversation(olderId, now.AddDays(-50)));
+            var latestDirectory = CreateAttachmentDirectory(root, latestId);
+            var olderDirectory = CreateAttachmentDirectory(root, olderId);
+
+            var store = new AgentConversationStore(path, new FixedTimeProvider(now));
+            var loaded = await store.LoadAsync();
+
+            Assert.AreEqual(1, loaded.Count);
+            Assert.AreEqual(latestId, loaded[0].Id);
+            Assert.IsTrue(Directory.Exists(latestDirectory));
+            Assert.IsFalse(Directory.Exists(olderDirectory));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task ConversationStoreRemovesInactiveConversationWhenSavingNewActivity()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"diary-agent-retention-save-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var path = Path.Combine(root, "conversations.json");
+        var now = new DateTimeOffset(2026, 10, 27, 8, 0, 0, TimeSpan.Zero);
+        var expiredId = Guid.NewGuid();
+        var activeId = Guid.NewGuid();
+        try
+        {
+            var seedStore = new AgentConversationStore(path, new FixedTimeProvider(now.AddDays(-60)));
+            await seedStore.SaveAsync(CreateConversation(expiredId, now.AddDays(-31)));
+            var expiredDirectory = CreateAttachmentDirectory(root, expiredId);
+
+            var store = new AgentConversationStore(path, new FixedTimeProvider(now));
+            await store.SaveAsync(CreateConversation(activeId, now));
+            var loaded = await store.LoadAsync();
+
+            Assert.AreEqual(1, loaded.Count);
+            Assert.AreEqual(activeId, loaded[0].Id);
+            Assert.IsFalse(Directory.Exists(expiredDirectory));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task ConversationStoreTouchMovesConversationToFront()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"diary-agent-touch-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var path = Path.Combine(root, "conversations.json");
+        var now = new DateTimeOffset(2026, 10, 27, 8, 0, 0, TimeSpan.Zero);
+        var previousId = Guid.NewGuid();
+        var touchedId = Guid.NewGuid();
+        try
+        {
+            var store = new AgentConversationStore(path, new FixedTimeProvider(now));
+            await store.SaveAsync(CreateConversation(previousId, now));
+            await store.SaveAsync(CreateConversation(touchedId, now.AddHours(-2)));
+
+            var touched = await store.TouchAsync(touchedId);
+            var loaded = await store.LoadAsync();
+
+            Assert.IsNotNull(touched);
+            Assert.IsTrue(touched.UpdatedAtUtc > now);
+            Assert.AreEqual(touchedId, loaded[0].Id);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public async Task ConversationStorePersistsImageAsRelativeVerifiedAttachment()
     {
         var root = Path.Combine(Path.GetTempPath(), $"diary-agent-attachments-{Guid.NewGuid():N}");
@@ -249,5 +373,30 @@ public sealed class AgentPersistenceTests
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    private static AgentConversationRecord CreateConversation(Guid id, DateTimeOffset updatedAtUtc) => new(
+        id,
+        $"会话 {id:N}",
+        "connection",
+        "model",
+        updatedAtUtc.AddMinutes(-1),
+        updatedAtUtc,
+        [new AgentConversationMessage("user", "测试")],
+        [],
+        "Completed",
+        null);
+
+    private static string CreateAttachmentDirectory(string root, Guid id)
+    {
+        var directory = Path.Combine(root, "attachments", id.ToString("N"));
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(Path.Combine(directory, "marker.txt"), "attachment");
+        return directory;
+    }
+
+    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
     }
 }

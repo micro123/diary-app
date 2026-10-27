@@ -241,7 +241,7 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
         _confirmations.ExternalConfirmationRequested += OnExternalConfirmationRequested;
         _confirmations.ConfirmationCompleted += OnConfirmationCompleted;
         RefreshProfiles();
-        _ = LoadConversationListAsync();
+        _ = InitializeConversationsAsync();
     }
 
     public override bool IsViewCacheable => true;
@@ -853,7 +853,19 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
             record.ContextCompactionCount);
         ResetContextUsage(profile);
         OnPropertyChanged(nameof(IsEmpty));
-        StatusText = $"已恢复会话：{record.Title}";
+        try
+        {
+            var touched = await _conversationStore.TouchAsync(record.Id);
+            if (touched is not null)
+                await LoadConversationListAsync(record.Id);
+            StatusText = $"已恢复会话：{record.Title}";
+        }
+        catch (Exception exception) when (exception is IOException
+                                           or UnauthorizedAccessException
+                                           or InvalidOperationException)
+        {
+            StatusText = $"已恢复会话：{record.Title}，但更新最后活动时间失败：{exception.Message}";
+        }
     }
 
     [RelayCommand]
@@ -1021,16 +1033,35 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
         SelectedConversation = Conversations.FirstOrDefault(item => item.Record.Id == _conversationId);
     }
 
-    private async Task LoadConversationListAsync()
+    private async Task InitializeConversationsAsync()
+    {
+        try
+        {
+            await LoadConversationListAsync(selectMostRecent: true);
+            if (SelectedConversation is not null)
+                await LoadConversation();
+        }
+        catch (Exception exception) when (exception is IOException
+                                           or UnauthorizedAccessException
+                                           or InvalidOperationException)
+        {
+            StatusText = $"历史会话初始化失败：{exception.Message}";
+        }
+    }
+
+    private async Task LoadConversationListAsync(
+        Guid? preferredSelectionId = null,
+        bool selectMostRecent = false)
     {
         var records = await _conversationStore.LoadAsync();
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
-            var selectedId = SelectedConversation?.Record.Id;
+            var selectedId = preferredSelectionId ?? SelectedConversation?.Record.Id;
             Conversations.Clear();
             foreach (var record in records)
                 Conversations.Add(new AiConversationItemViewModel(record));
-            SelectedConversation = Conversations.FirstOrDefault(item => item.Record.Id == selectedId);
+            SelectedConversation = Conversations.FirstOrDefault(item => item.Record.Id == selectedId)
+                                   ?? (selectMostRecent ? Conversations.FirstOrDefault() : null);
         });
     }
 
