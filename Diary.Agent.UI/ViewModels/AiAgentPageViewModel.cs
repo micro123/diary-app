@@ -202,6 +202,10 @@ public sealed class AiConversationItemViewModel
     public string DisplayText { get; }
 }
 
+public sealed record AiReasoningEffortOption(
+    AiReasoningEffort Value,
+    string DisplayName);
+
 public sealed partial class AiAgentPageViewModel : ViewModelBase
 {
     private static readonly IBrush ContextNormalBrush = new SolidColorBrush(Color.Parse("#6B7280"));
@@ -220,6 +224,8 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
     private TaskCompletionSource? _activeSendDetached;
     private long _sendGeneration;
     private bool _applyingPromptHistory;
+    private bool _updatingSessionOptions;
+    private bool _isReasoningOverridden;
 
     public event EventHandler? InputFocusRequested;
 
@@ -256,8 +262,19 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
 
     public ObservableCollection<AiConversationItemViewModel> Conversations { get; } = [];
 
+    public IReadOnlyList<AiReasoningEffortOption> ReasoningEffortOptions { get; } =
+        Enum.GetValues<AiReasoningEffort>()
+            .Select(value => new AiReasoningEffortOption(value, DescribeReasoningEffort(value)))
+            .ToArray();
+
     [ObservableProperty]
     private AiConnectionProfile? _selectedProfile;
+
+    [ObservableProperty]
+    private AiReasoningEffortOption? _selectedReasoningEffort;
+
+    [ObservableProperty]
+    private bool _useAgentMode;
 
     [ObservableProperty]
     private AiConversationItemViewModel? _selectedConversation;
@@ -316,10 +333,10 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
     public string ImageInputHint => SelectedProfile switch
     {
         null => "请先选择模型连接。",
-        { ImageInputMode: AiImageInputMode.Disabled } => "当前连接已关闭图片输入。",
-        { ImageInputMode: AiImageInputMode.Enabled } => "当前连接已强制启用图片输入。",
+        { ImageInputMode: AiImageInputMode.Disabled } => "当前连接已关闭图片输入，可在 AI 助手设置中调整。",
+        { ImageInputMode: AiImageInputMode.Enabled } => "添加图片；当前连接已强制启用图片输入。",
         { } profile when TryGetCapabilities(profile, out var capabilities) && capabilities.SupportsImageInput =>
-            "完整能力探测已确认图片输入。",
+            "添加图片；完整能力探测已确认支持图片输入。",
         _ => "图片输入使用 Auto，但完整能力探测尚未确认支持。",
     };
 
@@ -329,15 +346,41 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
         {
             if (SelectedProfile is null)
                 return "未配置";
-            return TryGetCapabilities(SelectedProfile, out var capabilities) && capabilities.SupportsTools
+            return CanUseAgentMode && UseAgentMode
                 ? "Agent 模式"
                 : "普通对话";
         }
     }
 
+    public bool CanUseAgentMode => SelectedProfile is not null
+                                   && TryGetCapabilities(SelectedProfile, out var capabilities)
+                                   && capabilities.SupportsTools;
+
+    public string AgentModeHint => SelectedProfile switch
+    {
+        null => "请先选择模型连接。",
+        _ when CanUseAgentMode => "仅切换当前会话是否向模型提供已启用工具。写入工具仍然需要逐次确认。",
+        _ => "当前连接尚未通过工具闭环探测，只能使用普通对话。",
+    };
+
+    public string InputProfileSummary => SelectedProfile is null
+        ? "未选择连接"
+        : $"{SelectedProfile.DisplayName} · {SelectedReasoningEffort?.DisplayName ?? "默认"}";
+
+    public string InputProfileToolTip => SelectedProfile is null
+        ? "请先在页面顶部选择模型连接。"
+        : $"连接：{SelectedProfile.DisplayName}\n模型：{SelectedProfile.Model}"
+          + $"\n当前会话思考等级：{SelectedReasoningEffort?.DisplayName ?? "默认"}"
+          + (_isReasoningOverridden ? "（临时覆盖）" : "（连接设置）");
+
     partial void OnSelectedProfileChanged(AiConnectionProfile? oldValue, AiConnectionProfile? newValue)
     {
+        ApplyProfileSessionOptions(newValue);
         OnPropertyChanged(nameof(ModeText));
+        OnPropertyChanged(nameof(CanUseAgentMode));
+        OnPropertyChanged(nameof(AgentModeHint));
+        OnPropertyChanged(nameof(InputProfileSummary));
+        OnPropertyChanged(nameof(InputProfileToolTip));
         OnPropertyChanged(nameof(CanAttachImages));
         OnPropertyChanged(nameof(ImageInputHint));
         ResetContextUsage(newValue);
@@ -357,6 +400,47 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
         StatusText = newValue is null
             ? "请在 AI 助手设置中添加并测试连接。"
             : DescribeConnection(newValue);
+    }
+
+    partial void OnSelectedReasoningEffortChanged(AiReasoningEffortOption? value)
+    {
+        if (_updatingSessionOptions || value is null || SelectedProfile is null)
+        {
+            OnPropertyChanged(nameof(InputProfileSummary));
+            OnPropertyChanged(nameof(InputProfileToolTip));
+            return;
+        }
+
+        _isReasoningOverridden = value.Value != SelectedProfile.Reasoning.Effort;
+        OnPropertyChanged(nameof(InputProfileSummary));
+        OnPropertyChanged(nameof(InputProfileToolTip));
+        ResetForSessionOptionChange($"当前会话思考等级已切换为“{value.DisplayName}”。");
+    }
+
+    partial void OnUseAgentModeChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ModeText));
+        OnPropertyChanged(nameof(AgentModeHint));
+        if (_updatingSessionOptions)
+            return;
+        if (value && !CanUseAgentMode)
+        {
+            _updatingSessionOptions = true;
+            try
+            {
+                UseAgentMode = false;
+            }
+            finally
+            {
+                _updatingSessionOptions = false;
+            }
+            StatusText = AgentModeHint;
+            return;
+        }
+
+        ResetForSessionOptionChange(value
+            ? "当前会话已切换为 Agent 模式。"
+            : "当前会话已切换为普通对话，不会向模型提供工具。");
     }
 
     [RelayCommand]
@@ -459,16 +543,21 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
         });
         try
         {
-            if (_connections.Settings.EnabledTools.Mcp)
+            var useTools = CanUseAgentMode && UseAgentMode;
+            var runProfile = CreateSessionProfile(
+                SelectedProfile,
+                SelectedReasoningEffort?.Value ?? SelectedProfile.Reasoning.Effort,
+                _isReasoningOverridden);
+            if (useTools && _connections.Settings.EnabledTools.Mcp)
                 await _mcp.RefreshToolsAsync(_tools);
             var runTask = _session.RunAsync(
                 userText,
-                SelectedProfile,
-                CreateEnabledToolSnapshot(),
+                runProfile,
+                useTools ? CreateEnabledToolSnapshot() : _tools.CreateSnapshot(static _ => false),
                 new AgentRunOptions(
                     SupportsStreaming: capabilities.SupportsStreaming,
-                    SupportsTools: capabilities.SupportsTools,
-                    SupportsStreamingTools: capabilities.SupportsStreamingTools,
+                    SupportsTools: useTools,
+                    SupportsStreamingTools: useTools && capabilities.SupportsStreamingTools,
                     UseMemory: _connections.Settings.Memory.Enabled),
                 progress,
                 images: images);
@@ -493,7 +582,7 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
                 _ => $"运行失败：{result.ErrorMessage}",
             };
             if (result.Status == AgentSessionStatus.Completed)
-                await SaveConversationAsync(result, SelectedProfile);
+                await SaveConversationAsync(result, runProfile);
         }
         finally
         {
@@ -888,9 +977,78 @@ public sealed partial class AiAgentPageViewModel : ViewModelBase
         foreach (var profile in _connections.Settings.Profiles)
             Profiles.Add(profile);
         SelectedProfile = Profiles.FirstOrDefault(profile => profile.Id == selectedId) ?? Profiles.FirstOrDefault();
+        ApplyProfileSessionOptions(SelectedProfile);
         OnPropertyChanged(nameof(ModeText));
+        OnPropertyChanged(nameof(CanUseAgentMode));
+        OnPropertyChanged(nameof(AgentModeHint));
+        OnPropertyChanged(nameof(InputProfileSummary));
+        OnPropertyChanged(nameof(InputProfileToolTip));
         OnPropertyChanged(nameof(CanAttachImages));
         OnPropertyChanged(nameof(ImageInputHint));
+    }
+
+    private static string DescribeReasoningEffort(AiReasoningEffort effort) => effort switch
+    {
+        AiReasoningEffort.ProviderDefault => "默认",
+        AiReasoningEffort.Disabled => "关闭",
+        AiReasoningEffort.Low => "低",
+        AiReasoningEffort.Medium => "中",
+        AiReasoningEffort.High => "高",
+        AiReasoningEffort.XHigh => "超高",
+        _ => "默认",
+    };
+
+    internal static AiConnectionProfile CreateSessionProfile(
+        AiConnectionProfile profile,
+        AiReasoningEffort reasoningEffort,
+        bool isReasoningOverridden)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        if (!isReasoningOverridden)
+            return profile;
+        return profile with
+        {
+            Reasoning = profile.Reasoning with
+            {
+                Effort = reasoningEffort,
+                BudgetTokens = null,
+            },
+        };
+    }
+
+    private void ApplyProfileSessionOptions(AiConnectionProfile? profile)
+    {
+        _updatingSessionOptions = true;
+        try
+        {
+            UseAgentMode = profile is not null
+                           && TryGetCapabilities(profile, out var capabilities)
+                           && capabilities.SupportsTools;
+            SelectedReasoningEffort = profile is null
+                ? ReasoningEffortOptions.FirstOrDefault(item => item.Value == AiReasoningEffort.ProviderDefault)
+                : ReasoningEffortOptions.First(item => item.Value == profile.Reasoning.Effort);
+            _isReasoningOverridden = false;
+        }
+        finally
+        {
+            _updatingSessionOptions = false;
+        }
+        OnPropertyChanged(nameof(ModeText));
+        OnPropertyChanged(nameof(CanUseAgentMode));
+        OnPropertyChanged(nameof(AgentModeHint));
+        OnPropertyChanged(nameof(InputProfileSummary));
+        OnPropertyChanged(nameof(InputProfileToolTip));
+    }
+
+    private void ResetForSessionOptionChange(string status)
+    {
+        if (IsBusy)
+            return;
+        if (Messages.Count > 0)
+            BeginNewSession();
+        else
+            ResetContextUsage(SelectedProfile);
+        StatusText = status;
     }
 
     private bool TryGetCapabilities(

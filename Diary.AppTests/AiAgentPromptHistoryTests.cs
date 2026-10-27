@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Avalonia.Input;
+using Diary.Agent.Configuration;
 using Diary.Agent.Tools;
 using Diary.Agent.UI.ViewModels;
 using Diary.Agent.UI.Views;
@@ -100,5 +101,41 @@ public sealed class AiAgentPromptHistoryTests
             document.RootElement.Clone()));
         StringAssert.Contains(confirmation.ArgumentsJson, "加班");
         Assert.IsFalse(confirmation.ArgumentsJson.Contains("\\u52A0", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void SessionReasoningOverrideDoesNotMutateSavedProfile()
+    {
+        var profile = new AiConnectionProfile
+        {
+            Id = "test-profile",
+            DisplayName = "测试连接",
+            Protocol = AiProtocol.AnthropicMessages,
+            BaseUri = new Uri("https://example.com/"),
+            Model = "test-model",
+            Reasoning = new AiReasoningOptions
+            {
+                Effort = AiReasoningEffort.High,
+                BudgetTokens = 4096,
+                RequestSummary = false,
+            },
+        };
+
+        var unchanged = AiAgentPageViewModel.CreateSessionProfile(
+            profile,
+            AiReasoningEffort.Disabled,
+            isReasoningOverridden: false);
+        var overridden = AiAgentPageViewModel.CreateSessionProfile(
+            profile,
+            AiReasoningEffort.Medium,
+            isReasoningOverridden: true);
+
+        Assert.AreSame(profile, unchanged);
+        Assert.AreNotSame(profile, overridden);
+        Assert.AreEqual(AiReasoningEffort.Medium, overridden.Reasoning.Effort);
+        Assert.IsNull(overridden.Reasoning.BudgetTokens);
+        Assert.IsFalse(overridden.Reasoning.RequestSummary);
+        Assert.AreEqual(AiReasoningEffort.High, profile.Reasoning.Effort);
+        Assert.AreEqual(4096, profile.Reasoning.BudgetTokens);
     }
 }

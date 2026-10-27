@@ -221,22 +221,27 @@
                         <TextBlock Grid.Row="5" Text="模型" VerticalAlignment="Center" />
                         <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Model}" />
                         <TextBlock Grid.Row="6" Text="图片输入" VerticalAlignment="Center" />
-                        <Grid Grid.Row="6" Grid.Column="1" ColumnDefinitions="220,*" ColumnSpacing="8">
+                        <Grid Grid.Row="6" Grid.Column="1" ColumnDefinitions="180,*" ColumnSpacing="8"
+                              VerticalAlignment="Center">
                             <ComboBox ItemsSource="{Binding ImageInputOptions}" SelectedItem="{Binding ImageInputMode}"
-                                      ItemTemplate="{StaticResource EnumOptionTemplate}" />
+                                      ItemTemplate="{StaticResource EnumOptionTemplate}"
+                                      VerticalAlignment="Center" />
                             <TextBlock Grid.Column="1" VerticalAlignment="Center" TextWrapping="Wrap" Opacity="0.65"
                                        Text="Auto 依赖完整能力探测；Enabled 强制开放图片入口；Disabled 始终关闭。" />
                         </Grid>
                         <TextBlock Grid.Row="7" Text="思考设置" VerticalAlignment="Center" />
-                        <Grid Grid.Row="7" Grid.Column="1" ColumnDefinitions="180,Auto,120,Auto,*" ColumnSpacing="8">
+                        <Grid Grid.Row="7" Grid.Column="1" ColumnDefinitions="180,Auto,120,Auto,*" ColumnSpacing="8"
+                              VerticalAlignment="Center">
                             <ComboBox ItemsSource="{Binding ReasoningEffortOptions}" SelectedItem="{Binding ReasoningEffort}"
-                                      ItemTemplate="{StaticResource EnumOptionTemplate}" />
+                                      ItemTemplate="{StaticResource EnumOptionTemplate}"
+                                      VerticalAlignment="Center" />
                             <TextBlock Grid.Column="1" Text="预算 Token" VerticalAlignment="Center" Opacity="0.7" />
                             <NumericUpDown Grid.Column="2" Value="{Binding ReasoningBudgetTokens}"
                                            Minimum="1024" Maximum="15360" Increment="1024"
-                                           Watermark="自动" />
+                                           Watermark="自动" VerticalAlignment="Center" />
                             <CheckBox Grid.Column="3" Classes="ToolbarCheckBox" Content="请求摘要"
-                                      IsChecked="{Binding RequestReasoningSummary}" />
+                                      IsChecked="{Binding RequestReasoningSummary}"
+                                      VerticalAlignment="Center" />
                             <TextBlock Grid.Column="4" Text="默认不发送思考参数；Anthropic 留空预算时使用自适应思考。"
                                        VerticalAlignment="Center" TextWrapping="Wrap" Opacity="0.65" />
                         </Grid>

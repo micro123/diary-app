@@ -20,6 +20,7 @@
                     <ComboBox Grid.Column="1" MinWidth="240" PlaceholderText="选择模型连接"
                               ItemsSource="{Binding Profiles}"
                               SelectedItem="{Binding SelectedProfile}"
+                              IsEnabled="{Binding !IsBusy}"
                               DisplayMemberBinding="{Binding DisplayName}" />
                     <Button Grid.Column="2" Classes="Primary" MinWidth="88" Content="新建会话"
                             Command="{Binding NewSessionCommand}" />
@@ -41,10 +42,9 @@
         <Grid Grid.Row="1" ColumnDefinitions="3*,2*" ColumnSpacing="8">
             <Border Classes="DetailPane" Padding="8">
                 <Grid RowDefinitions="Auto,*" RowSpacing="8">
-                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                         <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />
-                        <TextBlock Grid.Column="1" Text="{Binding ModeText}" Opacity="0.65" />
-                        <TextBlock Grid.Column="2" Text="{Binding ContextUsageText}"
+                        <TextBlock Grid.Column="1" Text="{Binding ContextUsageText}"
                                    Foreground="{Binding ContextUsageBrush}"
                                    IsVisible="{Binding IsContextUsageVisible}"
                                    ToolTip.Tip="{Binding ContextUsageToolTip}" />
@@ -238,68 +238,131 @@
             </Border>
         </Grid>
 
-        <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto,Auto"
-              ColumnSpacing="8" RowSpacing="4">
-            <ItemsControl Grid.ColumnSpan="3" ItemsSource="{Binding PendingImages}"
-                          IsVisible="{Binding HasPendingImages}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="6" />
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:AiImageAttachmentViewModel">
-                        <Border Padding="5" CornerRadius="6"
-                                BorderBrush="{DynamicResource ThemeBorderLowBrush}" BorderThickness="1">
-                            <Grid ColumnDefinitions="64,Auto" ColumnSpacing="5">
-                                <Image Source="{Binding Preview}" Width="64" Height="48" Stretch="UniformToFill" />
-                                <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding FileName}" MaxWidth="150" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Text="{Binding Details}" FontSize="10" Opacity="0.6" />
-                                    <Button Theme="{DynamicResource BorderlessButton}" Padding="2"
-                                            HorizontalAlignment="Left"
-                                            Command="{Binding $parent[UserControl].DataContext.RemovePendingImageCommand}"
-                                            CommandParameter="{Binding}" ToolTip.Tip="移除图片">
-                                        <i:Icon Value="mdi-close" FontSize="14" />
-                                    </Button>
+        <Border Grid.Row="2" Padding="12,10" CornerRadius="20"
+                Background="{DynamicResource SemiColorFill1}"
+                BorderBrush="{DynamicResource SemiColorBorder}" BorderThickness="1">
+            <Grid RowDefinitions="Auto,*,Auto" RowSpacing="6">
+                <ItemsControl ItemsSource="{Binding PendingImages}"
+                              IsVisible="{Binding HasPendingImages}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="6" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:AiImageAttachmentViewModel">
+                            <Border Padding="5" CornerRadius="8"
+                                    Background="{DynamicResource SemiColorFill2}"
+                                    BorderBrush="{DynamicResource SemiColorBorder}" BorderThickness="1">
+                                <Grid ColumnDefinitions="64,Auto" ColumnSpacing="5">
+                                    <Image Source="{Binding Preview}" Width="64" Height="48" Stretch="UniformToFill" />
+                                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding FileName}" MaxWidth="150"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Details}" FontSize="10" Opacity="0.6" />
+                                        <Button Theme="{DynamicResource BorderlessButton}" Padding="2"
+                                                HorizontalAlignment="Left"
+                                                Command="{Binding $parent[UserControl].DataContext.RemovePendingImageCommand}"
+                                                CommandParameter="{Binding}" ToolTip.Tip="移除图片">
+                                            <i:Icon Value="mdi-close" FontSize="14" />
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBox x:Name="AiAgentInputTextBox" Grid.Row="1" Text="{Binding Input}"
+                         Watermark="输入问题或工作记录需求…"
+                         AcceptsReturn="True" MinHeight="64" MaxHeight="160"
+                         Padding="8,6" Background="Transparent" BorderThickness="0"
+                         TextWrapping="Wrap" TextAlignment="Left"
+                         VerticalContentAlignment="Top"
+                         ToolTip.Tip="Enter 或 Ctrl+Enter 发送；Shift+Enter 换行；Ctrl+V 粘贴图片或文字；↑/↓ 浏览当前运行期提示词历史" />
+
+                <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8">
+                    <Button Width="34" Height="34" Padding="0"
+                            Theme="{DynamicResource BorderlessButton}"
+                            Command="{Binding AddImagesCommand}"
+                            ToolTip.Tip="{Binding ImageInputHint}"
+                            AutomationProperties.Name="添加图片">
+                        <i:Icon Value="mdi-plus" FontSize="20" />
+                    </Button>
+                    <Button Grid.Column="1" Padding="4,2"
+                            Theme="{DynamicResource BorderlessButton}"
+                            IsEnabled="{Binding !IsBusy}"
+                            ToolTip.Tip="{Binding AgentModeHint}">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <i:Icon Value="mdi-shield-outline" FontSize="16"
+                                    Foreground="{DynamicResource SemiColorPrimary}" />
+                            <TextBlock Text="{Binding ModeText}" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource SemiColorPrimary}" />
+                            <i:Icon Value="mdi-chevron-up" FontSize="15" Opacity="0.65" />
+                        </StackPanel>
+                        <Button.Flyout>
+                            <Flyout ShowMode="Standard" Placement="TopEdgeAlignedLeft">
+                                <StackPanel Width="280" Spacing="8">
+                                    <TextBlock Text="当前会话模式" FontWeight="SemiBold" />
+                                    <CheckBox Content="启用 Agent 工具"
+                                              IsChecked="{Binding UseAgentMode}"
+                                              IsEnabled="{Binding CanUseAgentMode}"
+                                              VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding AgentModeHint}" TextWrapping="Wrap" Opacity="0.68" />
                                 </StackPanel>
-                            </Grid>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-            <TextBox x:Name="AiAgentInputTextBox" Grid.Row="1" Text="{Binding Input}"
-                     Watermark="输入问题或工作记录需求…"
-                     AcceptsReturn="True" MinHeight="72" MaxHeight="180"
-                     Padding="10,8"
-                     TextWrapping="Wrap" TextAlignment="Left"
-                     VerticalContentAlignment="Top"
-                     ToolTip.Tip="Enter 或 Ctrl+Enter 发送；Shift+Enter 换行；↑/↓ 浏览当前运行期提示词历史" />
-            <Button Grid.Row="1" Grid.Column="1" Width="36" Height="36" Padding="0"
-                    VerticalAlignment="Center" Command="{Binding AddImagesCommand}"
-                    IsEnabled="{Binding CanAttachImages}" ToolTip.Tip="{Binding ImageInputHint}"
-                    AutomationProperties.Name="添加图片">
-                <i:Icon Value="mdi-image-plus" FontSize="18" />
-            </Button>
-            <Grid Grid.Row="1" Grid.Column="2" VerticalAlignment="Center">
-                <Button Width="40" Height="40" Padding="0" CornerRadius="20"
-                        Classes="Danger" Command="{Binding StopCommand}"
-                        IsVisible="{Binding IsBusy}"
-                        ToolTip.Tip="停止生成"
-                        AutomationProperties.Name="停止生成">
-                    <i:Icon Value="mdi-stop" FontSize="18" />
-                </Button>
-                <Button Width="40" Height="40" Padding="0" CornerRadius="20"
-                        Classes="Primary" Command="{Binding SendCommand}"
-                        IsVisible="{Binding !IsBusy}"
-                        ToolTip.Tip="发送消息"
-                        AutomationProperties.Name="发送消息">
-                    <i:Icon Value="mdi-send" FontSize="18" />
-                </Button>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+                    <Button Grid.Column="2" MaxWidth="280" Margin="8,0,0,0" Padding="6,2"
+                            HorizontalAlignment="Right"
+                            Theme="{DynamicResource BorderlessButton}"
+                            IsEnabled="{Binding !IsBusy}"
+                            ToolTip.Tip="{Binding InputProfileToolTip}">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
+                            <TextBlock Text="{Binding InputProfileSummary}"
+                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                       Opacity="0.72" />
+                            <i:Icon Grid.Column="1" Value="mdi-chevron-up" FontSize="15"
+                                    VerticalAlignment="Center" Opacity="0.65" />
+                        </Grid>
+                        <Button.Flyout>
+                            <Flyout ShowMode="Standard" Placement="TopEdgeAlignedRight">
+                                <StackPanel Width="320" Spacing="8">
+                                    <TextBlock Text="当前会话快捷设置" FontWeight="SemiBold" />
+                                    <TextBlock Text="模型连接" Opacity="0.7" />
+                                    <ComboBox ItemsSource="{Binding Profiles}"
+                                              SelectedItem="{Binding SelectedProfile}"
+                                              DisplayMemberBinding="{Binding DisplayName}"
+                                              IsEnabled="{Binding !IsBusy}" />
+                                    <TextBlock Text="思考等级" Opacity="0.7" />
+                                    <ComboBox ItemsSource="{Binding ReasoningEffortOptions}"
+                                              SelectedItem="{Binding SelectedReasoningEffort}"
+                                              DisplayMemberBinding="{Binding DisplayName}"
+                                              IsEnabled="{Binding !IsBusy}" />
+                                    <TextBlock Text="快捷选择只影响当前会话，不会覆盖已保存的连接配置。切换设置后，已有对话会开始新的模型上下文。"
+                                               TextWrapping="Wrap" Opacity="0.68" />
+                                </StackPanel>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+                    <Grid Grid.Column="3" Width="40" Height="40">
+                        <Button Width="40" Height="40" Padding="0" CornerRadius="20"
+                                Classes="Danger" Command="{Binding StopCommand}"
+                                IsVisible="{Binding IsBusy}"
+                                ToolTip.Tip="停止生成"
+                                AutomationProperties.Name="停止生成">
+                            <i:Icon Value="mdi-stop" FontSize="18" />
+                        </Button>
+                        <Button Width="40" Height="40" Padding="0" CornerRadius="20"
+                                Classes="Primary" Command="{Binding SendCommand}"
+                                IsVisible="{Binding !IsBusy}"
+                                ToolTip.Tip="发送消息"
+                                AutomationProperties.Name="发送消息">
+                            <i:Icon Value="mdi-send" FontSize="18" />
+                        </Button>
+                    </Grid>
+                </Grid>
             </Grid>
-            <TextBlock Grid.Row="2" Grid.ColumnSpan="3"
-                       Text="Enter / Ctrl+Enter 发送 · Shift+Enter 换行 · Ctrl+V 粘贴图片或文字 · ↑/↓ 历史"
-                       FontSize="11" Opacity="0.62" />
-        </Grid>
+        </Border>
     </Grid>
 </UserControl>
