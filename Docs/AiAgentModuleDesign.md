@@ -3,7 +3,7 @@
 ## 1. 文档状态
 
 - 状态：详细设计已实现并通过自动化、UI 与发布门禁
-- 日期：2026-10-26
+- 日期：2026-10-27
 - 需求基线：[`AiAgentModuleRequirements.md`](AiAgentModuleRequirements.md)
 - 评审记录：[`AiAgentModuleDesignReview.md`](AiAgentModuleDesignReview.md)
 - 实施状态：阶段 A、P0、P1、只读系统浏览器渲染和首版 MCP Client 已完成；浏览器交互与独立在线更新保留为后续边界
@@ -586,6 +586,8 @@ Idle -> Running -> WaitingForApproval -> Running -> Completed
 ### 9.4 自动上下文压缩
 
 连接配置增加 `ContextWindowTokens`、`AutomaticContextCompression` 和 `ContextCompressionThresholdPercent`。默认窗口为 128 Ki Token、自动压缩开启、阈值 75%；内部声明 1M 上下文的连接应把窗口显式设置为 `1000000`，模型名称本身仍不包含 `[1M]`。
+
+每次模型请求的默认最大输出为 16,384 Token，统一传入 Chat Completions 的 `max_tokens`、Responses 的 `max_output_tokens` 和 Anthropic Messages 的 `max_tokens`。该值按每个模型轮次计算，不是整个工具闭环的累计上限，并继续作为上下文占用的输出预留。
 
 `AgentContextCompactor` 使用 UTF-8 字节数的保守估算，统计固定指令、已有摘要、消息文本、工具调用参数、工具 schema、Responses 协议状态和预留输出。超过阈值时以用户消息边界切分，只压缩最近两轮之前的完整历史：
 

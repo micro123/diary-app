@@ -49,7 +49,7 @@ public sealed class AnthropicMessagesAdapter : ProtocolAdapterBase
             ["system"] = request.SystemInstruction,
             ["messages"] = messages,
             ["stream"] = request.Stream,
-            ["max_tokens"] = request.MaxOutputTokens ?? 4096,
+            ["max_tokens"] = request.MaxOutputTokens ?? 16 * 1024,
         };
         if (request.Tools.Count > 0)
         {

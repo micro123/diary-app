@@ -146,7 +146,7 @@ public sealed class AgentSessionServiceTests
         Assert.AreEqual(1, contextEvents.Length);
         Assert.IsTrue(contextEvents[0].IsEstimated);
         Assert.IsTrue(contextEvents[0].InputTokens > 0);
-        Assert.AreEqual(4096, contextEvents[0].ReservedOutputTokens);
+        Assert.AreEqual(16 * 1024, contextEvents[0].ReservedOutputTokens);
     }
 
     [TestMethod]

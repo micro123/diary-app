@@ -6,6 +6,7 @@
 
 ## 非 Tracker TODO
 
+- [x] 将 Agent 每个模型轮次的默认最大输出从 4,096 Token 提高到 16,384 Token，三种模型协议统一传入该上限，并将其继续计入上下文输出预留；不修改连接设置 schema 或会话结构。
 - [x] 标签增加“仅本地记录”业务属性：事项标签按 `AnyOf` 判断，命中后不保存新的 Tracker 绑定、不执行 Tracker 标签默认值规则、不调用远端 API；单项、同日和周/月同步均视为已处理并跳过，工时继续计入统计。实现不修改数据库结构、不伪造远端 ID，完成记录见 [`CompletedWork.md`](CompletedWork.md)。
 - [x] 增加独立 `Diary.ConfigTool` 配置管理工具：无需启动主程序即可选择配置目录，诊断 DPAPI/主密钥状态，以属性表或 JSON 编辑已注册配置，执行格式校验、外部修改防覆盖、原子保存、`.bak` 恢复，以及单项/整包明文导入导出；Windows 下支持在完整备份后使用旧 SID 和旧密码迁移 DPAPI 用户主密钥，也可在已有明文包时重新初始化加密身份；RID 发布包包含独立工具入口。设计与边界见 [`ConfigurationToolDesign.md`](ConfigurationToolDesign.md)。
 - [x] 为 Agent 增加运行时日期与时区上下文：每个 run 自动注入系统本地日期时间、星期、时区、UTC 偏移、昨天和明天，移除重复读取当前时钟的工具，新增默认启用的确定性只读 `diary_calculate_time` 做显式日期加减和差值计算；明确区分系统今天与 DiaryApp 页面日期，使用可注入 `TimeProvider` 覆盖跨 run 刷新和三协议系统字段，不修改数据库或会话结构。

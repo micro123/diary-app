@@ -64,7 +64,7 @@ public sealed record AgentContextUsage(
 public sealed record AgentRunBudget(
     int MaxRounds = 8,
     int MaxToolCalls = 12,
-    int MaxOutputTokens = 4096)
+    int MaxOutputTokens = 16 * 1024)
 {
     public AgentRunBudget Validate()
     {
